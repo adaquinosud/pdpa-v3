@@ -1,0 +1,22 @@
+"""Flask app principal — PDPA v3."""
+
+from flask import Flask
+from flask_cors import CORS
+from src.config import get_config
+
+
+def create_app() -> Flask:
+    app = Flask(__name__)
+    app.config.from_object(get_config())
+    CORS(app)
+
+    @app.route("/health")
+    def health():
+        return {"status": "ok", "version": "3.0.0-dev"}
+
+    return app
+
+
+if __name__ == "__main__":
+    app = create_app()
+    app.run(host="0.0.0.0", port=5050, debug=True)

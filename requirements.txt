@@ -1,0 +1,47 @@
+# Framework
+Flask==3.0.0
+Flask-Login==0.6.3
+Flask-Cors==4.0.0
+PyJWT==2.8.0
+
+# ORM e banco
+SQLAlchemy==2.0.25
+alembic==1.13.1
+
+# LLM
+anthropic==0.18.0
+openai==1.12.0  # apenas para embeddings
+
+# Coleta
+apify-client==1.6.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+
+# Processamento de dados
+pandas==2.1.4
+numpy==1.26.3
+scikit-learn==1.4.0
+hdbscan==0.8.33
+
+# Anomalias
+salesforce-merlion==2.0.4
+
+# Geração de documentos
+python-docx==1.1.0
+openpyxl==3.1.2
+
+# Segurança
+cryptography==42.0.0
+bcrypt==4.1.2
+
+# Utils
+python-dotenv==1.0.0
+pydantic==2.5.3
+
+# Dev
+pytest==7.4.4
+pytest-cov==4.1.0
+black==24.1.1
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.0

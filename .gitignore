@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribuição
+build/
+dist/
+*.egg-info/
+
+# Banco
+*.db
+*.sqlite
+*.sqlite3
+
+# Variáveis sensíveis
+.env
+.env.local
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Outputs temporários
+/tmp/
+/outputs/
+documentos_gerados/
