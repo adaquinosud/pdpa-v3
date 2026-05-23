@@ -368,6 +368,32 @@ Endpoints e features do v2 que **vão** ser migrados, mas em blocos posteriores.
     - **Lógica provável no v3:** regex/parser para extrair place_id de URLs do Maps + endpoint de validação que faz HEAD na Places API. Erro amigável se inválido.
     - **Complexidade:** baixa.
 
+42. **Novo modelo de cadastro — estrutura hierárquica Empresa → Agrupamento → Local → Fonte**
+    - **O que é:** introduzir Agrupamento como nível intermediário (opcional) entre Empresa e Local. Reorganiza o cadastro em 4 níveis: `Empresa → Agrupamento (opcional) → Local → Fonte`. Locais sem agrupamento ficam em "Geral" virtual no Painel.
+
+    - **Schema (migration nova no Bloco 4):**
+        - Nova tabela `agrupamentos` (`id`, `empresa_id` FK, `nome`, `descricao`, `ativo` BOOLEAN DEFAULT 1, `criado_em`).
+        - Nova coluna `agrupamento_id` em `locais` (FK nullable — agrupamento é opcional).
+        - Nova coluna `ativo` em `fontes` (BOOLEAN DEFAULT 1) — permite desativar fonte sem deletar histórico.
+
+    - **Templates Excel padronizados** (criados antes do Bloco 4): `Template_Simples_PDPA_v3.xlsx` e `Template_Completo_PDPA_v3.xlsx`. Importador do Bloco 4 deve aceitar ambos:
+        - **Detecção automática:** se a planilha tem aba `02 Agrupamentos` → template completo; senão → template simples.
+        - **Template simples:** locais ficam com `agrupamento_id = NULL`.
+        - **Template completo:** locais vinculados a agrupamentos via coluna `agrupamento_nome` na aba de Locais.
+
+    - **Permissões:**
+        - Agrupamento é editável **apenas por Loyall (admin)**, não pelo cliente final.
+        - Cliente final consome Agrupamentos no Painel Executivo mas **não cria nem edita**.
+
+    - **Painel Executivo (Bloco 5+):** locais sem agrupamento aparecem em "Geral" virtual (não é registro persistente; é label de UI).
+
+    - **Migração de dados:** nenhuma. Sistema roda do zero no v3.
+
+    - **Sugestão de agrupamentos via Claude.ai (não pelo app)** na fase de criação manual da planilha pelo Loyall. Prompt-padrão a registrar em `docs/prompts/sugerir_agrupamentos.md` quando o Bloco 4 começar.
+
+    - **Bloco previsto no v3:** 4 (Cadastros completos).
+    - **Complexidade:** média (schema + importer dual-template + UI/admin do Agrupamento).
+
 ### Bloco 5+ — Painel Executivo + Diagnósticos
 
 21. **Endpoints de analytics agregados (~30 endpoints)**
@@ -391,6 +417,21 @@ Endpoints e features do v2 que **vão** ser migrados, mas em blocos posteriores.
     - **Bloco previsto no v3:** 5+ (Painel Executivo) — quando a métrica de divergência fizer sentido analítico.
     - **Lógica provável no v3:** estender o coletor `google.py` para capturar `rating` no item Apify; armazenar em `verbatins_metadados` (nova tabela) ou campo dedicado no `Verbatim` (migration). Painel calcula `divergencia = ratio_pdpa_normalizado - rating_medio_normalizado`.
     - **Complexidade:** baixa (capturar rating) + média (decidir storage) + alta (métrica analítica no Painel).
+
+43. **Aba "Explorar" — visualização customizada pelo cliente**
+    - **O que é:** Tela 1 do Painel Executivo. Lista todos os Locais da empresa; o cliente seleciona quais quer visualizar (filtro temporário); o Painel re-agrega métricas (Pa1, D2, P2, etc.) conforme a seleção. Opção "Salvar como minha visão" cria registro persistente para reabrir depois.
+
+    - **Schema (quando implementar):**
+        - Nova tabela `visoes_salvas` (`id`, `usuario_id` FK, `nome`, `locais_ids` JSON, `filtros_extras` JSON, `criado_em`).
+        - Cliente vê **apenas** suas próprias visões.
+        - Loyall vê todas as visões (para suporte).
+
+    - **Diferença em relação a Agrupamento (item 42):**
+        - **Agrupamento** = estrutura **permanente** definida por Loyall no cadastro (Bloco 4). Aparece para todos os usuários da empresa.
+        - **Visão Salva** = filtro **temporário** criado pelo cliente final, não muda a estrutura do cadastro e é privada do usuário.
+
+    - **Bloco previsto no v3:** 5+ (Painel Executivo).
+    - **Complexidade:** média (filtro dinâmico + agregação re-calculada + persistência por usuário).
 
 38. **Lente de Governança (reescrita necessária, possível adaptação futura)**
     - v2: `gerador_executivo_guarda_chuva.py` + `ESCOPO_POR_TIPO` em `marcas.py:30-50` (+ endpoints em `backend.py` lns. 3192, 3197, 3260: `/api/analytics/<empresa>/lente-ecossistema`, `/is-guarda-chuva`, `/marcas`)
