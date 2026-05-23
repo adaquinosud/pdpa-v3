@@ -5,9 +5,10 @@
 <div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
 <div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
 <ul class="mt-2 space-y-1 text-sm">
-  <li><a href="#agrupamentos" class="block px-2 py-1 rounded hover:bg-loyall-200">Agrupamentos · {{ agrupamentos|length }}</a></li>
-  <li><a href="#locais" class="block px-2 py-1 rounded hover:bg-loyall-200">Locais · {{ locais|length }}</a></li>
-  <li><a href="#fontes" class="block px-2 py-1 rounded hover:bg-loyall-200">Fontes · {{ fontes|length }}</a></li>
+  <li><a href="#hierarquia" class="block px-2 py-1 rounded hover:bg-loyall-200">Hierarquia ({{ stats.total_agrupamentos }} grupos)</a></li>
+  {% if fontes_empresa %}
+  <li><a href="#fontes-empresa" class="block px-2 py-1 rounded hover:bg-loyall-200">Fontes da empresa ({{ fontes_empresa|length }})</a></li>
+  {% endif %}
 </ul>
 {% endblock %}
 
@@ -29,128 +30,158 @@
   {% if empresa.observacao %}<div class="text-sm text-loyall-700 mt-2 italic">{{ empresa.observacao }}</div>{% endif %}
 </div>
 
-{# ── Agrupamentos ──────────────────────────────────────────────────── #}
-<section id="agrupamentos" class="bg-white border border-loyall-200 rounded p-4 mb-6">
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="text-lg font-semibold">Agrupamentos</h2>
-    {% if not eh_loyall %}<span class="text-xs text-loyall-400">Edição restrita a admin Loyall</span>{% endif %}
+{# ── Stats cards ─────────────────────────────────────────────────────── #}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="bg-white border border-loyall-200 rounded p-3">
+    <div class="text-xs text-loyall-400 uppercase tracking-wider">Agrupamentos</div>
+    <div class="text-2xl font-semibold text-loyall-800">{{ stats.total_agrupamentos }}</div>
   </div>
+  <div class="bg-white border border-loyall-200 rounded p-3">
+    <div class="text-xs text-loyall-400 uppercase tracking-wider">Locais</div>
+    <div class="text-2xl font-semibold text-loyall-800">{{ stats.total_locais }}</div>
+    {% if stats.total_locais != stats.locais_ativos %}
+    <div class="text-xs text-loyall-400 mt-0.5">{{ stats.locais_ativos }} ativos</div>
+    {% endif %}
+  </div>
+  <div class="bg-white border border-loyall-200 rounded p-3">
+    <div class="text-xs text-loyall-400 uppercase tracking-wider">Fontes ativas</div>
+    <div class="text-2xl font-semibold text-emerald-700">{{ stats.fontes_ativas }}</div>
+  </div>
+  <div class="bg-white border border-loyall-200 rounded p-3">
+    <div class="text-xs text-loyall-400 uppercase tracking-wider">Fontes inativas</div>
+    <div class="text-2xl font-semibold text-loyall-400">{{ stats.fontes_inativas }}</div>
+  </div>
+</div>
+
+{# ── Filtros + expand/collapse all ──────────────────────────────────── #}
+<div class="bg-white border border-loyall-200 rounded p-3 mb-3 flex flex-wrap items-center gap-3 text-sm">
+  <input id="filtro-busca" placeholder="Buscar nome, endereço, URL…"
+         class="px-3 py-1.5 border border-loyall-200 rounded flex-1 min-w-[12rem]">
+  <label class="flex items-center gap-1 text-loyall-700">
+    <input type="checkbox" id="filtro-so-ativos"> Só ativos
+  </label>
+  <label class="flex items-center gap-1 text-loyall-700">
+    <input type="checkbox" id="filtro-so-com-fontes"> Só com fontes
+  </label>
+  <div class="ml-auto flex items-center gap-2 text-xs">
+    <button id="expand-all" class="px-3 py-1 border border-loyall-200 hover:bg-loyall-100 rounded text-loyall-700">Expandir tudo</button>
+    <button id="collapse-all" class="px-3 py-1 border border-loyall-200 hover:bg-loyall-100 rounded text-loyall-700">Recolher tudo</button>
+  </div>
+</div>
+
+{# ── Hierarquia ──────────────────────────────────────────────────────── #}
+<section id="hierarquia">
+  <div id="agrupamentos-tbody">
+    {% for a in agrupamentos %}
+      {% include "partials/agrupamento_card.html" %}
+    {% endfor %}
+  </div>
+
+  {% if locais_sem_ag %}
+  <details id="sem-agrupamento" class="ag-card border border-loyall-200 rounded mb-2 bg-loyall-50"
+           data-nome="(sem agrupamento)" data-ativo="true" data-tem-fontes="true">
+    <summary class="cursor-pointer select-none px-3 py-2 flex items-center gap-3 hover:bg-loyall-100">
+      <span class="text-loyall-400">▸</span>
+      <span class="font-semibold text-loyall-700 italic">Sem agrupamento</span>
+      <span class="text-xs text-loyall-400">{{ locais_sem_ag|length }} locais</span>
+    </summary>
+    <div class="px-4 pb-3 pt-1 border-t border-loyall-100">
+      <div id="locais-sem-ag" class="space-y-1">
+        {% for loc in locais_sem_ag %}
+          {% include "partials/local_card.html" %}
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+  {% endif %}
 
   {% if eh_loyall %}
   <form hx-post="{{ url_for('ui.htmx_criar_agrupamento', empresa_id=empresa.id) }}"
         hx-target="#agrupamentos-tbody" hx-swap="beforeend"
         hx-on::after-request="if(event.detail.successful) this.reset()"
-        class="flex gap-2 mb-3 text-sm">
-    <input name="nome" placeholder="Nome" required class="px-2 py-1 border border-loyall-200 rounded flex-1">
-    <input name="descricao" placeholder="Descrição (opcional)" class="px-2 py-1 border border-loyall-200 rounded flex-1">
-    <button class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">+ Adicionar</button>
+        class="mt-3 flex gap-2 text-sm items-center bg-loyall-50 p-2 rounded">
+    <input name="nome" placeholder="Novo agrupamento" required
+           class="px-2 py-1 border border-loyall-200 rounded flex-1 max-w-xs">
+    <input name="descricao" placeholder="Descrição (opcional)"
+           class="px-2 py-1 border border-loyall-200 rounded flex-1">
+    <button class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded text-xs">+ agrupamento</button>
   </form>
   {% endif %}
-
-  <table class="w-full text-sm">
-    <thead class="text-loyall-400 text-left">
-      <tr><th class="py-1">Nome</th><th class="py-1">Descrição</th><th class="py-1">Status</th><th class="py-1 w-32">Ações</th></tr>
-    </thead>
-    <tbody id="agrupamentos-tbody">
-    {% for a in agrupamentos %}
-      {% include "partials/agrupamento_row.html" %}
-    {% endfor %}
-    </tbody>
-  </table>
 </section>
 
-{# ── Locais ───────────────────────────────────────────────────────── #}
-<section id="locais" class="bg-white border border-loyall-200 rounded p-4 mb-6">
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="text-lg font-semibold">Locais</h2>
+{# ── Fontes diretas da empresa (não pertencem a nenhum local) ────────── #}
+{% if fontes_empresa %}
+<section id="fontes-empresa" class="mt-6">
+  <h2 class="text-lg font-semibold mb-2 text-loyall-700">Fontes da empresa <span class="text-xs text-loyall-400">(não vinculadas a local)</span></h2>
+  <div id="fontes-empresa-body" class="bg-white border border-loyall-200 rounded p-2 space-y-0.5">
+    {% for f in fontes_empresa %}
+      {% include "partials/fonte_item.html" %}
+    {% endfor %}
   </div>
-
-  <form hx-post="{{ url_for('ui.htmx_criar_local', empresa_id=empresa.id) }}"
-        hx-target="#locais-tbody" hx-swap="beforeend"
-        hx-on::after-request="if(event.detail.successful) this.reset()"
-        class="flex gap-2 mb-3 text-sm">
-    <input name="nome" placeholder="Nome" required class="px-2 py-1 border border-loyall-200 rounded flex-1">
-    <select name="agrupamento_id" class="px-2 py-1 border border-loyall-200 rounded">
-      <option value="">Sem agrupamento</option>
-      {% for a in agrupamentos %}
-      <option value="{{ a.id }}">{{ a.nome }}</option>
-      {% endfor %}
-    </select>
-    <input name="endereco" placeholder="Endereço (opcional)" class="px-2 py-1 border border-loyall-200 rounded flex-1">
-    <button class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">+ Adicionar</button>
-  </form>
-
-  <table class="w-full text-sm">
-    <thead class="text-loyall-400 text-left">
-      <tr><th class="py-1">Nome</th><th class="py-1">Agrupamento</th><th class="py-1">Endereço</th><th class="py-1">Status</th><th class="py-1 w-32">Ações</th></tr>
-    </thead>
-    <tbody id="locais-tbody">
-    {% for loc in locais %}
-      {% include "partials/local_row.html" %}
-    {% endfor %}
-    </tbody>
-  </table>
 </section>
+{% endif %}
 
-{# ── Fontes ──────────────────────────────────────────────────────── #}
-<section id="fontes" class="bg-white border border-loyall-200 rounded p-4 mb-6">
-  <div class="flex items-center justify-between mb-3">
-    <h2 class="text-lg font-semibold">Fontes</h2>
-    <span class="text-xs text-loyall-400">Coleta dispara só com <code class="text-loyall-700">ativo=sim</code></span>
-  </div>
+<script>
+  // Filtros client-side
+  function aplicaFiltros() {
+    const busca = (document.getElementById('filtro-busca').value || '').trim().toLowerCase();
+    const soAtivos = document.getElementById('filtro-so-ativos').checked;
+    const soComFontes = document.getElementById('filtro-so-com-fontes').checked;
 
-  {% if locais %}
-  <form hx-post=""
-        hx-include="#form-fonte input, #form-fonte select"
-        hx-vals='js:{}'
-        hx-on:submit="
-          var lid = document.querySelector('#form-fonte select[name=local_id]').value;
-          if(!lid) { event.preventDefault(); return false; }
-          this.setAttribute('hx-post', '/ui/locais/' + lid + '/fontes');
-          htmx.process(this);
-        "
-        hx-target="#fontes-tbody" hx-swap="beforeend"
-        hx-on::after-request="if(event.detail.successful) this.reset()"
-        id="form-fonte" class="grid grid-cols-12 gap-2 mb-3 text-sm">
-    <select name="local_id" required class="col-span-3 px-2 py-1 border border-loyall-200 rounded">
-      <option value="">Local…</option>
-      {% for loc in locais %}<option value="{{ loc.id }}">{{ loc.nome }}</option>{% endfor %}
-    </select>
-    <select name="conector_tipo" required class="col-span-2 px-2 py-1 border border-loyall-200 rounded">
-      <option value="">Conector…</option>
-      <optgroup label="Com scraper">
-        <option>google</option><option>instagram</option><option>facebook</option>
-        <option>tripadvisor</option><option>linkedin</option><option>tiktok</option>
-        <option>youtube</option><option>appstore</option><option>mercadolivre</option>
-        <option>google_news</option>
-      </optgroup>
-      <optgroup label="Catalogação (apenas inativo)">
-        <option>website</option><option>glassdoor</option><option>indeed</option>
-        <option>reclame_aqui</option><option>consumidor_gov</option><option>amazon</option>
-      </optgroup>
-    </select>
-    <input name="url" placeholder="URL ou place_id" required class="col-span-5 px-2 py-1 border border-loyall-200 rounded">
-    <label class="col-span-1 flex items-center gap-1 text-sm">
-      <input type="checkbox" name="ativo" checked> ativo
-    </label>
-    <button class="col-span-1 px-2 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">+</button>
-  </form>
-  {% else %}
-  <div class="text-loyall-400 text-sm mb-3">Cadastre ao menos um local antes de adicionar fontes.</div>
-  {% endif %}
+    // Para cada agrupamento (incluindo 'sem-agrupamento')
+    document.querySelectorAll('#hierarquia .ag-card').forEach(ag => {
+      let visiveis = 0;
+      // Para cada local dentro do agrupamento
+      ag.querySelectorAll('.loc-card').forEach(loc => {
+        let locMatch = !busca || (loc.dataset.nome || '').includes(busca);
+        // Se busca, também conferir nas fontes
+        if (busca && !locMatch) {
+          locMatch = Array.from(loc.querySelectorAll('.fonte-item'))
+            .some(f => (f.dataset.nome || '').includes(busca));
+        }
+        let mostraLoc = locMatch;
+        if (soAtivos && loc.dataset.ativo === 'false') mostraLoc = false;
+        if (soComFontes && loc.dataset.temFontes === 'false') mostraLoc = false;
 
-  <table class="w-full text-sm">
-    <thead class="text-loyall-400 text-left">
-      <tr>
-        <th class="py-1">Local</th><th class="py-1">Conector</th><th class="py-1">URL</th>
-        <th class="py-1">Status</th><th class="py-1">Última coleta</th><th class="py-1 w-40">Ações</th>
-      </tr>
-    </thead>
-    <tbody id="fontes-tbody">
-    {% for f in fontes %}
-      {% include "partials/fonte_row.html" %}
-    {% endfor %}
-    </tbody>
-  </table>
-</section>
+        // Filtra fontes dentro do local
+        loc.querySelectorAll('.fonte-item').forEach(f => {
+          let fMatch = !busca || (f.dataset.nome || '').includes(busca);
+          if (soAtivos && f.dataset.ativo === 'false') fMatch = false;
+          f.style.display = fMatch ? '' : 'none';
+        });
+
+        loc.style.display = mostraLoc ? '' : 'none';
+        if (mostraLoc) visiveis++;
+      });
+
+      // Mostra agrupamento se algum local visível OU se matchea no nome do próprio agrupamento
+      let agMatch = !busca || (ag.dataset.nome || '').includes(busca);
+      let mostraAg = (visiveis > 0) || agMatch;
+      if (soAtivos && ag.dataset.ativo === 'false') mostraAg = false;
+      if (soComFontes && ag.dataset.temFontes === 'false') mostraAg = false;
+      ag.style.display = mostraAg ? '' : 'none';
+    });
+
+    // Filtra fontes diretas da empresa
+    document.querySelectorAll('#fontes-empresa-body .fonte-item').forEach(f => {
+      let fMatch = !busca || (f.dataset.nome || '').includes(busca);
+      if (soAtivos && f.dataset.ativo === 'false') fMatch = false;
+      f.style.display = fMatch ? '' : 'none';
+    });
+  }
+
+  ['filtro-busca','filtro-so-ativos','filtro-so-com-fontes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', aplicaFiltros);
+    el.addEventListener('change', aplicaFiltros);
+  });
+
+  document.getElementById('expand-all').onclick = () => {
+    document.querySelectorAll('#hierarquia details, #fontes-empresa details').forEach(d => d.open = true);
+  };
+  document.getElementById('collapse-all').onclick = () => {
+    document.querySelectorAll('#hierarquia details, #fontes-empresa details').forEach(d => d.open = false);
+  };
+</script>
 {% endblock %}

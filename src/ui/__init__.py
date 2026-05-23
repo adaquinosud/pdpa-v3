@@ -24,6 +24,8 @@ HTMX partials (retornam fragmento HTML, não página inteira):
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from flask import (
     Blueprint,
     flash,
@@ -47,6 +49,73 @@ from src.models.fonte import Fonte
 from src.models.local import Local
 from src.models.usuario import Usuario
 from src.utils.db import db_session
+
+
+# ── View-model wrappers (sem ORM relationships) ──────────────────────────
+# Construídos dentro de db_session(); usados pelos templates Jinja sem
+# disparar lazy-load em objetos detached.
+
+
+def _wrap_fonte(f) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=f.id,
+        empresa_id=f.empresa_id,
+        entidade_tipo=f.entidade_tipo,
+        entidade_id=f.entidade_id,
+        conector_tipo=f.conector_tipo,
+        url=f.url,
+        ativo=bool(f.ativo),
+        ultima_coleta=f.ultima_coleta,
+        criada_em=f.criada_em,
+        observacao=f.observacao,
+    )
+
+
+def _wrap_local(loc, fontes=None) -> SimpleNamespace:
+    fontes_w = [_wrap_fonte(f) for f in (fontes or [])]
+    return SimpleNamespace(
+        id=loc.id,
+        empresa_id=loc.empresa_id,
+        agrupamento_id=loc.agrupamento_id,
+        nome=loc.nome,
+        endereco=loc.endereco,
+        cidade=loc.cidade,
+        uf=loc.uf,
+        status=loc.status,
+        observacao=loc.observacao,
+        fontes=fontes_w,
+        fontes_ativas=sum(1 for f in fontes_w if f.ativo),
+        tem_fontes=bool(fontes_w),
+    )
+
+
+def _wrap_agrupamento(a, locais_w=None) -> SimpleNamespace:
+    locais_w = locais_w or []
+    total_fontes = sum(len(loc.fontes) for loc in locais_w)
+    return SimpleNamespace(
+        id=a.id,
+        empresa_id=a.empresa_id,
+        nome=a.nome,
+        descricao=a.descricao,
+        ativo=bool(a.ativo),
+        locais=locais_w,
+        fontes_ativas=sum(loc.fontes_ativas for loc in locais_w),
+        total_fontes=total_fontes,
+        tem_fontes=total_fontes > 0,
+    )
+
+
+def _wrap_empresa(e) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=e.id,
+        nome=e.nome,
+        setor=e.setor,
+        site=e.site,
+        cnpj=e.cnpj,
+        observacao=e.observacao,
+        criada_em=e.criada_em,
+        atualizada_em=e.atualizada_em,
+    )
 
 
 ui_bp = Blueprint(
@@ -214,29 +283,66 @@ def empresa_importar():
 
 
 def _carregar_detalhe_empresa(empresa_id: int):
-    """Carrega empresa + agrupamentos + locais + fontes para template detalhe."""
+    """Carrega empresa + estrutura hierárquica + stats para o detalhe.
+
+    CP-B: devolve uma estrutura aninhada agrupamentos→locais→fontes em
+    vez de listas paralelas, mais stats agregados para os cards do topo.
+    """
     with db_session() as s:
-        empresa = s.get(Empresa, empresa_id)
-        if empresa is None:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
             return None
-        agrupamentos = (
+        ags_db = (
             s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         )
-        locais = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
-        fontes = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.id).all()
-        # Detach tudo para uso no template
-        s.expunge(empresa)
-        for a in agrupamentos:
-            s.expunge(a)
-        for loc in locais:
-            s.expunge(loc)
-        for f in fontes:
-            s.expunge(f)
+        locais_db = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
+        fontes_db = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.id).all()
+
+        empresa_w = _wrap_empresa(empresa_db)
+
+        # Indexa fontes por local_id; separa diretas da empresa
+        fontes_por_local: dict[int, list] = {}
+        fontes_empresa_db = []
+        for f in fontes_db:
+            if f.entidade_tipo == "local":
+                fontes_por_local.setdefault(f.entidade_id, []).append(f)
+            else:
+                fontes_empresa_db.append(f)
+
+        # Wrap locais com fontes
+        locais_w_all = [_wrap_local(loc, fontes_por_local.get(loc.id, [])) for loc in locais_db]
+        locais_por_ag: dict[int, list] = {}
+        locais_sem_ag: list = []
+        for loc_w in locais_w_all:
+            if loc_w.agrupamento_id is None:
+                locais_sem_ag.append(loc_w)
+            else:
+                locais_por_ag.setdefault(loc_w.agrupamento_id, []).append(loc_w)
+
+        ags_w = [_wrap_agrupamento(a, locais_por_ag.get(a.id, [])) for a in ags_db]
+        fontes_empresa_w = [_wrap_fonte(f) for f in fontes_empresa_db]
+        fontes_all_w = [_wrap_fonte(f) for f in fontes_db]
+
+        locais_ativos = sum(1 for loc in locais_w_all if loc.status == "ativo")
+        fontes_ativas_n = sum(1 for f in fontes_db if f.ativo)
+        fontes_inativas_n = sum(1 for f in fontes_db if not f.ativo)
+        stats = {
+            "total_agrupamentos": len(ags_w),
+            "total_locais": len(locais_w_all),
+            "locais_ativos": locais_ativos,
+            "total_fontes": len(fontes_db),
+            "fontes_ativas": fontes_ativas_n,
+            "fontes_inativas": fontes_inativas_n,
+        }
+
     return {
-        "empresa": empresa,
-        "agrupamentos": agrupamentos,
-        "locais": locais,
-        "fontes": fontes,
+        "empresa": empresa_w,
+        "agrupamentos": ags_w,
+        "locais": locais_w_all,
+        "fontes": fontes_all_w,
+        "locais_sem_ag": locais_sem_ag,
+        "fontes_empresa": fontes_empresa_w,
+        "stats": stats,
     }
 
 
@@ -293,23 +399,35 @@ def htmx_criar_agrupamento(empresa_id: int):
                 f"<div class='text-red-600'>Já existe agrupamento '{nome}'.</div>",
                 409,
             )
-        a = Agrupamento(empresa_id=empresa_id, nome=nome, descricao=descricao)
-        s.add(a)
+        a_db = Agrupamento(empresa_id=empresa_id, nome=nome, descricao=descricao)
+        s.add(a_db)
         s.flush()
-        _ = (a.id, a.nome, a.descricao, a.ativo)
-        s.expunge(a)
-    return render_template("partials/agrupamento_row.html", a=a, eh_loyall=True)
+        a_w = _wrap_agrupamento(a_db, [])
+    return render_template("partials/agrupamento_card.html", a=a_w, eh_loyall=True, open=True)
 
 
 def _carregar_ag(agrupamento_id: int):
-    """Carrega Agrupamento + atributos para render fora da sessão."""
+    """Carrega Agrupamento como view-model wrapper com locais+fontes."""
     with db_session() as s:
-        a = s.get(Agrupamento, agrupamento_id)
-        if a is None:
+        a_db = s.get(Agrupamento, agrupamento_id)
+        if a_db is None:
             return None
-        _ = (a.id, a.nome, a.descricao, a.ativo, a.empresa_id)
-        s.expunge(a)
-    return a
+        locais_db = (
+            s.query(Local)
+            .filter_by(empresa_id=a_db.empresa_id, agrupamento_id=a_db.id)
+            .order_by(Local.nome)
+            .all()
+        )
+        locais_w = []
+        for loc_db in locais_db:
+            fontes_db = (
+                s.query(Fonte)
+                .filter_by(entidade_tipo="local", entidade_id=loc_db.id)
+                .order_by(Fonte.id)
+                .all()
+            )
+            locais_w.append(_wrap_local(loc_db, fontes_db))
+        return _wrap_agrupamento(a_db, locais_w)
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/row", methods=["GET"])
@@ -320,7 +438,7 @@ def htmx_agrupamento_row(agrupamento_id: int):
         return ("", 404)
     user = get_current_user()
     eh_loyall = bool(user and user.papel == PAPEL_LOYALL)
-    return render_template("partials/agrupamento_row.html", a=a, eh_loyall=eh_loyall)
+    return render_template("partials/agrupamento_card.html", a=a, eh_loyall=eh_loyall)
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/editar", methods=["GET"])
@@ -335,7 +453,7 @@ def htmx_editar_agrupamento_form(agrupamento_id: int):
     a = _carregar_ag(agrupamento_id)
     if a is None:
         return ("", 404)
-    return render_template("partials/agrupamento_row_edit.html", a=a)
+    return render_template("partials/agrupamento_card_edit.html", a=a)
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>", methods=["PUT"])
@@ -374,9 +492,9 @@ def htmx_salvar_agrupamento(agrupamento_id: int):
         a.nome = nome
         a.descricao = descricao
         s.flush()
-        _ = (a.id, a.nome, a.descricao, a.ativo)
-        s.expunge(a)
-    return render_template("partials/agrupamento_row.html", a=a, eh_loyall=True)
+    # Recarrega com locais+fontes
+    a = _carregar_ag(agrupamento_id)
+    return render_template("partials/agrupamento_card.html", a=a, eh_loyall=True, open=True)
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/inativar", methods=["PATCH"])
@@ -392,9 +510,8 @@ def htmx_inativar_agrupamento(agrupamento_id: int):
             return ("", 404)
         a.ativo = not bool(a.ativo)
         s.flush()
-        _ = (a.id, a.nome, a.descricao, a.ativo)
-        s.expunge(a)
-    return render_template("partials/agrupamento_row.html", a=a, eh_loyall=True)
+    a = _carregar_ag(agrupamento_id)
+    return render_template("partials/agrupamento_card.html", a=a, eh_loyall=True)
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>", methods=["DELETE"])
@@ -435,43 +552,36 @@ def htmx_criar_local(empresa_id: int):
         s.add(loc)
         s.flush()
         ag_nome = ag.nome if agrupamento_id else None
-        _ = (loc.id, loc.nome, loc.agrupamento_id, loc.endereco, loc.observacao)
-        s.expunge(loc)
+        loc_w = _wrap_local(loc, [])
     return render_template(
-        "partials/local_row.html",
-        loc=loc,
+        "partials/local_card.html",
+        loc=loc_w,
         agrupamento_nome={agrupamento_id: ag_nome} if agrupamento_id else {},
     )
 
 
 def _carregar_local_e_ags(local_id: int):
-    """Carrega Local + agrupamentos da empresa dele, todos detached."""
+    """Devolve (loc_wrapper, ags_wrappers, ag_map) para o template de local."""
     with db_session() as s:
-        loc = s.get(Local, local_id)
-        if loc is None:
+        loc_db = s.get(Local, local_id)
+        if loc_db is None:
             return None, [], None
-        ags = (
+        ags_db = (
             s.query(Agrupamento)
-            .filter_by(empresa_id=loc.empresa_id)
+            .filter_by(empresa_id=loc_db.empresa_id)
             .order_by(Agrupamento.nome)
             .all()
         )
-        ag_map = {a.id: a.nome for a in ags}
-        _ = (
-            loc.id,
-            loc.nome,
-            loc.endereco,
-            loc.agrupamento_id,
-            loc.empresa_id,
-            loc.status,
-            loc.observacao,
+        fontes_db = (
+            s.query(Fonte)
+            .filter_by(entidade_tipo="local", entidade_id=loc_db.id)
+            .order_by(Fonte.id)
+            .all()
         )
-        for a in ags:
-            _ = (a.id, a.nome)
-        s.expunge(loc)
-        for a in ags:
-            s.expunge(a)
-    return loc, ags, ag_map
+        loc_w = _wrap_local(loc_db, fontes_db)
+        ags_w = [SimpleNamespace(id=a.id, nome=a.nome, empresa_id=a.empresa_id) for a in ags_db]
+        ag_map = {a.id: a.nome for a in ags_db}
+    return loc_w, ags_w, ag_map
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/row", methods=["GET"])
@@ -482,7 +592,7 @@ def htmx_local_row(local_id: int):
     erro = _check_acesso(loc.empresa_id)
     if erro:
         return erro
-    return render_template("partials/local_row.html", loc=loc, agrupamento_nome=ag_map)
+    return render_template("partials/local_card.html", loc=loc, agrupamento_nome=ag_map)
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/editar", methods=["GET"])
@@ -493,7 +603,7 @@ def htmx_editar_local_form(local_id: int):
     erro = _check_acesso(loc.empresa_id)
     if erro:
         return erro
-    return render_template("partials/local_row_edit.html", loc=loc, agrupamentos=ags)
+    return render_template("partials/local_card_edit.html", loc=loc, agrupamentos=ags)
 
 
 @ui_bp.route("/ui/locais/<int:local_id>", methods=["PUT"])
@@ -524,20 +634,9 @@ def htmx_salvar_local(local_id: int):
         loc.agrupamento_id = new_ag
         loc.endereco = endereco
         s.flush()
-        # Map de agrupamento (precisa do nome para o template)
-        ags = s.query(Agrupamento).filter_by(empresa_id=loc.empresa_id).all()
-        ag_map = {a.id: a.nome for a in ags}
-        _ = (
-            loc.id,
-            loc.nome,
-            loc.endereco,
-            loc.agrupamento_id,
-            loc.empresa_id,
-            loc.status,
-            loc.observacao,
-        )
-        s.expunge(loc)
-    return render_template("partials/local_row.html", loc=loc, agrupamento_nome=ag_map)
+    # Recarrega com fontes + ag_map
+    loc, _ags, ag_map = _carregar_local_e_ags(local_id)
+    return render_template("partials/local_card.html", loc=loc, agrupamento_nome=ag_map, open=True)
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/inativar", methods=["PATCH"])
@@ -551,19 +650,8 @@ def htmx_inativar_local(local_id: int):
             return erro
         loc.status = "desativado" if loc.status == "ativo" else "ativo"
         s.flush()
-        ags = s.query(Agrupamento).filter_by(empresa_id=loc.empresa_id).all()
-        ag_map = {a.id: a.nome for a in ags}
-        _ = (
-            loc.id,
-            loc.nome,
-            loc.endereco,
-            loc.agrupamento_id,
-            loc.empresa_id,
-            loc.status,
-            loc.observacao,
-        )
-        s.expunge(loc)
-    return render_template("partials/local_row.html", loc=loc, agrupamento_nome=ag_map)
+    loc, _ags, ag_map = _carregar_local_e_ags(local_id)
+    return render_template("partials/local_card.html", loc=loc, agrupamento_nome=ag_map)
 
 
 @ui_bp.route("/ui/locais/<int:local_id>", methods=["DELETE"])
@@ -639,34 +727,22 @@ def htmx_criar_fonte(local_id: int):
             f.observacao,
         )
         s.expunge(f)
-    return render_template("partials/fonte_row.html", f=f, local_nome={local_id: loc_nome})
+    return render_template("partials/fonte_item.html", f=f, local_nome={local_id: loc_nome})
 
 
 def _carregar_fonte_e_local(fonte_id: int):
-    """Carrega Fonte + nome do local (se aplicável), detached."""
+    """Devolve (fonte_wrapper, local_map_id_to_nome)."""
     with db_session() as s:
-        f = s.get(Fonte, fonte_id)
-        if f is None:
+        f_db = s.get(Fonte, fonte_id)
+        if f_db is None:
             return None, {}
         local_map = {}
-        if f.entidade_tipo == "local":
-            loc = s.get(Local, f.entidade_id)
-            if loc is not None:
-                local_map[loc.id] = loc.nome
-        _ = (
-            f.id,
-            f.empresa_id,
-            f.entidade_tipo,
-            f.entidade_id,
-            f.conector_tipo,
-            f.url,
-            f.ativo,
-            f.ultima_coleta,
-            f.criada_em,
-            f.observacao,
-        )
-        s.expunge(f)
-    return f, local_map
+        if f_db.entidade_tipo == "local":
+            loc_db = s.get(Local, f_db.entidade_id)
+            if loc_db is not None:
+                local_map[loc_db.id] = loc_db.nome
+        f_w = _wrap_fonte(f_db)
+    return f_w, local_map
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/row", methods=["GET"])
@@ -677,7 +753,7 @@ def htmx_fonte_row(fonte_id: int):
     erro = _check_acesso(f.empresa_id)
     if erro:
         return erro
-    return render_template("partials/fonte_row.html", f=f, local_nome=local_map)
+    return render_template("partials/fonte_item.html", f=f, local_nome=local_map)
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/editar", methods=["GET"])
@@ -688,7 +764,7 @@ def htmx_editar_fonte_form(fonte_id: int):
     erro = _check_acesso(f.empresa_id)
     if erro:
         return erro
-    return render_template("partials/fonte_row_edit.html", f=f)
+    return render_template("partials/fonte_item_edit.html", f=f)
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>", methods=["PUT"])
@@ -727,7 +803,7 @@ def htmx_salvar_fonte(fonte_id: int):
             f.observacao,
         )
         s.expunge(f)
-    return render_template("partials/fonte_row.html", f=f, local_nome=local_map)
+    return render_template("partials/fonte_item.html", f=f, local_nome=local_map)
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/inativar", methods=["PATCH"])
@@ -759,7 +835,7 @@ def htmx_inativar_fonte(fonte_id: int):
             f.observacao,
         )
         s.expunge(f)
-    return render_template("partials/fonte_row.html", f=f, local_nome=local_map)
+    return render_template("partials/fonte_item.html", f=f, local_nome=local_map)
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>", methods=["DELETE"])
