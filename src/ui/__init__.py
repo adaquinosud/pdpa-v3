@@ -301,6 +301,102 @@ def htmx_criar_agrupamento(empresa_id: int):
     return render_template("partials/agrupamento_row.html", a=a, eh_loyall=True)
 
 
+def _carregar_ag(agrupamento_id: int):
+    """Carrega Agrupamento + atributos para render fora da sessão."""
+    with db_session() as s:
+        a = s.get(Agrupamento, agrupamento_id)
+        if a is None:
+            return None
+        _ = (a.id, a.nome, a.descricao, a.ativo, a.empresa_id)
+        s.expunge(a)
+    return a
+
+
+@ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/row", methods=["GET"])
+def htmx_agrupamento_row(agrupamento_id: int):
+    """Devolve a row em modo view (para cancelar edição ou após save)."""
+    a = _carregar_ag(agrupamento_id)
+    if a is None:
+        return ("", 404)
+    user = get_current_user()
+    eh_loyall = bool(user and user.papel == PAPEL_LOYALL)
+    return render_template("partials/agrupamento_row.html", a=a, eh_loyall=eh_loyall)
+
+
+@ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/editar", methods=["GET"])
+def htmx_editar_agrupamento_form(agrupamento_id: int):
+    """Devolve a row em modo edit (inputs em vez de spans)."""
+    user = get_current_user()
+    if user is None or user.papel != PAPEL_LOYALL:
+        return (
+            "<tr><td colspan='4' class='text-red-600 text-xs'>"
+            "Edição restrita a admin Loyall.</td></tr>"
+        ), 403
+    a = _carregar_ag(agrupamento_id)
+    if a is None:
+        return ("", 404)
+    return render_template("partials/agrupamento_row_edit.html", a=a)
+
+
+@ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>", methods=["PUT"])
+def htmx_salvar_agrupamento(agrupamento_id: int):
+    user = get_current_user()
+    if user is None or user.papel != PAPEL_LOYALL:
+        return (
+            "<tr><td colspan='4' class='text-red-600 text-xs'>"
+            "Edição restrita a admin Loyall.</td></tr>"
+        ), 403
+    nome = (request.form.get("nome") or "").strip()
+    descricao = (request.form.get("descricao") or "").strip() or None
+    if not nome:
+        return (
+            "<tr><td colspan='4' class='text-red-600 text-xs'>" "Nome é obrigatório.</td></tr>"
+        ), 400
+    with db_session() as s:
+        a = s.get(Agrupamento, agrupamento_id)
+        if a is None:
+            return ("", 404)
+        # Verifica conflito de nome (exceto ele mesmo)
+        dup = (
+            s.query(Agrupamento)
+            .filter(
+                Agrupamento.empresa_id == a.empresa_id,
+                Agrupamento.nome == nome,
+                Agrupamento.id != a.id,
+            )
+            .first()
+        )
+        if dup:
+            return (
+                "<tr><td colspan='4' class='text-red-600 text-xs'>"
+                f"Já existe agrupamento '{nome}'.</td></tr>"
+            ), 409
+        a.nome = nome
+        a.descricao = descricao
+        s.flush()
+        _ = (a.id, a.nome, a.descricao, a.ativo)
+        s.expunge(a)
+    return render_template("partials/agrupamento_row.html", a=a, eh_loyall=True)
+
+
+@ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/inativar", methods=["PATCH"])
+def htmx_inativar_agrupamento(agrupamento_id: int):
+    user = get_current_user()
+    if user is None or user.papel != PAPEL_LOYALL:
+        return (
+            "<tr><td colspan='4' class='text-red-600 text-xs'>" "Restrito a admin Loyall.</td></tr>"
+        ), 403
+    with db_session() as s:
+        a = s.get(Agrupamento, agrupamento_id)
+        if a is None:
+            return ("", 404)
+        a.ativo = not bool(a.ativo)
+        s.flush()
+        _ = (a.id, a.nome, a.descricao, a.ativo)
+        s.expunge(a)
+    return render_template("partials/agrupamento_row.html", a=a, eh_loyall=True)
+
+
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>", methods=["DELETE"])
 def htmx_deletar_agrupamento(agrupamento_id: int):
     user = get_current_user()
@@ -346,6 +442,128 @@ def htmx_criar_local(empresa_id: int):
         loc=loc,
         agrupamento_nome={agrupamento_id: ag_nome} if agrupamento_id else {},
     )
+
+
+def _carregar_local_e_ags(local_id: int):
+    """Carrega Local + agrupamentos da empresa dele, todos detached."""
+    with db_session() as s:
+        loc = s.get(Local, local_id)
+        if loc is None:
+            return None, [], None
+        ags = (
+            s.query(Agrupamento)
+            .filter_by(empresa_id=loc.empresa_id)
+            .order_by(Agrupamento.nome)
+            .all()
+        )
+        ag_map = {a.id: a.nome for a in ags}
+        _ = (
+            loc.id,
+            loc.nome,
+            loc.endereco,
+            loc.agrupamento_id,
+            loc.empresa_id,
+            loc.status,
+            loc.observacao,
+        )
+        for a in ags:
+            _ = (a.id, a.nome)
+        s.expunge(loc)
+        for a in ags:
+            s.expunge(a)
+    return loc, ags, ag_map
+
+
+@ui_bp.route("/ui/locais/<int:local_id>/row", methods=["GET"])
+def htmx_local_row(local_id: int):
+    loc, ags, ag_map = _carregar_local_e_ags(local_id)
+    if loc is None:
+        return ("", 404)
+    erro = _check_acesso(loc.empresa_id)
+    if erro:
+        return erro
+    return render_template("partials/local_row.html", loc=loc, agrupamento_nome=ag_map)
+
+
+@ui_bp.route("/ui/locais/<int:local_id>/editar", methods=["GET"])
+def htmx_editar_local_form(local_id: int):
+    loc, ags, _ag_map = _carregar_local_e_ags(local_id)
+    if loc is None:
+        return ("", 404)
+    erro = _check_acesso(loc.empresa_id)
+    if erro:
+        return erro
+    return render_template("partials/local_row_edit.html", loc=loc, agrupamentos=ags)
+
+
+@ui_bp.route("/ui/locais/<int:local_id>", methods=["PUT"])
+def htmx_salvar_local(local_id: int):
+    nome = (request.form.get("nome") or "").strip()
+    if not nome:
+        return (
+            "<tr><td colspan='5' class='text-red-600 text-xs'>" "Nome é obrigatório.</td></tr>"
+        ), 400
+    ag_id_raw = request.form.get("agrupamento_id") or ""
+    new_ag = int(ag_id_raw) if ag_id_raw.isdigit() else None
+    endereco = (request.form.get("endereco") or "").strip() or None
+    with db_session() as s:
+        loc = s.get(Local, local_id)
+        if loc is None:
+            return ("", 404)
+        erro = _check_acesso(loc.empresa_id)
+        if erro:
+            return erro
+        if new_ag is not None:
+            ag = s.get(Agrupamento, new_ag)
+            if ag is None or ag.empresa_id != loc.empresa_id:
+                return (
+                    "<tr><td colspan='5' class='text-red-600 text-xs'>"
+                    "Agrupamento inválido.</td></tr>"
+                ), 400
+        loc.nome = nome
+        loc.agrupamento_id = new_ag
+        loc.endereco = endereco
+        s.flush()
+        # Map de agrupamento (precisa do nome para o template)
+        ags = s.query(Agrupamento).filter_by(empresa_id=loc.empresa_id).all()
+        ag_map = {a.id: a.nome for a in ags}
+        _ = (
+            loc.id,
+            loc.nome,
+            loc.endereco,
+            loc.agrupamento_id,
+            loc.empresa_id,
+            loc.status,
+            loc.observacao,
+        )
+        s.expunge(loc)
+    return render_template("partials/local_row.html", loc=loc, agrupamento_nome=ag_map)
+
+
+@ui_bp.route("/ui/locais/<int:local_id>/inativar", methods=["PATCH"])
+def htmx_inativar_local(local_id: int):
+    with db_session() as s:
+        loc = s.get(Local, local_id)
+        if loc is None:
+            return ("", 404)
+        erro = _check_acesso(loc.empresa_id)
+        if erro:
+            return erro
+        loc.status = "desativado" if loc.status == "ativo" else "ativo"
+        s.flush()
+        ags = s.query(Agrupamento).filter_by(empresa_id=loc.empresa_id).all()
+        ag_map = {a.id: a.nome for a in ags}
+        _ = (
+            loc.id,
+            loc.nome,
+            loc.endereco,
+            loc.agrupamento_id,
+            loc.empresa_id,
+            loc.status,
+            loc.observacao,
+        )
+        s.expunge(loc)
+    return render_template("partials/local_row.html", loc=loc, agrupamento_nome=ag_map)
 
 
 @ui_bp.route("/ui/locais/<int:local_id>", methods=["DELETE"])
@@ -424,6 +642,126 @@ def htmx_criar_fonte(local_id: int):
     return render_template("partials/fonte_row.html", f=f, local_nome={local_id: loc_nome})
 
 
+def _carregar_fonte_e_local(fonte_id: int):
+    """Carrega Fonte + nome do local (se aplicável), detached."""
+    with db_session() as s:
+        f = s.get(Fonte, fonte_id)
+        if f is None:
+            return None, {}
+        local_map = {}
+        if f.entidade_tipo == "local":
+            loc = s.get(Local, f.entidade_id)
+            if loc is not None:
+                local_map[loc.id] = loc.nome
+        _ = (
+            f.id,
+            f.empresa_id,
+            f.entidade_tipo,
+            f.entidade_id,
+            f.conector_tipo,
+            f.url,
+            f.ativo,
+            f.ultima_coleta,
+            f.criada_em,
+            f.observacao,
+        )
+        s.expunge(f)
+    return f, local_map
+
+
+@ui_bp.route("/ui/fontes/<int:fonte_id>/row", methods=["GET"])
+def htmx_fonte_row(fonte_id: int):
+    f, local_map = _carregar_fonte_e_local(fonte_id)
+    if f is None:
+        return ("", 404)
+    erro = _check_acesso(f.empresa_id)
+    if erro:
+        return erro
+    return render_template("partials/fonte_row.html", f=f, local_nome=local_map)
+
+
+@ui_bp.route("/ui/fontes/<int:fonte_id>/editar", methods=["GET"])
+def htmx_editar_fonte_form(fonte_id: int):
+    f, _local_map = _carregar_fonte_e_local(fonte_id)
+    if f is None:
+        return ("", 404)
+    erro = _check_acesso(f.empresa_id)
+    if erro:
+        return erro
+    return render_template("partials/fonte_row_edit.html", f=f)
+
+
+@ui_bp.route("/ui/fontes/<int:fonte_id>", methods=["PUT"])
+def htmx_salvar_fonte(fonte_id: int):
+    url = (request.form.get("url") or "").strip()
+    observacao = (request.form.get("observacao") or "").strip() or None
+    if not url:
+        return (
+            "<tr><td colspan='6' class='text-red-600 text-xs'>" "URL é obrigatória.</td></tr>"
+        ), 400
+    with db_session() as s:
+        f = s.get(Fonte, fonte_id)
+        if f is None:
+            return ("", 404)
+        erro = _check_acesso(f.empresa_id)
+        if erro:
+            return erro
+        f.url = url
+        f.observacao = observacao
+        s.flush()
+        local_map = {}
+        if f.entidade_tipo == "local":
+            loc = s.get(Local, f.entidade_id)
+            if loc is not None:
+                local_map[loc.id] = loc.nome
+        _ = (
+            f.id,
+            f.empresa_id,
+            f.entidade_tipo,
+            f.entidade_id,
+            f.conector_tipo,
+            f.url,
+            f.ativo,
+            f.ultima_coleta,
+            f.criada_em,
+            f.observacao,
+        )
+        s.expunge(f)
+    return render_template("partials/fonte_row.html", f=f, local_nome=local_map)
+
+
+@ui_bp.route("/ui/fontes/<int:fonte_id>/inativar", methods=["PATCH"])
+def htmx_inativar_fonte(fonte_id: int):
+    with db_session() as s:
+        f = s.get(Fonte, fonte_id)
+        if f is None:
+            return ("", 404)
+        erro = _check_acesso(f.empresa_id)
+        if erro:
+            return erro
+        f.ativo = not bool(f.ativo)
+        s.flush()
+        local_map = {}
+        if f.entidade_tipo == "local":
+            loc = s.get(Local, f.entidade_id)
+            if loc is not None:
+                local_map[loc.id] = loc.nome
+        _ = (
+            f.id,
+            f.empresa_id,
+            f.entidade_tipo,
+            f.entidade_id,
+            f.conector_tipo,
+            f.url,
+            f.ativo,
+            f.ultima_coleta,
+            f.criada_em,
+            f.observacao,
+        )
+        s.expunge(f)
+    return render_template("partials/fonte_row.html", f=f, local_nome=local_map)
+
+
 @ui_bp.route("/ui/fontes/<int:fonte_id>", methods=["DELETE"])
 def htmx_deletar_fonte(fonte_id: int):
     with db_session() as s:
@@ -434,6 +772,61 @@ def htmx_deletar_fonte(fonte_id: int):
         if erro:
             return erro
         s.delete(f)
+    return ("", 200)
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/editar-modal", methods=["GET"])
+def htmx_editar_empresa_modal(empresa_id: int):
+    """Devolve o HTML do modal de edição da empresa (HTMX abre como overlay)."""
+    user = get_current_user()
+    if user is None or user.papel != PAPEL_LOYALL:
+        return ("<div class='text-red-600 text-xs'>" "Edição restrita a admin Loyall.</div>"), 403
+    with db_session() as s:
+        empresa = s.get(Empresa, empresa_id)
+        if empresa is None:
+            return ("", 404)
+        _ = (
+            empresa.id,
+            empresa.nome,
+            empresa.setor,
+            empresa.site,
+            empresa.observacao,
+            empresa.cnpj,
+        )
+        s.expunge(empresa)
+    return render_template("partials/empresa_edit_modal.html", empresa=empresa)
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>", methods=["PUT"])
+def htmx_salvar_empresa(empresa_id: int):
+    user = get_current_user()
+    if user is None or user.papel != PAPEL_LOYALL:
+        return ("<div class='text-red-600 text-xs'>" "Edição restrita a admin Loyall.</div>"), 403
+    nome = (request.form.get("nome") or "").strip()
+    if not nome:
+        return ("<div class='text-red-600 text-xs'>Nome é obrigatório.</div>"), 400
+    setor = (request.form.get("setor") or "").strip() or None
+    site = (request.form.get("site") or "").strip() or None
+    observacao = (request.form.get("observacao") or "").strip() or None
+    from datetime import datetime as _dt
+
+    with db_session() as s:
+        empresa = s.get(Empresa, empresa_id)
+        if empresa is None:
+            return ("", 404)
+        # Conflito de nome com outra empresa?
+        dup = s.query(Empresa).filter(Empresa.nome == nome, Empresa.id != empresa_id).first()
+        if dup:
+            return (
+                f"<div class='text-red-600 text-xs'>"
+                f"Já existe outra empresa com nome '{nome}'.</div>"
+            ), 409
+        empresa.nome = nome
+        empresa.setor = setor
+        empresa.site = site
+        empresa.observacao = observacao
+        empresa.atualizada_em = _dt.utcnow()
+    # Resposta vazia: o modal usa hx-on::after-request="window.location.reload()"
     return ("", 200)
 
 

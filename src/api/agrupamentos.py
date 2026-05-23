@@ -72,6 +72,19 @@ def atualizar_agrupamento(agrupamento_id: int):
         return jsonify(serialize_agrupamento(a))
 
 
+@agrupamentos_bp.route("/<int:agrupamento_id>/inativar", methods=["PATCH"])
+@loyall_required
+def toggle_ativo_agrupamento(agrupamento_id: int):
+    """Toggle do flag ``ativo`` (sem deletar). Loyall only."""
+    with db_session() as s:
+        a = s.get(Agrupamento, agrupamento_id)
+        if a is None:
+            return jsonify({"erro": "Agrupamento não encontrado"}), 404
+        a.ativo = not bool(a.ativo)
+        s.flush()
+        return jsonify(serialize_agrupamento(a))
+
+
 @agrupamentos_bp.route("/<int:agrupamento_id>", methods=["DELETE"])
 @loyall_required
 def remover_agrupamento(agrupamento_id: int):

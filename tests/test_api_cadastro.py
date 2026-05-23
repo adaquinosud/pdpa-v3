@@ -83,6 +83,64 @@ def test_agrupamento_update_e_delete(client_loyall):
     assert client_loyall.get(f"/api/agrupamentos/{a['id']}").status_code == 404
 
 
+# ── PATCH /inativar (CP-A) ─────────────────────────────────────────────
+
+
+def test_agrupamento_toggle_inativar(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "EagT"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    assert a["ativo"] is True
+    r1 = client_loyall.patch(f"/api/agrupamentos/{a['id']}/inativar")
+    assert r1.status_code == 200
+    assert r1.get_json()["ativo"] is False
+    r2 = client_loyall.patch(f"/api/agrupamentos/{a['id']}/inativar")
+    assert r2.status_code == 200
+    assert r2.get_json()["ativo"] is True
+
+
+def test_local_toggle_status_via_inativar(client_loyall):
+    """Opção (a) do CP-A: locais usam status='desativado' como inativo."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "ElocT"}).get_json()
+    loc = client_loyall.post(f"/api/empresas/{e['id']}/locais", json={"nome": "L"}).get_json()
+    assert loc["status"] == "ativo"
+    r1 = client_loyall.patch(f"/api/locais/{loc['id']}/inativar")
+    assert r1.status_code == 200
+    assert r1.get_json()["status"] == "desativado"
+    r2 = client_loyall.patch(f"/api/locais/{loc['id']}/inativar")
+    assert r2.status_code == 200
+    assert r2.get_json()["status"] == "ativo"
+
+
+def test_fonte_toggle_inativar(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "EfonT"}).get_json()
+    loc = client_loyall.post(f"/api/empresas/{e['id']}/locais", json={"nome": "L"}).get_json()
+    f = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes",
+        json={"conector_tipo": "google", "url": "ChIJ_t"},
+    ).get_json()
+    assert f["ativo"] is True
+    r1 = client_loyall.patch(f"/api/fontes/{f['id']}/inativar")
+    assert r1.status_code == 200
+    assert r1.get_json()["ativo"] is False
+
+
+def test_inativar_agrupamento_cliente_403(client_loyall, client_cliente_factory):
+    e = client_loyall.post("/api/empresas/", json={"nome": "Einat"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    cli = client_cliente_factory(e["id"])
+    r = cli.patch(f"/api/agrupamentos/{a['id']}/inativar")
+    assert r.status_code == 403
+
+
+def test_inativar_local_cliente_so_da_propria_empresa(client_loyall, client_cliente_factory):
+    e1 = client_loyall.post("/api/empresas/", json={"nome": "EA"}).get_json()
+    e2 = client_loyall.post("/api/empresas/", json={"nome": "EB"}).get_json()
+    loc2 = client_loyall.post(f"/api/empresas/{e2['id']}/locais", json={"nome": "L"}).get_json()
+    cli = client_cliente_factory(e1["id"])
+    r = cli.patch(f"/api/locais/{loc2['id']}/inativar")
+    assert r.status_code == 403
+
+
 # ── Locais — agrupamento_id opcional + filtro ────────────────────────────
 
 

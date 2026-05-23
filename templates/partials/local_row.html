@@ -1,11 +1,24 @@
-<tr id="loc-{{ loc.id }}" class="border-t border-loyall-100">
-  <td class="py-1.5 font-medium">{{ loc.nome }}</td>
+<tr id="loc-{{ loc.id }}" class="border-t border-loyall-100 {% if loc.status != 'ativo' %}opacity-60 bg-loyall-50/40{% endif %}">
+  <td class="py-1.5 font-medium">
+    <span hx-get="{{ url_for('ui.htmx_editar_local_form', local_id=loc.id) }}"
+          hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
+          class="cursor-pointer hover:bg-loyall-100 px-1 rounded" title="clique para editar">{{ loc.nome }}</span>
+  </td>
   <td class="py-1.5 text-loyall-700">{{ agrupamento_nome[loc.agrupamento_id] if loc.agrupamento_id else '—' }}</td>
   <td class="py-1.5 text-loyall-700 text-xs">{{ loc.endereco or '—' }}</td>
   <td class="py-1.5">
-    <button hx-delete="{{ url_for('ui.htmx_deletar_local', local_id=loc.id) }}"
-            hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
-            hx-confirm="Excluir local '{{ loc.nome }}'? Fontes do local também serão removidas."
-            class="text-red-600 hover:underline text-xs">excluir</button>
+    {% if loc.status == 'ativo' %}<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">ativo</span>
+    {% else %}<span class="px-2 py-0.5 text-xs rounded bg-loyall-200 text-loyall-700">{{ loc.status }}</span>{% endif %}
+  </td>
+  <td class="py-1.5">
+    <div class="flex items-center gap-3 text-xs">
+      <button hx-patch="{{ url_for('ui.htmx_inativar_local', local_id=loc.id) }}"
+              hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
+              class="text-loyall-700 hover:underline">{% if loc.status == 'ativo' %}inativar{% else %}reativar{% endif %}</button>
+      <button hx-delete="{{ url_for('ui.htmx_deletar_local', local_id=loc.id) }}"
+              hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
+              hx-confirm="EXCLUIR PERMANENTE o local '{{ loc.nome }}'? Fontes do local também serão removidas. Prefira INATIVAR (acima) para reversibilidade."
+              class="text-red-400 hover:text-red-700 hover:underline">excluir</button>
+    </div>
   </td>
 </tr>

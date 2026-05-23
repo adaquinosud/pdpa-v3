@@ -120,6 +120,26 @@ def atualizar_local(local_id: int):
         return jsonify(serialize_local(local))
 
 
+@locais_bp.route("/<int:local_id>/inativar", methods=["PATCH"])
+@login_required
+def toggle_ativo_local(local_id: int):
+    """Toggle entre ``status='ativo'`` e ``status='desativado'``.
+
+    Opção (a) do briefing CP-A: locais usam o enum ``status`` existente
+    (sem adicionar coluna ``ativo`` boolean separada).
+    """
+    with db_session() as session:
+        local = session.get(Local, local_id)
+        if local is None:
+            return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
+        local.status = "desativado" if local.status == "ativo" else "ativo"
+        session.flush()
+        return jsonify(serialize_local(local))
+
+
 @locais_bp.route("/<int:local_id>/fontes", methods=["GET"])
 @login_required
 def listar_fontes_do_local_route(local_id: int):

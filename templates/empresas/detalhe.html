@@ -14,7 +14,14 @@
 {% block conteudo %}
 <div class="mb-4">
   <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
-  <h1 class="text-2xl font-semibold">{{ empresa.nome }}</h1>
+  <div class="flex items-center gap-3 mt-1">
+    <h1 class="text-2xl font-semibold">{{ empresa.nome }}</h1>
+    {% if eh_loyall %}
+    <button hx-get="{{ url_for('ui.htmx_editar_empresa_modal', empresa_id=empresa.id) }}"
+            hx-target="body" hx-swap="beforeend"
+            class="text-xs px-2 py-1 rounded border border-loyall-200 hover:bg-loyall-100 text-loyall-700">editar</button>
+    {% endif %}
+  </div>
   <div class="text-sm text-loyall-400 mt-1">
     {% if empresa.setor %}<span>Setor: <strong class="text-loyall-700">{{ empresa.setor }}</strong></span> · {% endif %}
     {% if empresa.site %}<a href="{{ empresa.site }}" target="_blank" class="text-loyall-600 hover:underline">{{ empresa.site }}</a>{% endif %}
@@ -42,7 +49,7 @@
 
   <table class="w-full text-sm">
     <thead class="text-loyall-400 text-left">
-      <tr><th class="py-1">Nome</th><th class="py-1">Descrição</th><th class="py-1">Ativo</th><th class="py-1 w-20"></th></tr>
+      <tr><th class="py-1">Nome</th><th class="py-1">Descrição</th><th class="py-1">Status</th><th class="py-1 w-32">Ações</th></tr>
     </thead>
     <tbody id="agrupamentos-tbody">
     {% for a in agrupamentos %}
@@ -75,7 +82,7 @@
 
   <table class="w-full text-sm">
     <thead class="text-loyall-400 text-left">
-      <tr><th class="py-1">Nome</th><th class="py-1">Agrupamento</th><th class="py-1">Endereço</th><th class="py-1 w-20"></th></tr>
+      <tr><th class="py-1">Nome</th><th class="py-1">Agrupamento</th><th class="py-1">Endereço</th><th class="py-1">Status</th><th class="py-1 w-32">Ações</th></tr>
     </thead>
     <tbody id="locais-tbody">
     {% for loc in locais %}
@@ -136,7 +143,7 @@
     <thead class="text-loyall-400 text-left">
       <tr>
         <th class="py-1">Local</th><th class="py-1">Conector</th><th class="py-1">URL</th>
-        <th class="py-1">Ativo</th><th class="py-1">Última coleta</th><th class="py-1 w-32"></th>
+        <th class="py-1">Status</th><th class="py-1">Última coleta</th><th class="py-1 w-40">Ações</th>
       </tr>
     </thead>
     <tbody id="fontes-tbody">
