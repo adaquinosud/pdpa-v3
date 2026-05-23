@@ -1,0 +1,134 @@
+"""CRUD REST de empresas (Bloco 2).
+
+Reaproveitado de: ``pdpa-v2/backend.py`` lns. 1924-2091 (rotas
+``/api/empresa*`` inline no monólito v2).
+
+Adaptações vs v2:
+- Rotas id-based em vez de nome-based (REST: ``/api/empresas/<int:id>``);
+- SQLAlchemy 2.0 (substitui ``sqlite3.Cursor`` + SQL raw);
+- Desacoplado de fontes/pipeline — cadastro puro (v2 ``POST /api/empresa/add``
+  acoplava Google Places auto-register + pipeline + diagnóstico);
+- Filtragem por papel adiada para o briefing 04 (JWT + papéis);
+- Remove o hack ``PRAGMA foreign_keys = OFF`` do v2 no DELETE — v3 já tem
+  cascade por FK + cascade ORM funcionando (validado no Bloco 1).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict
+
+from flask import Blueprint, Response, jsonify, request
+
+from src.models.empresa import Empresa
+from src.utils.db import db_session
+
+
+empresas_bp = Blueprint("empresas", __name__, url_prefix="/api/empresas")
+
+
+def _serialize(e: Empresa) -> Dict[str, Any]:
+    """Converte uma Empresa para dict serializável em JSON."""
+    return {
+        "id": e.id,
+        "nome": e.nome,
+        "razao_social": e.razao_social,
+        "cnpj": e.cnpj,
+        "setor": e.setor,
+        "branding_json": e.branding_json,
+        "criada_em": e.criada_em.isoformat() if e.criada_em else None,
+        "atualizada_em": e.atualizada_em.isoformat() if e.atualizada_em else None,
+    }
+
+
+@empresas_bp.route("/", methods=["GET"])
+def listar_empresas() -> Response:
+    """Lista todas as empresas cadastradas, ordenadas por nome.
+
+    TODO Bloco 2 (briefing 04 — JWT + papéis): filtrar por papel
+    (``admin_loyall`` vê tudo; ``cliente_*`` vê apenas a própria empresa
+    via claims do JWT).
+    """
+    with db_session() as session:
+        empresas = session.query(Empresa).order_by(Empresa.nome).all()
+        return jsonify([_serialize(e) for e in empresas])
+
+
+@empresas_bp.route("/<int:empresa_id>", methods=["GET"])
+def obter_empresa(empresa_id: int):
+    """Retorna detalhes de uma empresa específica."""
+    with db_session() as session:
+        e = session.get(Empresa, empresa_id)
+        if e is None:
+            return jsonify({"erro": "Empresa não encontrada"}), 404
+        return jsonify(_serialize(e))
+
+
+@empresas_bp.route("/", methods=["POST"])
+def criar_empresa():
+    """Cria uma nova empresa.
+
+    Body JSON (campos):
+        - ``nome`` (str, obrigatório, único)
+        - ``razao_social`` (str, opcional)
+        - ``cnpj`` (str, opcional, único)
+        - ``setor`` (str, opcional)
+        - ``branding_json`` (str, opcional — JSON serializado em string)
+
+    Returns:
+        201 com o objeto criado, ou 400/409 em erro de validação.
+    """
+    data = request.get_json(silent=True) or {}
+    nome = data.get("nome")
+    if not nome:
+        return jsonify({"erro": "nome é obrigatório"}), 400
+
+    with db_session() as session:
+        ja_existe = session.query(Empresa).filter_by(nome=nome).first()
+        if ja_existe:
+            return jsonify({"erro": f"Empresa '{nome}' já existe"}), 409
+
+        e = Empresa(
+            nome=nome,
+            razao_social=data.get("razao_social"),
+            cnpj=data.get("cnpj"),
+            setor=data.get("setor"),
+            branding_json=data.get("branding_json"),
+        )
+        session.add(e)
+        session.flush()
+        return jsonify(_serialize(e)), 201
+
+
+@empresas_bp.route("/<int:empresa_id>", methods=["PUT"])
+def atualizar_empresa(empresa_id: int):
+    """Atualiza campos editáveis de uma empresa existente."""
+    data = request.get_json(silent=True) or {}
+    with db_session() as session:
+        e = session.get(Empresa, empresa_id)
+        if e is None:
+            return jsonify({"erro": "Empresa não encontrada"}), 404
+        for campo in ("nome", "razao_social", "cnpj", "setor", "branding_json"):
+            if campo in data:
+                setattr(e, campo, data[campo])
+        e.atualizada_em = datetime.utcnow()
+        session.flush()
+        return jsonify(_serialize(e))
+
+
+@empresas_bp.route("/<int:empresa_id>", methods=["DELETE"])
+def remover_empresa(empresa_id: int):
+    """Remove uma empresa.
+
+    A cascata para ``locais``, ``agrupamentos`` e ``fontes`` é feita
+    automaticamente: ON DELETE CASCADE na FK + ``cascade='all, delete-orphan'``
+    no relationship. ``usuarios`` não cascata (Usuario.empresa_id é
+    nullable, admin_loyall pode existir sem empresa).
+    """
+    with db_session() as session:
+        e = session.get(Empresa, empresa_id)
+        if e is None:
+            return jsonify({"erro": "Empresa não encontrada"}), 404
+        nome = e.nome
+        session.delete(e)
+        return jsonify({"removido": True, "id": empresa_id, "nome": nome})
