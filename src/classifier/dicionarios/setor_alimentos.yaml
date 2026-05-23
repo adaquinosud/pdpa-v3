@@ -1,0 +1,45 @@
+# Setor alimentos — expressões específicas que NÃO aparecem em base.yaml.
+# Amostrado de verbatins certos de N-Mantiqueira (ovos premium) na
+# auditoria 2026-05-18. Setor alimentos cobre marcas de produto que
+# vendem via redes sociais, com público frequente de seguidores fazendo
+# perguntas e sugestões.
+
+A1:
+  promotor:
+    - "amo os ovos da marca"
+    - "marca confiável"
+    - "qualidade dos ovos"
+    - "incrível esse livro/produto"
+
+A2:
+  promotor:
+    - "tirou minha dúvida sobre o produto"
+  detrator:
+    - "não responderam sobre a receita"
+
+A3:
+  promotor:
+    - "sugiro adicionar à receita"
+    - "kit de selenio sugerido"
+    - "tem produto X?"
+    - "vai ter o produto Y?"
+
+D2:
+  promotor:
+    - "SAC excelente"
+    - "SAC resolveu rapidamente"
+
+D3:
+  promotor:
+    - "entrega antecipada da assinatura"
+  detrator:
+    - "não estão entregando no dia certo"
+    - "atraso na entrega da assinatura"
+    - "assinatura sem chegar"
+
+D1:
+  promotor:
+    - "tem assinatura disponível"
+  detrator:
+    - "não tem mais o produto no site"
+    - "não consegui assinar"

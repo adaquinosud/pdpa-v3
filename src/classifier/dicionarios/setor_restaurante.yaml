@@ -1,0 +1,54 @@
+# Setor restaurante — expressões específicas que NÃO aparecem em base.yaml.
+# Amostrado de verbatins certos de N-CamaraCamarao (rede de restaurantes
+# de frutos do mar) na auditoria 2026-05-18.
+
+A1:
+  promotor:
+    - "sinônimo de excelência culinária"
+    - "tradicional do bairro"
+
+P2:
+  promotor:
+    - "preço super justo"
+
+A2:
+  promotor:
+    - "garçom recomendou prato"
+    - "sugestão de prato pelo garçom"
+    - "sommelier orientou na escolha"
+  detrator:
+    - "garçom não soube indicar"
+    - "sugestão de prato errada"
+
+D2:
+  promotor:
+    - "prato chegou rápido"
+    - "gerente resolveu"
+  detrator:
+    - "demora no servir"
+    - "pratos demoraram cerca de 30 minutos"
+    - "comida chegou fria"
+    - "comida com cabelo"
+    - "trocaram prato chegou incompleto"
+    - "tive que chamar mais de um garçom"
+
+D3:
+  promotor:
+    - "obra do restaurante anunciada"
+    - "comunicação sobre reforma"
+    - "novidade no cardápio anunciada"
+  detrator:
+    - "fechou sem aviso"
+    - "reforma sem comunicação"
+
+A3:
+  promotor:
+    - "novo cardápio"
+    - "Seleção Imperdível"
+    - "novidade no menu"
+    - "promoção sazonal anunciada"
+
+D1:
+  detrator:
+    - "fila enorme no restaurante"
+    - "sem reservas disponíveis"

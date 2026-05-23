@@ -1,0 +1,54 @@
+# Setor aeroporto — expressões específicas que NÃO aparecem em base.yaml.
+# Amostrado de verbatins certos de N-Aeroporto Confins BH na auditoria
+# 2026-05-18.
+
+A1:
+  promotor:
+    - "melhor opção de aeroporto"
+    - "um dos melhores do país"
+    - "aeroporto referência"
+
+A2:
+  promotor:
+    - "atendente da loja deu suporte na escolha"
+  detrator:
+    - "atendentes da concessão sem treinamento"
+    - "atendente do café empurrando produtos"
+
+D1:
+  promotor:
+    - "fácil chegar de carro"
+    - "estacionamento disponível"
+  detrator:
+    - "muito distante do centro"
+    - "poucas opções de lanche"
+    - "preços inacessíveis no aeroporto"
+    - "espera de horas no aeroporto"
+    - "Drag/lounge fechada"
+
+D2:
+  promotor:
+    - "mala localizada rapidamente"
+    - "atendimento pós-extravio resolveu"
+  detrator:
+    - "mala extraviada"
+    - "cobraram errado"
+    - "45 minutos para entregar hambúrguer"
+    - "fastfood demorou mais que o voo"
+    - "loja vazia mas atendimento devagar"
+
+D3:
+  promotor:
+    - "tudo antecipado, sem atraso"
+    - "comunicação proativa de alterações"
+    - "embarque organizado pavimento a pavimento"
+  detrator:
+    - "tempo de espera pela bagagem maior que o voo"
+    - "embarque desorganizado"
+    - "chamadas individuais sem comunicação clara"
+
+Pa1:
+  promotor:
+    - "atendente do balcão de informações simpática"
+  detrator:
+    - "atendentes de check-in indiferentes"

@@ -1,0 +1,52 @@
+# Setor saude — expressões específicas que NÃO aparecem em base.yaml.
+# Amostrado de verbatins certos de N-Fleury (laboratório de exames) na
+# auditoria 2026-05-18.
+
+A1:
+  promotor:
+    - "melhor laboratório"
+    - "confio neste laboratório"
+    - "sempre faço meus exames aqui"
+
+A2:
+  promotor:
+    - "atendente explicou o exame"
+    - "atendente do WhatsApp esclareceu"
+    - "informação clara sobre cobertura do plano"
+  detrator:
+    - "atendentes de baixo nível técnico"
+    - "atendente do WhatsApp despreparada"
+    - "informação errada sobre cobertura"
+    - "andei a tarde inteira por causa de orientação errada"
+    - "atendente em treinamento sem suporte"
+
+D1:
+  promotor:
+    - "muitos exames no mesmo lugar"
+    - "localização boa"
+    - "agendamento online fácil"
+  detrator:
+    - "péssimo para marcação de exames"
+    - "demorou muito no atendimento"
+    - "muito cheio e demorado"
+    - "marcação difícil"
+
+D2:
+  promotor:
+    - "exame realizado rapidamente"
+    - "preferencial respeitada"
+  detrator:
+    - "demora no chamado do raio X"
+    - "guichê com atendente em treinamento"
+    - "senha de preferencial ignorada"
+    - "recepcionista despreparada"
+
+D3:
+  promotor:
+    - "aplicativo entrega resultado rápido"
+    - "exame em horário estendido"
+    - "laboratório organizado e eficiente"
+  detrator:
+    - "demora para atualizar resultado no sistema"
+    - "falta exame X no laboratório"
+    - "resultado não chegou no e-mail"

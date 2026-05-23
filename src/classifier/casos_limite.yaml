@@ -1,0 +1,81 @@
+# Casos-limite — 12 padrões de fronteira derivados da auditoria de 2026-05-18.
+#
+# Cada entrada descreve uma situação onde o subpilar parece um, mas o
+# correto é outro. O classifier consulta esta lista após aplicar as
+# cirurgias do prompt e antes de cravar a resposta.
+#
+# Estrutura:
+#   padrao: descrição em linguagem natural do padrão semântico
+#   subpilar_correto: subpilar esperado (P1-A3, sem_lastro)
+#   NAO_classificar_como: subpilar(es) que o modelo tenderia a escolher
+#                          incorretamente (string ou lista)
+#   tipo_correto: (opcional, só para sem_lastro/inativo)
+#
+# Distribuição (12 casos):
+# - 3× D2 → Pa2  (Cirurgia 2 Passo 2: resolução vs compensação)
+# - 2× D2 → P1   (Cirurgia 2 Passo 1: promessa antes da venda)
+# - 1× D2 → P2   (defeito intrínseco)
+# - 4× A1 → outros (P2 / A2 / A3 / D1) — Cirurgia 1
+# - 1× celebridade → sem_lastro (Cirurgia 4)
+# - 1× D3 vs D1 (infra antecipatória)
+
+casos_limite:
+  # Padrão D2→Pa2 (3 casos)
+  - padrao: "Empresa cobrou/aprovou e depois revogou após pagamento"
+    subpilar_correto: "Pa2"
+    NAO_classificar_como: "D2"
+
+  - padrao: "Cliente cumpriu obrigação contratual, empresa retém contrapartida (documento, serviço, reembolso)"
+    subpilar_correto: "Pa2"
+    NAO_classificar_como: "D2"
+
+  - padrao: "Cobrou a mais por serviço já incluído no contrato/seguro"
+    subpilar_correto: "Pa2"
+    NAO_classificar_como: "D2"
+
+  # Padrão D2→P1 (2 casos)
+  - padrao: "Promessa telefônica/agendamento descumprida na chegada (cliente confirmou antes, empresa não estava pronta)"
+    subpilar_correto: "P1"
+    NAO_classificar_como: "D2"
+
+  - padrao: "Tempo prometido na venda divergente da realidade (disseram 15min, demorou 45)"
+    subpilar_correto: "P1"
+    NAO_classificar_como: "D2"
+
+  # Padrão D2→P2 (1 caso)
+  - padrao: "Defeito intrínseco do produto manifestado no primeiro uso"
+    subpilar_correto: "P2"
+    NAO_classificar_como: "D2"
+
+  # Padrão A1→outros (4 casos — Cirurgia 1)
+  - padrao: "Elogio à qualidade intrínseca do produto/serviço com adjetivos como qualidade, sabor, drink, comida"
+    subpilar_correto: "P2"
+    NAO_classificar_como: "A1"
+
+  - padrao: "Elogio à competência técnica de profissionais/equipe"
+    subpilar_correto: "A2"
+    NAO_classificar_como: "A1"
+
+  - padrao: "Influenciador ou cliente sugere alternativa/conteúdo proativamente"
+    subpilar_correto: "A3"
+    NAO_classificar_como: "A1"
+
+  - padrao: "Elogio à amplitude/disponibilidade da oferta ('tem quase tudo', 'tem várias opções')"
+    subpilar_correto: "D1"
+    NAO_classificar_como: "A1"
+
+  # Padrão de nomes próprios (Cirurgia 4)
+  - padrao: "Comentário direcionado a celebridade nomeada (Gilberto Gil, Bela Gil, etc.) sem menção à empresa"
+    subpilar_correto: "sem_lastro"
+    tipo_correto: "inativo"
+
+  # Padrão D3 vs D1 (golden set CR-D3-01 + reauditoria 2026-05-23)
+  # D3 cobre 3 tipos de antecipação operacional:
+  #   1. Comunicação proativa de problema iminente (atraso, falha, ressalva)
+  #   2. Infra/facilidade oferecida sem pedido (transfer, vip, kit, upgrade)
+  #   3. Automação/extensão operacional que antecipa necessidade que o cliente
+  #      nem sabia ter (app entrega resultado sozinho, horário estendido
+  #      descoberto pelo cliente, retira/entrega digital sem balcão).
+  - padrao: "Infra/automação que a empresa oferece sem o cliente pedir, antecipando necessidade (transfer próprio, sala vip, kit boas-vindas, app que entrega resultado proativamente, retira/entrega digital, horário estendido descoberto pelo cliente, notificação automática)"
+    subpilar_correto: "D3"
+    NAO_classificar_como: ["D1", "A2"]

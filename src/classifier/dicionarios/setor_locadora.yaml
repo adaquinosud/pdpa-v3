@@ -1,0 +1,45 @@
+# Setor locadora — expressões específicas que NÃO aparecem em base.yaml.
+# Amostrado de verbatins certos de N-Localiza na auditoria 2026-05-18.
+
+A1:
+  promotor:
+    - "melhor locadora"
+    - "melhor locadora do Brasil"
+    - "amo a Localiza"
+
+A2:
+  promotor:
+    - "atendente explicou os carros"
+    - "orientações sobre o seguro"
+    - "atendente esclareceu sobre tarifa"
+  detrator:
+    - "funcionário despreparado"
+    - "passam informações erradas sobre carros"
+    - "atendente empurrando produtos"
+
+D1:
+  promotor:
+    - "agilidade na retirada"
+    - "sem burocracia"
+    - "tem van no aeroporto"
+    - "retirada rápida e eficiente"
+  detrator:
+    - "não tem van"
+    - "muitos clientes para poucos atendentes"
+
+D2:
+  promotor:
+    - "problema com cobrança resolvido"
+    - "carro reserva acionado pelo seguro"
+    - "dúvidas sobre tarifa tiradas"
+  detrator:
+    - "cobraram errado pelo seguro"
+    - "carro reserva negado"
+
+D3:
+  promotor:
+    - "fast retirada"
+    - "retira e entrega digital"
+    - "transfer próprio para o aeroporto"
+    - "retirada automática"
+    - "entrega no aeroporto"
