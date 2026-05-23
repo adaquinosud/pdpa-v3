@@ -1,0 +1,294 @@
+# Dicionário base — expressões genéricas por subpilar/tipo.
+# Aplicáveis a qualquer setor. Combinado com setor_<setor>.yaml em runtime
+# por src/classifier/dicionarios/__init__.py:carregar_dicionario().
+#
+# Fonte: refatoração do framework PDPA v2 para versão setor-agnóstica +
+# amostragem de verbatins certos da auditoria de 2026-05-18.
+#
+# Política: 5-8 expressões por (subpilar, tipo). Genéricas — específicas
+# de setor vão para setor_X.yaml.
+
+P1:
+  promotor:
+    - "promessa cumprida"
+    - "conforme anunciado"
+    - "como prometido"
+    - "sem surpresas"
+    - "entregou o que prometeu"
+    - "preço justo conforme anúncio"
+  detrator:
+    - "propaganda enganosa"
+    - "anúncio enganoso"
+    - "prazo descumprido"
+    - "preço diferente do anunciado"
+    - "letra miúda"
+    - "cobrança a maior do prometido"
+    - "promessa não cumprida"
+
+P2:
+  promotor:
+    - "bom produto"
+    - "boa qualidade"
+    - "qualidade do produto"
+    - "rendimento bom"
+    - "satisfeito com a qualidade"
+    - "vale o preço"
+    - "produto sem defeitos"
+  detrator:
+    - "defeito"
+    - "produto estragado"
+    - "péssima qualidade"
+    - "veio errado"
+    - "chegou estragado"
+    - "qualidade ruim"
+    - "produto sem sabor"
+    - "rendimento abaixo do esperado"
+
+P3:
+  promotor:
+    - "sempre igual"
+    - "nunca falhou"
+    - "consistente"
+    - "padrão em todas as visitas"
+    - "confiável ao longo do tempo"
+  detrator:
+    - "inconsistente"
+    - "cada vez diferente"
+    - "antes era melhor"
+    - "variação entre lojas"
+    - "qualidade variável"
+    - "cada filial é uma realidade"
+
+D1:
+  promotor:
+    - "fácil acesso"
+    - "rapidez no atendimento"
+    - "atendeu na hora"
+    - "WhatsApp funcionou"
+    - "bem localizada"
+    - "tem várias opções"
+    - "muitas unidades"
+  detrator:
+    - "fila enorme"
+    - "telefone não atende"
+    - "sistema indisponível"
+    - "0800 ocupado"
+    - "robô não entende"
+    - "demora para atender"
+    - "poucas opções"
+
+D2:
+  promotor:
+    - "resolveu de imediato"
+    - "primeiro contato"
+    - "problema resolvido"
+    - "atendimento resolutivo"
+    - "dúvidas tiradas"
+    - "atendimento eficiente"
+  detrator:
+    - "não resolveu"
+    - "preciso ligar de novo"
+    - "tempo de espera alto"
+    - "chamado fechado sem resolver"
+    - "técnico não veio"
+    - "atendimento sem solução"
+
+D3:
+  promotor:
+    - "me avisaram antes"
+    - "notificação proativa"
+    - "anteciparam o problema"
+    - "rastreamento atualizado"
+    - "tudo antecipado"
+    - "comunicação proativa"
+  detrator:
+    - "não me avisou"
+    - "sem notificação"
+    - "soube só quando liguei"
+    - "atraso sem aviso"
+    - "cancelaram sem avisar"
+
+Pa1:
+  promotor:
+    - "atencioso"
+    - "atendimento fantástico"
+    - "atendeu com carinho"
+    - "fui ouvido"
+    - "acolhimento"
+    - "atendimento humano"
+    - "vendedor atencioso"
+  detrator:
+    - "atendimento frio"
+    - "esnobe"
+    - "sem empatia"
+    - "script pronto"
+    - "vendedor desatento"
+    - "atendimento mecânico"
+
+Pa2:
+  promotor:
+    - "compensação justa"
+    - "desconto real"
+    - "frete grátis"
+    - "benefício real"
+    - "reconhece o histórico do cliente"
+    - "reembolso facilitado"
+  detrator:
+    - "tive que insistir"
+    - "reembolso negado"
+    - "anos de cliente e me tratam como novo"
+    - "cobrou a mais"
+    - "benefício vazio"
+    - "venda casada"
+    - "cobrança indevida"
+    - "aprovaram e depois negaram"
+
+Pa3:
+  promotor:
+    - "anos de cliente"
+    - "fiel à marca"
+    - "virou ritual"
+    - "sempre volto"
+    - "jamais cogitei trocar"
+    - "vínculo de longa data"
+  detrator:
+    - "nenhum reconhecimento"
+    - "fui tratado como suspeito"
+    - "não me reconhecem"
+    - "perdi a fidelidade"
+
+A1:
+  promotor:
+    - "referência no setor"
+    - "padrão de excelência"
+    - "melhor do setor"
+    - "tradição reconhecida"
+    - "padrão-ouro"
+    - "modelo a seguir"
+    - "amo a marca"
+    - "sempre confiei"
+  detrator:
+    - "empresa perdeu identidade"
+    - "perdeu o padrão"
+    - "deixou de ser referência"
+    - "decadência da marca"
+
+A2:
+  promotor:
+    - "orientação qualificada"
+    - "me guiou na escolha"
+    - "explicou as diferenças"
+    - "explicou bem"
+    - "atendente bem informada"
+    - "vendedor com conhecimento"
+  detrator:
+    - "orientação incorreta"
+    - "vendedor sem conhecimento"
+    - "chat genérico"
+    - "explicação ruim"
+    - "atendente mal informada"
+    - "passam informações erradas"
+
+A3:
+  promotor:
+    - "sugestão antecipada"
+    - "me avisaram antes da venda geral"
+    - "cursos gratuitos"
+    - "sugeriu sem eu pedir"
+    - "conteúdo enviado sem solicitação"
+    - "recomendação proativa"
+  detrator:
+    - "nenhuma sugestão proativa"
+    - "app não notificou"
+    - "sempre reativo"
+    - "nunca recomendou"
+
+sem_lastro:
+  inativo:
+    - "👏"
+    - "👏👏"
+    - "👏👏👏"
+    - "❤️"
+    - "❤️❤️"
+    - "❤️❤️❤️"
+    - "🙌"
+    - "🙏"
+    - "😍"
+    - "bom dia"
+    - "boa tarde"
+    - "boa noite"
+    - "obrigado"
+    - "obrigada"
+    - "tchau"
+    - "qual o horário"
+    - "vocês entregam"
+    - "tem filial"
+    - "qual o telefone"
+    - "como faço para"
+
+# ─── Categorias auxiliares (NÃO são subpilares) ────────────────────────
+#
+# Indicadores genéricos sem ancoragem específica. Quando o verbatim
+# contém SOMENTE expressões destas listas (sem outros substantivos que
+# ancorem ao produto/serviço/empresa/atendimento), classifique como:
+#   - conversivel no subpilar mais provável pela fonte (Pa1 padrão em
+#     redes sociais)
+#   - OU sem_lastro/inativo se for tão vago que nem o subpilar é inferível.
+#
+# Estas listas crescem conforme novas expressões aparecem nos verbatins
+# coletados.
+
+elogios_genericos_sem_objeto:
+  - "parabéns"
+  - "show"
+  - "show demais"
+  - "demais"
+  - "top"
+  - "top demais"
+  - "maravilhoso"
+  - "maravilhosa"
+  - "incrível"
+  - "arrasaram"
+  - "arrasou"
+  - "perfeito"
+  - "perfeita"
+  - "espetacular"
+  - "fantástico"
+  - "fantástica"
+  - "monstro"
+  - "monstros"
+  - "lacrou"
+  - "lacraram"
+  - "uau"
+  - "wow"
+  - "sensacional"
+  - "lenda"
+  - "lendária"
+  - "lendário"
+  - "lendaaa"
+  - "lendaaaa"
+  - "deusa"
+  - "deusão"
+  - "rainha"
+  - "mito"
+  - "ícone"
+  - "icônico"
+  - "icônica"
+  - "amei"
+  - "amei amei"
+
+criticas_genericas_sem_objeto:
+  - "horrível"
+  - "horroroso"
+  - "péssimo"
+  - "péssima"
+  - "ruim demais"
+  - "muito ruim"
+  - "vergonhoso"
+  - "vergonha"
+  - "lamentável"
+  - "lamentavel"
+  - "decepção"
+  - "decepcionante"
+  - "que fiasco"
+  - "fiasco"

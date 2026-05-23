@@ -8,6 +8,7 @@ que `configure_mappers()` resolva as relationships string-based e que
 from src.models.agrupamento import Agrupamento, agrupamento_locais
 from src.models.anomalia import AnomaliaDetectada
 from src.models.base import Base
+from src.models.classifier_metric import ClassifierMetric
 from src.models.empresa import Empresa
 from src.models.fonte import Fonte
 from src.models.local import Local, LocalMetadado
@@ -19,6 +20,7 @@ __all__ = [
     "Agrupamento",
     "AnomaliaDetectada",
     "Base",
+    "ClassifierMetric",
     "Empresa",
     "Fonte",
     "Local",

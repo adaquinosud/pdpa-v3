@@ -28,6 +28,60 @@ Como fazer:
 ### Outras pendências
 (adicionar conforme apareçam durante implementação)
 
+---
+
+## Notas sobre a auditoria v2 (2026-05-18)
+
+**Contexto:** a planilha `data/auditoria_v2_marcada.xlsx` foi gerada com o framework do PDPA **v2**, que **não tinha a categoria `sem_lastro`**. Como consequência, casos marcados pela auditoria como "A1 Certo" incluem três tipos de texto que o v3 corretamente reclassifica como `sem_lastro/inativo`:
+
+1. **Conteúdo institucional/corporativo** — slogans ("A maior locadora do Brasil"), descrições de governança ("O Grupo Mantiqueira vem crescendo..."), posts de recrutamento (Indeed da N-Fleury).
+2. **Comentários a celebridades em parcerias** — replies a @belagil, @cidadematarazzo, Rebeca Andrade, Gilberto Gil em posts do perfil da marca; nenhum atende o critério A1 (autoridade institucional reconhecida pelo cliente).
+3. **Posts da própria marca** — conteúdo educativo/comunicação corporativa ("Apostamos que você já viu por aí testes que prometem...") publicado pela empresa, não verbatim de cliente.
+
+**Evidência empírica (Bloco 3.1)**:
+
+- No GRUPO CERTO da auditoria, 289/468 casos (61.8%) são marcados como A1. **Destes, 107 (37%) o v3.1 reclassificou para sem_lastro.**
+- Amostra estratificada de 20/107 desses casos foi auditada manualmente em 2026-05-23: **20/20 dão razão ao v3.1**. Zero casos eram A1 legítimo.
+- Reauditoria estendida de **44 casos** (`data/reauditoria_50casos.xlsx`) auditada por Alexandre em 2026-05-23:
+  - **A1 → sem_lastro**: 24/24 a favor do v3 (**100%**).
+  - **A1 → outros**: 8/10 a favor do v3, 2 fronteira.
+  - **D3 → outros**: 7/10 a favor do v3, **3 a favor do v2** — gap real identificado em antecipação operacional **digital/automatizada**.
+- **Global: 89% das divergências v3 vs gabarito v2 foram resolvidas a favor do v3.**
+
+**Implicação metodológica:**
+
+- Benchmarks que comparam v3 com o gabarito v2 **subestimam o v3 em ~30 pontos percentuais**.
+- A métrica direta do benchmark do Bloco 3.1 (41.7%) **não é critério válido** para reprovar o classifier. **Número real estimado: 70–75%**.
+- O único gap real identificado pela reauditoria — antecipação digital/automatizada (app entrega resultado, retira/entrega digital sem balcão, horário estendido descoberto pelo cliente) — foi corrigido **no fechamento do Bloco 3.1**, reforçando o caso-limite 12 (`src/classifier/casos_limite.yaml`) e a distinção D1 vs D3 no prompt (`classifier_v3_prompt.md`, seção da Cirurgia 3) com exemplos explícitos.
+- Próximos benchmarks devem usar **gabarito reauditado**, não o gabarito v2 original, para os subpilares A1 e D3.
+
+**Decisão arquitetural relacionada:** manter Cirurgia 4 (sem_lastro) como porta de saída padrão para conteúdo sem ancoragem à experiência do cliente. Não voltar a usar A1 como categoria-lixo do v2. Quando texto institucional positivo precisar de tratamento separado (releases, comunicação institucional), criar canal/coluna nova (ex: `fonte.tipo = institucional` com peso 0 no ratio), não usar A1.
+
+---
+
+### Threshold de escalada Haiku→Sonnet (0.6 inicial → 0.85)
+
+**Status:** PENDENTE
+**Prazo:** após a reauditoria mostrar onde Sonnet faz diferença
+
+`CLASSIFIER_ESCALATION_THRESHOLD` está default em `0.6` (introduzido na Frente 3 do Bloco 3.1). O benchmark v3.1 mostrou que **0% dos 668 casos** tiveram confiança < 0.6 — a escalada virou decorativa.
+
+Distribuição de confiança (Haiku, 668 chamadas):
+- 0.9–1.0: 58.1%
+- 0.8–0.9: 6.6%
+- 0.7–0.8: 26.9%
+- 0.6–0.7: 8.4%
+- <0.6: 0%
+
+Subir o threshold para **0.85** capturaria ~35% dos casos para Sonnet. Antes de mudar o default, validar com a reauditoria que Sonnet de fato diverge do Haiku em casos low-conf — não vale gastar 3× se a resposta for igual.
+
+Como fazer:
+1. Após reauditoria, rodar amostra de 50 casos com `CLASSIFIER_ESCALATION_THRESHOLD=0.99` (força Sonnet em tudo) e comparar Haiku vs Sonnet por subpilar.
+2. Se Sonnet melhora ≥10pt em conf>0.6 e ≤0.85, mudar default para 0.85. Senão, manter 0.6 mas documentar como "guard-rail apenas".
+3. Considerar threshold por subpilar (A1, D3 são mais difíceis — talvez 0.95 ali).
+
+---
+
 ## Melhorias para fase posterior
 
 ### seeds/seed_exemplo.py: tornar idempotente
@@ -63,16 +117,9 @@ Como fazer: definir um logger central (sugestão: `src/utils/logging.py`) com ha
 
 ### Cirurgia 3 do prompt — exemplo de infra antecipatória (D3 vs D1)
 
-**Status:** PENDENTE
-**Prazo:** próxima rodada de ajuste fino do prompt (após golden set rodar em volume real)
+**Status:** CONCLUÍDA em 2026-05-23 (Bloco 3.1, Frente 4 + ajuste pós-benchmark)
 
-A 3ª rodada do golden set revelou que o classifier v3 confunde **infra antecipatória oferecida pela empresa sem pedido** (transfer próprio, sala VIP, kit boas-vindas) com **acessibilidade** (D1). Caso paradigmático: `CR-D3-01` ("transfer deles próprio para nos pegar no aeroporto e levar para o local") — modelo classificou como D1/promotor pela definição estrita de acessibilidade, esperado D3/promotor pela antecipação operacional.
-
-Como fazer: adicionar à seção `## CIRURGIA 3 — D3 (Proatividade) restritivo` do prompt v3 um exemplo explícito do padrão:
-
-> "Infra que a empresa oferece sem o cliente pedir (transfer próprio, sala VIP, kit boas-vindas, brinde inicial) é **D3**, não D1. D1 são canais de acesso que o cliente usa quando precisa chegar; D3 é a empresa antecipar serviço/comodidade sem ser chamada."
-
-Aceitar D1 nesses casos descaracteriza a Cirurgia 3 inteira. O caso `CR-D3-01` é mantido no golden set como sinal de regressão até essa pendência ser fechada.
+Frente 4 do Bloco 3.1 reescreveu Cirurgia 3 para incluir explicitamente "Antecipação como facilidade oferecida proativamente" (transfer próprio, retira/entrega digital, kit boas-vindas, late check-out proativo, upgrade não solicitado, app que adianta próximo passo). O caso-limite 12 em `src/classifier/casos_limite.yaml` também foi expandido. Aguardando benchmark pós-reauditoria para validar redução da regressão D3→D1 (era 13/47 = 27.6% do D3).
 
 ### Peso por fonte no ratio P/D (especialmente imprensa/google_news)
 
@@ -87,6 +134,17 @@ Cenários afetados:
 - Indeed / Glassdoor (futuro, não migrado ainda): voz de colaborador (interno), não cliente.
 
 Como fazer: opção A — reintroduzir campo `origem` em `verbatins` (migration nova) com 3 valores e aplicar pesos no cálculo do ratio no Painel. Opção B — adicionar coluna `peso_no_ratio` em `fontes` (configurável por Fonte; default 1.0 para cliente, 0.0 para google_news). Decisão fica para o briefing do Bloco 5+.
+
+### Dicionários setoriais — Pa2 e Pa3 incompletos
+
+**Status:** PENDENTE
+**Prazo:** após benchmark v3.1 mostrar se base.yaml cobre
+
+Os 5 arquivos `setor_*.yaml` em `src/classifier/dicionarios/` (alimentos, locadora, saude, restaurante, aeroporto) atualmente NÃO têm expressões específicas para Pa2 (justiça/mutualidade) nem Pa3 (continuidade relacional). Esses subpilares são cobertos apenas por `base.yaml`, que tem vocabulário genérico.
+
+Por que adiar: a auditoria de 2026-05-18 não tinha verbatins "certo" suficientes em Pa2/Pa3 por empresa para extrair expressões setor-específicas com confiança. O benchmark v3.1 vai mostrar se `base.yaml` sozinho cobre — e onde Pa2/Pa3 ainda erram.
+
+Como fazer: rodar o benchmark v3.1; se Pa2/Pa3 aparecerem em "Top regressões" ou "Top confusões" por setor, samplear verbatins reais coletados (não auditados) e popular `setor_X.yaml` com 3-5 expressões cada. Setores prioritários (volume): restaurante, aeroporto, alimentos.
 
 ### Caps do Instagram (MAX_POSTS, MAX_COMMENTS_PER_POST) como config
 

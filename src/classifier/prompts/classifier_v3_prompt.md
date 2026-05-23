@@ -104,6 +104,16 @@ Classifique como **A1 apenas** se houver UMA destas evidências explícitas:
 
 A1 é a marca de **autoridade institucional reconhecida pelo cliente**. Elogio comum não basta — precisa haver comparação, referência ou autoridade explícita no texto.
 
+### A1 restritivo ≠ sem_lastro — porta de saída para conversivel
+
+Quando o verbatim é elogio mas não atende A1 (sem comparação/referência/autoridade explícita), **NÃO descarte como sem_lastro**. Identifique o subpilar com ancoragem mais provável pela fonte/setor e use `tipo = conversivel`:
+
+- Elogio genérico em rede social (instagram/facebook) → **Pa1/conversivel** por padrão (atendimento é o subpilar mais provável em redes sociais).
+- Elogio genérico em review de produto (google/tripadvisor) com objeto vago → **P2/conversivel** (produto-core) ou **Pa1/conversivel** (atendimento).
+- Elogio que toca múltiplos aspectos sem destacar nenhum → o subpilar de maior peso semântico na sentença, com `tipo = conversivel`.
+
+**sem_lastro/inativo é APENAS para verbatim sem ancoragem identificável à marca/produto/serviço/atendimento (ver Cirurgia 4).** Elogio genérico sem critério A1 → `conversivel` no subpilar provável, **nunca sem_lastro só por falta de A1**.
+
 ---
 
 ## CIRURGIA 2 — Árvore D2 / Pa2 / P1 / P2 (momento temporal)
@@ -151,23 +161,50 @@ Esses casos **NÃO são D2** — não estamos avaliando se a empresa foi rápida
 
 ## CIRURGIA 3 — D3 (Proatividade) restritivo
 
-Classifique como **D3 apenas** quando a empresa **antecipou ação operacional ANTES** de o cliente identificar o problema ou pedir solução.
+Classifique como **D3 apenas** quando a empresa **antecipou ação operacional** sem o cliente ter pedido.
 
-**Exemplos válidos para D3:**
+**Antecipação operacional tem dois sabores — ambos contam como D3:**
 
-- "Avisaram do atraso antes de eu precisar perguntar."
-- "Anteciparam o problema e ofereceram alternativa."
-- "Mandaram lembrete da revisão sem eu solicitar."
-- "Rastreamento avisou sozinho que o pacote tinha sido extraviado."
+1. **Antecipação reativa a problema iminente** — comunicação proativa de falha, atraso, mudança ou ressalva, sem o cliente ter perguntado.
+   - "Avisaram do atraso antes de eu precisar perguntar."
+   - "Anteciparam o problema e ofereceram alternativa."
+   - "Mandaram lembrete da revisão sem eu solicitar."
+   - "Rastreamento avisou sozinho que o pacote tinha sido extraviado."
+
+2. **Antecipação como facilidade oferecida proativamente** — infraestrutura ou serviço que a empresa entrega ANTES de o cliente pedir, eliminando uma etapa do esforço.
+   - "Tem transfer próprio que pega no aeroporto e leva pra loja."
+   - "Retira/entrega digital — não precisei ir ao balcão."
+   - "Receberam com kit de boas-vindas no quarto."
+   - "Late check-out oferecido espontaneamente."
+   - "Upgrade não solicitado."
+   - "App já abre na próxima etapa do meu pedido."
+
+**Importante**: D3 **não exige** que haja um problema. Facilidade antecipatória sem provocação do cliente também é D3.
+
+**Distinção D3 vs D1 (regra de fronteira mais comum)**:
+
+- **D1** — o cliente **PRECISA acessar** e a empresa facilita o acesso: fila curta, telefone atende, site funciona, app permite agendar, tem várias unidades.
+- **D3** — a empresa **ANTECIPA** algo que o cliente nem pediu, frequentemente via **automação ou extensão operacional**: app entrega resultado sozinho, retira/entrega digital sem balcão, horário estendido que cobre o cliente, notificação proativa, transfer próprio, kit de boas-vindas, upgrade não solicitado.
+
+**A chave**: em D1 o cliente vai buscar e a empresa está pronta. Em D3 a empresa age **antes** do cliente buscar.
+
+Critério prático: **se o cliente teve que pedir/buscar, é D1. Se a empresa adiantou sem ser provocada, é D3 — mesmo que a antecipação seja só uma automação que o cliente "descobriu" funcionando.**
+
+**Exemplos de antecipação digital/automatizada que são D3, NÃO D1:**
+
+- "Laboratório organizado, app mostra resultado no mesmo dia" → **D3** (app entrega resultado proativamente).
+- "Retira e entrega digital" → **D3** (automação antecipa o balcão).
+- "Ressonância às 22:30, nem sabia que funcionava" → **D3** (horário estendido cobriu necessidade que o cliente não sabia que tinha).
+- "App avisou que minha vaga estava pronta antes de eu chegar" → **D3** (notificação proativa).
 
 **NÃO são D3** (apesar de bom atendimento):
 
-- "Chegamos e fomos bem atendidos" → **D1** (acessibilidade no contato inicial).
+- "Chegamos e fomos bem atendidos" → **D1** (cliente buscou o canal; bom atendimento ali é Pa1 ou D1).
 - "Explicaram bem como funciona" → **A2** (orientação técnica respondendo a uma busca do cliente).
 - "O produto chegou no prazo" → **P1** (promessa cumprida) ou **P2** (entrega bem feita).
-- "Mandaram email com novidades do mês" → **A3** (recomendação proativa, não operação).
+- "Mandaram email com novidades do mês" → **A3** (recomendação proativa de conteúdo, não operação).
 
-D3 é **antecipação operacional** — empresa faz algo antes de ser chamada. Atendimento bom em resposta a contato do cliente não é D3.
+D3 é **antecipação operacional** — empresa faz algo antes de ser chamada. Atendimento bom em resposta a contato do cliente não é D3, mas facilidade oferecida sem pedido **é**.
 
 ---
 
@@ -190,6 +227,19 @@ Atribua `subpilar = sem_lastro` e `tipo = inativo` quando o verbatim **não tem 
 - Verbatim **sem ancoragem alguma** → **sem_lastro + inativo**.
 
 A fronteira é estreita: se há qualquer ligação ao produto, serviço, atendimento ou marca, prefira conversivel. sem_lastro é para o que genuinamente não cabe.
+
+**Exemplos de elogios genéricos que NÃO viram sem_lastro:**
+
+- "Sensacional!" em comentário no perfil da empresa no Instagram → **Pa1/conversivel** (rede social → atendimento como prior; estar no perfil da marca já é ancoragem).
+- "Amei o lugar" em review do Google → **D1/conversivel** ou **Pa1/conversivel** (o substantivo "lugar" indica acessibilidade/ambiente).
+- "Top demais" como resposta a um post da marca → **Pa1/conversivel** (ancoragem implícita pela origem).
+- "Recomendo muito" sem dizer do quê → **conversivel** no subpilar mais provável pela fonte.
+
+A presença mínima da marca — estar no perfil dela, ser reply ao post dela, mencionar o nome ou um substantivo concreto da experiência — já é ancoragem suficiente para **NÃO** ser sem_lastro.
+
+**Critério prático antes de marcar sem_lastro:**
+
+Pergunte: *o verbatim pode ser entendido sem saber qual empresa é?* Se sim → sem_lastro. Se há mesmo um substantivo concreto da experiência (produto, atendente, lugar, serviço, pedido, prato, comida, drink, atendimento, app, fila, prazo, preço, qualidade...) → use esse substantivo para inferir o subpilar e marque `conversivel`.
 
 ---
 
@@ -224,6 +274,53 @@ Use esses campos como prior para resolver ambiguidades. Exemplos:
 - Fonte `glassdoor` ou `indeed` → emissor provavelmente é colaborador da empresa (não cliente final); ainda assim classifique pelo subpilar sinalizado.
 - Fonte `reclame_aqui` → enviesado a problemas pós-venda — considere **D2** ou **P1** como candidatos primários se houver dúvida.
 - Fonte `instagram`/`facebook` → conteúdo mais emocional/curto; suba `conversivel` quando a ancoragem for vaga.
+
+---
+
+## Viés esperado por fonte
+
+A fonte do verbatim concentra naturalmente certos subpilares. Use isso como prior **quando o texto for ambíguo**; nunca contradiga o que o texto deixa claro.
+
+| Fonte                | Subpilares prioritários (em caso de dúvida)                              | Notas                                                              |
+| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `google`             | Pa1 (atendimento), A2 (orientação), D1 (acesso/sortimento), A1 (autoridade) | Reviews de loja física — atendimento e acessibilidade dominam.    |
+| `reclame_aqui`       | D2 (resolução), P1 (promessa), Pa2 (justiça)                             | Pós-venda — quase sempre detrator; D2/Pa2 são primeiros candidatos. |
+| `consumidor_gov`     | D2, P1, Pa2                                                              | Queixa formal — análoga ao Reclame Aqui, viés ainda mais Pa2.     |
+| `tripadvisor`        | P2 (comida/quarto), Pa1 (atendimento), D1 (localização/instalações)      | Hospitalidade — produto-core (comida/quarto) e atendimento.       |
+| `amazon`/`mercadolivre` | P2 (qualidade do produto), P1 (anúncio vs entrega), D2 (devolução/SAC)  | Produto físico — defeitos, prazo, anúncio enganoso.               |
+| `instagram`/`facebook` | Pa1 (atendimento — default em redes), A3 (sugestão/recomendação), `conversivel` quando vago | Curto e emocional — suba `conversivel` para elogio genérico.  |
+| `indeed`/`glassdoor` | Pa1 (clima/lideranças), A3 (capacitação), `sem_lastro` quando puramente RH genérico | Emissor é colaborador, não cliente final.                  |
+| `excel_manual`       | sem viés forte                                                           | Importação manual — confie no texto, sem prior pela fonte.        |
+
+**Regra de uso:** se duas leituras forem defensáveis, o subpilar prioritário da fonte ganha. Se o texto contradiz o prior (ex.: `reclame_aqui` com elogio genuíno a atendimento → Pa1/promotor), siga o texto.
+
+---
+
+## Produto-core vs periférico (prior por setor)
+
+Cada setor tem um **produto-core** — o item central da experiência. Elogios e críticas ao core caem em **P2** (qualidade da entrega). Elogios ao que está em volta do core caem em **Pa1** (atendimento), **D1** (acesso/ambiente) ou **A2** (orientação) conforme o caso.
+
+| Setor                                                | Produto-core                                | Periféricos                                                  |
+| ---------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------ |
+| `cafeteria`, `restaurante`, `bar`, `padaria`         | comida, bebida, drinks                      | atendimento (Pa1), ambiente (D1), localização (D1), garçom (Pa1/A2) |
+| `hotel`, `pousada`                                   | quarto, conforto, sono                      | café da manhã (P2 secundário), atendimento (Pa1), localização (D1), spa/lazer (D1) |
+| `tintas`, `materiais de construção`                  | produto físico (lata, rendimento, cor)      | atendimento no PDV (Pa1), orientação técnica (A2), entrega (D2) |
+| `locadora`                                           | veículo (estado, modelo, limpeza)           | retirada/devolução (D1), seguro/cobrança (Pa2), atendimento (Pa1), orientação sobre carros (A2) |
+| `supermercado`, `varejo`                             | sortimento (D1) + produtos individuais (P2) | caixa (Pa1), fila (D1), preço/promoção (P1)                  |
+| `concessionária`, `revenda automotiva`               | veículo + processo de venda                 | vendedor (Pa1/A2), pós-venda (D2), revisão (P2)              |
+| `aeroporto`, `companhia aérea`                       | voo/viagem (P2), pontualidade (P1)          | check-in/embarque (D1), assistência (Pa1), bagagem (D2)      |
+| `clínica`, `laboratório`, `hospital`                 | procedimento médico, exame, vacina (P2/A2)  | recepção (Pa1), agendamento (D1), comunicação de resultado (D2) |
+| `alimentos` (indústria, marca de produto embalado)   | produto na prateleira (P2)                  | embalagem (P2), assistência (D2), comunicação (A3)           |
+
+**Como aplicar:**
+
+- "Comida deliciosa" em `restaurante` → **P2** (core), com promotor/conversivel conforme ancoragem.
+- "Comida deliciosa" em `tintas` (cliente recebido com café no PDV) → **Pa1** ou **Pa3** (hospitalidade, não core).
+- "Atendimento excelente" em qualquer setor → **Pa1** (atendimento é periférico, nunca core, exceto serviços onde o atendimento É o produto — consultoria, advocacia, etc.).
+- "Carro impecável" em `locadora` → **P2** (veículo = core).
+- "Entrega rápida do material" em `tintas` → **D2** (operação) ou **P1** (prazo prometido); não é P2 (core seria a tinta em si).
+
+**Regra prática:** quando o verbatim toca múltiplos aspectos (core + periférico) com peso similar, classifique pelo **mais saliente** — o ponto onde o cliente gasta mais palavras ou usa adjetivo mais forte.
 
 ---
 
