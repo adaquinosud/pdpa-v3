@@ -1,0 +1,13 @@
+<tr id="ag-{{ a.id }}" class="border-t border-loyall-100">
+  <td class="py-1.5">{{ a.nome }}</td>
+  <td class="py-1.5 text-loyall-700">{{ a.descricao or '—' }}</td>
+  <td class="py-1.5">{% if a.ativo %}<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">sim</span>{% else %}<span class="px-2 py-0.5 text-xs rounded bg-loyall-100 text-loyall-700">não</span>{% endif %}</td>
+  <td class="py-1.5">
+    {% if eh_loyall %}
+    <button hx-delete="{{ url_for('ui.htmx_deletar_agrupamento', agrupamento_id=a.id) }}"
+            hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
+            hx-confirm="Excluir agrupamento '{{ a.nome }}'? (locais ficam sem agrupamento)"
+            class="text-red-600 hover:underline text-xs">excluir</button>
+    {% endif %}
+  </td>
+</tr>

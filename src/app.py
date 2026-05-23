@@ -11,6 +11,7 @@ from src.api.empresas import empresas_bp
 from src.api.fontes import fontes_bp
 from src.api.locais import locais_bp
 from src.config import get_config
+from src.ui import ui_bp
 
 
 def create_app() -> Flask:
@@ -27,6 +28,7 @@ def create_app() -> Flask:
     app.register_blueprint(locais_bp)
     app.register_blueprint(fontes_bp)
     app.register_blueprint(coleta_bp)
+    app.register_blueprint(ui_bp)
 
     _register_cli_commands(app)
 
