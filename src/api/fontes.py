@@ -163,6 +163,22 @@ def atualizar_fonte(fonte_id: int):
         return jsonify(serialize_fonte(fonte))
 
 
+@fontes_bp.route("/<int:fonte_id>/inativar", methods=["PATCH"])
+@login_required
+def toggle_ativo_fonte(fonte_id: int):
+    """Toggle do flag ``ativo`` (sem deletar)."""
+    with db_session() as session:
+        fonte = session.get(Fonte, fonte_id)
+        if fonte is None:
+            return jsonify({"erro": "Fonte não encontrada"}), 404
+        erro = verificar_acesso_empresa(fonte.empresa_id)
+        if erro:
+            return erro
+        fonte.ativo = not bool(fonte.ativo)
+        session.flush()
+        return jsonify(serialize_fonte(fonte))
+
+
 @fontes_bp.route("/<int:fonte_id>", methods=["DELETE"])
 @login_required
 def remover_fonte(fonte_id: int):

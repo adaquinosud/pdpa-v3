@@ -1,0 +1,23 @@
+<tr id="loc-{{ loc.id }}" class="border-t border-loyall-100 bg-amber-50">
+  <td colspan="5" class="py-2 px-2">
+    <form hx-put="{{ url_for('ui.htmx_salvar_local', local_id=loc.id) }}"
+          hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
+          class="grid grid-cols-12 gap-2 text-sm items-center">
+      <input name="nome" value="{{ loc.nome }}" required autofocus
+             class="col-span-3 px-2 py-1 border border-loyall-300 rounded"
+             placeholder="Nome">
+      <select name="agrupamento_id" class="col-span-3 px-2 py-1 border border-loyall-300 rounded">
+        <option value="">Sem agrupamento</option>
+        {% for ag in agrupamentos %}
+        <option value="{{ ag.id }}" {% if loc.agrupamento_id == ag.id %}selected{% endif %}>{{ ag.nome }}</option>
+        {% endfor %}
+      </select>
+      <input name="endereco" value="{{ loc.endereco or '' }}" placeholder="Endereço"
+             class="col-span-4 px-2 py-1 border border-loyall-300 rounded">
+      <button type="submit" class="col-span-1 px-2 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded text-xs">salvar</button>
+      <button type="button" hx-get="{{ url_for('ui.htmx_local_row', local_id=loc.id) }}"
+              hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
+              class="col-span-1 px-2 py-1 border border-loyall-300 hover:bg-loyall-100 rounded text-xs">cancelar</button>
+    </form>
+  </td>
+</tr>

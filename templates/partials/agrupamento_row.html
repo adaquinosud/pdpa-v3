@@ -1,13 +1,27 @@
-<tr id="ag-{{ a.id }}" class="border-t border-loyall-100">
-  <td class="py-1.5">{{ a.nome }}</td>
-  <td class="py-1.5 text-loyall-700">{{ a.descricao or '—' }}</td>
-  <td class="py-1.5">{% if a.ativo %}<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">sim</span>{% else %}<span class="px-2 py-0.5 text-xs rounded bg-loyall-100 text-loyall-700">não</span>{% endif %}</td>
+<tr id="ag-{{ a.id }}" class="border-t border-loyall-100 {% if not a.ativo %}opacity-60 bg-loyall-50/40{% endif %}">
   <td class="py-1.5">
     {% if eh_loyall %}
-    <button hx-delete="{{ url_for('ui.htmx_deletar_agrupamento', agrupamento_id=a.id) }}"
-            hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
-            hx-confirm="Excluir agrupamento '{{ a.nome }}'? (locais ficam sem agrupamento)"
-            class="text-red-600 hover:underline text-xs">excluir</button>
-    {% endif %}
+    <span hx-get="{{ url_for('ui.htmx_editar_agrupamento_form', agrupamento_id=a.id) }}"
+          hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
+          class="cursor-pointer hover:bg-loyall-100 px-1 rounded" title="clique para editar">{{ a.nome }}</span>
+    {% else %}{{ a.nome }}{% endif %}
+  </td>
+  <td class="py-1.5 text-loyall-700">{{ a.descricao or '—' }}</td>
+  <td class="py-1.5">
+    {% if a.ativo %}<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">ativo</span>
+    {% else %}<span class="px-2 py-0.5 text-xs rounded bg-loyall-200 text-loyall-700">inativo</span>{% endif %}
+  </td>
+  <td class="py-1.5">
+    <div class="flex items-center gap-3 text-xs">
+      {% if eh_loyall %}
+      <button hx-patch="{{ url_for('ui.htmx_inativar_agrupamento', agrupamento_id=a.id) }}"
+              hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
+              class="text-loyall-700 hover:underline">{% if a.ativo %}inativar{% else %}reativar{% endif %}</button>
+      <button hx-delete="{{ url_for('ui.htmx_deletar_agrupamento', agrupamento_id=a.id) }}"
+              hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
+              hx-confirm="EXCLUIR PERMANENTE o agrupamento '{{ a.nome }}'? Locais ficam sem agrupamento. Prefira INATIVAR (acima) para reversibilidade."
+              class="text-red-400 hover:text-red-700 hover:underline">excluir</button>
+      {% endif %}
+    </div>
   </td>
 </tr>
