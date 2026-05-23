@@ -27,3 +27,17 @@ Como fazer:
 
 ### Outras pendências
 (adicionar conforme apareçam durante implementação)
+
+## Melhorias para fase posterior
+
+### seeds/seed_exemplo.py: tornar idempotente
+
+**Status:** PENDENTE
+**Prazo:** antes do Bloco 4 (CI / dev compartilhado)
+
+Hoje o seed falha em re-runs por causa de UNIQUE constraints (`empresas.nome`, `usuarios.email`). Para suportar CI ou múltiplos devs compartilhando ambiente, precisa virar idempotente:
+
+- Usar `INSERT OR IGNORE` em SQL puro, ou
+- Verificar existência antes de criar (`session.query(Empresa).filter_by(nome=...).first()`)
+
+Como fazer: refatorar `seed()` para uma função `upsert_empresa_demo()` que checa cada entidade antes de inserir e devolve o registro existente quando já existir.
