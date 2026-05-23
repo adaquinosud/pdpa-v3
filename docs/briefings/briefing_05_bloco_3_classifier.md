@@ -561,3 +561,78 @@ A partir daqui, volte ao Claude (web) para receber os briefings dos Blocos 4 a 1
 - Bloco 8: Demais abas
 - Bloco 9: Reclassificação dirigida no app
 - Bloco 10: Fontes autenticadas (OAuth)
+
+---
+
+## Adendo pós-CP1 — decisões consolidadas
+
+Decisões tomadas durante a investigação do CP1 (após confronto entre este briefing e o classifier v2). Estas decisões **substituem** os trechos correspondentes da spec original acima quando houver conflito.
+
+### Decisão 1 — Prompt cache (`cache_control: ephemeral`)
+
+**Incluir** no system prompt. Reduz ~90% do custo de input do system em hits subsequentes (TTL ~5min do Anthropic). Padrão estável, zero risco, importante porque Bloco 3 é o ponto de entrada de coleta em volume.
+
+Estrutura de chamada:
+
+```python
+client.messages.create(
+    model="claude-haiku-4-5-20251001",
+    max_tokens=512,
+    system=[{"type": "text", "text": _carregar_prompt(), "cache_control": {"type": "ephemeral"}}],
+    messages=[{"role": "user", "content": user_msg}],
+)
+```
+
+### Decisão 2 — Retry exponencial
+
+**Incluir** retry em `classificar()`. 5 tentativas com backoff exponencial (2, 4, 8, 16, 32s).
+
+- `anthropic.RateLimitError` (429) → retry
+- `anthropic.APIStatusError` 5xx → retry
+- `anthropic.APIStatusError` 4xx não-429 → raise direto (não vale insistir)
+- Falha após 5 tentativas → `RuntimeError` com `last_err`
+
+Sem retry, qualquer 429 mata uma coleta em volume.
+
+### Decisão 3 — Hints contextuais (caminho B revisado)
+
+**Mover do system para o user prompt** os hints contextuais. O system prompt do v3 fica enxuto (apenas conceitos + 4 cirurgias + JSON spec), e o user prompt embute o contexto da chamada:
+
+```
+Empresa: {empresa_nome}
+Setor: {empresa_setor}
+Fonte: {fonte_tipo}
+
+Verbatim: {texto}
+```
+
+**NÃO migrar do v2:**
+- Dicionário de sinais (~40 expressões por subpilar, derivado de varejo premium de café — Nespresso). Razões: (a) Haiku 4.5 capta ambiguidade semântica sem listas de palavras; (b) está acoplado a um setor específico, não escala para hotel/aeroporto/concessionária; (c) enrijece a aplicação; (d) definições conceituais + árvore de decisão fazem o mesmo trabalho com mais flexibilidade.
+- Heurística "prioridade por fonte" (Google→Pa1/A2; RA→D2/P1; Indeed→interno+colaborador; etc.). Substituído pelo `Fonte:` no user prompt — o modelo decide o prior.
+- Heurística "produto-core vs periférico". Substituído pelo `Setor:` no user prompt.
+
+Ver `docs/PENDENCIAS_TECNICAS.md` para a entrada formal dessa decisão.
+
+### Decisão 4 — Truncamento de verbatim
+
+**Separação:**
+
+- **Persistência (`Verbatim.texto`)**: SEM truncamento. Texto original íntegro, exatamente como veio da coleta. Vale para qualquer fonte (Google, RA, Excel, Instagram, etc.). UI futura pode aplicar truncamento visual com "Ver mais", mas o dado em si é completo.
+- **Classificação (chamada à Claude API)**: truncamento em 4000 chars como defesa técnica. Cobre praticamente 100% dos casos reais (Google ~800, RA ~3000, pesquisa ~3000).
+
+**Defesa em profundidade:**
+
+1. `src/coletor/pipeline.py` (CP4): `processar_verbatim_coletado()` recebe texto completo; constrói `texto_para_classificacao = texto[:4000]`; passa esse para `classificar()`; persiste `Verbatim(texto=texto)` (original).
+2. `src/classifier/classifier_v3.py` (CP3): `classificar()` aplica truncamento novamente como garantia para chamadores diretos (custo zero, robustez ganha).
+
+Ver `docs/PENDENCIAS_TECNICAS.md` para a entrada formal dessa decisão.
+
+### Campos removidos vs v2
+
+O v3 elimina deliberadamente os seguintes campos do JSON de saída do classificador v2:
+
+- `origem` (cliente/interno/institucional) — não existe coluna no schema v3
+- `perfil` + `perfil_confianca` (7 perfis de emissor) — não existe coluna
+- `subtipo` (quase_promotor/neutro_puro/quase_detrator) — não existe coluna
+
+Justificativa: simplificação proposital. Esses campos podem reentrar no futuro se um bloco posterior precisar — por ora, ratio/nível/agrupamentos do PDPA não dependem deles.
