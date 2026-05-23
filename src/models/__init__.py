@@ -5,7 +5,7 @@ que `configure_mappers()` resolva as relationships string-based e que
 `Base.metadata.create_all()` crie todas as tabelas (usado em testes e seeds).
 """
 
-from src.models.agrupamento import Agrupamento, agrupamento_locais
+from src.models.agrupamento import Agrupamento
 from src.models.anomalia import AnomaliaDetectada
 from src.models.base import Base
 from src.models.classifier_metric import ClassifierMetric
@@ -29,5 +29,4 @@ __all__ = [
     "TemaCruzamento",
     "Usuario",
     "Verbatim",
-    "agrupamento_locais",
 ]

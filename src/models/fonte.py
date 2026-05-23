@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -34,6 +34,8 @@ class Fonte(Base):
     autenticacao_tipo: Mapped[Optional[str]] = mapped_column(String, default="publica")
     credenciais_cifradas: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[Optional[str]] = mapped_column(String, default="ativa")
+    # status (sistema) vs ativo (gestão): coleta dispara só se ativo=1 e status='ativa'.
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     ultima_coleta: Mapped[Optional[datetime]] = mapped_column(DateTime)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
