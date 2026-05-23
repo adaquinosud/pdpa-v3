@@ -59,11 +59,87 @@ def db_session() -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(db_session: Session) -> Iterator[FlaskClient]:
-    """Flask test client. Depende de ``db_session`` para compartilhar o engine."""
+def app(db_session: Session):
+    """Cria a Flask app de teste (sem sessão pré-logada)."""
     from src.app import create_app
 
     app = create_app()
     app.config["TESTING"] = True
+    return app
+
+
+@pytest.fixture
+def client(app) -> Iterator[FlaskClient]:
+    """Flask test client SEM autenticação — endpoints protegidos retornam 401."""
     with app.test_client() as test_client:
         yield test_client
+
+
+def _criar_usuario(db_session, papel: str, empresa_id=None, email_prefix="u"):
+    """Cria um Usuario no banco de teste com hash de senha real."""
+    from src.auth import hash_senha
+    from src.models.usuario import Usuario
+
+    user = Usuario(
+        email=f"{email_prefix}_{papel}@example.test",
+        nome=f"Test {papel}",
+        senha_hash=hash_senha("senha-teste-12345"),
+        papel=papel,
+        empresa_id=empresa_id,
+        ativo=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+@pytest.fixture
+def usuario_loyall(db_session):
+    """Usuario admin_loyall (sem empresa_id)."""
+    return _criar_usuario(db_session, papel="admin_loyall")
+
+
+@pytest.fixture
+def usuario_cliente_factory(db_session):
+    """Fábrica de usuario cliente_total ligado a uma empresa."""
+
+    def factory(empresa_id: int, email_prefix: str = "cli"):
+        return _criar_usuario(
+            db_session,
+            papel="cliente_total",
+            empresa_id=empresa_id,
+            email_prefix=email_prefix,
+        )
+
+    return factory
+
+
+def _logar(test_client: FlaskClient, user_id: int) -> None:
+    """Marca o ``user_id`` na sessão Flask do test client."""
+    with test_client.session_transaction() as sess:
+        sess["user_id"] = user_id
+
+
+@pytest.fixture
+def client_loyall(app, usuario_loyall) -> Iterator[FlaskClient]:
+    """Test client com sessão de admin_loyall pré-logada.
+
+    Usado nos testes existentes que não tinham auth (Bloco 4 CP4
+    adicionou ``@login_required`` em quase tudo).
+    """
+    with app.test_client() as test_client:
+        _logar(test_client, usuario_loyall.id)
+        yield test_client
+
+
+@pytest.fixture
+def client_cliente_factory(app, usuario_cliente_factory) -> Iterator:
+    """Fábrica que devolve test client logado como cliente_total de uma empresa."""
+
+    def factory(empresa_id: int):
+        user = usuario_cliente_factory(empresa_id)
+        tc = app.test_client()
+        _logar(tc, user.id)
+        return tc
+
+    yield factory

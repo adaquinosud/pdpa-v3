@@ -42,13 +42,15 @@ def fonte_google(db_session: Session) -> Fonte:
     return fonte
 
 
-def test_disparar_404_fonte_inexistente(client: FlaskClient) -> None:
-    response = client.post("/api/coleta/disparar/99999")
+def test_disparar_404_fonte_inexistente(client_loyall: FlaskClient) -> None:
+    response = client_loyall.post("/api/coleta/disparar/99999")
     assert response.status_code == 404
     assert response.json["erro"] == "Fonte não encontrada"
 
 
-def test_disparar_400_conector_nao_suportado(client: FlaskClient, db_session: Session) -> None:
+def test_disparar_400_conector_nao_suportado(
+    client_loyall: FlaskClient, db_session: Session
+) -> None:
     empresa = Empresa(nome="Y")
     db_session.add(empresa)
     db_session.commit()
@@ -62,14 +64,14 @@ def test_disparar_400_conector_nao_suportado(client: FlaskClient, db_session: Se
     db_session.add(fonte)
     db_session.commit()
 
-    response = client.post(f"/api/coleta/disparar/{fonte.id}")
+    response = client_loyall.post(f"/api/coleta/disparar/{fonte.id}")
     assert response.status_code == 400
     assert "Conector não suportado" in response.json["erro"]
     assert "google" in response.json["conectores_suportados"]
 
 
 def test_disparar_sucesso_roteia_para_google(
-    client: FlaskClient, fonte_google: Fonte, monkeypatch
+    client_loyall: FlaskClient, fonte_google: Fonte, monkeypatch
 ) -> None:
     """Endpoint dispara coletor correto, devolve stats."""
     capturado: Dict[str, Any] = {}
@@ -81,7 +83,7 @@ def test_disparar_sucesso_roteia_para_google(
 
     monkeypatch.setattr("src.coletor.google.coletar", fake_coletar)
 
-    response = client.post(f"/api/coleta/disparar/{fonte_google.id}")
+    response = client_loyall.post(f"/api/coleta/disparar/{fonte_google.id}")
     assert response.status_code == 200
     assert response.json == _stats_sucesso()
     assert capturado["fonte_id"] == fonte_google.id
@@ -89,12 +91,12 @@ def test_disparar_sucesso_roteia_para_google(
 
 
 def test_disparar_atualiza_ultima_coleta_em_sucesso(
-    client: FlaskClient, fonte_google: Fonte, db_session: Session, monkeypatch
+    client_loyall: FlaskClient, fonte_google: Fonte, db_session: Session, monkeypatch
 ) -> None:
     monkeypatch.setattr("src.coletor.google.coletar", lambda f: _stats_sucesso())
 
     assert fonte_google.ultima_coleta is None  # antes
-    response = client.post(f"/api/coleta/disparar/{fonte_google.id}")
+    response = client_loyall.post(f"/api/coleta/disparar/{fonte_google.id}")
     assert response.status_code == 200
 
     db_session.expire_all()
@@ -104,12 +106,12 @@ def test_disparar_atualiza_ultima_coleta_em_sucesso(
 
 
 def test_disparar_nao_atualiza_ultima_coleta_se_falhou_apify(
-    client: FlaskClient, fonte_google: Fonte, db_session: Session, monkeypatch
+    client_loyall: FlaskClient, fonte_google: Fonte, db_session: Session, monkeypatch
 ) -> None:
     """Quando ``falhou_apify=True``, ``ultima_coleta`` permanece None."""
     monkeypatch.setattr("src.coletor.google.coletar", lambda f: _stats_falhou())
 
-    response = client.post(f"/api/coleta/disparar/{fonte_google.id}")
+    response = client_loyall.post(f"/api/coleta/disparar/{fonte_google.id}")
     assert response.status_code == 200
     assert response.json["falhou_apify"] is True
 
@@ -120,7 +122,7 @@ def test_disparar_nao_atualiza_ultima_coleta_se_falhou_apify(
 
 
 def test_disparar_roteia_para_todos_conectores(
-    client: FlaskClient, db_session: Session, monkeypatch
+    client_loyall: FlaskClient, db_session: Session, monkeypatch
 ) -> None:
     """Os 10 conectores Apify estão mapeados e respondem 200."""
     conectores = [
@@ -154,6 +156,6 @@ def test_disparar_roteia_para_todos_conectores(
         db_session.add(fonte)
         db_session.commit()
 
-        response = client.post(f"/api/coleta/disparar/{fonte.id}")
+        response = client_loyall.post(f"/api/coleta/disparar/{fonte.id}")
         assert response.status_code == 200, f"{conector}: {response.json}"
         assert response.json == _stats_sucesso(), conector

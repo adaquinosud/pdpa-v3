@@ -282,9 +282,9 @@ def test_erro_catalogado_ativo_sim(tmp_path, db_session):
 # ── Endpoint HTTP ────────────────────────────────────────────────────────
 
 
-def test_endpoint_import_cadastro_ok(xlsx_completo, client):
+def test_endpoint_import_cadastro_ok(xlsx_completo, client_loyall):
     with open(xlsx_completo, "rb") as f:
-        resp = client.post(
+        resp = client_loyall.post(
             "/api/empresas/import-cadastro",
             data={"arquivo": (f, "completo.xlsx")},
             content_type="multipart/form-data",
@@ -297,7 +297,7 @@ def test_endpoint_import_cadastro_ok(xlsx_completo, client):
     assert body["fontes_criadas"] == 3
 
 
-def test_endpoint_import_cadastro_erro(tmp_path, client):
+def test_endpoint_import_cadastro_erro(tmp_path, client_loyall):
     """Empresa sem nome → 400 com erros listados."""
     path = _criar_xlsx(
         tmp_path,
@@ -308,7 +308,7 @@ def test_endpoint_import_cadastro_erro(tmp_path, client):
         fontes=[],
     )
     with open(path, "rb") as f:
-        resp = client.post(
+        resp = client_loyall.post(
             "/api/empresas/import-cadastro",
             data={"arquivo": (f, "sem_nome.xlsx")},
             content_type="multipart/form-data",
@@ -317,8 +317,10 @@ def test_endpoint_import_cadastro_erro(tmp_path, client):
     assert resp.get_json().get("erros")
 
 
-def test_endpoint_sem_arquivo(client):
-    resp = client.post("/api/empresas/import-cadastro", data={}, content_type="multipart/form-data")
+def test_endpoint_sem_arquivo(client_loyall):
+    resp = client_loyall.post(
+        "/api/empresas/import-cadastro", data={}, content_type="multipart/form-data"
+    )
     assert resp.status_code == 400
 
 

@@ -19,6 +19,11 @@ from typing import Any, Dict
 
 from flask import Blueprint, jsonify, request
 
+from src.auth import (
+    cliente_pode_ver_empresa,
+    login_required,
+    verificar_acesso_empresa,
+)
 from src.models.agrupamento import Agrupamento
 from src.models.empresa import Empresa
 from src.models.fonte import Fonte
@@ -69,21 +74,29 @@ _CAMPOS_EDITAVEIS = (
 
 
 @locais_bp.route("/<int:local_id>", methods=["GET"])
+@login_required
 def obter_local(local_id: int):
     with db_session() as session:
         local = session.get(Local, local_id)
         if local is None:
             return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
         return jsonify(serialize_local(local))
 
 
 @locais_bp.route("/<int:local_id>", methods=["PUT"])
+@login_required
 def atualizar_local(local_id: int):
     data = request.get_json(silent=True) or {}
     with db_session() as session:
         local = session.get(Local, local_id)
         if local is None:
             return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
 
         # Valida agrupamento_id se fornecido (precisa pertencer à mesma empresa)
         if "agrupamento_id" in data and data["agrupamento_id"] is not None:
@@ -108,6 +121,7 @@ def atualizar_local(local_id: int):
 
 
 @locais_bp.route("/<int:local_id>/fontes", methods=["GET"])
+@login_required
 def listar_fontes_do_local_route(local_id: int):
     from src.api.fontes import listar_fontes_do_local as h
 
@@ -115,6 +129,7 @@ def listar_fontes_do_local_route(local_id: int):
 
 
 @locais_bp.route("/<int:local_id>/fontes", methods=["POST"])
+@login_required
 def criar_fonte_no_local_route(local_id: int):
     from src.api.fontes import criar_fonte_no_local as h
 
@@ -122,6 +137,7 @@ def criar_fonte_no_local_route(local_id: int):
 
 
 @locais_bp.route("/<int:local_id>", methods=["DELETE"])
+@login_required
 def remover_local(local_id: int):
     """Remove um Local.
 
@@ -134,6 +150,9 @@ def remover_local(local_id: int):
         local = session.get(Local, local_id)
         if local is None:
             return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
         nome = local.nome
         # Remove fontes do local (polimórfico — não há FK direta)
         fontes_do_local = (
@@ -148,6 +167,7 @@ def remover_local(local_id: int):
 # ── Endpoints aninhados sob /api/empresas/<id> ───────────────────────────
 
 
+@cliente_pode_ver_empresa("empresa_id")
 def listar_locais_da_empresa(empresa_id: int):
     """Handler reusado pelo blueprint de empresas. Suporta ?agrupamento_id=N."""
     with db_session() as session:
@@ -170,6 +190,7 @@ def listar_locais_da_empresa(empresa_id: int):
         return jsonify([serialize_local(local) for local in locais])
 
 
+@cliente_pode_ver_empresa("empresa_id")
 def criar_local_na_empresa(empresa_id: int):
     """Handler reusado pelo blueprint de empresas."""
     data = request.get_json(silent=True) or {}

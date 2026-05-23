@@ -22,6 +22,13 @@ from typing import Any, Dict
 
 from flask import Blueprint, Response, jsonify, request
 
+from src.auth import (
+    PAPEL_LOYALL,
+    cliente_pode_ver_empresa,
+    get_current_user,
+    login_required,
+    loyall_required,
+)
 from src.models.empresa import Empresa
 from src.utils.db import db_session
 
@@ -46,19 +53,20 @@ def _serialize(e: Empresa) -> Dict[str, Any]:
 
 
 @empresas_bp.route("/", methods=["GET"])
+@login_required
 def listar_empresas() -> Response:
-    """Lista todas as empresas cadastradas, ordenadas por nome.
-
-    TODO Bloco 2 (briefing 04 — JWT + papéis): filtrar por papel
-    (``admin_loyall`` vê tudo; ``cliente_*`` vê apenas a própria empresa
-    via claims do JWT).
-    """
+    """Lista empresas. Loyall vê todas; cliente vê só a própria."""
+    user = get_current_user()
     with db_session() as session:
-        empresas = session.query(Empresa).order_by(Empresa.nome).all()
+        query = session.query(Empresa).order_by(Empresa.nome)
+        if user.papel != PAPEL_LOYALL:
+            query = query.filter(Empresa.id == user.empresa_id)
+        empresas = query.all()
         return jsonify([_serialize(e) for e in empresas])
 
 
 @empresas_bp.route("/<int:empresa_id>", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
 def obter_empresa(empresa_id: int):
     """Retorna detalhes de uma empresa específica."""
     with db_session() as session:
@@ -69,6 +77,7 @@ def obter_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/", methods=["POST"])
+@loyall_required
 def criar_empresa():
     """Cria uma nova empresa.
 
@@ -107,6 +116,7 @@ def criar_empresa():
 
 
 @empresas_bp.route("/<int:empresa_id>", methods=["PUT"])
+@loyall_required
 def atualizar_empresa(empresa_id: int):
     """Atualiza campos editáveis de uma empresa existente."""
     data = request.get_json(silent=True) or {}
@@ -131,6 +141,7 @@ def atualizar_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>", methods=["DELETE"])
+@loyall_required
 def remover_empresa(empresa_id: int):
     """Remove uma empresa.
 
@@ -153,6 +164,7 @@ def remover_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>/agrupamentos", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
 def listar_agrupamentos_da_empresa(empresa_id: int):
     from src.api.agrupamentos import listar_agrupamentos_da_empresa as h
 
@@ -160,6 +172,7 @@ def listar_agrupamentos_da_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>/agrupamentos", methods=["POST"])
+@loyall_required
 def criar_agrupamento_na_empresa(empresa_id: int):
     from src.api.agrupamentos import criar_agrupamento_na_empresa as h
 
@@ -167,6 +180,7 @@ def criar_agrupamento_na_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>/locais", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
 def listar_locais_da_empresa(empresa_id: int):
     from src.api.locais import listar_locais_da_empresa as h
 
@@ -174,6 +188,7 @@ def listar_locais_da_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>/locais", methods=["POST"])
+@cliente_pode_ver_empresa("empresa_id")
 def criar_local_na_empresa(empresa_id: int):
     from src.api.locais import criar_local_na_empresa as h
 
@@ -181,6 +196,7 @@ def criar_local_na_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>/fontes", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
 def listar_fontes_da_empresa(empresa_id: int):
     from src.api.fontes import listar_fontes_da_empresa as h
 
@@ -188,6 +204,7 @@ def listar_fontes_da_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>/fontes", methods=["POST"])
+@cliente_pode_ver_empresa("empresa_id")
 def criar_fonte_na_empresa(empresa_id: int):
     from src.api.fontes import criar_fonte_na_empresa as h
 
@@ -195,6 +212,7 @@ def criar_fonte_na_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/import-cadastro", methods=["POST"])
+@loyall_required
 def import_cadastro():
     """Importa cadastro hierárquico via Excel padronizado (Bloco 4 — CP3).
 

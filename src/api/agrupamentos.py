@@ -20,6 +20,7 @@ from typing import Any, Dict
 
 from flask import Blueprint, jsonify, request
 
+from src.auth import cliente_pode_ver_empresa, login_required, loyall_required
 from src.models.agrupamento import Agrupamento
 from src.models.empresa import Empresa
 from src.utils.db import db_session
@@ -42,7 +43,13 @@ def serialize_agrupamento(a: Agrupamento) -> Dict[str, Any]:
 
 
 @agrupamentos_bp.route("/<int:agrupamento_id>", methods=["GET"])
+@login_required
 def obter_agrupamento(agrupamento_id: int):
+    """GET é permitido a qualquer usuário logado (cliente lê via Painel).
+
+    A proteção por empresa é via filtragem no GET aninhado em /empresas/<id>/agrupamentos.
+    Aqui o user pode buscar id direto se já tiver acesso à empresa pelo Painel.
+    """
     with db_session() as session:
         a = session.get(Agrupamento, agrupamento_id)
         if a is None:
@@ -51,6 +58,7 @@ def obter_agrupamento(agrupamento_id: int):
 
 
 @agrupamentos_bp.route("/<int:agrupamento_id>", methods=["PUT"])
+@loyall_required
 def atualizar_agrupamento(agrupamento_id: int):
     data = request.get_json(silent=True) or {}
     with db_session() as session:
@@ -65,6 +73,7 @@ def atualizar_agrupamento(agrupamento_id: int):
 
 
 @agrupamentos_bp.route("/<int:agrupamento_id>", methods=["DELETE"])
+@loyall_required
 def remover_agrupamento(agrupamento_id: int):
     """Remove um Agrupamento.
 
@@ -83,6 +92,7 @@ def remover_agrupamento(agrupamento_id: int):
 # ── Endpoints aninhados sob /api/empresas/<id> ───────────────────────────
 
 
+@cliente_pode_ver_empresa("empresa_id")
 def listar_agrupamentos_da_empresa(empresa_id: int):
     """Handler reusado pelo blueprint de empresas."""
     with db_session() as session:
@@ -98,6 +108,7 @@ def listar_agrupamentos_da_empresa(empresa_id: int):
         return jsonify([serialize_agrupamento(a) for a in ags])
 
 
+@loyall_required
 def criar_agrupamento_na_empresa(empresa_id: int):
     """Handler reusado pelo blueprint de empresas."""
     data = request.get_json(silent=True) or {}

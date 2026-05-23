@@ -29,6 +29,11 @@ from typing import Any, Dict, Optional
 
 from flask import Blueprint, jsonify, request
 
+from src.auth import (
+    cliente_pode_ver_empresa,
+    login_required,
+    verificar_acesso_empresa,
+)
 from src.models.empresa import Empresa
 from src.models.fonte import Fonte
 from src.models.local import Local
@@ -113,21 +118,29 @@ def _validar_conector(conector_tipo: str, ativo: bool) -> Optional[str]:
 
 
 @fontes_bp.route("/<int:fonte_id>", methods=["GET"])
+@login_required
 def obter_fonte(fonte_id: int):
     with db_session() as session:
         fonte = session.get(Fonte, fonte_id)
         if fonte is None:
             return jsonify({"erro": "Fonte não encontrada"}), 404
+        erro = verificar_acesso_empresa(fonte.empresa_id)
+        if erro:
+            return erro
         return jsonify(serialize_fonte(fonte))
 
 
 @fontes_bp.route("/<int:fonte_id>", methods=["PUT"])
+@login_required
 def atualizar_fonte(fonte_id: int):
     data = request.get_json(silent=True) or {}
     with db_session() as session:
         fonte = session.get(Fonte, fonte_id)
         if fonte is None:
             return jsonify({"erro": "Fonte não encontrada"}), 404
+        erro = verificar_acesso_empresa(fonte.empresa_id)
+        if erro:
+            return erro
 
         if "conector_tipo" in data or "ativo" in data:
             novo_conector = data.get("conector_tipo", fonte.conector_tipo)
@@ -151,11 +164,15 @@ def atualizar_fonte(fonte_id: int):
 
 
 @fontes_bp.route("/<int:fonte_id>", methods=["DELETE"])
+@login_required
 def remover_fonte(fonte_id: int):
     with db_session() as session:
         fonte = session.get(Fonte, fonte_id)
         if fonte is None:
             return jsonify({"erro": "Fonte não encontrada"}), 404
+        erro = verificar_acesso_empresa(fonte.empresa_id)
+        if erro:
+            return erro
         conector = fonte.conector_tipo
         session.delete(fonte)
         return jsonify({"removido": True, "id": fonte_id, "conector_tipo": conector})
@@ -219,6 +236,9 @@ def listar_fontes_do_local(local_id: int):
         local = session.get(Local, local_id)
         if local is None:
             return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
         fontes = (
             session.query(Fonte)
             .filter_by(entidade_tipo="local", entidade_id=local_id)
@@ -234,6 +254,9 @@ def criar_fonte_no_local(local_id: int):
         local = session.get(Local, local_id)
         if local is None:
             return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
         empresa_id = local.empresa_id
     return _criar_fonte(
         empresa_id=empresa_id,
@@ -243,6 +266,7 @@ def criar_fonte_no_local(local_id: int):
     )
 
 
+@cliente_pode_ver_empresa("empresa_id")
 def listar_fontes_da_empresa(empresa_id: int):
     """Handler reusado pelo blueprint de empresas. Inclui fontes diretas
     da empresa E fontes dos locais dela."""
@@ -259,6 +283,7 @@ def listar_fontes_da_empresa(empresa_id: int):
         return jsonify([serialize_fonte(f) for f in fontes])
 
 
+@cliente_pode_ver_empresa("empresa_id")
 def criar_fonte_na_empresa(empresa_id: int):
     """Handler reusado pelo blueprint de empresas. entidade_tipo='empresa'."""
     return _criar_fonte(
