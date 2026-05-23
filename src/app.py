@@ -3,8 +3,11 @@
 from flask import Flask
 from flask_cors import CORS
 
+from src.api.agrupamentos import agrupamentos_bp
 from src.api.coleta import coleta_bp
 from src.api.empresas import empresas_bp
+from src.api.fontes import fontes_bp
+from src.api.locais import locais_bp
 from src.config import get_config
 
 
@@ -14,6 +17,9 @@ def create_app() -> Flask:
     CORS(app)
 
     app.register_blueprint(empresas_bp)
+    app.register_blueprint(agrupamentos_bp)
+    app.register_blueprint(locais_bp)
+    app.register_blueprint(fontes_bp)
     app.register_blueprint(coleta_bp)
 
     @app.route("/health")

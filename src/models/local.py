@@ -43,6 +43,7 @@ class Local(Base):
     longitude: Mapped[Optional[float]] = mapped_column(Float)
     status: Mapped[Optional[str]] = mapped_column(String, default="ativo")
     data_inicio_operacao: Mapped[Optional[date]] = mapped_column(Date)
+    observacao: Mapped[Optional[str]] = mapped_column(String)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -25,6 +25,8 @@ class Empresa(Base):
     razao_social: Mapped[Optional[str]] = mapped_column(String)
     cnpj: Mapped[Optional[str]] = mapped_column(String, unique=True)
     setor: Mapped[Optional[str]] = mapped_column(String)
+    site: Mapped[Optional[str]] = mapped_column(String)
+    observacao: Mapped[Optional[str]] = mapped_column(Text)
     branding_json: Mapped[Optional[str]] = mapped_column(Text)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -35,6 +35,8 @@ def _serialize(e: Empresa) -> Dict[str, Any]:
         "razao_social": e.razao_social,
         "cnpj": e.cnpj,
         "setor": e.setor,
+        "site": e.site,
+        "observacao": e.observacao,
         "branding_json": e.branding_json,
         "criada_em": e.criada_em.isoformat() if e.criada_em else None,
         "atualizada_em": e.atualizada_em.isoformat() if e.atualizada_em else None,
@@ -93,6 +95,8 @@ def criar_empresa():
             razao_social=data.get("razao_social"),
             cnpj=data.get("cnpj"),
             setor=data.get("setor"),
+            site=data.get("site"),
+            observacao=data.get("observacao"),
             branding_json=data.get("branding_json"),
         )
         session.add(e)
@@ -108,7 +112,15 @@ def atualizar_empresa(empresa_id: int):
         e = session.get(Empresa, empresa_id)
         if e is None:
             return jsonify({"erro": "Empresa não encontrada"}), 404
-        for campo in ("nome", "razao_social", "cnpj", "setor", "branding_json"):
+        for campo in (
+            "nome",
+            "razao_social",
+            "cnpj",
+            "setor",
+            "site",
+            "observacao",
+            "branding_json",
+        ):
             if campo in data:
                 setattr(e, campo, data[campo])
         e.atualizada_em = datetime.utcnow()
@@ -132,3 +144,49 @@ def remover_empresa(empresa_id: int):
         nome = e.nome
         session.delete(e)
         return jsonify({"removido": True, "id": empresa_id, "nome": nome})
+
+
+# ── Rotas aninhadas (Bloco 4 — CP2) ──────────────────────────────────────
+# Delegam para handlers nos blueprints de Agrupamento / Local / Fonte.
+
+
+@empresas_bp.route("/<int:empresa_id>/agrupamentos", methods=["GET"])
+def listar_agrupamentos_da_empresa(empresa_id: int):
+    from src.api.agrupamentos import listar_agrupamentos_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/agrupamentos", methods=["POST"])
+def criar_agrupamento_na_empresa(empresa_id: int):
+    from src.api.agrupamentos import criar_agrupamento_na_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/locais", methods=["GET"])
+def listar_locais_da_empresa(empresa_id: int):
+    from src.api.locais import listar_locais_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/locais", methods=["POST"])
+def criar_local_na_empresa(empresa_id: int):
+    from src.api.locais import criar_local_na_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/fontes", methods=["GET"])
+def listar_fontes_da_empresa(empresa_id: int):
+    from src.api.fontes import listar_fontes_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/fontes", methods=["POST"])
+def criar_fonte_na_empresa(empresa_id: int):
+    from src.api.fontes import criar_fonte_na_empresa as h
+
+    return h(empresa_id)

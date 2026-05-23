@@ -36,6 +36,7 @@ class Fonte(Base):
     status: Mapped[Optional[str]] = mapped_column(String, default="ativa")
     # status (sistema) vs ativo (gestão): coleta dispara só se ativo=1 e status='ativa'.
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    observacao: Mapped[Optional[str]] = mapped_column(Text)
     ultima_coleta: Mapped[Optional[datetime]] = mapped_column(DateTime)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
