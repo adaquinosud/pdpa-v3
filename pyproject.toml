@@ -5,7 +5,10 @@ target-version = ["py311"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-v --cov=src --cov-report=term-missing"
+addopts = "-v --cov=src --cov-report=term-missing -m \"not golden\""
+markers = [
+    "golden: testes do golden set do classifier — consomem créditos da API Anthropic. Rodar manualmente com `pytest -m golden`.",
+]
 
 [tool.mypy]
 python_version = "3.11"
