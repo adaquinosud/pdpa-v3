@@ -42,6 +42,87 @@ Hoje o seed falha em re-runs por causa de UNIQUE constraints (`empresas.nome`, `
 
 Como fazer: refatorar `seed()` para uma função `upsert_empresa_demo()` que checa cada entidade antes de inserir e devolve o registro existente quando já existir.
 
+### print() → logging centralizado (classifier + pipeline + coletores)
+
+**Status:** PENDENTE
+**Prazo:** quando houver setup de logs centralizado (Bloco 4+ ou conforme demanda de observabilidade)
+
+Hoje os módulos abaixo usam `print()` para feedback de operação:
+
+- `src/classifier/classifier_v3.py` — mensagens de retry (429 / 5xx) com tentativa e delay
+- `src/coletor/pipeline.py` — falha na classificação (persiste verbatim sem classificação e segue)
+- `src/coletor/excel.py` — capturado em `except Exception` no loop de import (silencioso na versão atual)
+
+Funcional, mas:
+- Não permite controlar nível (DEBUG / INFO / WARNING / ERROR).
+- Não permite redirecionar para arquivo, syslog ou stack de observabilidade.
+- Mistura com stdout da app Flask em produção (poluição visual).
+- Em pytest, mensagens de print escapam por padrão e poluem a saída do test runner.
+
+Como fazer: definir um logger central (sugestão: `src/utils/logging.py`) com handlers configuráveis via env (`LOG_LEVEL`, `LOG_FILE`), e trocar todos os `print()` por `logger.warning/info/error`. Prioridade: classifier (retry), pipeline (falha de classificação), importer Excel (erros por linha).
+
+### Cirurgia 3 do prompt — exemplo de infra antecipatória (D3 vs D1)
+
+**Status:** PENDENTE
+**Prazo:** próxima rodada de ajuste fino do prompt (após golden set rodar em volume real)
+
+A 3ª rodada do golden set revelou que o classifier v3 confunde **infra antecipatória oferecida pela empresa sem pedido** (transfer próprio, sala VIP, kit boas-vindas) com **acessibilidade** (D1). Caso paradigmático: `CR-D3-01` ("transfer deles próprio para nos pegar no aeroporto e levar para o local") — modelo classificou como D1/promotor pela definição estrita de acessibilidade, esperado D3/promotor pela antecipação operacional.
+
+Como fazer: adicionar à seção `## CIRURGIA 3 — D3 (Proatividade) restritivo` do prompt v3 um exemplo explícito do padrão:
+
+> "Infra que a empresa oferece sem o cliente pedir (transfer próprio, sala VIP, kit boas-vindas, brinde inicial) é **D3**, não D1. D1 são canais de acesso que o cliente usa quando precisa chegar; D3 é a empresa antecipar serviço/comodidade sem ser chamada."
+
+Aceitar D1 nesses casos descaracteriza a Cirurgia 3 inteira. O caso `CR-D3-01` é mantido no golden set como sinal de regressão até essa pendência ser fechada.
+
+### Peso por fonte no ratio P/D (especialmente imprensa/google_news)
+
+**Status:** PENDENTE
+**Prazo:** Bloco 5+ (Painel Executivo)
+
+O v2 tinha campo `origem` (cliente / interno / institucional) com pesos no ratio (1.0 / 0.5 / 0.0). O v3 eliminou esse campo no Bloco 1 (decisão do CP1 do Bloco 3 quando comparamos schemas). Consequência: o coletor `google_news` (e potencialmente outras fontes institucionais) grava verbatins que entram no ratio P/D com peso normal — pode distorcer indicadores.
+
+Cenários afetados:
+- `google_news`: 100% das menções são imprensa (releases, notícias). Tipicamente promotor ou conversivel; raramente detrator. Inflar promotores artificialmente.
+- `linkedin`: posts da empresa = institucional (já skipados no coletor v3); comentários = cliente. OK.
+- Indeed / Glassdoor (futuro, não migrado ainda): voz de colaborador (interno), não cliente.
+
+Como fazer: opção A — reintroduzir campo `origem` em `verbatins` (migration nova) com 3 valores e aplicar pesos no cálculo do ratio no Painel. Opção B — adicionar coluna `peso_no_ratio` em `fontes` (configurável por Fonte; default 1.0 para cliente, 0.0 para google_news). Decisão fica para o briefing do Bloco 5+.
+
+### Caps do Instagram (MAX_POSTS, MAX_COMMENTS_PER_POST) como config
+
+**Status:** PENDENTE
+**Prazo:** quando custo Apify crescer (perfis com alto engajamento / volume real)
+
+Hoje `src/coletor/instagram.py` usa `MAX_POSTS_DEFAULT = 50` e `MAX_COMMENTS_PER_POST = 30` hardcoded como constantes de módulo (~1500 comentários/perfil em coleta cheia). Funciona pra primeira passada mas:
+
+- Perfis com alto engajamento (grandes marcas) podem ter centenas de comentários por post — capar em 30 perde sinal.
+- Perfis dormentes podem ter <50 posts no total — capar em 50 não muda nada mas o cap pode confundir.
+- Apify cobra por post raspado (não por comentário). 50 posts × N comentários = custo proporcional a N.
+
+Como fazer: adicionar 2 colunas em `fontes` (ou um único `config_json`): `ig_max_posts`, `ig_max_comments_per_post`. Default seguindo as constantes atuais se NULL. Coletor lê do `fonte.ig_*`. UI permite editar. Pode unificar com a mesma estratégia da config `MAX_REVIEWS_PER_PLACE` do google.py (entrada já registrada acima).
+
+### MAX_REVIEWS_PER_PLACE como config (não constante)
+
+**Status:** PENDENTE
+**Prazo:** quando custo Apify crescer (clientes com places grandes / volume real)
+
+Hoje os coletores Apify usam `MAX_REVIEWS_PER_PLACE = 2000` hardcoded como constante de módulo (ex: `src/coletor/google.py`). Funciona para a primeira passada mas:
+
+- Apify cobra por review coletado. Places muito grandes (aeroportos, redes nacionais) podem ter dezenas de milhares de reviews — coletar todos é caro.
+- Clientes em planos diferentes vão precisar de caps diferentes.
+- A coleta incremental já reduz volume em runs subsequentes, mas a primeira coleta é a mais cara.
+
+Como fazer: adicionar coluna `max_reviews_per_run` em `fontes` (migration nova) com default 2000. Coletor lê do `fonte.max_reviews_per_run`. Fallback para constante atual se NULL. UI de cadastro permite editar. Eventualmente: cap por empresa (planos comerciais), ou cap global por env.
+
+### Idioma da coleta — hardcoded em "pt-BR"
+
+**Status:** PENDENTE
+**Prazo:** quando primeiro cliente não-brasileiro entrar (sem previsão)
+
+Hoje os coletores Apify enviam `language: "pt-BR"` hardcoded (ex: `src/coletor/google.py`). Funciona para todos os clientes brasileiros mas restringe expansão internacional.
+
+Como fazer: adicionar coluna `idioma_padrao` (ou `locale`) em `empresas` (migration nova), default `pt-BR`. Coletor lê do `empresa.idioma_padrao` em vez de constante. UI de cadastro permite editar.
+
 ---
 
 ## Decisões arquiteturais do v3 (NÃO migrar do v2)
@@ -75,6 +156,40 @@ Itens que existem no v2 e que o v3 decidiu fazer diferente, por escolha conscien
 - 2 importers especializados no v2 (Mantiqueira, Nespresso) já mostravam o caminho de proliferação. Cada adaptador era ~50-100 linhas Python repetidas com pequenas variações.
 - Pesquisa em aliases é trivial e cobre a esmagadora maioria dos casos. Quando não cobrir, o esforço de adicionar 1 alias é trivial; o esforço de adicionar 1 arquivo é desproporcional.
 - Se aparecer um cliente com formato realmente exótico (planilha pivoteada, múltiplas abas com lógica de merge), aí sim se cria um adapter dedicado — mas isso vira **exceção**, não **regra**.
+
+### A3. Dicionário de sinais do v2 → Definições conceituais + árvore de decisão (decisão do CP1 do Bloco 3)
+
+**O que existe no v2:** `pdpa_framework_classifier.md` lns. 196-247 — dicionário com ~40 expressões detrator/promotor por subpilar (~480 expressões totais), derivado de 163 verbatins reais de Nespresso Brasil. Documento marca-o como "heurística de candidatos — adapte palavras, não lógica". Complementado por "prioridade por fonte" (Google→Pa1/A2; RA→D2/P1; etc.) e "produto-core vs periférico" (usa `Setor` para distinguir café numa cafeteria vs numa loja de tintas).
+
+**Como o v3 trata diferente:**
+- O system prompt do classificador v3 (`src/classifier/prompts/classifier_v3_prompt.md`) NÃO inclui dicionário de sinais.
+- Substituído por três mecanismos:
+  - (a) Definições conceituais sólidas dos 12 subpilares (1-2 frases por subpilar, sem listas de palavras-chave)
+  - (b) Árvore de decisão das 4 cirurgias do briefing 05 (em particular a Cirurgia 2: momento temporal P1→P2→D2→Pa2)
+  - (c) Hint contextual via `empresa_setor` e `fonte_tipo` no **user prompt** (não no system) — o modelo decide o prior a partir desses metadados.
+
+**Por que essa decisão:**
+- O dicionário do v2 cumpriu papel pedagógico (forçou articular fronteiras entre subpilares) mas hoje:
+  1. Modelo atual (Haiku 4.5) capta ambiguidade semântica sem listas de palavras.
+  2. Está acoplado a varejo premium de café — não escala para hotel, aeroporto, concessionária, etc.
+  3. Enrijece a aplicação — cliente novo exigiria dicionário novo.
+  4. Definições conceituais bem escritas + árvore de decisão fazem o mesmo trabalho com mais flexibilidade.
+
+**Reavaliar APENAS se** observarmos erro sistemático do classificador em rodada real com golden set (Bloco 3 CP6) — daí avaliar se trazer subset mínimo do dicionário como heurística complementar.
+
+### A4. Truncamento de verbatim — persistência íntegra, classificação truncada (decisão do CP1 do Bloco 3)
+
+**O que existe no v2:** `classifier.py` lns. 298-299 trunca o texto em **1000 chars** ANTES de mandar pro Claude e a truncagem se propaga pelo pipeline.
+
+**Como o v3 trata diferente:**
+- **Persistência (`Verbatim.texto`)**: SEM truncamento. Texto original íntegro, exatamente como veio da coleta.
+- **Classificação (chamada à Claude API)**: truncamento em **4000 chars** como defesa técnica (não decisão metodológica). Cobre praticamente 100% dos casos reais (Google ~800, RA ~3000, pesquisa interna ~3000).
+- Defesa em profundidade: `processar_verbatim_coletado()` no pipeline trunca antes de chamar `classificar()`, e o próprio `classificar()` trunca novamente por garantia (custo zero, robustez ganha).
+- UI futura exibe sempre o texto completo; eventual "Ver mais" é decisão de UX, não de dado.
+
+**Por que essa decisão:**
+- v2 perdia informação na persistência. v3 preserva — reclassificação humana ou modelo futuro pode usar o texto completo.
+- O limite v2 de 1000 chars era estreito demais (cortava reclamações longas de RA / pesquisa). 4000 chars cobre os reais sem inflar tokens (4000 chars ≈ ~1000 tokens, dentro do budget do Haiku).
 
 ---
 
@@ -188,6 +303,13 @@ Endpoints e features do v2 que **vão** ser migrados, mas em blocos posteriores.
     - Log de ações por usuário (quem editou empresa X, quando).
     - **Complexidade:** média.
 
+41. **Validação de place_id no cadastro de fonte Google**
+    - **O que é:** UX do cadastro de Fonte Google aceitar a URL completa do Maps (ex: `https://www.google.com/maps/place/.../!1s0x123...:0xabc.../`) e extrair automaticamente o `place_id` para gravar em `fonte.url`. Validar formato (deve começar com `ChIJ` ou `places/`) antes de salvar.
+    - **Por que não agora:** Bloco 3 (CP5) adotou a convenção "quem cadastra fornece place_id válido" — falha rápida no Apify se a URL não for válida. Aceitável para devs/admins; péssima UX para clientes.
+    - **Bloco previsto no v3:** 4 (Cadastros completos UI).
+    - **Lógica provável no v3:** regex/parser para extrair place_id de URLs do Maps + endpoint de validação que faz HEAD na Places API. Erro amigável se inválido.
+    - **Complexidade:** baixa.
+
 ### Bloco 5+ — Painel Executivo + Diagnósticos
 
 21. **Endpoints de analytics agregados (~30 endpoints)**
@@ -204,6 +326,13 @@ Endpoints e features do v2 que **vão** ser migrados, mas em blocos posteriores.
     - `backend.py` ln. 3180 (`GET /api/empresa/<nome>/executivo`) + `executiva_clevel.py` + `executiva.js`
     - 30s-read page: 6 blocos (headlines, índices, alertas, destaques, tendência).
     - **Complexidade:** alta (orquestra 4+ queries + cache).
+
+40. **Métrica de divergência ratio PDPA vs rating médio Google**
+    - **O que é:** capturar o `rating` (1-5 estrelas) do Google Reviews na coleta e armazenar como metadado para que o Painel Executivo possa comparar a análise PDPA (ratio P/D + nível) com a avaliação numérica direta da plataforma (média de estrelas). Permite identificar empresas onde PDPA e rating divergem (ex: rating 4.5 mas alta concentração de detratores em D2 — sinal de "shallow positivity").
+    - **Por que não capturar agora:** o classificador v3 (Bloco 3) classifica pelo texto. Persistir o rating como input não-textual enviesa o classificador de forma mecânica (rating 5 → forçaria promotor) e contradiz a Cirurgia 1 que exige ancoragem textual explícita para A1/promotor.
+    - **Bloco previsto no v3:** 5+ (Painel Executivo) — quando a métrica de divergência fizer sentido analítico.
+    - **Lógica provável no v3:** estender o coletor `google.py` para capturar `rating` no item Apify; armazenar em `verbatins_metadados` (nova tabela) ou campo dedicado no `Verbatim` (migration). Painel calcula `divergencia = ratio_pdpa_normalizado - rating_medio_normalizado`.
+    - **Complexidade:** baixa (capturar rating) + média (decidir storage) + alta (métrica analítica no Painel).
 
 38. **Lente de Governança (reescrita necessária, possível adaptação futura)**
     - v2: `gerador_executivo_guarda_chuva.py` + `ESCOPO_POR_TIPO` em `marcas.py:30-50` (+ endpoints em `backend.py` lns. 3192, 3197, 3260: `/api/analytics/<empresa>/lente-ecossistema`, `/is-guarda-chuva`, `/marcas`)
