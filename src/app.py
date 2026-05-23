@@ -3,6 +3,7 @@
 from flask import Flask
 from flask_cors import CORS
 
+from src.api.coleta import coleta_bp
 from src.api.empresas import empresas_bp
 from src.config import get_config
 
@@ -13,6 +14,7 @@ def create_app() -> Flask:
     CORS(app)
 
     app.register_blueprint(empresas_bp)
+    app.register_blueprint(coleta_bp)
 
     @app.route("/health")
     def health():
