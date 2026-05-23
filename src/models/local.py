@@ -30,6 +30,9 @@ class Local(Base):
     empresa_id: Mapped[int] = mapped_column(
         ForeignKey("empresas.id", ondelete="CASCADE"), nullable=False
     )
+    agrupamento_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("agrupamentos.id", ondelete="SET NULL"), nullable=True
+    )
     nome: Mapped[str] = mapped_column(String, nullable=False)
     endereco: Mapped[Optional[str]] = mapped_column(String)
     cidade: Mapped[Optional[str]] = mapped_column(String)
@@ -40,15 +43,16 @@ class Local(Base):
     longitude: Mapped[Optional[float]] = mapped_column(Float)
     status: Mapped[Optional[str]] = mapped_column(String, default="ativo")
     data_inicio_operacao: Mapped[Optional[date]] = mapped_column(Date)
+    observacao: Mapped[Optional[str]] = mapped_column(String)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     empresa: Mapped["Empresa"] = relationship("Empresa", back_populates="locais")
+    agrupamento: Mapped[Optional["Agrupamento"]] = relationship(
+        "Agrupamento", back_populates="locais"
+    )
     metadados: Mapped[List["LocalMetadado"]] = relationship(
         "LocalMetadado", back_populates="local", cascade="all, delete-orphan"
-    )
-    agrupamentos: Mapped[List["Agrupamento"]] = relationship(
-        "Agrupamento", secondary="agrupamento_locais", back_populates="locais"
     )
 
     def __repr__(self) -> str:

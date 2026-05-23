@@ -25,6 +25,7 @@ from typing import Callable, Dict
 
 from flask import Blueprint, jsonify, request
 
+from src.auth import login_required, verificar_acesso_empresa
 from src.coletor.excel import importar_arquivo
 from src.models.fonte import Fonte
 from src.utils.db import db_session
@@ -67,6 +68,7 @@ def _roteamento_coletores() -> Dict[str, Callable[[Fonte], Dict]]:
 
 
 @coleta_bp.route("/import-excel", methods=["POST"])
+@login_required
 def importar_excel():
     """Importa um arquivo Excel/CSV de verbatins (multipart/form-data).
 
@@ -125,6 +127,7 @@ def importar_excel():
 
 
 @coleta_bp.route("/disparar/<int:fonte_id>", methods=["POST"])
+@login_required
 def disparar_coleta(fonte_id: int):
     """Dispara coleta para uma ``Fonte`` cadastrada.
 
@@ -144,6 +147,9 @@ def disparar_coleta(fonte_id: int):
         fonte = session.get(Fonte, fonte_id)
         if fonte is None:
             return jsonify({"erro": "Fonte não encontrada"}), 404
+        erro = verificar_acesso_empresa(fonte.empresa_id)
+        if erro:
+            return erro
 
         coletor_fn = roteamento.get(fonte.conector_tipo)
         if coletor_fn is None:

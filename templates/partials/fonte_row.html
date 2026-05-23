@@ -1,0 +1,19 @@
+<tr id="fonte-{{ f.id }}" class="border-t border-loyall-100">
+  <td class="py-1.5">{{ local_nome.get(f.entidade_id, '—') if f.entidade_tipo == 'local' else 'empresa' }}</td>
+  <td class="py-1.5"><code class="text-xs">{{ f.conector_tipo }}</code></td>
+  <td class="py-1.5 text-xs truncate max-w-xs"><code title="{{ f.url }}">{{ f.url[:50] }}{% if f.url|length > 50 %}…{% endif %}</code></td>
+  <td class="py-1.5">{% if f.ativo %}<span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">sim</span>{% else %}<span class="px-2 py-0.5 text-xs rounded bg-loyall-100 text-loyall-700">não</span>{% endif %}</td>
+  <td class="py-1.5 text-xs text-loyall-400">{{ f.ultima_coleta.strftime('%Y-%m-%d %H:%M') if f.ultima_coleta else '—' }}</td>
+  <td class="py-1.5 flex gap-2 text-xs">
+    {% if f.ativo %}
+    <button hx-post="{{ url_for('ui.htmx_disparar_fonte', fonte_id=f.id) }}"
+            hx-target="#fonte-{{ f.id }}-result" hx-swap="innerHTML"
+            class="text-loyall-700 hover:underline">disparar</button>
+    {% endif %}
+    <button hx-delete="{{ url_for('ui.htmx_deletar_fonte', fonte_id=f.id) }}"
+            hx-target="#fonte-{{ f.id }}" hx-swap="outerHTML"
+            hx-confirm="Excluir fonte?"
+            class="text-red-600 hover:underline">excluir</button>
+    <span id="fonte-{{ f.id }}-result"></span>
+  </td>
+</tr>

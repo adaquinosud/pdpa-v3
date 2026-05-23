@@ -15,11 +15,20 @@ Adaptações vs v2:
 
 from __future__ import annotations
 
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict
 
 from flask import Blueprint, Response, jsonify, request
 
+from src.auth import (
+    PAPEL_LOYALL,
+    cliente_pode_ver_empresa,
+    get_current_user,
+    login_required,
+    loyall_required,
+)
 from src.models.empresa import Empresa
 from src.utils.db import db_session
 
@@ -35,6 +44,8 @@ def _serialize(e: Empresa) -> Dict[str, Any]:
         "razao_social": e.razao_social,
         "cnpj": e.cnpj,
         "setor": e.setor,
+        "site": e.site,
+        "observacao": e.observacao,
         "branding_json": e.branding_json,
         "criada_em": e.criada_em.isoformat() if e.criada_em else None,
         "atualizada_em": e.atualizada_em.isoformat() if e.atualizada_em else None,
@@ -42,19 +53,20 @@ def _serialize(e: Empresa) -> Dict[str, Any]:
 
 
 @empresas_bp.route("/", methods=["GET"])
+@login_required
 def listar_empresas() -> Response:
-    """Lista todas as empresas cadastradas, ordenadas por nome.
-
-    TODO Bloco 2 (briefing 04 — JWT + papéis): filtrar por papel
-    (``admin_loyall`` vê tudo; ``cliente_*`` vê apenas a própria empresa
-    via claims do JWT).
-    """
+    """Lista empresas. Loyall vê todas; cliente vê só a própria."""
+    user = get_current_user()
     with db_session() as session:
-        empresas = session.query(Empresa).order_by(Empresa.nome).all()
+        query = session.query(Empresa).order_by(Empresa.nome)
+        if user.papel != PAPEL_LOYALL:
+            query = query.filter(Empresa.id == user.empresa_id)
+        empresas = query.all()
         return jsonify([_serialize(e) for e in empresas])
 
 
 @empresas_bp.route("/<int:empresa_id>", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
 def obter_empresa(empresa_id: int):
     """Retorna detalhes de uma empresa específica."""
     with db_session() as session:
@@ -65,6 +77,7 @@ def obter_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/", methods=["POST"])
+@loyall_required
 def criar_empresa():
     """Cria uma nova empresa.
 
@@ -93,6 +106,8 @@ def criar_empresa():
             razao_social=data.get("razao_social"),
             cnpj=data.get("cnpj"),
             setor=data.get("setor"),
+            site=data.get("site"),
+            observacao=data.get("observacao"),
             branding_json=data.get("branding_json"),
         )
         session.add(e)
@@ -101,6 +116,7 @@ def criar_empresa():
 
 
 @empresas_bp.route("/<int:empresa_id>", methods=["PUT"])
+@loyall_required
 def atualizar_empresa(empresa_id: int):
     """Atualiza campos editáveis de uma empresa existente."""
     data = request.get_json(silent=True) or {}
@@ -108,7 +124,15 @@ def atualizar_empresa(empresa_id: int):
         e = session.get(Empresa, empresa_id)
         if e is None:
             return jsonify({"erro": "Empresa não encontrada"}), 404
-        for campo in ("nome", "razao_social", "cnpj", "setor", "branding_json"):
+        for campo in (
+            "nome",
+            "razao_social",
+            "cnpj",
+            "setor",
+            "site",
+            "observacao",
+            "branding_json",
+        ):
             if campo in data:
                 setattr(e, campo, data[campo])
         e.atualizada_em = datetime.utcnow()
@@ -117,6 +141,7 @@ def atualizar_empresa(empresa_id: int):
 
 
 @empresas_bp.route("/<int:empresa_id>", methods=["DELETE"])
+@loyall_required
 def remover_empresa(empresa_id: int):
     """Remove uma empresa.
 
@@ -132,3 +157,99 @@ def remover_empresa(empresa_id: int):
         nome = e.nome
         session.delete(e)
         return jsonify({"removido": True, "id": empresa_id, "nome": nome})
+
+
+# ── Rotas aninhadas (Bloco 4 — CP2) ──────────────────────────────────────
+# Delegam para handlers nos blueprints de Agrupamento / Local / Fonte.
+
+
+@empresas_bp.route("/<int:empresa_id>/agrupamentos", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
+def listar_agrupamentos_da_empresa(empresa_id: int):
+    from src.api.agrupamentos import listar_agrupamentos_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/agrupamentos", methods=["POST"])
+@loyall_required
+def criar_agrupamento_na_empresa(empresa_id: int):
+    from src.api.agrupamentos import criar_agrupamento_na_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/locais", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
+def listar_locais_da_empresa(empresa_id: int):
+    from src.api.locais import listar_locais_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/locais", methods=["POST"])
+@cliente_pode_ver_empresa("empresa_id")
+def criar_local_na_empresa(empresa_id: int):
+    from src.api.locais import criar_local_na_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/fontes", methods=["GET"])
+@cliente_pode_ver_empresa("empresa_id")
+def listar_fontes_da_empresa(empresa_id: int):
+    from src.api.fontes import listar_fontes_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/fontes", methods=["POST"])
+@cliente_pode_ver_empresa("empresa_id")
+def criar_fonte_na_empresa(empresa_id: int):
+    from src.api.fontes import criar_fonte_na_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/import-cadastro", methods=["POST"])
+@loyall_required
+def import_cadastro():
+    """Importa cadastro hierárquico via Excel padronizado (Bloco 4 — CP3).
+
+    Form fields:
+        - ``arquivo``: ``.xlsx`` template simples ou completo (obrigatório).
+        - ``sobrescrever``: ``"true"``/``"false"`` (opcional, default false).
+
+    Detecção automática do template:
+        - aba ``02 Agrupamentos`` presente → template completo
+        - ausente → template simples
+
+    Returns:
+        200 com stats da importação se OK (campos: empresa_id, template,
+        agrupamentos_criados/pulados, locais_criados/pulados,
+        fontes_criadas/puladas).
+        400 com lista de erros se houver problema de validação (nada é
+        gravado em caso de erro — atomicidade).
+    """
+    if "arquivo" not in request.files:
+        return jsonify({"erro": "arquivo é obrigatório"}), 400
+    arquivo = request.files["arquivo"]
+    if not arquivo.filename:
+        return jsonify({"erro": "nome de arquivo vazio"}), 400
+
+    sobrescrever = request.form.get("sobrescrever", "false").lower() == "true"
+
+    suffix = Path(arquivo.filename).suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        arquivo.save(str(tmp_path))
+        from src.coletor.excel_cadastro import importar_cadastro
+
+        stats = importar_cadastro(tmp_path, sobrescrever=sobrescrever)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if stats.get("erros"):
+        return jsonify(stats), 400
+    return jsonify(stats), 200

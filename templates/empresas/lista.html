@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}Empresas{% endblock %}
+
+{% block conteudo %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-semibold">Empresas</h1>
+  {% if user.papel == 'admin_loyall' %}
+  <div class="flex gap-2">
+    <a href="{{ url_for('ui.empresa_nova') }}" class="px-3 py-2 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded text-sm">+ Nova empresa</a>
+    <a href="{{ url_for('ui.empresa_importar') }}" class="px-3 py-2 bg-loyall-100 hover:bg-loyall-200 text-loyall-800 rounded text-sm border border-loyall-200">Importar Excel</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if not empresas %}
+  <div class="text-loyall-400 py-8 text-center">
+    Nenhuma empresa cadastrada.
+    {% if user.papel == 'admin_loyall' %}
+    <div class="mt-4">
+      <a href="{{ url_for('ui.empresa_importar') }}" class="text-loyall-700 underline">Importar via Excel</a>
+      ou
+      <a href="{{ url_for('ui.empresa_nova') }}" class="text-loyall-700 underline">cadastrar manualmente</a>.
+    </div>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="bg-white border border-loyall-200 rounded overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-loyall-100 text-left text-sm text-loyall-700">
+        <tr>
+          <th class="px-4 py-2 font-medium">Nome</th>
+          <th class="px-4 py-2 font-medium">Setor</th>
+          <th class="px-4 py-2 font-medium">Site</th>
+          <th class="px-4 py-2 font-medium">Criada em</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in empresas %}
+        <tr class="border-t border-loyall-100 hover:bg-loyall-50">
+          <td class="px-4 py-2">
+            <a href="{{ url_for('ui.detalhe_empresa', empresa_id=e.id) }}" class="text-loyall-700 hover:underline font-medium">{{ e.nome }}</a>
+          </td>
+          <td class="px-4 py-2 text-sm">{{ e.setor or '—' }}</td>
+          <td class="px-4 py-2 text-sm">
+            {% if e.site %}<a href="{{ e.site }}" target="_blank" class="text-loyall-600 hover:underline">{{ e.site }}</a>{% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-2 text-sm text-loyall-400">{{ e.criada_em.strftime('%Y-%m-%d') if e.criada_em else '' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+{% endblock %}

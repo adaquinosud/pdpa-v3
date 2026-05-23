@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Importar Excel{% endblock %}
+{% block conteudo %}
+<h1 class="text-2xl font-semibold mb-2">Importar cadastro via Excel</h1>
+<p class="text-loyall-400 mb-4 text-sm">
+  Aceita os templates padronizados: <strong>simples</strong> (1 empresa + locais + fontes) ou
+  <strong>completo</strong> (com aba <em>02 Agrupamentos</em>). Detecção automática.
+</p>
+
+{% if erros %}
+<div class="mb-4 bg-red-50 border border-red-200 rounded p-4">
+  <div class="text-red-800 font-medium mb-2">A validação encontrou {{ erros|length }} problema(s):</div>
+  <ul class="list-disc ml-5 text-red-800 text-sm space-y-1">
+    {% for e in erros %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="bg-white border border-loyall-200 rounded p-6 max-w-xl space-y-4">
+  <div>
+    <label class="block text-sm font-medium text-loyall-700 mb-1">Arquivo XLSX</label>
+    <input type="file" name="arquivo" accept=".xlsx" required class="block w-full text-sm">
+  </div>
+  <label class="flex items-center gap-2 text-sm text-loyall-700">
+    <input type="checkbox" name="sobrescrever">
+    Sobrescrever campos descritivos de entidades já existentes (idempotente por padrão)
+  </label>
+  <div class="flex gap-2">
+    <button type="submit" class="px-4 py-2 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Importar</button>
+    <a href="{{ url_for('ui.lista_empresas') }}" class="px-4 py-2 border border-loyall-200 rounded text-loyall-700">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

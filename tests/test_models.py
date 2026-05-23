@@ -32,22 +32,32 @@ def test_criar_local_com_empresa(db_session):
     assert local.empresa is e
 
 
-def test_agrupamento_com_locais_NN(db_session):
+def test_agrupamento_one_to_many_locais(db_session):
+    """Bloco 4: agrupamento_id em locais (one-to-many, opcional).
+
+    Cada Local pertence a no máximo 1 Agrupamento. Locais sem agrupamento
+    ficam com ``agrupamento_id = NULL`` e aparecem em "Geral" virtual no
+    Painel Executivo.
+    """
     e = Empresa(nome="E")
     db_session.add(e)
     db_session.commit()
-    l1 = Local(empresa_id=e.id, nome="L1")
-    l2 = Local(empresa_id=e.id, nome="L2")
-    db_session.add_all([l1, l2])
-    db_session.commit()
     a = Agrupamento(empresa_id=e.id, nome="Todos")
-    a.locais = [l1, l2]
     db_session.add(a)
     db_session.commit()
+    l1 = Local(empresa_id=e.id, nome="L1", agrupamento_id=a.id)
+    l2 = Local(empresa_id=e.id, nome="L2", agrupamento_id=a.id)
+    l_sem = Local(empresa_id=e.id, nome="L_sem_grupo")  # agrupamento_id = NULL
+    db_session.add_all([l1, l2, l_sem])
+    db_session.commit()
+
+    db_session.refresh(a)
     assert len(a.locais) == 2
-    # bidirecional via secondary
-    assert a in l1.agrupamentos
-    assert a in l2.agrupamentos
+    assert l1 in a.locais and l2 in a.locais
+    assert l1.agrupamento is a
+    assert l2.agrupamento is a
+    assert l_sem.agrupamento is None
+    assert a.ativo is True  # default da migration 011
 
 
 # ---- 3 testes extras pedidos no CP6.2 ----

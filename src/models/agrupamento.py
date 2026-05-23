@@ -1,4 +1,4 @@
-"""Modelo Agrupamento e tabela associativa agrupamento_locais (N:N com Local)."""
+"""Modelo Agrupamento (Bloco 4 — cadastro hierárquico, one-to-many com Local)."""
 
 from __future__ import annotations
 
@@ -6,12 +6,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
-    Column,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
     String,
-    Table,
     Text,
     UniqueConstraint,
 )
@@ -24,25 +23,14 @@ if TYPE_CHECKING:
     from src.models.local import Local
 
 
-agrupamento_locais = Table(
-    "agrupamento_locais",
-    Base.metadata,
-    Column(
-        "agrupamento_id",
-        Integer,
-        ForeignKey("agrupamentos.id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-    Column(
-        "local_id",
-        Integer,
-        ForeignKey("locais.id", ondelete="CASCADE"),
-        primary_key=True,
-    ),
-)
-
-
 class Agrupamento(Base):
+    """Agrupamento de Locais dentro de uma Empresa.
+
+    Camada opcional entre Empresa e Local. Cliente final consome no Painel
+    Executivo; cadastro/edição é privilégio do papel ``loyall_admin``
+    (ver CP4 do Bloco 4).
+    """
+
     __tablename__ = "agrupamentos"
     __table_args__ = (UniqueConstraint("empresa_id", "nome"),)
 
@@ -54,12 +42,11 @@ class Agrupamento(Base):
     descricao: Mapped[Optional[str]] = mapped_column(String)
     tipo: Mapped[Optional[str]] = mapped_column(String, default="lista")
     criterio_json: Mapped[Optional[str]] = mapped_column(Text)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     empresa: Mapped["Empresa"] = relationship("Empresa", back_populates="agrupamentos")
-    locais: Mapped[List["Local"]] = relationship(
-        "Local", secondary=agrupamento_locais, back_populates="agrupamentos"
-    )
+    locais: Mapped[List["Local"]] = relationship("Local", back_populates="agrupamento")
 
     def __repr__(self) -> str:
         return f"<Agrupamento {self.nome}>"
