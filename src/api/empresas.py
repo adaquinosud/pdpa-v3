@@ -15,7 +15,9 @@ Adaptações vs v2:
 
 from __future__ import annotations
 
+import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict
 
 from flask import Blueprint, Response, jsonify, request
@@ -190,3 +192,46 @@ def criar_fonte_na_empresa(empresa_id: int):
     from src.api.fontes import criar_fonte_na_empresa as h
 
     return h(empresa_id)
+
+
+@empresas_bp.route("/import-cadastro", methods=["POST"])
+def import_cadastro():
+    """Importa cadastro hierárquico via Excel padronizado (Bloco 4 — CP3).
+
+    Form fields:
+        - ``arquivo``: ``.xlsx`` template simples ou completo (obrigatório).
+        - ``sobrescrever``: ``"true"``/``"false"`` (opcional, default false).
+
+    Detecção automática do template:
+        - aba ``02 Agrupamentos`` presente → template completo
+        - ausente → template simples
+
+    Returns:
+        200 com stats da importação se OK (campos: empresa_id, template,
+        agrupamentos_criados/pulados, locais_criados/pulados,
+        fontes_criadas/puladas).
+        400 com lista de erros se houver problema de validação (nada é
+        gravado em caso de erro — atomicidade).
+    """
+    if "arquivo" not in request.files:
+        return jsonify({"erro": "arquivo é obrigatório"}), 400
+    arquivo = request.files["arquivo"]
+    if not arquivo.filename:
+        return jsonify({"erro": "nome de arquivo vazio"}), 400
+
+    sobrescrever = request.form.get("sobrescrever", "false").lower() == "true"
+
+    suffix = Path(arquivo.filename).suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        arquivo.save(str(tmp_path))
+        from src.coletor.excel_cadastro import importar_cadastro
+
+        stats = importar_cadastro(tmp_path, sobrescrever=sobrescrever)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if stats.get("erros"):
+        return jsonify(stats), 400
+    return jsonify(stats), 200
