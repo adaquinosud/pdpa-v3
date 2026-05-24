@@ -282,3 +282,144 @@ def test_painel_cliente_propria_empresa_200(client_loyall, client_cliente_factor
     cli = client_cliente_factory(e["id"])
     assert cli.get(f"/api/empresas/{e['id']}/painel/nivel1").status_code == 200
     assert cli.get(f"/api/empresas/{e['id']}/painel/nivel2").status_code == 200
+
+
+# ── UI: página /empresas/<id>/painel ──────────────────────────────────
+
+
+def test_ui_painel_renderiza_visao_geral_e_detalhamento(client_loyall, db_session):
+    ctx = _empresa_estrutura(client_loyall)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="elogio",
+        subpilar="Pa1",
+        tipo="promotor",
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="reclamacao",
+        subpilar="D2",
+        tipo="detrator",
+    )
+    r = client_loyall.get(f"/empresas/{ctx['e']['id']}/painel")
+    assert r.status_code == 200
+    html = r.data.decode()
+    assert "Visão Geral" in html
+    assert "Detalhamento por Subpilar" in html
+    # Pilares P/D/Pa/A presentes
+    for pilar in ["Produto", "Deslumbramento", "Atendimento", "Acesso"]:
+        assert pilar in html
+    # Botão exportar
+    assert "Exportar Excel" in html
+
+
+def test_ui_painel_403_cliente_de_outra_empresa(client_loyall, client_cliente_factory):
+    e_a = client_loyall.post("/api/empresas/", json={"nome": "EPnlUiA"}).get_json()
+    e_b = client_loyall.post("/api/empresas/", json={"nome": "EPnlUiB"}).get_json()
+    cli = client_cliente_factory(e_a["id"])
+    r = cli.get(f"/empresas/{e_b['id']}/painel")
+    assert r.status_code == 403
+
+
+# ── Exportar XLSX ─────────────────────────────────────────────────────
+
+
+def test_exportar_painel_xlsx_basico(client_loyall, db_session):
+    ctx = _empresa_estrutura(client_loyall)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="t1",
+        subpilar="Pa1",
+        tipo="promotor",
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="t2",
+        subpilar="D2",
+        tipo="detrator",
+    )
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/exportar.xlsx")
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers.get("Content-Type", "")
+    assert r.data[:2] == b"PK"
+
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(r.data))
+    assert "Visão Geral" in wb.sheetnames
+    assert "Detalhamento por Subpilar" in wb.sheetnames
+
+    ws1 = wb["Visão Geral"]
+    rows1 = list(ws1.iter_rows(values_only=True))
+    # Confere headers da tabela de pilares
+    header_row = next(r for r in rows1 if r and r[0] == "Pilar")
+    assert header_row[0:3] == ("Pilar", "Nome", "Total")
+    # Pa deve aparecer com total=1
+    pa_row = next(r for r in rows1 if r and r[0] == "Pa")
+    assert pa_row[2] == 1
+    assert pa_row[3] == 1  # promotor
+
+    ws2 = wb["Detalhamento por Subpilar"]
+    rows2 = list(ws2.iter_rows(values_only=True))
+    pa1_row = next(r for r in rows2 if r and r[1] == "Pa1")
+    assert pa1_row[2] == 1  # promotor
+    assert pa1_row[6] == 1  # total
+    d2_row = next(r for r in rows2 if r and r[1] == "D2")
+    assert d2_row[4] == 1  # detrator
+
+
+def test_exportar_painel_xlsx_aplica_filtros(client_loyall, db_session):
+    ctx = _empresa_estrutura(client_loyall)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="recente",
+        subpilar="Pa1",
+        tipo="promotor",
+        data_dias_atras=3,
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="velho",
+        subpilar="D2",
+        tipo="detrator",
+        data_dias_atras=400,
+    )
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/exportar.xlsx?periodo=7d")
+    assert r.status_code == 200
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(r.data))
+    ws1 = wb["Visão Geral"]
+    rows1 = list(ws1.iter_rows(values_only=True))
+    pa_row = next(r for r in rows1 if r and r[0] == "Pa")
+    assert pa_row[2] == 1
+    d_row = next(r for r in rows1 if r and r[0] == "D")
+    assert d_row[2] == 0  # filtrado pelo periodo
+
+
+def test_exportar_painel_xlsx_cliente_outra_empresa_403(client_loyall, client_cliente_factory):
+    e_a = client_loyall.post("/api/empresas/", json={"nome": "EPnlXlsxA"}).get_json()
+    e_b = client_loyall.post("/api/empresas/", json={"nome": "EPnlXlsxB"}).get_json()
+    cli = client_cliente_factory(e_a["id"])
+    r = cli.get(f"/api/empresas/{e_b['id']}/painel/exportar.xlsx")
+    assert r.status_code == 403

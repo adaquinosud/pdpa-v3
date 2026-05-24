@@ -307,3 +307,108 @@ def painel_nivel2(empresa_id: int):
             "sem_classificacao": sem_classif_agg,
         }
     )
+
+
+# ── Exportar XLSX (Bloco 5 CP-3) ──────────────────────────────────────
+
+
+@cliente_pode_ver_empresa("empresa_id")
+def exportar_painel_xlsx(empresa_id: int):
+    """Exporta painel (Visão Geral + Detalhamento) em XLSX com 2 sheets."""
+    from io import BytesIO
+
+    from flask import send_file
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    # Reusa a lógica dos 2 endpoints chamando-os internamente
+    resp_n1 = painel_nivel1(empresa_id)
+    if isinstance(resp_n1, tuple):
+        return resp_n1
+    resp_n2 = painel_nivel2(empresa_id)
+    if isinstance(resp_n2, tuple):
+        return resp_n2
+    n1 = resp_n1.get_json()
+    n2 = resp_n2.get_json()
+
+    wb = Workbook()
+    bold = Font(bold=True)
+    header_fill = PatternFill("solid", fgColor="E5E7EB")
+
+    # Sheet 1: Visão Geral
+    ws1 = wb.active
+    ws1.title = "Visão Geral"
+    ws1.append([f"Empresa #{empresa_id} — Painel Executivo (Visão Geral)"])
+    ws1["A1"].font = bold
+    filtros = n1.get("filtros") or {}
+    if filtros:
+        ws1.append(["Filtros aplicados:", " | ".join(f"{k}={v}" for k, v in filtros.items())])
+    ws1.append([f"Total verbatins: {n1.get('total_verbatins', 0)}"])
+    ws1.append([])
+    headers1 = ["Pilar", "Nome", "Total", "Promotor", "Conversível", "Detrator", "Inativo"]
+    ws1.append(headers1)
+    for cell in ws1[ws1.max_row]:
+        cell.font = bold
+        cell.fill = header_fill
+    for p in n1.get("pilares", []):
+        ws1.append(
+            [
+                p["pilar"],
+                p["nome"],
+                p["total"],
+                p["promotor"],
+                p["conversivel"],
+                p["detrator"],
+                p["inativo"],
+            ]
+        )
+    ws1.append([])
+    outros = n1.get("outros") or {}
+    if outros:
+        ws1.append(["Fora dos 4 pilares:"])
+        ws1[ws1.max_row][0].font = bold
+        ws1.append(["sem_lastro", outros.get("sem_lastro", 0)])
+        ws1.append(["sem_classificação", outros.get("sem_classificacao", 0)])
+
+    # Sheet 2: Detalhamento por Subpilar
+    ws2 = wb.create_sheet("Detalhamento por Subpilar")
+    ws2.append([f"Empresa #{empresa_id} — Detalhamento por Subpilar"])
+    ws2["A1"].font = bold
+    if filtros:
+        ws2.append(["Filtros aplicados:", " | ".join(f"{k}={v}" for k, v in filtros.items())])
+    ws2.append([])
+    headers2 = ["Pilar", "Subpilar", "Promotor", "Conversível", "Detrator", "Inativo", "Total"]
+    ws2.append(headers2)
+    for cell in ws2[ws2.max_row]:
+        cell.font = bold
+        cell.fill = header_fill
+    for c in n2.get("matriz", []):
+        ws2.append(
+            [
+                c["pilar"],
+                c["subpilar"],
+                c["promotor"],
+                c["conversivel"],
+                c["detrator"],
+                c["inativo"],
+                c["total"],
+            ]
+        )
+    sl = n2.get("sem_lastro") or {}
+    sc = n2.get("sem_classificacao") or {}
+    if sl.get("total"):
+        ws2.append(["—", "sem_lastro", "—", "—", "—", sl.get("inativo", 0), sl["total"]])
+    if sc.get("total"):
+        ws2.append(["—", "sem classificação", "—", "—", "—", "—", sc["total"]])
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    fname = f"painel_empresa_{empresa_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
