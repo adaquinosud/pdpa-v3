@@ -38,6 +38,7 @@ class Verbatim(Base):
     subpilar: Mapped[Optional[str]] = mapped_column(String)
     tipo: Mapped[Optional[str]] = mapped_column(String)
     confianca: Mapped[Optional[float]] = mapped_column(Float)
+    justificativa: Mapped[Optional[str]] = mapped_column(Text)
     prompt_versao: Mapped[Optional[str]] = mapped_column(String, default="v3.0")
 
     reclassificado_em: Mapped[Optional[datetime]] = mapped_column(DateTime)

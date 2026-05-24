@@ -211,6 +211,13 @@ def criar_fonte_na_empresa(empresa_id: int):
     return h(empresa_id)
 
 
+@empresas_bp.route("/<int:empresa_id>/verbatins", methods=["GET"])
+def listar_verbatins_da_empresa(empresa_id: int):
+    from src.api.verbatins import listar_verbatins_da_empresa as h
+
+    return h(empresa_id)
+
+
 @empresas_bp.route("/import-cadastro", methods=["POST"])
 @loyall_required
 def import_cadastro():

@@ -134,6 +134,7 @@ def processar_verbatim_coletado(
         subpilar: Optional[str] = None
         tipo: Optional[str] = None
         confianca: Optional[float] = None
+        justificativa: Optional[str] = None
         prompt_versao: Optional[str] = None
 
         try:
@@ -146,6 +147,7 @@ def processar_verbatim_coletado(
             subpilar = resultado.subpilar
             tipo = resultado.tipo
             confianca = resultado.confianca
+            justificativa = resultado.justificativa
             prompt_versao = resultado.prompt_versao
         except Exception as exc:
             print(
@@ -165,6 +167,7 @@ def processar_verbatim_coletado(
             subpilar=subpilar,
             tipo=tipo,
             confianca=confianca,
+            justificativa=justificativa,
             prompt_versao=prompt_versao,
         )
         session.add(verbatim)
