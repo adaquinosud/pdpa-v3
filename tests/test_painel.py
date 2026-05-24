@@ -782,6 +782,95 @@ def test_painel_cliente_propria_empresa_200(client_loyall, client_cliente_factor
     assert cli.get(f"/api/empresas/{e['id']}/painel/nivel2").status_code == 200
 
 
+# ── descrever_escopo (hotfix UI: textos contextuais) ─────────────────
+
+
+def test_descrever_escopo_vazio():
+    from src.api.painel import descrever_escopo
+
+    assert descrever_escopo("BH Airport") == "geral da BH Airport"
+
+
+def test_descrever_escopo_apenas_agrupamento():
+    from src.api.painel import descrever_escopo
+
+    res = descrever_escopo("BH Airport", agrupamento_nome="Aeroporto")
+    assert res == "no agrupamento Aeroporto"
+
+
+def test_descrever_escopo_local_supera_agrupamento():
+    from src.api.painel import descrever_escopo
+
+    # Quando ambos preenchidos, local ganha (mais específico).
+    res = descrever_escopo("BH Airport", agrupamento_nome="Lojas", local_nome="Linx Confins")
+    assert res == "em Linx Confins"
+
+
+def test_descrever_escopo_com_fonte_amigavel():
+    from src.api.painel import descrever_escopo
+
+    res = descrever_escopo("BH Airport", local_nome="Terminal Confins", fonte_conector="google")
+    assert res == "em Terminal Confins via Google Reviews"
+
+
+def test_descrever_escopo_com_periodo():
+    from src.api.painel import descrever_escopo
+
+    res = descrever_escopo("BH Airport", periodo="30d")
+    assert res == "geral da BH Airport nos últimos 30 dias"
+
+
+def test_descrever_escopo_combinacao_completa():
+    from src.api.painel import descrever_escopo
+
+    res = descrever_escopo(
+        "BH Airport",
+        local_nome="Terminal Confins",
+        fonte_conector="google",
+        periodo="7d",
+    )
+    assert res == "em Terminal Confins via Google Reviews nos últimos 7 dias"
+
+
+def test_descrever_escopo_fonte_sem_local_nem_agrupamento():
+    from src.api.painel import descrever_escopo
+
+    res = descrever_escopo("BH Airport", fonte_conector="instagram")
+    assert res == "geral da BH Airport via Instagram"
+
+
+def test_descrever_escopo_periodo_invalido_e_ignorado():
+    from src.api.painel import descrever_escopo
+
+    res = descrever_escopo("BH Airport", periodo="2y")
+    assert res == "geral da BH Airport"
+
+
+def test_painel_nivel1_inclui_filtros_descricao(client_loyall, db_session):
+    """Endpoint nivel1 deve devolver `filtros_descricao` no JSON."""
+    ctx = _empresa_estrutura(client_loyall, "fd")
+    body = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/nivel1").get_json()
+    assert "filtros_descricao" in body
+    # Sem filtros → "geral da <nome>"
+    assert body["filtros_descricao"].startswith("geral da")
+
+
+def test_painel_nivel1_filtros_descricao_com_agrupamento(client_loyall, db_session):
+    ctx = _empresa_estrutura(client_loyall, "fdag")
+    body = client_loyall.get(
+        f"/api/empresas/{ctx['e']['id']}/painel/nivel1?agrupamento_id={ctx['a']['id']}"
+    ).get_json()
+    assert body["filtros_descricao"] == "no agrupamento GPnl"
+
+
+def test_painel_nivel1_filtros_descricao_com_local_e_periodo(client_loyall, db_session):
+    ctx = _empresa_estrutura(client_loyall, "fdlp")
+    body = client_loyall.get(
+        f"/api/empresas/{ctx['e']['id']}/painel/nivel1" f"?local_id={ctx['loc']['id']}&periodo=30d"
+    ).get_json()
+    assert body["filtros_descricao"] == "em LPnl nos últimos 30 dias"
+
+
 # ── UI: página /empresas/<id>/painel ──────────────────────────────────
 
 

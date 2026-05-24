@@ -423,6 +423,85 @@ def faixa_concentracao(pct: Optional[float]) -> str:
     return "sistemico"
 
 
+# ── Texto descritivo do escopo (Bloco 5 hotfix UI) ────────────────────
+
+# Mapa amigável de conector → nome legível para a descrição do escopo.
+NOME_FONTE_AMIGAVEL = {
+    "google": "Google Reviews",
+    "google_news": "Google News",
+    "tripadvisor": "TripAdvisor",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "linkedin": "LinkedIn",
+    "youtube": "YouTube",
+    "tiktok": "TikTok",
+    "appstore": "App Store / Play Store",
+    "mercadolivre": "Mercado Livre",
+    "website": "website",
+    "glassdoor": "Glassdoor",
+    "indeed": "Indeed",
+    "excel_manual": "Excel manual",
+}
+
+# Labels amigáveis para período (mesmas chaves do _resolver_periodo).
+PERIODO_LABEL = {
+    "7d": "nos últimos 7 dias",
+    "30d": "nos últimos 30 dias",
+    "90d": "nos últimos 90 dias",
+    "6m": "nos últimos 6 meses",
+    "12m": "nos últimos 12 meses",
+    "15m": "nos últimos 15 meses",
+}
+
+
+def descrever_escopo(
+    empresa_nome: str,
+    *,
+    agrupamento_nome: Optional[str] = None,
+    local_nome: Optional[str] = None,
+    fonte_conector: Optional[str] = None,
+    periodo: Optional[str] = None,
+) -> str:
+    """Compõe o sufixo descritivo dos filtros aplicados no painel.
+
+    Regras:
+    - Espacial: ``local`` sobrescreve ``agrupamento``; sem nada → "geral
+      da {empresa_nome}".
+    - Fonte: acrescenta "via {nome amigável}".
+    - Período: acrescenta "nos últimos N".
+
+    Exemplos::
+
+        descrever_escopo("BH Airport")
+        # → "geral da BH Airport"
+
+        descrever_escopo("BH Airport", agrupamento_nome="Aeroporto")
+        # → "no agrupamento Aeroporto"
+
+        descrever_escopo("BH Airport", local_nome="Terminal Confins",
+                         fonte_conector="google", periodo="7d")
+        # → "em Terminal Confins via Google Reviews nos últimos 7 dias"
+    """
+    partes = []
+    if local_nome:
+        partes.append(f"em {local_nome}")
+    elif agrupamento_nome:
+        partes.append(f"no agrupamento {agrupamento_nome}")
+    else:
+        partes.append(f"geral da {empresa_nome}")
+
+    if fonte_conector:
+        nome = NOME_FONTE_AMIGAVEL.get(fonte_conector, fonte_conector)
+        partes.append(f"via {nome}")
+
+    if periodo:
+        lbl = PERIODO_LABEL.get(periodo)
+        if lbl:
+            partes.append(lbl)
+
+    return " ".join(partes)
+
+
 # ── Filtros (subset dos da listagem de verbatins) ─────────────────────
 
 
@@ -598,6 +677,43 @@ def painel_nivel1(empresa_id: int):
         previsibilidade = calcular_previsibilidade(empresa_id, s, filtros_query, pct_conv)
         concentracao_pct = calcular_concentracao_detratores(empresa_id, s, filtros_query)
 
+        # Texto descritivo do escopo (hotfix UI 2026-05-24).
+        from src.models.agrupamento import Agrupamento
+        from src.models.empresa import Empresa as _Empresa
+        from src.models.fonte import Fonte as _Fonte
+
+        empresa_obj = s.get(_Empresa, empresa_id)
+        empresa_nome = empresa_obj.nome if empresa_obj else f"empresa #{empresa_id}"
+        ag_nome = None
+        if request.args.get("agrupamento_id"):
+            try:
+                ag = s.get(Agrupamento, int(request.args.get("agrupamento_id")))
+                ag_nome = ag.nome if ag else None
+            except (ValueError, TypeError):
+                pass
+        local_nome = None
+        if request.args.get("local_id"):
+            try:
+                loc = s.get(Local, int(request.args.get("local_id")))
+                local_nome = loc.nome if loc else None
+            except (ValueError, TypeError):
+                pass
+        fonte_conector = None
+        if request.args.get("fonte_id"):
+            try:
+                fonte = s.get(_Fonte, int(request.args.get("fonte_id")))
+                fonte_conector = fonte.conector_tipo if fonte else None
+            except (ValueError, TypeError):
+                pass
+
+        filtros_descricao = descrever_escopo(
+            empresa_nome,
+            agrupamento_nome=ag_nome,
+            local_nome=local_nome,
+            fonte_conector=fonte_conector,
+            periodo=periodo_arg,
+        )
+
     # Índice Geral (opção B: min(pior_pilar, ratio_medio) × 2)
     indice_geral = calcular_indice_geral(matriz_para_metricas, pilares=pilares)
 
@@ -614,6 +730,8 @@ def painel_nivel1(empresa_id: int):
             "previsibilidade": previsibilidade,
             "concentracao_detratores": concentracao_pct,
             "concentracao_faixa": faixa_concentracao(concentracao_pct),
+            # Hotfix UI: texto descritivo do escopo p/ os 3 cards
+            "filtros_descricao": filtros_descricao,
         }
     )
 
