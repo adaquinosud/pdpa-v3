@@ -66,6 +66,30 @@
   </div>
 </form>
 
+{# ── Leitura editorial sequencial do Lastro (Manual Cap. 3) ──────────── #}
+<div id="leitura-sequencial-card" class="bg-loyall-100 border border-loyall-200 rounded p-4 mb-6">
+  <div class="flex items-center gap-2 mb-2">
+    <span class="text-xs uppercase tracking-wider text-loyall-500">Leitura editorial</span>
+    <span class="text-xs text-loyall-400">Lastro Relacional (P → D → Pa → A)</span>
+  </div>
+  <div id="leitura-sequencial-texto" class="text-loyall-800 text-sm leading-relaxed italic">
+    Gerando leitura editorial…
+  </div>
+</div>
+<script>
+  (function() {
+    const url = "{{ url_for('empresas.painel_leitura', empresa_id=empresa.id) }}";
+    const params = new URLSearchParams(window.location.search);
+    const full = params.toString() ? `${url}?${params.toString()}` : url;
+    const el = document.getElementById('leitura-sequencial-texto');
+    if (!el) return;
+    fetch(full, {credentials: 'same-origin'})
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(j => { el.textContent = j.leitura || 'Sem leitura disponível.'; })
+      .catch(_ => { el.textContent = 'Sem leitura disponível.'; });
+  })();
+</script>
+
 {# ── Métricas consolidadas (Manual Cap. 4) ────────────────────────────── #}
 {% set ig_cls = {'saudavel':'emerald','atencao':'amber','critico':'rose'}.get(n1.indice_geral_faixa, 'slate') %}
 {% set conc_cls = {'cirurgico':'amber','misto':'slate','sistemico':'rose','indisponivel':'slate'}.get(n1.concentracao_faixa, 'slate') %}

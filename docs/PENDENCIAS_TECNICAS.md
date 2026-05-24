@@ -426,6 +426,14 @@ Experiencial, Concentração de Detratores e Dependência Humana
 (``ratio Pa / ratio D``). Página separada ``/empresas/<id>/governanca``
 ou seção condicional no painel principal.
 
+### Cache da leitura sequencial Sonnet (CP-5 extensão B5)
+
+Implementada em src/api/painel_leitura.py sem cache: cada GET
+``/api/empresas/<id>/painel/leitura`` chama Sonnet (custo ~$0.001-0.002
+por load). Se volume justificar, materializar via tabela
+``painel_leitura_snapshot`` (chave: empresa_id + hash dos filtros + dia)
+ou cache em memória (TTL 1h, invalidado quando novos verbatins entram).
+
 ### Monitoramento ML — Isolation Forest + z-score robusto
 
 Capítulo 5. Combina:

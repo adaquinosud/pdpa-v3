@@ -556,6 +556,27 @@ def painel_nivel2(empresa_id: int):
     )
 
 
+# ── Leitura textual sequencial (Bloco 5 ext. CP-5) ────────────────────
+
+
+@cliente_pode_ver_empresa("empresa_id")
+def painel_leitura(empresa_id: int):
+    """Leitura textual sequencial via Sonnet (Manual Cap. 3).
+
+    Chama painel_nivel1 internamente para obter o estado atual, depois
+    pede ao Sonnet para interpretar em 2-3 frases. Carregado async no
+    UI para não atrasar o painel principal.
+    """
+    from src.api.painel_leitura import gerar_leitura_sequencial
+
+    resp_n1 = painel_nivel1(empresa_id)
+    if isinstance(resp_n1, tuple):
+        return resp_n1  # propaga erro (400/403)
+    n1 = resp_n1.get_json()
+    leitura = gerar_leitura_sequencial(n1 or {})
+    return jsonify({"empresa_id": empresa_id, "leitura": leitura})
+
+
 # ── Exportar XLSX (Bloco 5 CP-3) ──────────────────────────────────────
 
 
