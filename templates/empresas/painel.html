@@ -139,25 +139,32 @@
       {% set qs_base = '&'.join(query_base) %}
       {% for c in n2.matriz %}
       {% set fcls = classes_faixa.get(c.faixa, classes_faixa['atencao']) %}
+      {% set link_subpilar = url_for('ui.verbatins_empresa', empresa_id=empresa.id) ~ '?subpilar=' ~ c.subpilar ~ (('&' ~ qs_base) if qs_base else '') %}
       <tr class="border-t border-loyall-100 hover:bg-loyall-50">
-        <td class="px-3 py-1.5">
-          <span class="inline-block w-8 text-xs font-semibold text-loyall-400">{{ c.pilar }}</span>
-          <span class="font-semibold text-loyall-800">{{ c.subpilar }}</span>
-          <span class="text-loyall-500"> — {{ c.nome }}</span>
+        <td class="p-0">
+          <a href="{{ link_subpilar }}" class="block px-3 py-1.5 hover:underline">
+            <span class="inline-block w-8 text-xs font-semibold text-loyall-400">{{ c.pilar }}</span>
+            <span class="font-semibold text-loyall-800">{{ c.subpilar }}</span>
+            <span class="text-loyall-500"> — {{ c.nome }}</span>
+          </a>
         </td>
         {% for tp in ['promotor', 'conversivel', 'detrator'] %}
-        <td class="text-right px-3 py-1.5 {% if c[tp] %}text-loyall-800{% else %}text-loyall-300{% endif %}">
+        <td class="p-0 text-right">
           {% if c[tp] %}
           <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ c.subpilar }}&tipo={{ tp }}{% if qs_base %}&{{ qs_base }}{% endif %}"
-             class="hover:underline">{{ c[tp] }}</a>
-          {% else %}—{% endif %}
+             class="block px-3 py-1.5 text-loyall-800 hover:underline">{{ c[tp] }}</a>
+          {% else %}
+          <span class="block px-3 py-1.5 text-loyall-300">—</span>
+          {% endif %}
         </td>
         {% endfor %}
-        <td class="text-right px-3 py-1.5 font-semibold {% if c.total %}text-loyall-800{% else %}text-loyall-300{% endif %}">
+        <td class="p-0 text-right">
           {% if c.total %}
-          <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ c.subpilar }}{% if qs_base %}&{{ qs_base }}{% endif %}"
-             class="hover:underline">{{ c.total }}</a>
-          {% else %}0{% endif %}
+          <a href="{{ link_subpilar }}"
+             class="block px-3 py-1.5 font-semibold text-loyall-800 hover:underline">{{ c.total }}</a>
+          {% else %}
+          <span class="block px-3 py-1.5 font-semibold text-loyall-300">0</span>
+          {% endif %}
         </td>
         <td class="text-right px-3 py-1.5">
           {% if c.total %}
