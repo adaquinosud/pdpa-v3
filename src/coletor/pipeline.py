@@ -90,9 +90,18 @@ def processar_verbatim_coletado(
 
     CP-D3: aceita reviews ratings-only (texto vazio + rating). Quando
     o texto está vazio E há rating, classifica via heurística de rating
-    (``RATING_PARA_CLASSIFICACAO``) sem chamar Anthropic. Quando há
-    ``review_id_externo``, o dedup prioriza esse identificador (mais
-    robusto contra colisão de hash em textos curtos com autor anônimo).
+    (``RATING_PARA_CLASSIFICACAO``) sem chamar Anthropic.
+
+    CP-E2: quando há ``review_id_externo``, ele é a identidade autoritativa
+    do review. O ``hash_dedup`` passa a usar ``f"reviewid:{id}"`` (não o
+    texto), e o dedup-check ignora o hash legacy — caso contrário textos
+    curtos com autor anônimo (ex: "Bom", "Top") colidiriam falsamente
+    mesmo com reviewIds distintos. Para verbatins legacy (sem reviewId,
+    carga pré-CP-D3) já no banco, há cleanup retroativo: ao inserir um
+    novo verbatim com reviewId, varre na mesma fonte se há UM verbatim
+    legacy com mesmo (texto, autor) e o remove em favor do novo. Isso
+    evita duplicação cumulativa quando o mesmo review é recoletado com
+    reviewId após a carga inicial.
 
     Args:
         texto: Texto bruto do verbatim (pode ser vazio se ``rating`` é
@@ -126,25 +135,28 @@ def processar_verbatim_coletado(
     # 1. Atribuição determinística do local
     local_id: Optional[int] = fonte_entidade_id if fonte_entidade_tipo == "local" else None
 
-    # 2. Hash dedup:
-    #    - Com texto: SHA-256(fonte|autor|texto[:200]) (comportamento legacy).
-    #    - Sem texto (ratings-only): inclui review_id_externo no hash para
-    #      garantir unicidade — sem isso, todos os ratings-only com autor=None
-    #      colidiriam no mesmo hash e UNIQUE(empresa_id, hash_dedup) rejeitaria.
-    if tem_texto:
+    # 2. Hash dedup (CP-E2):
+    #    - Com review_id_externo: SHA-256(fonte|autor|"reviewid:<id>"). É a
+    #      identidade autoritativa do review no scraper. Vale tanto para com
+    #      texto quanto sem.
+    #    - Sem review_id_externo + com texto: legacy SHA-256(fonte|autor|texto[:200]).
+    #    - Sem review_id_externo + sem texto: ratings-only fallback (raro,
+    #      usa rating+data como entropia).
+    if review_id_externo:
+        hash_dedup = computar_hash_dedup(f"reviewid:{review_id_externo}", fonte_id, autor)
+    elif tem_texto:
         hash_dedup = computar_hash_dedup(texto_normalizado, fonte_id, autor)
-    elif review_id_externo:
-        # Texto sintético = id externo. Hash distinto por review.
-        hash_dedup = computar_hash_dedup(f"rating_only:{review_id_externo}", fonte_id, autor)
     else:
-        # Sem texto E sem review_id: já rejeitamos acima por (not tem_texto and rating is None);
-        # se chegou aqui é porque tem rating mas sem id — usa rating + data como entropia.
         ds = (data_original or datetime.utcnow()).isoformat()
         hash_dedup = computar_hash_dedup(f"rating_only:{rating}:{ds}", fonte_id, autor)
 
     with db_session() as session:
-        # 3. Dedup robusto: primeiro tenta review_id_externo (mais
-        #    confiável); fallback para hash do texto.
+        # 3. Dedup hierárquico:
+        #    - Se há review_id_externo: identidade autoritativa do scraper.
+        #      Match positivo = mesmo review, descarta. Match negativo = é
+        #      um review novo, persiste (NÃO consulta hash legacy — textos
+        #      curtos com autor anônimo colidiriam falsamente; ver CP-E2).
+        #    - Sem review_id_externo + com texto: usa hash legacy.
         if review_id_externo:
             ja_externo = (
                 session.query(Verbatim)
@@ -153,8 +165,7 @@ def processar_verbatim_coletado(
             )
             if ja_externo is not None:
                 return None
-        # Hash legacy só faz sentido se há texto
-        if tem_texto:
+        elif tem_texto:
             ja_hash = (
                 session.query(Verbatim)
                 .filter_by(empresa_id=empresa_id, hash_dedup=hash_dedup)
@@ -225,6 +236,35 @@ def processar_verbatim_coletado(
         )
         session.add(verbatim)
         session.flush()
+
+        # 7. Cleanup retroativo (CP-E2): para reviews novos com
+        #    review_id_externo, varre na mesma fonte se há UM verbatim
+        #    "legacy" (sem review_id_externo) com mesmo texto normalizado
+        #    + mesmo autor. Se sim, deleta o legacy — ele era o mesmo
+        #    review desta carga, capturado por coleta anterior ao CP-D3
+        #    quando reviewId ainda não era persistido.
+        #    Só rodamos para verbatins COM texto (ratings-only não tinha
+        #    legacy correspondente, já era descartado pré-CP-D3).
+        if review_id_externo and tem_texto:
+            legacy = (
+                session.query(Verbatim)
+                .filter(
+                    Verbatim.fonte_id == fonte_id,
+                    Verbatim.review_id_externo.is_(None),
+                    Verbatim.texto == texto_normalizado,
+                    (Verbatim.autor == autor) if autor is not None else Verbatim.autor.is_(None),
+                    Verbatim.id != verbatim.id,
+                )
+                .first()
+            )
+            if legacy is not None:
+                print(
+                    f"[pipeline] cleanup retroativo: verbatim legacy "
+                    f"id={legacy.id} fonte={fonte_id} removido em favor de "
+                    f"id={verbatim.id} (reviewId={review_id_externo})"
+                )
+                session.delete(legacy)
+                session.flush()
 
         session.expunge(verbatim)
         return verbatim

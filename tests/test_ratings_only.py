@@ -276,6 +276,165 @@ def test_ratings_only_dedup_por_review_id_quando_repetido(fonte_t, db_session, m
     assert v2 is None
 
 
+# ── CP-E2: dedup com texto curto + autor None + reviewIds distintos ─────
+
+
+def test_texto_curto_anonimo_com_review_ids_distintos_nao_colide(fonte_t, db_session, monkeypatch):
+    """REGRESSÃO CP-E2: 'Excelente atendimento' aparece 6× no Apify com autor=None
+    e reviewIds distintos. Antes do fix, todos colidiam no hash legacy
+    SHA-256(fonte|None|'Excelente atendimento') e só o primeiro persistia."""
+    monkeypatch.setattr(
+        "src.coletor.pipeline.classificar",
+        lambda **k: type(
+            "R",
+            (),
+            {
+                "subpilar": "Pa1",
+                "tipo": "promotor",
+                "confianca": 0.9,
+                "justificativa": "ok",
+                "prompt_versao": "v3.0",
+            },
+        )(),
+    )
+    verbatins = []
+    for i, rid in enumerate(["rid_A", "rid_B", "rid_C", "rid_D", "rid_E", "rid_F"]):
+        v = processar_verbatim_coletado(
+            texto="Excelente atendimento",
+            fonte=fonte_t,
+            autor=None,
+            rating=5,
+            review_id_externo=rid,
+        )
+        assert v is not None, f"Review #{i} (reviewId={rid}) foi falsamente rejeitado"
+        verbatins.append(v)
+
+    hashes = {v.hash_dedup for v in verbatins}
+    assert len(hashes) == 6, f"Esperado 6 hashes únicos, obtido {len(hashes)}"
+
+
+def test_cleanup_retroativo_remove_legacy_correspondente(fonte_t, db_session, monkeypatch):
+    """CP-E2: ao persistir verbatim novo com reviewId, varre e remove UM
+    verbatim legacy (sem reviewId) com mesmo texto+autor da mesma fonte.
+
+    Cenário: carga inicial trouxe 'Top' autor=None SEM reviewId; recoleta
+    posterior traz 'Top' autor=None reviewId=X. O legacy é removido em
+    favor do novo (que é o mesmo review no mundo real, agora autoritativo)."""
+    monkeypatch.setattr(
+        "src.coletor.pipeline.classificar",
+        lambda **k: type(
+            "R",
+            (),
+            {
+                "subpilar": "Pa1",
+                "tipo": "promotor",
+                "confianca": 0.9,
+                "justificativa": "ok",
+                "prompt_versao": "v3.0",
+            },
+        )(),
+    )
+    legacy = processar_verbatim_coletado(texto="Top", fonte=fonte_t, autor=None)
+    assert legacy is not None
+    assert legacy.review_id_externo is None
+    legacy_id = legacy.id
+
+    novo = processar_verbatim_coletado(
+        texto="Top", fonte=fonte_t, autor=None, rating=5, review_id_externo="rid_X"
+    )
+    assert novo is not None
+    assert novo.review_id_externo == "rid_X"
+
+    db_session.expire_all()
+    sobreviventes = db_session.query(Verbatim).filter_by(fonte_id=fonte_t.id, texto="Top").all()
+    assert len(sobreviventes) == 1, "deve sobrar apenas o novo"
+    assert sobreviventes[0].id == novo.id
+    assert db_session.query(Verbatim).filter_by(id=legacy_id).first() is None
+
+
+def test_cleanup_retroativo_nao_remove_legacy_quando_texto_diverge(
+    fonte_t, db_session, monkeypatch
+):
+    """Se o legacy tem texto diferente, NÃO é removido pelo cleanup."""
+    monkeypatch.setattr(
+        "src.coletor.pipeline.classificar",
+        lambda **k: type(
+            "R",
+            (),
+            {
+                "subpilar": "Pa1",
+                "tipo": "promotor",
+                "confianca": 0.9,
+                "justificativa": "ok",
+                "prompt_versao": "v3.0",
+            },
+        )(),
+    )
+    legacy = processar_verbatim_coletado(texto="Outro texto qualquer", fonte=fonte_t, autor=None)
+    novo = processar_verbatim_coletado(
+        texto="Top",
+        fonte=fonte_t,
+        autor=None,
+        rating=5,
+        review_id_externo="rid_X",
+    )
+    assert legacy is not None and novo is not None
+    db_session.expire_all()
+    assert db_session.query(Verbatim).filter_by(id=legacy.id).first() is not None
+    assert db_session.query(Verbatim).filter_by(id=novo.id).first() is not None
+
+
+def test_cleanup_retroativo_so_remove_um_legacy_por_chamada(fonte_t, db_session, monkeypatch):
+    """Se houver vários legacy com mesmo texto+autor (não deveria, mas defensivo),
+    o cleanup remove apenas UM por chamada — os outros permanecem para serem
+    removidos por chamadas subsequentes."""
+    monkeypatch.setattr(
+        "src.coletor.pipeline.classificar",
+        lambda **k: type(
+            "R",
+            (),
+            {
+                "subpilar": "Pa1",
+                "tipo": "promotor",
+                "confianca": 0.9,
+                "justificativa": "ok",
+                "prompt_versao": "v3.0",
+            },
+        )(),
+    )
+    # Cria 2 legacy diretamente no banco (bypassando o pipeline normal,
+    # já que com o dedup atual não daria 2 com mesmo hash)
+    from src.coletor.pipeline import computar_hash_dedup
+
+    h = computar_hash_dedup("Bom", fonte_t.id, None)
+    for i in range(2):
+        db_session.add(
+            Verbatim(
+                empresa_id=fonte_t.empresa_id,
+                fonte_id=fonte_t.id,
+                texto="Bom",
+                autor=None,
+                data_criacao_original=datetime.utcnow(),
+                hash_dedup=h + f"_{i}",  # quebra UNIQUE artificialmente para teste
+            )
+        )
+    db_session.commit()
+    assert db_session.query(Verbatim).filter_by(fonte_id=fonte_t.id, texto="Bom").count() == 2
+
+    novo = processar_verbatim_coletado(
+        texto="Bom",
+        fonte=fonte_t,
+        autor=None,
+        rating=5,
+        review_id_externo="rid_only_one_cleanup",
+    )
+    assert novo is not None
+    db_session.expire_all()
+    # 2 legacy + 1 novo = 3 antes do cleanup; cleanup remove 1 → fica 2
+    qtd_final = db_session.query(Verbatim).filter_by(fonte_id=fonte_t.id, texto="Bom").count()
+    assert qtd_final == 2
+
+
 # ── API: filtros novos ──────────────────────────────────────────────────
 
 
