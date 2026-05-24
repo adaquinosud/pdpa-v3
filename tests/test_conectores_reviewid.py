@@ -185,7 +185,7 @@ def test_tripadvisor_passa_review_id_externo_e_usa_ator_novo(
     f = fonte_factory("tripadvisor", "https://tripadvisor.com/x")
     from src.coletor import tripadvisor
 
-    assert tripadvisor.ATOR_APIFY == "maxcopell/tripadvisor-reviews"
+    assert tripadvisor.ATOR_APIFY == "agents/tripadvisor-reviews"
     fake_items = [
         {
             "id": "ta_rev_1",

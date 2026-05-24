@@ -1,8 +1,12 @@
 """Coletor TripAdvisor — PDPA v3.
 
 Reaproveitado de ``pdpa-v2/coletor/tripadvisor.py``. Ator:
-``maxcopell/tripadvisor-reviews`` (renomeado em 2026; antes era
-``maxcopell/tripadvisor`` mas foi descontinuado).
+``agents/tripadvisor-reviews`` — escolhido em 2026-05-24 (CP-C hotfix)
+após ``maxcopell/tripadvisor-reviews`` revelar exigência de aprovação
+manual de "full account access" no console Apify. ``agents/*`` é a
+mesma organização dos atores de App Store, modelo PAY_PER_EVENT sem
+gate de aprovação.
+
 fonte.url = URL completa do place no TripAdvisor.
 
 Adaptações: sem cloudscraper/Oxylabs fallback; sem CLI; incremental via
@@ -22,7 +26,7 @@ from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
 
 
-ATOR_APIFY = "maxcopell/tripadvisor-reviews"
+ATOR_APIFY = "agents/tripadvisor-reviews"
 MAX_REVIEWS_DEFAULT = 500
 APIFY_TIMEOUT_SECONDS = 900
 
@@ -100,7 +104,15 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
 
     data_inicio_iso = calcular_data_inicio_coleta(fonte_id)
     data_inicio = _parse_data(data_inicio_iso)
-    run_input = {"startUrls": [{"url": url}], "maxReviews": MAX_REVIEWS_DEFAULT, "language": "pt"}
+    # CP-C hotfix: agents/tripadvisor-reviews usa `maxItems` (não `maxReviews`),
+    # `languages` array (não `language`), e `since` para filtro temporal.
+    run_input: Dict[str, Any] = {
+        "startUrls": [{"url": url}],
+        "maxItems": MAX_REVIEWS_DEFAULT,
+        "languages": ["pt"],
+    }
+    if data_inicio_iso:
+        run_input["since"] = data_inicio_iso[:10]
     print(
         f"[tripadvisor] fonte {fonte_id} ({url}) data_inicio={data_inicio_iso} "
         f"(filtro pós-coleta), max_reviews={MAX_REVIEWS_DEFAULT}"
