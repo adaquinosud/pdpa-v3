@@ -40,7 +40,12 @@ from src.models.fonte import Fonte
 # ── Constantes ───────────────────────────────────────────────────────────
 
 ATOR_APIFY = "compass/google-maps-reviews-scraper"
-MAX_REVIEWS_PER_PLACE = 2000  # cap por fonte/place (orçamento Apify)
+# Cinto de segurança contra places ultra-gigantes (GRU ~200k+ reviews,
+# Disney 500k+, etc.). Janela de 15 meses + dedup filtram o volume normal;
+# este cap só dispara em casos absurdos para evitar runaway de custo Apify
+# (~$0.001/review). Em uso comum (Confins 35k, Localiza 4k, restaurantes
+# <10k), o scraper para naturalmente antes deste limite.
+MAX_REVIEWS_PER_PLACE = 50_000
 LANGUAGE = "pt-BR"  # pendência: futuro vem de empresa.idioma_padrao
 APIFY_TIMEOUT_SECONDS = 1800  # 30 min — coleta pode ser longa em places grandes
 
