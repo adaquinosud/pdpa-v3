@@ -141,25 +141,65 @@ def faixa_ratio(ratio: float) -> str:
 # ── Métricas consolidadas (Manual Cap. 4) ─────────────────────────────
 
 
-def calcular_indice_geral(matriz_subpilares: List[Dict[str, Any]]) -> float:
-    """Índice Geral (escala 0-10) conforme Manual Cap. 4.
+def calcular_indice_geral(
+    matriz_subpilares: List[Dict[str, Any]],
+    pilares: Optional[List[Dict[str, Any]]] = None,
+) -> float:
+    """Índice Geral (escala 0-10) conforme Manual Cap. 3-4.
 
-    Média ponderada dos ratios dos 12 subpilares, peso = volume de cada
-    subpilar. Normalização: ratio 5 ≈ nota 10, ratio 0 ≈ nota 0.
+    Fórmula (opção B do hotfix, 2026-05-24):
 
-    Manual prescreve média "normalizada e ajustada por volume". Adotamos:
-    - Soma de (ratio_subpilar × total_subpilar) ÷ soma dos totais.
-    - Multiplica por 2 e capeia em 10 (ratio 5 = excelente do faixa_ratio
-      → nota 10).
+        indice = min(ratio_pior_pilar, ratio_medio_ponderado) × 2
+        cap em 10
 
-    Retorna 0.0 quando não há volume.
+    Justificativa: o Manual Cap. 3 define o Lastro como sequência
+    evolutiva P→D→Pa→A — pilar travado puxa tudo. Média ponderada
+    sozinha permite pilares saturados (Pa1 9.99) mascararem um pilar
+    crítico (P 0.4). O min() força o pior pilar a determinar o teto.
+
+    Args:
+        matriz_subpilares: lista de dicts {ratio, total} por subpilar
+            (12 entradas). Usado pra calcular o ratio médio ponderado.
+        pilares: lista de 4 dicts {pilar, ratio, total} por pilar
+            (P/D/Pa/A). Usado pra extrair o ratio do pior pilar.
+            Quando None, calcula da matriz agregando por prefixo.
+
+    Returns:
+        0.0 quando não há volume.
     """
     total_volume = sum(c.get("total", 0) for c in matriz_subpilares)
     if total_volume == 0:
         return 0.0
+
+    # Ratio médio ponderado por volume (sobre os 12 subpilares).
     soma_ponderada = sum(c.get("ratio", 0.0) * c.get("total", 0) for c in matriz_subpilares)
     ratio_medio_ponderado = soma_ponderada / total_volume
-    return round(min(10.0, ratio_medio_ponderado * 2.0), 2)
+
+    # Ratio do pior pilar — considera apenas pilares com volume > 0.
+    if pilares is not None:
+        ratios_pilares = [p["ratio"] for p in pilares if p.get("total", 0) > 0]
+    else:
+        # Agrega da matriz por prefixo do código (P/D/Pa/A).
+        agg: Dict[str, Dict[str, int]] = {}
+        for c in matriz_subpilares:
+            sub = c.get("subpilar", "")
+            p_code = PILAR_DE_SUBPILAR.get(sub)
+            if p_code is None:
+                continue
+            d = agg.setdefault(p_code, {"promotor": 0, "detrator": 0, "total": 0})
+            d["promotor"] += c.get("promotor", 0)
+            d["detrator"] += c.get("detrator", 0)
+            d["total"] += c.get("total", 0)
+        ratios_pilares = [
+            calcular_ratio(d["promotor"], d["detrator"]) for d in agg.values() if d["total"] > 0
+        ]
+    if not ratios_pilares:
+        return 0.0
+    ratio_pior_pilar = min(ratios_pilares)
+
+    # min() das duas referências → ×2 → cap em 10.
+    base = min(ratio_pior_pilar, ratio_medio_ponderado)
+    return round(min(10.0, base * 2.0), 2)
 
 
 def faixa_indice_geral(indice: float) -> str:
@@ -171,26 +211,115 @@ def faixa_indice_geral(indice: float) -> str:
     return "critico"
 
 
-def calcular_previsibilidade(matriz_subpilares: List[Dict[str, Any]]) -> float:
-    """Previsibilidade (escala 0-100) conforme Manual Cap. 4.
+def calcular_previsibilidade(
+    empresa_id: int,
+    s,
+    base_query_args: Dict[str, Any],
+    pct_conversiveis: float,
+) -> float:
+    """Previsibilidade (escala 0-100) conforme Manual Cap. 4 + v2.
 
-    Fórmula: ``1 − (desvio padrão dos ratios / média dos ratios)`` × 100,
-    clampada em [0, 100]. Considera apenas subpilares com volume > 0
-    (zerar evita inflar com 9 subpilares vazios = 0).
+    Reescrita 2026-05-24 (hotfix B5): a versão anterior dispersava entre
+    os 12 subpilares — conceitualmente errado, porque cada subpilar mede
+    coisa diferente. O Manual fala "homogeneidade entre lojas, períodos
+    e situações". Adotamos a fórmula validada no v2 (analytics.py:1356):
 
-    Empresas com previsibilidade alta = clientes sabem o que esperar.
-    Baixa = experiência de loteria entre lojas/períodos.
+        var_locais  = min(CV(ratios_locais) / 2, 1)   # >= 5 verb/local
+        vol_temporal= min(CV(ratios_meses) / 2, 1)    # >= 3 verb/mês
+        score = ((1-var_locais)*0.4 + (1-vol_temporal)*0.3 + pct_conv*0.3) * 100
+
+    Filtros de volume mínimo (v2): lojas >= 5 verbatins, meses >= 3.
+    Mesmos filtros do painel aplicados (agrupamento, local, fonte, período).
     """
-    ratios = [c["ratio"] for c in matriz_subpilares if c.get("total", 0) > 0]
-    if len(ratios) < 2:
-        return 0.0  # sem variância calculável
-    media = sum(ratios) / len(ratios)
-    if media == 0:
-        return 0.0
-    variancia = sum((r - media) ** 2 for r in ratios) / len(ratios)
-    desvio = variancia**0.5
-    bruto = (1 - desvio / media) * 100
-    return round(max(0.0, min(100.0, bruto)), 1)
+    import statistics
+
+    # 1. Ratios por local (lojas) — usa só locais com >= 5 verbatins
+    q_locais = (
+        s.query(
+            Verbatim.local_id,
+            Verbatim.tipo,
+            func.count(Verbatim.id),
+        )
+        .filter(Verbatim.empresa_id == empresa_id)
+        .filter(Verbatim.local_id.isnot(None))
+        .group_by(Verbatim.local_id, Verbatim.tipo)
+    )
+    _apply_query_args(q_locais, empresa_id, s, base_query_args)  # filtros painel
+    rows_locais = _apply_query_args(q_locais, empresa_id, s, base_query_args).all()
+    por_local: Dict[int, Dict[str, int]] = {}
+    for lid, tipo, qtd in rows_locais:
+        d = por_local.setdefault(lid, {"promotor": 0, "detrator": 0, "total": 0})
+        d["total"] += qtd
+        if tipo in d:
+            d[tipo] += qtd
+    ratios_locais = [
+        calcular_ratio(d["promotor"], d["detrator"]) for d in por_local.values() if d["total"] >= 5
+    ]
+
+    # 2. Ratios por mês — usa só meses com >= 3 verbatins
+    mes_expr = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    q_meses = (
+        s.query(mes_expr.label("mes"), Verbatim.tipo, func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id)
+        .filter(Verbatim.data_criacao_original.isnot(None))
+        .group_by(mes_expr, Verbatim.tipo)
+    )
+    rows_meses = _apply_query_args(q_meses, empresa_id, s, base_query_args).all()
+    por_mes: Dict[str, Dict[str, int]] = {}
+    for mes, tipo, qtd in rows_meses:
+        d = por_mes.setdefault(mes, {"promotor": 0, "detrator": 0, "total": 0})
+        d["total"] += qtd
+        if tipo in d:
+            d[tipo] += qtd
+    ratios_meses = [
+        calcular_ratio(d["promotor"], d["detrator"]) for d in por_mes.values() if d["total"] >= 3
+    ]
+
+    # 3. CV de cada eixo
+    if len(ratios_locais) >= 2:
+        cv = statistics.stdev(ratios_locais) / max(statistics.mean(ratios_locais), 0.01)
+        var_locais = min(cv / 2.0, 1.0)
+    else:
+        var_locais = 0.0
+    if len(ratios_meses) >= 3:
+        cv = statistics.stdev(ratios_meses) / max(statistics.mean(ratios_meses), 0.01)
+        vol_temporal = min(cv / 2.0, 1.0)
+    else:
+        vol_temporal = 0.0
+
+    # 4. Score combinado (pesos v2)
+    score = ((1 - var_locais) * 0.4 + (1 - vol_temporal) * 0.3 + pct_conversiveis * 0.3) * 100
+    return round(max(0.0, min(100.0, score)), 1)
+
+
+def _apply_query_args(q, empresa_id: int, s, base_query_args: Dict[str, Any]):
+    """Reaplica os filtros painel numa query base (uso interno de
+    calcular_previsibilidade e calcular_concentracao_detratores)."""
+    if base_query_args.get("agrupamento_id"):
+        try:
+            ag_id = int(base_query_args["agrupamento_id"])
+            locais_do_ag = [
+                lid
+                for (lid,) in s.query(Local.id)
+                .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+                .all()
+            ]
+            q = q.filter(Verbatim.local_id.in_(locais_do_ag or [-1]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("local_id"):
+        try:
+            q = q.filter(Verbatim.local_id == int(base_query_args["local_id"]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("fonte_id"):
+        try:
+            q = q.filter(Verbatim.fonte_id == int(base_query_args["fonte_id"]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("data_inicio_periodo"):
+        q = q.filter(Verbatim.data_criacao_original >= base_query_args["data_inicio_periodo"])
+    return q
 
 
 def calcular_concentracao_detratores(
@@ -258,7 +387,10 @@ def calcular_concentracao_detratores(
         if tipo in d:
             d[tipo] += qtd
 
-    locais_com_volume = [(lid, d) for lid, d in por_local.items() if d["total"] > 0]
+    # Filtro de volume mínimo (Manual: "ratio confiável precisa volume").
+    # v2 usava >= 5; mesmo critério.
+    LOCAL_VOLUME_MIN = 5
+    locais_com_volume = [(lid, d) for lid, d in por_local.items() if d["total"] >= LOCAL_VOLUME_MIN]
     total_locais = len(locais_com_volume)
     total_detratores = sum(d["detrator"] for _, d in locais_com_volume)
     if total_locais < 5 or total_detratores == 0:
@@ -428,40 +560,46 @@ def painel_nivel1(empresa_id: int):
             ratio = calcular_ratio(cell["promotor"], cell["detrator"])
             matriz_para_metricas.append({**cell, "subpilar": sp, "ratio": ratio})
 
-        # Resolve data_inicio_periodo para reusar em concentracao
+        # Pilares construídos antes pra passar ao calcular_indice_geral (opção B).
+        pilares: List[Dict[str, Any]] = []
+        for p in PILARES_ORDEM:
+            agg = pilares_agg[p]
+            ratio = calcular_ratio(agg["promotor"], agg["detrator"])
+            pilares.append(
+                {
+                    "pilar": p,
+                    "nome": NOME_PILAR[p],
+                    "total": agg["total"],
+                    "promotor": agg["promotor"],
+                    "conversivel": agg["conversivel"],
+                    "detrator": agg["detrator"],
+                    "inativo": agg["inativo"],
+                    "ratio": ratio,
+                    "faixa": faixa_ratio(ratio),
+                }
+            )
+
+        # Resolve data_inicio_periodo para reusar em previsibilidade/concentração
         periodo_arg = request.args.get("periodo")
         data_inicio_periodo = _resolver_periodo(periodo_arg) if periodo_arg else None
-        concentracao_pct = calcular_concentracao_detratores(
-            empresa_id,
-            s,
-            {
-                "agrupamento_id": request.args.get("agrupamento_id"),
-                "local_id": request.args.get("local_id"),
-                "fonte_id": request.args.get("fonte_id"),
-                "data_inicio_periodo": data_inicio_periodo,
-            },
-        )
+        filtros_query = {
+            "agrupamento_id": request.args.get("agrupamento_id"),
+            "local_id": request.args.get("local_id"),
+            "fonte_id": request.args.get("fonte_id"),
+            "data_inicio_periodo": data_inicio_periodo,
+        }
 
-    pilares: List[Dict[str, Any]] = []
-    for p in PILARES_ORDEM:
-        agg = pilares_agg[p]
-        ratio = calcular_ratio(agg["promotor"], agg["detrator"])
-        pilares.append(
-            {
-                "pilar": p,
-                "nome": NOME_PILAR[p],
-                "total": agg["total"],
-                "promotor": agg["promotor"],
-                "conversivel": agg["conversivel"],
-                "detrator": agg["detrator"],
-                "inativo": agg["inativo"],
-                "ratio": ratio,
-                "faixa": faixa_ratio(ratio),
-            }
-        )
+        # Previsibilidade precisa de pct_conversiveis (verbatins classificados,
+        # excluindo sem_lastro/inativo do denominador conforme decisão arq.).
+        verbatins_classificados = sum(p["total"] for p in pilares)
+        conversiveis = sum(p["conversivel"] for p in pilares)
+        pct_conv = (conversiveis / verbatins_classificados) if verbatins_classificados else 0.0
 
-    indice_geral = calcular_indice_geral(matriz_para_metricas)
-    previsibilidade = calcular_previsibilidade(matriz_para_metricas)
+        previsibilidade = calcular_previsibilidade(empresa_id, s, filtros_query, pct_conv)
+        concentracao_pct = calcular_concentracao_detratores(empresa_id, s, filtros_query)
+
+    # Índice Geral (opção B: min(pior_pilar, ratio_medio) × 2)
+    indice_geral = calcular_indice_geral(matriz_para_metricas, pilares=pilares)
 
     return jsonify(
         {

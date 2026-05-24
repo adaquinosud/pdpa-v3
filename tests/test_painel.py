@@ -440,24 +440,76 @@ def test_calcular_indice_geral_sem_volume():
     from src.api.painel import calcular_indice_geral
 
     assert calcular_indice_geral([]) == 0.0
-    assert calcular_indice_geral([{"total": 0, "ratio": 5.0}]) == 0.0
+    assert calcular_indice_geral([{"total": 0, "ratio": 5.0, "subpilar": "P1"}]) == 0.0
 
 
-def test_calcular_indice_geral_ratio5_da_nota_10():
-    """Ratio médio ponderado 5 → nota 10 (saturação)."""
+def test_calcular_indice_geral_todos_saturados_da_10():
+    """Hotfix opção B: todos pilares saturados (>= 5) → Índice 10."""
     from src.api.painel import calcular_indice_geral
 
-    matriz = [{"total": 100, "ratio": 5.0}, {"total": 100, "ratio": 5.0}]
-    assert calcular_indice_geral(matriz) == 10.0
+    matriz = [
+        {"total": 100, "ratio": 9.99, "subpilar": "P1", "promotor": 100, "detrator": 0},
+        {"total": 100, "ratio": 9.99, "subpilar": "D1", "promotor": 100, "detrator": 0},
+        {"total": 100, "ratio": 9.99, "subpilar": "Pa1", "promotor": 100, "detrator": 0},
+        {"total": 100, "ratio": 9.99, "subpilar": "A1", "promotor": 100, "detrator": 0},
+    ]
+    pilares = [
+        {"pilar": p, "ratio": 9.99, "total": 100, "promotor": 100, "detrator": 0}
+        for p in ["P", "D", "Pa", "A"]
+    ]
+    assert calcular_indice_geral(matriz, pilares=pilares) == 10.0
 
 
-def test_calcular_indice_geral_ratio_misto():
-    """Ponderação por volume."""
+def test_calcular_indice_geral_pilar_critico_puxa_pra_baixo():
+    """Hotfix opção B: pilar crítico domina, mesmo com média ponderada saturada."""
     from src.api.painel import calcular_indice_geral
 
-    # 80 ratio=3.0 + 20 ratio=1.0 → ratio médio ponderado = (240+20)/100 = 2.6 → nota 5.2
-    matriz = [{"total": 80, "ratio": 3.0}, {"total": 20, "ratio": 1.0}]
-    assert calcular_indice_geral(matriz) == 5.2
+    # Pa saturado em 9.99 com 2000 verbatins + P crítico em 0.4 com 100 verbatins.
+    # Antes (CP-3 ingênuo): ratio_medio_ponderado ≈ 9.54 × 2 = 19 → cap 10.
+    # Agora (opção B): min(0.4, 9.54) × 2 = 0.80.
+    matriz = [
+        {"total": 100, "ratio": 0.4, "subpilar": "P1", "promotor": 2, "detrator": 5},
+        {"total": 2000, "ratio": 9.99, "subpilar": "Pa1", "promotor": 2000, "detrator": 0},
+    ]
+    pilares = [
+        {"pilar": "P", "ratio": 0.4, "total": 100, "promotor": 2, "detrator": 5},
+        {"pilar": "D", "ratio": 0.0, "total": 0, "promotor": 0, "detrator": 0},
+        {"pilar": "Pa", "ratio": 9.99, "total": 2000, "promotor": 2000, "detrator": 0},
+        {"pilar": "A", "ratio": 0.0, "total": 0, "promotor": 0, "detrator": 0},
+    ]
+    indice = calcular_indice_geral(matriz, pilares=pilares)
+    # min(0.4, ratio_medio_ponderado) × 2 = 0.4 × 2 = 0.8
+    assert indice == 0.8
+
+
+def test_calcular_indice_geral_todos_criticos_resulta_baixo():
+    """Edge: todos pilares com ratio 0.3 → Índice ~0.6."""
+    from src.api.painel import calcular_indice_geral
+
+    matriz = [
+        {"total": 10, "ratio": 0.3, "subpilar": "P1", "promotor": 1, "detrator": 3},
+        {"total": 10, "ratio": 0.3, "subpilar": "D1", "promotor": 1, "detrator": 3},
+        {"total": 10, "ratio": 0.3, "subpilar": "Pa1", "promotor": 1, "detrator": 3},
+        {"total": 10, "ratio": 0.3, "subpilar": "A1", "promotor": 1, "detrator": 3},
+    ]
+    pilares = [
+        {"pilar": p, "ratio": 0.3, "total": 10, "promotor": 1, "detrator": 3}
+        for p in ["P", "D", "Pa", "A"]
+    ]
+    assert calcular_indice_geral(matriz, pilares=pilares) == 0.6
+
+
+def test_calcular_indice_geral_sem_pilares_arg_deriva_da_matriz():
+    """Fallback: quando pilares não é passado, agrega da matriz."""
+    from src.api.painel import calcular_indice_geral
+
+    matriz = [
+        {"subpilar": "P1", "total": 10, "ratio": 0.5, "promotor": 1, "detrator": 2},
+        {"subpilar": "Pa1", "total": 10, "ratio": 9.99, "promotor": 10, "detrator": 0},
+    ]
+    # min(min(P=0.5, Pa=9.99), ratio_medio) × 2 = 0.5 × 2 = 1.0
+    indice = calcular_indice_geral(matriz)
+    assert indice == 1.0
 
 
 def test_faixa_indice_geral():
@@ -471,35 +523,113 @@ def test_faixa_indice_geral():
     assert faixa_indice_geral(0.0) == "critico"
 
 
-def test_calcular_previsibilidade_uniforme_da_100():
-    """Todos ratios iguais → desvio = 0 → previsibilidade = 100."""
+def test_calcular_previsibilidade_empresa_vazia(client_loyall, db_session):
+    """Edge: empresa sem verbatins → 0 (sem locais/meses pra calcular)."""
     from src.api.painel import calcular_previsibilidade
+    from src.utils.db import db_session as get_session
 
-    matriz = [{"total": 10, "ratio": 2.5}, {"total": 10, "ratio": 2.5}, {"total": 10, "ratio": 2.5}]
-    assert calcular_previsibilidade(matriz) == 100.0
+    e = client_loyall.post("/api/empresas/", json={"nome": "EPrev0"}).get_json()
+    with get_session() as s:
+        prev = calcular_previsibilidade(e["id"], s, {}, pct_conversiveis=0.0)
+    # Sem locais (var=0) + sem meses (vol_temporal=0) + 0% conv =
+    # (1*0.4 + 1*0.3 + 0*0.3) * 100 = 70
+    assert prev == 70.0
 
 
-def test_calcular_previsibilidade_dispersao_zera():
-    """Ratios muito dispersos → previsibilidade baixa/zero."""
+def test_calcular_previsibilidade_1_local_so(client_loyall, db_session):
+    """Edge: 1 local, vários meses → var_locais=0 (precisa >= 2 locais)."""
     from src.api.painel import calcular_previsibilidade
+    from src.utils.db import db_session as get_session
 
-    matriz = [{"total": 10, "ratio": 0.0}, {"total": 10, "ratio": 9.0}]
-    # média=4.5, desvio=4.5, ratio_var=1.0 → (1-1)*100 = 0
-    assert calcular_previsibilidade(matriz) == 0.0
+    ctx = _empresa_estrutura(client_loyall)
+    # 5 verbatins do mesmo local, mesmo mês
+    for i in range(5):
+        _criar_verbatim(
+            db_session,
+            ctx["e"]["id"],
+            ctx["f"]["id"],
+            ctx["loc"]["id"],
+            texto=f"v{i}",
+            subpilar="Pa1",
+            tipo="promotor",
+            data_dias_atras=10,
+        )
+    with get_session() as s:
+        prev = calcular_previsibilidade(ctx["e"]["id"], s, {}, pct_conversiveis=0.0)
+    # 1 local (< 2) → var_locais=0; 1 mês (< 3) → vol_temporal=0; 0 conv
+    # → (0.4 + 0.3 + 0) * 100 = 70
+    assert prev == 70.0
 
 
-def test_calcular_previsibilidade_subpilares_sem_volume_ignorados():
-    """Subpilares com total=0 não entram no cálculo."""
+def test_calcular_previsibilidade_lojas_uniformes_alta(client_loyall, db_session):
+    """5 lojas com mesmo ratio → var_locais=0 → previsibilidade alta."""
     from src.api.painel import calcular_previsibilidade
+    from src.utils.db import db_session as get_session
 
-    matriz = [
-        {"total": 0, "ratio": 0.0},
-        {"total": 0, "ratio": 0.0},
-        {"total": 10, "ratio": 2.5},
-        {"total": 10, "ratio": 2.5},
-    ]
-    # só os 2 com volume contam → uniformes → 100
-    assert calcular_previsibilidade(matriz) == 100.0
+    e = client_loyall.post("/api/empresas/", json={"nome": "EPrevU"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    for i in range(5):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais",
+            json={"nome": f"L{i}", "agrupamento_id": a["id"]},
+        ).get_json()
+        f_ = client_loyall.post(
+            f"/api/locais/{loc['id']}/fontes",
+            json={"conector_tipo": "google", "url": f"ChIJ_pv_{i}"},
+        ).get_json()
+        # 5 verbatins por loja, todos Pa1/promotor (ratio=9.99 em cada)
+        for j in range(5):
+            _criar_verbatim(
+                db_session,
+                e["id"],
+                f_["id"],
+                loc["id"],
+                texto=f"l{i}-v{j}",
+                subpilar="Pa1",
+                tipo="promotor",
+            )
+    with get_session() as s:
+        prev = calcular_previsibilidade(e["id"], s, {}, pct_conversiveis=0.0)
+    # 5 lojas com ratio idêntico → var_locais=0 → contribui 100% no fator 0.4
+    # 0 conv → 0 no fator 0.3
+    # Score >= 70 (idealmente 100 mas meses pode ser 0 se tudo no mesmo mês)
+    assert prev >= 70.0
+
+
+def test_calcular_previsibilidade_lojas_dispersas_reduz_score(client_loyall, db_session):
+    """Lojas com ratios muito diferentes → var_locais alto → score reduz."""
+    from src.api.painel import calcular_previsibilidade
+    from src.utils.db import db_session as get_session
+
+    e = client_loyall.post("/api/empresas/", json={"nome": "EPrevD"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    # 5 lojas: ratios variando muito (1 promotor vs 5 detratores em alguns)
+    for i in range(5):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais",
+            json={"nome": f"L{i}", "agrupamento_id": a["id"]},
+        ).get_json()
+        f_ = client_loyall.post(
+            f"/api/locais/{loc['id']}/fontes",
+            json={"conector_tipo": "google", "url": f"ChIJ_pvd_{i}"},
+        ).get_json()
+        # locais pares: 5 promotor; ímpares: 5 detrator → ratios 9.99 vs 0
+        tipo = "promotor" if i % 2 == 0 else "detrator"
+        for j in range(5):
+            _criar_verbatim(
+                db_session,
+                e["id"],
+                f_["id"],
+                loc["id"],
+                texto=f"l{i}-v{j}",
+                subpilar="Pa1",
+                tipo=tipo,
+            )
+    with get_session() as s:
+        prev_dispersa = calcular_previsibilidade(e["id"], s, {}, pct_conversiveis=0.0)
+    # CV alto → var_locais ~1.0 → fator (1-1)*0.4 = 0
+    # Score deve cair em relação ao teste uniforme
+    assert prev_dispersa < 70.0
 
 
 def test_painel_nivel1_inclui_indice_previsibilidade_concentracao(client_loyall, db_session):
@@ -535,11 +665,12 @@ def test_painel_nivel1_inclui_indice_previsibilidade_concentracao(client_loyall,
     assert body["concentracao_faixa"] == "indisponivel"
 
 
-def test_painel_nivel1_concentracao_calcula_com_5_locais(client_loyall, db_session):
-    """Concentração só calcula quando há ≥ 5 locais com volume."""
+def test_painel_nivel1_concentracao_calcula_com_5_locais_volume_min(client_loyall, db_session):
+    """Concentração: ≥5 locais com volume MÍNIMO de 5 verbatins cada (hotfix)."""
     e = client_loyall.post("/api/empresas/", json={"nome": "EConc"}).get_json()
     a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "AC"}).get_json()
-    # 5 locais, cada um com 1 promotor + 1 detrator → ratio 1.0 em todos
+    # 5 locais, cada um com 5 verbatins (4 promotor + 1 detrator) → ratio 4.0
+    # Necessário >= 5 verbatins/local após hotfix.
     for i in range(5):
         loc = client_loyall.post(
             f"/api/empresas/{e['id']}/locais",
@@ -549,15 +680,16 @@ def test_painel_nivel1_concentracao_calcula_com_5_locais(client_loyall, db_sessi
             f"/api/locais/{loc['id']}/fontes",
             json={"conector_tipo": "google", "url": f"ChIJ_c_{i}"},
         ).get_json()
-        _criar_verbatim(
-            db_session,
-            e["id"],
-            f_["id"],
-            loc["id"],
-            texto=f"p{i}",
-            subpilar="Pa1",
-            tipo="promotor",
-        )
+        for j in range(4):
+            _criar_verbatim(
+                db_session,
+                e["id"],
+                f_["id"],
+                loc["id"],
+                texto=f"p{i}-{j}",
+                subpilar="Pa1",
+                tipo="promotor",
+            )
         _criar_verbatim(
             db_session,
             e["id"],
@@ -568,8 +700,50 @@ def test_painel_nivel1_concentracao_calcula_com_5_locais(client_loyall, db_sessi
             tipo="detrator",
         )
     body = client_loyall.get(f"/api/empresas/{e['id']}/painel/nivel1").get_json()
-    # 5 detratores total, 5 nas piores 5 lojas → 100%
+    # 5 detratores total, 5 nas piores 5 lojas (todas iguais) → 100%
     assert body["concentracao_detratores"] == 100.0
+
+
+def test_painel_nivel1_concentracao_locais_com_pouco_volume_ignorados(client_loyall, db_session):
+    """Hotfix: locais com < 5 verbatins não entram no cálculo de concentração."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "EConcLow"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "AC"}).get_json()
+    # 4 locais com 1 verbatim cada (volume insuficiente) + 1 local com 5 verbatins
+    for i in range(5):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais",
+            json={"nome": f"L{i}", "agrupamento_id": a["id"]},
+        ).get_json()
+        f_ = client_loyall.post(
+            f"/api/locais/{loc['id']}/fontes",
+            json={"conector_tipo": "google", "url": f"ChIJ_cl_{i}"},
+        ).get_json()
+        if i == 0:
+            # 5 verbatins neste local
+            for j in range(5):
+                _criar_verbatim(
+                    db_session,
+                    e["id"],
+                    f_["id"],
+                    loc["id"],
+                    texto=f"l0-v{j}",
+                    subpilar="Pa1",
+                    tipo="detrator",
+                )
+        else:
+            # apenas 1 — abaixo do mínimo
+            _criar_verbatim(
+                db_session,
+                e["id"],
+                f_["id"],
+                loc["id"],
+                texto=f"l{i}-v0",
+                subpilar="Pa1",
+                tipo="promotor",
+            )
+    body = client_loyall.get(f"/api/empresas/{e['id']}/painel/nivel1").get_json()
+    # Apenas 1 local com volume suficiente → < 5 com volume → None.
+    assert body["concentracao_detratores"] is None
 
 
 def test_ui_painel_3_cards_metricas_consolidadas(client_loyall, db_session):
