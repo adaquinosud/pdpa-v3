@@ -15,10 +15,9 @@ Filtros aceitos via query string:
 - ``agrupamento_id`` (int) — restringe a verbatins de locais do agrupamento
 - ``local_id`` (int) — restringe a um local específico
 - ``fonte_id`` (int) — restringe a uma fonte específica
-- ``data_de`` / ``data_ate`` (YYYY-MM-DD) — janela em ``data_criacao_original``
-- ``periodo`` (str) — atalho exclusivo com ``data_de``/``data_ate``:
-  ``"7d"``, ``"30d"``, ``"90d"``, ``"12m"``. Calcula ``data_de=hoje−N`` e
-  ``data_ate=hoje``.
+- ``periodo`` (str) — ``"7d"``, ``"30d"``, ``"90d"``, ``"6m"``, ``"12m"``
+  ou ``"15m"`` (Manual Cap. 4). Calcula ``data_inicio = hoje−N`` e filtra
+  ``Verbatim.data_criacao_original >= data_inicio``. Vazio = tudo.
 """
 
 from __future__ import annotations
@@ -58,7 +57,7 @@ PILAR_DE_SUBPILAR: Dict[str, str] = {
 
 PILARES_ORDEM = ["P", "D", "Pa", "A"]
 # Nomenclatura oficial PDPA Loyall. Fonte canônica:
-# src/classifier/prompts/classifier_v3_prompt.md linhas 11/19/27/35.
+# data/PDPA_Manual_Operacao_v3.docx, Capítulo 2.
 NOME_PILAR = {
     "P": "Precisão",
     "D": "Disponibilidade",
@@ -79,14 +78,74 @@ SUBPILARES_ORDEM = [
     "A2",
     "A3",
 ]
+# Manual PDPA v3, Capítulo 2 — nomes oficiais.
+NOME_SUBPILAR = {
+    "P1": "Calibração da Promessa",
+    "P2": "Qualidade da Entrega",
+    "P3": "Consistência ao Longo do Tempo",
+    "D1": "Acessibilidade",
+    "D2": "Eficácia Operacional",
+    "D3": "Proatividade Estruturada",
+    "Pa1": "Empatia Comercial",
+    "Pa2": "Mutualidade",
+    "Pa3": "Comprometimento Relacional",
+    "A1": "Exemplo",
+    "A2": "Orientação",
+    "A3": "Recomendação Proativa",
+}
 TIPOS_ORDEM = ["promotor", "conversivel", "detrator", "inativo"]
+
+
+# ── Ratio P/D (Manual Cap. 4) ─────────────────────────────────────────
+
+RATIO_CAP_SUPERIOR = 9.99
+RATIO_CAP_INFERIOR = 0.0
+
+
+def calcular_ratio(promotor: int, detrator: int) -> float:
+    """Ratio P/D conforme Manual Cap. 4.
+
+    - Zero detratores → cap 9.99 (saturação positiva máxima).
+    - Zero promotores → 0.0 (sinal crítico).
+    - Caso normal: promotor / detrator, com cap em 9.99.
+    """
+    if promotor == 0 and detrator == 0:
+        return 0.0
+    if detrator == 0:
+        return RATIO_CAP_SUPERIOR
+    if promotor == 0:
+        return RATIO_CAP_INFERIOR
+    return min(RATIO_CAP_SUPERIOR, round(promotor / detrator, 2))
+
+
+def faixa_ratio(ratio: float) -> str:
+    """Devolve a faixa semântica do ratio (5 níveis, cores do painel).
+
+    - 0.0–0.5  : critico       (vermelho)
+    - 0.5–1.0  : fraco         (laranja)
+    - 1.0–2.0  : atencao       (amarelo)
+    - 2.0–5.0  : bom           (verde claro)
+    - 5.0–9.99 : excelente     (verde escuro)
+    """
+    if ratio < 0.5:
+        return "critico"
+    if ratio < 1.0:
+        return "fraco"
+    if ratio < 2.0:
+        return "atencao"
+    if ratio < 5.0:
+        return "bom"
+    return "excelente"
 
 
 # ── Filtros (subset dos da listagem de verbatins) ─────────────────────
 
 
 def _resolver_periodo(periodo: str) -> Optional[datetime]:
-    """``7d``/``30d``/``90d``/``12m`` → datetime de início. Inválido → None."""
+    """``7d``/``30d``/``90d``/``6m``/``12m``/``15m`` → datetime início.
+
+    Inválido → None (e o caller devolve 400). Vazio = sem filtro (tudo).
+    """
     if not periodo:
         return None
     hoje = datetime.utcnow()
@@ -94,7 +153,9 @@ def _resolver_periodo(periodo: str) -> Optional[datetime]:
         "7d": timedelta(days=7),
         "30d": timedelta(days=30),
         "90d": timedelta(days=90),
+        "6m": timedelta(days=180),
         "12m": timedelta(days=365),
+        "15m": timedelta(days=450),
     }
     delta = mapa.get(periodo)
     if delta is None:
@@ -140,28 +201,14 @@ def _aplicar_filtros(q, empresa_id: int, s):
             return q, (jsonify({"erro": "fonte_id deve ser inteiro"}), 400)
 
     periodo = request.args.get("periodo")
-    data_de_raw = request.args.get("data_de")
-    data_ate_raw = request.args.get("data_ate")
     if periodo:
         d = _resolver_periodo(periodo)
         if d is None:
             return q, (
-                jsonify({"erro": "periodo inválido. Use: 7d, 30d, 90d, 12m"}),
+                jsonify({"erro": "periodo inválido. Use: 7d, 30d, 90d, 6m, 12m, 15m"}),
                 400,
             )
         q = q.filter(Verbatim.data_criacao_original >= d)
-    if data_de_raw:
-        try:
-            d = datetime.fromisoformat(data_de_raw)
-            q = q.filter(Verbatim.data_criacao_original >= d)
-        except ValueError:
-            return q, (jsonify({"erro": "data_de deve ser YYYY-MM-DD"}), 400)
-    if data_ate_raw:
-        try:
-            d = datetime.fromisoformat(data_ate_raw)
-            q = q.filter(Verbatim.data_criacao_original <= d)
-        except ValueError:
-            return q, (jsonify({"erro": "data_ate deve ser YYYY-MM-DD"}), 400)
 
     return q, None
 
@@ -170,7 +217,7 @@ def _filtros_efetivos() -> Dict[str, Any]:
     """Retorna dict serializável dos filtros usados (eco para o front)."""
     return {
         k: request.args.get(k)
-        for k in ("agrupamento_id", "local_id", "fonte_id", "data_de", "data_ate", "periodo")
+        for k in ("agrupamento_id", "local_id", "fonte_id", "periodo")
         if request.args.get(k)
     }
 
@@ -216,6 +263,7 @@ def painel_nivel1(empresa_id: int):
     pilares: List[Dict[str, Any]] = []
     for p in PILARES_ORDEM:
         agg = pilares_agg[p]
+        ratio = calcular_ratio(agg["promotor"], agg["detrator"])
         pilares.append(
             {
                 "pilar": p,
@@ -225,6 +273,8 @@ def painel_nivel1(empresa_id: int):
                 "conversivel": agg["conversivel"],
                 "detrator": agg["detrator"],
                 "inativo": agg["inativo"],
+                "ratio": ratio,
+                "faixa": faixa_ratio(ratio),
             }
         )
 
@@ -287,15 +337,19 @@ def painel_nivel2(empresa_id: int):
     matriz: List[Dict[str, Any]] = []
     for sp in SUBPILARES_ORDEM:
         cell = matriz_agg[sp]
+        ratio = calcular_ratio(cell["promotor"], cell["detrator"])
         matriz.append(
             {
                 "subpilar": sp,
+                "nome": NOME_SUBPILAR[sp],
                 "pilar": PILAR_DE_SUBPILAR[sp],
                 "promotor": cell["promotor"],
                 "conversivel": cell["conversivel"],
                 "detrator": cell["detrator"],
                 "inativo": cell["inativo"],
                 "total": cell["total"],
+                "ratio": ratio,
+                "faixa": faixa_ratio(ratio),
             }
         )
 
@@ -347,7 +401,17 @@ def exportar_painel_xlsx(empresa_id: int):
         ws1.append(["Filtros aplicados:", " | ".join(f"{k}={v}" for k, v in filtros.items())])
     ws1.append([f"Total verbatins: {n1.get('total_verbatins', 0)}"])
     ws1.append([])
-    headers1 = ["Pilar", "Nome", "Total", "Promotor", "Conversível", "Detrator", "Inativo"]
+    headers1 = [
+        "Pilar",
+        "Nome",
+        "Total",
+        "Promotor",
+        "Conversível",
+        "Detrator",
+        "Inativo",
+        "Ratio P/D",
+        "Faixa",
+    ]
     ws1.append(headers1)
     for cell in ws1[ws1.max_row]:
         cell.font = bold
@@ -362,6 +426,8 @@ def exportar_painel_xlsx(empresa_id: int):
                 p["conversivel"],
                 p["detrator"],
                 p["inativo"],
+                p.get("ratio", 0.0),
+                p.get("faixa", ""),
             ]
         )
     ws1.append([])
@@ -379,7 +445,18 @@ def exportar_painel_xlsx(empresa_id: int):
     if filtros:
         ws2.append(["Filtros aplicados:", " | ".join(f"{k}={v}" for k, v in filtros.items())])
     ws2.append([])
-    headers2 = ["Pilar", "Subpilar", "Promotor", "Conversível", "Detrator", "Inativo", "Total"]
+    headers2 = [
+        "Pilar",
+        "Subpilar",
+        "Nome do Subpilar",
+        "Promotor",
+        "Conversível",
+        "Detrator",
+        "Inativo",
+        "Total",
+        "Ratio P/D",
+        "Faixa",
+    ]
     ws2.append(headers2)
     for cell in ws2[ws2.max_row]:
         cell.font = bold
@@ -389,19 +466,48 @@ def exportar_painel_xlsx(empresa_id: int):
             [
                 c["pilar"],
                 c["subpilar"],
+                c.get("nome", ""),
                 c["promotor"],
                 c["conversivel"],
                 c["detrator"],
                 c["inativo"],
                 c["total"],
+                c.get("ratio", 0.0),
+                c.get("faixa", ""),
             ]
         )
     sl = n2.get("sem_lastro") or {}
     sc = n2.get("sem_classificacao") or {}
     if sl.get("total"):
-        ws2.append(["—", "sem_lastro", "—", "—", "—", sl.get("inativo", 0), sl["total"]])
+        ws2.append(
+            [
+                "—",
+                "sem_lastro",
+                "(sem ancoragem)",
+                "—",
+                "—",
+                "—",
+                sl.get("inativo", 0),
+                sl["total"],
+                "—",
+                "—",
+            ]
+        )
     if sc.get("total"):
-        ws2.append(["—", "sem classificação", "—", "—", "—", "—", sc["total"]])
+        ws2.append(
+            [
+                "—",
+                "sem classificação",
+                "(falha classifier)",
+                "—",
+                "—",
+                "—",
+                "—",
+                sc["total"],
+                "—",
+                "—",
+            ]
+        )
 
     buf = BytesIO()
     wb.save(buf)

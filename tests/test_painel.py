@@ -174,6 +174,39 @@ def test_painel_nivel1_periodo_invalido_400(client_loyall):
     assert r.status_code == 400
 
 
+def test_painel_nivel1_periodos_novos(client_loyall, db_session):
+    """Manual Cap. 4 + pedido user: 6m e 15m disponíveis."""
+    ctx = _empresa_estrutura(client_loyall)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="t1",
+        data_dias_atras=100,
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="t2",
+        data_dias_atras=300,
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="t3",
+        data_dias_atras=500,
+    )
+    r6m = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/nivel1?periodo=6m")
+    assert r6m.get_json()["total_verbatins"] == 1  # só os 100 dias
+    r15m = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/nivel1?periodo=15m")
+    assert r15m.get_json()["total_verbatins"] == 2  # 100 e 300 dias
+
+
 # ── Nível 2: matriz subpilar × tipo ─────────────────────────────────────
 
 
@@ -214,11 +247,18 @@ def test_painel_nivel2_matriz_completa(client_loyall, db_session):
     assert pa1["promotor"] == 1
     assert pa1["detrator"] == 1
     assert pa1["total"] == 2
+    # Manual Cap. 2: Pa1 = Empatia Comercial
+    assert pa1["nome"] == "Empatia Comercial"
+    # ratio = 1 promotor / 1 detrator = 1.0 → faixa "atencao"
+    assert pa1["ratio"] == 1.0
+    assert pa1["faixa"] == "atencao"
     d1 = next(c for c in body["matriz"] if c["subpilar"] == "D1")
     assert d1["conversivel"] == 1
     assert d1["total"] == 1
+    assert d1["nome"] == "Acessibilidade"
     a1 = next(c for c in body["matriz"] if c["subpilar"] == "A1")
     assert a1["total"] == 0  # zero é coberto
+    assert a1["nome"] == "Exemplo"
 
 
 def test_painel_nivel2_inclui_sem_lastro_separado(client_loyall, db_session):
@@ -240,7 +280,8 @@ def test_painel_nivel2_inclui_sem_lastro_separado(client_loyall, db_session):
     assert all(c["total"] == 0 for c in body["matriz"])
 
 
-def test_painel_nivel2_filtro_data_de_ate(client_loyall, db_session):
+def test_painel_nivel2_filtro_periodo_7d(client_loyall, db_session):
+    """Manual Cap. 4 + hotfix: data_de/data_ate removidos, só periodo."""
     ctx = _empresa_estrutura(client_loyall)
     _criar_verbatim(
         db_session,
@@ -262,9 +303,95 @@ def test_painel_nivel2_filtro_data_de_ate(client_loyall, db_session):
         tipo="promotor",
         data_dias_atras=30,
     )
-    de = (datetime.utcnow() - timedelta(days=10)).date().isoformat()
-    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/nivel2?data_de={de}")
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/nivel2?periodo=7d")
     assert r.get_json()["total_verbatins"] == 1
+
+
+# ── Ratio P/D (Manual Cap. 4) ─────────────────────────────────────────
+
+
+def test_calcular_ratio_zero_e_zero():
+    from src.api.painel import calcular_ratio
+
+    assert calcular_ratio(0, 0) == 0.0
+
+
+def test_calcular_ratio_zero_detratores_cap_999():
+    from src.api.painel import calcular_ratio
+
+    # Saturação positiva — Manual Cap. 4
+    assert calcular_ratio(10, 0) == 9.99
+    assert calcular_ratio(1, 0) == 9.99
+
+
+def test_calcular_ratio_zero_promotores_zero():
+    from src.api.painel import calcular_ratio
+
+    # Saturação negativa — Manual Cap. 4
+    assert calcular_ratio(0, 10) == 0.0
+
+
+def test_calcular_ratio_normal():
+    from src.api.painel import calcular_ratio
+
+    assert calcular_ratio(2, 1) == 2.0
+    assert calcular_ratio(1, 2) == 0.5
+    assert calcular_ratio(3, 1) == 3.0
+
+
+def test_calcular_ratio_cap_em_caso_muito_alto():
+    from src.api.painel import calcular_ratio
+
+    # 1000 promotores, 1 detrator → 1000.0 mas capeado em 9.99
+    assert calcular_ratio(1000, 1) == 9.99
+
+
+def test_faixa_ratio_5_niveis():
+    from src.api.painel import faixa_ratio
+
+    assert faixa_ratio(0.0) == "critico"
+    assert faixa_ratio(0.49) == "critico"
+    assert faixa_ratio(0.5) == "fraco"
+    assert faixa_ratio(0.99) == "fraco"
+    assert faixa_ratio(1.0) == "atencao"
+    assert faixa_ratio(1.99) == "atencao"
+    assert faixa_ratio(2.0) == "bom"
+    assert faixa_ratio(4.99) == "bom"
+    assert faixa_ratio(5.0) == "excelente"
+    assert faixa_ratio(9.99) == "excelente"
+
+
+def test_painel_nivel1_inclui_ratio_e_faixa(client_loyall, db_session):
+    ctx = _empresa_estrutura(client_loyall)
+    # 4 promotor Pa1 + 1 detrator Pa1 → ratio Pa = 4.0 = "bom"
+    for i in range(4):
+        _criar_verbatim(
+            db_session,
+            ctx["e"]["id"],
+            ctx["f"]["id"],
+            ctx["loc"]["id"],
+            texto=f"prom-{i}",
+            subpilar="Pa1",
+            tipo="promotor",
+        )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="det",
+        subpilar="Pa1",
+        tipo="detrator",
+    )
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/nivel1")
+    body = r.get_json()
+    pa = next(p for p in body["pilares"] if p["pilar"] == "Pa")
+    assert pa["ratio"] == 4.0
+    assert pa["faixa"] == "bom"
+    # Pilar sem dados → ratio 0.0, faixa "critico"
+    p = next(p for p in body["pilares"] if p["pilar"] == "P")
+    assert p["ratio"] == 0.0
+    assert p["faixa"] == "critico"
 
 
 def test_painel_cliente_de_outra_empresa_403(client_loyall, client_cliente_factory):
@@ -315,6 +442,15 @@ def test_ui_painel_renderiza_visao_geral_e_detalhamento(client_loyall, db_sessio
     # Pilares P/D/Pa/A presentes
     for pilar in ["Precisão", "Disponibilidade", "Parceria", "Aconselhamento"]:
         assert pilar in html
+    # Nomes oficiais dos 12 subpilares (Manual Cap. 2)
+    assert "Empatia Comercial" in html
+    assert "Calibração da Promessa" in html
+    assert "Eficácia Operacional" in html
+    # Ratio P/D presente no card de pilar e na matriz
+    assert "Ratio P/D" in html
+    # Períodos do manual + adicionais
+    for p in ["7d", "30d", "90d", "6m", "12m", "15m"]:
+        assert f'value="{p}"' in html
     # Botão exportar
     assert "Exportar Excel" in html
 
@@ -364,21 +500,32 @@ def test_exportar_painel_xlsx_basico(client_loyall, db_session):
 
     ws1 = wb["Visão Geral"]
     rows1 = list(ws1.iter_rows(values_only=True))
-    # Confere headers da tabela de pilares
+    # Confere headers da tabela de pilares (com ratio + faixa)
     header_row = next(r for r in rows1 if r and r[0] == "Pilar")
     assert header_row[0:3] == ("Pilar", "Nome", "Total")
-    # Pa deve aparecer com total=1
+    assert "Ratio P/D" in header_row
+    assert "Faixa" in header_row
+    # Pa deve aparecer com total=1, nome correto, ratio 9.99 (1 prom, 0 detr)
     pa_row = next(r for r in rows1 if r and r[0] == "Pa")
+    assert pa_row[1] == "Parceria"
     assert pa_row[2] == 1
     assert pa_row[3] == 1  # promotor
+    assert pa_row[7] == 9.99  # Ratio P/D (saturação positiva)
+    assert pa_row[8] == "excelente"
 
     ws2 = wb["Detalhamento por Subpilar"]
     rows2 = list(ws2.iter_rows(values_only=True))
+    header2 = next(r for r in rows2 if r and r[0] == "Pilar")
+    assert "Nome do Subpilar" in header2
+    assert "Ratio P/D" in header2
     pa1_row = next(r for r in rows2 if r and r[1] == "Pa1")
-    assert pa1_row[2] == 1  # promotor
-    assert pa1_row[6] == 1  # total
+    assert pa1_row[2] == "Empatia Comercial"  # nome oficial
+    assert pa1_row[3] == 1  # promotor (1ª coluna de tipo após Nome)
+    assert pa1_row[7] == 1  # total
+    assert pa1_row[8] == 9.99  # ratio
     d2_row = next(r for r in rows2 if r and r[1] == "D2")
-    assert d2_row[4] == 1  # detrator
+    assert d2_row[2] == "Eficácia Operacional"
+    assert d2_row[5] == 1  # detrator
 
 
 def test_exportar_painel_xlsx_aplica_filtros(client_loyall, db_session):

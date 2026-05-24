@@ -388,6 +388,87 @@ Como fazer:
 
 ---
 
+## Painel Executivo — extensões futuras (Manual Cap. 4-6)
+
+Fonte canônica: ``data/PDPA_Manual_Operacao_v3.docx`` (capítulos 4, 5, 6).
+O Bloco 5 entregou Visão Geral (4 pilares) + Detalhamento (12 subpilares
+com nomes oficiais) + Ratio P/D (Cap. 4). Pendências para próximos
+blocos:
+
+### Índice Geral (escala 0-10)
+
+Capítulo 4. Média ponderada dos ratios dos 12 subpilares, normalizada
+e ajustada por volume. Faixas:
+- >= 7 — zona saudável
+- 5 a 7 — zona de atenção
+- < 5 — zona crítica (intervenção sistemática)
+
+Renderizar como medidor/gauge no topo da Visão Geral.
+
+### Previsibilidade (escala 0-100)
+
+Capítulo 4. Fórmula: ``1 − (desvio padrão dos ratios / média dos ratios)``
+convertida para 0-100. Mede homogeneidade entre lojas/períodos. Renderizar
+como card adicional ao lado do Índice Geral.
+
+### Concentração de Detratores
+
+Capítulo 4. Para empresas com múltiplas lojas: ``% de detratores totais
+que vêm das 5 lojas com pior ratio``. > 60% = cirúrgico (poucas lojas);
+< 30% = sistêmico (processo central). Renderizar como cartão informativo
++ link para a página de Monitoramento de Locais.
+
+### Lente de Governança (ativos guarda-chuva)
+
+Capítulo 6. Ativada quando a empresa é guarda-chuva (aeroportos,
+shoppings, hospitais, etc.). 4 indicadores: Índice de Curadoria, Coesão
+Experiencial, Concentração de Detratores e Dependência Humana
+(``ratio Pa / ratio D``). Página separada ``/empresas/<id>/governanca``
+ou seção condicional no painel principal.
+
+### Monitoramento ML — Isolation Forest + z-score robusto
+
+Capítulo 5. Combina:
+1. Score Temporal via Isolation Forest (Merlion/Salesforce) — 0-100,
+   mede destoamento do próprio histórico.
+2. Score Cross-sectional via z-score robusto (mediana + MAD × 1.4826) —
+   0-100, mede destoamento dos pares.
+3. ``score_final = MAX(temporal, cross)``.
+4. Severidade: ≥70 crítico, 40-69 atenção, <40 normal.
+5. Pré-requisitos: mínimo 3 verbatins/mês em 1+ subpilar, mínimo 6
+   meses de histórico, ou whitelist editorial.
+6. Leitura editorial automática (Claude Sonnet) em 3 frases por alerta.
+
+Página dedicada ``/empresas/<id>/monitoramento-locais`` com cards de
+locais críticos, subpilares dominantes e padrão de tendência (estável
+baixo / crítico em ambos / estável / degradando).
+
+### IA conversacional para verbatins no painel
+
+Permitir pergunta livre tipo "mostra os 10 detratores mais recentes
+sobre 'fila no check-in'" no painel — busca semântica + filtros
+combinados, retorna lista de verbatins na coluna lateral.
+
+### Validação editorial e marcação de alertas
+
+Cap. 8 do manual. Loyall marca cada alerta crítico como Confirmado /
+Falso positivo / Em investigação + nota editorial. Tabela
+``alertas_validacao`` + UI dedicada.
+
+### Mapa de Conversão e Recuperação
+
+Cap. 8. Duas páginas executivas adicionais:
+- Mapa de Conversão — verbatins ``conversivel`` com gancho potencial
+  de virar promotor (oportunidades).
+- Recuperação — detratores recentes a serem reabordados.
+
+### Temas principais por subpilar (Bloco 6)
+
+Para cada subpilar com volume relevante, extrair os top N temas
+recorrentes via LLM (Claude Haiku/Sonnet). Mostrar na expansão da
+linha da matriz no Detalhamento. Cap. 5 do manual menciona como saída
+da validação editorial.
+
 ## Melhorias para fase posterior
 
 ### seeds/seed_exemplo.py: tornar idempotente

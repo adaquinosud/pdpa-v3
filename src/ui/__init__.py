@@ -544,8 +544,6 @@ def painel_empresa(empresa_id: int):
         "agrupamento_id": request.args.get("agrupamento_id", ""),
         "local_id": request.args.get("local_id", ""),
         "fonte_id": request.args.get("fonte_id", ""),
-        "data_de": request.args.get("data_de", ""),
-        "data_ate": request.args.get("data_ate", ""),
         "periodo": request.args.get("periodo", ""),
     }
 
