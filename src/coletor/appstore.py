@@ -124,7 +124,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         ator = IOS_ACTOR
         run_input = {
             "appIds": [numeric_id],
-            "country": "br",
+            "country": "BR",
             "maxItems": MAX_REVIEWS_DEFAULT,
         }
         if until_iso:
@@ -135,9 +135,9 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         ator = PLAY_ACTOR
         run_input = {
             "appIds": [app_id],
-            "country": "br",
+            "country": "BR",
             "language": "pt",
-            "sort": "newest",
+            "sort": "NEWEST",
             "maxItems": MAX_REVIEWS_DEFAULT,
         }
         if until_iso:
