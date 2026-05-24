@@ -15,6 +15,7 @@ from src.models.local import Local, LocalMetadado
 from src.models.temas import TemaCache, TemaCruzamento
 from src.models.usuario import Usuario
 from src.models.verbatim import Verbatim
+from src.models.verbatim_reclassificacao import VerbatimReclassificacao
 
 __all__ = [
     "Agrupamento",
@@ -29,4 +30,5 @@ __all__ = [
     "TemaCruzamento",
     "Usuario",
     "Verbatim",
+    "VerbatimReclassificacao",
 ]

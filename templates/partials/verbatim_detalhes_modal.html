@@ -1,0 +1,77 @@
+<div id="detalhes-modal" class="fixed inset-0 z-50 bg-loyall-900/40 flex items-center justify-center"
+     hx-on:click="if(event.target===this) this.remove()">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto"
+       hx-on:click="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Detalhes do verbatim #{{ v.id }}</h2>
+      <button onclick="document.getElementById('detalhes-modal').remove()"
+              class="text-loyall-400 hover:text-loyall-700 text-xl leading-none">×</button>
+    </div>
+
+    <div class="space-y-3 text-sm">
+      <div class="text-xs text-loyall-400">
+        {{ v.agrupamento_nome or '—' }} · {{ v.local_nome or 'sem local' }} ·
+        <code>{{ v.fonte_conector_tipo }}</code>
+        {% if v.autor %} · @{{ v.autor }}{% endif %}
+        {% if v.data_criacao_original %} · {{ v.data_criacao_original[:10] }}{% endif %}
+      </div>
+
+      <div>
+        <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Texto</div>
+        <p class="text-loyall-900 whitespace-pre-wrap bg-loyall-50 p-3 rounded">{{ v.texto }}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Classificação atual</div>
+          <div class="bg-loyall-50 p-3 rounded">
+            <div><strong>{{ v.subpilar or '—' }}</strong> / {{ v.tipo or '—' }}</div>
+            {% if v.confianca is not none %}
+              <div class="text-xs text-loyall-400 mt-1">conf: {{ '%.2f' % v.confianca }}</div>
+            {% endif %}
+            {% if v.justificativa %}
+              <div class="text-xs text-loyall-700 italic mt-2">{{ v.justificativa }}</div>
+            {% endif %}
+            <div class="text-xs text-loyall-400 mt-1">prompt: {{ v.prompt_versao or '—' }}</div>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Snapshot anterior</div>
+          <div class="bg-loyall-50 p-3 rounded text-loyall-700">
+            {% if v.subpilar_anterior %}
+              <strong>{{ v.subpilar_anterior }}</strong> / {{ v.tipo_anterior }}
+              {% if v.reclassificado_em %}
+                <div class="text-xs text-loyall-400 mt-1">em {{ v.reclassificado_em[:10] }}</div>
+              {% endif %}
+            {% else %}
+              <span class="text-loyall-400 italic">(nunca reclassificado)</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if historico %}
+      <div>
+        <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Histórico ({{ historico|length }})</div>
+        <ul class="space-y-2">
+          {% for h in historico %}
+          <li class="text-xs border-l-2 border-loyall-200 pl-3">
+            <div>
+              <strong>{{ h.subpilar_anterior or '—' }}</strong>/{{ h.tipo_anterior or '—' }}
+              → <strong>{{ h.subpilar_novo }}</strong>/{{ h.tipo_novo }}
+            </div>
+            {% if h.justificativa %}<div class="text-loyall-700 italic mt-0.5">{{ h.justificativa }}</div>{% endif %}
+            <div class="text-loyall-400">{{ h.reclassificado_em[:16].replace('T', ' ') }} · usuário #{{ h.reclassificado_por or '?' }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="flex justify-end gap-2 mt-4 pt-3 border-t border-loyall-100">
+      <button type="button" onclick="document.getElementById('detalhes-modal').remove()"
+              class="px-4 py-2 border border-loyall-200 hover:bg-loyall-100 rounded text-sm">Fechar</button>
+    </div>
+  </div>
+</div>

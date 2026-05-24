@@ -1,0 +1,56 @@
+<div id="reclassificar-modal" class="fixed inset-0 z-50 bg-loyall-900/40 flex items-center justify-center"
+     hx-on:click="if(event.target===this) this.remove()">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6"
+       hx-on:click="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Reclassificar verbatim</h2>
+      <button onclick="document.getElementById('reclassificar-modal').remove()"
+              class="text-loyall-400 hover:text-loyall-700 text-xl leading-none">×</button>
+    </div>
+
+    <p class="text-xs text-loyall-400 mb-3 italic">
+      Classificação atual:
+      <strong class="text-loyall-700">{{ v.subpilar or 'sem' }} / {{ v.tipo or '—' }}</strong>
+    </p>
+    <blockquote class="bg-loyall-50 border-l-4 border-loyall-300 px-3 py-2 text-sm text-loyall-700 mb-4 max-h-32 overflow-y-auto">
+      {{ v.texto[:600] }}{% if v.texto|length > 600 %}…{% endif %}
+    </blockquote>
+
+    <form hx-patch="{{ url_for('ui.htmx_salvar_reclassificacao', verbatim_id=v.id) }}"
+          hx-target="#verb-{{ v.id }}" hx-swap="outerHTML"
+          hx-on::after-request="if(event.detail.successful) document.getElementById('reclassificar-modal').remove()"
+          class="space-y-3 text-sm">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-loyall-700 mb-1">Novo subpilar*</label>
+          <select name="subpilar" required class="w-full px-3 py-2 border border-loyall-200 rounded">
+            {% for sp in SUBPILARES %}
+            <option value="{{ sp }}" {% if sp == v.subpilar %}selected{% endif %}>{{ sp }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-loyall-700 mb-1">Novo tipo*</label>
+          <select name="tipo" required class="w-full px-3 py-2 border border-loyall-200 rounded">
+            {% for tp in TIPOS %}
+            <option value="{{ tp }}" {% if tp == v.tipo %}selected{% endif %}>{{ tp }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-loyall-700 mb-1">Justificativa (opcional)</label>
+        <textarea name="justificativa" rows="3" placeholder="Por que está reclassificando?"
+                  class="w-full px-3 py-2 border border-loyall-200 rounded"></textarea>
+      </div>
+      <p class="text-xs text-loyall-400 italic">
+        Restrição: <code>sem_lastro</code> exige <code>inativo</code> (e vice-versa).
+      </p>
+      <div class="flex gap-2 pt-2">
+        <button type="submit" class="px-4 py-2 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Salvar reclassificação</button>
+        <button type="button" onclick="document.getElementById('reclassificar-modal').remove()"
+                class="px-4 py-2 border border-loyall-200 hover:bg-loyall-100 rounded">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>

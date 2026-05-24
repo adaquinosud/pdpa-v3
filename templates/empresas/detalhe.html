@@ -5,9 +5,10 @@
 <div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
 <div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
 <ul class="mt-2 space-y-1 text-sm">
-  <li><a href="#hierarquia" class="block px-2 py-1 rounded hover:bg-loyall-200">Hierarquia ({{ stats.total_agrupamentos }} grupos)</a></li>
+  <li><a href="#hierarquia" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Cadastro</a></li>
+  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins ({{ stats.total_fontes }} fontes)</a></li>
   {% if fontes_empresa %}
-  <li><a href="#fontes-empresa" class="block px-2 py-1 rounded hover:bg-loyall-200">Fontes da empresa ({{ fontes_empresa|length }})</a></li>
+  <li><a href="#fontes-empresa" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs ml-3">→ Fontes da empresa ({{ fontes_empresa|length }})</a></li>
   {% endif %}
 </ul>
 {% endblock %}

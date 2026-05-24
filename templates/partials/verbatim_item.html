@@ -1,0 +1,65 @@
+{# Verbatim item — Bloco 4 CP-C.
+   Contexto: v (dict serializado), eh_loyall, SUBPILARES, TIPOS. #}
+<article id="verb-{{ v.id }}" class="bg-white border border-loyall-200 rounded p-3 hover:shadow-sm transition">
+  <div class="flex items-center gap-2 mb-2 text-xs">
+    {% if v.subpilar %}
+      {% set cor = 'emerald' if v.tipo == 'promotor' else ('red' if v.tipo == 'detrator' else ('loyall' if v.tipo == 'inativo' else 'amber')) %}
+      <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-800 font-medium">{{ v.subpilar }}</span>
+      <span class="px-2 py-0.5 rounded {% if v.tipo == 'promotor' %}bg-emerald-100 text-emerald-800
+        {%- elif v.tipo == 'detrator' %} bg-red-100 text-red-800
+        {%- elif v.tipo == 'inativo' %} bg-loyall-200 text-loyall-700
+        {%- else %} bg-amber-100 text-amber-800{% endif %}">{{ v.tipo }}</span>
+      {% if v.confianca is not none %}
+        <span class="text-loyall-400">conf {{ '%.2f' % v.confianca }}</span>
+      {% endif %}
+      {% if v.subpilar_anterior %}
+        <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200" title="reclassificado">
+          ↻ era {{ v.subpilar_anterior }}/{{ v.tipo_anterior }}
+        </span>
+      {% endif %}
+    {% else %}
+      <span class="px-2 py-0.5 rounded bg-loyall-200 text-loyall-700">sem classificação</span>
+    {% endif %}
+    <span class="ml-auto text-loyall-400">
+      {{ v.agrupamento_nome or '—' }} · {{ v.local_nome or 'sem local' }} · <code class="text-xs">{{ v.fonte_conector_tipo }}</code>
+    </span>
+  </div>
+
+  <p class="text-sm text-loyall-900 verbatim-texto" data-id="{{ v.id }}">
+    {% if v.texto|length > 300 %}
+      <span class="vtruncate">{{ v.texto[:300] }}…
+        <button type="button" class="text-loyall-600 hover:underline text-xs"
+                onclick="document.getElementById('vfull-{{v.id}}').classList.remove('hidden'); this.parentElement.classList.add('hidden')">ver mais</button>
+      </span>
+      <span id="vfull-{{ v.id }}" class="hidden">{{ v.texto }}
+        <button type="button" class="text-loyall-600 hover:underline text-xs"
+                onclick="document.getElementById('vfull-{{v.id}}').classList.add('hidden'); document.querySelector('#verb-{{v.id}} .vtruncate').classList.remove('hidden')">ver menos</button>
+      </span>
+    {% else %}
+      {{ v.texto }}
+    {% endif %}
+  </p>
+
+  {% if v.justificativa %}
+  <p class="text-xs text-loyall-400 italic mt-2">
+    <span class="font-medium not-italic">classifier:</span> {{ v.justificativa }}
+  </p>
+  {% endif %}
+
+  <div class="mt-2 flex items-center gap-3 text-xs">
+    {% if v.autor %}<span class="text-loyall-400">@{{ v.autor }}</span>{% endif %}
+    {% if v.data_criacao_original %}<span class="text-loyall-400">{{ v.data_criacao_original[:10] }}</span>{% endif %}
+    <div class="ml-auto flex gap-3">
+      <button hx-get="{{ url_for('ui.htmx_verbatim_detalhes', verbatim_id=v.id) }}"
+              hx-target="body" hx-swap="beforeend"
+              class="text-loyall-700 hover:underline">detalhes</button>
+      <button hx-get="{{ url_for('ui.htmx_reclassificar_modal', verbatim_id=v.id) }}"
+              hx-target="body" hx-swap="beforeend"
+              class="text-loyall-700 hover:underline">reclassificar</button>
+      <button hx-delete="{{ url_for('ui.htmx_excluir_verbatim', verbatim_id=v.id) }}"
+              hx-target="#verb-{{ v.id }}" hx-swap="outerHTML"
+              hx-confirm="EXCLUIR PERMANENTE este verbatim? Será removido do banco e do histórico."
+              class="text-red-400 hover:text-red-700 hover:underline">excluir</button>
+    </div>
+  </div>
+</article>

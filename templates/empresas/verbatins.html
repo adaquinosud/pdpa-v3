@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block titulo %}Verbatins — {{ empresa.nome }}{% endblock %}
+
+{% block sidebar_extra %}
+<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
+<div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
+<ul class="mt-2 space-y-1 text-sm">
+  <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
+  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Verbatins</a></li>
+</ul>
+{% endblock %}
+
+{% block conteudo %}
+<div class="mb-3">
+  <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="text-sm text-loyall-400 hover:underline">← {{ empresa.nome }}</a>
+  <h1 class="text-2xl font-semibold mt-1">Verbatins · <span class="text-loyall-400 text-base">{{ total }}</span></h1>
+</div>
+
+{# ── Filtros ─────────────────────────────────────────────────────────── #}
+<form id="filtros" method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
+  <input type="hidden" name="pagina" value="1">
+  <input name="q" value="{{ filtros.q or '' }}" placeholder="Buscar texto ou justificativa"
+         class="md:col-span-3 lg:col-span-2 px-2 py-1.5 border border-loyall-200 rounded">
+
+  <select name="agrupamento_id" class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Agrupamento…</option>
+    {% for a in agrupamentos %}
+    <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="local_id" class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Local…</option>
+    {% for l in locais %}
+    <option value="{{ l.id }}" {% if filtros.local_id == l.id|string %}selected{% endif %}>{{ l.nome }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="fonte_id" class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Fonte…</option>
+    {% for f in fontes %}
+    <option value="{{ f.id }}" {% if filtros.fonte_id == f.id|string %}selected{% endif %}>{{ f.conector_tipo }} — {{ f.url|truncate(40, true) }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="subpilar" class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Subpilar…</option>
+    {% for sp in subpilares %}
+    <option value="{{ sp }}" {% if filtros.subpilar == sp %}selected{% endif %}>{{ sp }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="tipo" class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Tipo…</option>
+    {% for tp in tipos %}
+    <option value="{{ tp }}" {% if filtros.tipo == tp %}selected{% endif %}>{{ tp }}</option>
+    {% endfor %}
+  </select>
+
+  <input name="data_de" type="date" value="{{ filtros.data_de or '' }}"
+         class="px-2 py-1.5 border border-loyall-200 rounded" title="Data de">
+  <input name="data_ate" type="date" value="{{ filtros.data_ate or '' }}"
+         class="px-2 py-1.5 border border-loyall-200 rounded" title="Data até">
+
+  <div class="md:col-span-2 lg:col-span-2 flex gap-2 justify-end">
+    <button type="submit" class="px-3 py-1.5 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Filtrar</button>
+    <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="px-3 py-1.5 border border-loyall-200 hover:bg-loyall-100 rounded">Limpar</a>
+  </div>
+</form>
+
+{# ── Lista de verbatins ──────────────────────────────────────────────── #}
+{% if not verbatins %}
+  <div class="bg-white border border-loyall-200 rounded p-8 text-center text-loyall-400">
+    Nenhum verbatim encontrado com esses filtros.
+  </div>
+{% else %}
+  <div class="space-y-2">
+    {% for v in verbatins %}
+      {% include "partials/verbatim_item.html" %}
+    {% endfor %}
+  </div>
+
+  {# ── Paginação ──────────────────────────────────────────────────── #}
+  <div class="mt-4 flex items-center justify-between text-sm">
+    <div class="text-loyall-400">
+      Mostrando {{ ((filtros.pagina - 1) * filtros.por_pagina) + 1 }}–{{ ((filtros.pagina - 1) * filtros.por_pagina) + verbatins|length }} de {{ total }}
+    </div>
+    <div class="flex items-center gap-2">
+      {% if filtros.pagina > 1 %}
+        <a href="?{{ pag_qs_anterior }}" class="px-3 py-1 border border-loyall-200 hover:bg-loyall-100 rounded">← anterior</a>
+      {% endif %}
+      <span class="text-loyall-700">página {{ filtros.pagina }} de {{ total_paginas }}</span>
+      {% if filtros.pagina < total_paginas %}
+        <a href="?{{ pag_qs_proxima }}" class="px-3 py-1 border border-loyall-200 hover:bg-loyall-100 rounded">próxima →</a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% endblock %}

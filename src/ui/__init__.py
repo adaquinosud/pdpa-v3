@@ -43,11 +43,14 @@ from src.auth import (
     logout_user,
     verificar_senha,
 )
+from src.classifier.classifier_v3 import SUBPILARES_VALIDOS, TIPOS_VALIDOS
 from src.models.agrupamento import Agrupamento
 from src.models.empresa import Empresa
 from src.models.fonte import Fonte
 from src.models.local import Local
 from src.models.usuario import Usuario
+from src.models.verbatim import Verbatim
+from src.models.verbatim_reclassificacao import VerbatimReclassificacao
 from src.utils.db import db_session
 
 
@@ -368,6 +371,227 @@ def detalhe_empresa(empresa_id: int):
         eh_loyall=(user.papel == PAPEL_LOYALL),
         **dados,
     )
+
+
+# ── Página de verbatins ─────────────────────────────────────────────────
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/verbatins")
+def verbatins_empresa(empresa_id: int):
+    """Página da lista paginada de verbatins de uma empresa."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    # Chama o handler da API e usa o JSON resultante
+    from src.api.verbatins import listar_verbatins_da_empresa as api_handler
+
+    resp = api_handler(empresa_id)
+    # api_handler retorna Response (200) ou tupla (response, status) em erro
+    if isinstance(resp, tuple):
+        return resp
+    api_payload = resp.get_json()
+    if api_payload is None:
+        return render_template("404.html"), 404
+
+    # Filtros lidos da URL
+    filtros = {
+        "q": request.args.get("q", ""),
+        "agrupamento_id": request.args.get("agrupamento_id", ""),
+        "local_id": request.args.get("local_id", ""),
+        "fonte_id": request.args.get("fonte_id", ""),
+        "subpilar": request.args.get("subpilar", ""),
+        "tipo": request.args.get("tipo", ""),
+        "data_de": request.args.get("data_de", ""),
+        "data_ate": request.args.get("data_ate", ""),
+        "pagina": api_payload["pagina"],
+        "por_pagina": api_payload["por_pagina"],
+    }
+
+    # Listas de filtros (agrupamentos/locais/fontes da empresa)
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db)
+        ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
+        locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
+        fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
+        agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
+        locais = [SimpleNamespace(id=loc.id, nome=loc.nome) for loc in locs]
+        fontes_ = [
+            SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
+        ]
+
+    # Paginação: query strings para próxima/anterior preservando filtros
+    from urllib.parse import urlencode
+
+    def _qs(pagina):
+        params = {k: v for k, v in filtros.items() if v not in ("", None) and k != "pagina"}
+        params["pagina"] = pagina
+        return urlencode(params)
+
+    total = api_payload["total"]
+    por_pagina = api_payload["por_pagina"]
+    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
+
+    return render_template(
+        "empresas/verbatins.html",
+        empresa=empresa_w,
+        verbatins=api_payload["verbatins"],
+        total=total,
+        total_paginas=total_paginas,
+        agrupamentos=agrupamentos,
+        locais=locais,
+        fontes=fontes_,
+        filtros=filtros,
+        subpilares=sorted(SUBPILARES_VALIDOS),
+        tipos=sorted(TIPOS_VALIDOS),
+        pag_qs_anterior=_qs(filtros["pagina"] - 1),
+        pag_qs_proxima=_qs(filtros["pagina"] + 1),
+        eh_loyall=(user.papel == PAPEL_LOYALL),
+        user=user,
+    )
+
+
+def _carregar_verbatim_para_template(verbatim_id: int):
+    """Devolve dict (estilo serializer da API) + historico, ambos seguros."""
+    from src.api.verbatins import _serialize_reclassificacao, _serialize_verbatim
+
+    with db_session() as s:
+        v_db = s.get(Verbatim, verbatim_id)
+        if v_db is None:
+            return None, None
+        empresa_id = v_db.empresa_id
+        fonte = s.get(Fonte, v_db.fonte_id)
+        local = s.get(Local, v_db.local_id) if v_db.local_id else None
+        ag = s.get(Agrupamento, local.agrupamento_id) if local and local.agrupamento_id else None
+        fonte_map = {
+            v_db.fonte_id: {
+                "conector_tipo": fonte.conector_tipo if fonte else None,
+                "url": fonte.url if fonte else None,
+                "agrupamento_id_via_local": local.agrupamento_id if local else None,
+            }
+        }
+        local_map = {local.id: local.nome} if local else {}
+        ag_map = {ag.id: ag.nome} if ag else {}
+        v_dict = _serialize_verbatim(v_db, ag_map, local_map, fonte_map)
+        historico_db = (
+            s.query(VerbatimReclassificacao)
+            .filter_by(verbatim_id=verbatim_id)
+            .order_by(VerbatimReclassificacao.reclassificado_em.desc())
+            .all()
+        )
+        historico = [_serialize_reclassificacao(r) for r in historico_db]
+    return v_dict, empresa_id, historico
+
+
+@ui_bp.route("/ui/verbatins/<int:verbatim_id>/detalhes", methods=["GET"])
+def htmx_verbatim_detalhes(verbatim_id: int):
+    """Modal de detalhes (HTMX)."""
+    info = _carregar_verbatim_para_template(verbatim_id)
+    if info is None or info[0] is None:
+        return ("<div class='text-red-600'>Verbatim não encontrado.</div>", 404)
+    v_dict, empresa_id, historico = info
+    erro = _check_acesso(empresa_id)
+    if erro:
+        return erro
+    return render_template("partials/verbatim_detalhes_modal.html", v=v_dict, historico=historico)
+
+
+@ui_bp.route("/ui/verbatins/<int:verbatim_id>/reclassificar", methods=["GET"])
+def htmx_reclassificar_modal(verbatim_id: int):
+    """Modal de reclassificação (HTMX)."""
+    info = _carregar_verbatim_para_template(verbatim_id)
+    if info is None or info[0] is None:
+        return ("<div class='text-red-600'>Verbatim não encontrado.</div>", 404)
+    v_dict, empresa_id, _historico = info
+    erro = _check_acesso(empresa_id)
+    if erro:
+        return erro
+    return render_template(
+        "partials/verbatim_reclassificar_modal.html",
+        v=v_dict,
+        SUBPILARES=sorted(SUBPILARES_VALIDOS),
+        TIPOS=sorted(TIPOS_VALIDOS),
+    )
+
+
+@ui_bp.route("/ui/verbatins/<int:verbatim_id>/reclassificar", methods=["PATCH"])
+def htmx_salvar_reclassificacao(verbatim_id: int):
+    """Salva reclassificação via PATCH form. Devolve o item atualizado."""
+    sub_novo = (request.form.get("subpilar") or "").strip()
+    tipo_novo = (request.form.get("tipo") or "").strip()
+    justif = (request.form.get("justificativa") or "").strip() or None
+
+    if sub_novo not in SUBPILARES_VALIDOS:
+        return ("<div class='text-red-600 text-xs'>subpilar inválido.</div>", 400)
+    if tipo_novo not in TIPOS_VALIDOS:
+        return ("<div class='text-red-600 text-xs'>tipo inválido.</div>", 400)
+    if (sub_novo == "sem_lastro") != (tipo_novo == "inativo"):
+        return (
+            "<div class='text-red-600 text-xs'>"
+            "Restrição: sem_lastro exige inativo (e vice-versa).</div>",
+            400,
+        )
+
+    user = get_current_user()
+    if user is None:
+        return ("<div class='text-red-600 text-xs'>Sessão expirada.</div>", 401)
+
+    from datetime import datetime as _dt
+
+    with db_session() as s:
+        v_db = s.get(Verbatim, verbatim_id)
+        if v_db is None:
+            return ("<div class='text-red-600 text-xs'>Verbatim não encontrado.</div>", 404)
+        if user.papel != PAPEL_LOYALL and user.empresa_id != v_db.empresa_id:
+            return ("<div class='text-red-600 text-xs'>Acesso negado.</div>", 403)
+
+        recl = VerbatimReclassificacao(
+            verbatim_id=v_db.id,
+            subpilar_anterior=v_db.subpilar,
+            tipo_anterior=v_db.tipo,
+            subpilar_novo=sub_novo,
+            tipo_novo=tipo_novo,
+            justificativa=justif,
+            reclassificado_por=user.id,
+        )
+        s.add(recl)
+        v_db.subpilar_anterior = v_db.subpilar
+        v_db.tipo_anterior = v_db.tipo
+        v_db.subpilar = sub_novo
+        v_db.tipo = tipo_novo
+        v_db.reclassificado_em = _dt.utcnow()
+        v_db.reclassificado_por = user.id
+        s.flush()
+
+    # Devolve o item renderizado novamente
+    info = _carregar_verbatim_para_template(verbatim_id)
+    v_dict, _eid, _hist = info
+    return render_template(
+        "partials/verbatim_item.html",
+        v=v_dict,
+        eh_loyall=(user.papel == PAPEL_LOYALL),
+    )
+
+
+@ui_bp.route("/ui/verbatins/<int:verbatim_id>", methods=["DELETE"])
+def htmx_excluir_verbatim(verbatim_id: int):
+    user = get_current_user()
+    if user is None:
+        return ("", 401)
+    with db_session() as s:
+        v_db = s.get(Verbatim, verbatim_id)
+        if v_db is None:
+            return ("", 404)
+        if user.papel != PAPEL_LOYALL and user.empresa_id != v_db.empresa_id:
+            return ("", 403)
+        s.delete(v_db)
+    return ("", 200)
 
 
 # ── HTMX partials: CRUD inline em /empresas/<id> ────────────────────────
@@ -922,16 +1146,34 @@ def htmx_disparar_fonte(fonte_id: int):
     try:
         resp = disparar_coleta(fonte_id)
     except Exception as exc:  # pragma: no cover — robustez
-        return (f"<div class='text-red-600'>Falha: {exc!r}</div>", 500)
+        return (f"<div class='text-red-600 text-xs'>Falha: {exc!r}</div>", 500)
     # ``disparar_coleta`` devolve (Response, status) ou Response.
     if isinstance(resp, tuple):
         body, status = resp
         if status >= 400:
             return (
-                f"<div class='text-red-600'>{body.get_json().get('erro', 'erro')}</div>",
+                f"<div class='text-red-600 text-xs'>{body.get_json().get('erro', 'erro')}</div>",
                 status,
             )
-    return "<div class='text-green-700'>Coleta disparada.</div>"
+        stats = body.get_json() or {}
+    else:
+        stats = resp.get_json() or {}
+
+    if stats.get("falhou_apify"):
+        return (
+            "<div class='text-red-600 text-xs'>Apify falhou — fonte não coletada.</div>",
+            200,
+        )
+
+    coletados = stats.get("coletados", 0)
+    novos = stats.get("novos", 0)
+    duplicados = stats.get("duplicados", 0)
+    erros = stats.get("erros", 0)
+    return (
+        f"<div class='text-emerald-700 text-xs'>"
+        f"✓ {coletados} coletados · {novos} novos · {duplicados} dup · {erros} erros"
+        f"</div>"
+    )
 
 
 # ── 404 / 403 handlers ───────────────────────────────────────────────────
