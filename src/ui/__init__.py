@@ -407,6 +407,7 @@ def verbatins_empresa(empresa_id: int):
         "tipo": request.args.get("tipo", ""),
         "data_de": request.args.get("data_de", ""),
         "data_ate": request.args.get("data_ate", ""),
+        "esconder_rating_only": request.args.get("esconder_rating_only", ""),
         "pagina": api_payload["pagina"],
         "por_pagina": api_payload["por_pagina"],
     }

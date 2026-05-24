@@ -69,6 +69,9 @@ def _serialize_verbatim(
         "fonte_conector_tipo": fonte.get("conector_tipo"),
         "fonte_url": fonte.get("url"),
         "texto": v.texto,
+        "tem_texto": bool(v.tem_texto),
+        "rating": v.rating,
+        "review_id_externo": v.review_id_externo,
         "autor": v.autor,
         "data_criacao_original": (
             v.data_criacao_original.isoformat() if v.data_criacao_original else None
@@ -179,6 +182,18 @@ def listar_verbatins_da_empresa(empresa_id: int):
         tipo = request.args.get("tipo")
         if tipo:
             q = q.filter(Verbatim.tipo == tipo)
+
+        # CP-D3: filtro "Esconder ratings-only" (?esconder_rating_only=1)
+        esconder_ro = request.args.get("esconder_rating_only")
+        if esconder_ro in ("1", "true", "True"):
+            q = q.filter(Verbatim.tem_texto.is_(True))
+
+        rating = request.args.get("rating")
+        if rating:
+            try:
+                q = q.filter(Verbatim.rating == int(rating))
+            except ValueError:
+                return jsonify({"erro": "rating deve ser inteiro 1-5"}), 400
 
         busca = (request.args.get("q") or "").strip()
         if busca:

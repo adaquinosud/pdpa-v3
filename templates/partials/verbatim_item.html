@@ -1,9 +1,8 @@
-{# Verbatim item — Bloco 4 CP-C.
+{# Verbatim item — Bloco 4 CP-C + CP-D3.
    Contexto: v (dict serializado), eh_loyall, SUBPILARES, TIPOS. #}
 <article id="verb-{{ v.id }}" class="bg-white border border-loyall-200 rounded p-3 hover:shadow-sm transition">
   <div class="flex items-center gap-2 mb-2 text-xs">
     {% if v.subpilar %}
-      {% set cor = 'emerald' if v.tipo == 'promotor' else ('red' if v.tipo == 'detrator' else ('loyall' if v.tipo == 'inativo' else 'amber')) %}
       <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-800 font-medium">{{ v.subpilar }}</span>
       <span class="px-2 py-0.5 rounded {% if v.tipo == 'promotor' %}bg-emerald-100 text-emerald-800
         {%- elif v.tipo == 'detrator' %} bg-red-100 text-red-800
@@ -20,11 +19,20 @@
     {% else %}
       <span class="px-2 py-0.5 rounded bg-loyall-200 text-loyall-700">sem classificação</span>
     {% endif %}
+    {% if v.rating %}
+      <span class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-800" title="Rating do Google">
+        {% for _ in range(v.rating) %}★{% endfor %}{% for _ in range(5 - v.rating) %}☆{% endfor %}
+      </span>
+    {% endif %}
+    {% if not v.tem_texto %}
+      <span class="px-2 py-0.5 rounded bg-loyall-200 text-loyall-700" title="Review só com nota, sem texto">só rating</span>
+    {% endif %}
     <span class="ml-auto text-loyall-400">
       {{ v.agrupamento_nome or '—' }} · {{ v.local_nome or 'sem local' }} · <code class="text-xs">{{ v.fonte_conector_tipo }}</code>
     </span>
   </div>
 
+  {% if v.tem_texto %}
   <p class="text-sm text-loyall-900 verbatim-texto" data-id="{{ v.id }}">
     {% if v.texto|length > 300 %}
       <span class="vtruncate">{{ v.texto[:300] }}…
@@ -39,6 +47,9 @@
       {{ v.texto }}
     {% endif %}
   </p>
+  {% else %}
+  <p class="text-sm text-loyall-400 italic">— review sem texto (apenas {{ v.rating }} estrela{{ 's' if v.rating != 1 else '' }}) —</p>
+  {% endif %}
 
   {% if v.justificativa %}
   <p class="text-xs text-loyall-400 italic mt-2">

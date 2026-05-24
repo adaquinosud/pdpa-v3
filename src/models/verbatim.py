@@ -5,7 +5,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -40,6 +49,11 @@ class Verbatim(Base):
     confianca: Mapped[Optional[float]] = mapped_column(Float)
     justificativa: Mapped[Optional[str]] = mapped_column(Text)
     prompt_versao: Mapped[Optional[str]] = mapped_column(String, default="v3.0")
+
+    # CP-D3: reviews ratings-only + dedup robusto.
+    tem_texto: Mapped[bool] = mapped_column(Boolean, default=True)
+    rating: Mapped[Optional[int]] = mapped_column(Integer)
+    review_id_externo: Mapped[Optional[str]] = mapped_column(String)
 
     reclassificado_em: Mapped[Optional[datetime]] = mapped_column(DateTime)
     reclassificado_por: Mapped[Optional[int]] = mapped_column(

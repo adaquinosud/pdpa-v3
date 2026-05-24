@@ -56,18 +56,34 @@ APIFY_TIMEOUT_SECONDS = 1800  # 30 min — coleta pode ser longa em places grand
 def _extrair_review(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Extrai campos relevantes de um item retornado pelo Apify.
 
-    O ator ``compass/google-maps-reviews-scraper`` pode retornar campos
-    com nomes variáveis dependendo da versão; aplicamos fallbacks.
+    CP-D3: aceita reviews ratings-only (sem texto) quando há ``stars``/
+    ``rating`` — devolve dict com ``texto=""`` e ``rating`` preenchido.
+    O pipeline classifica via rating sem chamar Anthropic.
 
     Args:
         item: Item do dataset Apify.
 
     Returns:
-        Dict com chaves ``texto``, ``autor``, ``data_original`` se válido.
-        ``None`` se o item não tem texto utilizável (pula sem somar).
+        Dict com ``texto`` (str, pode ser vazio), ``rating`` (int 1-5 ou
+        None), ``autor``, ``data_original``, ``review_id_externo``.
+        ``None`` somente se o item não tem texto NEM rating (genuinamente
+        descartável — ex: item incompleto/lixo do scraper).
     """
     texto = (item.get("text") or item.get("textTranslated") or "").strip()
-    if not texto:
+
+    # Rating: Apify pode usar 'stars' ou 'rating'; alguns voltam float.
+    rating_raw = item.get("stars") or item.get("rating") or item.get("starsRating")
+    rating: Optional[int] = None
+    if rating_raw is not None:
+        try:
+            r = int(float(rating_raw))
+            if 1 <= r <= 5:
+                rating = r
+        except (TypeError, ValueError):
+            rating = None
+
+    # Sem texto NEM rating → item sem valor, descarta.
+    if not texto and rating is None:
         return None
 
     autor_raw = (item.get("name") or item.get("reviewerName") or "").strip()
@@ -77,7 +93,6 @@ def _extrair_review(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     data_original: Optional[datetime] = None
     if published:
         try:
-            # Trata ISO com Z (UTC) ou sem timezone
             data_original = datetime.fromisoformat(str(published).replace("Z", "+00:00"))
         except ValueError:
             try:
@@ -85,7 +100,18 @@ def _extrair_review(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             except ValueError:
                 data_original = None
 
-    return {"texto": texto, "autor": autor, "data_original": data_original}
+    # ID externo do scraper — Apify devolve 'reviewId' (estável por review).
+    review_id_externo: Optional[str] = item.get("reviewId") or item.get("reviewerId") or None
+    if review_id_externo:
+        review_id_externo = str(review_id_externo).strip() or None
+
+    return {
+        "texto": texto,
+        "rating": rating,
+        "autor": autor,
+        "data_original": data_original,
+        "review_id_externo": review_id_externo,
+    }
 
 
 # ── API pública ──────────────────────────────────────────────────────────
@@ -166,6 +192,8 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 fonte=fonte,
                 data_original=review["data_original"],
                 autor=review["autor"],
+                rating=review["rating"],
+                review_id_externo=review["review_id_externo"],
             )
             if verbatim is not None:
                 stats["novos"] += 1
