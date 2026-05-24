@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Monitoramento{% endblock %}
+
+{% block sidebar_extra %}
+<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Operação</div>
+<ul class="mt-2 space-y-1 text-sm">
+  <li><a href="{{ url_for('ui.monitoramento') }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Monitoramento</a></li>
+</ul>
+{% endblock %}
+
+{% block conteudo %}
+<div class="mb-3">
+  <h1 class="text-2xl font-semibold">Monitoramento de coletas</h1>
+  <p class="text-sm text-loyall-400">Últimas 24h por padrão. Atualiza automaticamente a cada 5s se houver coletas em andamento.</p>
+</div>
+
+<form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 flex flex-wrap items-center gap-2 text-sm">
+  <select name="status" class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Status: todos</option>
+    {% for s in ['rodando','concluido','erro'] %}
+    <option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="desde_data" value="{{ filtros.desde_data or '' }}"
+         class="px-2 py-1.5 border border-loyall-200 rounded" title="Desde">
+  <button type="submit" class="px-3 py-1.5 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Filtrar</button>
+  <a href="{{ url_for('ui.monitoramento') }}" class="px-3 py-1.5 border border-loyall-200 hover:bg-loyall-100 rounded">Limpar</a>
+  {% if execucoes_em_andamento %}
+  <span class="ml-auto text-xs text-loyall-700">
+    <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-1"></span>
+    {{ execucoes_em_andamento }} em andamento
+  </span>
+  {% endif %}
+</form>
+
+<div id="lista-coletas"
+     {% if execucoes_em_andamento %}
+     hx-get="{{ url_for('ui.htmx_monitoramento_lista') }}{% if filtros.status %}?status={{ filtros.status }}{% endif %}"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML"
+     {% endif %}>
+  {% include "partials/monitoramento_lista.html" %}
+</div>
+{% endblock %}

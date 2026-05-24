@@ -1,0 +1,59 @@
+{# Lista de execuções de coleta — renderiza dentro do polling HTMX. #}
+{% if not execucoes %}
+  <div class="bg-white border border-loyall-200 rounded p-8 text-center text-loyall-400">
+    Nenhuma execução nos filtros atuais.
+  </div>
+{% else %}
+<div class="bg-white border border-loyall-200 rounded overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-loyall-100 text-left text-loyall-700">
+      <tr>
+        <th class="px-3 py-2">Status</th>
+        <th class="px-3 py-2">Empresa</th>
+        <th class="px-3 py-2">Local</th>
+        <th class="px-3 py-2">Conector</th>
+        <th class="px-3 py-2">Início</th>
+        <th class="px-3 py-2">Duração</th>
+        <th class="px-3 py-2 text-right">Coletados</th>
+        <th class="px-3 py-2 text-right">Novos</th>
+        <th class="px-3 py-2 text-right">Dup</th>
+        <th class="px-3 py-2 text-right">Err</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in execucoes %}
+      <tr class="border-t border-loyall-100 {% if e.status == 'rodando' %}bg-emerald-50/30{% elif e.status == 'erro' %}bg-red-50/30{% endif %}">
+        <td class="px-3 py-2">
+          {% if e.status == 'rodando' %}
+            <span class="inline-flex items-center gap-1">
+              <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span class="text-emerald-700 text-xs">rodando</span>
+            </span>
+          {% elif e.status == 'concluido' %}
+            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs">concluido</span>
+          {% elif e.status == 'erro' %}
+            <span class="px-2 py-0.5 rounded bg-red-100 text-red-800 text-xs" title="{{ e.mensagem_erro or '' }}">erro</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2">{{ e.empresa_nome }}</td>
+        <td class="px-3 py-2 text-loyall-700">{{ e.local_nome or '—' }}</td>
+        <td class="px-3 py-2"><code class="text-xs">{{ e.fonte_conector_tipo }}</code></td>
+        <td class="px-3 py-2 text-loyall-400 text-xs">{{ e.iniciado_em[:16].replace('T', ' ') if e.iniciado_em else '' }}</td>
+        <td class="px-3 py-2 text-loyall-400 text-xs">
+          {% if e.duracao_segundos %}
+            {% if e.duracao_segundos < 60 %}{{ '%.0f' % e.duracao_segundos }}s
+            {% elif e.duracao_segundos < 3600 %}{{ '%.1f' % (e.duracao_segundos / 60) }}min
+            {% else %}{{ '%.1f' % (e.duracao_segundos / 3600) }}h
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="px-3 py-2 text-right">{{ e.coletados }}</td>
+        <td class="px-3 py-2 text-right text-emerald-700 font-medium">{{ e.novos }}</td>
+        <td class="px-3 py-2 text-right text-loyall-400">{{ e.duplicados }}</td>
+        <td class="px-3 py-2 text-right {% if e.erros > 0 %}text-red-600{% else %}text-loyall-400{% endif %}">{{ e.erros }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

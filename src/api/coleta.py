@@ -166,8 +166,49 @@ def disparar_coleta(fonte_id: int):
         # Detach: o coletor pode demorar (Apify roda em segundos a minutos) e o
         # pipeline interno abre seu próprio db_session por item.
         session.expunge(fonte)
+        empresa_id = fonte.empresa_id
 
-    stats = coletor_fn(fonte)
+    # CP-E: registra início da execução em coletas_execucoes
+    from src.models.coleta_execucao import ColetaExecucao
+
+    execucao_id: int
+    with db_session() as session:
+        execucao = ColetaExecucao(
+            empresa_id=empresa_id,
+            fonte_id=fonte_id,
+            status="rodando",
+            iniciado_em=datetime.utcnow(),
+        )
+        session.add(execucao)
+        session.flush()
+        execucao_id = execucao.id
+
+    # Executa coletor; captura exceções para registrar status='erro'
+    try:
+        stats = coletor_fn(fonte)
+    except Exception as exc:  # pragma: no cover — robustez
+        with db_session() as session:
+            execucao = session.get(ColetaExecucao, execucao_id)
+            if execucao is not None:
+                execucao.status = "erro"
+                execucao.concluido_em = datetime.utcnow()
+                execucao.mensagem_erro = f"{type(exc).__name__}: {exc}"
+        raise
+
+    # Atualiza coletas_execucoes com resultado
+    with db_session() as session:
+        execucao = session.get(ColetaExecucao, execucao_id)
+        if execucao is not None:
+            execucao.concluido_em = datetime.utcnow()
+            execucao.coletados = stats.get("coletados", 0)
+            execucao.novos = stats.get("novos", 0)
+            execucao.duplicados = stats.get("duplicados", 0)
+            execucao.erros = stats.get("erros", 0)
+            if stats.get("falhou_apify"):
+                execucao.status = "erro"
+                execucao.mensagem_erro = "Apify falhou (falhou_apify=true)"
+            else:
+                execucao.status = "concluido"
 
     # Atualiza ultima_coleta só se a execução do Apify foi bem-sucedida.
     if not stats.get("falhou_apify", False):

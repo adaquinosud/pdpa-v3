@@ -232,6 +232,34 @@ def test_dedup_legacy_hash_quando_sem_review_id(fonte_t, db_session, monkeypatch
     assert v2 is None  # dedup por hash
 
 
+def test_ratings_only_multiplos_autores_none_nao_colide_hash(fonte_t, db_session, monkeypatch):
+    """REGRESSÃO: 2 ratings-only com autor=None mas review_id diferente devem
+    persistir (não colidir na UNIQUE constraint empresa_id+hash_dedup).
+
+    Era o bug que rejeitava 1097 dos 1099 sem-texto do Confins."""
+    monkeypatch.setattr(
+        "src.coletor.pipeline.classificar",
+        lambda **k: (_ for _ in ()).throw(AssertionError("nao chamar")),
+    )
+    v1 = processar_verbatim_coletado(
+        texto="",
+        fonte=fonte_t,
+        autor=None,
+        rating=5,
+        review_id_externo="rev_id_A",
+    )
+    v2 = processar_verbatim_coletado(
+        texto="",
+        fonte=fonte_t,
+        autor=None,
+        rating=5,
+        review_id_externo="rev_id_B",
+    )
+    assert v1 is not None
+    assert v2 is not None
+    assert v1.hash_dedup != v2.hash_dedup  # hashes únicos
+
+
 def test_ratings_only_dedup_por_review_id_quando_repetido(fonte_t, db_session, monkeypatch):
     """Ratings-only com mesmo review_id_externo → dedup."""
     monkeypatch.setattr(
