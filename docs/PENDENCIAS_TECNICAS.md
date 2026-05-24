@@ -48,6 +48,50 @@ Precedência (mesma de antes, agora documentada):
 3. `PDPA_COLETA_DESDE` — override global ou
    `hoje − PDPA_COLETA_JANELA_MESES * 30 dias`
 
+### CP-D3 — Reviews ratings-only + dedup robusto (CONCLUÍDO Google; pendente nos outros conectores)
+
+**Status:** PARCIAL em 2026-05-24
+
+CP-D3 do Bloco 4 resolveu dois problemas no coletor Google:
+
+1. **Reviews ratings-only** (estrelas sem comentário) agora são persistidos
+   com classificação heurística pelo rating (sem chamar Anthropic):
+   - 5★ → Pa1/promotor (conf 0.4)
+   - 4★ → Pa1/conversivel (conf 0.3)
+   - 3★ → sem_lastro/inativo (conf 0.2)
+   - 2★ → Pa1/detrator (conf 0.3)
+   - 1★ → Pa1/detrator (conf 0.4)
+   - Campo ``verbatins.tem_texto`` + ``verbatins.rating`` (migration 015).
+   - Badge "só rating" + estrelas na UI; filtro "Esconder só-rating".
+
+2. **Dedup robusto via ``review_id_externo``** evita colisão de hash em
+   reviews curtos com autor anônimo ("Muito bom", "Top", etc.).
+   - Campo ``verbatins.review_id_externo`` (migration 015).
+   - Índice UNIQUE partial em ``(fonte_id, review_id_externo)`` WHERE NOT NULL.
+   - Pipeline: dedup hierárquico — primeiro tenta ``review_id_externo``,
+     fallback no hash legacy.
+
+**Pendência para outros conectores**: cada coletor deve passar
+``review_id_externo`` no ``processar_verbatim_coletado()`` quando o
+scraper fornecer um id. Mapeamento conhecido:
+
+| Conector | Campo Apify provável |
+|---|---|
+| google | ``reviewId`` ✅ implementado |
+| tripadvisor | ``id`` ou ``reviewId`` |
+| instagram | ``commentId`` |
+| facebook | ``commentId`` |
+| youtube | ``commentId`` |
+| linkedin | ``commentId`` |
+| tiktok | ``commentId`` |
+| appstore | ``reviewId`` |
+| mercadolivre | id da opinião |
+| google_news | URL como id natural |
+
+Cada conector é ~5-15 LOC: capturar campo no ``_extrair_*`` + passar
+para ``processar_verbatim_coletado()``. Fallback do hash legacy mantém
+todos os 10 coletores funcionando hoje sem regressão.
+
 ### MEC 2 — CLI flask retencao-aplicar (CONCLUÍDO)
 
 **Status:** CONCLUÍDO em 2026-05-24 (Bloco 4 CP-D)

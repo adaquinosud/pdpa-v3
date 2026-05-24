@@ -62,7 +62,13 @@
   <input name="data_ate" type="date" value="{{ filtros.data_ate or '' }}"
          class="px-2 py-1.5 border border-loyall-200 rounded" title="Data até">
 
-  <div class="md:col-span-2 lg:col-span-2 flex gap-2 justify-end">
+  <label class="flex items-center gap-1 text-loyall-700 text-xs" title="Esconde reviews ratings-only (sem texto)">
+    <input type="checkbox" name="esconder_rating_only" value="1"
+           {% if filtros.esconder_rating_only %}checked{% endif %}>
+    Esconder só-rating
+  </label>
+
+  <div class="md:col-span-1 lg:col-span-1 flex gap-2 justify-end">
     <button type="submit" class="px-3 py-1.5 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Filtrar</button>
     <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="px-3 py-1.5 border border-loyall-200 hover:bg-loyall-100 rounded">Limpar</a>
   </div>

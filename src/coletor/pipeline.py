@@ -49,6 +49,17 @@ MIN_CHARS_PARA_PROCESSAR = 3
 MAX_TEXTO_CHARS_CLASSIFIER = 4000  # defesa em profundidade; classifier trunca igual
 
 
+# CP-D3: classificação automática de reviews ratings-only (sem texto).
+# Não chama Anthropic; usa heurística baseada na nota do Google.
+RATING_PARA_CLASSIFICACAO = {
+    5: ("Pa1", "promotor", 0.4, "Avaliação 5 estrelas sem texto"),
+    4: ("Pa1", "conversivel", 0.3, "Avaliação 4 estrelas sem texto"),
+    3: ("sem_lastro", "inativo", 0.2, "Avaliação 3 estrelas sem texto"),
+    2: ("Pa1", "detrator", 0.3, "Avaliação 2 estrelas sem texto"),
+    1: ("Pa1", "detrator", 0.4, "Avaliação 1 estrela sem texto"),
+}
+
+
 def computar_hash_dedup(texto: str, fonte_id: int, autor: Optional[str]) -> str:
     """Hash determinístico para deduplicação no escopo de uma empresa.
 
@@ -72,35 +83,40 @@ def processar_verbatim_coletado(
     fonte: Fonte,
     data_original: Optional[datetime] = None,
     autor: Optional[str] = None,
+    rating: Optional[int] = None,
+    review_id_externo: Optional[str] = None,
 ) -> Optional[Verbatim]:
     """Processa um verbatim recém-coletado: dedup, classifica e persiste.
 
+    CP-D3: aceita reviews ratings-only (texto vazio + rating). Quando
+    o texto está vazio E há rating, classifica via heurística de rating
+    (``RATING_PARA_CLASSIFICACAO``) sem chamar Anthropic. Quando há
+    ``review_id_externo``, o dedup prioriza esse identificador (mais
+    robusto contra colisão de hash em textos curtos com autor anônimo).
+
     Args:
-        texto: Texto bruto do verbatim (íntegro — não trunque antes de
-            chamar; o pipeline preserva o texto completo na persistência).
-        fonte: Instância ``Fonte`` que originou o verbatim. Atributos
-            usados: ``id``, ``empresa_id``, ``entidade_tipo``,
-            ``entidade_id``, ``conector_tipo``.
-        data_original: Data de criação do conteúdo na fonte. Se ``None``,
-            usa ``datetime.utcnow()``.
+        texto: Texto bruto do verbatim (pode ser vazio se ``rating`` é
+            fornecido — caso ratings-only).
+        fonte: Instância ``Fonte`` que originou o verbatim.
+        data_original: Data de criação do conteúdo na fonte.
         autor: Identificador do autor na fonte (opcional).
+        rating: Nota 1-5 do review (opcional). Necessário se ``texto`` é
+            vazio.
+        review_id_externo: ID único do review no scraper (Apify devolve
+            ``reviewId``). Usado em dedup robusto; opcional.
 
     Returns:
-        ``Verbatim`` persistido (com ``id`` populado) se inserção ocorreu.
-        ``None`` se o texto for muito curto, ou se for duplicado de outro
-        verbatim já existente na mesma empresa.
-
-    Note:
-        Se ``classificar()`` falhar (timeout, rate limit esgotado, JSON
-        inválido, etc.), o verbatim é persistido **sem classificação**
-        (``subpilar/tipo/confianca/prompt_versao = NULL``) e o pipeline
-        segue normalmente. A falha não interrompe a coleta.
+        ``Verbatim`` persistido se inserção ocorreu. ``None`` se foi
+        descartado (texto curto sem rating, ou duplicata).
     """
-    if not texto or len(texto.strip()) < MIN_CHARS_PARA_PROCESSAR:
+    texto_normalizado = (texto or "").strip()
+    tem_texto = len(texto_normalizado) >= MIN_CHARS_PARA_PROCESSAR
+
+    # Sem texto utilizável E sem rating → descarta
+    if not tem_texto and rating is None:
         return None
 
-    # Cache de atributos da fonte ANTES de abrir nova sessão — a Fonte
-    # passada pode estar detached do session do caller.
+    # Cache de atributos da fonte ANTES de abrir nova sessão.
     fonte_id = fonte.id
     empresa_id = fonte.empresa_id
     fonte_conector_tipo = fonte.conector_tipo
@@ -110,57 +126,78 @@ def processar_verbatim_coletado(
     # 1. Atribuição determinística do local
     local_id: Optional[int] = fonte_entidade_id if fonte_entidade_tipo == "local" else None
 
-    # 2. Hash dedup (usa texto íntegro nos 200 primeiros chars)
-    hash_dedup = computar_hash_dedup(texto, fonte_id, autor)
+    # 2. Hash dedup (texto[:200]) + review_id_externo para ratings-only
+    hash_dedup = computar_hash_dedup(texto_normalizado, fonte_id, autor)
 
     with db_session() as session:
-        # 3. Verifica dedup
-        ja_existe = (
-            session.query(Verbatim).filter_by(empresa_id=empresa_id, hash_dedup=hash_dedup).first()
-        )
-        if ja_existe is not None:
-            return None
+        # 3. Dedup robusto: primeiro tenta review_id_externo (mais
+        #    confiável); fallback para hash do texto.
+        if review_id_externo:
+            ja_externo = (
+                session.query(Verbatim)
+                .filter_by(fonte_id=fonte_id, review_id_externo=review_id_externo)
+                .first()
+            )
+            if ja_externo is not None:
+                return None
+        # Hash legacy só faz sentido se há texto
+        if tem_texto:
+            ja_hash = (
+                session.query(Verbatim)
+                .filter_by(empresa_id=empresa_id, hash_dedup=hash_dedup)
+                .first()
+            )
+            if ja_hash is not None:
+                return None
 
         # 4. Resolve empresa para hints contextuais
         empresa = session.get(Empresa, empresa_id)
         empresa_nome = empresa.nome if empresa is not None else None
         empresa_setor = empresa.setor if empresa is not None else None
 
-        # 5. Classifica (com truncamento defesa-em-profundidade)
-        texto_para_classificar = (
-            texto[:MAX_TEXTO_CHARS_CLASSIFIER] if len(texto) > MAX_TEXTO_CHARS_CLASSIFIER else texto
-        )
-
+        # 5. Classifica
         subpilar: Optional[str] = None
         tipo: Optional[str] = None
         confianca: Optional[float] = None
         justificativa: Optional[str] = None
         prompt_versao: Optional[str] = None
 
-        try:
-            resultado = classificar(
-                texto=texto_para_classificar,
-                empresa_nome=empresa_nome,
-                empresa_setor=empresa_setor,
-                fonte_tipo=fonte_conector_tipo,
+        if tem_texto:
+            # Caminho normal: chama Anthropic com texto truncado
+            texto_para_classificar = (
+                texto_normalizado[:MAX_TEXTO_CHARS_CLASSIFIER]
+                if len(texto_normalizado) > MAX_TEXTO_CHARS_CLASSIFIER
+                else texto_normalizado
             )
-            subpilar = resultado.subpilar
-            tipo = resultado.tipo
-            confianca = resultado.confianca
-            justificativa = resultado.justificativa
-            prompt_versao = resultado.prompt_versao
-        except Exception as exc:
-            print(
-                f"[pipeline] erro ao classificar (persistindo sem classificação): "
-                f"{type(exc).__name__}: {exc}"
-            )
+            try:
+                resultado = classificar(
+                    texto=texto_para_classificar,
+                    empresa_nome=empresa_nome,
+                    empresa_setor=empresa_setor,
+                    fonte_tipo=fonte_conector_tipo,
+                )
+                subpilar = resultado.subpilar
+                tipo = resultado.tipo
+                confianca = resultado.confianca
+                justificativa = resultado.justificativa
+                prompt_versao = resultado.prompt_versao
+            except Exception as exc:
+                print(
+                    f"[pipeline] erro ao classificar (persistindo sem classificação): "
+                    f"{type(exc).__name__}: {exc}"
+                )
+        elif rating is not None and rating in RATING_PARA_CLASSIFICACAO:
+            # Caminho ratings-only: heurística por rating, sem token gasto
+            sp, tp, cf, jf = RATING_PARA_CLASSIFICACAO[rating]
+            subpilar, tipo, confianca, justificativa = sp, tp, cf, jf
+            prompt_versao = "rating-heuristica-v1"
 
-        # 6. Persistência (texto INTEGRAL — sem truncar)
+        # 6. Persistência
         verbatim = Verbatim(
             empresa_id=empresa_id,
             local_id=local_id,
             fonte_id=fonte_id,
-            texto=texto,  # íntegro
+            texto=texto_normalizado,  # vazio quando ratings-only
             autor=autor,
             data_criacao_original=data_original or datetime.utcnow(),
             hash_dedup=hash_dedup,
@@ -169,11 +206,12 @@ def processar_verbatim_coletado(
             confianca=confianca,
             justificativa=justificativa,
             prompt_versao=prompt_versao,
+            tem_texto=tem_texto,
+            rating=rating,
+            review_id_externo=review_id_externo,
         )
         session.add(verbatim)
-        session.flush()  # popula verbatim.id e demais defaults
+        session.flush()
 
-        # Detach antes do commit/close — preserva atributos primitivos
-        # acessíveis ao caller sem disparar lazy-load em session fechada.
         session.expunge(verbatim)
         return verbatim
