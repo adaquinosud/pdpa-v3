@@ -123,9 +123,17 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
             autor_raw = (noticia.get("source") or noticia.get("displayedUrl") or "").strip()
             autor: Optional[str] = autor_raw or None
             data_original = _parse_data(noticia.get("date"))
+            # CP-E2: URL da notícia é o id natural — único e estável por notícia.
+            # Dá rastreabilidade e habilita cleanup retroativo quando re-coletado.
+            link_raw = (noticia.get("link") or noticia.get("url") or "").strip()
+            review_id_externo: Optional[str] = link_raw or None
             try:
                 verbatim = processar_verbatim_coletado(
-                    texto=texto, fonte=fonte, data_original=data_original, autor=autor
+                    texto=texto,
+                    fonte=fonte,
+                    data_original=data_original,
+                    autor=autor,
+                    review_id_externo=review_id_externo,
                 )
                 if verbatim is not None:
                     stats["novos"] += 1

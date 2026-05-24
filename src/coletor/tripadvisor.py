@@ -1,6 +1,8 @@
 """Coletor TripAdvisor — PDPA v3.
 
-Reaproveitado de ``pdpa-v2/coletor/tripadvisor.py``. Ator: ``maxcopell/tripadvisor``.
+Reaproveitado de ``pdpa-v2/coletor/tripadvisor.py``. Ator:
+``maxcopell/tripadvisor-reviews`` (renomeado em 2026; antes era
+``maxcopell/tripadvisor`` mas foi descontinuado).
 fonte.url = URL completa do place no TripAdvisor.
 
 Adaptações: sem cloudscraper/Oxylabs fallback; sem CLI; incremental via
@@ -20,7 +22,7 @@ from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
 
 
-ATOR_APIFY = "maxcopell/tripadvisor"
+ATOR_APIFY = "maxcopell/tripadvisor-reviews"
 MAX_REVIEWS_DEFAULT = 500
 APIFY_TIMEOUT_SECONDS = 900
 
@@ -60,7 +62,15 @@ def _extrair_review(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     data_original = _parse_data(
         item.get("publishedDate") or item.get("date") or item.get("createdDate")
     )
-    return {"texto": texto, "autor": autor, "data_original": data_original}
+    # CP-E2: id estável do review no TripAdvisor
+    rid_raw = item.get("id") or item.get("reviewId") or item.get("tripAdvisorReviewId") or ""
+    review_id_externo: Optional[str] = str(rid_raw).strip() or None
+    return {
+        "texto": texto,
+        "autor": autor,
+        "data_original": data_original,
+        "review_id_externo": review_id_externo,
+    }
 
 
 def coletar(fonte: Fonte) -> Dict[str, Any]:
@@ -120,6 +130,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 fonte=fonte,
                 data_original=review["data_original"],
                 autor=review["autor"],
+                review_id_externo=review["review_id_externo"],
             )
             if verbatim is not None:
                 stats["novos"] += 1

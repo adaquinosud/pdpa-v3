@@ -130,9 +130,16 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         c_data = _parse_data(comentario.get("createTimeISO") or comentario.get("createTime"))
         if data_inicio is not None and c_data is not None and c_data.date() < data_inicio.date():
             continue
+        # CP-E2: id estável do comentário no TikTok (cid)
+        cid_raw = comentario.get("cid") or comentario.get("id") or ""
+        review_id_externo = str(cid_raw).strip() or None
         try:
             verbatim = processar_verbatim_coletado(
-                texto=texto, fonte=fonte, data_original=c_data, autor=autor
+                texto=texto,
+                fonte=fonte,
+                data_original=c_data,
+                autor=autor,
+                review_id_externo=review_id_externo,
             )
             if verbatim is not None:
                 stats["novos"] += 1

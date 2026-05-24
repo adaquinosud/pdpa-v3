@@ -117,9 +117,16 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         )
         if data_inicio is not None and c_data is not None and c_data.date() < data_inicio.date():
             continue
+        # CP-E2: id estável da opinião no MercadoLivre
+        rid_raw = review.get("id") or review.get("opinion_id") or review.get("reviewId") or ""
+        review_id_externo = str(rid_raw).strip() or None
         try:
             verbatim = processar_verbatim_coletado(
-                texto=texto, fonte=fonte, data_original=c_data, autor=autor
+                texto=texto,
+                fonte=fonte,
+                data_original=c_data,
+                autor=autor,
+                review_id_externo=review_id_externo,
             )
             if verbatim is not None:
                 stats["novos"] += 1
