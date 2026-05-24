@@ -116,20 +116,36 @@ def test_instagram_passa_review_id_externo_e_searchtype_user(
     assert capturar_chamadas[0]["review_id_externo"] == "ig_c_1"
 
 
-def test_youtube_passa_review_id_externo(fonte_factory, capturar_chamadas, monkeypatch):
+def test_youtube_2step_search_comments_passa_review_id_externo(
+    fonte_factory, capturar_chamadas, monkeypatch
+):
+    """CP-C: youtube agora faz 2 chamadas Apify — search + comments."""
     f = fonte_factory("youtube", "BH Airport")
     from src.coletor import youtube
 
-    fake_videos = [
-        {
-            "uploadDate": "2026-04-01T10:00:00Z",
-            "comments": [
-                {"commentId": "yt_c_1", "text": "bom video", "author": "user"},
-            ],
-        }
-    ]
-    monkeypatch.setattr("src.coletor.youtube.run_and_collect", lambda *a, **k: fake_videos)
+    calls = {"n": 0}
+
+    def fake_run(actor, run_input, **kw):
+        calls["n"] += 1
+        if "comments" in actor.lower():
+            return [
+                {
+                    "commentId": "yt_c_1",
+                    "text": "bom video",
+                    "author": "user",
+                    "publishedAt": "2026-04-02T10:00:00Z",
+                }
+            ]
+        return [
+            {
+                "url": "https://www.youtube.com/watch?v=abc",
+                "uploadDate": "2026-04-01T10:00:00Z",
+            }
+        ]
+
+    monkeypatch.setattr("src.coletor.youtube.run_and_collect", fake_run)
     youtube.coletar(f)
+    assert calls["n"] == 2  # 1 search + 1 comments
     assert capturar_chamadas[0]["review_id_externo"] == "yt_c_1"
 
 
