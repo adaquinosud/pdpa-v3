@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block titulo %}Temas — {{ empresa.nome }}{% endblock %}
+
+{% block sidebar_extra %}
+<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Admin · Empresa</div>
+<div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
+<ul class="mt-2 space-y-1 text-sm">
+  <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
+  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
+  <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Painel</a></li>
+  <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Temas (admin)</a></li>
+</ul>
+{% endblock %}
+
+{% block conteudo %}
+<div class="mb-3 flex items-start justify-between gap-3">
+  <div>
+    <a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="text-sm text-loyall-400 hover:underline">← Painel</a>
+    <h1 class="text-2xl font-semibold mt-1">Catálogo de temas · <span class="text-loyall-400 text-base">{{ temas|length }} temas</span></h1>
+    <p class="text-xs text-loyall-500 mt-1">Curadoria Loyall — temas extraídos automaticamente ou criados manualmente. Sinônimos podem ser consolidados via merge.</p>
+  </div>
+</div>
+
+<form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+  <input name="q" value="{{ filtros.q }}" placeholder="Buscar nome ou slug…"
+         class="md:col-span-2 px-2 py-1.5 border border-loyall-200 rounded">
+  <label class="flex items-center gap-2 text-loyall-700">
+    <input type="checkbox" name="incluir_inativos" value="1" {% if filtros.incluir_inativos %}checked{% endif %}>
+    Incluir inativos
+  </label>
+  <button type="submit" class="px-3 py-1.5 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Aplicar</button>
+</form>
+
+<form id="form-novo-tema" class="bg-loyall-50 border border-loyall-200 rounded p-3 mb-4 flex items-center gap-2 text-sm">
+  <input id="novo-tema-nome" name="nome" placeholder="Novo tema (ex: fila check-in)" required
+         class="flex-1 px-2 py-1.5 border border-loyall-200 rounded">
+  <button type="submit" class="px-3 py-1.5 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded text-xs">+ criar manual</button>
+</form>
+
+<div class="bg-white border border-loyall-200 rounded overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-loyall-50 text-loyall-600 text-xs uppercase tracking-wider">
+      <tr>
+        <th class="text-left px-3 py-2">Nome</th>
+        <th class="text-left px-3 py-2">Slug</th>
+        <th class="text-right px-3 py-2">Volume</th>
+        <th class="text-center px-3 py-2">Status</th>
+        <th class="text-right px-3 py-2">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in temas %}
+      <tr class="border-t border-loyall-100 hover:bg-loyall-50">
+        <td class="px-3 py-1.5">
+          <span class="font-medium text-loyall-800">{{ t.nome }}</span>
+          {% if t.descricao %}<div class="text-xs text-loyall-500">{{ t.descricao }}</div>{% endif %}
+        </td>
+        <td class="px-3 py-1.5"><code class="text-xs text-loyall-600">{{ t.slug }}</code></td>
+        <td class="text-right px-3 py-1.5 font-semibold">{{ t.volume }}</td>
+        <td class="text-center px-3 py-1.5">
+          {% if t.ativo %}
+          <span class="inline-block px-2 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">ativo</span>
+          {% else %}
+          <span class="inline-block px-2 py-0.5 rounded text-xs bg-loyall-200 text-loyall-600">inativo (merged)</span>
+          {% endif %}
+        </td>
+        <td class="text-right px-3 py-1.5">
+          <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?tema_id={{ t.id }}"
+             class="text-xs text-loyall-600 hover:underline mr-3">ver verbatins</a>
+          {% if t.ativo and t.volume > 0 %}
+          <button type="button" onclick="abrirMergeModal({{ t.id }}, '{{ t.nome|e }}')"
+                  class="text-xs text-rose-700 hover:underline">merge…</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="px-3 py-6 text-center text-loyall-400 italic">
+        Nenhum tema. Crie um manual acima ou rode <code class="text-xs bg-loyall-100 px-1 rounded">flask temas-extrair --empresa={{ empresa.id }}</code>.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  // Criação manual
+  document.getElementById('form-novo-tema').onsubmit = async function(e) {
+    e.preventDefault();
+    const nome = document.getElementById('novo-tema-nome').value.trim();
+    if (!nome) return;
+    const r = await fetch("{{ url_for('empresas.criar_tema_manual', empresa_id=empresa.id) }}", {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'same-origin',
+      body: JSON.stringify({nome: nome}),
+    });
+    if (r.status === 201) {
+      window.location.reload();
+    } else {
+      const body = await r.json();
+      alert('Erro: ' + (body.erro || r.status));
+    }
+  };
+
+  // Merge
+  function abrirMergeModal(origem_id, origem_nome) {
+    const destino = prompt(`Merge "${origem_nome}" em qual tema destino?\nDigite o ID do tema destino:`);
+    if (!destino) return;
+    const motivo = prompt('Motivo (opcional):') || '';
+    fetch(`/api/temas/${origem_id}/merge`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'same-origin',
+      body: JSON.stringify({tema_destino_id: parseInt(destino), motivo: motivo}),
+    }).then(r => r.json().then(body => {
+      if (r.ok) {
+        alert(`Merge OK: ${body.vinculacoes_movidas} movidas, ${body.vinculacoes_descartadas} descartadas.`);
+        window.location.reload();
+      } else {
+        alert('Erro: ' + (body.erro || r.status));
+      }
+    }));
+  }
+</script>
+{% endblock %}

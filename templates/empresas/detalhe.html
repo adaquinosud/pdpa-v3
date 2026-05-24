@@ -8,6 +8,9 @@
   <li><a href="#hierarquia" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Cadastro</a></li>
   <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins ({{ stats.total_fontes }} fontes)</a></li>
   <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Painel</a></li>
+  {% if eh_loyall %}
+  <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">Temas (admin)</a></li>
+  {% endif %}
   {% if fontes_empresa %}
   <li><a href="#fontes-empresa" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs ml-3">→ Fontes da empresa ({{ fontes_empresa|length }})</a></li>
   {% endif %}
