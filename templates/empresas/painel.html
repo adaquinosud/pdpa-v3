@@ -101,7 +101,7 @@
       <span class="text-sm text-loyall-400">/ 10</span>
     </div>
     <div class="text-xs text-{{ ig_cls }}-700 mt-1 capitalize">{{ n1.indice_geral_faixa }}</div>
-    <div class="text-xs text-loyall-400 mt-2">média ponderada dos ratios dos 12 subpilares</div>
+    <div class="text-xs text-loyall-400 mt-2">Saúde da relação. Pilar travado puxa o índice todo para baixo.</div>
   </div>
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade</div>
@@ -109,7 +109,7 @@
       <span class="text-3xl font-bold text-loyall-800">{{ '%.0f'|format(n1.previsibilidade) }}</span>
       <span class="text-sm text-loyall-400">/ 100</span>
     </div>
-    <div class="text-xs text-loyall-400 mt-2">homogeneidade da experiência entre subpilares</div>
+    <div class="text-xs text-loyall-400 mt-2">Consistência da experiência entre lojas e meses. Baixa = experiência de loteria.</div>
   </div>
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração de Detratores</div>
@@ -118,10 +118,10 @@
       <span class="text-3xl font-bold text-{{ conc_cls }}-600">{{ '%.0f'|format(n1.concentracao_detratores) }}%</span>
     </div>
     <div class="text-xs text-{{ conc_cls }}-700 mt-1 capitalize">{{ n1.concentracao_faixa }}</div>
-    <div class="text-xs text-loyall-400 mt-2">% detratores das 5 piores lojas</div>
+    <div class="text-xs text-loyall-400 mt-2">Onde dói. Alta = problema cirúrgico em poucas lojas. Baixa = problema sistêmico.</div>
     {% else %}
     <div class="mt-1 text-loyall-300 text-3xl font-bold">—</div>
-    <div class="text-xs text-loyall-400 mt-1">indisponível (precisa ≥ 5 locais com volume)</div>
+    <div class="text-xs text-loyall-400 mt-1">Onde dói. Indisponível: precisa ≥ 5 lojas com volume mínimo.</div>
     {% endif %}
   </div>
 </div>
