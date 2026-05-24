@@ -376,6 +376,62 @@ def detalhe_empresa(empresa_id: int):
 # ── Página de verbatins ─────────────────────────────────────────────────
 
 
+@ui_bp.route("/monitoramento")
+def monitoramento():
+    """Página global de monitoramento de coletas (CP-E)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    from src.api.monitoramento import listar_coletas as api_listar
+
+    # Reusa o endpoint da API para listar
+    resp = api_listar()
+    if isinstance(resp, tuple):
+        return resp
+    body = resp.get_json() or {}
+    execucoes_em_andamento = sum(
+        1 for e in body.get("execucoes", []) if e.get("status") == "rodando"
+    )
+    filtros = {
+        "status": request.args.get("status", ""),
+        "desde_data": request.args.get("desde_data", ""),
+    }
+    return render_template(
+        "monitoramento.html",
+        user=user,
+        eh_loyall=(user.papel == PAPEL_LOYALL),
+        execucoes=body.get("execucoes", []),
+        execucoes_em_andamento=execucoes_em_andamento,
+        filtros=filtros,
+    )
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/coletas-em-andamento")
+def coletas_em_andamento_redirect(empresa_id: int):
+    """Atalho UI -> API JSON usado pelo polling JS na página de detalhe."""
+    from src.api.monitoramento import coletas_em_andamento_da_empresa as h
+
+    return h(empresa_id)
+
+
+@ui_bp.route("/ui/monitoramento/lista")
+def htmx_monitoramento_lista():
+    """Fragment HTML da lista — usado pelo polling HTMX de /monitoramento."""
+    if get_current_user() is None:
+        return ("<div class='text-red-600 text-xs'>Sessão expirada.</div>", 401)
+    from src.api.monitoramento import listar_coletas as api_listar
+
+    resp = api_listar()
+    if isinstance(resp, tuple):
+        return resp
+    body = resp.get_json() or {}
+    return render_template(
+        "partials/monitoramento_lista.html",
+        execucoes=body.get("execucoes", []),
+    )
+
+
 @ui_bp.route("/empresas/<int:empresa_id>/verbatins")
 def verbatins_empresa(empresa_id: int):
     """Página da lista paginada de verbatins de uma empresa."""

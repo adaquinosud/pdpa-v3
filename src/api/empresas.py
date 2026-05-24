@@ -218,6 +218,13 @@ def listar_verbatins_da_empresa(empresa_id: int):
     return h(empresa_id)
 
 
+@empresas_bp.route("/<int:empresa_id>/coletas-em-andamento", methods=["GET"])
+def coletas_em_andamento_da_empresa(empresa_id: int):
+    from src.api.monitoramento import coletas_em_andamento_da_empresa as h
+
+    return h(empresa_id)
+
+
 @empresas_bp.route("/import-cadastro", methods=["POST"])
 @loyall_required
 def import_cadastro():

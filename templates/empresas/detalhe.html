@@ -123,6 +123,37 @@
 {% endif %}
 
 <script>
+  // CP-E: polling de coletas em andamento. Adiciona spinner às fontes
+  // que estão rodando e remove quando terminam.
+  let polagain = true;
+  async function pollColetas() {
+    if (!polagain) return;
+    try {
+      const r = await fetch('{{ url_for("ui.coletas_em_andamento_redirect", empresa_id=empresa.id) }}');
+      if (!r.ok) { polagain = false; return; }
+      const body = await r.json();
+      const rodando = new Set((body.em_andamento || []).map(c => c.fonte_id));
+      document.querySelectorAll('.fonte-item').forEach(el => {
+        const fid = parseInt(el.id.replace('fonte-', ''), 10);
+        const tag = el.querySelector('.coleta-rodando-tag');
+        if (rodando.has(fid)) {
+          if (!tag) {
+            const novo = document.createElement('span');
+            novo.className = 'coleta-rodando-tag inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] ml-2';
+            novo.innerHTML = '<span class="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>coletando';
+            const codeEl = el.querySelector('code');
+            if (codeEl) codeEl.insertAdjacentElement('afterend', novo);
+          }
+        } else if (tag) {
+          tag.remove();
+        }
+      });
+      if (body.total > 0) setTimeout(pollColetas, 5000);
+      else polagain = false;
+    } catch (e) { polagain = false; }
+  }
+  pollColetas();
+
   // Filtros client-side
   function aplicaFiltros() {
     const busca = (document.getElementById('filtro-busca').value || '').trim().toLowerCase();

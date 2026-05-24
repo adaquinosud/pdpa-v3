@@ -48,6 +48,46 @@ Precedência (mesma de antes, agora documentada):
 3. `PDPA_COLETA_DESDE` — override global ou
    `hoje − PDPA_COLETA_JANELA_MESES * 30 dias`
 
+### Tela de cadastro/gestão de usuários (CP-F ou similar)
+
+**Status:** PENDENTE
+**Prazo:** próximo CP do Bloco 4 (ou início do Bloco 5)
+
+Hoje o bootstrap de admin é feito só via CLI ``flask create-admin``
+(introduzido no Bloco 4 CP4). UI de gestão de usuários ainda não existe.
+
+**Funcionalidades necessárias** (todas restritas a ``admin_loyall``):
+
+- Listar usuários (filtros: papel, ativo, empresa).
+- Criar novo: email, nome, senha (com confirmação), papel
+  (``admin_loyall`` | ``cliente_total``), empresa (obrigatória se cliente).
+- Editar usuário (nome, email, papel, empresa).
+- Atribuir empresa para clientes (dropdown das empresas existentes).
+- Desativar/reativar (toggle ``usuarios.ativo``; usuários desativados
+  não logam mas histórico preservado).
+- Reset de senha (gera nova senha temporária, exibe uma vez, força
+  troca no próximo login — ou simplesmente novo hash).
+
+**Endpoints novos sugeridos**:
+- GET /api/usuarios (listar com filtros)
+- POST /api/usuarios (criar)
+- GET /api/usuarios/<id>
+- PUT /api/usuarios/<id>
+- PATCH /api/usuarios/<id>/desativar
+- POST /api/usuarios/<id>/reset-senha
+
+**UI sugerida**:
+- /usuarios (lista com filtros)
+- /usuarios/novo (modal ou página)
+- /usuarios/<id> (edição)
+
+**Considerações de segurança**:
+- Não expor ``senha_hash`` em nenhuma response.
+- Reset de senha gera token único; exibido uma vez.
+- Senhas geradas devem ter ≥ 12 caracteres aleatórios.
+- Log de eventos em ``eventos_manutencao`` (tipo='usuario_criado',
+  'usuario_desativado', 'senha_resetada').
+
 ### CP-D3 — Reviews ratings-only + dedup robusto (CONCLUÍDO Google; pendente nos outros conectores)
 
 **Status:** PARCIAL em 2026-05-24

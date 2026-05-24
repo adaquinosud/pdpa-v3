@@ -9,6 +9,7 @@ from src.models.agrupamento import Agrupamento
 from src.models.anomalia import AnomaliaDetectada
 from src.models.base import Base
 from src.models.classifier_metric import ClassifierMetric
+from src.models.coleta_execucao import ColetaExecucao
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
@@ -23,6 +24,7 @@ __all__ = [
     "AnomaliaDetectada",
     "Base",
     "ClassifierMetric",
+    "ColetaExecucao",
     "Empresa",
     "EventoManutencao",
     "Fonte",

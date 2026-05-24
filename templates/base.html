@@ -63,6 +63,7 @@
         <li><a href="{{ url_for('ui.empresa_nova') }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Nova empresa</a></li>
         <li><a href="{{ url_for('ui.empresa_importar') }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Importar Excel</a></li>
         {% endif %}
+        <li class="pt-2"><a href="{{ url_for('ui.monitoramento') }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs uppercase tracking-wider text-loyall-400">Monitoramento</a></li>
       </ul>
       {% block sidebar_extra %}{% endblock %}
     </aside>

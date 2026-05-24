@@ -126,8 +126,21 @@ def processar_verbatim_coletado(
     # 1. Atribuição determinística do local
     local_id: Optional[int] = fonte_entidade_id if fonte_entidade_tipo == "local" else None
 
-    # 2. Hash dedup (texto[:200]) + review_id_externo para ratings-only
-    hash_dedup = computar_hash_dedup(texto_normalizado, fonte_id, autor)
+    # 2. Hash dedup:
+    #    - Com texto: SHA-256(fonte|autor|texto[:200]) (comportamento legacy).
+    #    - Sem texto (ratings-only): inclui review_id_externo no hash para
+    #      garantir unicidade — sem isso, todos os ratings-only com autor=None
+    #      colidiriam no mesmo hash e UNIQUE(empresa_id, hash_dedup) rejeitaria.
+    if tem_texto:
+        hash_dedup = computar_hash_dedup(texto_normalizado, fonte_id, autor)
+    elif review_id_externo:
+        # Texto sintético = id externo. Hash distinto por review.
+        hash_dedup = computar_hash_dedup(f"rating_only:{review_id_externo}", fonte_id, autor)
+    else:
+        # Sem texto E sem review_id: já rejeitamos acima por (not tem_texto and rating is None);
+        # se chegou aqui é porque tem rating mas sem id — usa rating + data como entropia.
+        ds = (data_original or datetime.utcnow()).isoformat()
+        hash_dedup = computar_hash_dedup(f"rating_only:{rating}:{ds}", fonte_id, autor)
 
     with db_session() as session:
         # 3. Dedup robusto: primeiro tenta review_id_externo (mais
