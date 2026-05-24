@@ -105,7 +105,15 @@ def _extrair_comentarios(post: Dict[str, Any], max_per_post: int) -> Iterator[Di
         autor: Optional[str] = autor_raw or None
         c_timestamp = comentario.get("timestamp")
         data_original = _parse_data(c_timestamp) or post_data
-        yield {"texto": texto, "autor": autor, "data_original": data_original}
+        # CP-E2: id estável do comentário no Instagram
+        cid_raw = comentario.get("id") or comentario.get("commentId") or ""
+        review_id_externo = str(cid_raw).strip() or None
+        yield {
+            "texto": texto,
+            "autor": autor,
+            "data_original": data_original,
+            "review_id_externo": review_id_externo,
+        }
 
 
 # ── API pública ──────────────────────────────────────────────────────────
@@ -152,6 +160,10 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "resultsLimit": MAX_POSTS_DEFAULT,
         "addParentData": False,
         "onlyPostsNewerThan": data_inicio,
+        # CP-E2 Grupo C: o schema do ator apify/instagram-scraper tem
+        # default searchType="hashtag". Sem este override, "bhairport" é
+        # interpretado como #bhairport (vazio). Precisa user para perfil.
+        "searchType": "user",
     }
     print(
         f"[instagram] fonte {fonte_id} (@{username}) onlyPostsNewerThan={data_inicio}, "
@@ -174,6 +186,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                     fonte=fonte,
                     data_original=comentario["data_original"],
                     autor=comentario["autor"],
+                    review_id_externo=comentario["review_id_externo"],
                 )
                 if verbatim is not None:
                     stats["novos"] += 1

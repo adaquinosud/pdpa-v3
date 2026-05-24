@@ -1,7 +1,16 @@
 """Coletor App Store (Google Play + Apple) — PDPA v3.
 
 Reaproveitado de ``pdpa-v2/coletor/appstore.py``. **2 atores Apify** — um
-para Android (``apify/google-play-scraper``), um para iOS (``apify/app-store-scraper``).
+para Android (``agents/googleplay-reviews``), um para iOS
+(``agents/appstore-reviews``).
+
+**Histórico de atores** (CP-C / Grupo C — 2026-05-24):
+
+Os atores originais ``apify/google-play-scraper`` e ``apify/app-store-scraper``
+foram **descontinuados** sem substituto oficial pela Apify. As coletas
+disparadas retornavam ``Apify falhou (record-not-found)`` em <1s. Trocados
+por atores ``agents/*``, da mesma organização para iOS+Android, com
+modelo PAY_PER_EVENT (cobra por review coletado, sem assinatura mensal).
 
 **Convenção fonte.url:**
 
@@ -24,8 +33,8 @@ from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
 
 
-PLAY_ACTOR = "apify/google-play-scraper"
-IOS_ACTOR = "apify/app-store-scraper"
+PLAY_ACTOR = "agents/googleplay-reviews"
+IOS_ACTOR = "agents/appstore-reviews"
 MAX_REVIEWS_DEFAULT = 500
 APIFY_TIMEOUT_SECONDS = 600
 
@@ -57,10 +66,13 @@ def _extrair_review_android(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not texto:
         return None
     autor_raw = (item.get("userName") or item.get("author") or "").strip()
+    # CP-E2: id estável do review no Google Play (agents/googleplay-reviews)
+    rid_raw = item.get("reviewId") or item.get("id") or ""
     return {
         "texto": texto,
         "autor": autor_raw or None,
         "data_original": _parse_data(item.get("date") or item.get("at")),
+        "review_id_externo": str(rid_raw).strip() or None,
     }
 
 
@@ -74,10 +86,13 @@ def _extrair_review_ios(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if titulo:
         texto = f"{titulo}. {texto}"
     autor_raw = (item.get("userName") or item.get("author") or item.get("name") or "").strip()
+    # CP-E2: id estável do review no App Store (agents/appstore-reviews)
+    rid_raw = item.get("id") or item.get("reviewId") or ""
     return {
         "texto": texto,
         "autor": autor_raw or None,
         "data_original": _parse_data(item.get("date") or item.get("updated")),
+        "review_id_externo": str(rid_raw).strip() or None,
     }
 
 
@@ -100,25 +115,33 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     data_inicio_iso = calcular_data_inicio_coleta(fonte_id)
     data_inicio = _parse_data(data_inicio_iso)
 
+    # CP-C Grupo C: input schema dos atores agents/* — usam `appIds`
+    # (array) + `country` + `maxItems` + `until` (data limite).
+    until_iso = data_inicio_iso[:10] if data_inicio_iso else None
+
     if _eh_ios(app_id):
         numeric_id = app_id.lstrip("id")
         ator = IOS_ACTOR
         run_input = {
-            "startUrls": [{"url": f"https://apps.apple.com/br/app/{numeric_id}"}],
-            "maxReviews": MAX_REVIEWS_DEFAULT,
+            "appIds": [numeric_id],
             "country": "br",
+            "maxItems": MAX_REVIEWS_DEFAULT,
         }
+        if until_iso:
+            run_input["until"] = until_iso
         extrator = _extrair_review_ios
         plataforma = "ios"
     else:
         ator = PLAY_ACTOR
         run_input = {
-            "startUrls": [
-                {"url": f"https://play.google.com/store/apps/details?id={app_id}&hl=pt_BR"}
-            ],
-            "maxReviews": MAX_REVIEWS_DEFAULT,
+            "appIds": [app_id],
+            "country": "br",
+            "language": "pt",
             "sort": "newest",
+            "maxItems": MAX_REVIEWS_DEFAULT,
         }
+        if until_iso:
+            run_input["until"] = until_iso
         extrator = _extrair_review_android
         plataforma = "android"
 
@@ -151,6 +174,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 fonte=fonte,
                 data_original=review["data_original"],
                 autor=review["autor"],
+                review_id_externo=review["review_id_externo"],
             )
             if verbatim is not None:
                 stats["novos"] += 1

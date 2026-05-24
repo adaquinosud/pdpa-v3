@@ -90,7 +90,7 @@ Hoje o bootstrap de admin é feito só via CLI ``flask create-admin``
 
 ### CP-D3 — Reviews ratings-only + dedup robusto (CONCLUÍDO Google; pendente nos outros conectores)
 
-**Status:** PARCIAL em 2026-05-24
+**Status:** PARCIAL em 2026-05-24 → **review_id_externo CONCLUÍDO em todos os 10 conectores em 2026-05-24 (Grupo C)**
 
 CP-D3 do Bloco 4 resolveu dois problemas no coletor Google:
 
@@ -111,26 +111,127 @@ CP-D3 do Bloco 4 resolveu dois problemas no coletor Google:
    - Pipeline: dedup hierárquico — primeiro tenta ``review_id_externo``,
      fallback no hash legacy.
 
-**Pendência para outros conectores**: cada coletor deve passar
-``review_id_externo`` no ``processar_verbatim_coletado()`` quando o
-scraper fornecer um id. Mapeamento conhecido:
+**Implementado em 2026-05-24 (Grupo C, PR feature/bloco-4-cpC-fix-conectores)**:
+todos os 10 conectores agora capturam um id estável do scraper e passam
+``review_id_externo`` para o pipeline. Mapeamento final:
 
-| Conector | Campo Apify provável |
+| Conector | Campo Apify usado |
 |---|---|
-| google | ``reviewId`` ✅ implementado |
-| tripadvisor | ``id`` ou ``reviewId`` |
-| instagram | ``commentId`` |
-| facebook | ``commentId`` |
-| youtube | ``commentId`` |
-| linkedin | ``commentId`` |
-| tiktok | ``commentId`` |
-| appstore | ``reviewId`` |
-| mercadolivre | id da opinião |
-| google_news | URL como id natural |
+| google | ``reviewId`` / ``reviewerId`` |
+| tripadvisor | ``id`` / ``reviewId`` / ``tripAdvisorReviewId`` |
+| instagram | ``id`` / ``commentId`` |
+| facebook | ``id`` / ``commentId`` |
+| youtube | ``commentId`` / ``id`` |
+| linkedin | ``urn`` / ``id`` / ``commentId`` (harvestapi) |
+| tiktok | ``cid`` / ``id`` |
+| appstore | ``reviewId`` / ``id`` (Android), ``id`` / ``reviewId`` (iOS) |
+| mercadolivre | ``id`` / ``opinion_id`` / ``reviewId`` |
+| google_news | ``link`` / ``url`` (URL natural da notícia) |
 
-Cada conector é ~5-15 LOC: capturar campo no ``_extrair_*`` + passar
-para ``processar_verbatim_coletado()``. Fallback do hash legacy mantém
-todos os 10 coletores funcionando hoje sem regressão.
+Fallback do hash legacy mantido para itens sem id capturado.
+
+### Classifier — robustez a JSON envolto em markdown fence
+
+**Status:** AVERIGUAR (Bloco 4, prioridade baixa)
+
+Em 2026-05-24 (recoleta CP-E2 da fonte 128 Linx Confins), pelo menos 1
+review em francês causou erro não-fatal:
+
+```
+[pipeline] erro ao classificar (persistindo sem classificação):
+ValueError: Resposta do classificador não é JSON válido:
+'```json\n{\n  "subpilar": "conversivel", ... '
+```
+
+O modelo Claude às vezes responde com JSON envolto em ` ```json ... ``` `
+(markdown code fence) em vez de JSON puro. Resultado: parser
+``json.loads()`` falha → verbatim é persistido sem classificação
+(``subpilar=None, tipo=None``). Não é crítico (o verbatim entra no banco
+e pode ser reclassificado depois), mas reduz o coverage do painel.
+
+**Causas prováveis:**
+1. Verbatim multilíngue/incomum + temperature default → modelo verbose
+2. Prompt não tem `"responda APENAS com JSON puro, sem markdown"` explícito
+   (verificar `src/classifier/classifier_v3.py`)
+
+**Fix proposto:** parser tolerante em `classificar()` — strip de fences
+antes do `json.loads`:
+```python
+if texto_resposta.startswith("```"):
+    texto_resposta = texto_resposta.strip("`").lstrip("json").strip()
+```
+
+Adicionar test específico com mock de resposta com fence.
+
+### Conectores Apify possivelmente quebrados — appstore e linkedin
+
+**Status:** A INVESTIGAR (Bloco 4 Grupo C)
+
+Disparos das fontes 80 (App BH appstore) e 86 (LinkedIn /bh-airport)
+falharam com ``falhou_apify=true`` em **0.7s** cada — tempo curto
+demais para ser scraping real; provável HTTP 404/403 no POST de
+run-actor.
+
+**Atores em uso (hoje):**
+- ``apify/google-play-scraper`` (Android, ``src/coletor/appstore.py``)
+- ``apify/app-store-scraper`` (iOS, ``src/coletor/appstore.py``)
+- ``curious_coder/linkedin-company-scraper`` (``src/coletor/linkedin.py``)
+
+**Hipóteses:**
+1. Atores deprecated/renomeados/removidos da Apify Store
+2. Atores third-party (``curious_coder/...``) saíram do ar — LinkedIn
+   quebra scrapers terceiros regularmente
+3. Atores migraram para modelo paid e token atual não tem assinatura
+
+**Próximo passo:** validar via API Apify (`GET /v2/acts/{id}`) cada um
+dos 3 atores; se 404, achar substituto na Apify Store; se 403/payment,
+documentar e decidir se vale assinar.
+
+### Conector Instagram — devolve 0 itens (RESOLVIDO 2026-05-24)
+
+**Status:** CONCLUÍDO em 2026-05-24 (Grupo C)
+
+Causa raiz: o schema do ator `apify/instagram-scraper` tem default
+`searchType="hashtag"`. Sem override explícito, o ator interpretava
+`bhairport` como `#bhairport` (vazio) em vez de username de perfil.
+
+**Fix:** `instagram.py:155` agora passa explicitamente
+``"searchType": "user"``.
+
+**Limitação residual**: perfis muito inativos (ex: `@bhairport`, último
+post de 2014) podem continuar devolvendo coleta-zero. Não é erro do
+conector — é falta de conteúdo recente. Decisão CP-C: manter fonte 82
+ativa, aceitar 0 verbatins, esperar perfil voltar a postar.
+
+### Atores Apify trocados em 2026-05-24 (CP-C/Grupo C)
+
+Resolução final da pendência "Conectores Apify possivelmente quebrados":
+
+| Conector | Ator antigo | Novo ator | Motivo |
+|---|---|---|---|
+| appstore Android | `apify/google-play-scraper` | `agents/googleplay-reviews` | antigo não existia (record-not-found) |
+| appstore iOS | `apify/app-store-scraper` | `agents/appstore-reviews` | antigo não existia (record-not-found) |
+| tripadvisor | `maxcopell/tripadvisor` | `maxcopell/tripadvisor-reviews` | renomeado pelo dev |
+| linkedin | `curious_coder/linkedin-company-scraper` ($10/mês flat) | `harvestapi/linkedin-company-posts` (PAY_PER_EVENT ~$0.002/comentário) | troca pago→pago-por-uso |
+
+### Conectores ausentes — glassdoor e indeed
+
+**Status:** PENDENTE (CP-F ou similar)
+
+Mapeamento PDPA prevê fontes ``glassdoor`` e ``indeed`` (presentes na
+tabela ``fontes`` como ``conector_tipo``), mas **não há
+``src/coletor/glassdoor.py`` nem ``src/coletor/indeed.py``** no código
+atual. Atores Apify candidatos já validados:
+
+| Conector | Ator candidato | Pricing | Runs totais |
+|---|---|---|---|
+| glassdoor | (a definir — `apify/glassdoor-jobs-scraper` não existe) | — | — |
+| indeed | `borderline/indeed-scraper` | PAY_PER_EVENT | 614k |
+
+Fontes 132 (BH Airport empregador, linkedin), 133 (BH Airport empregador,
+glassdoor — INATIVA), 134 (BH Airport empregador, indeed — INATIVA)
+estão cadastradas no banco mas as duas últimas são inativas por falta
+de coletor. Reativar quando os módulos forem implementados.
 
 ### MEC 2 — CLI flask retencao-aplicar (CONCLUÍDO)
 

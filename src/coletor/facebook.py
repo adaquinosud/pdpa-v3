@@ -116,7 +116,16 @@ def _extrair_comentarios(
         if data_inicio is not None and c_data is not None and c_data.date() < data_inicio.date():
             continue
 
-        yield {"texto": texto, "autor": autor, "data_original": c_data}
+        # CP-E2: id estável do comentário no Facebook (Apify retorna id/commentId)
+        cid_raw = comentario.get("id") or comentario.get("commentId") or ""
+        review_id_externo = str(cid_raw).strip() or None
+
+        yield {
+            "texto": texto,
+            "autor": autor,
+            "data_original": c_data,
+            "review_id_externo": review_id_externo,
+        }
 
 
 def coletar(fonte: Fonte) -> Dict[str, Any]:
@@ -173,6 +182,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                     fonte=fonte,
                     data_original=comentario["data_original"],
                     autor=comentario["autor"],
+                    review_id_externo=comentario["review_id_externo"],
                 )
                 if verbatim is not None:
                     stats["novos"] += 1
