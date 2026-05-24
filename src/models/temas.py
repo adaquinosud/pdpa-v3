@@ -1,11 +1,33 @@
-"""Modelos TemaCache e TemaCruzamento."""
+"""Modelos de temas — catálogo curado (B6) + cache agregado (Bloco antigo).
+
+Coabitam neste arquivo duas estruturas distintas:
+
+1. ``Tema`` / ``VerbatimTema`` / ``TemaMerge`` (Bloco 6 CP-1):
+   catálogo de etiquetas por empresa + vinculação verbatim×tema + log
+   de merges. É a estrutura **canônica** para o Nível 3 do PDPA.
+
+2. ``TemaCache`` / ``TemaCruzamento`` (Bloco 1 — schema pré-criado):
+   tabelas de cache agregado por subpilar/tipo/agrupamento e
+   cruzamentos (Nível 4). Vazias por enquanto; serão preenchidas em
+   blocos futuros (CP-F / Bloco 7) via job de agregação.
+"""
 
 from __future__ import annotations
 
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -13,6 +35,105 @@ from src.models.base import Base
 if TYPE_CHECKING:
     from src.models.agrupamento import Agrupamento
     from src.models.empresa import Empresa
+    from src.models.usuario import Usuario
+    from src.models.verbatim import Verbatim
+
+
+# ── Catálogo curado (Bloco 6 CP-1) ────────────────────────────────────
+
+
+class Tema(Base):
+    """Catálogo de temas por empresa.
+
+    O ``slug`` é normalizado (lowercase + hifens) e único no escopo da
+    empresa. Lookup do extrator deve usar ``slug`` para evitar
+    fragmentar "Fila check-in" / "fila check-in" / "Fila Check-In".
+    """
+
+    __tablename__ = "temas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("empresas.id", ondelete="CASCADE"), nullable=False
+    )
+    nome: Mapped[str] = mapped_column(String, nullable=False)
+    slug: Mapped[str] = mapped_column(String, nullable=False)
+    descricao: Mapped[Optional[str]] = mapped_column(Text)
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    criado_por: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+
+    __table_args__ = (UniqueConstraint("empresa_id", "slug", name="uq_temas_empresa_slug"),)
+
+    empresa: Mapped["Empresa"] = relationship("Empresa")
+    autor: Mapped[Optional["Usuario"]] = relationship("Usuario", foreign_keys=[criado_por])
+
+    def __repr__(self) -> str:
+        return f"<Tema id={self.id} {self.slug!r} empresa={self.empresa_id}>"
+
+
+class VerbatimTema(Base):
+    """Vínculo entre verbatim e tema (até 3 por verbatim em geral).
+
+    UNIQUE(verbatim_id, tema_id) garante idempotência: extrator pode
+    rodar 2x sem duplicar.
+    """
+
+    __tablename__ = "verbatim_temas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    verbatim_id: Mapped[int] = mapped_column(
+        ForeignKey("verbatins.id", ondelete="CASCADE"), nullable=False
+    )
+    tema_id: Mapped[int] = mapped_column(ForeignKey("temas.id", ondelete="CASCADE"), nullable=False)
+    confianca: Mapped[float] = mapped_column(Float, nullable=False)
+    origem: Mapped[str] = mapped_column(String, nullable=False)
+    evidencia_curta: Mapped[Optional[str]] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("verbatim_id", "tema_id", name="uq_verbatim_temas_par"),)
+
+    verbatim: Mapped["Verbatim"] = relationship("Verbatim")
+    tema: Mapped["Tema"] = relationship("Tema")
+
+    def __repr__(self) -> str:
+        return f"<VerbatimTema v={self.verbatim_id} t={self.tema_id} conf={self.confianca:.2f}>"
+
+
+class TemaMerge(Base):
+    """Log permanente de operações de merge entre temas.
+
+    Não pode ser deletada — preserva rastro editorial para auditoria.
+    Após um merge, o tema origem fica ``ativo=0`` (preservado) e suas
+    vinculações em verbatim_temas são re-apontadas para o destino.
+    """
+
+    __tablename__ = "temas_merges"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tema_origem_id: Mapped[int] = mapped_column(
+        ForeignKey("temas.id", ondelete="CASCADE"), nullable=False
+    )
+    tema_destino_id: Mapped[int] = mapped_column(
+        ForeignKey("temas.id", ondelete="CASCADE"), nullable=False
+    )
+    motivo: Mapped[Optional[str]] = mapped_column(Text)
+    executado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    executado_por: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL")
+    )
+
+    tema_origem: Mapped["Tema"] = relationship("Tema", foreign_keys=[tema_origem_id])
+    tema_destino: Mapped["Tema"] = relationship("Tema", foreign_keys=[tema_destino_id])
+    autor: Mapped[Optional["Usuario"]] = relationship("Usuario", foreign_keys=[executado_por])
+
+    def __repr__(self) -> str:
+        return f"<TemaMerge {self.tema_origem_id}→{self.tema_destino_id}>"
+
+
+# ── Cache agregado (schema antigo, vazio por enquanto) ────────────────
 
 
 class TemaCache(Base):

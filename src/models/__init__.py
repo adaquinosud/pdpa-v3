@@ -14,7 +14,7 @@ from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
 from src.models.local import Local, LocalMetadado
-from src.models.temas import TemaCache, TemaCruzamento
+from src.models.temas import Tema, TemaCache, TemaCruzamento, TemaMerge, VerbatimTema
 from src.models.usuario import Usuario
 from src.models.verbatim import Verbatim
 from src.models.verbatim_reclassificacao import VerbatimReclassificacao
@@ -30,8 +30,11 @@ __all__ = [
     "Fonte",
     "Local",
     "LocalMetadado",
+    "Tema",
     "TemaCache",
     "TemaCruzamento",
+    "TemaMerge",
+    "VerbatimTema",
     "Usuario",
     "Verbatim",
     "VerbatimReclassificacao",
