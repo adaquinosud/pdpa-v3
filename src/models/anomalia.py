@@ -38,6 +38,12 @@ class AnomaliaDetectada(Base):
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
     revisada_em: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    # B5 ext. CP-4: validação editorial tripartite (Manual Cap. 8).
+    # estado_validacao: pendente | confirmado | falso_positivo | em_investigacao.
+    # nota_editorial: texto livre do validador (distinto de leitura_editorial
+    # gerada por LLM).
+    estado_validacao: Mapped[Optional[str]] = mapped_column(String, default="pendente")
+    nota_editorial: Mapped[Optional[str]] = mapped_column(Text)
 
     empresa: Mapped["Empresa"] = relationship("Empresa")
     local: Mapped["Local"] = relationship("Local")

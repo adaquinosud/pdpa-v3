@@ -138,6 +138,159 @@ def faixa_ratio(ratio: float) -> str:
     return "excelente"
 
 
+# ── Métricas consolidadas (Manual Cap. 4) ─────────────────────────────
+
+
+def calcular_indice_geral(matriz_subpilares: List[Dict[str, Any]]) -> float:
+    """Índice Geral (escala 0-10) conforme Manual Cap. 4.
+
+    Média ponderada dos ratios dos 12 subpilares, peso = volume de cada
+    subpilar. Normalização: ratio 5 ≈ nota 10, ratio 0 ≈ nota 0.
+
+    Manual prescreve média "normalizada e ajustada por volume". Adotamos:
+    - Soma de (ratio_subpilar × total_subpilar) ÷ soma dos totais.
+    - Multiplica por 2 e capeia em 10 (ratio 5 = excelente do faixa_ratio
+      → nota 10).
+
+    Retorna 0.0 quando não há volume.
+    """
+    total_volume = sum(c.get("total", 0) for c in matriz_subpilares)
+    if total_volume == 0:
+        return 0.0
+    soma_ponderada = sum(c.get("ratio", 0.0) * c.get("total", 0) for c in matriz_subpilares)
+    ratio_medio_ponderado = soma_ponderada / total_volume
+    return round(min(10.0, ratio_medio_ponderado * 2.0), 2)
+
+
+def faixa_indice_geral(indice: float) -> str:
+    """Faixa do Índice Geral (Manual Cap. 4): ≥7 saudavel, 5-7 atencao, <5 critico."""
+    if indice >= 7.0:
+        return "saudavel"
+    if indice >= 5.0:
+        return "atencao"
+    return "critico"
+
+
+def calcular_previsibilidade(matriz_subpilares: List[Dict[str, Any]]) -> float:
+    """Previsibilidade (escala 0-100) conforme Manual Cap. 4.
+
+    Fórmula: ``1 − (desvio padrão dos ratios / média dos ratios)`` × 100,
+    clampada em [0, 100]. Considera apenas subpilares com volume > 0
+    (zerar evita inflar com 9 subpilares vazios = 0).
+
+    Empresas com previsibilidade alta = clientes sabem o que esperar.
+    Baixa = experiência de loteria entre lojas/períodos.
+    """
+    ratios = [c["ratio"] for c in matriz_subpilares if c.get("total", 0) > 0]
+    if len(ratios) < 2:
+        return 0.0  # sem variância calculável
+    media = sum(ratios) / len(ratios)
+    if media == 0:
+        return 0.0
+    variancia = sum((r - media) ** 2 for r in ratios) / len(ratios)
+    desvio = variancia**0.5
+    bruto = (1 - desvio / media) * 100
+    return round(max(0.0, min(100.0, bruto)), 1)
+
+
+def calcular_concentracao_detratores(
+    empresa_id: int, s, base_query_args: Dict[str, Any]
+) -> Optional[float]:
+    """Concentração de Detratores (%) conforme Manual Cap. 4.
+
+    Ranqueia locais ascendentemente por ratio (piores primeiro). Soma os
+    detratores das 5 piores lojas e divide pelo total de detratores da
+    empresa, em %.
+
+    Devolve ``None`` se a empresa não tem locais suficientes para
+    interpretação (>0 mas <5 locais com volume — métrica perde sentido).
+
+    > 60% = cirúrgico (poucas lojas concentram o problema).
+    < 30% = sistêmico (distribuído, processo central).
+    """
+    # Agrega por local: total de promotores e detratores em verbatins
+    # da empresa (com filtros do painel ja aplicados via base_query).
+    q = (
+        s.query(
+            Verbatim.local_id,
+            Verbatim.tipo,
+            func.count(Verbatim.id),
+        )
+        .filter(Verbatim.empresa_id == empresa_id)
+        .filter(Verbatim.local_id.isnot(None))
+        .group_by(Verbatim.local_id, Verbatim.tipo)
+    )
+
+    # Aplica filtros opcionais que vieram do request (mesma assinatura
+    # de _aplicar_filtros, mas tem que ser inline aqui pra não duplicar)
+    if base_query_args.get("agrupamento_id"):
+        try:
+            ag_id = int(base_query_args["agrupamento_id"])
+            locais_do_ag = [
+                lid
+                for (lid,) in s.query(Local.id)
+                .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+                .all()
+            ]
+            q = q.filter(Verbatim.local_id.in_(locais_do_ag or [-1]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("local_id"):
+        try:
+            q = q.filter(Verbatim.local_id == int(base_query_args["local_id"]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("fonte_id"):
+        try:
+            q = q.filter(Verbatim.fonte_id == int(base_query_args["fonte_id"]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("data_inicio_periodo"):
+        q = q.filter(Verbatim.data_criacao_original >= base_query_args["data_inicio_periodo"])
+
+    rows = q.all()
+
+    # Constrói (local_id → {promotor, detrator, total})
+    por_local: Dict[int, Dict[str, int]] = {}
+    for local_id, tipo, qtd in rows:
+        d = por_local.setdefault(local_id, {"promotor": 0, "detrator": 0, "total": 0})
+        d["total"] += qtd
+        if tipo in d:
+            d[tipo] += qtd
+
+    locais_com_volume = [(lid, d) for lid, d in por_local.items() if d["total"] > 0]
+    total_locais = len(locais_com_volume)
+    total_detratores = sum(d["detrator"] for _, d in locais_com_volume)
+    if total_locais < 5 or total_detratores == 0:
+        return None
+
+    # Ranqueia ascendentemente por ratio (piores primeiro)
+    def _ratio(d: Dict[str, int]) -> float:
+        return calcular_ratio(d["promotor"], d["detrator"])
+
+    locais_com_volume.sort(key=lambda x: _ratio(x[1]))
+    piores_5 = locais_com_volume[:5]
+    detratores_top5 = sum(d["detrator"] for _, d in piores_5)
+    return round(100.0 * detratores_top5 / total_detratores, 1)
+
+
+def faixa_concentracao(pct: Optional[float]) -> str:
+    """Faixa da Concentração de Detratores (Manual Cap. 4).
+
+    - > 60%: cirurgico (intervenção em poucas lojas resolve)
+    - 30-60%: misto
+    - < 30%: sistemico (processo central precisa revisão)
+    - None: indisponivel (< 5 locais com volume, ou zero detratores)
+    """
+    if pct is None:
+        return "indisponivel"
+    if pct > 60.0:
+        return "cirurgico"
+    if pct >= 30.0:
+        return "misto"
+    return "sistemico"
+
+
 # ── Filtros (subset dos da listagem de verbatins) ─────────────────────
 
 
@@ -227,7 +380,7 @@ def _filtros_efetivos() -> Dict[str, Any]:
 
 @cliente_pode_ver_empresa("empresa_id")
 def painel_nivel1(empresa_id: int):
-    """Totais por pilar (P, D, Pa, A), com breakdown por tipo."""
+    """Totais por pilar (P, D, Pa, A) + métricas consolidadas (Cap. 4)."""
     with db_session() as s:
         q = s.query(
             Verbatim.subpilar,
@@ -240,25 +393,54 @@ def painel_nivel1(empresa_id: int):
         q = q.group_by(Verbatim.subpilar, Verbatim.tipo)
         rows = q.all()
 
-    # Agrega por pilar
-    pilares_agg: Dict[str, Dict[str, int]] = {
-        p: {"total": 0, "promotor": 0, "conversivel": 0, "detrator": 0, "inativo": 0}
-        for p in PILARES_ORDEM
-    }
-    outros = {"sem_lastro": 0, "sem_classificacao": 0}
-    total_geral = 0
+        # Agrega por pilar e também monta a matriz por subpilar
+        # (mesma estrutura do nivel2) para alimentar Índice/Previsibilidade.
+        pilares_agg: Dict[str, Dict[str, int]] = {
+            p: {"total": 0, "promotor": 0, "conversivel": 0, "detrator": 0, "inativo": 0}
+            for p in PILARES_ORDEM
+        }
+        subpilares_agg: Dict[str, Dict[str, int]] = {
+            sp: {"promotor": 0, "conversivel": 0, "detrator": 0, "inativo": 0, "total": 0}
+            for sp in SUBPILARES_ORDEM
+        }
+        outros = {"sem_lastro": 0, "sem_classificacao": 0}
+        total_geral = 0
 
-    for subpilar, tipo, qtd in rows:
-        total_geral += qtd
-        if subpilar in PILAR_DE_SUBPILAR:
-            pilar = PILAR_DE_SUBPILAR[subpilar]
-            pilares_agg[pilar]["total"] += qtd
-            if tipo in pilares_agg[pilar]:
-                pilares_agg[pilar][tipo] += qtd
-        elif subpilar == "sem_lastro":
-            outros["sem_lastro"] += qtd
-        else:
-            outros["sem_classificacao"] += qtd
+        for subpilar, tipo, qtd in rows:
+            total_geral += qtd
+            if subpilar in PILAR_DE_SUBPILAR:
+                pilar = PILAR_DE_SUBPILAR[subpilar]
+                pilares_agg[pilar]["total"] += qtd
+                if tipo in pilares_agg[pilar]:
+                    pilares_agg[pilar][tipo] += qtd
+                subpilares_agg[subpilar]["total"] += qtd
+                if tipo in subpilares_agg[subpilar]:
+                    subpilares_agg[subpilar][tipo] += qtd
+            elif subpilar == "sem_lastro":
+                outros["sem_lastro"] += qtd
+            else:
+                outros["sem_classificacao"] += qtd
+
+        # Constrói matriz com ratios para alimentar as 3 métricas.
+        matriz_para_metricas: List[Dict[str, Any]] = []
+        for sp in SUBPILARES_ORDEM:
+            cell = subpilares_agg[sp]
+            ratio = calcular_ratio(cell["promotor"], cell["detrator"])
+            matriz_para_metricas.append({**cell, "subpilar": sp, "ratio": ratio})
+
+        # Resolve data_inicio_periodo para reusar em concentracao
+        periodo_arg = request.args.get("periodo")
+        data_inicio_periodo = _resolver_periodo(periodo_arg) if periodo_arg else None
+        concentracao_pct = calcular_concentracao_detratores(
+            empresa_id,
+            s,
+            {
+                "agrupamento_id": request.args.get("agrupamento_id"),
+                "local_id": request.args.get("local_id"),
+                "fonte_id": request.args.get("fonte_id"),
+                "data_inicio_periodo": data_inicio_periodo,
+            },
+        )
 
     pilares: List[Dict[str, Any]] = []
     for p in PILARES_ORDEM:
@@ -278,6 +460,9 @@ def painel_nivel1(empresa_id: int):
             }
         )
 
+    indice_geral = calcular_indice_geral(matriz_para_metricas)
+    previsibilidade = calcular_previsibilidade(matriz_para_metricas)
+
     return jsonify(
         {
             "empresa_id": empresa_id,
@@ -285,6 +470,12 @@ def painel_nivel1(empresa_id: int):
             "total_verbatins": total_geral,
             "pilares": pilares,
             "outros": outros,
+            # B5 ext. CP-3: métricas consolidadas (Manual Cap. 4)
+            "indice_geral": indice_geral,
+            "indice_geral_faixa": faixa_indice_geral(indice_geral),
+            "previsibilidade": previsibilidade,
+            "concentracao_detratores": concentracao_pct,
+            "concentracao_faixa": faixa_concentracao(concentracao_pct),
         }
     )
 
@@ -363,6 +554,27 @@ def painel_nivel2(empresa_id: int):
             "sem_classificacao": sem_classif_agg,
         }
     )
+
+
+# ── Leitura textual sequencial (Bloco 5 ext. CP-5) ────────────────────
+
+
+@cliente_pode_ver_empresa("empresa_id")
+def painel_leitura(empresa_id: int):
+    """Leitura textual sequencial via Sonnet (Manual Cap. 3).
+
+    Chama painel_nivel1 internamente para obter o estado atual, depois
+    pede ao Sonnet para interpretar em 2-3 frases. Carregado async no
+    UI para não atrasar o painel principal.
+    """
+    from src.api.painel_leitura import gerar_leitura_sequencial
+
+    resp_n1 = painel_nivel1(empresa_id)
+    if isinstance(resp_n1, tuple):
+        return resp_n1  # propaga erro (400/403)
+    n1 = resp_n1.get_json()
+    leitura = gerar_leitura_sequencial(n1 or {})
+    return jsonify({"empresa_id": empresa_id, "leitura": leitura})
 
 
 # ── Exportar XLSX (Bloco 5 CP-3) ──────────────────────────────────────

@@ -144,3 +144,44 @@ def test_cascade_delete_empresa_para_locais(db_session):
 
     sobrando = db_session.query(Local).filter_by(empresa_id=empresa_id).count()
     assert sobrando == 0, "Locais ficaram órfãos — PRAGMA foreign_keys provavelmente OFF"
+
+
+def test_anomalia_validacao_editorial_schema(db_session):
+    """B5 ext. CP-4: schema anomalias_detectadas tem estado_validacao
+    tripartite + nota_editorial (Manual Cap. 8)."""
+    from src.models.anomalia import AnomaliaDetectada
+
+    e = Empresa(nome="EAnom")
+    e.locais = [Local(nome="LAnom")]
+    db_session.add(e)
+    db_session.commit()
+    loc = e.locais[0]
+
+    # Default estado_validacao = pendente
+    a = AnomaliaDetectada(
+        empresa_id=e.id,
+        local_id=loc.id,
+        severidade="critica",
+        score_temporal=80.0,
+        score_cross_sectional=60.0,
+    )
+    db_session.add(a)
+    db_session.commit()
+    db_session.refresh(a)
+    assert a.estado_validacao == "pendente"
+    assert a.nota_editorial is None
+
+    # Valor terminal aceito
+    a.estado_validacao = "confirmado"
+    a.nota_editorial = "Confirmado: Pa1 + D1 zerados, padrão operacional."
+    db_session.commit()
+    db_session.refresh(a)
+    assert a.estado_validacao == "confirmado"
+    assert "Pa1" in a.nota_editorial
+
+
+# Nota: CHECK constraint do estado_validacao (migration 018) só existe no
+# SQL real. O conftest usa Base.metadata.create_all(), que constrói o
+# schema a partir dos modelos SQLAlchemy — onde só String é declarado.
+# Validação em runtime fica na UI/serializer da feature do bloco
+# Monitoramento ML futuro.

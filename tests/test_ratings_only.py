@@ -140,7 +140,8 @@ def test_ratings_only_persiste_sem_chamar_classifier(fonte_t, db_session, monkey
     [
         (5, "Pa1", "promotor"),
         (4, "Pa1", "conversivel"),
-        (3, "sem_lastro", "inativo"),
+        # B5 ext. CP-1: 3★ saiu de (sem_lastro, inativo) → (Pa1, conversivel)
+        (3, "Pa1", "conversivel"),
         (2, "Pa1", "detrator"),
         (1, "Pa1", "detrator"),
     ],
@@ -571,8 +572,13 @@ def test_rating_para_classificacao_tem_5_chaves():
     assert set(RATING_PARA_CLASSIFICACAO.keys()) == {1, 2, 3, 4, 5}
 
 
-def test_rating_3_eh_sem_lastro_inativo():
-    """rating=3 vai pra sem_lastro/inativo (restrição rígida do classifier)."""
+def test_rating_3_eh_pa1_conversivel():
+    """B5 ext. CP-1: rating=3 vai para Pa1/conversivel (neutro com ancoragem).
+
+    Antes era sem_lastro/inativo; Manual Cap. 2 explicita que sem_lastro é
+    'sem ancoragem identificável'. 3★ tem ancoragem no atendimento, só não
+    tem valência clara — vira conversível.
+    """
     sp, tp, _cf, _jf = RATING_PARA_CLASSIFICACAO[3]
-    assert sp == "sem_lastro"
-    assert tp == "inativo"
+    assert sp == "Pa1"
+    assert tp == "conversivel"

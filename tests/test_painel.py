@@ -394,6 +394,203 @@ def test_painel_nivel1_inclui_ratio_e_faixa(client_loyall, db_session):
     assert p["faixa"] == "critico"
 
 
+def test_ui_painel_link_sem_classificacao_clicavel(client_loyall, db_session):
+    """B5 ext. CP-2: ao ter verbatins sem classificação, o painel
+    renderiza link clicável para /verbatins?sem_classificacao=1.
+    """
+    ctx = _empresa_estrutura(client_loyall)
+    # 1 verbatim sem_lastro e 1 sem classificação (subpilar NULL)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="sl",
+        subpilar="sem_lastro",
+        tipo="inativo",
+    )
+    v_nc = Verbatim(
+        empresa_id=ctx["e"]["id"],
+        fonte_id=ctx["f"]["id"],
+        local_id=ctx["loc"]["id"],
+        texto="nc",
+        data_criacao_original=datetime.utcnow(),
+        hash_dedup="hash-nc-painel",
+        subpilar=None,
+        tipo=None,
+    )
+    db_session.add(v_nc)
+    db_session.commit()
+
+    r = client_loyall.get(f"/empresas/{ctx['e']['id']}/painel")
+    html = r.data.decode()
+    # Link no resumo "Fora dos 4 pilares"
+    assert "sem_classificacao=1" in html
+    # Linha da matriz e resumo ambas devem ter o link
+    occurrences = html.count("sem_classificacao=1")
+    assert occurrences >= 2, f"esperava >=2 links, obtido {occurrences}"
+    # Link sem_lastro continua funcionando
+    assert "subpilar=sem_lastro" in html
+
+
+# ── B5 ext. CP-3: Índice Geral / Previsibilidade / Concentração ──────
+
+
+def test_calcular_indice_geral_sem_volume():
+    from src.api.painel import calcular_indice_geral
+
+    assert calcular_indice_geral([]) == 0.0
+    assert calcular_indice_geral([{"total": 0, "ratio": 5.0}]) == 0.0
+
+
+def test_calcular_indice_geral_ratio5_da_nota_10():
+    """Ratio médio ponderado 5 → nota 10 (saturação)."""
+    from src.api.painel import calcular_indice_geral
+
+    matriz = [{"total": 100, "ratio": 5.0}, {"total": 100, "ratio": 5.0}]
+    assert calcular_indice_geral(matriz) == 10.0
+
+
+def test_calcular_indice_geral_ratio_misto():
+    """Ponderação por volume."""
+    from src.api.painel import calcular_indice_geral
+
+    # 80 ratio=3.0 + 20 ratio=1.0 → ratio médio ponderado = (240+20)/100 = 2.6 → nota 5.2
+    matriz = [{"total": 80, "ratio": 3.0}, {"total": 20, "ratio": 1.0}]
+    assert calcular_indice_geral(matriz) == 5.2
+
+
+def test_faixa_indice_geral():
+    from src.api.painel import faixa_indice_geral
+
+    assert faixa_indice_geral(7.5) == "saudavel"
+    assert faixa_indice_geral(7.0) == "saudavel"
+    assert faixa_indice_geral(6.0) == "atencao"
+    assert faixa_indice_geral(5.0) == "atencao"
+    assert faixa_indice_geral(4.99) == "critico"
+    assert faixa_indice_geral(0.0) == "critico"
+
+
+def test_calcular_previsibilidade_uniforme_da_100():
+    """Todos ratios iguais → desvio = 0 → previsibilidade = 100."""
+    from src.api.painel import calcular_previsibilidade
+
+    matriz = [{"total": 10, "ratio": 2.5}, {"total": 10, "ratio": 2.5}, {"total": 10, "ratio": 2.5}]
+    assert calcular_previsibilidade(matriz) == 100.0
+
+
+def test_calcular_previsibilidade_dispersao_zera():
+    """Ratios muito dispersos → previsibilidade baixa/zero."""
+    from src.api.painel import calcular_previsibilidade
+
+    matriz = [{"total": 10, "ratio": 0.0}, {"total": 10, "ratio": 9.0}]
+    # média=4.5, desvio=4.5, ratio_var=1.0 → (1-1)*100 = 0
+    assert calcular_previsibilidade(matriz) == 0.0
+
+
+def test_calcular_previsibilidade_subpilares_sem_volume_ignorados():
+    """Subpilares com total=0 não entram no cálculo."""
+    from src.api.painel import calcular_previsibilidade
+
+    matriz = [
+        {"total": 0, "ratio": 0.0},
+        {"total": 0, "ratio": 0.0},
+        {"total": 10, "ratio": 2.5},
+        {"total": 10, "ratio": 2.5},
+    ]
+    # só os 2 com volume contam → uniformes → 100
+    assert calcular_previsibilidade(matriz) == 100.0
+
+
+def test_painel_nivel1_inclui_indice_previsibilidade_concentracao(client_loyall, db_session):
+    ctx = _empresa_estrutura(client_loyall)
+    # 10 verbatins Pa1 promotor + 5 D2 detrator
+    for i in range(10):
+        _criar_verbatim(
+            db_session,
+            ctx["e"]["id"],
+            ctx["f"]["id"],
+            ctx["loc"]["id"],
+            texto=f"p{i}",
+            subpilar="Pa1",
+            tipo="promotor",
+        )
+    for i in range(5):
+        _criar_verbatim(
+            db_session,
+            ctx["e"]["id"],
+            ctx["f"]["id"],
+            ctx["loc"]["id"],
+            texto=f"d{i}",
+            subpilar="D2",
+            tipo="detrator",
+        )
+    body = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/painel/nivel1").get_json()
+    assert "indice_geral" in body
+    assert "previsibilidade" in body
+    assert "concentracao_detratores" in body
+    assert "indice_geral_faixa" in body
+    # Concentração precisa ≥5 locais; só 1 local aqui → None
+    assert body["concentracao_detratores"] is None
+    assert body["concentracao_faixa"] == "indisponivel"
+
+
+def test_painel_nivel1_concentracao_calcula_com_5_locais(client_loyall, db_session):
+    """Concentração só calcula quando há ≥ 5 locais com volume."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "EConc"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "AC"}).get_json()
+    # 5 locais, cada um com 1 promotor + 1 detrator → ratio 1.0 em todos
+    for i in range(5):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais",
+            json={"nome": f"L{i}", "agrupamento_id": a["id"]},
+        ).get_json()
+        f_ = client_loyall.post(
+            f"/api/locais/{loc['id']}/fontes",
+            json={"conector_tipo": "google", "url": f"ChIJ_c_{i}"},
+        ).get_json()
+        _criar_verbatim(
+            db_session,
+            e["id"],
+            f_["id"],
+            loc["id"],
+            texto=f"p{i}",
+            subpilar="Pa1",
+            tipo="promotor",
+        )
+        _criar_verbatim(
+            db_session,
+            e["id"],
+            f_["id"],
+            loc["id"],
+            texto=f"d{i}",
+            subpilar="Pa1",
+            tipo="detrator",
+        )
+    body = client_loyall.get(f"/api/empresas/{e['id']}/painel/nivel1").get_json()
+    # 5 detratores total, 5 nas piores 5 lojas → 100%
+    assert body["concentracao_detratores"] == 100.0
+
+
+def test_ui_painel_3_cards_metricas_consolidadas(client_loyall, db_session):
+    """B5 ext. CP-3: 3 cards no topo do painel (Índice/Previsibilidade/Concentração)."""
+    ctx = _empresa_estrutura(client_loyall)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="p",
+        subpilar="Pa1",
+        tipo="promotor",
+    )
+    r = client_loyall.get(f"/empresas/{ctx['e']['id']}/painel")
+    html = r.data.decode()
+    assert "Índice Geral" in html
+    assert "Previsibilidade" in html
+    assert "Concentração de Detratores" in html
+
+
 def test_painel_cliente_de_outra_empresa_403(client_loyall, client_cliente_factory):
     e_a = client_loyall.post("/api/empresas/", json={"nome": "EPnlA"}).get_json()
     e_b = client_loyall.post("/api/empresas/", json={"nome": "EPnlB"}).get_json()

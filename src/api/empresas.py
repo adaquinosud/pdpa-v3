@@ -253,6 +253,13 @@ def exportar_painel_xlsx(empresa_id: int):
     return h(empresa_id)
 
 
+@empresas_bp.route("/<int:empresa_id>/painel/leitura", methods=["GET"])
+def painel_leitura(empresa_id: int):
+    from src.api.painel import painel_leitura as h
+
+    return h(empresa_id)
+
+
 @empresas_bp.route("/import-cadastro", methods=["POST"])
 @loyall_required
 def import_cadastro():
