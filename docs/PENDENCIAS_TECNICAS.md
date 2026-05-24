@@ -30,6 +30,56 @@ Como fazer:
 
 ---
 
+## Manutenção do banco (Bloco 4 CP-D)
+
+### MEC 1 — Janela de coleta configurável via env (CONCLUÍDO)
+
+**Status:** CONCLUÍDO em 2026-05-24 (Bloco 4 CP-D)
+
+A janela de coleta default (antes hardcoded `DEFAULT_DESDE_MESES = 15`
+em `src/coletor/incremental.py`) agora é lida da env
+`PDPA_COLETA_JANELA_MESES` com fallback 15. Documentada em `.env.example`
+junto com os outros overrides (`PDPA_COLETA_DESDE` e
+`PDPA_COLETA_DESDE_OVERRIDE`).
+
+Precedência (mesma de antes, agora documentada):
+1. `PDPA_COLETA_DESDE_OVERRIDE` — força a data, bypassa incremental
+2. `MAX(Verbatim.data_criacao_original) WHERE fonte_id=?` − 7 dias
+3. `PDPA_COLETA_DESDE` — override global ou
+   `hoje − PDPA_COLETA_JANELA_MESES * 30 dias`
+
+### MEC 2 — CLI flask retencao-aplicar (CONCLUÍDO)
+
+**Status:** CONCLUÍDO em 2026-05-24 (Bloco 4 CP-D)
+
+Novo comando administrativo:
+
+```
+flask retencao-aplicar [--meses N] [--dry-run]
+```
+
+- `--meses`: default lê de `PDPA_RETENCAO_MESES` (fallback 18).
+- `--dry-run`: conta o que seria removido, **não apaga**, registra
+  evento com `dry_run=True`.
+- Sem `--dry-run`: `DELETE FROM verbatins WHERE data_criacao_original
+  < hoje − N meses` em transação.
+- Cada execução registra uma linha em `eventos_manutencao` (migration
+  014) com `tipo='retencao_verbatins'`, contador e mensagem.
+- Proteção: `--meses < 1` retorna exit code 2.
+
+**Como agendar (Render / launchd / cron):**
+
+```bash
+# Cron mensal em servidor Linux/Render
+0 3 1 * * cd /app && FLASK_APP=src.app:create_app flask retencao-aplicar
+```
+
+A retenção não invalida coleta incremental porque
+`calcular_data_inicio_coleta` usa `MAX(data_criacao_original)` dos
+verbatins ATIVOS (mais recentes seguem no banco).
+
+---
+
 ## Notas sobre a auditoria v2 (2026-05-18)
 
 **Contexto:** a planilha `data/auditoria_v2_marcada.xlsx` foi gerada com o framework do PDPA **v2**, que **não tinha a categoria `sem_lastro`**. Como consequência, casos marcados pela auditoria como "A1 Certo" incluem três tipos de texto que o v3 corretamente reclassifica como `sem_lastro/inativo`:

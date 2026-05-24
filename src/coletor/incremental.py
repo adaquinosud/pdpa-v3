@@ -25,7 +25,20 @@ from src.utils.db import db_session
 
 
 INCREMENTAL_BUFFER_DAYS = 7  # sobreposição para pegar reviews editados/republicados
-DEFAULT_DESDE_MESES = 15  # fallback global (~15 meses atrás)
+
+
+def _janela_meses() -> int:
+    """Janela padrão de coleta em meses, lida de env (fallback 15)."""
+    try:
+        return int(os.environ.get("PDPA_COLETA_JANELA_MESES", "15"))
+    except (TypeError, ValueError):
+        return 15
+
+
+# Alias compatível com código que importava DEFAULT_DESDE_MESES como constante.
+# Avaliação preguiçosa via property em módulo não é trivial; mantemos o
+# fallback de 15 acessível para imports legacy.
+DEFAULT_DESDE_MESES = 15
 
 
 def calcular_data_inicio_coleta(fonte_id: int) -> str:
@@ -72,4 +85,4 @@ def calcular_data_inicio_coleta(fonte_id: int) -> str:
     default_env = os.environ.get("PDPA_COLETA_DESDE")
     if default_env:
         return default_env
-    return (date.today() - timedelta(days=DEFAULT_DESDE_MESES * 30)).isoformat()
+    return (date.today() - timedelta(days=_janela_meses() * 30)).isoformat()
