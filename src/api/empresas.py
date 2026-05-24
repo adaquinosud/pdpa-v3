@@ -218,9 +218,37 @@ def listar_verbatins_da_empresa(empresa_id: int):
     return h(empresa_id)
 
 
+@empresas_bp.route("/<int:empresa_id>/verbatins/exportar.xlsx", methods=["GET"])
+def exportar_verbatins_xlsx(empresa_id: int):
+    from src.api.verbatins import exportar_xlsx_da_empresa as h
+
+    return h(empresa_id)
+
+
 @empresas_bp.route("/<int:empresa_id>/coletas-em-andamento", methods=["GET"])
 def coletas_em_andamento_da_empresa(empresa_id: int):
     from src.api.monitoramento import coletas_em_andamento_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/painel/nivel1", methods=["GET"])
+def painel_nivel1(empresa_id: int):
+    from src.api.painel import painel_nivel1 as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/painel/nivel2", methods=["GET"])
+def painel_nivel2(empresa_id: int):
+    from src.api.painel import painel_nivel2 as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/painel/exportar.xlsx", methods=["GET"])
+def exportar_painel_xlsx(empresa_id: int):
+    from src.api.painel import exportar_painel_xlsx as h
 
     return h(empresa_id)
 

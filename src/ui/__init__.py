@@ -514,6 +514,69 @@ def verbatins_empresa(empresa_id: int):
     )
 
 
+@ui_bp.route("/empresas/<int:empresa_id>/painel")
+def painel_empresa(empresa_id: int):
+    """Painel Executivo (Bloco 5 CP-2): Visão Geral + Detalhamento por Subpilar."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    # Chama os 2 endpoints do painel via handler interno (zero HTTP overhead)
+    from src.api.painel import painel_nivel1 as h_n1
+    from src.api.painel import painel_nivel2 as h_n2
+
+    resp_n1 = h_n1(empresa_id)
+    resp_n2 = h_n2(empresa_id)
+    if isinstance(resp_n1, tuple):
+        return resp_n1
+    if isinstance(resp_n2, tuple):
+        return resp_n2
+    n1 = resp_n1.get_json()
+    n2 = resp_n2.get_json()
+    if n1 is None or n2 is None:
+        return render_template("404.html"), 404
+
+    # Filtros lidos da URL (eco para o front; mesmos do n1/n2)
+    filtros = {
+        "agrupamento_id": request.args.get("agrupamento_id", ""),
+        "local_id": request.args.get("local_id", ""),
+        "fonte_id": request.args.get("fonte_id", ""),
+        "data_de": request.args.get("data_de", ""),
+        "data_ate": request.args.get("data_ate", ""),
+        "periodo": request.args.get("periodo", ""),
+    }
+
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db)
+        ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
+        locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
+        fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
+        agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
+        locais = [SimpleNamespace(id=loc.id, nome=loc.nome) for loc in locs]
+        fontes_ = [
+            SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
+        ]
+
+    return render_template(
+        "empresas/painel.html",
+        empresa=empresa_w,
+        n1=n1,
+        n2=n2,
+        filtros=filtros,
+        agrupamentos=agrupamentos,
+        locais=locais,
+        fontes=fontes_,
+        eh_loyall=(user.papel == PAPEL_LOYALL),
+        user=user,
+    )
+
+
 def _carregar_verbatim_para_template(verbatim_id: int):
     """Devolve dict (estilo serializer da API) + historico, ambos seguros."""
     from src.api.verbatins import _serialize_reclassificacao, _serialize_verbatim

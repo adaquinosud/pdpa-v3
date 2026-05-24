@@ -65,7 +65,7 @@ PROMPT_VERSAO = "v3.0"
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MODEL = HAIKU_MODEL  # alias mantido para compatibilidade com imports antigos
 
-MAX_TOKENS = 1024  # 512 truncava ~0.5% das respostas (JSON longo) → 1024 elimina
+MAX_TOKENS = 2048  # 1024 truncava JSON quando justificativa_curta era longa (B5 CP-0)
 MAX_TEXTO_CHARS = 4000  # defesa técnica para a chamada API; persistência fica íntegra
 
 MAX_RETRIES = 5
@@ -404,6 +404,36 @@ _FENCE_OPEN = re.compile(r"^\s*```(?:json)?\s*", re.IGNORECASE)
 _FENCE_CLOSE = re.compile(r"\s*```\s*$")
 
 
+def _reparar_json_truncado(s: str) -> Optional[dict]:
+    """Tenta reparar JSON truncado (B5 CP-0).
+
+    Causa real do bug observado em produção: respostas longas com
+    ``justificativa_curta`` extensa estouravam ``max_tokens`` antes do
+    modelo fechar a string + objeto. Resultado: ``json.loads`` levanta.
+
+    Estratégia: tenta heurísticas comuns (fechar string aberta, fechar
+    objeto). Devolve dict parseado ou ``None`` se nada funcionou. Quem
+    chama deve manter a justificativa parcial (não-bloqueante).
+    """
+    s = s.strip()
+    if not s:
+        return None
+    # Tenta append de chars que provavelmente fecham a estrutura truncada.
+    for suffix in ('"}', '"\n}', "}", '"\n}'):
+        try:
+            return json.loads(s + suffix)
+        except json.JSONDecodeError:
+            continue
+    # Última heurística: corta tudo depois da última `,` razoável e fecha.
+    last_comma = s.rfind(",")
+    if last_comma > 0:
+        try:
+            return json.loads(s[:last_comma] + "\n}")
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
 def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificacao:
     """Faz parse, valida e clampa a resposta do Claude."""
     cleaned = _FENCE_OPEN.sub("", raw)
@@ -412,7 +442,11 @@ def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificac
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Resposta do classificador não é JSON válido: {raw[:200]!r}") from exc
+        reparado = _reparar_json_truncado(cleaned)
+        if reparado is not None:
+            data = reparado
+        else:
+            raise ValueError(f"Resposta do classificador não é JSON válido: {raw[:200]!r}") from exc
 
     subpilar = data.get("subpilar")
     if subpilar not in SUBPILARES_VALIDOS:
