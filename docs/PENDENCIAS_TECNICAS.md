@@ -214,6 +214,43 @@ Resolução final da pendência "Conectores Apify possivelmente quebrados":
 | tripadvisor | `maxcopell/tripadvisor` | `maxcopell/tripadvisor-reviews` | renomeado pelo dev |
 | linkedin | `curious_coder/linkedin-company-scraper` ($10/mês flat) | `harvestapi/linkedin-company-posts` (PAY_PER_EVENT ~$0.002/comentário) | troca pago→pago-por-uso |
 
+### Conector YouTube — falta fluxo 2-step para extrair comentários
+
+**Status:** PENDENTE (descoberto em 2026-05-24 no CP-C validação empírica)
+
+O ator atual ``streamers/youtube-scraper`` só faz crawl de **vídeos**;
+não retorna comentários por default (schema confirmou: sem parâmetro
+``maxComments``/``extractComments``). Disparo da fonte 84 (YouTube
+"bhairport") devolveu 3 vídeos com ``comments=[]``.
+
+Mesma estratégia que ``src/coletor/tiktok.py`` (validado): 2 atores em
+sequência.
+
+1. ``streamers/youtube-scraper`` (atual) → lista vídeos da busca.
+2. ``streamers/youtube-comments-scraper`` (já validado existente, 712k+
+   runs) → busca comentários de cada vídeo.
+
+**Estimativa**: ~30 LOC adicionais em ``src/coletor/youtube.py``,
+similar ao padrão do ``tiktok.py``. Reviewid já é capturado no
+extrator (``commentId``/``id``). Pipeline e tests não precisam mudar.
+
+### Conector MercadoLivre — não validado empiricamente
+
+**Status:** PENDENTE de validação empírica
+
+O conector ``src/coletor/mercadolivre.py`` foi atualizado no CP-C com
+captura de ``review_id_externo`` (``review.id``/``opinion_id``) e tem
+9 smoke tests verde, **mas não foi disparado contra Apify real** porque:
+
+- A empresa BH Airport (Confins) não tem fonte MercadoLivre cadastrada
+  (faz sentido — aeroporto não vende em marketplace).
+- O ator de produtos (``viralanalyzer/mercadolivre-scraper``) e de
+  reviews (``saswave/mercadolibre-reviews-scraper``) foram validados
+  só via HTTP 200 (existem na Apify Store).
+
+**Próximo passo**: validar quando o primeiro cliente de varejo entrar
+com fonte MercadoLivre. Testar com seller ativo (ex: MAGALU, AMARO).
+
 ### Conectores ausentes — glassdoor e indeed
 
 **Status:** PENDENTE (CP-F ou similar)
