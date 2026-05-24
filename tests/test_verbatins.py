@@ -500,3 +500,167 @@ def test_ui_pagina_verbatins_cliente_da_outra_empresa_403(client_loyall, client_
     cli = client_cliente_factory(e_a["id"])
     r = cli.get(f"/empresas/{e_b['id']}/verbatins")
     assert r.status_code == 403
+
+
+# ── Exportar XLSX ────────────────────────────────────────────────────────
+
+
+def test_exportar_xlsx_basico(client_loyall, db_session):
+    ctx = _empresa_com_estrutura(client_loyall)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="Verbatim 1",
+        subpilar="Pa1",
+        tipo="promotor",
+        justificativa="Boa",
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="Verbatim 2",
+        subpilar="D2",
+        tipo="detrator",
+        justificativa="Ruim",
+    )
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/verbatins/exportar.xlsx")
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers.get("Content-Type", "")
+    assert "attachment" in r.headers.get("Content-Disposition", "").lower()
+    assert r.data[:2] == b"PK"  # XLSX é zip
+
+    # Confere conteúdo do XLSX
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(r.data))
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    assert rows[0][0] == "id"
+    assert "texto" in rows[0]
+    assert "review_id_externo" in rows[0]
+    assert "historico_reclassificacoes" in rows[0]
+    assert len(rows) == 3  # 1 header + 2 verbatins
+    textos = [r[5] for r in rows[1:]]
+    assert "Verbatim 1" in textos and "Verbatim 2" in textos
+
+
+def test_exportar_xlsx_aplica_filtros(client_loyall, db_session):
+    ctx = _empresa_com_estrutura(client_loyall)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="só esse",
+        subpilar="Pa1",
+        tipo="promotor",
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="outro",
+        subpilar="D2",
+        tipo="detrator",
+    )
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/verbatins/exportar.xlsx?subpilar=Pa1")
+    assert r.status_code == 200
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(r.data))
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    assert len(rows) == 2  # header + 1 verbatim filtrado
+    assert rows[1][5] == "só esse"
+    assert rows[1][6] == "Pa1"
+
+
+def test_exportar_xlsx_cliente_outra_empresa_403(client_loyall, client_cliente_factory):
+    e_a = client_loyall.post("/api/empresas/", json={"nome": "EVrbXlsxA"}).get_json()
+    e_b = client_loyall.post("/api/empresas/", json={"nome": "EVrbXlsxB"}).get_json()
+    cli = client_cliente_factory(e_a["id"])
+    r = cli.get(f"/api/empresas/{e_b['id']}/verbatins/exportar.xlsx")
+    assert r.status_code == 403
+
+
+def test_exportar_xlsx_excede_cap_devolve_413(client_loyall, db_session, monkeypatch):
+    ctx = _empresa_com_estrutura(client_loyall)
+    _criar_verbatim(db_session, ctx["e"]["id"], ctx["f"]["id"], ctx["loc"]["id"], texto="t")
+    monkeypatch.setattr("src.api.verbatins.EXPORTAR_XLSX_MAX_LINHAS", 0)
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/verbatins/exportar.xlsx")
+    assert r.status_code == 413
+    body = r.get_json()
+    assert "limite" in body
+    assert body["limite"] == 0
+    assert body["total"] == 1
+
+
+def test_filtro_sem_classificacao_pega_verbatins_subpilar_null(client_loyall, db_session):
+    """B5 ext. CP-2: ?sem_classificacao=1 filtra verbatins com subpilar IS NULL.
+
+    Necessário para link "sem classificação" no painel funcionar.
+    """
+    ctx = _empresa_com_estrutura(client_loyall)
+    # 1 verbatim classificado, 1 sem classificação (subpilar=NULL)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="classificado",
+        subpilar="Pa1",
+        tipo="promotor",
+    )
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="sem_classif",
+        subpilar=None,
+        tipo=None,
+    )
+    # Sem filtro: 2
+    r_all = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/verbatins")
+    assert r_all.get_json()["total"] == 2
+    # Com filtro sem_classificacao=1: 1
+    r_filt = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/verbatins?sem_classificacao=1")
+    body = r_filt.get_json()
+    assert body["total"] == 1
+    assert body["verbatins"][0]["texto"] == "sem_classif"
+    assert body["verbatins"][0]["subpilar"] is None
+
+
+def test_exportar_xlsx_inclui_historico_reclassificacoes(client_loyall, db_session):
+    ctx = _empresa_com_estrutura(client_loyall)
+    v = _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="reclassificado",
+        subpilar="Pa1",
+        tipo="promotor",
+    )
+    client_loyall.patch(
+        f"/api/verbatins/{v.id}/reclassificar",
+        json={"subpilar": "D1", "tipo": "detrator", "motivo": "ajuste"},
+    )
+    r = client_loyall.get(f"/api/empresas/{ctx['e']['id']}/verbatins/exportar.xlsx")
+    assert r.status_code == 200
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(r.data))
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    hist = rows[1][-1]  # última coluna
+    assert "Pa1→D1" in hist
+    assert "promotor→detrator" in hist

@@ -108,11 +108,23 @@
   {% endfor %}
 </div>
 
+{% set qs_outros = [] %}
+{% if filtros.periodo %}{% set _ = qs_outros.append('periodo=' ~ filtros.periodo) %}{% endif %}
+{% if filtros.agrupamento_id %}{% set _ = qs_outros.append('agrupamento_id=' ~ filtros.agrupamento_id) %}{% endif %}
+{% if filtros.local_id %}{% set _ = qs_outros.append('local_id=' ~ filtros.local_id) %}{% endif %}
+{% if filtros.fonte_id %}{% set _ = qs_outros.append('fonte_id=' ~ filtros.fonte_id) %}{% endif %}
+{% set qs_outros_base = '&'.join(qs_outros) %}
 {% if n1.outros.sem_lastro or n1.outros.sem_classificacao %}
 <div class="text-xs text-loyall-500 mb-6">
   Fora dos 4 pilares:
-  {% if n1.outros.sem_lastro %}<span><strong>{{ n1.outros.sem_lastro }}</strong> sem_lastro</span>{% endif %}
-  {% if n1.outros.sem_classificacao %}{% if n1.outros.sem_lastro %} · {% endif %}<span class="text-rose-600"><strong>{{ n1.outros.sem_classificacao }}</strong> sem classificação (falha classifier)</span>{% endif %}
+  {% if n1.outros.sem_lastro %}
+  <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar=sem_lastro{% if qs_outros_base %}&{{ qs_outros_base }}{% endif %}"
+     class="hover:underline"><strong>{{ n1.outros.sem_lastro }}</strong> sem_lastro</a>
+  {% endif %}
+  {% if n1.outros.sem_classificacao %}{% if n1.outros.sem_lastro %} · {% endif %}
+  <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?sem_classificacao=1{% if qs_outros_base %}&{{ qs_outros_base }}{% endif %}"
+     class="text-rose-600 hover:underline"><strong>{{ n1.outros.sem_classificacao }}</strong> sem classificação (falha classifier)</a>
+  {% endif %}
 </div>
 {% endif %}
 
@@ -190,11 +202,19 @@
       {% endif %}
       {% if n2.sem_classificacao.total %}
       <tr class="border-t border-loyall-200 bg-rose-50 text-rose-700">
-        <td class="px-3 py-1.5">sem classificação · <span class="text-xs">classifier falhou</span></td>
+        <td class="p-0">
+          <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?sem_classificacao=1{% if qs_base %}&{{ qs_base }}{% endif %}"
+             class="block px-3 py-1.5 hover:underline">
+            sem classificação · <span class="text-xs">classifier falhou</span>
+          </a>
+        </td>
         <td class="text-right px-3 py-1.5">—</td>
         <td class="text-right px-3 py-1.5">—</td>
         <td class="text-right px-3 py-1.5">—</td>
-        <td class="text-right px-3 py-1.5 font-medium">{{ n2.sem_classificacao.total }}</td>
+        <td class="p-0 text-right">
+          <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?sem_classificacao=1{% if qs_base %}&{{ qs_base }}{% endif %}"
+             class="block px-3 py-1.5 font-medium hover:underline">{{ n2.sem_classificacao.total }}</a>
+        </td>
         <td class="text-right px-3 py-1.5">—</td>
       </tr>
       {% endif %}

@@ -47,6 +47,98 @@ verbatins_bp = Blueprint("verbatins", __name__, url_prefix="/api/verbatins")
 
 POR_PAGINA_MAX = 200
 POR_PAGINA_DEFAULT = 50
+EXPORTAR_XLSX_MAX_LINHAS = 50_000
+
+
+def _aplicar_filtros_listagem(q, empresa_id: int, s):
+    """Aplica os mesmos filtros da listagem na query base.
+
+    Devolve ``(q, erro_response)``. Se ``erro_response`` é não-None, é uma
+    tupla ``(json, status)`` que deve ser retornada pelo caller. Caso
+    contrário, ``q`` está pronta pra ser executada.
+    """
+    ag_id_raw = request.args.get("agrupamento_id")
+    if ag_id_raw:
+        try:
+            ag_id = int(ag_id_raw)
+        except ValueError:
+            return q, (jsonify({"erro": "agrupamento_id deve ser inteiro"}), 400)
+        locais_do_ag = [
+            lid
+            for (lid,) in s.query(Local.id)
+            .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+            .all()
+        ]
+        if locais_do_ag:
+            q = q.filter(Verbatim.local_id.in_(locais_do_ag))
+        else:
+            q = q.filter(Verbatim.id.is_(None))  # resultado vazio sem erro
+
+    local_id_raw = request.args.get("local_id")
+    if local_id_raw:
+        if local_id_raw.lower() == "null":
+            q = q.filter(Verbatim.local_id.is_(None))
+        else:
+            try:
+                q = q.filter(Verbatim.local_id == int(local_id_raw))
+            except ValueError:
+                return q, (jsonify({"erro": "local_id deve ser inteiro ou 'null'"}), 400)
+
+    fonte_id_raw = request.args.get("fonte_id")
+    if fonte_id_raw:
+        try:
+            q = q.filter(Verbatim.fonte_id == int(fonte_id_raw))
+        except ValueError:
+            return q, (jsonify({"erro": "fonte_id deve ser inteiro"}), 400)
+
+    data_de = request.args.get("data_de")
+    if data_de:
+        try:
+            d = datetime.fromisoformat(data_de)
+            q = q.filter(Verbatim.data_criacao_original >= d)
+        except ValueError:
+            return q, (jsonify({"erro": "data_de deve ser YYYY-MM-DD"}), 400)
+
+    data_ate = request.args.get("data_ate")
+    if data_ate:
+        try:
+            d = datetime.fromisoformat(data_ate)
+            q = q.filter(Verbatim.data_criacao_original <= d)
+        except ValueError:
+            return q, (jsonify({"erro": "data_ate deve ser YYYY-MM-DD"}), 400)
+
+    subpilar = request.args.get("subpilar")
+    if subpilar:
+        q = q.filter(Verbatim.subpilar == subpilar)
+
+    # B5 ext. CP-2: filtra verbatins sem classificação (subpilar NULL).
+    # Usado pela linha "sem classificação" do painel para inspeção dos
+    # verbatins que o classifier não conseguiu processar.
+    sem_classif = request.args.get("sem_classificacao")
+    if sem_classif in ("1", "true", "True"):
+        q = q.filter(Verbatim.subpilar.is_(None))
+
+    tipo = request.args.get("tipo")
+    if tipo:
+        q = q.filter(Verbatim.tipo == tipo)
+
+    esconder_ro = request.args.get("esconder_rating_only")
+    if esconder_ro in ("1", "true", "True"):
+        q = q.filter(Verbatim.tem_texto.is_(True))
+
+    rating = request.args.get("rating")
+    if rating:
+        try:
+            q = q.filter(Verbatim.rating == int(rating))
+        except ValueError:
+            return q, (jsonify({"erro": "rating deve ser inteiro 1-5"}), 400)
+
+    busca = (request.args.get("q") or "").strip()
+    if busca:
+        like = f"%{busca}%"
+        q = q.filter(or_(Verbatim.texto.ilike(like), Verbatim.justificativa.ilike(like)))
+
+    return q, None
 
 
 def _serialize_verbatim(
@@ -118,87 +210,10 @@ def listar_verbatins_da_empresa(empresa_id: int):
     por_pagina = min(POR_PAGINA_MAX, max(1, por_pagina))
 
     with db_session() as s:
-        # Base query
         q = s.query(Verbatim).filter(Verbatim.empresa_id == empresa_id)
-
-        # Filtro agrupamento → resolve via locais
-        ag_id_raw = request.args.get("agrupamento_id")
-        if ag_id_raw:
-            try:
-                ag_id = int(ag_id_raw)
-            except ValueError:
-                return jsonify({"erro": "agrupamento_id deve ser inteiro"}), 400
-            locais_do_ag = [
-                lid
-                for (lid,) in s.query(Local.id)
-                .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
-                .all()
-            ]
-            if locais_do_ag:
-                q = q.filter(Verbatim.local_id.in_(locais_do_ag))
-            else:
-                # Não há locais nesse agrupamento → resultado vazio
-                return jsonify(
-                    {"total": 0, "pagina": pagina, "por_pagina": por_pagina, "verbatins": []}
-                )
-
-        local_id_raw = request.args.get("local_id")
-        if local_id_raw:
-            if local_id_raw.lower() == "null":
-                q = q.filter(Verbatim.local_id.is_(None))
-            else:
-                try:
-                    q = q.filter(Verbatim.local_id == int(local_id_raw))
-                except ValueError:
-                    return jsonify({"erro": "local_id deve ser inteiro ou 'null'"}), 400
-
-        fonte_id_raw = request.args.get("fonte_id")
-        if fonte_id_raw:
-            try:
-                q = q.filter(Verbatim.fonte_id == int(fonte_id_raw))
-            except ValueError:
-                return jsonify({"erro": "fonte_id deve ser inteiro"}), 400
-
-        data_de = request.args.get("data_de")
-        if data_de:
-            try:
-                d = datetime.fromisoformat(data_de)
-                q = q.filter(Verbatim.data_criacao_original >= d)
-            except ValueError:
-                return jsonify({"erro": "data_de deve ser YYYY-MM-DD"}), 400
-
-        data_ate = request.args.get("data_ate")
-        if data_ate:
-            try:
-                d = datetime.fromisoformat(data_ate)
-                q = q.filter(Verbatim.data_criacao_original <= d)
-            except ValueError:
-                return jsonify({"erro": "data_ate deve ser YYYY-MM-DD"}), 400
-
-        subpilar = request.args.get("subpilar")
-        if subpilar:
-            q = q.filter(Verbatim.subpilar == subpilar)
-
-        tipo = request.args.get("tipo")
-        if tipo:
-            q = q.filter(Verbatim.tipo == tipo)
-
-        # CP-D3: filtro "Esconder ratings-only" (?esconder_rating_only=1)
-        esconder_ro = request.args.get("esconder_rating_only")
-        if esconder_ro in ("1", "true", "True"):
-            q = q.filter(Verbatim.tem_texto.is_(True))
-
-        rating = request.args.get("rating")
-        if rating:
-            try:
-                q = q.filter(Verbatim.rating == int(rating))
-            except ValueError:
-                return jsonify({"erro": "rating deve ser inteiro 1-5"}), 400
-
-        busca = (request.args.get("q") or "").strip()
-        if busca:
-            like = f"%{busca}%"
-            q = q.filter(or_(Verbatim.texto.ilike(like), Verbatim.justificativa.ilike(like)))
+        q, erro = _aplicar_filtros_listagem(q, empresa_id, s)
+        if erro is not None:
+            return erro
 
         total = q.count()
         verbatins = (
@@ -239,6 +254,140 @@ def listar_verbatins_da_empresa(empresa_id: int):
             "por_pagina": por_pagina,
             "verbatins": payload,
         }
+    )
+
+
+# ── Exportar Excel ──────────────────────────────────────────────────────
+
+
+@cliente_pode_ver_empresa("empresa_id")
+def exportar_xlsx_da_empresa(empresa_id: int):
+    """Exporta verbatins filtrados como XLSX (sem paginação, cap 50k).
+
+    Reusa os mesmos filtros do listar (``_aplicar_filtros_listagem``).
+    Se o total bate o cap, devolve 413 pedindo filtros mais restritivos.
+    """
+    from io import BytesIO
+
+    from flask import send_file
+    from openpyxl import Workbook
+
+    with db_session() as s:
+        q = s.query(Verbatim).filter(Verbatim.empresa_id == empresa_id)
+        q, erro = _aplicar_filtros_listagem(q, empresa_id, s)
+        if erro is not None:
+            return erro
+        total = q.count()
+        if total > EXPORTAR_XLSX_MAX_LINHAS:
+            return (
+                jsonify(
+                    {
+                        "erro": (
+                            f"Exportação excede o limite de {EXPORTAR_XLSX_MAX_LINHAS} linhas "
+                            f"(query bate {total}). Aplique filtros mais restritivos."
+                        ),
+                        "total": total,
+                        "limite": EXPORTAR_XLSX_MAX_LINHAS,
+                    }
+                ),
+                413,
+            )
+
+        verbatins = q.order_by(
+            Verbatim.data_criacao_original.desc().nullslast(), Verbatim.id.desc()
+        ).all()
+
+        # Mapeia metadata sem N+1
+        fonte_ids = {v.fonte_id for v in verbatins}
+        local_ids = {v.local_id for v in verbatins if v.local_id}
+        v_ids = [v.id for v in verbatins]
+        fontes_db = s.query(Fonte).filter(Fonte.id.in_(fonte_ids)).all() if fonte_ids else []
+        locais_db = s.query(Local).filter(Local.id.in_(local_ids)).all() if local_ids else []
+        ag_ids = {loc.agrupamento_id for loc in locais_db if loc.agrupamento_id}
+        ags_db = s.query(Agrupamento).filter(Agrupamento.id.in_(ag_ids)).all() if ag_ids else []
+        reclassif_db = (
+            s.query(VerbatimReclassificacao)
+            .filter(VerbatimReclassificacao.verbatim_id.in_(v_ids))
+            .order_by(VerbatimReclassificacao.reclassificado_em.asc())
+            .all()
+            if v_ids
+            else []
+        )
+
+        local_map = {loc.id: loc for loc in locais_db}
+        ag_map = {a.id: a.nome for a in ags_db}
+        fonte_map = {f.id: f for f in fontes_db}
+        reclassif_map: Dict[int, list] = {}
+        for r in reclassif_db:
+            reclassif_map.setdefault(r.verbatim_id, []).append(r)
+
+        # Monta workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Verbatins"
+        headers = [
+            "id",
+            "data_criacao_original",
+            "agrupamento",
+            "local",
+            "fonte",
+            "texto",
+            "subpilar",
+            "tipo",
+            "confianca",
+            "justificativa",
+            "rating",
+            "tem_texto",
+            "autor",
+            "review_id_externo",
+            "historico_reclassificacoes",
+        ]
+        ws.append(headers)
+        for v in verbatins:
+            loc = local_map.get(v.local_id) if v.local_id else None
+            ag_nome = ag_map.get(loc.agrupamento_id) if loc and loc.agrupamento_id else ""
+            local_nome = loc.nome if loc else ""
+            f = fonte_map.get(v.fonte_id)
+            fonte_str = f"{f.conector_tipo} — {f.url}" if f else ""
+            hist = reclassif_map.get(v.id, [])
+            hist_str = " | ".join(
+                f"{(r.reclassificado_em.isoformat() if r.reclassificado_em else '')}"
+                f" {r.subpilar_anterior}→{r.subpilar_novo}"
+                f" {r.tipo_anterior}→{r.tipo_novo}"
+                f" por_user_id={r.reclassificado_por or ''}"
+                f" justif={r.justificativa or ''}"
+                for r in hist
+            )
+            ws.append(
+                [
+                    v.id,
+                    v.data_criacao_original.isoformat() if v.data_criacao_original else "",
+                    ag_nome,
+                    local_nome,
+                    fonte_str,
+                    v.texto or "",
+                    v.subpilar or "",
+                    v.tipo or "",
+                    v.confianca if v.confianca is not None else "",
+                    v.justificativa or "",
+                    v.rating if v.rating is not None else "",
+                    "sim" if v.tem_texto else "não",
+                    v.autor or "",
+                    v.review_id_externo or "",
+                    hist_str,
+                ]
+            )
+
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+    fname = f"verbatins_empresa_{empresa_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 

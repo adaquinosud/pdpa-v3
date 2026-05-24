@@ -394,6 +394,45 @@ def test_painel_nivel1_inclui_ratio_e_faixa(client_loyall, db_session):
     assert p["faixa"] == "critico"
 
 
+def test_ui_painel_link_sem_classificacao_clicavel(client_loyall, db_session):
+    """B5 ext. CP-2: ao ter verbatins sem classificação, o painel
+    renderiza link clicável para /verbatins?sem_classificacao=1.
+    """
+    ctx = _empresa_estrutura(client_loyall)
+    # 1 verbatim sem_lastro e 1 sem classificação (subpilar NULL)
+    _criar_verbatim(
+        db_session,
+        ctx["e"]["id"],
+        ctx["f"]["id"],
+        ctx["loc"]["id"],
+        texto="sl",
+        subpilar="sem_lastro",
+        tipo="inativo",
+    )
+    v_nc = Verbatim(
+        empresa_id=ctx["e"]["id"],
+        fonte_id=ctx["f"]["id"],
+        local_id=ctx["loc"]["id"],
+        texto="nc",
+        data_criacao_original=datetime.utcnow(),
+        hash_dedup="hash-nc-painel",
+        subpilar=None,
+        tipo=None,
+    )
+    db_session.add(v_nc)
+    db_session.commit()
+
+    r = client_loyall.get(f"/empresas/{ctx['e']['id']}/painel")
+    html = r.data.decode()
+    # Link no resumo "Fora dos 4 pilares"
+    assert "sem_classificacao=1" in html
+    # Linha da matriz e resumo ambas devem ter o link
+    occurrences = html.count("sem_classificacao=1")
+    assert occurrences >= 2, f"esperava >=2 links, obtido {occurrences}"
+    # Link sem_lastro continua funcionando
+    assert "subpilar=sem_lastro" in html
+
+
 def test_painel_cliente_de_outra_empresa_403(client_loyall, client_cliente_factory):
     e_a = client_loyall.post("/api/empresas/", json={"nome": "EPnlA"}).get_json()
     e_b = client_loyall.post("/api/empresas/", json={"nome": "EPnlB"}).get_json()
