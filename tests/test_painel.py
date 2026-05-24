@@ -313,7 +313,7 @@ def test_ui_painel_renderiza_visao_geral_e_detalhamento(client_loyall, db_sessio
     assert "Visão Geral" in html
     assert "Detalhamento por Subpilar" in html
     # Pilares P/D/Pa/A presentes
-    for pilar in ["Produto", "Deslumbramento", "Atendimento", "Acesso"]:
+    for pilar in ["Precisão", "Disponibilidade", "Parceria", "Aconselhamento"]:
         assert pilar in html
     # Botão exportar
     assert "Exportar Excel" in html

@@ -57,11 +57,13 @@ PILAR_DE_SUBPILAR: Dict[str, str] = {
 }
 
 PILARES_ORDEM = ["P", "D", "Pa", "A"]
+# Nomenclatura oficial PDPA Loyall. Fonte canônica:
+# src/classifier/prompts/classifier_v3_prompt.md linhas 11/19/27/35.
 NOME_PILAR = {
-    "P": "Produto",
-    "D": "Deslumbramento",
-    "Pa": "Atendimento",
-    "A": "Acesso",
+    "P": "Precisão",
+    "D": "Disponibilidade",
+    "Pa": "Parceria",
+    "A": "Aconselhamento",
 }
 SUBPILARES_ORDEM = [
     "P1",
