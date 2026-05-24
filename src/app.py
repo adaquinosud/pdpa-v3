@@ -79,6 +79,76 @@ def _register_cli_commands(app: Flask) -> None:
             session.add(user)
         click.echo(f"OK — admin '{email}' criado.")
 
+    @app.cli.command("retencao-aplicar")
+    @click.option(
+        "--meses",
+        type=int,
+        default=None,
+        help="Remove verbatins com data_criacao_original anterior a hoje−N "
+        "meses. Default: PDPA_RETENCAO_MESES (env, fallback 18).",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Não apaga nada; só conta e loga o evento como dry_run=True.",
+    )
+    def retencao_aplicar(meses, dry_run):
+        """Aplica retenção em verbatins antigos (Bloco 4 CP-D, MEC 2).
+
+        Política:
+        - Default ``--meses`` lê de env ``PDPA_RETENCAO_MESES`` (fallback 18).
+        - ``--dry-run`` apenas conta os afetados e registra evento.
+        - Sem ``--dry-run`` DELETE acontece dentro de uma transação;
+          registro fica em ``eventos_manutencao``.
+        - O coletor pode re-coletar verbatins removidos se a janela de
+          coleta cobrir as datas relevantes; a retenção não invalida o
+          incremental porque usa MAX(data_criacao_original) e os mais
+          recentes seguem no banco.
+        """
+        import os
+        from datetime import date, timedelta
+
+        from src.models.evento_manutencao import EventoManutencao
+        from src.models.verbatim import Verbatim
+        from src.utils.db import db_session as _db_session
+
+        if meses is None:
+            try:
+                meses = int(os.environ.get("PDPA_RETENCAO_MESES", "18"))
+            except (TypeError, ValueError):
+                meses = 18
+        if meses < 1:
+            click.echo(
+                "--meses deve ser >= 1 (proteção contra remover tudo).",
+                err=True,
+            )
+            raise SystemExit(2)
+
+        cutoff = date.today() - timedelta(days=meses * 30)
+        click.echo(f"Retenção: verbatins com data_criacao_original < {cutoff.isoformat()}")
+
+        with _db_session() as session:
+            antigos_q = session.query(Verbatim).filter(Verbatim.data_criacao_original < cutoff)
+            qtd = antigos_q.count()
+            click.echo(f"  → {qtd} verbatins afetados")
+
+            if dry_run:
+                click.echo("  (dry-run: nada apagado)")
+            else:
+                if qtd > 0:
+                    antigos_q.delete(synchronize_session=False)
+                    click.echo(f"  → {qtd} removidos.")
+
+            evento = EventoManutencao(
+                tipo="retencao_verbatins",
+                qtd_afetada=qtd,
+                dry_run=dry_run,
+                mensagem=(f"meses={meses}; cutoff={cutoff.isoformat()}; " f"dry_run={dry_run}"),
+            )
+            session.add(evento)
+        click.echo("OK")
+
 
 if __name__ == "__main__":
     app = create_app()
