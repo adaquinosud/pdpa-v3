@@ -1,0 +1,67 @@
+{# Agrupamento collapsible — CP-B.
+   Contexto: a (Agrupamento com a.locais já anexados + a.fontes_ativas + a.tem_fontes),
+             eh_loyall (bool), local_nome (dict id→nome), open (bool, default False).
+#}
+<details id="ag-{{ a.id }}"
+         class="ag-card border border-loyall-200 rounded mb-2 bg-white
+                {% if not a.ativo %}opacity-60{% endif %}"
+         data-nome="{{ (a.nome ~ ' ' ~ (a.descricao or ''))|lower }}"
+         data-ativo="{{ 'true' if a.ativo else 'false' }}"
+         data-tem-fontes="{{ 'true' if a.tem_fontes else 'false' }}"
+         {% if open|default(false) %}open{% endif %}>
+  <summary class="cursor-pointer select-none px-3 py-2 flex items-center gap-3 hover:bg-loyall-50">
+    <span class="text-loyall-400">▸</span>
+    <span class="font-semibold text-loyall-900">{{ a.nome }}</span>
+    <span class="text-xs text-loyall-400">
+      {{ a.locais|length }} {{ 'local' if a.locais|length == 1 else 'locais' }}
+      · {{ a.fontes_ativas }} {{ 'fonte ativa' if a.fontes_ativas == 1 else 'fontes ativas' }}
+    </span>
+    {% if a.ativo %}
+      <span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">ativo</span>
+    {% else %}
+      <span class="px-2 py-0.5 text-xs rounded bg-loyall-200 text-loyall-700">inativo</span>
+    {% endif %}
+    <div class="ml-auto flex items-center gap-3 text-xs" onclick="event.stopPropagation()">
+      {% if eh_loyall %}
+      <button hx-get="{{ url_for('ui.htmx_editar_agrupamento_form', agrupamento_id=a.id) }}"
+              hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
+              class="text-loyall-700 hover:underline">editar</button>
+      <button hx-patch="{{ url_for('ui.htmx_inativar_agrupamento', agrupamento_id=a.id) }}"
+              hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
+              class="text-loyall-700 hover:underline">{{ 'inativar' if a.ativo else 'reativar' }}</button>
+      <button hx-delete="{{ url_for('ui.htmx_deletar_agrupamento', agrupamento_id=a.id) }}"
+              hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"
+              hx-confirm="EXCLUIR PERMANENTE o agrupamento '{{ a.nome }}'? Locais ficam sem agrupamento. Prefira INATIVAR para reversibilidade."
+              class="text-red-400 hover:text-red-700 hover:underline">excluir</button>
+      {% endif %}
+    </div>
+  </summary>
+
+  <div class="px-4 pb-3 pt-1 border-t border-loyall-100">
+    {% if a.descricao %}
+      <p class="text-xs text-loyall-700 italic mb-2">{{ a.descricao }}</p>
+    {% endif %}
+
+    <div id="ag-{{ a.id }}-locais" class="space-y-1">
+      {% for loc in a.locais %}
+        {% include "partials/local_card.html" %}
+      {% else %}
+        <p class="text-xs text-loyall-400 italic">Nenhum local nesse agrupamento.</p>
+      {% endfor %}
+    </div>
+
+    {% if eh_loyall %}
+    <form hx-post="{{ url_for('ui.htmx_criar_local', empresa_id=a.empresa_id) }}"
+          hx-target="#ag-{{ a.id }}-locais" hx-swap="beforeend"
+          hx-on::after-request="if(event.detail.successful) this.reset()"
+          class="mt-2 flex gap-2 text-xs items-center">
+      <input type="hidden" name="agrupamento_id" value="{{ a.id }}">
+      <input name="nome" placeholder="Novo local" required
+             class="px-2 py-1 border border-loyall-200 rounded flex-1">
+      <input name="endereco" placeholder="Endereço (opcional)"
+             class="px-2 py-1 border border-loyall-200 rounded flex-1">
+      <button class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">+ local</button>
+    </form>
+    {% endif %}
+  </div>
+</details>

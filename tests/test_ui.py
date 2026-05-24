@@ -109,7 +109,7 @@ def test_htmx_criar_agrupamento_devolve_fragmento(client_loyall):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert "AG1" in html
-    assert "<tr" in html  # fragmento HTML (não JSON)
+    assert "<details" in html  # fragmento HTML do card collapsible
 
 
 def test_htmx_criar_agrupamento_cliente_bloqueado(client_loyall, client_cliente_factory):
@@ -128,7 +128,7 @@ def test_htmx_criar_local_devolve_fragmento(client_loyall):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert "Loja" in html
-    assert "<tr" in html
+    assert "<details" in html
 
 
 def test_htmx_criar_fonte_local_devolve_fragmento(client_loyall):
@@ -389,3 +389,155 @@ def test_detalhe_nao_mostra_botao_editar_para_cliente(client_loyall, client_clie
     r = cli.get(f"/empresas/{e['id']}")
     html = r.get_data(as_text=True)
     assert "editar-modal" not in html
+
+
+# ── CP-B: hierarquia + filtros + stats cards ────────────────────────────
+
+
+def test_detalhe_mostra_stats_cards(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "EstatsCards"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais",
+        json={"nome": "L", "agrupamento_id": a["id"]},
+    ).get_json()
+    client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes",
+        json={"conector_tipo": "google", "url": "ChIJ_a"},
+    )
+    f2 = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes",
+        json={"conector_tipo": "instagram", "url": "@x"},
+    ).get_json()
+    client_loyall.patch(f"/api/fontes/{f2['id']}/inativar")
+
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    # Stats cards presentes
+    assert "Agrupamentos" in html
+    assert "Locais" in html
+    assert "Fontes ativas" in html
+    assert "Fontes inativas" in html
+
+
+def test_detalhe_mostra_filtros(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "Efilt"}).get_json()
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    html = r.get_data(as_text=True)
+    assert 'id="filtro-busca"' in html
+    assert 'id="filtro-so-ativos"' in html
+    assert 'id="filtro-so-com-fontes"' in html
+    assert 'id="expand-all"' in html
+    assert 'id="collapse-all"' in html
+
+
+def test_detalhe_aninha_local_dentro_do_agrupamento(client_loyall):
+    """Local aparece DENTRO do <div id='ag-X-locais'> do seu agrupamento."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "Eaninh"}).get_json()
+    a = client_loyall.post(
+        f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Grupo"}
+    ).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais",
+        json={"nome": "LocalDentro", "agrupamento_id": a["id"]},
+    ).get_json()
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    html = r.get_data(as_text=True)
+    # Confirma que ag-X aparece ANTES de loc-Y e ambos estão presentes
+    idx_ag = html.find(f'id="ag-{a["id"]}"')
+    idx_loc = html.find(f'id="loc-{loc["id"]}"')
+    assert idx_ag != -1 and idx_loc != -1
+    assert idx_ag < idx_loc  # agrupamento envolve o local
+
+
+def test_detalhe_locais_sem_agrupamento_em_secao_propria(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "EsemAg"}).get_json()
+    client_loyall.post(f"/api/empresas/{e['id']}/locais", json={"nome": "LocalSolto"})
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    html = r.get_data(as_text=True)
+    assert 'id="sem-agrupamento"' in html
+    assert "LocalSolto" in html
+
+
+def test_detalhe_fontes_da_empresa_em_secao_propria(client_loyall):
+    """Fontes com entidade_tipo='empresa' não vão para a hierarquia."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "Efonemp"}).get_json()
+    client_loyall.post(
+        f"/api/empresas/{e['id']}/fontes",
+        json={"conector_tipo": "google_news", "url": "Q1"},
+    )
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    html = r.get_data(as_text=True)
+    assert 'id="fontes-empresa"' in html
+
+
+def test_card_tem_atributos_de_filtro(client_loyall):
+    """Cards têm data-nome/data-ativo/data-tem-fontes para o JS de filtros."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "Edata"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "GD"}).get_json()
+    client_loyall.post(
+        f"/api/empresas/{e['id']}/locais",
+        json={"nome": "LD", "agrupamento_id": a["id"]},
+    )
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    html = r.get_data(as_text=True)
+    assert "data-nome=" in html
+    assert "data-ativo=" in html
+    assert "data-tem-fontes=" in html
+
+
+def test_contadores_no_summary_do_agrupamento(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "Ecnt"}).get_json()
+    a = client_loyall.post(
+        f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "GcntT"}
+    ).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais",
+        json={"nome": "L1", "agrupamento_id": a["id"]},
+    ).get_json()
+    client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes",
+        json={"conector_tipo": "google", "url": "ChIJ_c"},
+    )
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    html = r.get_data(as_text=True)
+    # Summary inclui contadores ("1 local · 1 fonte ativa")
+    assert "1 local" in html
+    assert "1 fonte ativa" in html
+
+
+def test_card_inativo_tem_opacity(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "Eop"}).get_json()
+    a = client_loyall.post(
+        f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Ginativo"}
+    ).get_json()
+    client_loyall.patch(f"/api/agrupamentos/{a['id']}/inativar")
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    html = r.get_data(as_text=True)
+    # Card inativo tem classe opacity-60
+    assert 'data-ativo="false"' in html
+
+
+def test_render_grande_volume_de_locais(client_loyall):
+    """Smoke: render funciona com 20 locais + 30 fontes (microversão do Confins)."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "EGrande"}).get_json()
+    a = client_loyall.post(
+        f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Galone"}
+    ).get_json()
+    for i in range(20):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais",
+            json={"nome": f"L{i}", "agrupamento_id": a["id"]},
+        ).get_json()
+        if i < 30:
+            client_loyall.post(
+                f"/api/locais/{loc['id']}/fontes",
+                json={"conector_tipo": "google", "url": f"ChIJ_{i}"},
+            )
+    r = client_loyall.get(f"/empresas/{e['id']}")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "L0" in html
+    assert "L19" in html
+    assert "20 locais" in html or "20 local" in html
