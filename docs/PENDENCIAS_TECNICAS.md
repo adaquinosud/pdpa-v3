@@ -233,6 +233,40 @@ glassdoor — INATIVA), 134 (BH Airport empregador, indeed — INATIVA)
 estão cadastradas no banco mas as duas últimas são inativas por falta
 de coletor. Reativar quando os módulos forem implementados.
 
+### Validação de URLs/identificadores no cadastro de fontes (Bloco 4 — melhoria futura)
+
+**Status:** PENDENTE
+
+Hoje URLs das fontes vêm da planilha de importação sem qualquer
+validação. Durante o CP-C (2026-05-24) descobrimos vários cadastros
+quebrados que só apareceram no disparo empírico:
+
+| Fonte | Conector | Problema |
+|---|---|---|
+| 78 | tripadvisor | URL era `/Search?q=aeroporto+confins` (URL de busca, não detail) — desativada |
+| 80 | appstore | `br.com.bhairport.app` retorna HTTP 404 no Play Store (app não existe) — desativada |
+| 81 | appstore | identificador placeholder `id1234567890` (iOS) — desativada |
+| 129 | tripadvisor | URL era `Hotel_Review-Linx_Confins` sem `g{geo}-d{detail}` IDs — corrigida via SQL |
+
+**Proposta**: módulo ``src/coletor/validadores.py`` com função por conector:
+
+- **Google**: ``place_id`` existe via Places API (HEAD na URL Google Maps).
+- **TripAdvisor**: URL no formato ``Hotel_Review|Attraction_Review|Restaurant_Review-g{geo}-d{detail}-...``.
+- **App Store (Android)**: ``GET https://play.google.com/store/apps/details?id=<pkg>`` retorna 200, não 404.
+- **App Store (iOS)**: ``id`` numérico sem placeholder; opcional HEAD em ``apps.apple.com``.
+- **Instagram/Facebook/LinkedIn/YouTube/TikTok**: handle/URL responde 200.
+- **Website**: URL responde 200.
+- **google_news**: validar que `url` é uma query string (sem URL completa) — só estética.
+
+**Comportamento**:
+- Não bloqueia coleta — apenas sinaliza no UI (badge "URL não validada" ou "URL inválida").
+- Roda na importação da planilha de cadastro (síncrono) E em job batch diário.
+- Para o Confins atual, fica como **dívida técnica**: Loyall valida manualmente as URLs da planilha antes de disparar coleta full.
+
+**Local sugerido**: novo módulo ``src/coletor/validadores.py``; chamado por
+``src/coletor/excel_cadastro.py`` no import e via ``flask validar-fontes``
+em batch.
+
 ### MEC 2 — CLI flask retencao-aplicar (CONCLUÍDO)
 
 **Status:** CONCLUÍDO em 2026-05-24 (Bloco 4 CP-D)
