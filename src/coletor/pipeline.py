@@ -54,7 +54,10 @@ MAX_TEXTO_CHARS_CLASSIFIER = 4000  # defesa em profundidade; classifier trunca i
 RATING_PARA_CLASSIFICACAO = {
     5: ("Pa1", "promotor", 0.4, "Avaliação 5 estrelas sem texto"),
     4: ("Pa1", "conversivel", 0.3, "Avaliação 4 estrelas sem texto"),
-    3: ("sem_lastro", "inativo", 0.2, "Avaliação 3 estrelas sem texto"),
+    # B5 ext. CP-1: 3★ é neutro, entra como Pa1/conversivel (não sem_lastro/inativo).
+    # 3★ tem ancoragem no atendimento mesmo sem texto — Manual Cap. 2 diferencia
+    # sem_lastro como "sem ancoragem identificável", o que não é o caso aqui.
+    3: ("Pa1", "conversivel", 0.2, "Avaliação 3 estrelas sem texto"),
     2: ("Pa1", "detrator", 0.3, "Avaliação 2 estrelas sem texto"),
     1: ("Pa1", "detrator", 0.4, "Avaliação 1 estrela sem texto"),
 }
