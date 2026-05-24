@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block titulo %}Importar Excel{% endblock %}
 {% block conteudo %}
-<h1 class="text-2xl font-semibold mb-2">Importar cadastro via Excel</h1>
+<div class="mb-2">
+  <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
+  <h1 class="text-2xl font-semibold mt-1">Importar cadastro via Excel</h1>
+</div>
 <p class="text-loyall-400 mb-4 text-sm">
   Aceita os templates padronizados: <strong>simples</strong> (1 empresa + locais + fontes) ou
   <strong>completo</strong> (com aba <em>02 Agrupamentos</em>). Detecção automática.

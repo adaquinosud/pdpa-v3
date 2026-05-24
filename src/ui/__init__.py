@@ -464,6 +464,10 @@ def verbatins_empresa(empresa_id: int):
         "data_de": request.args.get("data_de", ""),
         "data_ate": request.args.get("data_ate", ""),
         "esconder_rating_only": request.args.get("esconder_rating_only", ""),
+        "tema_id": request.args.get("tema_id", ""),
+        "sem_classificacao": request.args.get("sem_classificacao", ""),
+        "origem": request.args.get("origem", ""),
+        "periodo": request.args.get("periodo", ""),
         "pagina": api_payload["pagina"],
         "por_pagina": api_payload["por_pagina"],
     }
@@ -482,6 +486,24 @@ def verbatins_empresa(empresa_id: int):
         fontes_ = [
             SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
         ]
+        # B6 CP-5: temas ativos da empresa, com volume, pra select no UI
+        from sqlalchemy import func as _func
+
+        from src.models.temas import Tema, VerbatimTema
+
+        temas_rows = (
+            s.query(Tema, _func.count(VerbatimTema.id).label("vol"))
+            .outerjoin(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
+            .group_by(Tema.id)
+            .order_by(_func.count(VerbatimTema.id).desc(), Tema.nome.asc())
+            .all()
+        )
+        temas_filtro = [
+            SimpleNamespace(id=t.id, nome=t.nome, volume=int(vol or 0))
+            for (t, vol) in temas_rows
+            if (vol or 0) > 0  # só temas com pelo menos 1 vínculo
+        ]
 
     # Paginação: query strings para próxima/anterior preservando filtros
     from urllib.parse import urlencode
@@ -495,6 +517,19 @@ def verbatins_empresa(empresa_id: int):
     por_pagina = api_payload["por_pagina"]
     total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
 
+    # Link de "voltar" contextual: se chegou via Painel (origem=painel),
+    # volta pro Painel preservando filtros espaciais; senão, volta pra empresa.
+    if filtros["origem"] == "painel":
+        painel_kwargs = {"empresa_id": empresa_id}
+        for k in ("periodo", "agrupamento_id", "local_id", "fonte_id"):
+            if filtros.get(k):
+                painel_kwargs[k] = filtros[k]
+        voltar_url = url_for("ui.painel_empresa", **painel_kwargs)
+        voltar_texto = "Painel"
+    else:
+        voltar_url = url_for("ui.detalhe_empresa", empresa_id=empresa_id)
+        voltar_texto = empresa_w.nome
+
     return render_template(
         "empresas/verbatins.html",
         empresa=empresa_w,
@@ -504,11 +539,14 @@ def verbatins_empresa(empresa_id: int):
         agrupamentos=agrupamentos,
         locais=locais,
         fontes=fontes_,
+        temas=temas_filtro,
         filtros=filtros,
         subpilares=sorted(SUBPILARES_VALIDOS),
         tipos=sorted(TIPOS_VALIDOS),
         pag_qs_anterior=_qs(filtros["pagina"] - 1),
         pag_qs_proxima=_qs(filtros["pagina"] + 1),
+        voltar_url=voltar_url,
+        voltar_texto=voltar_texto,
         eh_loyall=(user.papel == PAPEL_LOYALL),
         user=user,
     )
@@ -571,6 +609,70 @@ def painel_empresa(empresa_id: int):
         locais=locais,
         fontes=fontes_,
         eh_loyall=(user.papel == PAPEL_LOYALL),
+        user=user,
+    )
+
+
+# ── B6 CP-5: Modal de temas + tela admin do catálogo ──────────────────
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/painel/temas-modal", methods=["GET"])
+def painel_temas_modal(empresa_id: int):
+    """HTMX modal lateral com top temas de um bucket subpilar × tipo."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    from src.api.temas import painel_temas as api_handler
+
+    resp = api_handler(empresa_id)
+    if isinstance(resp, tuple):
+        return resp
+    body = resp.get_json()
+    return render_template(
+        "partials/painel_temas_modal.html",
+        empresa_id=empresa_id,
+        subpilar=body.get("subpilar"),
+        tipo=body.get("tipo"),
+        temas=body.get("temas", []),
+    )
+
+
+@ui_bp.route("/admin/temas/<int:empresa_id>", methods=["GET"])
+def admin_temas(empresa_id: int):
+    """Tela admin do catálogo de temas (loyall only)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL:
+        return render_template("403.html"), 403
+
+    from src.api.temas import listar_temas_da_empresa as h
+
+    resp = h(empresa_id)
+    if isinstance(resp, tuple):
+        return resp
+    body = resp.get_json()
+
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db)
+
+    return render_template(
+        "admin/temas.html",
+        empresa=empresa_w,
+        temas=body.get("temas", []),
+        filtros={
+            "q": request.args.get("q", ""),
+            "incluir_inativos": request.args.get("incluir_inativos", ""),
+        },
+        eh_loyall=True,
         user=user,
     )
 

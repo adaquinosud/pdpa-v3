@@ -118,6 +118,18 @@ def _aplicar_filtros_listagem(q, empresa_id: int, s):
     if sem_classif in ("1", "true", "True"):
         q = q.filter(Verbatim.subpilar.is_(None))
 
+    # B6 CP-5: filtra verbatins vinculados a um tema específico.
+    tema_id_raw = request.args.get("tema_id")
+    if tema_id_raw:
+        try:
+            tema_id = int(tema_id_raw)
+        except ValueError:
+            return q, (jsonify({"erro": "tema_id deve ser inteiro"}), 400)
+        from src.models.temas import VerbatimTema as _VT
+
+        sub_ids = s.query(_VT.verbatim_id).filter(_VT.tema_id == tema_id).distinct()
+        q = q.filter(Verbatim.id.in_(sub_ids))
+
     tipo = request.args.get("tipo")
     if tipo:
         q = q.filter(Verbatim.tipo == tipo)

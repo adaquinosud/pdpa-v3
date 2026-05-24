@@ -23,7 +23,13 @@
 
 <div class="mb-3 flex items-start justify-between gap-3">
   <div>
-    <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="text-sm text-loyall-400 hover:underline">← {{ empresa.nome }}</a>
+    <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
+      <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
+      <span class="mx-1">›</span>
+      <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="hover:underline">{{ empresa.nome }}</a>
+      <span class="mx-1">›</span>
+      <span class="text-loyall-600">Painel</span>
+    </nav>
     <h1 class="text-2xl font-semibold mt-1">Painel · <span class="text-loyall-400 text-base">{{ n1.total_verbatins }} verbatins</span></h1>
   </div>
   <a id="btn-exportar-painel"
@@ -34,27 +40,26 @@
 </div>
 
 {# ── Filtros ─────────────────────────────────────────────────────────── #}
-{# onchange="this.form.submit()" → mudar select dispara reload (sem precisar Aplicar) #}
 <form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
-  <select name="periodo" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+  <select name="periodo" class="px-2 py-1.5 border border-loyall-200 rounded">
     <option value="">Período: tudo</option>
     {% for p, lbl in [('7d','Últimos 7 dias'),('30d','Últimos 30 dias'),('90d','Últimos 90 dias'),('6m','Últimos 6 meses'),('12m','Últimos 12 meses'),('15m','Últimos 15 meses')] %}
     <option value="{{ p }}" {% if filtros.periodo == p %}selected{% endif %}>{{ lbl }}</option>
     {% endfor %}
   </select>
-  <select name="agrupamento_id" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+  <select name="agrupamento_id" class="px-2 py-1.5 border border-loyall-200 rounded">
     <option value="">Agrupamento…</option>
     {% for a in agrupamentos %}
     <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
     {% endfor %}
   </select>
-  <select name="local_id" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+  <select name="local_id" class="px-2 py-1.5 border border-loyall-200 rounded">
     <option value="">Local…</option>
     {% for l in locais %}
     <option value="{{ l.id }}" {% if filtros.local_id == l.id|string %}selected{% endif %}>{{ l.nome }}</option>
     {% endfor %}
   </select>
-  <select name="fonte_id" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+  <select name="fonte_id" class="px-2 py-1.5 border border-loyall-200 rounded">
     <option value="">Fonte…</option>
     {% for f in fontes %}
     <option value="{{ f.id }}" {% if filtros.fonte_id == f.id|string %}selected{% endif %}>{{ f.conector_tipo }} — {{ f.url|truncate(30, true) }}</option>
@@ -169,7 +174,7 @@
   {% endfor %}
 </div>
 
-{% set qs_outros = [] %}
+{% set qs_outros = ['origem=painel'] %}
 {% if filtros.periodo %}{% set _ = qs_outros.append('periodo=' ~ filtros.periodo) %}{% endif %}
 {% if filtros.agrupamento_id %}{% set _ = qs_outros.append('agrupamento_id=' ~ filtros.agrupamento_id) %}{% endif %}
 {% if filtros.local_id %}{% set _ = qs_outros.append('local_id=' ~ filtros.local_id) %}{% endif %}
@@ -204,7 +209,7 @@
       </tr>
     </thead>
     <tbody>
-      {% set query_base = [] %}
+      {% set query_base = ['origem=painel'] %}
       {% if filtros.periodo %}{% set _ = query_base.append('periodo=' ~ filtros.periodo) %}{% endif %}
       {% if filtros.agrupamento_id %}{% set _ = query_base.append('agrupamento_id=' ~ filtros.agrupamento_id) %}{% endif %}
       {% if filtros.local_id %}{% set _ = query_base.append('local_id=' ~ filtros.local_id) %}{% endif %}

@@ -14,8 +14,21 @@
 {% block conteudo %}
 <div class="mb-3 flex items-start justify-between gap-3">
   <div>
-    <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="text-sm text-loyall-400 hover:underline">← {{ empresa.nome }}</a>
-    <h1 class="text-2xl font-semibold mt-1">Verbatins · <span class="text-loyall-400 text-base">{{ total }}</span></h1>
+    <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
+      <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
+      <span class="mx-1">›</span>
+      <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="hover:underline">{{ empresa.nome }}</a>
+      {% if filtros.origem == 'painel' %}
+      <span class="mx-1">›</span>
+      <a href="{{ voltar_url }}" class="hover:underline">Painel</a>
+      {% endif %}
+      <span class="mx-1">›</span>
+      <span class="text-loyall-600">Verbatins</span>
+    </nav>
+    <h1 class="text-2xl font-semibold mt-1">
+      <a href="{{ voltar_url }}" class="text-sm text-loyall-400 hover:underline align-middle mr-1">← {{ voltar_texto }}</a>
+      Verbatins · <span class="text-loyall-400 text-base">{{ total }}</span>
+    </h1>
   </div>
   <a id="btn-exportar-xlsx"
      href="#"
@@ -46,6 +59,8 @@
 {# ── Filtros ─────────────────────────────────────────────────────────── #}
 <form id="filtros" method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
   <input type="hidden" name="pagina" value="1">
+  {% if filtros.origem %}<input type="hidden" name="origem" value="{{ filtros.origem }}">{% endif %}
+  {% if filtros.periodo %}<input type="hidden" name="periodo" value="{{ filtros.periodo }}">{% endif %}
   <input name="q" value="{{ filtros.q or '' }}" placeholder="Buscar texto ou justificativa"
          class="md:col-span-3 lg:col-span-2 px-2 py-1.5 border border-loyall-200 rounded">
 
@@ -84,6 +99,15 @@
     {% endfor %}
   </select>
 
+  {% if temas %}
+  <select name="tema_id" class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Tema…</option>
+    {% for t in temas %}
+    <option value="{{ t.id }}" {% if filtros.tema_id == t.id|string %}selected{% endif %}>{{ t.nome }} ({{ t.volume }})</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+
   <input name="data_de" type="date" value="{{ filtros.data_de or '' }}"
          class="px-2 py-1.5 border border-loyall-200 rounded" title="Data de">
   <input name="data_ate" type="date" value="{{ filtros.data_ate or '' }}"
@@ -97,7 +121,15 @@
 
   <div class="md:col-span-1 lg:col-span-1 flex gap-2 justify-end">
     <button type="submit" class="px-3 py-1.5 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Filtrar</button>
-    <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="px-3 py-1.5 border border-loyall-200 hover:bg-loyall-100 rounded">Limpar</a>
+    {# Limpar: zera filtros locais mas preserva contexto de origem (Painel + filtros espaciais), pra que o breadcrumb e o "Voltar" continuem coerentes. #}
+    {% set limpar_qs = [] %}
+    {% if filtros.origem %}{% set _ = limpar_qs.append('origem=' ~ filtros.origem) %}{% endif %}
+    {% if filtros.periodo %}{% set _ = limpar_qs.append('periodo=' ~ filtros.periodo) %}{% endif %}
+    {% if filtros.agrupamento_id %}{% set _ = limpar_qs.append('agrupamento_id=' ~ filtros.agrupamento_id) %}{% endif %}
+    {% if filtros.local_id %}{% set _ = limpar_qs.append('local_id=' ~ filtros.local_id) %}{% endif %}
+    {% if filtros.fonte_id %}{% set _ = limpar_qs.append('fonte_id=' ~ filtros.fonte_id) %}{% endif %}
+    <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}{% if limpar_qs %}?{{ '&'.join(limpar_qs) }}{% endif %}"
+       class="px-3 py-1.5 border border-loyall-200 hover:bg-loyall-100 rounded">Limpar</a>
   </div>
 </form>
 
