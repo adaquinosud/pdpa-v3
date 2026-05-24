@@ -66,6 +66,42 @@
   </div>
 </form>
 
+{# ── Métricas consolidadas (Manual Cap. 4) ────────────────────────────── #}
+{% set ig_cls = {'saudavel':'emerald','atencao':'amber','critico':'rose'}.get(n1.indice_geral_faixa, 'slate') %}
+{% set conc_cls = {'cirurgico':'amber','misto':'slate','sistemico':'rose','indisponivel':'slate'}.get(n1.concentracao_faixa, 'slate') %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Índice Geral</div>
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-{{ ig_cls }}-600">{{ '%.1f'|format(n1.indice_geral) }}</span>
+      <span class="text-sm text-loyall-400">/ 10</span>
+    </div>
+    <div class="text-xs text-{{ ig_cls }}-700 mt-1 capitalize">{{ n1.indice_geral_faixa }}</div>
+    <div class="text-xs text-loyall-400 mt-2">média ponderada dos ratios dos 12 subpilares</div>
+  </div>
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade</div>
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-loyall-800">{{ '%.0f'|format(n1.previsibilidade) }}</span>
+      <span class="text-sm text-loyall-400">/ 100</span>
+    </div>
+    <div class="text-xs text-loyall-400 mt-2">homogeneidade da experiência entre subpilares</div>
+  </div>
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração de Detratores</div>
+    {% if n1.concentracao_detratores is not none %}
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-{{ conc_cls }}-600">{{ '%.0f'|format(n1.concentracao_detratores) }}%</span>
+    </div>
+    <div class="text-xs text-{{ conc_cls }}-700 mt-1 capitalize">{{ n1.concentracao_faixa }}</div>
+    <div class="text-xs text-loyall-400 mt-2">% detratores das 5 piores lojas</div>
+    {% else %}
+    <div class="mt-1 text-loyall-300 text-3xl font-bold">—</div>
+    <div class="text-xs text-loyall-400 mt-1">indisponível (precisa ≥ 5 locais com volume)</div>
+    {% endif %}
+  </div>
+</div>
+
 {# ── Visão Geral (Nível 1: 4 pilares) ─────────────────────────────────── #}
 <h2 class="text-lg font-semibold text-loyall-700 mb-2">Visão Geral</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
