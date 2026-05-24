@@ -260,6 +260,37 @@ def painel_leitura(empresa_id: int):
     return h(empresa_id)
 
 
+# ── Temas (Bloco 6) ─────────────────────────────────────────────────
+
+
+@empresas_bp.route("/<int:empresa_id>/temas", methods=["GET"])
+def listar_temas_da_empresa(empresa_id: int):
+    from src.api.temas import listar_temas_da_empresa as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/temas", methods=["POST"])
+def criar_tema_manual(empresa_id: int):
+    from src.api.temas import criar_tema_manual as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/painel/temas", methods=["GET"])
+def painel_temas(empresa_id: int):
+    from src.api.temas import painel_temas as h
+
+    return h(empresa_id)
+
+
+@empresas_bp.route("/<int:empresa_id>/temas/reprocessar", methods=["POST"])
+def reprocessar_temas_empresa(empresa_id: int):
+    from src.api.temas import reprocessar_temas_empresa as h
+
+    return h(empresa_id)
+
+
 @empresas_bp.route("/import-cadastro", methods=["POST"])
 @loyall_required
 def import_cadastro():

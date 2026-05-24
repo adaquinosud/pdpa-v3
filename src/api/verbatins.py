@@ -394,6 +394,13 @@ def exportar_xlsx_da_empresa(empresa_id: int):
 # ── Endpoints standalone /api/verbatins/<id>* ───────────────────────────
 
 
+@verbatins_bp.route("/<int:verbatim_id>/temas", methods=["GET"])
+def _temas_de_verbatim_endpoint(verbatim_id: int):
+    from src.api.temas import temas_de_verbatim as h
+
+    return h(verbatim_id)
+
+
 @verbatins_bp.route("/<int:verbatim_id>", methods=["GET"])
 @login_required
 def obter_verbatim(verbatim_id: int):
