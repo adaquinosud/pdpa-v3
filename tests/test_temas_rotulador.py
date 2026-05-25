@@ -76,6 +76,39 @@ def test_rotular_cluster_aceita_fence_json_no_output():
     assert nome == "atendimento personalizado"
 
 
+def test_rotular_cluster_tolera_prosa_apos_json():
+    """Haiku às vezes anexa '**Justificativa**: ...' depois do JSON (mesmo
+    dentro de fence). O parser deve extrair o objeto e ignorar a prosa.
+
+    Regressão do CP-11 smoke: o bucket 10:P2:detrator perdeu 'condição
+    veículo' e 'qualidade comida' exatamente por esse motivo.
+    """
+    raw = (
+        '```json\n{"nome": "condição veículo"}\n```\n\n'
+        "**Justificativa**: Os representativos convergem para problemas de "
+        "estado físico do veículo (danos, manutenção inadequada,"
+    )
+    fake = _mock_anthropic(raw)
+    with patch("src.classifier.classifier_v3._get_client", return_value=fake):
+        nome = rotular_cluster(
+            {"subpilar": "P2", "tipo": "detrator"},
+            [{"texto": "Carro veio com risco na lataria"}],
+        )
+    assert nome == "condição veículo"
+
+
+def test_rotular_cluster_null_com_justificativa_vira_none():
+    """{"nome": null} seguido de prosa ainda resulta em None (descartado)."""
+    raw = '```json\n{"nome": null}\n```\n\n**Justificativa**: só elogios genéricos.'
+    fake = _mock_anthropic(raw)
+    with patch("src.classifier.classifier_v3._get_client", return_value=fake):
+        nome = rotular_cluster(
+            {"subpilar": "Pa1", "tipo": "promotor"},
+            [{"texto": "muito bom"}],
+        )
+    assert nome is None
+
+
 def test_rotular_cluster_descarta_quando_json_invalido():
     """JSON malformado → None (caller descarta cluster)."""
     fake = _mock_anthropic("isso não é json")

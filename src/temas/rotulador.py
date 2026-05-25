@@ -35,10 +35,29 @@ def _carregar_prompt(prompt_path: Optional[Path] = None) -> str:
 
 _FENCE_OPEN = re.compile(r"^\s*```(?:json)?\s*", re.IGNORECASE)
 _FENCE_CLOSE = re.compile(r"\s*```\s*$")
+# Objeto JSON raso (uma chave `nome`, valor string ou null — sem chaves
+# aninhadas). Pega o 1º {...} e ignora qualquer prosa em volta.
+_JSON_OBJ = re.compile(r"\{[^{}]*\}")
 
 
 def _strip_fence(s: str) -> str:
     return _FENCE_CLOSE.sub("", _FENCE_OPEN.sub("", s)).strip()
+
+
+def _parse_label_json(raw: str) -> Any:
+    """Parseia o 1º objeto JSON ``{...}`` presente em ``raw``.
+
+    O Haiku às vezes ignora a instrução de "JSON puro" e devolve o objeto
+    dentro de uma fence markdown **e/ou** seguido de prosa
+    (``**Justificativa**: ...``, frequentemente truncada por ``MAX_TOKENS``).
+    Como o alvo é raso, extraímos o 1º ``{...}`` sem chaves internas e
+    descartamos o resto. Fallback: remove a fence e tenta o texto inteiro.
+
+    Levanta ``json.JSONDecodeError`` se nada parseável for encontrado.
+    """
+    m = _JSON_OBJ.search(raw)
+    candidato = m.group(0) if m else _strip_fence(raw)
+    return json.loads(candidato)
 
 
 def _normalizar_label(s: str) -> str:
@@ -114,8 +133,7 @@ def rotular_cluster(
         raw = "".join(
             block.text for block in resposta.content if getattr(block, "type", None) == "text"
         )
-        cleaned = _strip_fence(raw)
-        data = json.loads(cleaned)
+        data = _parse_label_json(raw)
     except json.JSONDecodeError:
         print(f"[temas/rotulador] JSON inválido: {raw[:200]!r}")
         return None
