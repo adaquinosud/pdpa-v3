@@ -180,12 +180,34 @@ def _register_cli_commands(app: Flask) -> None:
         help="Kill switch: aborta quando custo estimado acumulado excede USD.",
     )
     @click.option(
+        "--prompt-version",
+        type=click.Choice(["v1", "v2"]),
+        default="v2",
+        help="Versão do prompt do extrator (v1=descritivo legado, v2=acionabilidade).",
+    )
+    @click.option(
+        "--refresh-catalogo",
+        type=int,
+        default=50,
+        help="Refresca o catálogo recente do DB a cada N verbatins (fix B6: anti-fragmentação).",
+    )
+    @click.option(
         "--dry-run",
         is_flag=True,
         default=False,
         help="Conta verbatins elegíveis e estima custo, sem chamar LLM.",
     )
-    def temas_extrair(empresa_arg, apenas_novos, subpilar, tipo_arg, limite, max_usd, dry_run):
+    def temas_extrair(
+        empresa_arg,
+        apenas_novos,
+        subpilar,
+        tipo_arg,
+        limite,
+        max_usd,
+        prompt_version,
+        refresh_catalogo,
+        dry_run,
+    ):
         """Extrai temas de verbatins (Bloco 6 CP-4).
 
         Reusa o pipeline do endpoint /reprocessar (CP-3) mas sem cap inline.
@@ -197,13 +219,34 @@ def _register_cli_commands(app: Flask) -> None:
         from datetime import datetime
         from pathlib import Path
 
+        from sqlalchemy import func as _func
+
         from src.api.temas import CUSTO_USD_POR_VERBATIM
+        from src.models.agrupamento import Agrupamento
         from src.models.empresa import Empresa
+        from src.models.local import Local
         from src.models.temas import Tema, VerbatimTema
         from src.models.verbatim import Verbatim
-        from src.temas.extrator import extrair_temas
+        from src.temas.extrator import MAX_CATALOGO_NO_PROMPT, extrair_temas
         from src.temas.persistencia import persistir_temas_de_verbatim
         from src.utils.db import db_session as _db_session
+
+        # Fix A: agrupamento. Fix B: refresh. Fix C: cap 150. Fix D: ordem por volume desc.
+        PROMPTS_DIR = Path(__file__).parent / "temas" / "prompts"
+        prompt_path = PROMPTS_DIR / f"extracao_temas_{prompt_version}.md"
+
+        def _carregar_catalogo(session) -> list[dict]:
+            """Catálogo ordenado por VOLUME desc (fix D), até MAX_CATALOGO_NO_PROMPT (fix C)."""
+            rows = (
+                session.query(Tema.nome, Tema.slug, _func.count(VerbatimTema.id).label("vol"))
+                .outerjoin(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+                .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
+                .group_by(Tema.id)
+                .order_by(_func.count(VerbatimTema.id).desc(), Tema.criado_em.asc())
+                .limit(MAX_CATALOGO_NO_PROMPT)
+                .all()
+            )
+            return [{"nome": n, "slug": sl} for (n, sl, _v) in rows]
 
         # Resolve empresa por ID ou nome
         with _db_session() as session:
@@ -255,23 +298,25 @@ def _register_cli_commands(app: Flask) -> None:
             if limite:
                 ids_iter = ids_iter.limit(limite)
 
+            # Fix A: lookup agrupamento de cada verbatim via local.
+            ag_map = dict(
+                session.query(Local.id, Agrupamento.nome)
+                .outerjoin(Agrupamento, Agrupamento.id == Local.agrupamento_id)
+                .filter(Local.empresa_id == empresa_id)
+                .all()
+            )
+
             verbatins_dados = [
                 {
                     "id": v.id,
                     "texto": v.texto,
                     "subpilar": v.subpilar,
                     "tipo": v.tipo,
+                    "agrupamento": ag_map.get(v.local_id) if v.local_id else None,
                 }
                 for v in ids_iter.all()
             ]
-            catalogo = (
-                session.query(Tema.nome, Tema.slug)
-                .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
-                .order_by(Tema.criado_em.desc())
-                .limit(80)
-                .all()
-            )
-            catalogo_lista = [{"nome": n, "slug": sl} for (n, sl) in catalogo]
+            catalogo_lista = _carregar_catalogo(session)
 
         # Loop principal — chamadas LLM fora de qualquer sessão DB aberta
         novos_vinculos = 0
@@ -286,6 +331,10 @@ def _register_cli_commands(app: Flask) -> None:
                         f"{usd_acumulado:.4f} >= {max_usd} — abortando."
                     )
                     break
+                # Fix B: refresca catálogo a cada N verbatins (anti-fragmentação).
+                if i > 1 and refresh_catalogo > 0 and (i - 1) % refresh_catalogo == 0:
+                    with _db_session() as s_ref:
+                        catalogo_lista = _carregar_catalogo(s_ref)
                 try:
                     temas_ext = extrair_temas(
                         vdata["texto"],
@@ -293,8 +342,10 @@ def _register_cli_commands(app: Flask) -> None:
                             "subpilar": vdata.get("subpilar"),
                             "tipo": vdata.get("tipo"),
                             "setor": empresa_setor,
+                            "agrupamento": vdata.get("agrupamento"),
                         },
                         catalogo_recente=catalogo_lista,
+                        prompt_path=prompt_path,
                     )
                     if temas_ext:
                         with _db_session() as s2:
@@ -340,6 +391,149 @@ def _register_cli_commands(app: Flask) -> None:
         click.echo("\n[temas-extrair] ============== RESUMO ==============")
         click.echo(_json.dumps(resumo, indent=2, ensure_ascii=False))
         click.echo(f"[temas-extrair] resumo: {resumo_path}")
+
+    # ── B6 Caminho A CP-7: flask temas-embed ──────────────────────────
+    @app.cli.command("temas-embed")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--modelo",
+        default="text-embedding-3-small",
+        help="Modelo OpenAI (default text-embedding-3-small, 1536d).",
+    )
+    @click.option("--limite", type=int, default=None, help="Cap defensivo de verbatins.")
+    @click.option("--dry-run", is_flag=True, default=False)
+    def temas_embed(empresa_arg, modelo, limite, dry_run):
+        """Gera embeddings dos verbatins com texto (Bloco 6 Caminho A CP-7).
+
+        Idempotente: pula verbatins que já têm embedding com este modelo.
+        Persiste em ``verbatim_embeddings``. Custo ~$0.02/1M tokens (~$0.006
+        para 5915 verbatins do BH Airport).
+        """
+        import json as _json
+
+        from src.models.empresa import Empresa
+        from src.models.temas import VerbatimEmbedding
+        from src.models.verbatim import Verbatim
+        from src.temas.embeddings import embed_verbatins_pendentes
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id = emp.id
+            empresa_nome = emp.nome
+
+            total_texto = (
+                s.query(Verbatim)
+                .filter(Verbatim.empresa_id == empresa_id, Verbatim.tem_texto.is_(True))
+                .count()
+            )
+            ja_tem = (
+                s.query(VerbatimEmbedding)
+                .join(Verbatim, Verbatim.id == VerbatimEmbedding.verbatim_id)
+                .filter(Verbatim.empresa_id == empresa_id, VerbatimEmbedding.modelo == modelo)
+                .count()
+            )
+            pendentes = total_texto - ja_tem
+
+        click.echo(f"[temas-embed] empresa={empresa_nome!r} (id={empresa_id})")
+        click.echo(f"[temas-embed] modelo={modelo}")
+        click.echo(f"[temas-embed] verbatins com texto: {total_texto}")
+        click.echo(f"[temas-embed]   já com embedding: {ja_tem}")
+        click.echo(f"[temas-embed]   pendentes: {pendentes}")
+        if limite and limite < pendentes:
+            click.echo(f"[temas-embed]   limite aplicado: {limite}")
+        # Custo: ~50 tokens médio × $0.02/1M
+        amostra = min(limite or pendentes, pendentes)
+        custo_est = round(amostra * 50 / 1_000_000 * 0.02, 6)
+        click.echo(f"[temas-embed] custo estimado: USD {custo_est}")
+
+        if dry_run:
+            click.echo("[temas-embed] dry-run: nada gerado.")
+            return
+
+        def _prog(processados, total, custo):
+            click.echo(f"[temas-embed] [{processados}/{total}] usd={custo:.6f}")
+
+        resumo = embed_verbatins_pendentes(
+            empresa_id, modelo=modelo, limite=limite, progresso_callback=_prog
+        )
+        click.echo("\n[temas-embed] ============== RESUMO ==============")
+        click.echo(_json.dumps(resumo, indent=2, ensure_ascii=False))
+
+    # ── B6 Caminho A CP-10: flask temas-pipeline ──────────────────────
+    @app.cli.command("temas-pipeline")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--bucket",
+        "buckets_arg",
+        multiple=True,
+        help='Chave "agrupamento_id:subpilar:tipo" (repetível). Vazio = todos.',
+    )
+    @click.option("--max-usd", type=float, default=None, help="Kill switch de custo acumulado.")
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Lista buckets elegíveis + custo estimado, sem LLM nem DB.",
+    )
+    def temas_pipeline(empresa_arg, buckets_arg, max_usd, dry_run):
+        """Pipeline embeddings → clustering → rotulagem → cache (Caminho A).
+
+        Idempotente. Sobrescreve temas_cache por bucket, mantém temas/
+        verbatim_temas (idempotência via UNIQUE).
+        """
+        import json as _json
+        from dataclasses import asdict
+        from datetime import datetime
+        from pathlib import Path
+
+        from src.models.empresa import Empresa
+        from src.temas.pipeline import processar_empresa
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id = emp.id
+            empresa_nome = emp.nome
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = Path(__file__).parent.parent / "data" / f"temas_pipeline_{ts}.json"
+
+        click.echo(f"[temas-pipeline] empresa={empresa_nome!r} (id={empresa_id})")
+        if buckets_arg:
+            click.echo(f"[temas-pipeline] restrição: {len(buckets_arg)} bucket(s)")
+        if dry_run:
+            click.echo("[temas-pipeline] DRY-RUN")
+        if max_usd is not None:
+            click.echo(f"[temas-pipeline] kill switch max_usd={max_usd}")
+
+        def _prog(chave, label, vol):
+            click.echo(f"[temas-pipeline] {chave:30s} → {label!r} (vol={vol})")
+
+        resumo = processar_empresa(
+            empresa_id,
+            so_buckets=list(buckets_arg) if buckets_arg else None,
+            max_usd=max_usd,
+            callback_progresso=_prog,
+            dry_run=dry_run,
+        )
+        click.echo("\n[temas-pipeline] ============== RESUMO ==============")
+        resumo_dict = asdict(resumo)
+        click.echo(_json.dumps(resumo_dict, indent=2, ensure_ascii=False, default=str))
+        log_path.write_text(_json.dumps(resumo_dict, indent=2, ensure_ascii=False, default=str))
+        click.echo(f"[temas-pipeline] log: {log_path}")
 
 
 if __name__ == "__main__":

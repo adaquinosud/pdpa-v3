@@ -91,6 +91,9 @@ class VerbatimTema(Base):
     confianca: Mapped[float] = mapped_column(Float, nullable=False)
     origem: Mapped[str] = mapped_column(String, nullable=False)
     evidencia_curta: Mapped[Optional[str]] = mapped_column(Text)
+    # B6 Caminho A CP-7: escopo do vínculo "agrupamento_id:subpilar:tipo".
+    # Nullable pra compatibilidade com vínculos legados (CP-4 rotulagem direta).
+    bucket_chave: Mapped[Optional[str]] = mapped_column(String)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint("verbatim_id", "tema_id", name="uq_verbatim_temas_par"),)
@@ -188,3 +191,29 @@ class TemaCruzamento(Base):
 
     def __repr__(self) -> str:
         return f"<TemaCruzamento {self.tema_label}>"
+
+
+# ── Embeddings (B6 Caminho A CP-7) ────────────────────────────────────
+
+
+class VerbatimEmbedding(Base):
+    """Embedding semântico de um verbatim, cacheado em disco.
+
+    Persistir o vetor permite re-clusterizar/re-rotular gratuitamente.
+    PK composta (verbatim_id, modelo) permite múltiplos embeddings por
+    verbatim (ex: ada-002 legado coexiste com text-embedding-3-small novo).
+    """
+
+    __tablename__ = "verbatim_embeddings"
+
+    verbatim_id: Mapped[int] = mapped_column(
+        ForeignKey("verbatins.id", ondelete="CASCADE"), primary_key=True
+    )
+    modelo: Mapped[str] = mapped_column(String, primary_key=True)
+    vetor: Mapped[bytes] = mapped_column(nullable=False)
+    gerado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    verbatim: Mapped["Verbatim"] = relationship("Verbatim")
+
+    def __repr__(self) -> str:
+        return f"<VerbatimEmbedding v={self.verbatim_id} modelo={self.modelo!r}>"

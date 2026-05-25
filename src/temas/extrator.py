@@ -25,17 +25,17 @@ HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 600
 CONFIANCA_MINIMA = 0.4  # Manual + decisão B6: descarta abaixo.
 MAX_TEMAS_POR_VERBATIM = 3
-MAX_CATALOGO_NO_PROMPT = 80  # limita prompt overhead
+MAX_CATALOGO_NO_PROMPT = 150  # B6 fix C: subido de 80 → 150 (catálogo grande)
 
 
-_prompt_cache: Optional[str] = None
+_prompt_cache: Dict[str, str] = {}
 
 
-def _carregar_prompt() -> str:
-    global _prompt_cache
-    if _prompt_cache is None:
-        _prompt_cache = PROMPT_PATH.read_text(encoding="utf-8")
-    return _prompt_cache
+def _carregar_prompt(prompt_path: Optional[Path] = None) -> str:
+    key = str(prompt_path or PROMPT_PATH)
+    if key not in _prompt_cache:
+        _prompt_cache[key] = Path(key).read_text(encoding="utf-8")
+    return _prompt_cache[key]
 
 
 _FENCE_OPEN = re.compile(r"^\s*```(?:json)?\s*", re.IGNORECASE)
@@ -66,27 +66,21 @@ def extrair_temas(
     texto: str,
     contexto: Dict[str, Any],
     catalogo_recente: Optional[List[Dict[str, str]]] = None,
+    prompt_path: Optional[Path] = None,
 ) -> List[Dict[str, Any]]:
     """Extrai até 3 temas de um verbatim via Haiku.
 
     Args:
         texto: o verbatim em si.
         contexto: dict com chaves opcionais ``subpilar``, ``tipo``,
-            ``setor``, ``agrupamento``. Tudo string. Vazios são omitidos
-            do payload.
+            ``setor``, ``agrupamento``. Tudo string. Vazios são omitidos.
         catalogo_recente: lista de dicts ``{"nome", "slug"}`` (até
-            ``MAX_CATALOGO_NO_PROMPT``). Usado pelo modelo para reutilizar
-            temas existentes.
+            ``MAX_CATALOGO_NO_PROMPT``).
+        prompt_path: opcional. Se passado, usa este prompt em vez de
+            ``PROMPT_PATH`` default (útil pra A/B test de prompt v1 vs v2).
 
     Returns:
         Lista (até 3) de dicts ``{nome, confianca, evidencia_curta}``.
-        Vazia se o LLM devolveu vazio, falhou, ou todos os temas
-        ficaram abaixo de ``CONFIANCA_MINIMA``.
-
-    Notas:
-        - Não persiste nada. Persistência fica em camada superior.
-        - Tolerante: se Haiku falhar (rede, JSON inválido após repair),
-          devolve lista vazia em vez de levantar — pipeline continua.
     """
     texto = (texto or "").strip()
     if not texto:
@@ -94,7 +88,7 @@ def extrair_temas(
 
     from src.classifier.classifier_v3 import _get_client
 
-    system_prompt = _carregar_prompt()
+    system_prompt = _carregar_prompt(prompt_path)
     user_payload: Dict[str, Any] = {"texto": texto[:4000]}
     for k in ("subpilar", "tipo", "setor", "agrupamento"):
         v = contexto.get(k) if contexto else None
