@@ -36,9 +36,11 @@ Os verbatins **já estão semanticamente agrupados** por embedding — você nã
 5. **Síntese**: se os representativos falam de variações da mesma coisa, encontre o termo abstrato que cobre todos.
    - 3 verbatins sobre "demora", "esperei muito", "lentidão" → label "demora atendimento".
 
-6. **Quando o cluster é heterogêneo demais** (representativos falam de coisas distintas): isso normalmente não acontece — o cluster veio do embedding. Mas se acontecer, escolha o tema **dominante** (o que aparece em ≥2 representativos).
+6. **Cluster com sinal parcial** (ao menos 1 representativo tem ângulo claro e nomeável — tema, aspecto ou ação — enquanto os outros são genéricos): **rotule pelo ângulo claro**. NÃO descarte só porque 2 de 3 representativos são fracos ("muito bom", "não tenho do que reclamar", "recomendo"). **Basta um** representativo nomeável para o cluster valer um label.
+   - reps = `["a atendente Tainara foi muito querida e prestativa", "não temos do que reclamar", "muito bom"]` → o 1º dá o ângulo → `"atendimento personalizado"`.
+   - Se os representativos falam de coisas **distintas** mas nomeáveis, escolha o tema **dominante** (o que aparece em mais representativos; empate → o do 1º).
 
-7. **Cluster vazio ou ininteligível** (representativos só com elogios genéricos tipo "muito bom", "péssimo", emojis): devolva `{"nome": null}` — o cluster será descartado a montante.
+7. **Cluster sem nenhum sinal** (`{"nome": null}` — descartado a montante): use **somente** quando NENHUM dos representativos tem ângulo nomeável — todos são elogios/queixas genéricas ("muito bom", "péssimo"), saudações, emojis ou texto ininteligível.
 
 ## Output
 
