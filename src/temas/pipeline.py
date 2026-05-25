@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -185,6 +186,45 @@ def _upsert_tema_e_link(
     return {"tema_id": tema_id, "novo_tema": novo_tema, "vinculos_novos": len(novos)}
 
 
+def _agregar_cache_por_label(
+    rotulados: List[Dict[str, Any]],
+) -> "OrderedDict[str, Dict[str, Any]]":
+    """Agrega clusters que resolvem pro mesmo label (Achado 2 / CP-11).
+
+    Vários clusters de um bucket podem receber o mesmo label (ex.: 13
+    clusters → "atendimento personalizado"). Em vez de 1 row de cache por
+    cluster — que repetiria o nome no painel — soma os volumes e mantém
+    os ``exemplos_ids`` do **maior** cluster contribuinte (mais ilustrativo).
+
+    Args:
+        rotulados: lista de dicts ``{"label", "volume", "exemplos_ids"}`` na
+            ordem em que os clusters foram rotulados.
+
+    Returns:
+        ``OrderedDict`` label → ``{"volume": int, "exemplos_ids": [...]}``,
+        preservando a ordem da 1ª aparição de cada label.
+    """
+    agg: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+    for c in rotulados:
+        label = c["label"]
+        vol = c["volume"]
+        cur = agg.get(label)
+        if cur is None:
+            agg[label] = {
+                "volume": vol,
+                "exemplos_ids": list(c["exemplos_ids"]),
+                "_top_vol": vol,
+            }
+        else:
+            cur["volume"] += vol
+            if vol > cur["_top_vol"]:
+                cur["exemplos_ids"] = list(c["exemplos_ids"])
+                cur["_top_vol"] = vol
+    for v in agg.values():
+        v.pop("_top_vol", None)
+    return agg
+
+
 def _gravar_cache(
     empresa_id: int,
     ag_id: Optional[int],
@@ -244,6 +284,7 @@ def _processar_bucket(
         "vinculos_criados": 0,
         "temas_novos": 0,
         "temas_reusados": 0,
+        "cache_rows": 0,
         "custo_usd": 0.0,
         "skip_motivo": None,
     }
@@ -273,6 +314,7 @@ def _processar_bucket(
     # Zera cache do bucket pra escrita idempotente
     _zerar_cache_bucket(empresa_id, ag_id, sub, tipo)
 
+    rotulados: List[Dict[str, Any]] = []
     for cluster_id in sorted(set(res.labels) - {-1}):
         rep_pos = pick_representativos(vetores, res.labels, cluster_id, k=3)
         membros_pos = np.where(res.labels == cluster_id)[0]
@@ -307,21 +349,29 @@ def _processar_bucket(
         stats["temas_novos"] += upsert["novo_tema"]
         stats["temas_reusados"] += 1 - upsert["novo_tema"]
         stats["vinculos_criados"] += upsert["vinculos_novos"]
+        rotulados.append({"label": label, "volume": len(membros_ids), "exemplos_ids": rep_ids})
+
+        if callback_progresso:
+            callback_progresso(chave_bucket, label, len(membros_ids))
+
+    # Achado 2 (CP-11): agrega cache por label — vários clusters do mesmo
+    # bucket podem resolver pro mesmo label (ex.: 13 clusters →
+    # "atendimento personalizado"). Grava 1 row por label, volume somado.
+    agregados = _agregar_cache_por_label(rotulados)
+    for label, ag in agregados.items():
         _gravar_cache(
             empresa_id=empresa_id,
             ag_id=ag_id,
             sub=sub,
             tipo=tipo,
             label=label,
-            volume=len(membros_ids),
+            volume=ag["volume"],
             bucket_total=bucket_total,
-            exemplos_ids=rep_ids,
+            exemplos_ids=ag["exemplos_ids"],
             periodo_ini=periodo_ini,
             periodo_fim=periodo_fim,
         )
-
-        if callback_progresso:
-            callback_progresso(chave_bucket, label, len(membros_ids))
+    stats["cache_rows"] = len(agregados)
 
     return stats
 
@@ -408,7 +458,7 @@ def processar_empresa(
             resumo.temas_unicos_criados += stats["temas_novos"]
             resumo.temas_reusados += stats["temas_reusados"]
             resumo.vinculos_criados += stats["vinculos_criados"]
-            resumo.cache_rows_criadas += stats["clusters_rotulados"]
+            resumo.cache_rows_criadas += stats["cache_rows"]
             resumo.custo_usd_acumulado = round(resumo.custo_usd_acumulado + stats["custo_usd"], 6)
             resumo.buckets_processados += 1
         except Exception as exc:  # noqa: BLE001
