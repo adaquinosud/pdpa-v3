@@ -12,10 +12,11 @@ Endpoints expostos via empresas_bp / verbatins_bp / temas_bp:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import json
+from typing import Any, Dict, List, Set
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import func
+from sqlalchemy import and_, func
 
 from src.auth import (
     cliente_pode_ver_empresa,
@@ -24,7 +25,7 @@ from src.auth import (
     loyall_required,
     verificar_acesso_empresa,
 )
-from src.models.temas import Tema, VerbatimTema
+from src.models.temas import Tema, TemaCache, VerbatimTema
 from src.models.verbatim import Verbatim
 from src.temas.extrator import extrair_temas
 from src.temas.persistencia import merge_temas, persistir_temas_de_verbatim
@@ -198,7 +199,14 @@ def temas_de_verbatim(verbatim_id: int):
 
 @cliente_pode_ver_empresa("empresa_id")
 def painel_temas(empresa_id: int):
-    """Top N temas para o bucket subpilar × tipo, com 3 verbatins exemplo."""
+    """Top N temas do bucket subpilar × tipo, lendo de ``temas_cache`` (CP-13).
+
+    Lê o cache pré-computado pelo pipeline (1 SELECT, agregando o volume por
+    label across agrupamentos) em vez de joins on-the-fly verbatim_temas →
+    temas. Os textos dos exemplos vêm de 1 SELECT batched pelos ids guardados
+    no cache. INNER JOIN em ``temas`` (ativo) descarta temas inativos e labels
+    de cache órfãos (sem tema correspondente).
+    """
     subpilar = (request.args.get("subpilar") or "").strip()
     tipo = (request.args.get("tipo") or "").strip()
     if not subpilar or not tipo:
@@ -209,55 +217,86 @@ def painel_temas(empresa_id: int):
         return jsonify({"erro": "limite deve ser inteiro"}), 400
 
     with db_session() as s:
-        q = (
+        # SELECT 1: cache agregado por label (across agrupamentos) + tema_id/slug.
+        rows = (
             s.query(
-                Tema.id,
-                Tema.nome,
-                Tema.slug,
-                func.count(VerbatimTema.id).label("volume"),
+                Tema.id.label("tema_id"),
+                Tema.nome.label("nome"),
+                Tema.slug.label("slug"),
+                func.sum(TemaCache.volume).label("volume"),
+                func.group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
             )
-            .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
-            .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+            .join(
+                Tema,
+                and_(
+                    Tema.empresa_id == TemaCache.empresa_id,
+                    Tema.nome == TemaCache.tema_label,
+                    Tema.ativo.is_(True),
+                ),
+            )
             .filter(
-                Verbatim.empresa_id == empresa_id,
-                Verbatim.subpilar == subpilar,
-                Verbatim.tipo == tipo,
-                Tema.ativo.is_(True),
+                TemaCache.empresa_id == empresa_id,
+                TemaCache.subpilar == subpilar,
+                TemaCache.tipo == tipo,
             )
-            .group_by(Tema.id)
-            .order_by(func.count(VerbatimTema.id).desc())
+            .group_by(Tema.id, Tema.nome, Tema.slug)
+            .order_by(func.sum(TemaCache.volume).desc())
             .limit(limite)
+            .all()
         )
-        temas: List[Dict[str, Any]] = []
-        for tema_id, nome, slug, volume in q.all():
-            exemplos_rows = (
-                s.query(Verbatim.id, Verbatim.texto, VerbatimTema.evidencia_curta)
-                .join(VerbatimTema, VerbatimTema.verbatim_id == Verbatim.id)
-                .filter(
-                    VerbatimTema.tema_id == tema_id,
-                    Verbatim.subpilar == subpilar,
-                    Verbatim.tipo == tipo,
-                )
-                .order_by(Verbatim.data_criacao_original.desc().nullslast())
-                .limit(3)
-                .all()
-            )
-            temas.append(
+
+        # Achata os ids de exemplo (até 3 por tema) dos blobs JSON concatenados.
+        parciais: List[Dict[str, Any]] = []
+        todos_ids: Set[int] = set()
+        for r in rows:
+            ex_ids: List[int] = []
+            for blob in (r.ex_blobs or "").split("|"):
+                blob = blob.strip()
+                if not blob:
+                    continue
+                try:
+                    for vid in json.loads(blob):
+                        if vid not in ex_ids:
+                            ex_ids.append(vid)
+                except (ValueError, TypeError):
+                    continue
+            ex_ids = ex_ids[:3]
+            todos_ids.update(ex_ids)
+            parciais.append(
                 {
-                    "tema_id": tema_id,
-                    "nome": nome,
-                    "slug": slug,
-                    "volume": int(volume or 0),
-                    "exemplos": [
-                        {
-                            "verbatim_id": vid,
-                            "texto_curto": (texto or "")[:160],
-                            "evidencia": evidencia or None,
-                        }
-                        for (vid, texto, evidencia) in exemplos_rows
-                    ],
+                    "tema_id": r.tema_id,
+                    "nome": r.nome,
+                    "slug": r.slug,
+                    "volume": int(r.volume or 0),
+                    "ex_ids": ex_ids,
                 }
             )
+
+        # SELECT 2: textos dos exemplos (batched — não N+1).
+        textos: Dict[int, str] = {}
+        if todos_ids:
+            for vid, texto in (
+                s.query(Verbatim.id, Verbatim.texto).filter(Verbatim.id.in_(todos_ids)).all()
+            ):
+                textos[vid] = texto or ""
+
+    temas: List[Dict[str, Any]] = [
+        {
+            "tema_id": p["tema_id"],
+            "nome": p["nome"],
+            "slug": p["slug"],
+            "volume": p["volume"],
+            "exemplos": [
+                {
+                    "verbatim_id": vid,
+                    "texto_curto": textos.get(vid, "")[:160],
+                    "evidencia": None,
+                }
+                for vid in p["ex_ids"]
+            ],
+        }
+        for p in parciais
+    ]
 
     return jsonify(
         {

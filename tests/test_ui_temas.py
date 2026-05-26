@@ -2,10 +2,28 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import json
+from datetime import date, datetime, timedelta
 
-from src.models.temas import Tema, VerbatimTema
+from src.models.temas import Tema, TemaCache, VerbatimTema
 from src.models.verbatim import Verbatim
+
+
+def _cache(empresa_id, subpilar, tipo, label, volume, ex_ids, agrupamento_id=None):
+    """TemaCache de teste com os campos NOT NULL preenchidos."""
+    return TemaCache(
+        empresa_id=empresa_id,
+        agrupamento_id=agrupamento_id,
+        subpilar=subpilar,
+        tipo=tipo,
+        tema_label=label,
+        volume=volume,
+        percentual=0.0,
+        periodo_inicio=date(2026, 1, 1),
+        periodo_fim=date(2026, 1, 31),
+        exemplos_verbatim_ids=json.dumps(ex_ids),
+        hash_escopo=f"h-{label}-{tipo}-{agrupamento_id}",
+    )
 
 
 def _ctx(client_loyall, sfx):
@@ -43,12 +61,12 @@ def _criar_verbatim(db_session, empresa_id, fonte_id, local_id, texto, sub="Pa1"
 
 
 def test_temas_modal_loyall_renderiza_drawer(client_loyall, db_session):
-    e, _, loc, f = _ctx(client_loyall, "m1")
+    e, a, loc, f = _ctx(client_loyall, "m1")
     v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "txt", sub="Pa1", tipo="promotor")
     t = Tema(empresa_id=e["id"], nome="fila check-in", slug="fila-check-in")
     db_session.add(t)
     db_session.commit()
-    db_session.add(VerbatimTema(verbatim_id=v.id, tema_id=t.id, confianca=0.8, origem="llm"))
+    db_session.add(_cache(e["id"], "Pa1", "promotor", "fila check-in", 1, [v.id], a["id"]))
     db_session.commit()
 
     r = client_loyall.get(f"/ui/empresas/{e['id']}/painel/temas-modal?subpilar=Pa1&tipo=promotor")
@@ -58,6 +76,7 @@ def test_temas_modal_loyall_renderiza_drawer(client_loyall, db_session):
     assert "Pa1" in html
     assert "promotor" in html
     assert "fila check-in" in html
+    assert "txt" in html  # texto do exemplo veio do SELECT batched
 
 
 def test_temas_modal_sem_dados_mostra_empty_state(client_loyall):

@@ -6,10 +6,28 @@ reprocessar inline (com mock do extrator). Permissões: cliente vs loyall.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import json
+from datetime import date, datetime, timedelta
 
-from src.models.temas import Tema, VerbatimTema
+from src.models.temas import Tema, TemaCache, VerbatimTema
 from src.models.verbatim import Verbatim
+
+
+def _cache(empresa_id, subpilar, tipo, label, volume, ex_ids, agrupamento_id=None, percentual=0.0):
+    """Monta um TemaCache de teste preenchendo os campos NOT NULL."""
+    return TemaCache(
+        empresa_id=empresa_id,
+        agrupamento_id=agrupamento_id,
+        subpilar=subpilar,
+        tipo=tipo,
+        tema_label=label,
+        volume=volume,
+        percentual=percentual,
+        periodo_inicio=date(2026, 1, 1),
+        periodo_fim=date(2026, 1, 31),
+        exemplos_verbatim_ids=json.dumps(ex_ids),
+        hash_escopo=f"h-{label}-{tipo}-{agrupamento_id}",
+    )
 
 
 def _ctx(client_loyall, sfx):
@@ -227,29 +245,28 @@ def test_temas_de_verbatim_404(client_loyall):
 
 
 def test_painel_temas_drill_down(client_loyall, db_session):
-    e, _, loc, f = _ctx(client_loyall, "pt1")
-    # 3 verbatins D2 detrator
+    """CP-13: painel lê de temas_cache. Volume = SUM(cache), agregado por label
+    across agrupamentos; exemplos resolvidos pelos ids guardados no cache."""
+    e, a, loc, f = _ctx(client_loyall, "pt1")
+    # 3 verbatins D2 detrator (servem de exemplo p/ os ids do cache)
     vs = [
         _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"v{i}", "D2", "detrator")
         for i in range(3)
     ]
-    # 1 verbatim D2 promotor (não deve aparecer)
-    v_out = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "v_out", "D2", "promotor")
     t_demora = Tema(empresa_id=e["id"], nome="demora bagagem", slug="demora-bagagem")
     t_fila = Tema(empresa_id=e["id"], nome="fila check-in", slug="fila-check-in")
     db_session.add_all([t_demora, t_fila])
     db_session.commit()
-    # Vincula 3 verbatins ao tema demora, 1 ao tema fila
-    for v in vs:
-        db_session.add(
-            VerbatimTema(verbatim_id=v.id, tema_id=t_demora.id, confianca=0.9, origem="llm")
-        )
-    db_session.add(
-        VerbatimTema(verbatim_id=vs[0].id, tema_id=t_fila.id, confianca=0.7, origem="llm")
-    )
-    # v_out vinculado mas é promotor → não conta
-    db_session.add(
-        VerbatimTema(verbatim_id=v_out.id, tema_id=t_demora.id, confianca=0.9, origem="llm")
+    # Cache: "demora bagagem" em 2 agrupamentos (vol 2 + 1 = 3, exemplos 3 ids);
+    # "fila check-in" vol 1. Comprova agregação por label e leitura do cache.
+    db_session.add_all(
+        [
+            _cache(e["id"], "D2", "detrator", "demora bagagem", 2, [vs[0].id, vs[1].id], a["id"]),
+            _cache(e["id"], "D2", "detrator", "demora bagagem", 1, [vs[2].id], None),
+            _cache(e["id"], "D2", "detrator", "fila check-in", 1, [vs[0].id], a["id"]),
+            # Bucket de outro tipo: não deve aparecer
+            _cache(e["id"], "D2", "promotor", "demora bagagem", 9, [vs[0].id], a["id"]),
+        ]
     )
     db_session.commit()
 
@@ -260,8 +277,11 @@ def test_painel_temas_drill_down(client_loyall, db_session):
     assert body["tipo"] == "detrator"
     assert len(body["temas"]) == 2
     assert body["temas"][0]["nome"] == "demora bagagem"
-    assert body["temas"][0]["volume"] == 3  # promotor excluído
+    assert body["temas"][0]["volume"] == 3  # 2 + 1 agregados; promotor (9) excluído
+    assert body["temas"][0]["slug"] == "demora-bagagem"
     assert len(body["temas"][0]["exemplos"]) == 3
+    assert body["temas"][1]["nome"] == "fila check-in"
+    assert body["temas"][1]["volume"] == 1
 
 
 def test_painel_temas_sem_subpilar_tipo_400(client_loyall):
@@ -271,12 +291,13 @@ def test_painel_temas_sem_subpilar_tipo_400(client_loyall):
 
 
 def test_painel_temas_oculta_inativos(client_loyall, db_session):
-    e, _, loc, f = _ctx(client_loyall, "pt_inat")
+    """Tema inativo: o INNER JOIN (ativo=True) descarta a row de cache dele."""
+    e, a, loc, f = _ctx(client_loyall, "pt_inat")
     v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "x", "D2", "detrator")
     t = Tema(empresa_id=e["id"], nome="t", slug="t-inat", ativo=False)
     db_session.add(t)
     db_session.commit()
-    db_session.add(VerbatimTema(verbatim_id=v.id, tema_id=t.id, confianca=0.8, origem="llm"))
+    db_session.add(_cache(e["id"], "D2", "detrator", "t", 1, [v.id], a["id"]))
     db_session.commit()
     body = client_loyall.get(
         f"/api/empresas/{e['id']}/painel/temas?subpilar=D2&tipo=detrator"
