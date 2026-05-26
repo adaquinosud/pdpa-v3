@@ -45,8 +45,8 @@ def test_helpers_basicos():
     assert _severidade(75) == "critico"
     assert _severidade(50) == "atencao"
     assert _severidade(10) == "normal"
-    assert _tendencia_editorial(80, 80) == "Crítico em ambos eixos"
-    assert _tendencia_editorial(10, 80) == "Estável baixo (outlier estrutural)"
+    assert _tendencia_editorial(80, 80) == "Crítico e em piora recente"
+    assert _tendencia_editorial(10, 80) == "Baixo persistente vs. lojas comparáveis"
     assert _tendencia_editorial(80, 10) == "Em deterioração recente"
     assert _tendencia_editorial(10, 10) == "Estável"
 

@@ -153,10 +153,12 @@ def _severidade(score: int) -> str:
 def _tendencia_editorial(score_temp: int, score_cross: int) -> str:
     temp = score_temp >= SEVERIDADE_ATENCAO
     cross = score_cross >= SEVERIDADE_ATENCAO
+    # Rótulos em linguagem de negócio (sem jargão estatístico — alimentam a
+    # leitura editorial, que proíbe termos como "outlier"/"eixos").
     if temp and cross:
-        return "Crítico em ambos eixos"
+        return "Crítico e em piora recente"
     if cross and not temp:
-        return "Estável baixo (outlier estrutural)"
+        return "Baixo persistente vs. lojas comparáveis"
     if temp and not cross:
         return "Em deterioração recente"
     return "Estável"

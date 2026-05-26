@@ -539,12 +539,13 @@ def gerar_e_persistir_leituras(
     empresa_id: int,
     *,
     severidade: Optional[str] = None,
+    ids: Optional[List[int]] = None,
     limite: Optional[int] = None,
     gerar_fn: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """Gera a leitura editorial (Sonnet) das anomalias persistidas e grava em
     ``leitura_editorial`` (JSON das 7 seções) + ``dados_hash``. Filtra por
-    ``severidade`` se dada; ``limite`` opcional. Idempotente (regrava).
+    ``severidade`` e/ou lista de ``ids``; ``limite`` opcional. Idempotente.
 
     Retorna métricas: gerados, falhas, por_tipo, tokens (in/out), custo_usd, erros.
     """
@@ -553,6 +554,8 @@ def gerar_e_persistir_leituras(
 
     with db_session() as s:
         q = s.query(AnomaliaDetectada).filter(AnomaliaDetectada.empresa_id == empresa_id)
+        if ids is not None:
+            q = q.filter(AnomaliaDetectada.id.in_(ids))
         if severidade:
             q = q.filter(AnomaliaDetectada.severidade == severidade)
         q = q.order_by(AnomaliaDetectada.score_final.desc())

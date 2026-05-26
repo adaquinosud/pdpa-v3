@@ -119,7 +119,7 @@ def test_montar_payload_e_gerar_leitura(client_loyall, db_session):
         "agrupamento_id": a["id"],
         "subpilar": "D2",
         "score_cross_sectional": 80.0,
-        "tendencia": "Estável baixo (outlier estrutural)",
+        "tendencia": "Baixo persistente vs. lojas comparáveis",
     }
     payload = montar_payload_indicador(db_session, e["id"], anomalia)
     assert "Localiza Confins" in payload["escopo"] and "D2" in payload["escopo"]
