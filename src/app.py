@@ -592,6 +592,52 @@ def _register_cli_commands(app: Flask) -> None:
                     f"nSub={c['n_subpilares_distintos']}  membros={c['membros']}"
                 )
 
+    # ── B7 CP-4: flask temas-acoes (Nível 5, Sonnet) ──────────────────
+    @app.cli.command("temas-acoes")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--top-pontuais",
+        type=int,
+        default=23,
+        help="Quantos temas pontuais (além dos cruzamentos) recebem ação.",
+    )
+    def temas_acoes(empresa_arg, top_pontuais):
+        """Gera ações de venda N5 (Sonnet) p/ cruzamentos + top temas. Custa LLM.
+
+        Idempotente: regrava acoes_venda da empresa. Impacto qualitativo
+        (alto/medio/baixo); R$ fica para quando houver LTV setorial.
+        """
+        from src.models.empresa import Empresa
+        from src.temas.acao import gerar_e_persistir_acoes
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id = emp.id
+            empresa_nome = emp.nome
+
+        click.echo(f"[temas-acoes] empresa={empresa_nome!r} (id={empresa_id})")
+        r = gerar_e_persistir_acoes(empresa_id, top_pontuais=top_pontuais)
+        click.echo(
+            f"[temas-acoes] alvos={r.alvos} geradas={r.acoes_geradas} "
+            f"descartadas={r.descartadas} | dist={r.distribuicao}"
+        )
+        click.echo(
+            f"[temas-acoes] chamadas Sonnet={r.chamadas_llm} "
+            f"tokens in={r.input_tokens} out={r.output_tokens}"
+        )
+        for d in r.detalhes:
+            click.echo(
+                f"  [{d['impacto_qualitativo']:5s}] {d['tema_label']:26s} "
+                f"({d['tipo_alvo']}) → {d['acao'][:80]}"
+            )
+
 
 if __name__ == "__main__":
     app = create_app()
