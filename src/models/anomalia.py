@@ -90,6 +90,8 @@ class TemaSnapshot(Base):
     promotor: Mapped[int] = mapped_column(Integer, default=0)
     conversivel: Mapped[int] = mapped_column(Integer, default=0)
     detrator: Mapped[int] = mapped_column(Integer, default=0)
+    # Centróide (float32 raw) só na linha company-wide — fuzzy anti-relabeling.
+    centroide: Mapped[Optional[bytes]] = mapped_column(nullable=True)
     gerado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self) -> str:
