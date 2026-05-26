@@ -48,6 +48,17 @@ def test_tela_anomalias_renderiza_com_resumo(client_loyall):
     assert "Validar:" in html
 
 
+def test_card_colapsado_estrutura_e_acao_rapida(client_loyall):
+    e = _empresa(client_loyall, "col")
+    _seed(e["id"])
+    html = client_loyall.get(f"/empresas/{e['id']}/anomalias").get_data(as_text=True)
+    assert 'class="anom-card' in html and "data-anom=" in html  # card colapsável
+    assert "toggleAnom(" in html  # clique no header alterna
+    assert "anom-resumo" in html  # resumo curto no estado colapsado
+    assert "Expandir todos" in html and "Colapsar todos" in html
+    assert '"estado": "falso_positivo"' in html  # validação rápida no header
+
+
 def test_tela_filtra_por_severidade(client_loyall):
     e = _empresa(client_loyall, "filt")
     _seed(e["id"])

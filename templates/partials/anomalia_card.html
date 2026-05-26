@@ -1,4 +1,5 @@
-{# Card de uma anomalia — reusado na tela e na resposta HTMX de validação. #}
+{# Card de anomalia — colapsado por default; header sempre visível, corpo expande.
+   Reusado na tela e na resposta HTMX de validação. Toggle/estado em anomalias.html. #}
 {% set sev = {
   'critico': {'bg':'bg-rose-100','text':'text-rose-700','lbl':'crítica'},
   'atencao': {'bg':'bg-amber-100','text':'text-amber-800','lbl':'atenção'},
@@ -10,37 +11,46 @@
   'pendente':        {'bg':'bg-loyall-100','text':'text-loyall-500','lbl':'pendente'},
 }.get(a.estado, {'bg':'bg-loyall-100','text':'text-loyall-500','lbl':a.estado}) %}
 {% set tipo_lbl = {
-  'indicador':'Indicador (loja × subpilar)', 'tema':'Tema', 'cruzamento':'Cruzamento (causa raiz)'
+  'indicador':'Indicador', 'tema':'Tema', 'cruzamento':'Cruzamento'
 }.get(a.tipo, a.tipo) %}
-<div id="anomalia-card-{{ a.id }}"
-     class="border rounded-lg p-4 bg-white {% if a.severidade=='critico' %}border-rose-200{% else %}border-loyall-200{% endif %}">
-  <div class="flex items-start justify-between gap-3">
-    <div class="min-w-0">
-      <div class="flex items-center gap-2 flex-wrap">
+<div id="anomalia-card-{{ a.id }}" data-anom="{{ a.id }}"
+     class="anom-card border rounded-lg bg-white {% if a.severidade=='critico' %}border-rose-200{% else %}border-loyall-200{% endif %}">
+
+  {# ── HEADER (colapsado, sempre visível) — clique alterna ── #}
+  <div class="p-3 flex items-start gap-3 cursor-pointer select-none" onclick="toggleAnom({{ a.id }})">
+    <span class="anom-chev text-loyall-300 mt-0.5 shrink-0">▸</span>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-1.5 flex-wrap">
         <span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded {{ sev.bg }} {{ sev.text }}">{{ sev.lbl }}</span>
         <span class="text-[10px] uppercase px-1.5 py-0.5 rounded bg-loyall-100 text-loyall-600">{{ tipo_lbl }}</span>
-        {% if a.corroborado %}
-        <span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700"
-              title="Sinal estatístico confirmado por tema detrator no mesmo subpilar">🔗 corroborado por tema</span>
-        {% endif %}
+        {% if a.corroborado %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700" title="Confirmado por tema detrator no mesmo subpilar">🔗 corroborado</span>{% endif %}
         <span class="text-[10px] px-1.5 py-0.5 rounded {{ est.bg }} {{ est.text }}">{{ est.lbl }}</span>
       </div>
       <div class="font-medium text-loyall-800 mt-1 truncate">{{ a.chave }}</div>
-      <div class="text-xs text-loyall-500 mt-0.5">
-        {% if a.local_nome %}{{ a.local_nome }} · {% endif %}
-        {% if a.subpilar %}subpilar {{ a.subpilar }} · {% endif %}
-        {% if a.periodo %}{{ a.periodo }} · {% endif %}
-        {{ a.direcao }}
-      </div>
+      {# resumo curto — só no colapsado (escondido quando aberto) #}
+      <div class="anom-resumo text-xs text-loyall-500 mt-0.5 truncate">{{ a.resumo }}</div>
     </div>
-    <div class="text-right shrink-0">
-      <div class="text-2xl font-bold {{ sev.text }}">{{ (a.score|round|int) if a.score is not none else '–' }}</div>
-      <div class="text-[10px] text-loyall-400 uppercase">score</div>
+    <div class="shrink-0 flex items-center gap-2">
+      <div class="text-right">
+        <div class="text-xl font-bold {{ sev.text }}">{{ (a.score|round|int) if a.score is not none else '–' }}</div>
+        <div class="text-[10px] text-loyall-400 uppercase">score</div>
+      </div>
+      {# validação rápida (sem expandir): marcar falso positivo #}
+      {% if a.estado != 'falso_positivo' %}
+      <button onclick="event.stopPropagation()"
+              hx-post="{{ url_for('ui.anomalia_validar_ui', empresa_id=empresa_id, anomalia_id=a.id) }}"
+              hx-vals='{"estado": "falso_positivo"}'
+              hx-target="#anomalia-card-{{ a.id }}" hx-swap="outerHTML"
+              title="Marcar como falso positivo"
+              class="text-loyall-300 hover:text-rose-600 hover:bg-rose-50 rounded w-7 h-7 flex items-center justify-center text-sm">✕</button>
+      {% endif %}
     </div>
   </div>
 
-  {# Leitura editorial — estruturada (7 seções) quando gerada #}
-  <div class="mt-3 text-sm">
+  {# ── BODY (expandido) ── #}
+  <div class="anom-body"><div class="px-3 pb-3 border-t border-loyall-100 pt-3 text-sm">
+
+    {# Leitura editorial — estruturada (7 seções) quando gerada #}
     {% if a.leitura is mapping %}
     {% set pr = {'alto':{'bg':'bg-rose-100','text':'text-rose-700'},'medio':{'bg':'bg-amber-100','text':'text-amber-800'},'baixo':{'bg':'bg-loyall-100','text':'text-loyall-600'}}.get(a.leitura.prioridade, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
     <div class="space-y-2 text-loyall-700">
@@ -59,52 +69,39 @@
     {% else %}
     <div class="text-xs text-loyall-400 italic">Leitura editorial ainda não gerada.</div>
     {% endif %}
-  </div>
 
-  {# Drill-down do sinal #}
-  <details class="mt-2">
-    <summary class="text-xs text-loyall-500 cursor-pointer hover:text-loyall-700">Detalhe do sinal</summary>
-    <div class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-      <div class="bg-loyall-50 rounded p-2">
-        <div class="text-loyall-400">Score final</div>
-        <div class="font-semibold">{{ (a.score|round(1)) if a.score is not none else '–' }}</div>
-      </div>
-      {% if a.score_cross is not none %}
-      <div class="bg-loyall-50 rounded p-2">
-        <div class="text-loyall-400">Comparação entre lojas</div>
-        <div class="font-semibold">{{ a.score_cross|round(1) }}</div>
-      </div>
-      {% endif %}
-      {% if a.score_temporal is not none %}
-      <div class="bg-loyall-50 rounded p-2">
-        <div class="text-loyall-400">Movimento na própria série</div>
-        <div class="font-semibold">{{ a.score_temporal|round(1) }}</div>
-      </div>
-      {% endif %}
-      {% if a.magnitude is not none %}
-      <div class="bg-loyall-50 rounded p-2">
-        <div class="text-loyall-400">Magnitude</div>
-        <div class="font-semibold">{{ a.magnitude }}</div>
-      </div>
-      {% endif %}
+    {# escopo do sinal #}
+    <div class="text-xs text-loyall-500 mt-2">
+      {% if a.local_nome %}{{ a.local_nome }} · {% endif %}
+      {% if a.subpilar %}subpilar {{ a.subpilar }} · {% endif %}
+      {% if a.periodo %}{{ a.periodo }} · {% endif %}{{ a.direcao }}
     </div>
-    {% if a.tendencia %}<div class="mt-2 text-xs text-loyall-500">Tendência: {{ a.tendencia }}</div>{% endif %}
-    {% if a.nota %}
-    <div class="mt-2 text-xs text-loyall-600 bg-amber-50 border border-amber-100 rounded p-2">Nota: {{ a.nota }}</div>
-    {% endif %}
-  </details>
 
-  {# Validação editorial #}
-  <div class="mt-3 pt-2 border-t border-loyall-100 flex items-center gap-2 text-xs flex-wrap">
-    <span class="text-loyall-400">Validar:</span>
-    {% for val, lbl in [('confirmado','Confirmado'),('falso_positivo','Falso positivo'),('em_investigacao','Em investigação')] %}
-    <button
-      hx-post="{{ url_for('ui.anomalia_validar_ui', empresa_id=empresa_id, anomalia_id=a.id) }}"
-      hx-vals='{"estado": "{{ val }}"}'
-      hx-target="#anomalia-card-{{ a.id }}" hx-swap="outerHTML"
-      class="px-2 py-1 rounded border {% if a.estado==val %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">
-      {{ lbl }}
-    </button>
-    {% endfor %}
-  </div>
+    {# Drill-down do sinal #}
+    <details class="mt-2">
+      <summary class="text-xs text-loyall-500 cursor-pointer hover:text-loyall-700">Detalhe do sinal</summary>
+      <div class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        <div class="bg-loyall-50 rounded p-2"><div class="text-loyall-400">Score final</div><div class="font-semibold">{{ (a.score|round(1)) if a.score is not none else '–' }}</div></div>
+        {% if a.score_cross is not none %}<div class="bg-loyall-50 rounded p-2"><div class="text-loyall-400">Comparação entre lojas</div><div class="font-semibold">{{ a.score_cross|round(1) }}</div></div>{% endif %}
+        {% if a.score_temporal is not none %}<div class="bg-loyall-50 rounded p-2"><div class="text-loyall-400">Movimento na própria série</div><div class="font-semibold">{{ a.score_temporal|round(1) }}</div></div>{% endif %}
+        {% if a.magnitude is not none %}<div class="bg-loyall-50 rounded p-2"><div class="text-loyall-400">Magnitude</div><div class="font-semibold">{{ a.magnitude }}</div></div>{% endif %}
+      </div>
+      {% if a.tendencia %}<div class="mt-2 text-xs text-loyall-500">Tendência: {{ a.tendencia }}</div>{% endif %}
+      {% if a.nota %}<div class="mt-2 text-xs text-loyall-600 bg-amber-50 border border-amber-100 rounded p-2">Nota: {{ a.nota }}</div>{% endif %}
+    </details>
+
+    {# Validação editorial #}
+    <div class="mt-3 pt-2 border-t border-loyall-100 flex items-center gap-2 text-xs flex-wrap">
+      <span class="text-loyall-400">Validar:</span>
+      {% for val, lbl in [('confirmado','Confirmado'),('falso_positivo','Falso positivo'),('em_investigacao','Em investigação')] %}
+      <button
+        hx-post="{{ url_for('ui.anomalia_validar_ui', empresa_id=empresa_id, anomalia_id=a.id) }}"
+        hx-vals='{"estado": "{{ val }}"}'
+        hx-target="#anomalia-card-{{ a.id }}" hx-swap="outerHTML"
+        class="px-2 py-1 rounded border {% if a.estado==val %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">
+        {{ lbl }}
+      </button>
+      {% endfor %}
+    </div>
+  </div></div>
 </div>

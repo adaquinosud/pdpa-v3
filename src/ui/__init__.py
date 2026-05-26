@@ -985,6 +985,12 @@ def _anomalia_view(a, local_nome=None, tema_nome=None):
                 leitura = parsed
         except (ValueError, TypeError):
             pass
+    # Resumo curto p/ o card colapsado: 1ª frase do o_que (ou a tendência).
+    if isinstance(leitura, dict) and leitura.get("o_que"):
+        resumo = leitura["o_que"].split(". ")[0].rstrip(".") + "."
+    else:
+        resumo = a.tendencia or "Leitura editorial ainda não gerada."
+    resumo = resumo[:180]
     return SimpleNamespace(
         id=a.id,
         tipo=a.tipo,
@@ -1001,6 +1007,7 @@ def _anomalia_view(a, local_nome=None, tema_nome=None):
         local_nome=local_nome,
         tema_nome=tema_nome,
         leitura=leitura,
+        resumo=resumo,
         estado=a.estado_validacao or "pendente",
         nota=a.nota_editorial,
         corroborado=corrob,

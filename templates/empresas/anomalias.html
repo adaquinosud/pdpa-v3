@@ -16,6 +16,14 @@
 
 {% block conteudo %}
 {% set empresa_id = empresa.id %}
+<style>
+  .anom-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
+  .anom-card.open .anom-body { grid-template-rows: 1fr; }
+  .anom-body > div { overflow: hidden; }
+  .anom-chev { transition: transform .2s ease; }
+  .anom-card.open .anom-chev { transform: rotate(90deg); }
+  .anom-card.open .anom-resumo { display: none; }
+</style>
 {# ── Header ───────────────────────────────────────────────────────── #}
 <div class="mb-4">
   <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
@@ -75,6 +83,13 @@
 
 {# ── Lista ────────────────────────────────────────────────────────── #}
 {% if anomalias %}
+<div class="flex justify-between items-center mb-2">
+  <span class="text-xs text-loyall-400">{{ anomalias|length }} anomalia(s)</span>
+  <div class="flex gap-1 text-xs">
+    <button type="button" onclick="anomSetAll(true)" class="px-2 py-1 rounded border border-loyall-200 text-loyall-600 hover:bg-loyall-50">Expandir todos</button>
+    <button type="button" onclick="anomSetAll(false)" class="px-2 py-1 rounded border border-loyall-200 text-loyall-600 hover:bg-loyall-50">Colapsar todos</button>
+  </div>
+</div>
 <div class="space-y-3">
   {% for a in anomalias %}
     {% include 'partials/anomalia_card.html' %}
@@ -89,4 +104,43 @@
   {% endif %}
 </div>
 {% endif %}
+
+<script>
+  (function () {
+    // Estado de cards abertos persiste em sessionStorage (sobrevive ao reload
+    // dos filtros e ao swap HTMX de validação). Chave por empresa.
+    const KEY = 'anom-open-{{ empresa.id }}';
+    const get = () => { try { return new Set(JSON.parse(sessionStorage.getItem(KEY) || '[]')); } catch (e) { return new Set(); } };
+    const save = (s) => sessionStorage.setItem(KEY, JSON.stringify([...s]));
+
+    window.toggleAnom = function (id) {
+      const card = document.getElementById('anomalia-card-' + id);
+      if (!card) return;
+      const open = get();
+      const nowOpen = card.classList.toggle('open');
+      if (nowOpen) open.add(String(id)); else open.delete(String(id));
+      save(open);
+    };
+
+    window.anomSetAll = function (openAll) {
+      const open = get();
+      document.querySelectorAll('.anom-card').forEach(function (c) {
+        const id = c.getAttribute('data-anom');
+        c.classList.toggle('open', openAll);
+        if (openAll) open.add(id); else open.delete(id);
+      });
+      save(open);
+    };
+
+    function apply(root) {
+      const open = get();
+      (root || document).querySelectorAll('.anom-card').forEach(function (c) {
+        if (open.has(c.getAttribute('data-anom'))) c.classList.add('open');
+      });
+    }
+    document.addEventListener('DOMContentLoaded', function () { apply(); });
+    // Reaplica estado após validação (HTMX troca o card via outerHTML).
+    document.body.addEventListener('htmx:afterSwap', function (e) { apply(e.target.parentElement || document); });
+  })();
+</script>
 {% endblock %}
