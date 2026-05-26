@@ -5,14 +5,38 @@ from __future__ import annotations
 import json
 import math
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 
-from src.models.temas import Tema, TemaCruzamento, VerbatimTema
+import numpy as np
+
+from src.models.temas import Tema, TemaCruzamento, VerbatimEmbedding, VerbatimTema
 from src.models.verbatim import Verbatim
 from src.temas.cruzamento import (
+    _confirmar_mesmo_conceito,
+    _familias,
+    _pares_candidatos,
     calcular_peso,
     detectar_e_persistir_literais,
+    detectar_e_persistir_semanticos,
     detectar_literais,
 )
+from src.temas.embeddings import MODELO_PADRAO
+
+
+def _unit(vec):
+    a = np.array(vec, dtype=np.float32)
+    return a / np.linalg.norm(a)
+
+
+def _emb(db_session, verbatim_id, vec):
+    db_session.add(
+        VerbatimEmbedding(
+            verbatim_id=verbatim_id,
+            modelo=MODELO_PADRAO,
+            vetor=np.array(vec, dtype=np.float32).tobytes(),
+        )
+    )
+    db_session.commit()
 
 
 def _ctx(client_loyall, sfx):
@@ -190,3 +214,95 @@ def test_zerar_literais_preserva_semanticos(client_loyall, db_session):
         .count()
     )
     assert semanticos == 1
+
+
+# ── Fase 2 semântica ─────────────────────────────────────────────────
+
+
+def test_pares_candidatos_respeita_threshold_e_buckets_disjuntos():
+    info = {
+        1: {"centroide": _unit([1, 0]), "buckets": {"D2:detrator"}},
+        2: {"centroide": _unit([0.99, 0.141]), "buckets": {"Pa1:promotor"}},  # cos~0.99 c/ 1
+        3: {"centroide": _unit([0, 1]), "buckets": {"P1:detrator"}},  # ortogonal a 1
+        4: {"centroide": _unit([1, 0]), "buckets": {"D2:detrator"}},  # mesmo bucket de 1
+    }
+    pares = _pares_candidatos(info, threshold=0.90)
+    encontrados = {(a, b) for _cos, a, b in pares}
+    assert (1, 2) in encontrados  # próximos + buckets disjuntos
+    assert (1, 4) not in encontrados and (4, 1) not in encontrados  # mesmo bucket
+    assert (1, 3) not in encontrados  # cosine baixo
+
+
+def test_familias_union_find():
+    fams = _familias([(1, 2), (2, 3), (4, 5)])
+    fams_sets = sorted([sorted(f) for f in fams])
+    assert [1, 2, 3] in fams_sets
+    assert [4, 5] in fams_sets
+
+
+def _mock_curador(json_str, in_tok=120, out_tok=5):
+    block = MagicMock(type="text", text=json_str)
+    usage = MagicMock(input_tokens=in_tok, output_tokens=out_tok)
+    resp = MagicMock(content=[block], usage=usage)
+    client = MagicMock()
+    client.messages.create.return_value = resp
+    return client
+
+
+def test_confirmar_mesmo_conceito_true_e_conta_tokens():
+    fake = _mock_curador('{"mesmo_conceito": true}', in_tok=120, out_tok=5)
+    a = {"nome": "demora atendimento", "buckets": {"D2:detrator"}, "reps": ["esperei muito"]}
+    b = {"nome": "demora retirada", "buckets": {"P2:detrator"}, "reps": ["demorou pra sair"]}
+    with patch("src.classifier.classifier_v3._get_client", return_value=fake):
+        ok, it, ot = _confirmar_mesmo_conceito(a, b)
+    assert ok is True
+    assert (it, ot) == (120, 5)
+
+
+def test_confirmar_mesmo_conceito_false():
+    fake = _mock_curador('{"mesmo_conceito": false}')
+    a = {"nome": "atendimento acessível", "buckets": {"Pa1:promotor"}, "reps": ["sem burocracia"]}
+    b = {"nome": "qualidade aluguel carro", "buckets": {"P2:promotor"}, "reps": ["carro novo"]}
+    with patch("src.classifier.classifier_v3._get_client", return_value=fake):
+        ok, _it, _ot = _confirmar_mesmo_conceito(a, b)
+    assert ok is False
+
+
+def test_confirmar_mesmo_conceito_json_invalido_vira_false():
+    fake = _mock_curador("não é json")
+    a = {"nome": "x", "buckets": {"D2:detrator"}, "reps": []}
+    b = {"nome": "y", "buckets": {"P1:detrator"}, "reps": []}
+    with patch("src.classifier.classifier_v3._get_client", return_value=fake):
+        ok, _it, _ot = _confirmar_mesmo_conceito(a, b)
+    assert ok is False
+
+
+def test_detectar_e_persistir_semanticos_integra(client_loyall, db_session):
+    """Embeddings injetados + confirmar_fn fake → família semântica persistida."""
+    e, a, loc, f = _ctx(client_loyall, "sem1")
+    ag = a["id"]
+    t1 = Tema(empresa_id=e["id"], nome="demora atendimento", slug="demora-atendimento")
+    t2 = Tema(empresa_id=e["id"], nome="demora retirada", slug="demora-retirada")
+    db_session.add_all([t1, t2])
+    db_session.commit()
+    # t1 em D2:detrator, t2 em P2:detrator (buckets disjuntos), vetores colineares
+    v1 = _verbatim(db_session, e["id"], f["id"], loc["id"], "esperei muito")
+    _link(db_session, v1.id, t1.id, f"{ag}:D2:detrator")
+    _emb(db_session, v1.id, [1.0, 0.0, 0.0, 0.0])
+    v2 = _verbatim(db_session, e["id"], f["id"], loc["id"], "demorou pra sair")
+    _link(db_session, v2.id, t2.id, f"{ag}:P2:detrator")
+    _emb(db_session, v2.id, [1.0, 0.0, 0.0, 0.0])
+
+    resumo = detectar_e_persistir_semanticos(e["id"], confirmar_fn=lambda x, y: (True, 0, 0))
+    assert resumo.pares_candidatos == 1
+    assert resumo.confirmados == 1
+    assert resumo.cruzamentos_criados == 1
+
+    row = (
+        db_session.query(TemaCruzamento)
+        .filter(TemaCruzamento.empresa_id == e["id"], TemaCruzamento.membros_json.isnot(None))
+        .one()
+    )
+    assert sorted(json.loads(row.membros_json)) == ["demora atendimento", "demora retirada"]
+    assert row.n_subpilares_distintos == 2  # D2 + P2
+    assert sorted(json.loads(row.tipos_envolvidos_json)) == ["detrator"]

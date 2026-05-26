@@ -535,17 +535,26 @@ def _register_cli_commands(app: Flask) -> None:
         log_path.write_text(_json.dumps(resumo_dict, indent=2, ensure_ascii=False, default=str))
         click.echo(f"[temas-pipeline] log: {log_path}")
 
-    # ── B7 CP-3: flask temas-cruzar (Nível 4, match literal) ──────────
+    # ── B7 CP-3/CP-3a: flask temas-cruzar (Nível 4) ───────────────────
     @app.cli.command("temas-cruzar")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
-    def temas_cruzar(empresa_arg):
-        """Detecta cruzamentos N4 (match literal) e grava em temas_cruzamentos.
+    @click.option(
+        "--semantico",
+        is_flag=True,
+        default=False,
+        help="Também roda a Fase 2 semântica (centróides + curadoria Haiku). Custa LLM.",
+    )
+    def temas_cruzar(empresa_arg, semantico):
+        """Detecta cruzamentos N4 e grava em temas_cruzamentos.
 
-        Idempotente: regrava os cruzamentos literais da empresa (preserva os
-        semânticos da Fase 2). Sem custo de LLM.
+        Fase 1 (literal, sem custo) sempre roda. ``--semantico`` adiciona a
+        Fase 2 (famílias por embedding + curadoria Haiku). Idempotente por fase.
         """
         from src.models.empresa import Empresa
-        from src.temas.cruzamento import detectar_e_persistir_literais
+        from src.temas.cruzamento import (
+            detectar_e_persistir_literais,
+            detectar_e_persistir_semanticos,
+        )
         from src.utils.db import db_session as _db_session
 
         with _db_session() as s:
@@ -562,12 +571,26 @@ def _register_cli_commands(app: Flask) -> None:
         click.echo(f"[temas-cruzar] empresa={empresa_nome!r} (id={empresa_id})")
         resumo = detectar_e_persistir_literais(empresa_id)
         click.echo(f"[temas-cruzar] temas analisados: {resumo.temas_analisados}")
-        click.echo(f"[temas-cruzar] cruzamentos: {resumo.cruzamentos_criados}")
+        click.echo(f"[temas-cruzar] cruzamentos literais: {resumo.cruzamentos_criados}")
         for c in sorted(resumo.detalhes, key=lambda x: -x["peso"]):
             click.echo(
                 f"  peso={c['peso']:7.2f}  {c['tema_label']:28s} "
                 f"nSub={c['n_subpilares_distintos']}  {c['buckets_envolvidos']}"
             )
+
+        if semantico:
+            click.echo("[temas-cruzar] Fase 2 semântica (curadoria Haiku)...")
+            rs = detectar_e_persistir_semanticos(empresa_id)
+            click.echo(
+                f"[temas-cruzar] pares candidatos: {rs.pares_candidatos} | "
+                f"confirmados: {rs.confirmados} | filtrados: {rs.filtrados} | "
+                f"chamadas: {rs.chamadas_llm} (in={rs.input_tokens} out={rs.output_tokens})"
+            )
+            for c in sorted(rs.detalhes, key=lambda x: -x["peso"]):
+                click.echo(
+                    f"  peso={c['peso']:7.2f}  {c['tema_label']:28s} "
+                    f"nSub={c['n_subpilares_distintos']}  membros={c['membros']}"
+                )
 
 
 if __name__ == "__main__":
