@@ -215,10 +215,20 @@ def painel_temas(empresa_id: int):
         limite = max(1, min(50, int(request.args.get("limite", "10"))))
     except ValueError:
         return jsonify({"erro": "limite deve ser inteiro"}), 400
+    # Filtro de agrupamento (o cache é indexado por agrupamento_id). Vazio =
+    # consolidado da empresa (agrega across agrupamentos).
+    agrupamento_raw = (request.args.get("agrupamento_id") or "").strip()
+    agrupamento_id = None
+    if agrupamento_raw:
+        try:
+            agrupamento_id = int(agrupamento_raw)
+        except ValueError:
+            return jsonify({"erro": "agrupamento_id deve ser inteiro"}), 400
 
     with db_session() as s:
-        # SELECT 1: cache agregado por label (across agrupamentos) + tema_id/slug.
-        rows = (
+        # SELECT 1: cache agregado por label + tema_id/slug. Quando um
+        # agrupamento é fornecido, restringe a ele; senão agrega across todos.
+        q = (
             s.query(
                 Tema.id.label("tema_id"),
                 Tema.nome.label("nome"),
@@ -239,7 +249,11 @@ def painel_temas(empresa_id: int):
                 TemaCache.subpilar == subpilar,
                 TemaCache.tipo == tipo,
             )
-            .group_by(Tema.id, Tema.nome, Tema.slug)
+        )
+        if agrupamento_id is not None:
+            q = q.filter(TemaCache.agrupamento_id == agrupamento_id)
+        rows = (
+            q.group_by(Tema.id, Tema.nome, Tema.slug)
             .order_by(func.sum(TemaCache.volume).desc())
             .limit(limite)
             .all()
@@ -303,6 +317,7 @@ def painel_temas(empresa_id: int):
             "empresa_id": empresa_id,
             "subpilar": subpilar,
             "tipo": tipo,
+            "agrupamento_id": agrupamento_id,
             "temas": temas,
         }
     )

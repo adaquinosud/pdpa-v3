@@ -10,6 +10,10 @@
         <h2 id="temas-drawer-titulo" class="text-lg font-semibold text-loyall-800">
           {{ subpilar }} <span class="text-loyall-400">·</span> {{ tipo }}
         </h2>
+        <div class="text-xs text-loyall-500 mt-0.5">
+          {% if agrupamento_nome %}Agrupamento: <span class="font-medium">{{ agrupamento_nome }}</span>
+          {% else %}Todos os agrupamentos{% endif %}
+        </div>
       </div>
       <button type="button" onclick="document.getElementById('temas-drawer').remove()"
               class="text-loyall-400 hover:text-loyall-700 text-2xl leading-none px-2"
@@ -17,6 +21,10 @@
     </header>
 
     <div class="flex-1 overflow-y-auto px-4 py-3">
+      <div class="text-[11px] text-loyall-400 italic mb-2 flex items-start gap-1">
+        <span aria-hidden="true">ℹ️</span>
+        <span>Temas agregados no nível <span class="font-medium">agrupamento</span>. Filtros de local e período não se aplicam a esta visão.</span>
+      </div>
       {% if not temas %}
         <div class="text-center text-loyall-400 italic text-sm py-8">
           Nenhum tema extraído ainda para este bucket.

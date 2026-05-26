@@ -320,6 +320,43 @@ def test_painel_temas_oculta_inativos(client_loyall, db_session):
     assert body["temas"] == []
 
 
+def test_painel_temas_filtra_por_agrupamento(client_loyall, db_session):
+    """Bug fix: ?agrupamento_id=X restringe ao agrupamento (cache é indexado por ele)."""
+    e, a_aero, loc, f = _ctx(client_loyall, "pt_ag")
+    a_lojas = client_loyall.post(
+        f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Lojas"}
+    ).get_json()
+    db_session.add_all(
+        [
+            Tema(empresa_id=e["id"], nome="sinalização", slug="sinalizacao"),
+            Tema(empresa_id=e["id"], nome="falta produtos lojas", slug="falta-produtos-lojas"),
+        ]
+    )
+    db_session.commit()
+    db_session.add_all(
+        [
+            _cache(e["id"], "D1", "detrator", "sinalização", 8, [], a_aero["id"]),
+            _cache(e["id"], "D1", "detrator", "falta produtos lojas", 59, [], a_lojas["id"]),
+        ]
+    )
+    db_session.commit()
+
+    # sem filtro: consolidado da empresa (os dois)
+    body = client_loyall.get(
+        f"/api/empresas/{e['id']}/painel/temas?subpilar=D1&tipo=detrator"
+    ).get_json()
+    assert {t["nome"] for t in body["temas"]} == {"sinalização", "falta produtos lojas"}
+    assert body["agrupamento_id"] is None
+
+    # filtrado por Aeroporto: só o tema do Aeroporto (falta produtos lojas some)
+    body2 = client_loyall.get(
+        f"/api/empresas/{e['id']}/painel/temas?subpilar=D1&tipo=detrator"
+        f"&agrupamento_id={a_aero['id']}"
+    ).get_json()
+    assert body2["agrupamento_id"] == a_aero["id"]
+    assert {t["nome"] for t in body2["temas"]} == {"sinalização"}
+
+
 # ── GET /api/empresas/<id>/temas/cruzamentos (Nível 4) ───────────────
 
 

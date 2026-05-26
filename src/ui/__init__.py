@@ -674,11 +674,18 @@ def painel_temas_modal(empresa_id: int):
     if isinstance(resp, tuple):
         return resp
     body = resp.get_json()
+    # Resolve o nome do agrupamento filtrado (se houver) p/ exibir no modal.
+    agrupamento_nome = None
+    if body.get("agrupamento_id"):
+        with db_session() as s:
+            ag = s.get(Agrupamento, body["agrupamento_id"])
+            agrupamento_nome = ag.nome if ag else None
     return render_template(
         "partials/painel_temas_modal.html",
         empresa_id=empresa_id,
         subpilar=body.get("subpilar"),
         tipo=body.get("tipo"),
+        agrupamento_nome=agrupamento_nome,
         temas=body.get("temas", []),
     )
 

@@ -77,6 +77,42 @@ def test_temas_modal_loyall_renderiza_drawer(client_loyall, db_session):
     assert "promotor" in html
     assert "fila check-in" in html
     assert "txt" in html  # texto do exemplo veio do SELECT batched
+    # nota de nível agrupamento + "Todos os agrupamentos" (sem filtro)
+    assert "nível" in html and "agrupamento" in html
+    assert "Todos os agrupamentos" in html
+
+
+def test_temas_modal_filtra_e_mostra_agrupamento(client_loyall, db_session):
+    """Com ?agrupamento_id=X, o modal restringe e exibe o nome do agrupamento."""
+    e, a, loc, f = _ctx(client_loyall, "mag")
+    a2 = client_loyall.post(
+        f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Lojas"}
+    ).get_json()
+    db_session.add_all(
+        [
+            Tema(empresa_id=e["id"], nome="sinalização", slug="sinalizacao"),
+            Tema(empresa_id=e["id"], nome="falta produtos lojas", slug="falta-produtos-lojas"),
+        ]
+    )
+    db_session.commit()
+    db_session.add_all(
+        [
+            _cache(e["id"], "D1", "detrator", "sinalização", 8, [], a["id"]),
+            _cache(e["id"], "D1", "detrator", "falta produtos lojas", 59, [], a2["id"]),
+        ]
+    )
+    db_session.commit()
+
+    r = client_loyall.get(
+        f"/ui/empresas/{e['id']}/painel/temas-modal?subpilar=D1&tipo=detrator"
+        f"&agrupamento_id={a['id']}"
+    )
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "sinalização" in html
+    assert "falta produtos lojas" not in html  # do outro agrupamento → filtrado
+    assert "Agrupamento:" in html  # header mostra o agrupamento filtrado
+    assert "Todos os agrupamentos" not in html  # não é a visão consolidada
 
 
 def test_temas_modal_sem_dados_mostra_empty_state(client_loyall):

@@ -236,7 +236,7 @@
             <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ c.subpilar }}&tipo={{ tp }}{% if qs_base %}&{{ qs_base }}{% endif %}"
                class="text-loyall-800 hover:underline">{{ c[tp] }}</a>
             <button type="button"
-                    hx-get="{{ url_for('ui.painel_temas_modal', empresa_id=empresa.id) }}?subpilar={{ c.subpilar }}&tipo={{ tp }}"
+                    hx-get="{{ url_for('ui.painel_temas_modal', empresa_id=empresa.id) }}?subpilar={{ c.subpilar }}&tipo={{ tp }}{% if filtros.agrupamento_id %}&agrupamento_id={{ filtros.agrupamento_id }}{% endif %}"
                     hx-target="body" hx-swap="beforeend"
                     title="Top temas deste bucket"
                     aria-label="Top temas de {{ c.subpilar }} {{ tp }}"
@@ -335,7 +335,7 @@
     <div class="mt-2 flex flex-wrap gap-1">
       {% for b in t.buckets %}
       <button type="button"
-              hx-get="{{ url_for('ui.painel_temas_modal', empresa_id=empresa.id) }}?subpilar={{ b.split(':')[0] }}&tipo={{ b.split(':')[1] }}"
+              hx-get="{{ url_for('ui.painel_temas_modal', empresa_id=empresa.id) }}?subpilar={{ b.split(':')[0] }}&tipo={{ b.split(':')[1] }}{% if filtros.agrupamento_id %}&agrupamento_id={{ filtros.agrupamento_id }}{% endif %}"
               hx-target="body" hx-swap="beforeend"
               class="text-xs px-2 py-0.5 rounded border border-loyall-200 text-loyall-600 hover:bg-loyall-100"
               title="Ver temas de {{ b }}">{{ b }}</button>
