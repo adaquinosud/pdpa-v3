@@ -287,3 +287,54 @@ def test_painel_sem_transversais_nao_quebra(client_loyall):
     assert r.status_code == 200
     # seção é condicional — não aparece sem cruzamentos
     assert "Temas transversais" not in r.get_data(as_text=True)
+
+
+def test_transversais_filtra_por_agrupamento(client_loyall, db_session):
+    """Cruzamento 'preço lojas' só envolve Lojas → some ao filtrar outro agrupamento."""
+    e, a_g, loc, f = _ctx(client_loyall, "tvag")  # a_g.nome == "G"
+    a_lojas = client_loyall.post(
+        f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Lojas"}
+    ).get_json()
+    t = Tema(empresa_id=e["id"], nome="preço lojas", slug="preco-lojas")
+    db_session.add(t)
+    db_session.commit()
+    # vínculo do tema só no agrupamento Lojas
+    v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "caro demais")
+    db_session.add(
+        VerbatimTema(
+            verbatim_id=v.id,
+            tema_id=t.id,
+            confianca=0.8,
+            origem="llm",
+            bucket_chave=f"{a_lojas['id']}:P1:detrator",
+        )
+    )
+    db_session.add(
+        TemaCruzamento(
+            empresa_id=e["id"],
+            tema_label="preço lojas",
+            buckets_envolvidos_json=json.dumps(["P1:detrator", "Pa2:detrator"]),
+            tipos_envolvidos_json=json.dumps(["detrator"]),
+            n_subpilares_distintos=2,
+            peso=8.3,
+            periodo_inicio=date(2026, 1, 1),
+            periodo_fim=date(2026, 1, 31),
+            hash_escopo="hx-pl",
+        )
+    )
+    db_session.commit()
+
+    # sem filtro → aparece
+    assert "preço lojas" in client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
+    # filtrado por Lojas → aparece (tema tem vínculo lá)
+    html_lojas = client_loyall.get(
+        f"/empresas/{e['id']}/painel?agrupamento_id={a_lojas['id']}"
+    ).get_data(as_text=True)
+    assert "preço lojas" in html_lojas
+    # filtrado por G → some (tema não tem vínculo em G)
+    html_g = client_loyall.get(f"/empresas/{e['id']}/painel?agrupamento_id={a_g['id']}").get_data(
+        as_text=True
+    )
+    assert "preço lojas" not in html_g
+    # mensagem de nível agrupamento presente
+    assert "nível de" in html_lojas and "agrupamento" in html_lojas

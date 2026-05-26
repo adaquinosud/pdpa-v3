@@ -599,7 +599,14 @@ def painel_empresa(empresa_id: int):
         fontes_ = [
             SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
         ]
-        transversais = _carregar_transversais(s, empresa_id)
+        ag_filtro = None
+        if filtros["agrupamento_id"]:
+            try:
+                ag_filtro = int(filtros["agrupamento_id"])
+            except ValueError:
+                ag_filtro = None
+        ag_filtro_nome = next((a.nome for a in agrupamentos if a.id == ag_filtro), None)
+        transversais = _carregar_transversais(s, empresa_id, agrupamento_id=ag_filtro)
 
     return render_template(
         "empresas/painel.html",
@@ -611,22 +618,56 @@ def painel_empresa(empresa_id: int):
         locais=locais,
         fontes=fontes_,
         transversais=transversais,
+        agrupamento_filtrado=ag_filtro_nome,
         eh_loyall=(user.papel == PAPEL_LOYALL),
         user=user,
     )
 
 
-def _carregar_transversais(s, empresa_id, limite=10):
-    """Cruzamentos N4 (top por peso) + a ação N5 de cada um (Bloco 7 CP-5)."""
+def _labels_no_agrupamento(s, empresa_id, agrupamento_id):
+    """Conjunto de tema.nome com ≥1 vínculo Caminho A naquele agrupamento.
+
+    bucket_chave = ``"<agrupamento_id>:<subpilar>:<tipo>"`` → prefixo ``"ag:"``.
+    """
+    from src.models.temas import Tema, VerbatimTema
+
+    rows = (
+        s.query(Tema.nome)
+        .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+        .filter(
+            Tema.empresa_id == empresa_id,
+            VerbatimTema.bucket_chave.like(f"{agrupamento_id}:%"),
+        )
+        .distinct()
+        .all()
+    )
+    return {r[0] for r in rows}
+
+
+def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
+    """Cruzamentos N4 (top por peso) + a ação N5 de cada um (Bloco 7 CP-5/6).
+
+    Os cruzamentos são company-wide (agrupamento_id NULL, buckets subpilar:tipo).
+    Quando ``agrupamento_id`` é fornecido, filtra por **pertinência**: mantém só
+    os cruzamentos cujos temas-membros têm vínculo nesse agrupamento.
+    """
     from src.models.temas import AcaoVenda, TemaCruzamento
 
     crz = (
         s.query(TemaCruzamento)
         .filter(TemaCruzamento.empresa_id == empresa_id)
         .order_by(TemaCruzamento.peso.desc())
-        .limit(limite)
         .all()
     )
+    if agrupamento_id is not None:
+        labels_ag = _labels_no_agrupamento(s, empresa_id, agrupamento_id)
+        crz = [
+            cr
+            for cr in crz
+            if (set([cr.tema_label]) | set(json.loads(cr.membros_json) if cr.membros_json else []))
+            & labels_ag
+        ]
+    crz = crz[:limite]
     acoes = {
         a.cruzamento_id: a
         for a in s.query(AcaoVenda)
