@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 
-from src.models.temas import Tema, TemaCache, VerbatimTema
+from src.models.temas import AcaoVenda, Tema, TemaCache, TemaCruzamento, VerbatimTema
 from src.models.verbatim import Verbatim
 
 
@@ -202,3 +202,52 @@ def test_verbatins_voltar_empresa_sem_origem(client_loyall, db_session):
     html = r.get_data(as_text=True)
     # voltar_texto = nome da empresa
     assert "← EUT-v2" in html
+
+
+# ── B7 CP-5: seção "Temas transversais" no painel ────────────────────
+
+
+def test_painel_mostra_temas_transversais(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "trans")
+    cr = TemaCruzamento(
+        empresa_id=e["id"],
+        tema_label="preço alimentação",
+        buckets_envolvidos_json=json.dumps(["P1:detrator", "Pa2:detrator"]),
+        tipos_envolvidos_json=json.dumps(["detrator"]),
+        n_subpilares_distintos=2,
+        peso=4.39,
+        periodo_inicio=date(2026, 1, 1),
+        periodo_fim=date(2026, 1, 31),
+        hash_escopo="hx-trans",
+    )
+    db_session.add(cr)
+    db_session.commit()
+    db_session.add(
+        AcaoVenda(
+            empresa_id=e["id"],
+            tema_label="preço alimentação",
+            cruzamento_id=cr.id,
+            acao_texto="Renegociar contrato de concessão de alimentação.",
+            impacto_qualitativo="alto",
+            origem_modelo="claude-sonnet-4-6",
+            hash_escopo="ha-trans",
+        )
+    )
+    db_session.commit()
+
+    r = client_loyall.get(f"/empresas/{e['id']}/painel")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "Temas transversais" in html
+    assert "preço alimentação" in html
+    assert "P1:detrator" in html  # bucket chip (drill)
+    assert "Renegociar contrato" in html  # ação N5 inline
+    assert "impacto alto" in html  # selo
+
+
+def test_painel_sem_transversais_nao_quebra(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "ESemTrans"}).get_json()
+    r = client_loyall.get(f"/empresas/{e['id']}/painel")
+    assert r.status_code == 200
+    # seção é condicional — não aparece sem cruzamentos
+    assert "Temas transversais" not in r.get_data(as_text=True)

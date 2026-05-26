@@ -24,6 +24,7 @@ HTMX partials (retornam fragmento HTML, não página inteira):
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from flask import (
@@ -598,6 +599,7 @@ def painel_empresa(empresa_id: int):
         fontes_ = [
             SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
         ]
+        transversais = _carregar_transversais(s, empresa_id)
 
     return render_template(
         "empresas/painel.html",
@@ -608,9 +610,49 @@ def painel_empresa(empresa_id: int):
         agrupamentos=agrupamentos,
         locais=locais,
         fontes=fontes_,
+        transversais=transversais,
         eh_loyall=(user.papel == PAPEL_LOYALL),
         user=user,
     )
+
+
+def _carregar_transversais(s, empresa_id, limite=10):
+    """Cruzamentos N4 (top por peso) + a ação N5 de cada um (Bloco 7 CP-5)."""
+    from src.models.temas import AcaoVenda, TemaCruzamento
+
+    crz = (
+        s.query(TemaCruzamento)
+        .filter(TemaCruzamento.empresa_id == empresa_id)
+        .order_by(TemaCruzamento.peso.desc())
+        .limit(limite)
+        .all()
+    )
+    acoes = {
+        a.cruzamento_id: a
+        for a in s.query(AcaoVenda)
+        .filter(AcaoVenda.empresa_id == empresa_id, AcaoVenda.cruzamento_id.isnot(None))
+        .all()
+    }
+    out = []
+    for cr in crz:
+        acao = acoes.get(cr.id)
+        out.append(
+            SimpleNamespace(
+                tema_label=cr.tema_label,
+                buckets=json.loads(cr.buckets_envolvidos_json or "[]"),
+                tipos=json.loads(cr.tipos_envolvidos_json or "[]"),
+                n_subpilares=cr.n_subpilares_distintos or 0,
+                peso=cr.peso,
+                eh_semantico=bool(cr.membros_json),
+                membros=json.loads(cr.membros_json) if cr.membros_json else None,
+                acao=(
+                    SimpleNamespace(texto=acao.acao_texto, impacto=acao.impacto_qualitativo)
+                    if acao
+                    else None
+                ),
+            )
+        )
+    return out
 
 
 # ── B6 CP-5: Modal de temas + tela admin do catálogo ──────────────────
