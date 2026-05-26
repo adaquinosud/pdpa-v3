@@ -42,7 +42,8 @@
                 <div class="font-semibold text-loyall-800 truncate">{{ t.nome }}</div>
                 <div class="text-xs text-loyall-400 truncate"><code>{{ t.slug }}</code></div>
               </div>
-              <span class="shrink-0 inline-block px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700">{{ t.volume }}</span>
+              <span class="shrink-0 inline-block px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700"
+                    title="{{ t.volume }} verbatins">{{ t.volume }}</span>
             </div>
             {% if t.volume %}
             {% set tot = t.volume %}

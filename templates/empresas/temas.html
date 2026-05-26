@@ -160,7 +160,8 @@
         <div class="flex items-center justify-between text-sm">
           <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ bloco.subpilar }}&tema_id={{ tm.tema_id }}&origem=temas"
              class="text-loyall-700 hover:underline truncate">{{ tm.label }}</a>
-          <span class="text-loyall-500 ml-2 shrink-0">{{ tm.total }}</span>
+          <span class="shrink-0 inline-block ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700"
+                title="{{ tm.total }} verbatins">{{ tm.total }}</span>
         </div>
         <div class="flex h-1.5 rounded overflow-hidden bg-loyall-100 mt-1" title="promotor {{ tm.promotor }} · conversível {{ tm.conversivel }} · detrator {{ tm.detrator }}">
           <div class="bg-emerald-400" style="width: {{ (tm.promotor / tot * 100) | round(0, 'floor') }}%"></div>
