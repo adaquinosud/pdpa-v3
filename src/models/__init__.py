@@ -6,7 +6,12 @@ que `configure_mappers()` resolva as relationships string-based e que
 """
 
 from src.models.agrupamento import Agrupamento
-from src.models.anomalia import AnomaliaDetectada
+from src.models.anomalia import (
+    AnomaliaDetectada,
+    CruzamentoSnapshot,
+    RatioMensal,
+    TemaSnapshot,
+)
 from src.models.base import Base
 from src.models.classifier_metric import ClassifierMetric
 from src.models.coleta_execucao import ColetaExecucao
@@ -31,6 +36,9 @@ __all__ = [
     "AcaoVenda",
     "Agrupamento",
     "AnomaliaDetectada",
+    "CruzamentoSnapshot",
+    "RatioMensal",
+    "TemaSnapshot",
     "Base",
     "ClassifierMetric",
     "ColetaExecucao",
