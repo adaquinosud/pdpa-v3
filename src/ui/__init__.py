@@ -763,6 +763,9 @@ def _montar_mapa_lastro(n1, n2):
                 "ratio": p["ratio"],
                 "faixa": p["faixa"],
                 "total": p["total"],
+                "promotor": p.get("promotor", 0),
+                "conversivel": p.get("conversivel", 0),
+                "detrator": p.get("detrator", 0),
                 "gargalo": pid == gargalo,
                 "subpilares": subs_por_pilar.get(pid, []),
             }
