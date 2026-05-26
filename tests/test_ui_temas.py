@@ -396,3 +396,34 @@ def test_painel_tem_link_temas_na_sidebar(client_loyall, db_session):
     html = client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
     assert "ui.temas_empresa" not in html  # url_for resolvido, não literal
     assert f"/empresas/{e['id']}/temas" in html  # link Temas presente
+
+
+def test_temas_tela_top_subpilar_mostra_exemplos(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "ex")
+    v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "preços absurdos no aeroporto")
+    db_session.add(Tema(empresa_id=e["id"], nome="preço alto", slug="preco-alto"))
+    db_session.commit()
+    db_session.add(_cache(e["id"], "P1", "detrator", "preço alto", 5, [v.id], a["id"]))
+    db_session.commit()
+    html = client_loyall.get(f"/empresas/{e['id']}/temas").get_data(as_text=True)
+    assert "preço alto" in html
+    assert "preços absurdos no aeroporto" in html  # exemplo de verbatim na lista
+
+
+def test_temas_modal_drill_subpilar_todos_tipos(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "drill")
+    v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "demorou")
+    db_session.add(Tema(empresa_id=e["id"], nome="demora", slug="demora"))
+    db_session.commit()
+    db_session.add_all(
+        [
+            _cache(e["id"], "D2", "detrator", "demora", 3, [v.id], a["id"]),
+            _cache(e["id"], "D2", "promotor", "demora", 1, [v.id], a["id"]),
+        ]
+    )
+    db_session.commit()
+    r = client_loyall.get(f"/ui/empresas/{e['id']}/painel/temas-modal?subpilar=D2")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "todos os tipos" in html
+    assert "demora" in html

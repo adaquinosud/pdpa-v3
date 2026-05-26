@@ -740,11 +740,12 @@ def _montar_mapa_lastro(n1, n2):
 
 
 def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
-    """Top N temas de cada subpilar (de temas_cache), com split por tipo.
+    """Top N temas de cada subpilar (de temas_cache), com split por tipo e
+    2-3 exemplos de verbatim (2 queries batched — sem N+1).
 
     Returns lista por subpilar (ordem canônica) com
-    ``{subpilar, nome, temas:[{label, tema_id, total, promotor,
-    conversivel, detrator}]}``.
+    ``{subpilar, nome, temas:[{label, tema_id, total, promotor, conversivel,
+    detrator, exemplos:[texto_curto, ...]}]}``.
     """
     from sqlalchemy import and_, func
 
@@ -757,6 +758,7 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
             TemaCache.tema_label,
             TemaCache.tipo,
             func.sum(TemaCache.volume).label("vol"),
+            func.group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
             Tema.id.label("tema_id"),
         )
         .join(
@@ -773,9 +775,9 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
         q = q.filter(TemaCache.agrupamento_id == agrupamento_id)
     q = q.group_by(TemaCache.subpilar, TemaCache.tema_label, TemaCache.tipo, Tema.id)
 
-    # Agrega por (subpilar, label): total + split por tipo.
+    # Agrega por (subpilar, label): total + split por tipo + ids de exemplo.
     agg = {}
-    for sub, label, tipo, vol, tema_id in q.all():
+    for sub, label, tipo, vol, ex_blobs, tema_id in q.all():
         key = (sub, label)
         e = agg.setdefault(
             key,
@@ -786,21 +788,47 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
                 "promotor": 0,
                 "conversivel": 0,
                 "detrator": 0,
+                "ex_ids": [],
             },
         )
         e["total"] += int(vol or 0)
         if tipo in ("promotor", "conversivel", "detrator"):
             e[tipo] += int(vol or 0)
+        for blob in (ex_blobs or "").split("|"):
+            blob = blob.strip()
+            if not blob:
+                continue
+            try:
+                for vid in json.loads(blob):
+                    if vid not in e["ex_ids"]:
+                        e["ex_ids"].append(vid)
+            except (ValueError, TypeError):
+                continue
 
     por_sub = {}
     for (sub, _label), e in agg.items():
         por_sub.setdefault(sub, []).append(e)
 
     out = []
+    todos_ids = set()
     for sp in SUBPILARES_ORDEM:
         temas = sorted(por_sub.get(sp, []), key=lambda x: -x["total"])[:top]
+        for t in temas:
+            t["ex_ids"] = t["ex_ids"][:3]
+            todos_ids.update(t["ex_ids"])
         if temas:
             out.append({"subpilar": sp, "nome": NOME_SUBPILAR[sp], "temas": temas})
+
+    # Batched: textos dos exemplos.
+    textos = {}
+    if todos_ids:
+        for vid, texto in (
+            s.query(Verbatim.id, Verbatim.texto).filter(Verbatim.id.in_(todos_ids)).all()
+        ):
+            textos[vid] = texto or ""
+    for bloco in out:
+        for t in bloco["temas"]:
+            t["exemplos"] = [textos.get(vid, "")[:140] for vid in t["ex_ids"] if textos.get(vid)]
     return out
 
 

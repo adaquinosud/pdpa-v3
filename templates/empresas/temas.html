@@ -17,11 +17,11 @@
 
 {% block conteudo %}
 {% set classes_faixa = {
-  'critico':   {'bg':'bg-rose-100',    'text':'text-rose-700',    'bar':'bg-rose-500',    'lbl':'crítico'},
-  'fraco':     {'bg':'bg-orange-100',  'text':'text-orange-700',  'bar':'bg-orange-500',  'lbl':'fraco'},
-  'atencao':   {'bg':'bg-amber-100',   'text':'text-amber-800',   'bar':'bg-amber-400',   'lbl':'atenção'},
-  'bom':       {'bg':'bg-emerald-100', 'text':'text-emerald-700', 'bar':'bg-emerald-400', 'lbl':'bom'},
-  'excelente': {'bg':'bg-emerald-200', 'text':'text-emerald-800', 'bar':'bg-emerald-600', 'lbl':'excelente'},
+  'critico':   {'bg':'bg-rose-100',    'text':'text-rose-700',    'bar':'bg-rose-500',    'lbl':'crítico',   'w':20},
+  'fraco':     {'bg':'bg-orange-100',  'text':'text-orange-700',  'bar':'bg-orange-500',  'lbl':'fraco',     'w':40},
+  'atencao':   {'bg':'bg-amber-100',   'text':'text-amber-800',   'bar':'bg-amber-400',   'lbl':'atenção',   'w':60},
+  'bom':       {'bg':'bg-emerald-100', 'text':'text-emerald-700', 'bar':'bg-emerald-400', 'lbl':'bom',       'w':80},
+  'excelente': {'bg':'bg-emerald-200', 'text':'text-emerald-800', 'bar':'bg-emerald-600', 'lbl':'excelente', 'w':100},
 } %}
 
 {# ── Header ───────────────────────────────────────────────────────── #}
@@ -76,15 +76,18 @@
     <div class="mt-2 space-y-1">
       {% for sp in p.subpilares %}
       {% set sfc = classes_faixa[sp.faixa] %}
-      <div class="text-xs">
-        <div class="flex items-center justify-between text-loyall-600">
+      <button type="button" class="w-full text-left text-xs group"
+              hx-get="{{ url_for('ui.painel_temas_modal', empresa_id=empresa.id) }}?subpilar={{ sp.subpilar }}{% if filtros.agrupamento_id %}&agrupamento_id={{ filtros.agrupamento_id }}{% endif %}"
+              hx-target="body" hx-swap="beforeend"
+              title="Ver top temas de {{ sp.subpilar }} (todos os tipos)">
+        <div class="flex items-center justify-between text-loyall-600 group-hover:text-loyall-800">
           <span>{{ sp.subpilar }} · {{ sp.nome }}</span>
           <span>{{ '%.2f'|format(sp.ratio) }}</span>
         </div>
         <div class="h-1.5 rounded bg-loyall-100 mt-0.5">
-          <div class="h-1.5 rounded {{ sfc.bar }}" style="width: {{ (sp.ratio / 9.99 * 100) | round(0, 'floor') }}%"></div>
+          <div class="h-1.5 rounded {{ sfc.bar }}" style="width: {{ sfc.w }}%"></div>
         </div>
-      </div>
+      </button>
       {% endfor %}
     </div>
   </div>
@@ -164,6 +167,13 @@
           <div class="bg-amber-400" style="width: {{ (tm.conversivel / tot * 100) | round(0, 'floor') }}%"></div>
           <div class="bg-rose-400" style="width: {{ (tm.detrator / tot * 100) | round(0, 'floor') }}%"></div>
         </div>
+        {% if tm.exemplos %}
+        <ul class="mt-1 space-y-0.5 text-xs text-loyall-500">
+          {% for ex in tm.exemplos %}
+          <li class="border-l-2 border-loyall-200 pl-2 italic truncate">"{{ ex }}…"</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
       </li>
       {% endfor %}
     </ul>

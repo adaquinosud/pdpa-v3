@@ -513,3 +513,24 @@ def test_persistir_temas_idempotente(client_loyall, db_session, monkeypatch):
     # 2ª vez não cria vinculação nova (já existe pareamento UNIQUE)
     total_vinculos = db_session.query(VerbatimTema).count()
     assert total_vinculos == 1
+
+
+def test_painel_temas_tipo_opcional_agrega_tipos(client_loyall, db_session):
+    """Sem tipo: agrega todos os tipos do subpilar + devolve split (drill do Mapa)."""
+    e, a, loc, f = _ctx(client_loyall, "pt_all")
+    db_session.add(Tema(empresa_id=e["id"], nome="demora", slug="demora"))
+    db_session.commit()
+    db_session.add_all(
+        [
+            _cache(e["id"], "D2", "detrator", "demora", 3, [], a["id"]),
+            _cache(e["id"], "D2", "promotor", "demora", 1, [], a["id"]),
+        ]
+    )
+    db_session.commit()
+    body = client_loyall.get(f"/api/empresas/{e['id']}/painel/temas?subpilar=D2").get_json()
+    assert body["tipo"] is None
+    assert len(body["temas"]) == 1
+    t = body["temas"][0]
+    assert t["nome"] == "demora"
+    assert t["volume"] == 4  # 3 detrator + 1 promotor
+    assert t["detrator"] == 3 and t["promotor"] == 1

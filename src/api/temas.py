@@ -209,8 +209,8 @@ def painel_temas(empresa_id: int):
     """
     subpilar = (request.args.get("subpilar") or "").strip()
     tipo = (request.args.get("tipo") or "").strip()
-    if not subpilar or not tipo:
-        return jsonify({"erro": "subpilar e tipo são obrigatórios"}), 400
+    if not subpilar:
+        return jsonify({"erro": "subpilar é obrigatório"}), 400
     try:
         limite = max(1, min(50, int(request.args.get("limite", "10"))))
     except ValueError:
@@ -226,13 +226,14 @@ def painel_temas(empresa_id: int):
             return jsonify({"erro": "agrupamento_id deve ser inteiro"}), 400
 
     with db_session() as s:
-        # SELECT 1: cache agregado por label + tema_id/slug. Quando um
-        # agrupamento é fornecido, restringe a ele; senão agrega across todos.
+        # Agrega por (tema, tipo) p/ obter o split. Se `tipo` é dado, restringe;
+        # senão pega todos os tipos do subpilar (drill do Mapa de Lastro).
         q = (
             s.query(
                 Tema.id.label("tema_id"),
                 Tema.nome.label("nome"),
                 Tema.slug.label("slug"),
+                TemaCache.tipo.label("tipo"),
                 func.sum(TemaCache.volume).label("volume"),
                 func.group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
             )
@@ -247,46 +248,52 @@ def painel_temas(empresa_id: int):
             .filter(
                 TemaCache.empresa_id == empresa_id,
                 TemaCache.subpilar == subpilar,
-                TemaCache.tipo == tipo,
             )
         )
+        if tipo:
+            q = q.filter(TemaCache.tipo == tipo)
         if agrupamento_id is not None:
             q = q.filter(TemaCache.agrupamento_id == agrupamento_id)
-        rows = (
-            q.group_by(Tema.id, Tema.nome, Tema.slug)
-            .order_by(func.sum(TemaCache.volume).desc())
-            .limit(limite)
-            .all()
-        )
+        rows = q.group_by(Tema.id, Tema.nome, Tema.slug, TemaCache.tipo).all()
 
-        # Achata os ids de exemplo (até 3 por tema) dos blobs JSON concatenados.
-        parciais: List[Dict[str, Any]] = []
-        todos_ids: Set[int] = set()
+        # Agrega por tema (soma tipos), guarda o split e coleta exemplos.
+        por_tema: Dict[int, Dict[str, Any]] = {}
         for r in rows:
-            ex_ids: List[int] = []
+            e = por_tema.get(r.tema_id)
+            if e is None:
+                e = {
+                    "tema_id": r.tema_id,
+                    "nome": r.nome,
+                    "slug": r.slug,
+                    "volume": 0,
+                    "promotor": 0,
+                    "conversivel": 0,
+                    "detrator": 0,
+                    "ex_ids": [],
+                }
+                por_tema[r.tema_id] = e
+            vol = int(r.volume or 0)
+            e["volume"] += vol
+            if r.tipo in ("promotor", "conversivel", "detrator"):
+                e[r.tipo] += vol
             for blob in (r.ex_blobs or "").split("|"):
                 blob = blob.strip()
                 if not blob:
                     continue
                 try:
                     for vid in json.loads(blob):
-                        if vid not in ex_ids:
-                            ex_ids.append(vid)
+                        if vid not in e["ex_ids"]:
+                            e["ex_ids"].append(vid)
                 except (ValueError, TypeError):
                     continue
-            ex_ids = ex_ids[:3]
-            todos_ids.update(ex_ids)
-            parciais.append(
-                {
-                    "tema_id": r.tema_id,
-                    "nome": r.nome,
-                    "slug": r.slug,
-                    "volume": int(r.volume or 0),
-                    "ex_ids": ex_ids,
-                }
-            )
 
-        # SELECT 2: textos dos exemplos (batched — não N+1).
+        parciais = sorted(por_tema.values(), key=lambda x: -x["volume"])[:limite]
+        todos_ids: Set[int] = set()
+        for p in parciais:
+            p["ex_ids"] = p["ex_ids"][:3]
+            todos_ids.update(p["ex_ids"])
+
+        # SELECT batched: textos dos exemplos (não N+1).
         textos: Dict[int, str] = {}
         if todos_ids:
             for vid, texto in (
@@ -300,6 +307,9 @@ def painel_temas(empresa_id: int):
             "nome": p["nome"],
             "slug": p["slug"],
             "volume": p["volume"],
+            "promotor": p["promotor"],
+            "conversivel": p["conversivel"],
+            "detrator": p["detrator"],
             "exemplos": [
                 {
                     "verbatim_id": vid,
@@ -316,7 +326,7 @@ def painel_temas(empresa_id: int):
         {
             "empresa_id": empresa_id,
             "subpilar": subpilar,
-            "tipo": tipo,
+            "tipo": tipo or None,
             "agrupamento_id": agrupamento_id,
             "temas": temas,
         }
