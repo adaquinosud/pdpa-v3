@@ -638,6 +638,64 @@ def _register_cli_commands(app: Flask) -> None:
                 f"({d['tipo_alvo']}) → {d['acao'][:80]}"
             )
 
+    # ── B6.6 CP-3: flask pipeline-pos-coleta ──────────────────────────
+    @app.cli.command("pipeline-pos-coleta")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--limiar",
+        type=int,
+        default=None,
+        help="Mínimo de verbatins novos (não classificados) p/ rodar. Default 50.",
+    )
+    @click.option(
+        "--force",
+        is_flag=True,
+        default=False,
+        help="Roda mesmo abaixo do limiar.",
+    )
+    def pipeline_pos_coleta(empresa_arg, limiar, force):
+        """Pós-coleta: classifica novos → embeddings → temas → cruzamentos → ações.
+
+        Roda só se houver novos verbatins ≥ limiar (--force ignora). Substitui o
+        temas-extrair legado. Custa LLM (classificação + rotulagem + Sonnet).
+        """
+        from src.models.empresa import Empresa
+        from src.temas.pos_coleta import LIMIAR_NOVOS_DEFAULT, executar_pos_coleta
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id = emp.id
+            empresa_nome = emp.nome
+
+        lim = limiar if limiar is not None else LIMIAR_NOVOS_DEFAULT
+
+        def _prog(chave, label, vol):
+            click.echo(f"[pos-coleta]   {chave:28s} → {label!r} (vol={vol})")
+
+        click.echo(
+            f"[pos-coleta] empresa={empresa_nome!r} (id={empresa_id}) limiar={lim} force={force}"
+        )
+        r = executar_pos_coleta(empresa_id, limiar=lim, force=force, callback_progresso=_prog)
+        if not r.executou:
+            click.echo(f"[pos-coleta] {r.motivo_skip}")
+            return
+        click.echo(
+            f"[pos-coleta] novos={r.novos} classificados={r.classificados} "
+            f"(falhas={r.classif_falhas}) embeddings={r.embeddings_gerados}"
+        )
+        click.echo(
+            f"[pos-coleta] clusters={r.clusters_rotulados} cruz_literais={r.cruz_literais} "
+            f"cruz_semanticos={r.cruz_semanticos} acoes={r.acoes}"
+        )
+        click.echo(f"[pos-coleta] custo estimado ~${r.custo_estimado_usd}")
+
 
 if __name__ == "__main__":
     app = create_app()
