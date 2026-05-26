@@ -41,3 +41,32 @@ A regra 4 atual é mantida por ora.
 **Relacionados:** Achado 2 (cache agregado por label) e fix do cluster 15
 (rotular quando ≥1 rep tem ângulo claro) foram aplicados no CP-11 — ver
 histórico de commits da branch `feature/bloco-6-temas-nivel-3`.
+
+---
+
+## Prompt caching no rotulador (otimização de custo)
+
+**Origem:** CP-12 full BH Airport (311 chamadas Haiku, ~$0.16 estimado).
+
+`src/temas/rotulador.py` manda o system prompt (`rotulagem_cluster_v1.md`,
+~1,3K tokens) **idêntico em toda chamada, sem `cache_control`**. Num full
+run são centenas de chamadas pagando o mesmo input.
+
+**Ação (próximo full run, NÃO agora):** ligar prompt caching no bloco
+`system` (cache_control ephemeral). Corta ~90% do custo de input das
+chamadas repetidas dentro da janela de cache.
+
+---
+
+## Classificação faltante em lotes coletados (gap de orquestração)
+
+**Origem:** CP-12 — diagnóstico dos buckets `None:None`.
+
+158 verbatins da BH Airport (coletas noturnas de 24-25/mai/2026, fonte
+google 152 / tripadvisor 5 / tiktok 1) entraram no banco com `subpilar` e
+`tipo` NULL e `confianca`/`justificativa` NULL → **o classificador nunca
+rodou neles** (não é falha do classificador; o passo não foi disparado
+após a coleta). Todos têm `tem_texto=True` e são classificáveis.
+
+**Ação (não agora):** rodar classificação → embeddings → temas nesse lote;
+e/ou encadear classificação automaticamente após a coleta para fechar o gap.
