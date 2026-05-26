@@ -279,6 +279,7 @@ def test_temas_tela_mostra_transversais(client_loyall, db_session):
     assert "P1:detrator" in html  # bucket chip (drill)
     assert "Renegociar contrato" in html  # ação N5 inline
     assert "impacto alto" in html  # selo
+    assert "Abrangência:" in html  # rótulo qualitativo do peso
 
 
 def test_painel_sem_transversais_nao_quebra(client_loyall):
@@ -427,3 +428,17 @@ def test_temas_modal_drill_subpilar_todos_tipos(client_loyall, db_session):
     html = r.get_data(as_text=True)
     assert "todos os tipos" in html
     assert "demora" in html
+
+
+def test_abrangencia_por_quartil():
+    from src.ui import _abrangencia, _quartis
+
+    pesos = [4.39, 5.28, 8.32, 14.13, 15.65, 20.33, 25.82]
+    t25, t50, t75 = _quartis(pesos)
+    assert _abrangencia(25.82, t25, t50, t75) == "muito alta"  # topo
+    assert _abrangencia(14.13, t25, t50, t75) == "alta"  # >= P50
+    assert _abrangencia(8.32, t25, t50, t75) == "média"  # >= P25
+    assert _abrangencia(4.39, t25, t50, t75) == "baixa"  # < P25
+    # casos de borda
+    assert _quartis([]) == (0.0, 0.0, 0.0)
+    assert _abrangencia(10, *_quartis([10])) == "muito alta"  # N=1 → tudo no topo

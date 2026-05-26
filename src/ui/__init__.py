@@ -650,6 +650,34 @@ def _labels_no_agrupamento(s, empresa_id, agrupamento_id):
     return {r[0] for r in rows}
 
 
+def _quartis(valores):
+    """(P25, P50, P75) por interpolação linear. Listas pequenas → ok."""
+    s = sorted(valores)
+    if not s:
+        return (0.0, 0.0, 0.0)
+    if len(s) == 1:
+        return (s[0], s[0], s[0])
+
+    def pct(p):
+        k = (len(s) - 1) * p
+        f = int(k)
+        c = min(f + 1, len(s) - 1)
+        return s[f] + (s[c] - s[f]) * (k - f)
+
+    return pct(0.25), pct(0.50), pct(0.75)
+
+
+def _abrangencia(peso, t25, t50, t75):
+    """Rótulo qualitativo do peso por quartil (decisão B6.6 CP-5.3)."""
+    if peso >= t75:
+        return "muito alta"
+    if peso >= t50:
+        return "alta"
+    if peso >= t25:
+        return "média"
+    return "baixa"
+
+
 def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
     """Cruzamentos N4 (top por peso) + a ação N5 de cada um (Bloco 7 CP-5/6).
 
@@ -665,6 +693,8 @@ def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
         .order_by(TemaCruzamento.peso.desc())
         .all()
     )
+    # Quartis sobre TODOS os pesos da empresa (antes do filtro de agrupamento).
+    t25, t50, t75 = _quartis([cr.peso for cr in crz])
     if agrupamento_id is not None:
         labels_ag = _labels_no_agrupamento(s, empresa_id, agrupamento_id)
         crz = [
@@ -690,6 +720,7 @@ def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
                 tipos=json.loads(cr.tipos_envolvidos_json or "[]"),
                 n_subpilares=cr.n_subpilares_distintos or 0,
                 peso=cr.peso,
+                abrangencia=_abrangencia(cr.peso, t25, t50, t75),
                 eh_semantico=bool(cr.membros_json),
                 membros=json.loads(cr.membros_json) if cr.membros_json else None,
                 acao=(
