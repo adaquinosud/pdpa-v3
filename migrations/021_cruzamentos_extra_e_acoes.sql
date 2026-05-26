@@ -15,6 +15,10 @@
 
 ALTER TABLE temas_cruzamentos ADD COLUMN tipos_envolvidos_json TEXT;
 ALTER TABLE temas_cruzamentos ADD COLUMN membros_json TEXT;
+-- n_subpilares_distintos: quantos subpilares o cruzamento atravessa. Entra no
+-- peso (sqrt(volume) × n_subpilares × n_tipos) e permite filtrar por
+-- sistemicidade (cross-pilar) no futuro.
+ALTER TABLE temas_cruzamentos ADD COLUMN n_subpilares_distintos INTEGER;
 
 -- acoes_venda (N5): uma ação por tema/cruzamento alvo.
 CREATE TABLE IF NOT EXISTS acoes_venda (

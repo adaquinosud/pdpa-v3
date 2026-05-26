@@ -7,9 +7,10 @@ Fase 1 (este módulo, CP-2): **match literal** — mesmo ``tema_label`` em
 buckets diferentes. Determinístico, sem LLM, sem custo. A Fase 2 (CP-3a)
 adicionará famílias semânticas via embeddings, gravando ``membros_json``.
 
-Peso (decisão B7): ``volume_total × n_buckets × (1 + 0.5 × n_tipos)``.
-Cruzamento que atravessa **tipos** distintos (ex.: D2 detrator + Pa1
-promotor) revela tensão real e pesa mais que um mono-tipo.
+Peso (decisão B7, revisado): ``ln(volume_total + 1) × n_subpilares × n_tipos``.
+O ``log`` amortece o domínio de temas de altíssimo volume; multiplicar por
+n_subpilares **e** n_tipos premia a **sistemicidade** (atravessar pilares e
+tipos) — exatamente o que o Manual valoriza como diagnóstico de causa raiz.
 
 Função pública: ``detectar_e_persistir_literais(empresa_id) -> ResumoCruzamento``.
 Idempotente: zera os cruzamentos literais (``membros_json IS NULL``) da
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -39,9 +41,15 @@ def _hash_escopo(empresa_id: int, label: str, buckets: List[str]) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:32]
 
 
-def calcular_peso(volume_total: int, n_buckets: int, n_tipos: int) -> float:
-    """``volume_total × n_buckets × (1 + 0.5 × n_tipos)`` (decisão B7)."""
-    return round(volume_total * n_buckets * (1 + 0.5 * n_tipos), 2)
+def calcular_peso(volume_total: int, n_subpilares: int, n_tipos: int) -> float:
+    """``ln(volume_total + 1) × n_subpilares × n_tipos`` (decisão B7 revisada).
+
+    O ``log`` amortece fortemente o volume bruto (um tema 100× maior não pesa
+    100×), de modo que ``n_subpilares × n_tipos`` (sistemicidade — atravessar
+    pilares e tipos) domine o ranking, em vez do volume mono-subpilar. Alinha
+    ao Manual: cruzamento cross-pilar é o diagnóstico de causa raiz.
+    """
+    return round(math.log(max(0, volume_total) + 1) * n_subpilares * n_tipos, 2)
 
 
 @dataclass
@@ -118,14 +126,16 @@ def detectar_literais(empresa_id: int) -> List[Dict[str, Any]]:
         if len(buckets) < 2:
             continue
         tipos = sorted(info["tipos"])
+        n_subpilares = len({b.split(":")[0] for b in buckets})
         datas = info["datas"]
         cruzamentos.append(
             {
                 "tema_label": label,
                 "buckets_envolvidos": buckets,
                 "tipos_envolvidos": tipos,
+                "n_subpilares_distintos": n_subpilares,
                 "volume_total": info["volume"],
-                "peso": calcular_peso(info["volume"], len(buckets), len(tipos)),
+                "peso": calcular_peso(info["volume"], n_subpilares, len(tipos)),
                 "periodo_inicio": (min(datas).date() if datas else datetime.utcnow().date()),
                 "periodo_fim": (max(datas).date() if datas else datetime.utcnow().date()),
             }
@@ -154,6 +164,7 @@ def detectar_e_persistir_literais(empresa_id: int) -> ResumoCruzamento:
                     tema_label=c["tema_label"],
                     buckets_envolvidos_json=json.dumps(c["buckets_envolvidos"]),
                     tipos_envolvidos_json=json.dumps(c["tipos_envolvidos"]),
+                    n_subpilares_distintos=c["n_subpilares_distintos"],
                     membros_json=None,  # literal — Fase 2 preenche família semântica
                     peso=c["peso"],
                     periodo_inicio=c["periodo_inicio"],

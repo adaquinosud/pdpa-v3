@@ -186,6 +186,8 @@ class TemaCruzamento(Base):
     # Labels da família semântica (Fase 2, match por embedding). NULL/[] quando
     # o cruzamento é por label literal (Fase 1).
     membros_json: Mapped[Optional[str]] = mapped_column(Text)
+    # Quantos subpilares distintos o cruzamento atravessa (sistemicidade).
+    n_subpilares_distintos: Mapped[Optional[int]] = mapped_column(Integer)
     peso: Mapped[float] = mapped_column(Float, nullable=False)
     periodo_inicio: Mapped[date] = mapped_column(Date, nullable=False)
     periodo_fim: Mapped[date] = mapped_column(Date, nullable=False)
