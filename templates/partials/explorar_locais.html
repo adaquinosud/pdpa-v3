@@ -1,0 +1,52 @@
+{# Tab Locais — ranking de lojas (piores primeiro) com mix prom/conv/det. #}
+{% set fclass = {
+  'critico':   {'bg':'bg-rose-100','text':'text-rose-700'},
+  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700'},
+  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800'},
+  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700'},
+  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800'},
+} %}
+{% if not locais %}
+<div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Nenhum local com verbatins no escopo/período selecionado.
+</div>
+{% else %}
+<p class="text-xs text-loyall-500 mb-3">{{ locais|length }} locais · ordenados do pior ao melhor ratio P/D. Clique numa linha para abrir a quebra por subpilar.</p>
+<div class="space-y-2">
+  {% for l in locais %}
+  {% set fc = fclass.get(l.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+  {% set tot = l.total if l.total else 1 %}
+  <div class="border border-loyall-200 rounded-lg">
+    <button type="button"
+            class="w-full text-left p-3 flex items-center gap-3 hover:bg-loyall-50"
+            hx-get="{{ url_for('ui.explorar_loja_drill', empresa_id=empresa.id, local_id=l.id) }}?periodo={{ filtros.periodo }}"
+            hx-target="#drill-{{ l.id }}" hx-swap="innerHTML"
+            onclick="this.querySelector('.chev').classList.toggle('rotate-90')">
+      <span class="chev text-loyall-300 transition-transform shrink-0">▸</span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-medium text-loyall-800 truncate">{{ l.nome }}</span>
+          <span class="shrink-0 flex items-center gap-2">
+            <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span>
+            <span class="text-sm font-bold text-loyall-800" title="ratio promotor/detrator">{{ '%.2f'|format(l.ratio) }}</span>
+            <span class="text-xs text-loyall-400">{{ l.total }} verb.</span>
+          </span>
+        </div>
+        <div class="flex h-2 rounded overflow-hidden bg-loyall-100 mt-1.5"
+             title="promotor {{ l.promotor }} · conversível {{ l.conversivel }} · detrator {{ l.detrator }}">
+          <div class="bg-emerald-400" style="width: {{ (l.promotor / tot * 100) | round(0,'floor') }}%"></div>
+          <div class="bg-amber-400" style="width: {{ (l.conversivel / tot * 100) | round(0,'floor') }}%"></div>
+          <div class="bg-rose-400" style="width: {{ (l.detrator / tot * 100) | round(0,'floor') }}%"></div>
+        </div>
+        <div class="flex gap-3 mt-1 text-[11px] text-loyall-500">
+          <span>● {{ l.promotor }} prom</span>
+          <span>● {{ l.conversivel }} conv</span>
+          <span>● {{ l.detrator }} detr</span>
+        </div>
+      </div>
+    </button>
+    <div id="drill-{{ l.id }}" class="px-3 pb-1"></div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

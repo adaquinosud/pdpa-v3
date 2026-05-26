@@ -1,0 +1,12 @@
+{# Dispatcher do conteúdo da tab — usado no full-load (incluído pelo shell) e
+   no HTMX swap (retornado por ui.explorar_tab). #}
+{% if tab == 'locais' %}
+  {% include 'partials/explorar_locais.html' %}
+{% else %}
+  {% set _labels = {'heatmap': ('Heatmap', 'CP-A2'), 'comparar': ('Comparar', 'CP-A3'), 'evolucao': ('Evolução', 'CP-A4')} %}
+  {% set _l = _labels.get(tab, (tab, '')) %}
+  <div class="text-center text-loyall-400 py-16 border border-dashed border-loyall-200 rounded-lg">
+    <div class="text-lg font-medium text-loyall-500">{{ _l[0] }}</div>
+    <div class="text-sm mt-1">Em construção — {{ _l[1] }}.</div>
+  </div>
+{% endif %}

@@ -92,6 +92,43 @@ Bloco 8 do v3 = "Demais abas: Temas, Planos de Ação, Monitoramento, Evolução
 
 ---
 
+### A5. Veredito consolidado por sub-aba (visualizações · filtros · encaixe v3 · migrar/adaptar/descartar)
+
+> Detalhe de visualizações/filtros confirmado por leitura de `dashboard/explorar.js` + rotas `backend.py`. "Encaixe" = onde cai no replanejamento v3. Veredito = **MIGRAR** (portar quase direto), **ADAPTAR** (reaproveitar conceito sobre os dados/motores próprios do v3), **DESCARTAR** (não vale agora) ou **JÁ COBERTO** (v3 já tem equivalente).
+
+| # | Sub-aba | Visualizações | Filtros/dimensões próprios | LLM | Encaixe no replanejamento v3 | Veredito |
+|---|---|---|---|---|---|---|
+| 1 | **Executiva C-Level** | Hero + selo OURO/PRATA/BRONZE; 3 cards de índice (previsibilidade/proximidade/capital); Mapa de Lastro 4 pilares; 5 blocos de análise financeira; alertas de anomalia; drill-down | janela, escopo, marca-filha; regeneração Claude | ✓ Sonnet (~30 chamadas) | Bloco 8 / "página executiva". v3 já tem Mapa de Lastro (Bloco 6.6) e motor editorial (ML CP-3) | **ADAPTAR** — montar sobre dados v3 reais; **descartar a camada financeira inventada** (R$ é pendência). Alto valor de venda |
+| 2 | **Visão Executiva** | Hero + mapa financeiro 12 subpilares + top-3 críticos + assimetria + alertas ML; export Word | janela, marca-filha, regenerar | ✓ Sonnet | Análogo ao **Painel** atual do v3 | **ADAPTAR + CONSOLIDAR** — no v2 é quase duplicata da Executiva C-Level; fundir as duas numa só tela no v3 |
+| 3 | **Diagnóstico** | Mapa de Lastro (subpilares N1-N4, gargalo) + Confronto Visual (12 subpilares × det/conv/prom/ratio/leitura) + leituras Sonnet async | janela, escopo, marca; job polling | ✓ Sonnet (12 leituras, ~$0.06) | v3 já tem Mapa de Lastro; **Confronto Visual + leituras por subpilar têm forte sinergia com a camada editorial do ML** | **ADAPTAR** — reaproveita `editorial.py`. Prioridade alta pós-ML |
+| 4 | **Locais** | Split-pane: tabela ranking (total/det/conv/prom/ratio/nível/barra-impacto) + detalhe da loja (barras subpilar + detratores recentes) | tipo (det/conv/prom), escopo, marca | — | Bloco 8. v3 tem dados por local | **MIGRAR** — direto, sem LLM, alto valor/baixo custo |
+| 5 | **Verbatins** | Sidebar de filtros com contadores + busca + ordenação + cards (tags) + modal "responder" + reclassificar inline | full-text, tipos, origens, fontes, subpilares, lojas, ordem | ✓ Sonnet (sugerir-resposta) | v3 **já tem** `src/api/verbatins.py` | **JÁ COBERTO** — adaptar o que falta: filtro de **origem**, **full-text** e a feature **sugerir-resposta** (LLM) |
+| 6 | **Mapa de Conversão** | Grid de cards por subpilar (capital = conv × proximidade), ranking, drill | janela, escopo, marca, top-N | — | Depende de **proximidade** (Lente de Governança — pendência) | **ADAPTAR** — bloquear até existir índice de proximidade. Média prioridade |
+| 7 | **Plano de Conversão** | Radar SVG 12 eixos + composição corpus + top-5 + detalhe (quase-promotores, lojas concentradoras) | janela, escopo, marca | — | Idem (proximidade) | **ADAPTAR** — depende de proximidade. Média/baixa |
+| 8 | **Temas** | Accordion por subpilar × 3 colunas (det/prom/conv), pills com contagem, drill, "Atualizar temas" | janela, refresh | ✓ (extração) | v3 tem **pipeline próprio mais avançado** (clusterer/embeddings/Haiku + cruzamentos N4 + ações N5) | **JÁ COBERTO / SUPERADO** — descartar a versão v2; o accordion por subpilar pode inspirar layout |
+| 9 | **Planos de Ação** | Pills de perspectiva (6) + prazo (3m/6m/1a) + cards com prioridade e **simulação de impacto** (ratio/nível/proximidade/selo) | perspectiva, prazo, janela, escopo, marca, refresh | ✓ Sonnet | **É o Bloco 8 explícito**. v3 já tem N5 (ações qualitativas) | **MIGRAR/ADAPTAR** — portar priorização; manter só o qualitativo (simulação quantitativa depende de R$/proximidade, pendências) |
+| 10 | **Marketing (Espelho)** | Tabela 3 colunas (comunica/valoriza/ignora) + caixas Desperdício/Oportunidade | janela, escopo; requer institucionais (posts) | — | Depende de coleta de conteúdo institucional | **DESCARTAR por ora** — reabrir se/quando v3 coletar posts institucionais. Baixa |
+| 11 | **Recuperação (Reclame Aqui)** | 5 KPI cards (resolvidas/taxa/tempo-resposta) + insight + breakdown + amostras | janela, escopo; metadados RA | — | Depende da fonte Reclame Aqui com metadados de resolução | **ADAPTAR** se a fonte RA existir no v3; nicho. Baixa |
+| 12 | **Heatmap** | Matriz subpilar × loja/fonte, células color-coded, drill | eixo (loja/fonte), métrica, top-N | — | Bloco 8 | **MIGRAR** — direto, sem LLM, ótimo custo/valor |
+| 13 | **Evolução** | Chart.js linha (buckets × séries), multi-linha, linhas de referência N2/N3 | granularidade (mês/tri), agrupar (empresa/subpilar/loja), seleção | — | **Depende de `ratios_mensais` — que o Monitoramento ML acabou de criar (CP-2)** | **MIGRAR** — agora viável e com sinergia direta; reaproveita a série mensal do ML. Boa prioridade |
+| 14 | **Leaderboard** | Tabs físico/digital + linhas com medalhas + sparkline + 8 colunas (score/nível/ratio/índices/selo) | tipo_local, janela, escopo, marca | — | Bloco 8; depende de `badges.py` + score PDPA + proximidade | **ADAPTAR** — gamificação completa; depende de proximidade (pendência). Média/"nice-to-have" |
+| 15 | **Comparar** | Multi-select 2-3 + cards (KPIs + sparkline SVG + distribuição) | tipo_elemento (loja/subpilar), elementos, janela | — | Bloco 8 | **MIGRAR** — direto, baixo custo |
+| 16 | **Assimetria 360°** | 4 KPI cards (cliente/influenciador/colaborador/fornecedor) + matriz 12×4 | janela; requer `perfil_emissor` | — | Depende de classificação de **perfil do emissor** (não existe no v3) | **ADAPTAR** — só após v3 classificar perfil_emissor. Média |
+| 17 | **Quarentena** | KPI + filtro por motivo + cards com ações (aprovar dupla/primária/definir escopo/rejeitar) | empresa, motivo, paginação | — | v3 **já tem** base/fluxo de quarentena | **JÁ COBERTO** — adaptar a UI de revisão |
+| 18 | **IA (Chat)** | Chat (bolhas + sugestões + typing), contexto real injetado (resumo/diagnóstico/temas/detratores) | pergunta, janela, contexto empresa | ✓ Sonnet | Bloco 8 | **ADAPTAR** — alto valor de demo; reaproveitar montagem de contexto. Custo LLM por pergunta |
+| 19 | **Coleta (admin)** | Estimativa (modo/custo/tempo) + histórico + iniciar recoleta | empresa, modo, range | — | v3 **já tem** `src/api/monitoramento.py` (execuções de coleta) | **JÁ COBERTO** |
+
+**Leitura rápida dos vereditos:**
+- **MIGRAR (5, baixo custo, sem LLM):** Locais, Heatmap, Evolução, Comparar, Planos de Ação (qualitativo). *Evolução desbloqueou agora* graças ao `ratios_mensais` do ML.
+- **ADAPTAR (8):** Executiva C-Level, Visão Executiva, Diagnóstico, Mapa/Plano de Conversão, Leaderboard, Assimetria, IA — vários dependem de pendências conhecidas (proximidade/Lente de Governança, perfil_emissor, R$/LTV).
+- **JÁ COBERTO (4):** Verbatins, Temas (superado), Quarentena, Coleta.
+- **DESCARTAR por ora (1):** Marketing/Espelho (depende de coleta institucional).
+- **Consolidação sugerida:** Executiva C-Level + Visão Executiva → **uma** tela no v3 (são quase duplicatas no v2).
+
+**Maior sinergia imediata com o trabalho atual:** **Diagnóstico** (reusa `editorial.py` do ML) e **Evolução** (reusa `ratios_mensais` do ML). Ambas saem quase "de graça" enquanto o Monitoramento ML está fresco.
+
+---
+
 ## PARTE B — Monitoramento ML (detalhe máximo)
 
 ### B1. Arquitetura ML — algoritmos, bibliotecas, periodicidade, gatilho

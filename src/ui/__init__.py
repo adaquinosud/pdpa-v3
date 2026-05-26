@@ -1912,6 +1912,202 @@ def htmx_disparar_fonte(fonte_id: int):
     )
 
 
+# ── Hub Explorar (Grupo A) ────────────────────────────────────────────
+
+_EXPLORAR_TABS = ("locais", "heatmap", "comparar", "evolucao")
+
+
+def _explorar_filtros():
+    """Filtros globais do hub: agrupamento + período. Devolve (filtros_eco,
+    ag_id, corte) — filtros_eco p/ o template, ag_id/corte p/ as queries."""
+    from src.api.painel import _resolver_periodo
+
+    ag_raw = request.args.get("agrupamento_id", "")
+    periodo = request.args.get("periodo", "")
+    ag_id = int(ag_raw) if ag_raw.isdigit() else None
+    corte = _resolver_periodo(periodo)
+    return {"agrupamento_id": ag_raw, "periodo": periodo}, ag_id, corte
+
+
+def _explorar_locais_ranking(s, empresa_id, ag_id=None, corte=None):
+    """Ranking de locais (piores primeiro) com mix prom/conv/det + ratio."""
+    from sqlalchemy import func
+
+    from src.api.painel import calcular_ratio, faixa_ratio
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    q = (
+        s.query(Verbatim.local_id, Verbatim.tipo, func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.local_id.isnot(None))
+        .group_by(Verbatim.local_id, Verbatim.tipo)
+    )
+    if ag_id is not None:
+        locais_ag = [
+            lid
+            for (lid,) in s.query(Local.id)
+            .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+            .all()
+        ]
+        q = q.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+
+    por_local = {}
+    for lid, tipo, n in q.all():
+        d = por_local.setdefault(lid, {"promotor": 0, "conversivel": 0, "detrator": 0})
+        if tipo in d:
+            d[tipo] += int(n)
+    if not por_local:
+        return []
+    nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(por_local)).all()}
+    out = []
+    for lid, d in por_local.items():
+        prom, conv, detr = d["promotor"], d["conversivel"], d["detrator"]
+        if prom + conv + detr == 0:  # só verbatins sem classificação → sem sinal p/ ranquear
+            continue
+        ratio = calcular_ratio(prom, detr)
+        out.append(
+            SimpleNamespace(
+                id=lid,
+                nome=nomes.get(lid, f"loja {lid}"),
+                total=prom + conv + detr,
+                promotor=prom,
+                conversivel=conv,
+                detrator=detr,
+                ratio=ratio,
+                faixa=faixa_ratio(ratio),
+            )
+        )
+    out.sort(key=lambda x: (x.ratio, -x.total))  # piores (menor ratio) primeiro
+    return out
+
+
+def _explorar_loja_subpilares(s, empresa_id, local_id, corte=None):
+    """Quebra por subpilar de um local (para o drill-down)."""
+    from sqlalchemy import func
+
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM, calcular_ratio, faixa_ratio
+    from src.models.verbatim import Verbatim
+
+    q = (
+        s.query(Verbatim.subpilar, Verbatim.tipo, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id == local_id,
+            Verbatim.subpilar.isnot(None),
+        )
+        .group_by(Verbatim.subpilar, Verbatim.tipo)
+    )
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+    por_sub = {}
+    for sub, tipo, n in q.all():
+        d = por_sub.setdefault(sub, {"promotor": 0, "conversivel": 0, "detrator": 0})
+        if tipo in d:
+            d[tipo] += int(n)
+    out = []
+    for sub in SUBPILARES_ORDEM:
+        if sub not in por_sub:
+            continue
+        d = por_sub[sub]
+        prom, conv, detr = d["promotor"], d["conversivel"], d["detrator"]
+        ratio = calcular_ratio(prom, detr)
+        out.append(
+            SimpleNamespace(
+                subpilar=sub,
+                nome=NOME_SUBPILAR.get(sub, sub),
+                total=prom + conv + detr,
+                promotor=prom,
+                conversivel=conv,
+                detrator=detr,
+                ratio=ratio,
+                faixa=faixa_ratio(ratio),
+            )
+        )
+    return out
+
+
+def _explorar_contexto(empresa_id, tab):
+    """Monta o contexto comum (empresa, agrupamentos, filtros, dados da tab)."""
+    filtros, ag_id, corte = _explorar_filtros()
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return None
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
+        ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
+        agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
+        locais = _explorar_locais_ranking(s, empresa_id, ag_id, corte) if tab == "locais" else None
+    return {
+        "empresa": empresa_w,
+        "agrupamentos": agrupamentos,
+        "filtros": filtros,
+        "tab": tab,
+        "locais": locais,
+    }
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar")
+def explorar_empresa(empresa_id: int):
+    """Hub Explorar — shell + header global + tab ativa (server-rendered)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    tab = request.args.get("tab", "locais")
+    if tab not in _EXPLORAR_TABS:
+        tab = "locais"
+    ctx = _explorar_contexto(empresa_id, tab)
+    if ctx is None:
+        return render_template("404.html"), 404
+    return render_template(
+        "empresas/explorar.html", eh_loyall=(user.papel == PAPEL_LOYALL), user=user, **ctx
+    )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/tab/<tab>")
+def explorar_tab(empresa_id: int, tab: str):
+    """Conteúdo de uma tab (HTMX swap em #explorar-conteudo)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    if tab not in _EXPLORAR_TABS:
+        tab = "locais"
+    ctx = _explorar_contexto(empresa_id, tab)
+    if ctx is None:
+        return render_template("404.html"), 404
+    return render_template("partials/explorar_conteudo.html", **ctx)
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/locais/<int:local_id>")
+def explorar_loja_drill(empresa_id: int, local_id: int):
+    """Drill-down por subpilar de um local (HTMX)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    _, _, corte = _explorar_filtros()
+    with db_session() as s:
+        loc = s.get(Local, local_id)
+        nome = loc.nome if loc and loc.empresa_id == empresa_id else None
+        subpilares = _explorar_loja_subpilares(s, empresa_id, local_id, corte) if nome else []
+    return render_template(
+        "partials/explorar_loja_drill.html",
+        empresa_id=empresa_id,
+        local_id=local_id,
+        loja_nome=nome,
+        subpilares=subpilares,
+    )
+
+
 # ── 404 / 403 handlers ───────────────────────────────────────────────────
 
 

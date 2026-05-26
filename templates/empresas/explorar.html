@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block titulo %}Explorar — {{ empresa.nome }}{% endblock %}
+
+{% block sidebar_extra %}
+<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
+<div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
+<ul class="mt-2 space-y-1 text-sm">
+  <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
+  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
+  <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Painel</a></li>
+  <li><a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Explorar</a></li>
+  <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Temas</a></li>
+  <li><a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Anomalias</a></li>
+</ul>
+{% endblock %}
+
+{% block conteudo %}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
+
+{# ── Header ───────────────────────────────────────────────────────── #}
+<div class="mb-4">
+  <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
+    <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
+    <span class="mx-1">›</span>
+    <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="hover:underline">{{ empresa.nome }}</a>
+    <span class="mx-1">›</span>
+    <span class="text-loyall-600">Explorar</span>
+  </nav>
+  <h1 class="text-2xl font-semibold mt-1">Explorar</h1>
+  <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
+</div>
+
+{# ── Header global: agrupamento + período + Aplicar ───────────────── #}
+<form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <div class="flex flex-col gap-1">
+    <label class="text-xs text-loyall-500">Agrupamento</label>
+    <select name="agrupamento_id" class="px-2 py-1.5 border border-loyall-200 rounded min-w-[160px]">
+      <option value="">Todos</option>
+      {% for a in agrupamentos %}
+      <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="flex flex-col gap-1">
+    <label class="text-xs text-loyall-500">Período</label>
+    <select name="periodo" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="">Tudo</option>
+      {% for p, lbl in [('7d','7 dias'),('30d','30 dias'),('90d','90 dias'),('6m','6 meses'),('12m','12 meses'),('15m','15 meses')] %}
+      <option value="{{ p }}" {% if filtros.periodo == p %}selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 font-medium">Aplicar</button>
+</form>
+
+{# ── Tab bar ──────────────────────────────────────────────────────── #}
+<div class="flex flex-wrap gap-1 border-b border-loyall-200 mb-4">
+  {% for t, lbl in [('locais','Locais'),('heatmap','Heatmap'),('comparar','Comparar'),('evolucao','Evolução')] %}
+  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t }}&{{ qs }}"
+     hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab=t) }}?{{ qs }}"
+     hx-target="#explorar-conteudo" hx-swap="innerHTML"
+     hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t }}&{{ qs }}"
+     class="px-4 py-2 -mb-px border-b-2 text-sm {% if tab == t %}border-loyall-700 text-loyall-800 font-medium{% else %}border-transparent text-loyall-500 hover:text-loyall-700{% endif %}">
+    {{ lbl }}
+  </a>
+  {% endfor %}
+</div>
+
+<div id="explorar-conteudo">
+  {% include 'partials/explorar_conteudo.html' %}
+</div>
+{% endblock %}

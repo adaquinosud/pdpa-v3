@@ -1,0 +1,29 @@
+{# Drill-down por subpilar de um local (HTMX, dentro da linha de Locais). #}
+{% set fclass = {
+  'critico':   {'bg':'bg-rose-100','text':'text-rose-700','bar':'bg-rose-500'},
+  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700','bar':'bg-orange-500'},
+  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800','bar':'bg-amber-400'},
+  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700','bar':'bg-emerald-400'},
+  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800','bar':'bg-emerald-600'},
+} %}
+{% if not subpilares %}
+<div class="text-xs text-loyall-400 italic py-2">Sem quebra por subpilar no período.</div>
+{% else %}
+<div class="border-t border-loyall-100 pt-2 pb-2 space-y-1.5">
+  {% for sp in subpilares %}
+  {% set fc = fclass.get(sp.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600','bar':'bg-loyall-300'}) %}
+  {% set tot = sp.total if sp.total else 1 %}
+  <div class="flex items-center gap-2 text-xs">
+    <span class="w-28 shrink-0 text-loyall-600 truncate" title="{{ sp.nome }}">{{ sp.subpilar }} · {{ sp.nome }}</span>
+    <div class="flex-1 flex h-1.5 rounded overflow-hidden bg-loyall-100"
+         title="promotor {{ sp.promotor }} · conversível {{ sp.conversivel }} · detrator {{ sp.detrator }}">
+      <div class="bg-emerald-400" style="width: {{ (sp.promotor / tot * 100) | round(0,'floor') }}%"></div>
+      <div class="bg-amber-400" style="width: {{ (sp.conversivel / tot * 100) | round(0,'floor') }}%"></div>
+      <div class="bg-rose-400" style="width: {{ (sp.detrator / tot * 100) | round(0,'floor') }}%"></div>
+    </div>
+    <span class="shrink-0 w-10 text-right font-semibold {{ fc.text }}">{{ '%.2f'|format(sp.ratio) }}</span>
+    <span class="shrink-0 w-10 text-right text-loyall-400">{{ sp.total }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
