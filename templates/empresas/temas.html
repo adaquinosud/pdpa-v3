@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block titulo %}Temas — {{ empresa.nome }}{% endblock %}
+
+{% block sidebar_extra %}
+<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
+<div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
+<ul class="mt-2 space-y-1 text-sm">
+  <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
+  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
+  <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Painel</a></li>
+  <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Temas</a></li>
+  {% if eh_loyall %}
+  <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">Temas (admin)</a></li>
+  {% endif %}
+</ul>
+{% endblock %}
+
+{% block conteudo %}
+{% set classes_faixa = {
+  'critico':   {'bg':'bg-rose-100',    'text':'text-rose-700',    'bar':'bg-rose-500',    'lbl':'crítico'},
+  'fraco':     {'bg':'bg-orange-100',  'text':'text-orange-700',  'bar':'bg-orange-500',  'lbl':'fraco'},
+  'atencao':   {'bg':'bg-amber-100',   'text':'text-amber-800',   'bar':'bg-amber-400',   'lbl':'atenção'},
+  'bom':       {'bg':'bg-emerald-100', 'text':'text-emerald-700', 'bar':'bg-emerald-400', 'lbl':'bom'},
+  'excelente': {'bg':'bg-emerald-200', 'text':'text-emerald-800', 'bar':'bg-emerald-600', 'lbl':'excelente'},
+} %}
+
+{# ── Header ───────────────────────────────────────────────────────── #}
+<div class="mb-4">
+  <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
+    <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
+    <span class="mx-1">›</span>
+    <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="hover:underline">{{ empresa.nome }}</a>
+    <span class="mx-1">›</span>
+    <span class="text-loyall-600">Temas</span>
+  </nav>
+  <h1 class="text-2xl font-semibold mt-1">Temas</h1>
+  <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
+  <p class="text-xs text-loyall-500 mt-1">
+    Análise dos últimos {{ janela_dias }} dias{% if data_corte %} (desde {{ data_corte.strftime('%d/%m/%Y') }}){% endif %}.
+  </p>
+  <div class="mt-2 flex flex-wrap gap-2 text-sm">
+    <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.temas }} temas</span>
+    <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.cruzamentos }} cruzamentos</span>
+    <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.acoes }} ações N5</span>
+  </div>
+</div>
+
+{# ── Filtro agrupamento ───────────────────────────────────────────── #}
+<form method="get" class="mb-5 flex items-center gap-2 text-sm">
+  <label class="text-loyall-500">Agrupamento:</label>
+  <select name="agrupamento_id" onchange="this.form.submit()"
+          class="px-2 py-1.5 border border-loyall-200 rounded">
+    <option value="">Todos</option>
+    {% for a in agrupamentos %}
+    <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
+    {% endfor %}
+  </select>
+  <span class="text-xs text-loyall-400 italic">janela de {{ janela_dias }} dias (informativo, não filtra)</span>
+</form>
+
+{# ── Mapa de Lastro ───────────────────────────────────────────────── #}
+<h2 class="text-lg font-semibold text-loyall-700 mb-1">Mapa de Lastro</h2>
+<p class="text-xs text-loyall-500 mb-3">Jornada relacional sequencial — resolva o gargalo antes de investir nos pilares seguintes.</p>
+<div class="flex flex-wrap items-stretch gap-2 mb-2">
+  {% for p in mapa_lastro %}
+  {% set fc = classes_faixa[p.faixa] %}
+  <div class="flex-1 min-w-[180px] border rounded-lg p-3 {% if p.gargalo %}border-rose-400 ring-1 ring-rose-200{% else %}border-loyall-200{% endif %}">
+    <div class="flex items-center justify-between">
+      <span class="font-semibold text-loyall-800">{{ p.nome }}</span>
+      {% if p.gargalo %}<span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">🚩 gargalo</span>{% endif %}
+    </div>
+    <div class="mt-1 flex items-center gap-2">
+      <span class="text-lg font-bold text-loyall-800">{{ '%.2f'|format(p.ratio) }}</span>
+      <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ fc.lbl }}</span>
+    </div>
+    <div class="mt-2 space-y-1">
+      {% for sp in p.subpilares %}
+      {% set sfc = classes_faixa[sp.faixa] %}
+      <div class="text-xs">
+        <div class="flex items-center justify-between text-loyall-600">
+          <span>{{ sp.subpilar }} · {{ sp.nome }}</span>
+          <span>{{ '%.2f'|format(sp.ratio) }}</span>
+        </div>
+        <div class="h-1.5 rounded bg-loyall-100 mt-0.5">
+          <div class="h-1.5 rounded {{ sfc.bar }}" style="width: {{ (sp.ratio / 9.99 * 100) | round(0, 'floor') }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% if not loop.last %}<div class="self-center text-loyall-300 text-xl">→</div>{% endif %}
+  {% endfor %}
+</div>
+{% if gargalo_pilar %}
+<p class="text-xs text-loyall-600 mb-6 bg-rose-50 border border-rose-100 rounded px-3 py-2">
+  🚩 <span class="font-medium">Gargalo do Lastro.</span> O framework recomenda resolver este pilar antes de investir nos seguintes — o Lastro é sequencial.
+</p>
+{% endif %}
+
+{# ── Temas transversais (N4 + ação N5) ────────────────────────────── #}
+{% if transversais %}
+<h2 class="text-lg font-semibold text-loyall-700 mb-1">
+  ⚡ Temas transversais
+  {% if agrupamento_filtrado %}<span class="text-sm font-normal text-loyall-500">· {{ agrupamento_filtrado }}</span>{% endif %}
+</h2>
+<p class="text-xs text-loyall-500 mb-3">Temas que atravessam múltiplos buckets (subpilar × tipo) — diagnóstico de causa raiz. Clique num bucket para ver os temas dele.</p>
+<div class="space-y-3 mb-6">
+  {% for t in transversais %}
+  <div class="border border-loyall-200 rounded-lg p-3">
+    <div class="flex items-start justify-between gap-2">
+      <div class="min-w-0">
+        <span class="font-semibold text-loyall-800">{{ t.tema_label }}</span>
+        <span class="ml-1 text-[10px] uppercase tracking-wider px-1 rounded
+                     {% if t.eh_semantico %}bg-violet-100 text-violet-700{% else %}bg-loyall-100 text-loyall-600{% endif %}">
+          {{ 'semântico' if t.eh_semantico else 'literal' }}</span>
+        <span class="ml-1 text-xs text-loyall-400">{{ t.n_subpilares }} pilar{{ 'es' if t.n_subpilares != 1 else '' }}</span>
+      </div>
+      <span class="shrink-0 text-xs font-semibold text-loyall-500" title="peso (sistemicidade)">peso {{ '%.1f'|format(t.peso) }}</span>
+    </div>
+    {% if t.membros %}<div class="mt-1 text-xs text-loyall-500">família: {{ t.membros|join(' · ') }}</div>{% endif %}
+    <div class="mt-2 flex flex-wrap gap-1">
+      {% for b in t.buckets %}
+      <button type="button"
+              hx-get="{{ url_for('ui.painel_temas_modal', empresa_id=empresa.id) }}?subpilar={{ b.split(':')[0] }}&tipo={{ b.split(':')[1] }}{% if filtros.agrupamento_id %}&agrupamento_id={{ filtros.agrupamento_id }}{% endif %}"
+              hx-target="body" hx-swap="beforeend"
+              class="text-xs px-2 py-0.5 rounded border border-loyall-200 text-loyall-600 hover:bg-loyall-100"
+              title="Ver temas de {{ b }}">{{ b }}</button>
+      {% endfor %}
+    </div>
+    {% if t.acao %}
+    <div class="mt-3 border-l-2 pl-3
+                {% if t.acao.impacto == 'alto' %}border-rose-400{% elif t.acao.impacto == 'medio' %}border-amber-400{% else %}border-emerald-400{% endif %}">
+      <span class="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded
+                   {% if t.acao.impacto == 'alto' %}bg-rose-100 text-rose-700{% elif t.acao.impacto == 'medio' %}bg-amber-100 text-amber-700{% else %}bg-emerald-100 text-emerald-700{% endif %}">impacto {{ t.acao.impacto }}</span>
+      <span class="text-xs text-loyall-400">ação sugerida (N5)</span>
+      <p class="text-sm text-loyall-700 mt-0.5">{{ t.acao.texto }}</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Top temas por subpilar ───────────────────────────────────────── #}
+<h2 class="text-lg font-semibold text-loyall-700 mb-3">Top temas por subpilar</h2>
+{% if not top_subpilar %}
+<p class="text-sm text-loyall-400 italic mb-6">Nenhum tema na janela para o escopo atual.</p>
+{% else %}
+<div class="grid md:grid-cols-2 gap-4 mb-6">
+  {% for bloco in top_subpilar %}
+  <div class="border border-loyall-200 rounded-lg p-3">
+    <div class="text-sm font-semibold text-loyall-700 mb-2">{{ bloco.subpilar }} <span class="text-loyall-400 font-normal">· {{ bloco.nome }}</span></div>
+    <ul class="space-y-2">
+      {% for tm in bloco.temas %}
+      {% set tot = tm.total if tm.total else 1 %}
+      <li>
+        <div class="flex items-center justify-between text-sm">
+          <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ bloco.subpilar }}&tema_id={{ tm.tema_id }}&origem=temas"
+             class="text-loyall-700 hover:underline truncate">{{ tm.label }}</a>
+          <span class="text-loyall-500 ml-2 shrink-0">{{ tm.total }}</span>
+        </div>
+        <div class="flex h-1.5 rounded overflow-hidden bg-loyall-100 mt-1" title="promotor {{ tm.promotor }} · conversível {{ tm.conversivel }} · detrator {{ tm.detrator }}">
+          <div class="bg-emerald-400" style="width: {{ (tm.promotor / tot * 100) | round(0, 'floor') }}%"></div>
+          <div class="bg-amber-400" style="width: {{ (tm.conversivel / tot * 100) | round(0, 'floor') }}%"></div>
+          <div class="bg-rose-400" style="width: {{ (tm.detrator / tot * 100) | round(0, 'floor') }}%"></div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

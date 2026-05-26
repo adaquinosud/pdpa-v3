@@ -243,7 +243,7 @@ def test_verbatins_voltar_empresa_sem_origem(client_loyall, db_session):
 # ── B7 CP-5: seção "Temas transversais" no painel ────────────────────
 
 
-def test_painel_mostra_temas_transversais(client_loyall, db_session):
+def test_temas_tela_mostra_transversais(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "trans")
     cr = TemaCruzamento(
         empresa_id=e["id"],
@@ -271,7 +271,7 @@ def test_painel_mostra_temas_transversais(client_loyall, db_session):
     )
     db_session.commit()
 
-    r = client_loyall.get(f"/empresas/{e['id']}/painel")
+    r = client_loyall.get(f"/empresas/{e['id']}/temas")
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert "Temas transversais" in html
@@ -325,19 +325,17 @@ def test_transversais_filtra_por_agrupamento(client_loyall, db_session):
     db_session.commit()
 
     # sem filtro → aparece
-    assert "preço lojas" in client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
+    assert "preço lojas" in client_loyall.get(f"/empresas/{e['id']}/temas").get_data(as_text=True)
     # filtrado por Lojas → aparece (tema tem vínculo lá)
     html_lojas = client_loyall.get(
-        f"/empresas/{e['id']}/painel?agrupamento_id={a_lojas['id']}"
+        f"/empresas/{e['id']}/temas?agrupamento_id={a_lojas['id']}"
     ).get_data(as_text=True)
     assert "preço lojas" in html_lojas
     # filtrado por G → some (tema não tem vínculo em G)
-    html_g = client_loyall.get(f"/empresas/{e['id']}/painel?agrupamento_id={a_g['id']}").get_data(
+    html_g = client_loyall.get(f"/empresas/{e['id']}/temas?agrupamento_id={a_g['id']}").get_data(
         as_text=True
     )
     assert "preço lojas" not in html_g
-    # mensagem de nível agrupamento presente
-    assert "nível de" in html_lojas and "agrupamento" in html_lojas
 
 
 # ── B6.6 CP-4: "Última coleta" nas telas ─────────────────────────────
@@ -354,3 +352,47 @@ def test_detalhe_sem_coleta_mostra_placeholder(client_loyall):
     e = client_loyall.post("/api/empresas/", json={"nome": "ESemColeta"}).get_json()
     html = client_loyall.get(f"/empresas/{e['id']}").get_data(as_text=True)
     assert "sem coleta registrada" in html
+
+
+# ── B6.6 CP-5: tela dedicada /empresas/<id>/temas ────────────────────
+
+
+def test_temas_tela_renderiza_mapa_e_top_subpilar(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "tela")
+    # verbatins p/ o Mapa de Lastro (n1/n2 calculam ratios)
+    _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "ruim1", sub="D1", tipo="detrator")
+    _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "ruim2", sub="D1", tipo="detrator")
+    _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "bom1", sub="Pa1", tipo="promotor")
+    # tema + cache p/ "top temas por subpilar"
+    db_session.add(Tema(empresa_id=e["id"], nome="demora atendimento", slug="demora-atendimento"))
+    db_session.commit()
+    db_session.add(_cache(e["id"], "D1", "detrator", "demora atendimento", 7, [], a["id"]))
+    db_session.commit()
+
+    r = client_loyall.get(f"/empresas/{e['id']}/temas")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "Mapa de Lastro" in html
+    assert "Disponibilidade" in html  # nome do pilar D
+    assert "Top temas por subpilar" in html
+    assert "demora atendimento" in html
+    # sidebar tem o link Temas
+    assert ">Temas</a>" in html
+    # nota da janela
+    assert "últimos" in html and "dias" in html
+
+
+def test_temas_tela_cliente_outra_empresa_403(client_loyall, client_cliente_factory):
+    e1 = client_loyall.post("/api/empresas/", json={"nome": "ETmX1"}).get_json()
+    e2 = client_loyall.post("/api/empresas/", json={"nome": "ETmX2"}).get_json()
+    c = client_cliente_factory(e2["id"])
+    r = c.get(f"/empresas/{e1['id']}/temas")
+    assert r.status_code == 403
+
+
+def test_painel_tem_link_temas_na_sidebar(client_loyall, db_session):
+    e, _, loc, f = _ctx(client_loyall, "side")
+    _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "x")
+    html = client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
+    assert "ui.temas_empresa" not in html  # url_for resolvido, não literal
+    assert f"/empresas/{e['id']}/temas" in html  # link Temas presente

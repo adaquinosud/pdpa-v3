@@ -613,15 +613,9 @@ def painel_empresa(empresa_id: int):
         fontes_ = [
             SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
         ]
-        ag_filtro = None
-        if filtros["agrupamento_id"]:
-            try:
-                ag_filtro = int(filtros["agrupamento_id"])
-            except ValueError:
-                ag_filtro = None
-        ag_filtro_nome = next((a.nome for a in agrupamentos if a.id == ag_filtro), None)
-        transversais = _carregar_transversais(s, empresa_id, agrupamento_id=ag_filtro)
 
+    # B6.6 CP-5: a seção "Temas transversais" saiu do painel — vive na tela
+    # dedicada /empresas/<id>/temas.
     return render_template(
         "empresas/painel.html",
         empresa=empresa_w,
@@ -631,8 +625,6 @@ def painel_empresa(empresa_id: int):
         agrupamentos=agrupamentos,
         locais=locais,
         fontes=fontes_,
-        transversais=transversais,
-        agrupamento_filtrado=ag_filtro_nome,
         eh_loyall=(user.papel == PAPEL_LOYALL),
         user=user,
     )
@@ -708,6 +700,190 @@ def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
             )
         )
     return out
+
+
+# ── B6.6 CP-5: tela dedicada de temas ─────────────────────────────────
+
+
+def _montar_mapa_lastro(n1, n2):
+    """Mapa de Lastro: 4 pilares (ratio+faixa) com seus subpilares + gargalo.
+
+    Reusa os dados de painel_nivel1 (pilares) e painel_nivel2 (matriz de
+    subpilares). Gargalo = pilar de menor ratio entre os com volume > 0.
+    """
+    from src.api.painel import PILARES_ORDEM
+
+    pilares = {p["pilar"]: p for p in n1.get("pilares", [])}
+    subs_por_pilar = {}
+    for cell in n2.get("matriz", []):
+        subs_por_pilar.setdefault(cell["pilar"], []).append(cell)
+    candidatos = [(p["pilar"], p["ratio"]) for p in n1.get("pilares", []) if p.get("total", 0) > 0]
+    gargalo = min(candidatos, key=lambda x: x[1])[0] if candidatos else None
+
+    mapa = []
+    for pid in PILARES_ORDEM:
+        p = pilares.get(pid)
+        if not p:
+            continue
+        mapa.append(
+            {
+                "pilar": pid,
+                "nome": p["nome"],
+                "ratio": p["ratio"],
+                "faixa": p["faixa"],
+                "total": p["total"],
+                "gargalo": pid == gargalo,
+                "subpilares": subs_por_pilar.get(pid, []),
+            }
+        )
+    return mapa, gargalo
+
+
+def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
+    """Top N temas de cada subpilar (de temas_cache), com split por tipo.
+
+    Returns lista por subpilar (ordem canônica) com
+    ``{subpilar, nome, temas:[{label, tema_id, total, promotor,
+    conversivel, detrator}]}``.
+    """
+    from sqlalchemy import and_, func
+
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+    from src.models.temas import Tema, TemaCache
+
+    q = (
+        s.query(
+            TemaCache.subpilar,
+            TemaCache.tema_label,
+            TemaCache.tipo,
+            func.sum(TemaCache.volume).label("vol"),
+            Tema.id.label("tema_id"),
+        )
+        .join(
+            Tema,
+            and_(
+                Tema.empresa_id == TemaCache.empresa_id,
+                Tema.nome == TemaCache.tema_label,
+                Tema.ativo.is_(True),
+            ),
+        )
+        .filter(TemaCache.empresa_id == empresa_id)
+    )
+    if agrupamento_id is not None:
+        q = q.filter(TemaCache.agrupamento_id == agrupamento_id)
+    q = q.group_by(TemaCache.subpilar, TemaCache.tema_label, TemaCache.tipo, Tema.id)
+
+    # Agrega por (subpilar, label): total + split por tipo.
+    agg = {}
+    for sub, label, tipo, vol, tema_id in q.all():
+        key = (sub, label)
+        e = agg.setdefault(
+            key,
+            {
+                "label": label,
+                "tema_id": tema_id,
+                "total": 0,
+                "promotor": 0,
+                "conversivel": 0,
+                "detrator": 0,
+            },
+        )
+        e["total"] += int(vol or 0)
+        if tipo in ("promotor", "conversivel", "detrator"):
+            e[tipo] += int(vol or 0)
+
+    por_sub = {}
+    for (sub, _label), e in agg.items():
+        por_sub.setdefault(sub, []).append(e)
+
+    out = []
+    for sp in SUBPILARES_ORDEM:
+        temas = sorted(por_sub.get(sp, []), key=lambda x: -x["total"])[:top]
+        if temas:
+            out.append({"subpilar": sp, "nome": NOME_SUBPILAR[sp], "temas": temas})
+    return out
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/temas")
+def temas_empresa(empresa_id: int):
+    """Tela dedicada de análise de temas (Bloco 6.6 CP-5).
+
+    Mapa de Lastro + cruzamentos transversais (N4) + ações (N5) + top temas
+    por subpilar. Acessível a cliente_total (sua empresa) e admin_loyall.
+    """
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    from sqlalchemy import distinct, func
+
+    from src.api.painel import painel_nivel1 as h_n1
+    from src.api.painel import painel_nivel2 as h_n2
+    from src.models.temas import AcaoVenda, Tema, TemaCruzamento, VerbatimTema
+    from src.temas.janela import data_corte, get_janela_dias
+
+    resp1 = h_n1(empresa_id)
+    resp2 = h_n2(empresa_id)
+    if isinstance(resp1, tuple):
+        return resp1
+    if isinstance(resp2, tuple):
+        return resp2
+    n1 = resp1.get_json()
+    n2 = resp2.get_json()
+    if n1 is None or n2 is None:
+        return render_template("404.html"), 404
+
+    filtros = {"agrupamento_id": request.args.get("agrupamento_id", "")}
+    ag_filtro = int(filtros["agrupamento_id"]) if filtros["agrupamento_id"].isdigit() else None
+
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
+        ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
+        agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
+        ag_filtro_nome = next((a.nome for a in agrupamentos if a.id == ag_filtro), None)
+        transversais = _carregar_transversais(s, empresa_id, agrupamento_id=ag_filtro)
+        top_subpilar = _top_temas_por_subpilar(s, empresa_id, ag_filtro)
+        corte = data_corte(empresa_id, s)
+        n_temas = (
+            s.query(func.count(distinct(Tema.id)))
+            .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
+            .scalar()
+        )
+        n_cruz = (
+            s.query(func.count(TemaCruzamento.id))
+            .filter(TemaCruzamento.empresa_id == empresa_id)
+            .scalar()
+        )
+        n_acoes = (
+            s.query(func.count(AcaoVenda.id)).filter(AcaoVenda.empresa_id == empresa_id).scalar()
+        )
+
+    mapa_lastro, gargalo = _montar_mapa_lastro(n1, n2)
+
+    return render_template(
+        "empresas/temas.html",
+        empresa=empresa_w,
+        n1=n1,
+        mapa_lastro=mapa_lastro,
+        gargalo_pilar=gargalo,
+        transversais=transversais,
+        agrupamento_filtrado=ag_filtro_nome,
+        top_subpilar=top_subpilar,
+        totais={"temas": n_temas, "cruzamentos": n_cruz, "acoes": n_acoes},
+        janela_dias=get_janela_dias(),
+        data_corte=corte,
+        filtros=filtros,
+        agrupamentos=agrupamentos,
+        eh_loyall=(user.papel == PAPEL_LOYALL),
+        user=user,
+    )
 
 
 # ── B6 CP-5: Modal de temas + tela admin do catálogo ──────────────────
