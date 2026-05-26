@@ -258,3 +258,55 @@ def test_payload_cruzamento_transversal(client_loyall, db_session):
 
     leitura = gerar_leitura(e["id"], anomalia, gerar_fn=_fake_sonnet)
     assert leitura["confianca"] == "alta" and "o_que" in leitura
+
+
+def test_gerar_e_persistir_leituras_grava_json(client_loyall, db_session):
+    import json
+
+    from src.anomalias.editorial import gerar_e_persistir_leituras
+    from src.models.anomalia import AnomaliaDetectada
+
+    e, a, loc, f = _ctx(client_loyall, "gp")
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=e["id"],
+            tipo="indicador",
+            chave="loja X · D2",
+            subpilar="D2",
+            severidade="critico",
+            score_final=90.0,
+            score_cross_sectional=80.0,
+        )
+    )
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=e["id"],
+            tipo="indicador",
+            chave="loja Y · P1",
+            subpilar="P1",
+            severidade="atencao",
+            score_final=40.0,
+        )
+    )
+    db_session.commit()
+
+    m = gerar_e_persistir_leituras(e["id"], severidade="critico", gerar_fn=_fake_sonnet)
+    assert m["gerados"] == 1 and m["falhas"] == 0
+    assert m["por_tipo"] == {"indicador": 1}
+
+    db_session.expire_all()
+    critica = (
+        db_session.query(AnomaliaDetectada)
+        .filter_by(empresa_id=e["id"], chave="loja X · D2")
+        .first()
+    )
+    leitura = json.loads(critica.leitura_editorial)
+    assert set(leitura) >= {"o_que", "acao_relacionamento", "acao_venda", "confianca"}
+    assert critica.dados_hash  # hash persistido p/ detecção futura de stale
+    # a de atenção não foi tocada (filtro severidade)
+    atencao = (
+        db_session.query(AnomaliaDetectada)
+        .filter_by(empresa_id=e["id"], chave="loja Y · P1")
+        .first()
+    )
+    assert atencao.leitura_editorial is None

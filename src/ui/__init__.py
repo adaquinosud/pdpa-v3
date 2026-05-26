@@ -972,8 +972,19 @@ _SEV_RANK_UI = {"critico": 2, "atencao": 1, "normal": 0}
 
 
 def _anomalia_view(a, local_nome=None, tema_nome=None):
-    """Converte uma AnomaliaDetectada em objeto de exibição p/ o template."""
+    """Converte uma AnomaliaDetectada em objeto de exibição p/ o template.
+    ``leitura`` vira dict (7 seções) quando o JSON parseia; senão, texto cru."""
+    import json as _json
+
     corrob = bool(a.tendencia and "corroborado por tema" in a.tendencia)
+    leitura = a.leitura_editorial
+    if leitura:
+        try:
+            parsed = _json.loads(leitura)
+            if isinstance(parsed, dict):
+                leitura = parsed
+        except (ValueError, TypeError):
+            pass
     return SimpleNamespace(
         id=a.id,
         tipo=a.tipo,
@@ -989,7 +1000,7 @@ def _anomalia_view(a, local_nome=None, tema_nome=None):
         periodo=a.periodo,
         local_nome=local_nome,
         tema_nome=tema_nome,
-        leitura=a.leitura_editorial,
+        leitura=leitura,
         estado=a.estado_validacao or "pendente",
         nota=a.nota_editorial,
         corroborado=corrob,

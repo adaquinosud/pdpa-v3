@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -23,6 +24,16 @@ from typing import Any, Callable, Dict, List, Optional
 SONNET_MODEL = "claude-sonnet-4-6"
 LEITURA_PROMPT_PATH = Path(__file__).parent / "prompts" / "leitura_anomalia_v1.md"
 RATIO_SAUDAVEL = 2.0  # par "saudável" = ratio >= 2.0 (faixa bom/excelente)
+# As 7 seções da leitura (ordem canônica) — persistidas em leitura_editorial (JSON).
+SECOES_LEITURA = (
+    "o_que",
+    "por_que",
+    "onde",
+    "prioridade",
+    "confianca",
+    "acao_relacionamento",
+    "acao_venda",
+)
 
 
 def _confianca(tem_tema: bool, tem_cruzamento: bool, cross_forte: bool, volume: int) -> str:
@@ -489,3 +500,69 @@ def gerar_leitura(
     data["confianca"] = payload["confianca"]
     data["dados_hash"] = dados_hash
     return data
+
+
+def _anomalia_para_dict(a) -> Dict[str, Any]:
+    """Converte uma AnomaliaDetectada persistida no dict que gerar_leitura espera."""
+    return {
+        "tipo": a.tipo,
+        "local_id": a.local_id,
+        "agrupamento_id": a.agrupamento_id,
+        "subpilar": a.subpilar,
+        "tema_id": a.tema_id,
+        "cruzamento_id": a.cruzamento_id,
+        "chave": a.chave,
+        "score_cross_sectional": a.score_cross_sectional,
+        "score_final": a.score_final,
+        "direcao": a.direcao,
+        "tendencia": a.tendencia,
+    }
+
+
+def gerar_e_persistir_leituras(
+    empresa_id: int,
+    *,
+    severidade: Optional[str] = None,
+    limite: Optional[int] = None,
+    gerar_fn: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """Gera a leitura editorial (Sonnet) das anomalias persistidas e grava em
+    ``leitura_editorial`` (JSON das 7 seções) + ``dados_hash``. Filtra por
+    ``severidade`` se dada; ``limite`` opcional. Idempotente (regrava).
+
+    Retorna métricas: gerados, falhas, por_tipo, tokens (in/out), custo_usd, erros.
+    """
+    from src.models.anomalia import AnomaliaDetectada
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        q = s.query(AnomaliaDetectada).filter(AnomaliaDetectada.empresa_id == empresa_id)
+        if severidade:
+            q = q.filter(AnomaliaDetectada.severidade == severidade)
+        q = q.order_by(AnomaliaDetectada.score_final.desc())
+        if limite:
+            q = q.limit(limite)
+        alvos = [(a.id, _anomalia_para_dict(a)) for a in q.all()]
+
+    m = {"gerados": 0, "falhas": 0, "por_tipo": Counter(), "in": 0, "out": 0, "erros": []}
+    for aid, anom in alvos:
+        try:
+            leitura = gerar_leitura(empresa_id, anom, gerar_fn=gerar_fn)
+            leitura_json = json.dumps(
+                {k: leitura.get(k) for k in SECOES_LEITURA}, ensure_ascii=False
+            )
+            with db_session() as s:
+                obj = s.get(AnomaliaDetectada, aid)
+                obj.leitura_editorial = leitura_json
+                obj.dados_hash = leitura.get("dados_hash")
+            m["gerados"] += 1
+            m["por_tipo"][anom["tipo"]] += 1
+            m["in"] += int(leitura.get("_in", 0) or 0)
+            m["out"] += int(leitura.get("_out", 0) or 0)
+        except Exception as exc:  # noqa: BLE001 — registra falha e segue
+            m["falhas"] += 1
+            m["erros"].append({"chave": anom.get("chave"), "erro": str(exc)[:160]})
+
+    m["por_tipo"] = dict(m["por_tipo"])
+    m["custo_usd"] = round(m["in"] / 1e6 * 3 + m["out"] / 1e6 * 15, 4)
+    return m
