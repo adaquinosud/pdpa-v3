@@ -696,6 +696,51 @@ def _register_cli_commands(app: Flask) -> None:
         )
         click.echo(f"[pos-coleta] custo estimado ~${r.custo_estimado_usd}")
 
+    # ── Monitoramento ML CP-5: flask anomalias-detectar ($0, sem LLM) ──
+    @app.cli.command("anomalias-detectar")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--sem-snapshot",
+        is_flag=True,
+        default=False,
+        help="Não grava temas_snapshot/cruzamentos_snapshot desta rodada.",
+    )
+    def anomalias_detectar(empresa_arg, sem_snapshot):
+        """Detecta anomalias (Camada 1 indicador + Camada 2 temas) e persiste.
+
+        Recomputa a série mensal de ratios, roda as duas camadas com corroboração
+        cruzada e grava em anomalias_detectadas (preservando validação humana).
+        Sem custo de LLM — a leitura editorial é gerada à parte.
+        """
+        from src.anomalias.combinador import detectar_e_persistir
+        from src.anomalias.ratios import recomputar_ratios_mensais
+        from src.models.empresa import Empresa
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id = emp.id
+            empresa_nome = emp.nome
+
+        click.echo(f"[anomalias] empresa={empresa_nome!r} (id={empresa_id})")
+        n_ratios = recomputar_ratios_mensais(empresa_id)
+        click.echo(f"[anomalias] ratios mensais recomputados: {n_ratios}")
+        resumo = detectar_e_persistir(empresa_id, gravar_snapshot=not sem_snapshot)
+        click.echo(
+            f"[anomalias] total={resumo['total']} "
+            f"por_tipo={resumo['por_tipo']} por_severidade={resumo['por_severidade']}"
+        )
+        click.echo(
+            f"[anomalias] corroborados por tema={resumo['corroborados']} "
+            f"validacoes preservadas={resumo['validacoes_preservadas']}"
+        )
+
 
 if __name__ == "__main__":
     app = create_app()

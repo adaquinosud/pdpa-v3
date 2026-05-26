@@ -298,6 +298,16 @@ def reprocessar_temas_empresa(empresa_id: int):
     return h(empresa_id)
 
 
+# ── Anomalias (Monitoramento ML, Bloco 8) ───────────────────────────
+
+
+@empresas_bp.route("/<int:empresa_id>/anomalias", methods=["GET"])
+def listar_anomalias_da_empresa(empresa_id: int):
+    from src.api.anomalias import listar_anomalias_da_empresa as h
+
+    return h(empresa_id)
+
+
 @empresas_bp.route("/import-cadastro", methods=["POST"])
 @loyall_required
 def import_cadastro():
