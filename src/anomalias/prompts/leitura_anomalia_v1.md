@@ -8,6 +8,7 @@ Sinal sem ação concreta é ruído — e ruído é proibido aqui.
 ## Entrada (JSON, em linguagem de negócio — sem estatística crua)
 
 Campos podem vir `null`. Use só o que existe.
+- `tipo_sinal` ("indicador" | "tema" | "cruzamento") — adapte o vocabulário: **indicador** = uma loja num subpilar; **tema** = tópico recorrente nos verbatins; **cruzamento** = mesmo tema atravessando vários subpilares (causa raiz, não sintoma isolado).
 - `escopo`, `o_que_mudou`, `comparacao_pares`, `tendencia`, `volume_afetado`
 - `mix_tipos` {promotor, conversivel, detrator}
 - `detratores_recencia` {recentes_30d, entre_30_90d, mais_90d} — reversibilidade

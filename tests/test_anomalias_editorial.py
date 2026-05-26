@@ -4,9 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from src.anomalias.editorial import _confianca, gerar_leitura, montar_payload_indicador
+from src.anomalias.editorial import (
+    _confianca,
+    gerar_leitura,
+    montar_payload_cruzamento,
+    montar_payload_indicador,
+    montar_payload_tema,
+)
 from src.models.anomalia import RatioMensal
-from src.models.temas import AcaoVenda, Tema, TemaCache
+from src.models.temas import AcaoVenda, Tema, TemaCache, TemaCruzamento, VerbatimTema
 from src.models.verbatim import Verbatim
 
 
@@ -131,3 +137,124 @@ def test_montar_payload_e_gerar_leitura(client_loyall, db_session):
     ).issubset(leitura)
     assert leitura["confianca"] == "media"  # autoritativa do payload, não "xxx"
     assert leitura["dados_hash"]
+
+
+def _seed_tema_mensal(db_session, e, a, loc, f, nome, plano):
+    """Cria um tema com vínculos detrator distribuídos por mês (plano = {mes: qtd})."""
+    t = Tema(empresa_id=e["id"], nome=nome, slug=nome.replace(" ", "-"))
+    db_session.add(t)
+    db_session.commit()
+    for mes, qtd in plano.items():
+        for i in range(qtd):
+            v = Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f["id"],
+                local_id=loc["id"],
+                texto=f"{nome} {mes}-{i}",
+                data_criacao_original=datetime.fromisoformat(f"{mes}-15"),
+                hash_dedup=f"ht{nome}{mes}{i}-{datetime.utcnow().timestamp()}",
+                subpilar="D2",
+                tipo="detrator",
+                tem_texto=True,
+            )
+            db_session.add(v)
+            db_session.flush()
+            db_session.add(
+                VerbatimTema(
+                    verbatim_id=v.id,
+                    tema_id=t.id,
+                    confianca=0.9,
+                    origem="llm",
+                    bucket_chave=f"{a['id']}:D2:detrator",
+                )
+            )
+    db_session.add(
+        TemaCache(
+            empresa_id=e["id"],
+            agrupamento_id=a["id"],
+            subpilar="D2",
+            tipo="detrator",
+            tema_label=nome,
+            volume=sum(plano.values()),
+            percentual=0.0,
+            periodo_inicio=datetime(2026, 1, 1).date(),
+            periodo_fim=datetime(2026, 3, 31).date(),
+            hash_escopo=f"hc{nome}",
+        )
+    )
+    db_session.commit()
+    return t
+
+
+def test_payload_tema_usa_serie_e_cruzamento(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "tema")
+    t = _seed_tema_mensal(
+        db_session, e, a, loc, f, "demora bagagem", {"2026-01": 2, "2026-02": 3, "2026-03": 9}
+    )
+    anomalia = {
+        "tipo": "tema",
+        "tema_id": t.id,
+        "chave": "tema: demora bagagem",
+        "direcao": "negativa",
+        "magnitude": 6.0,
+        "tendencia": "Tema em alta",
+        "score_final": 60.0,
+    }
+    payload = montar_payload_tema(db_session, e["id"], anomalia)
+    assert payload["tipo_sinal"] == "tema"
+    assert payload["tema_relacionado"] == "demora bagagem"
+    assert "3 para 9" in payload["o_que_mudou"]  # série mensal mês N-1 → N
+    assert payload["mix_tipos"]["detrator"] == 14
+    assert payload["confianca"] in ("media", "alta")
+
+    leitura = gerar_leitura(e["id"], anomalia, gerar_fn=_fake_sonnet)
+    assert "acao_venda" in leitura and leitura["confianca"] == payload["confianca"]
+
+
+def test_payload_cruzamento_transversal(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "crz")
+    db_session.add(
+        TemaCache(
+            empresa_id=e["id"],
+            agrupamento_id=a["id"],
+            subpilar="D2",
+            tipo="detrator",
+            tema_label="demora geral",
+            volume=12,
+            percentual=0.0,
+            periodo_inicio=datetime(2026, 1, 1).date(),
+            periodo_fim=datetime(2026, 3, 31).date(),
+            hash_escopo="hcz",
+        )
+    )
+    cr = TemaCruzamento(
+        empresa_id=e["id"],
+        tema_label="demora geral",
+        buckets_envolvidos_json='["D2:detrator", "Pa1:detrator"]',
+        tipos_envolvidos_json='["detrator"]',
+        n_subpilares_distintos=2,
+        peso=10.0,
+        periodo_inicio=datetime(2026, 1, 1).date(),
+        periodo_fim=datetime(2026, 3, 31).date(),
+        hash_escopo="hcrz",
+    )
+    db_session.add(cr)
+    db_session.commit()
+
+    anomalia = {
+        "tipo": "cruzamento",
+        "cruzamento_id": cr.id,
+        "chave": "cruzamento novo: demora geral",
+        "tendencia": "Cruzamento emergente (causa raiz nascendo)",
+        "score_final": 50.0,
+    }
+    payload = montar_payload_cruzamento(db_session, e["id"], anomalia)
+    assert payload["tipo_sinal"] == "cruzamento"
+    assert payload["cruzamento_relacionado"]["pilares"] == ["D2", "Pa1"]
+    assert "atravessa 2 subpilares" in payload["o_que_mudou"]
+    assert payload["volume_afetado"] == 12
+    # transversal (n_sub>=2) + volume>=5 → alta
+    assert payload["confianca"] == "alta"
+
+    leitura = gerar_leitura(e["id"], anomalia, gerar_fn=_fake_sonnet)
+    assert leitura["confianca"] == "alta" and "o_que" in leitura

@@ -308,6 +308,13 @@ def listar_anomalias_da_empresa(empresa_id: int):
     return h(empresa_id)
 
 
+@empresas_bp.route("/<int:empresa_id>/anomalias/<int:anomalia_id>/validar", methods=["POST"])
+def validar_anomalia(empresa_id: int, anomalia_id: int):
+    from src.api.anomalias import validar_anomalia as h
+
+    return h(empresa_id, anomalia_id)
+
+
 @empresas_bp.route("/import-cadastro", methods=["POST"])
 @loyall_required
 def import_cadastro():

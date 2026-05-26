@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block titulo %}Anomalias — {{ empresa.nome }}{% endblock %}
+
+{% block sidebar_extra %}
+<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
+<div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
+<ul class="mt-2 space-y-1 text-sm">
+  <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
+  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
+  <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Painel</a></li>
+  <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Temas</a></li>
+  <li><a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Anomalias</a></li>
+</ul>
+{% endblock %}
+
+{% block conteudo %}
+{% set empresa_id = empresa.id %}
+{# ── Header ───────────────────────────────────────────────────────── #}
+<div class="mb-4">
+  <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
+    <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
+    <span class="mx-1">›</span>
+    <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="hover:underline">{{ empresa.nome }}</a>
+    <span class="mx-1">›</span>
+    <span class="text-loyall-600">Anomalias</span>
+  </nav>
+  <h1 class="text-2xl font-semibold mt-1">Monitoramento</h1>
+  <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
+  <p class="text-xs text-loyall-500 mt-1">
+    Sinais detectados automaticamente (indicadores por loja, temas em alta e cruzamentos de causa raiz).
+    Valide cada um: confirmado, falso positivo ou em investigação.
+  </p>
+  <div class="mt-2 flex flex-wrap gap-2 text-sm">
+    <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-medium">{{ resumo.critico }} críticas</span>
+    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">{{ resumo.atencao }} atenção</span>
+    <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-600">{{ resumo.pendentes }} pendentes</span>
+    <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">{{ resumo.confirmados }} confirmadas</span>
+  </div>
+</div>
+
+{# ── Filtros ──────────────────────────────────────────────────────── #}
+<form method="get" class="mb-5 flex items-center gap-3 text-sm flex-wrap">
+  <div class="flex items-center gap-1">
+    <label class="text-loyall-500">Severidade:</label>
+    <select name="severidade" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="">Todas</option>
+      <option value="critico" {% if filtros.severidade=='critico' %}selected{% endif %}>Crítica</option>
+      <option value="atencao" {% if filtros.severidade=='atencao' %}selected{% endif %}>Atenção</option>
+    </select>
+  </div>
+  <div class="flex items-center gap-1">
+    <label class="text-loyall-500">Tipo:</label>
+    <select name="tipo" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="">Todos</option>
+      <option value="indicador" {% if filtros.tipo=='indicador' %}selected{% endif %}>Indicador</option>
+      <option value="tema" {% if filtros.tipo=='tema' %}selected{% endif %}>Tema</option>
+      <option value="cruzamento" {% if filtros.tipo=='cruzamento' %}selected{% endif %}>Cruzamento</option>
+    </select>
+  </div>
+  <div class="flex items-center gap-1">
+    <label class="text-loyall-500">Estado:</label>
+    <select name="estado" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="">Todos</option>
+      <option value="pendente" {% if filtros.estado=='pendente' %}selected{% endif %}>Pendente</option>
+      <option value="confirmado" {% if filtros.estado=='confirmado' %}selected{% endif %}>Confirmado</option>
+      <option value="falso_positivo" {% if filtros.estado=='falso_positivo' %}selected{% endif %}>Falso positivo</option>
+      <option value="em_investigacao" {% if filtros.estado=='em_investigacao' %}selected{% endif %}>Em investigação</option>
+    </select>
+  </div>
+  {% if filtros.severidade or filtros.tipo or filtros.estado %}
+  <a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="text-xs text-loyall-400 hover:underline">limpar filtros</a>
+  {% endif %}
+</form>
+
+{# ── Lista ────────────────────────────────────────────────────────── #}
+{% if anomalias %}
+<div class="space-y-3">
+  {% for a in anomalias %}
+    {% include 'partials/anomalia_card.html' %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  {% if resumo.total %}
+  Nenhuma anomalia para os filtros selecionados.
+  {% else %}
+  Nenhuma anomalia detectada. Rode <code class="bg-loyall-100 px-1 rounded">flask anomalias-detectar --empresa {{ empresa.id }}</code>.
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -6,15 +6,17 @@ Exposto via empresas_bp:
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict
 
 from flask import jsonify, request
 
-from src.auth import cliente_pode_ver_empresa
+from src.auth import cliente_pode_ver_empresa, get_current_user
 from src.models.anomalia import AnomaliaDetectada
 from src.utils.db import db_session
 
 _SEV_RANK = {"critico": 2, "atencao": 1, "normal": 0}
+ESTADOS_VALIDOS = {"pendente", "confirmado", "falso_positivo", "em_investigacao"}
 
 
 def _serializar(a: AnomaliaDetectada) -> Dict[str, Any]:
@@ -73,3 +75,39 @@ def listar_anomalias_da_empresa(empresa_id: int):
             "anomalias": itens,
         }
     )
+
+
+def aplicar_validacao(empresa_id: int, anomalia_id: int, estado: str, nota=None):
+    """Atualiza estado_validacao de uma anomalia (uso compartilhado API+UI).
+    Retorna (dict_serializado, erro_status) — erro_status None em sucesso."""
+    if estado not in ESTADOS_VALIDOS:
+        return None, 400
+    user = get_current_user()
+    with db_session() as s:
+        a = s.get(AnomaliaDetectada, anomalia_id)
+        if a is None or a.empresa_id != empresa_id:
+            return None, 404
+        a.estado_validacao = estado
+        a.revisada = estado != "pendente"
+        a.revisada_em = datetime.utcnow()
+        a.revisada_por = user.id if user else None
+        if nota is not None:
+            a.nota_editorial = nota
+        s.flush()
+        out = _serializar(a)
+    return out, None
+
+
+@cliente_pode_ver_empresa("empresa_id")
+def validar_anomalia(empresa_id: int, anomalia_id: int):
+    """POST: marca a anomalia como confirmado | falso_positivo | em_investigacao
+    | pendente. Body JSON ou form: ``estado`` (obrigatório), ``nota`` (opcional)."""
+    dados = request.get_json(silent=True) or request.form
+    estado = dados.get("estado")
+    nota = dados.get("nota")
+    out, erro = aplicar_validacao(empresa_id, anomalia_id, estado, nota)
+    if erro == 400:
+        return jsonify({"erro": f"estado inválido (use {sorted(ESTADOS_VALIDOS)})"}), 400
+    if erro == 404:
+        return jsonify({"erro": "anomalia não encontrada"}), 404
+    return jsonify(out)

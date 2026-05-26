@@ -9,6 +9,7 @@
   <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
   <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Painel</a></li>
   <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Temas</a></li>
+  <li><a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Anomalias</a></li>
   {% if eh_loyall %}
   <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">Temas (admin)</a></li>
   {% endif %}
@@ -43,6 +44,22 @@
     Exportar Excel
   </a>
 </div>
+
+{# ── Sumário de anomalias (Monitoramento ML) ─────────────────────────── #}
+{% if anomalias_resumo and anomalias_resumo.total %}
+<a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}"
+   class="flex items-center justify-between gap-3 mb-3 px-3 py-2 rounded border
+          {% if anomalias_resumo.critico %}border-rose-200 bg-rose-50{% else %}border-loyall-200 bg-white{% endif %}
+          hover:shadow-sm transition">
+  <div class="flex items-center gap-2 text-sm flex-wrap">
+    <span class="font-medium text-loyall-700">Monitoramento</span>
+    {% if anomalias_resumo.critico %}<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-medium">{{ anomalias_resumo.critico }} críticas</span>{% endif %}
+    {% if anomalias_resumo.atencao %}<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">{{ anomalias_resumo.atencao }} atenção</span>{% endif %}
+    {% if anomalias_resumo.pendentes %}<span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-600">{{ anomalias_resumo.pendentes }} pendentes de validação</span>{% endif %}
+  </div>
+  <span class="text-xs text-loyall-400 shrink-0">ver anomalias ›</span>
+</a>
+{% endif %}
 
 {# ── Filtros ─────────────────────────────────────────────────────────── #}
 <form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">

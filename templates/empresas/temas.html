@@ -126,6 +126,11 @@
   <div class="border border-loyall-200 rounded-lg p-3">
     <div class="min-w-0">
       <span class="font-semibold text-loyall-800">{{ t.tema_label }}</span>
+      {% if t.tema_label in (cruzamentos_em_anomalia | default([])) %}
+      <a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}?tipo=cruzamento"
+         class="ml-1 text-[10px] px-1 rounded bg-rose-100 text-rose-700"
+         title="Cruzamento com anomalia detectada — ver no Monitoramento">🔔 anomalia</a>
+      {% endif %}
       <span class="ml-1 text-[10px] uppercase tracking-wider px-1 rounded
                    {% if t.eh_semantico %}bg-violet-100 text-violet-700{% else %}bg-loyall-100 text-loyall-600{% endif %}">
         {{ 'semântico' if t.eh_semantico else 'literal' }}</span>
@@ -175,8 +180,15 @@
       {% set tot = tm.total if tm.total else 1 %}
       <li>
         <div class="flex items-center justify-between text-sm">
-          <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ bloco.subpilar }}&tema_id={{ tm.tema_id }}&origem=temas"
-             class="text-loyall-700 hover:underline truncate">{{ tm.label }}</a>
+          <span class="flex items-center gap-1 min-w-0">
+            <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ bloco.subpilar }}&tema_id={{ tm.tema_id }}&origem=temas"
+               class="text-loyall-700 hover:underline truncate">{{ tm.label }}</a>
+            {% if tm.tema_id in (temas_em_anomalia | default([])) %}
+            <a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}?tipo=tema"
+               class="shrink-0 text-[10px] px-1 rounded bg-rose-100 text-rose-700"
+               title="Tema com anomalia detectada — ver no Monitoramento">🔔</a>
+            {% endif %}
+          </span>
           <span class="shrink-0 inline-block ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700"
                 title="{{ tm.total }} verbatins">{{ tm.total }}</span>
         </div>

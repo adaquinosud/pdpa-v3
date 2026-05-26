@@ -168,6 +168,7 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
 
     nome_sub = NOME_SUBPILAR.get(sub, sub)
     return {
+        "tipo_sinal": "indicador",
         "escopo": f"{loc_nome}"
         + (f" · {ag_nome}" if ag_nome else "")
         + f" · subpilar {sub} ({nome_sub})",
@@ -192,6 +193,246 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
         "cruzamento_relacionado": cruzamento_relacionado,
         "acao_n5_existente": acao_n5,
         "exemplos": exemplos,
+        "setor": setor,
+        "confianca": conf,
+    }
+
+
+def _label_da_chave(chave: Optional[str]) -> str:
+    """Extrai o nome do tema/cruzamento de uma chave 'tema: X' / 'cruzamento ...: X'."""
+    c = chave or ""
+    return c.split(":", 1)[1].strip() if ":" in c else c
+
+
+def _recencia_e_exemplos(s, empresa_id: int, tema_id: int) -> tuple:
+    """Recência dos detratores (recuperabilidade) + até 3 exemplos, p/ um tema."""
+    from sqlalchemy import func
+
+    from src.models.temas import VerbatimTema
+    from src.models.verbatim import Verbatim
+
+    ultima = (
+        s.query(func.max(Verbatim.data_coleta)).filter(Verbatim.empresa_id == empresa_id).scalar()
+    ) or datetime.utcnow()
+    rows = (
+        s.query(Verbatim.data_criacao_original, Verbatim.texto, Verbatim.tipo)
+        .join(VerbatimTema, VerbatimTema.verbatim_id == Verbatim.id)
+        .filter(VerbatimTema.tema_id == tema_id, Verbatim.tem_texto.is_(True))
+        .all()
+    )
+    rec = {"recentes_30d": 0, "entre_30_90d": 0, "mais_90d": 0}
+    exemplos: List[str] = []
+    for data, texto, tipo in rows:
+        if tipo == "detrator" and data is not None:
+            dias = (ultima - data).days
+            if dias <= 30:
+                rec["recentes_30d"] += 1
+            elif dias <= 90:
+                rec["entre_30_90d"] += 1
+            else:
+                rec["mais_90d"] += 1
+        if texto and len(exemplos) < 3:
+            exemplos.append(texto[:200])
+    return rec, exemplos
+
+
+def _cruzamento_do_tema(s, empresa_id: int, nome: str) -> Optional[Dict[str, Any]]:
+    from src.models.temas import TemaCruzamento
+
+    for cr in s.query(TemaCruzamento).filter(TemaCruzamento.empresa_id == empresa_id).all():
+        membros = json.loads(cr.membros_json or "[]")
+        if cr.tema_label == nome or nome in membros:
+            buckets = json.loads(cr.buckets_envolvidos_json or "[]")
+            return {
+                "label": cr.tema_label,
+                "pilares": sorted({b.split(":")[0] for b in buckets}),
+            }
+    return None
+
+
+def _acao_n5(s, empresa_id: int, tema_label: str, cruzamento_id: Optional[int] = None):
+    from sqlalchemy import or_
+
+    from src.models.temas import AcaoVenda
+
+    cond = AcaoVenda.tema_label == tema_label
+    if cruzamento_id is not None:
+        cond = or_(cond, AcaoVenda.cruzamento_id == cruzamento_id)
+    av = s.query(AcaoVenda.acao_texto).filter(AcaoVenda.empresa_id == empresa_id, cond).first()
+    return av[0] if av else None
+
+
+def montar_payload_tema(s, empresa_id: int, anomalia: Dict[str, Any]) -> Dict[str, Any]:
+    """Payload de negócio p/ anomalia de tema (trend, emergência ou sumiço)."""
+    from sqlalchemy import func
+
+    from src.api.painel import NOME_SUBPILAR
+    from src.models.empresa import Empresa
+    from src.models.temas import Tema, TemaCache, VerbatimTema
+    from src.models.verbatim import Verbatim
+
+    emp = s.get(Empresa, empresa_id)
+    setor = emp.setor if emp else None
+    tema_id = anomalia.get("tema_id")
+    tema = s.get(Tema, tema_id) if tema_id else None
+    nome = tema.nome if tema else _label_da_chave(anomalia.get("chave"))
+    chave = anomalia.get("chave") or ""
+
+    # mix por tipo + subpilares onde o tema aparece
+    rows = (
+        s.query(TemaCache.tipo, TemaCache.subpilar, func.sum(TemaCache.volume))
+        .filter(TemaCache.empresa_id == empresa_id, TemaCache.tema_label == nome)
+        .group_by(TemaCache.tipo, TemaCache.subpilar)
+        .all()
+    )
+    mix = {"promotor": 0, "conversivel": 0, "detrator": 0}
+    subpilares: set = set()
+    for tipo, sub, vol in rows:
+        if tipo in mix:
+            mix[tipo] += int(vol or 0)
+        if sub:
+            subpilares.add(sub)
+    volume = sum(mix.values())
+
+    # série mensal recente (p/ o_que_mudou)
+    serie: List[tuple] = []
+    if tema_id:
+        mes_col = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+        serie = [
+            (m, int(n))
+            for m, n in (
+                s.query(mes_col, func.count(VerbatimTema.id))
+                .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+                .filter(
+                    VerbatimTema.tema_id == tema_id,
+                    Verbatim.data_criacao_original.isnot(None),
+                )
+                .group_by(mes_col)
+                .order_by(mes_col)
+                .all()
+            )
+        ][-4:]
+
+    rec, exemplos = (
+        _recencia_e_exemplos(s, empresa_id, tema_id)
+        if tema_id
+        else ({"recentes_30d": 0, "entre_30_90d": 0, "mais_90d": 0}, [])
+    )
+    cruzamento_relacionado = _cruzamento_do_tema(s, empresa_id, nome)
+    acao_n5 = _acao_n5(s, empresa_id, nome)
+
+    if "novo" in chave:
+        o_que = f"tema '{nome}' emergiu com {volume} menções"
+    elif "sumiu" in chave:
+        o_que = f"tema '{nome}' praticamente desapareceu nas menções recentes"
+    elif len(serie) >= 2:
+        o_que = f"tema '{nome}' passou de {serie[-2][1]} para {serie[-1][1]} menções no último mês"
+    else:
+        delta = anomalia.get("magnitude") or 0
+        o_que = f"tema '{nome}' com movimento de {delta:+.0f} menções"
+
+    nomes_sub = sorted({NOME_SUBPILAR.get(x, x) for x in subpilares})
+    cross_forte = (anomalia.get("score_final") or 0) >= 70
+    conf = _confianca(True, bool(cruzamento_relacionado), cross_forte, volume)
+
+    return {
+        "tipo_sinal": "tema",
+        "escopo": f"tema '{nome}'" + (f" · subpilares {', '.join(nomes_sub)}" if nomes_sub else ""),
+        "o_que_mudou": o_que,
+        "comparacao_pares": (
+            "tema transversal — aparece em mais de um subpilar"
+            if len(subpilares) > 1
+            else "tema localizado num subpilar"
+        ),
+        "tendencia": anomalia.get("tendencia"),
+        "volume_afetado": volume,
+        "mix_tipos": mix,
+        "detratores_recencia": rec,
+        "concentracao": None,
+        "pares_saudaveis": [],
+        "tema_relacionado": nome,
+        "cruzamento_relacionado": cruzamento_relacionado,
+        "acao_n5_existente": acao_n5,
+        "exemplos": exemplos,
+        "setor": setor,
+        "confianca": conf,
+    }
+
+
+def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> Dict[str, Any]:
+    """Payload de negócio p/ anomalia de cruzamento N4 (causa raiz transversal)."""
+    from sqlalchemy import func
+
+    from src.api.painel import NOME_SUBPILAR
+    from src.models.empresa import Empresa
+    from src.models.temas import TemaCache, TemaCruzamento
+
+    emp = s.get(Empresa, empresa_id)
+    setor = emp.setor if emp else None
+    cr_id = anomalia.get("cruzamento_id")
+    cr = s.get(TemaCruzamento, cr_id) if cr_id else None
+    if cr is None:
+        label = _label_da_chave(anomalia.get("chave"))
+        cr = (
+            s.query(TemaCruzamento)
+            .filter(TemaCruzamento.empresa_id == empresa_id, TemaCruzamento.tema_label == label)
+            .first()
+        )
+    if cr is None:  # cruzamento que sumiu — payload mínimo
+        label = _label_da_chave(anomalia.get("chave"))
+        return {
+            "tipo_sinal": "cruzamento",
+            "escopo": f"cruzamento '{label}'",
+            "o_que_mudou": f"cruzamento '{label}' deixou de aparecer entre os subpilares",
+            "comparacao_pares": "causa raiz transversal que aliviou",
+            "tendencia": anomalia.get("tendencia"),
+            "volume_afetado": 0,
+            "mix_tipos": {"promotor": 0, "conversivel": 0, "detrator": 0},
+            "detratores_recencia": {"recentes_30d": 0, "entre_30_90d": 0, "mais_90d": 0},
+            "concentracao": None,
+            "pares_saudaveis": [],
+            "tema_relacionado": label,
+            "cruzamento_relacionado": {"label": label, "pilares": []},
+            "acao_n5_existente": None,
+            "exemplos": [],
+            "setor": setor,
+            "confianca": "media",
+        }
+
+    buckets = json.loads(cr.buckets_envolvidos_json or "[]")
+    pilares = sorted({b.split(":")[0] for b in buckets})
+    nomes_sub = sorted({NOME_SUBPILAR.get(p, p) for p in pilares})
+    volume = int(
+        s.query(func.coalesce(func.sum(TemaCache.volume), 0))
+        .filter(TemaCache.empresa_id == empresa_id, TemaCache.tema_label == cr.tema_label)
+        .scalar()
+        or 0
+    )
+    acao_n5 = _acao_n5(s, empresa_id, cr.tema_label, cruzamento_id=cr.id)
+    cross_forte = (cr.n_subpilares_distintos or 0) >= 2 or (anomalia.get("score_final") or 0) >= 70
+    conf = _confianca(True, True, cross_forte, volume)
+
+    return {
+        "tipo_sinal": "cruzamento",
+        "escopo": f"cruzamento '{cr.tema_label}' · subpilares {', '.join(nomes_sub)}",
+        "o_que_mudou": (
+            f"o tema '{cr.tema_label}' atravessa {len(pilares)} subpilares "
+            f"({', '.join(nomes_sub)}) — é causa raiz, não problema isolado"
+        ),
+        "comparacao_pares": (
+            f"presente em {cr.n_subpilares_distintos or len(pilares)} subpilares distintos "
+            "(quanto mais transversal, mais estrutural)"
+        ),
+        "tendencia": anomalia.get("tendencia"),
+        "volume_afetado": volume,
+        "mix_tipos": {"promotor": 0, "conversivel": 0, "detrator": volume},
+        "detratores_recencia": {"recentes_30d": 0, "entre_30_90d": 0, "mais_90d": 0},
+        "concentracao": None,
+        "pares_saudaveis": [],
+        "tema_relacionado": cr.tema_label,
+        "cruzamento_relacionado": {"label": cr.tema_label, "pilares": pilares},
+        "acao_n5_existente": acao_n5,
+        "exemplos": [],
         "setor": setor,
         "confianca": conf,
     }
@@ -230,8 +471,14 @@ def gerar_leitura(
     from src.utils.db import db_session
 
     gerar = gerar_fn or _chamar_sonnet
+    builders = {
+        "indicador": montar_payload_indicador,
+        "tema": montar_payload_tema,
+        "cruzamento": montar_payload_cruzamento,
+    }
+    builder = builders.get(anomalia.get("tipo", "indicador"), montar_payload_indicador)
     with db_session() as s:
-        payload = montar_payload_indicador(s, empresa_id, anomalia)
+        payload = builder(s, empresa_id, anomalia)
 
     dados_hash = hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")

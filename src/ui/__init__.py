@@ -613,6 +613,7 @@ def painel_empresa(empresa_id: int):
         fontes_ = [
             SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
         ]
+        anomalias_resumo = _resumo_anomalias(s, empresa_id)
 
     # B6.6 CP-5: a seção "Temas transversais" saiu do painel — vive na tela
     # dedicada /empresas/<id>/temas.
@@ -625,6 +626,7 @@ def painel_empresa(empresa_id: int):
         agrupamentos=agrupamentos,
         locais=locais,
         fontes=fontes_,
+        anomalias_resumo=anomalias_resumo,
         eh_loyall=(user.papel == PAPEL_LOYALL),
         user=user,
     )
@@ -926,6 +928,20 @@ def temas_empresa(empresa_id: int):
         n_acoes = (
             s.query(func.count(AcaoVenda.id)).filter(AcaoVenda.empresa_id == empresa_id).scalar()
         )
+        # selo de anomalia: temas (por id) e cruzamentos (por label) com anomalia
+        from src.models.anomalia import AnomaliaDetectada
+
+        anoms = (
+            s.query(AnomaliaDetectada.tipo, AnomaliaDetectada.tema_id, AnomaliaDetectada.chave)
+            .filter(AnomaliaDetectada.empresa_id == empresa_id)
+            .all()
+        )
+        temas_em_anomalia = {tid for tp, tid, _ in anoms if tp == "tema" and tid}
+        cruzamentos_em_anomalia = {
+            ch.split(":", 1)[1].strip()
+            for tp, _, ch in anoms
+            if tp == "cruzamento" and ch and ":" in ch
+        }
 
     mapa_lastro, gargalo = _montar_mapa_lastro(n1, n2)
 
@@ -939,12 +955,159 @@ def temas_empresa(empresa_id: int):
         agrupamento_filtrado=ag_filtro_nome,
         top_subpilar=top_subpilar,
         totais={"temas": n_temas, "cruzamentos": n_cruz, "acoes": n_acoes},
+        temas_em_anomalia=temas_em_anomalia,
+        cruzamentos_em_anomalia=cruzamentos_em_anomalia,
         janela_dias=get_janela_dias(),
         data_corte=corte,
         filtros=filtros,
         agrupamentos=agrupamentos,
         eh_loyall=(user.papel == PAPEL_LOYALL),
         user=user,
+    )
+
+
+# ── Monitoramento ML CP-6: tela de anomalias ──────────────────────────
+
+_SEV_RANK_UI = {"critico": 2, "atencao": 1, "normal": 0}
+
+
+def _anomalia_view(a, local_nome=None, tema_nome=None):
+    """Converte uma AnomaliaDetectada em objeto de exibição p/ o template."""
+    corrob = bool(a.tendencia and "corroborado por tema" in a.tendencia)
+    return SimpleNamespace(
+        id=a.id,
+        tipo=a.tipo,
+        chave=a.chave,
+        severidade=a.severidade,
+        score=a.score_final,
+        score_temporal=a.score_temporal,
+        score_cross=a.score_cross_sectional,
+        magnitude=a.magnitude,
+        direcao=a.direcao,
+        tendencia=a.tendencia,
+        subpilar=a.subpilar,
+        periodo=a.periodo,
+        local_nome=local_nome,
+        tema_nome=tema_nome,
+        leitura=a.leitura_editorial,
+        estado=a.estado_validacao or "pendente",
+        nota=a.nota_editorial,
+        corroborado=corrob,
+    )
+
+
+def _resumo_anomalias(s, empresa_id):
+    """Contagens gerais (sem filtro) p/ badge no header e card sumário."""
+    from src.models.anomalia import AnomaliaDetectada
+
+    base = s.query(AnomaliaDetectada).filter(AnomaliaDetectada.empresa_id == empresa_id).all()
+    return {
+        "total": len(base),
+        "critico": sum(1 for a in base if a.severidade == "critico"),
+        "atencao": sum(1 for a in base if a.severidade == "atencao"),
+        "pendentes": sum(1 for a in base if (a.estado_validacao or "pendente") == "pendente"),
+        "confirmados": sum(1 for a in base if a.estado_validacao == "confirmado"),
+    }
+
+
+def _carregar_anomalias(s, empresa_id, filtros=None):
+    from src.models.anomalia import AnomaliaDetectada
+    from src.models.local import Local
+    from src.models.temas import Tema
+
+    filtros = filtros or {}
+    q = s.query(AnomaliaDetectada).filter(AnomaliaDetectada.empresa_id == empresa_id)
+    if filtros.get("severidade"):
+        q = q.filter(AnomaliaDetectada.severidade == filtros["severidade"])
+    if filtros.get("tipo"):
+        q = q.filter(AnomaliaDetectada.tipo == filtros["tipo"])
+    if filtros.get("estado"):
+        q = q.filter(AnomaliaDetectada.estado_validacao == filtros["estado"])
+    rows = q.all()
+
+    local_ids = {a.local_id for a in rows if a.local_id}
+    tema_ids = {a.tema_id for a in rows if a.tema_id}
+    locais = (
+        {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(local_ids)).all()}
+        if local_ids
+        else {}
+    )
+    temas = (
+        {t.id: t.nome for t in s.query(Tema).filter(Tema.id.in_(tema_ids)).all()}
+        if tema_ids
+        else {}
+    )
+    dicts = [_anomalia_view(a, locais.get(a.local_id), temas.get(a.tema_id)) for a in rows]
+    dicts.sort(key=lambda a: (-_SEV_RANK_UI.get(a.severidade, 0), -(a.score or 0)))
+    return dicts
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/anomalias")
+def anomalias_empresa(empresa_id: int):
+    """Tela de Monitoramento ML: anomalias detectadas, com filtros, leitura
+    editorial, drill-down e validação editorial."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    filtros = {
+        "severidade": request.args.get("severidade", ""),
+        "tipo": request.args.get("tipo", ""),
+        "estado": request.args.get("estado", ""),
+    }
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
+        anomalias = _carregar_anomalias(s, empresa_id, filtros)
+        resumo = _resumo_anomalias(s, empresa_id)
+
+    return render_template(
+        "empresas/anomalias.html",
+        empresa=empresa_w,
+        anomalias=anomalias,
+        resumo=resumo,
+        filtros=filtros,
+        eh_loyall=(user.papel == PAPEL_LOYALL),
+        user=user,
+    )
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/anomalias/<int:anomalia_id>/validar", methods=["POST"])
+def anomalia_validar_ui(empresa_id: int, anomalia_id: int):
+    """HTMX: valida a anomalia e devolve o card atualizado (swap outerHTML)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    from src.api.anomalias import aplicar_validacao
+    from src.models.anomalia import AnomaliaDetectada
+    from src.models.local import Local
+    from src.models.temas import Tema
+
+    estado = request.form.get("estado")
+    nota = request.form.get("nota")
+    _, erro = aplicar_validacao(empresa_id, anomalia_id, estado, nota)
+    if erro:
+        return ("", erro)
+
+    with db_session() as s:
+        a = s.get(AnomaliaDetectada, anomalia_id)
+        local_nome = s.get(Local, a.local_id).nome if a.local_id else None
+        tema_nome = s.get(Tema, a.tema_id).nome if a.tema_id else None
+        av = _anomalia_view(a, local_nome, tema_nome)
+    return render_template(
+        "partials/anomalia_card.html",
+        a=av,
+        empresa_id=empresa_id,
+        eh_loyall=(user.papel == PAPEL_LOYALL),
     )
 
 
