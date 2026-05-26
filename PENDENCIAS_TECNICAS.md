@@ -122,3 +122,30 @@ combinatorial inviável — o relatório roda o pipeline filtrado na hora.
 **Relacionado:** o motor é o `src/temas/pipeline.py` (Caminho A). Hoje
 `processar_empresa` aceita `so_buckets`; precisará aceitar range de data +
 filtros agrupamento/local e um piso de 5 (vs HDBSCAN_MIN_CLUSTER_SIZE_MIN=3).
+
+---
+
+## Ação N5 — impacto quantitativo em R$ (LTV setorial)
+
+**Origem:** Bloco 7 (Ação de Venda N5), decisão 2026-05-25.
+
+O Bloco 7 entrega só o **impacto qualitativo** (alto/médio/baixo), derivável
+de volume + ratio de conversíveis. O **impacto quantitativo em R$** (fórmula
+`conversíveis × LTV setorial`, conforme replanejamento) depende de um **LTV
+por setor** que **não existe no sistema** — precisa ser configurado por
+empresa/setor.
+
+**Ação (quando o primeiro cliente real demandar):** adicionar input de LTV
+setorial (config por empresa) e calcular o número + faixa, com pressupostos
+transparentes. A tabela `acoes_venda` já guarda `impacto_quant_json`
+(nullable) para receber isso sem nova migração.
+
+---
+
+## Aba "Planos de Ação" dedicada — Bloco 8
+
+**Origem:** Bloco 7 / replanejamento (Bloco 8 lista "Aba Planos de Ação").
+
+No Bloco 7 as ações N5 aparecem **inline** no card do tema/cruzamento. A
+**aba dedicada** "Planos de Ação" (visão consolidada, priorização por
+impacto/peso, export) é escopo do **Bloco 8**.

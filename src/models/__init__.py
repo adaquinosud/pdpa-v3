@@ -15,6 +15,7 @@ from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
 from src.models.local import Local, LocalMetadado
 from src.models.temas import (
+    AcaoVenda,
     Tema,
     TemaCache,
     TemaCruzamento,
@@ -27,6 +28,7 @@ from src.models.verbatim import Verbatim
 from src.models.verbatim_reclassificacao import VerbatimReclassificacao
 
 __all__ = [
+    "AcaoVenda",
     "Agrupamento",
     "AnomaliaDetectada",
     "Base",

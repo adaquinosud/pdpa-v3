@@ -180,6 +180,12 @@ class TemaCruzamento(Base):
     )
     tema_label: Mapped[str] = mapped_column(String, nullable=False)
     buckets_envolvidos_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # Tipos NPS distintos atravessados (["detrator","promotor"]). Alimenta o
+    # peso e a UI: cruzamento cross-tipo revela tensão e pesa mais.
+    tipos_envolvidos_json: Mapped[Optional[str]] = mapped_column(Text)
+    # Labels da família semântica (Fase 2, match por embedding). NULL/[] quando
+    # o cruzamento é por label literal (Fase 1).
+    membros_json: Mapped[Optional[str]] = mapped_column(Text)
     peso: Mapped[float] = mapped_column(Float, nullable=False)
     periodo_inicio: Mapped[date] = mapped_column(Date, nullable=False)
     periodo_fim: Mapped[date] = mapped_column(Date, nullable=False)
@@ -191,6 +197,45 @@ class TemaCruzamento(Base):
 
     def __repr__(self) -> str:
         return f"<TemaCruzamento {self.tema_label}>"
+
+
+class AcaoVenda(Base):
+    """Ação de venda sugerida por tema/cruzamento (Bloco 7 Nível 5).
+
+    Impacto qualitativo (alto/médio/baixo) é o que o Bloco 7 entrega.
+    ``impacto_quant_json`` (R$ via LTV setorial) fica reservado para quando
+    houver LTV por setor — ver PENDENCIAS_TECNICAS.md.
+    """
+
+    __tablename__ = "acoes_venda"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("empresas.id", ondelete="CASCADE"), nullable=False
+    )
+    agrupamento_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("agrupamentos.id", ondelete="CASCADE")
+    )
+    tema_label: Mapped[str] = mapped_column(String, nullable=False)
+    cruzamento_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("temas_cruzamentos.id", ondelete="CASCADE")
+    )
+    acao_texto: Mapped[str] = mapped_column(Text, nullable=False)
+    impacto_qualitativo: Mapped[str] = mapped_column(String, nullable=False)  # alto|medio|baixo
+    justificativa: Mapped[Optional[str]] = mapped_column(Text)
+    pressupostos_json: Mapped[Optional[str]] = mapped_column(Text)
+    impacto_quant_json: Mapped[Optional[str]] = mapped_column(Text)
+    origem_modelo: Mapped[Optional[str]] = mapped_column(String)
+    custo_usd: Mapped[Optional[float]] = mapped_column(Float)
+    gerado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    hash_escopo: Mapped[str] = mapped_column(String, nullable=False)
+
+    empresa: Mapped["Empresa"] = relationship("Empresa")
+    agrupamento: Mapped[Optional["Agrupamento"]] = relationship("Agrupamento")
+    cruzamento: Mapped[Optional["TemaCruzamento"]] = relationship("TemaCruzamento")
+
+    def __repr__(self) -> str:
+        return f"<AcaoVenda {self.tema_label}: {self.impacto_qualitativo}>"
 
 
 # ── Embeddings (B6 Caminho A CP-7) ────────────────────────────────────
