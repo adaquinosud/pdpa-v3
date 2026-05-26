@@ -50,7 +50,7 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
     """Constrói o payload de negócio p/ uma anomalia de indicador (loja×subpilar)."""
     from sqlalchemy import func
 
-    from src.api.painel import NOME_SUBPILAR
+    from src.api.painel import NOME_SUBPILAR, calcular_ratio
     from src.models.agrupamento import Agrupamento
     from src.models.anomalia import RatioMensal
     from src.models.empresa import Empresa
@@ -80,12 +80,27 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
         .order_by(RatioMensal.periodo.desc())
         .all()
     )
-    recente = cells[0] if cells else None
+    # Agregado da janela: ratio E contagens vêm SEMPRE do mesmo período (toda a
+    # janela), para o o_que ser internamente coerente (ratio = prom/detr).
     prom = sum(c.promotor for c in cells)
     conv = sum(c.conversivel for c in cells)
     detr = sum(c.detrator for c in cells)
     volume = prom + conv + detr
-    ratio_recente = recente.ratio if recente else None
+    ratio_agg = round(calcular_ratio(prom, detr), 2) if cells else None
+
+    # tendencia_recente: ratio do mês mais recente vs média dos meses anteriores.
+    # Permite ao Sonnet reconhecer uma melhora recente sem mudar o tom (o
+    # acumulado é que define a severidade).
+    cells_ord = sorted(cells, key=lambda c: c.periodo)
+    tendencia_recente = "estavel"
+    if len(cells_ord) >= 2:
+        r_recente = cells_ord[-1].ratio or 0.0
+        anteriores = [c.ratio or 0.0 for c in cells_ord[:-1]]
+        media_ant = sum(anteriores) / len(anteriores)
+        if r_recente - media_ant > 0.5:
+            tendencia_recente = "melhorando_recente"
+        elif r_recente - media_ant < -0.5:
+            tendencia_recente = "deteriorando"
 
     # recência dos detratores (vs última coleta)
     ultima = (
@@ -184,9 +199,9 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
         + (f" · {ag_nome}" if ag_nome else "")
         + f" · subpilar {sub} ({nome_sub})",
         "o_que_mudou": (
-            f"ratio promotor/detrator em {sub} está em {ratio_recente} "
-            f"({prom} elogios para {detr} críticas)"
-            if ratio_recente is not None
+            f"ratio promotor/detrator em {sub} está em {ratio_agg} "
+            f"({prom} elogios para {detr} críticas em {volume} avaliações)"
+            if ratio_agg is not None
             else f"sinal em {sub}"
         ),
         "comparacao_pares": (
@@ -195,6 +210,7 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
             else "movimento recente na própria série da loja"
         ),
         "tendencia": anomalia.get("tendencia"),
+        "tendencia_recente": tendencia_recente,
         "volume_afetado": volume,
         "mix_tipos": {"promotor": prom, "conversivel": conv, "detrator": detr},
         "detratores_recencia": rec,
