@@ -36,7 +36,21 @@ A regra 4 atual é mantida por ora.
   agregado; COO/CHRO expande para o operacional (quem são os destaques,
   que aspecto do atendimento).
 
-**Status:** registrado. Não implementar agora. Reavaliar no Bloco 6.5 ou 7.
+**Status (revisado 2026-05-25):** NÃO implementar agora — decisão explícita
+do Alexandre. Razões: o volume de menções nominais isolado é dado fraco
+(Sócrates 144, Larissa 135 não viram ação estratégica clara — pessoas saem);
+e o cruzamento N4 (Bloco 7) entrega mais valor com o mesmo esforço.
+**Entra depois do Bloco 7 (cruzamento), quando houver demanda real.** Avança
+direto pro CP-13 com label canônico apenas.
+
+**Insumo para a Lente de Governança (Capítulo 6 do Manual):** o dado nominal
+medido no CP-12 — **872 verbatins (75% de "atendimento personalizado")
+concentrados em colaboradores nomeados** — é matéria-prima do **Proximity
+Index / Dependência Humana**. Quando a Lente de Governança for implementada,
+esse sinal vira a leitura: *"capital relacional concentrado em indivíduos =
+vulnerabilidade alta a turnover"*. A estratificação (sub-dimensão
+"reconhecimento individual - [pessoa]") é o que alimenta essa métrica — por
+isso faz sentido só quando a Lente existir.
 
 **Relacionados:** Achado 2 (cache agregado por label) e fix do cluster 15
 (rotular quando ≥1 rep tem ângulo claro) foram aplicados no CP-11 — ver
@@ -70,3 +84,41 @@ após a coleta). Todos têm `tem_texto=True` e são classificáveis.
 
 **Ação (não agora):** rodar classificação → embeddings → temas nesse lote;
 e/ou encadear classificação automaticamente após a coleta para fechar o gap.
+
+---
+
+## Bloco 6.5 — Relatório Sob Demanda (plano)
+
+**Modelo:** geração **ao vivo** sob demanda (NÃO pré-computar). Pré-calcular
+todas as combinações período × local × subpilar × tipo seria explosão
+combinatorial inviável — o relatório roda o pipeline filtrado na hora.
+
+**1. Filtros do relatório**
+- Agrupamento (opcional)
+- Local (opcional)
+- **Período (obrigatório, default "tudo")** — mesmas 6 opções do painel:
+  7 dias / 30 dias / 90 dias / 6 meses / 12 meses / 15 meses + "tudo".
+- Subpilar específico (opcional)
+- Tipo específico (opcional)
+
+**2. Pipeline ao vivo** filtra verbatins ANTES de clusterizar:
+`WHERE empresa_id` + range de data + demais filtros; só `tem_texto=True`.
+
+**3. Validação de suficiência**
+- Bucket precisa de **≥ 5 verbatins** para gerar tema.
+- Se total < 5 → relatório mostra **"dados insuficientes para análise"** e
+  sugere alargar o período ou remover filtros.
+
+**4. Combinações esperadas**
+- "Local X · últimos 30 dias · detratores" → relatório focado.
+- "Agrupamento Lojas · últimos 12 meses" → visão ampla.
+- "Empresa toda · 7 dias" → estado atual.
+
+**5. Performance**
+- Períodos curtos (7-30d): poucos dados, ~5-15s.
+- Períodos longos (12-15m): milhares de verbatins, ~30-60s.
+- **Cache temporário por hash dos filtros, TTL 1h.**
+
+**Relacionado:** o motor é o `src/temas/pipeline.py` (Caminho A). Hoje
+`processar_empresa` aceita `so_buckets`; precisará aceitar range de data +
+filtros agrupamento/local e um piso de 5 (vs HDBSCAN_MIN_CLUSTER_SIZE_MIN=3).
