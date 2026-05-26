@@ -535,6 +535,40 @@ def _register_cli_commands(app: Flask) -> None:
         log_path.write_text(_json.dumps(resumo_dict, indent=2, ensure_ascii=False, default=str))
         click.echo(f"[temas-pipeline] log: {log_path}")
 
+    # ── B7 CP-3: flask temas-cruzar (Nível 4, match literal) ──────────
+    @app.cli.command("temas-cruzar")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    def temas_cruzar(empresa_arg):
+        """Detecta cruzamentos N4 (match literal) e grava em temas_cruzamentos.
+
+        Idempotente: regrava os cruzamentos literais da empresa (preserva os
+        semânticos da Fase 2). Sem custo de LLM.
+        """
+        from src.models.empresa import Empresa
+        from src.temas.cruzamento import detectar_e_persistir_literais
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id = emp.id
+            empresa_nome = emp.nome
+
+        click.echo(f"[temas-cruzar] empresa={empresa_nome!r} (id={empresa_id})")
+        resumo = detectar_e_persistir_literais(empresa_id)
+        click.echo(f"[temas-cruzar] temas analisados: {resumo.temas_analisados}")
+        click.echo(f"[temas-cruzar] cruzamentos: {resumo.cruzamentos_criados}")
+        for c in sorted(resumo.detalhes, key=lambda x: -x["peso"]):
+            click.echo(
+                f"  peso={c['peso']:7.2f}  {c['tema_label']:28s} "
+                f"nSub={c['n_subpilares_distintos']}  {c['buckets_envolvidos']}"
+            )
+
 
 if __name__ == "__main__":
     app = create_app()

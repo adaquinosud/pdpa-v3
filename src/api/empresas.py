@@ -284,6 +284,13 @@ def painel_temas(empresa_id: int):
     return h(empresa_id)
 
 
+@empresas_bp.route("/<int:empresa_id>/temas/cruzamentos", methods=["GET"])
+def painel_cruzamentos(empresa_id: int):
+    from src.api.temas import painel_cruzamentos as h
+
+    return h(empresa_id)
+
+
 @empresas_bp.route("/<int:empresa_id>/temas/reprocessar", methods=["POST"])
 def reprocessar_temas_empresa(empresa_id: int):
     from src.api.temas import reprocessar_temas_empresa as h

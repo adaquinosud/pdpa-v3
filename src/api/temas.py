@@ -25,7 +25,7 @@ from src.auth import (
     loyall_required,
     verificar_acesso_empresa,
 )
-from src.models.temas import Tema, TemaCache, VerbatimTema
+from src.models.temas import Tema, TemaCache, TemaCruzamento, VerbatimTema
 from src.models.verbatim import Verbatim
 from src.temas.extrator import extrair_temas
 from src.temas.persistencia import merge_temas, persistir_temas_de_verbatim
@@ -306,6 +306,47 @@ def painel_temas(empresa_id: int):
             "temas": temas,
         }
     )
+
+
+# ── GET cruzamentos (Nível 4) ────────────────────────────────────────
+
+
+@cliente_pode_ver_empresa("empresa_id")
+def painel_cruzamentos(empresa_id: int):
+    """Cruzamentos N4 da empresa, ordenados por peso (sistemicidade desc).
+
+    Lê de ``temas_cruzamentos`` (pré-computado por ``flask temas-cruzar``).
+    ``?min_subpilares=N`` filtra por sistemicidade (cross-pilar).
+    """
+    try:
+        limite = max(1, min(100, int(request.args.get("limite", "50"))))
+    except ValueError:
+        return jsonify({"erro": "limite deve ser inteiro"}), 400
+    try:
+        min_subpilares = int(request.args.get("min_subpilares", "1"))
+    except ValueError:
+        return jsonify({"erro": "min_subpilares deve ser inteiro"}), 400
+
+    with db_session() as s:
+        q = s.query(TemaCruzamento).filter(TemaCruzamento.empresa_id == empresa_id)
+        if min_subpilares > 1:
+            q = q.filter(TemaCruzamento.n_subpilares_distintos >= min_subpilares)
+        rows = q.order_by(TemaCruzamento.peso.desc()).limit(limite).all()
+        cruzamentos = [
+            {
+                "id": r.id,
+                "tema_label": r.tema_label,
+                "buckets_envolvidos": json.loads(r.buckets_envolvidos_json or "[]"),
+                "tipos_envolvidos": json.loads(r.tipos_envolvidos_json or "[]"),
+                "membros": json.loads(r.membros_json) if r.membros_json else None,
+                "n_subpilares_distintos": r.n_subpilares_distintos,
+                "peso": r.peso,
+                "periodo_inicio": r.periodo_inicio.isoformat() if r.periodo_inicio else None,
+                "periodo_fim": r.periodo_fim.isoformat() if r.periodo_fim else None,
+            }
+            for r in rows
+        ]
+    return jsonify({"empresa_id": empresa_id, "cruzamentos": cruzamentos})
 
 
 # ── POST reprocessar inline ──────────────────────────────────────────

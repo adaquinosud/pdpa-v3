@@ -9,8 +9,23 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 
-from src.models.temas import Tema, TemaCache, VerbatimTema
+from src.models.temas import Tema, TemaCache, TemaCruzamento, VerbatimTema
 from src.models.verbatim import Verbatim
+
+
+def _cruz(empresa_id, label, buckets, tipos, n_sub, peso):
+    """Monta um TemaCruzamento de teste."""
+    return TemaCruzamento(
+        empresa_id=empresa_id,
+        tema_label=label,
+        buckets_envolvidos_json=json.dumps(buckets),
+        tipos_envolvidos_json=json.dumps(tipos),
+        n_subpilares_distintos=n_sub,
+        peso=peso,
+        periodo_inicio=date(2026, 1, 1),
+        periodo_fim=date(2026, 1, 31),
+        hash_escopo=f"h-{label}",
+    )
 
 
 def _cache(empresa_id, subpilar, tipo, label, volume, ex_ids, agrupamento_id=None, percentual=0.0):
@@ -303,6 +318,63 @@ def test_painel_temas_oculta_inativos(client_loyall, db_session):
         f"/api/empresas/{e['id']}/painel/temas?subpilar=D2&tipo=detrator"
     ).get_json()
     assert body["temas"] == []
+
+
+# ── GET /api/empresas/<id>/temas/cruzamentos (Nível 4) ───────────────
+
+
+def test_painel_cruzamentos_ordena_por_peso(client_loyall, db_session):
+    e = client_loyall.post("/api/empresas/", json={"nome": "ECruzApi"}).get_json()
+    db_session.add_all(
+        [
+            _cruz(
+                e["id"],
+                "infraestrutura",
+                ["A1:promotor", "D1:promotor", "P2:detrator"],
+                ["detrator", "promotor"],
+                3,
+                25.82,
+            ),
+            _cruz(
+                e["id"],
+                "atendimento",
+                ["Pa1:conversivel", "Pa1:promotor"],
+                ["conversivel", "promotor"],
+                1,
+                14.13,
+            ),
+        ]
+    )
+    db_session.commit()
+    body = client_loyall.get(f"/api/empresas/{e['id']}/temas/cruzamentos").get_json()
+    assert len(body["cruzamentos"]) == 2
+    c0 = body["cruzamentos"][0]
+    assert c0["tema_label"] == "infraestrutura"  # maior peso primeiro
+    assert c0["n_subpilares_distintos"] == 3
+    assert c0["buckets_envolvidos"] == ["A1:promotor", "D1:promotor", "P2:detrator"]
+    assert c0["membros"] is None  # literal
+
+
+def test_painel_cruzamentos_filtra_min_subpilares(client_loyall, db_session):
+    e = client_loyall.post("/api/empresas/", json={"nome": "ECruzFiltro"}).get_json()
+    db_session.add_all(
+        [
+            _cruz(e["id"], "infraestrutura", ["A1:promotor", "D1:promotor"], ["promotor"], 2, 10.0),
+            _cruz(e["id"], "atendimento", ["Pa1:promotor", "Pa1:conversivel"], ["x"], 1, 9.0),
+        ]
+    )
+    db_session.commit()
+    body = client_loyall.get(
+        f"/api/empresas/{e['id']}/temas/cruzamentos?min_subpilares=2"
+    ).get_json()
+    assert len(body["cruzamentos"]) == 1
+    assert body["cruzamentos"][0]["tema_label"] == "infraestrutura"
+
+
+def test_painel_cruzamentos_vazio(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "ECruzVazio"}).get_json()
+    body = client_loyall.get(f"/api/empresas/{e['id']}/temas/cruzamentos").get_json()
+    assert body["cruzamentos"] == []
 
 
 # ── POST /api/empresas/<id>/temas/reprocessar ────────────────────────
