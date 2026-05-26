@@ -60,12 +60,24 @@ def test_hub_explorar_renderiza_locais_ordenado(client_loyall, db_session):
     assert html.index("Loja Pior") < html.index("Loja Melhor")
 
 
-def test_tab_heatmap_placeholder(client_loyall, db_session):
-    e, a, locs = _ctx(client_loyall, "ph")
-    r = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/heatmap")
+def test_tab_heatmap_matriz(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "hm")
+    (pior, fp), (melhor, fm) = locs
+    _verb(db_session, e, pior, fp, "D2", "detrator", 4)
+    _verb(db_session, e, melhor, fm, "D2", "promotor", 5)
+    db_session.commit()
+    r = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/heatmap?metrica=detratores")
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    assert "Em construção" in html and "CP-A2" in html
+    assert "Eixo" in html and "Métrica" in html  # controles
+    assert "D2" in html  # linha do subpilar
+    assert "subpilar=D2" in html  # drill p/ verbatins na célula
+
+
+def test_tab_comparar_placeholder(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ph")
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/comparar").get_data(as_text=True)
+    assert "Em construção" in html and "CP-A3" in html
 
 
 def test_drill_loja_por_subpilar(client_loyall, db_session):

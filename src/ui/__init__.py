@@ -2035,6 +2035,126 @@ def _explorar_loja_subpilares(s, empresa_id, local_id, corte=None):
     return out
 
 
+def _hm_valor(metrica, prom, conv, detr, total):
+    """Valor numérico da célula conforme a métrica (espelha o v2)."""
+    from src.api.painel import calcular_ratio
+
+    if metrica == "detratores":
+        return detr
+    if metrica == "conversiveis":
+        return conv
+    if metrica == "pct_det":
+        return round(100 * detr / total, 1) if total else 0.0
+    return calcular_ratio(prom, detr)  # ratio (default)
+
+
+def _hm_estilo(metrica, val, vmax, has_data):
+    """Cor contínua normalizada por vmax (v2): ratio alto=verde / baixo=vermelho;
+    demais métricas: alto=vermelho mais forte. Devolve (style_inline, display)."""
+    if not has_data:
+        return "background:#fafafa;color:#cbd5e1", ""
+    t = min(1.0, val / vmax) if vmax else 0.0
+    if metrica == "ratio":
+        r_, g, b = round(250 - 200 * t), round(180 + 50 * t), round(180 + 30 * t)
+        fg = "#fff" if t > 0.6 else "#444"
+        return f"background:rgb({r_},{g},{b});color:{fg}", f"{val:.1f}"
+    red, gb = round(255 - 50 * t), round(245 - 180 * t)
+    fg = "#fff" if t > 0.4 else "#555"
+    disp = f"{round(val)}%" if metrica == "pct_det" else (f"{int(val)}" if val else "")
+    return f"background:rgb({red},{gb},{gb});color:{fg}", disp
+
+
+def _explorar_heatmap(s, empresa_id, ag_id=None, corte=None, eixo="loja", metrica="ratio", topn=20):
+    """Matriz subpilar × (loja|fonte). Colunas = top-N por volume. Cor contínua
+    normalizada pelo máximo da matriz (estilo v2). Cada célula leva o drill p/
+    Verbatins (subpilar × eixo)."""
+    from sqlalchemy import func
+
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+    from src.models.fonte import Fonte
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    col_attr = Verbatim.local_id if eixo == "loja" else Verbatim.fonte_id
+    q = (
+        s.query(col_attr, Verbatim.subpilar, Verbatim.tipo, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            col_attr.isnot(None),
+            Verbatim.subpilar.isnot(None),
+        )
+        .group_by(col_attr, Verbatim.subpilar, Verbatim.tipo)
+    )
+    if ag_id is not None:  # restringe a locais do agrupamento (vale p/ os dois eixos)
+        locais_ag = [
+            lid
+            for (lid,) in s.query(Local.id)
+            .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+            .all()
+        ]
+        q = q.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+
+    cells = {}
+    col_total = {}
+    for col, sub, tipo, n in q.all():
+        d = cells.setdefault((col, sub), {"promotor": 0, "conversivel": 0, "detrator": 0})
+        if tipo in d:
+            d[tipo] += int(n)
+        col_total[col] = col_total.get(col, 0) + int(n)
+    if not col_total:
+        return {"linhas": [], "colunas": [], "eixo": eixo, "metrica": metrica, "topn": topn}
+
+    ordenadas = sorted(col_total.items(), key=lambda kv: -kv[1])
+    top_cols = [c for c, _ in (ordenadas if topn is None else ordenadas[:topn])]
+    if eixo == "loja":
+        nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(top_cols)).all()}
+    else:
+        nomes = {x.id: x.conector_tipo for x in s.query(Fonte).filter(Fonte.id.in_(top_cols)).all()}
+    colunas = [
+        SimpleNamespace(id=c, nome=nomes.get(c, str(c)), total=col_total[c]) for c in top_cols
+    ]
+    subs_present = [sub for sub in SUBPILARES_ORDEM if any((c, sub) in cells for c in top_cols)]
+
+    # 1ª passada: valores numéricos + vmax (p/ normalizar a cor).
+    valores = {}
+    vmax = 0.0
+    for sub in subs_present:
+        for c in top_cols:
+            d = cells.get((c, sub))
+            if d is None:
+                continue
+            prom, conv, detr = d["promotor"], d["conversivel"], d["detrator"]
+            total = prom + conv + detr
+            val = _hm_valor(metrica, prom, conv, detr, total)
+            valores[(sub, c)] = (val, prom, conv, detr, total)
+            if val > vmax:
+                vmax = val
+
+    # 2ª passada: monta as linhas com cor + display + tooltip + drill.
+    linhas = []
+    for sub in subs_present:
+        row = []
+        for c in top_cols:
+            cell = valores.get((sub, c))
+            if cell is None:
+                style, disp = _hm_estilo(metrica, 0, vmax, False)
+                row.append(
+                    {"col_id": c, "sub": sub, "style": style, "v": disp, "title": "sem dados"}
+                )
+                continue
+            val, prom, conv, detr, total = cell
+            style, disp = _hm_estilo(metrica, val, vmax, True)
+            titulo = (
+                f"{sub} × {nomes.get(c, c)} — "
+                f"det {detr} · conv {conv} · prom {prom} · total {total}"
+            )
+            row.append({"col_id": c, "sub": sub, "style": style, "v": disp, "title": titulo})
+        linhas.append(SimpleNamespace(sub=sub, nome=NOME_SUBPILAR.get(sub, sub), cells=row))
+    return {"linhas": linhas, "colunas": colunas, "eixo": eixo, "metrica": metrica, "topn": topn}
+
+
 def _explorar_contexto(empresa_id, tab):
     """Monta o contexto comum (empresa, agrupamentos, filtros, dados da tab)."""
     filtros, ag_id, corte = _explorar_filtros()
@@ -2046,12 +2166,22 @@ def _explorar_contexto(empresa_id, tab):
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
         locais = _explorar_locais_ranking(s, empresa_id, ag_id, corte) if tab == "locais" else None
+        heatmap = None
+        if tab == "heatmap":
+            eixo = request.args.get("eixo", "loja")
+            eixo = eixo if eixo in ("loja", "fonte") else "loja"
+            metrica = request.args.get("metrica", "ratio")
+            metrica = metrica if metrica in ("ratio", "detratores", "pct_det") else "ratio"
+            topn_raw = request.args.get("topn", "15")
+            topn = None if topn_raw == "all" else (int(topn_raw) if topn_raw.isdigit() else 15)
+            heatmap = _explorar_heatmap(s, empresa_id, ag_id, corte, eixo, metrica, topn)
     return {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
         "filtros": filtros,
         "tab": tab,
         "locais": locais,
+        "heatmap": heatmap,
     }
 
 

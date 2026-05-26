@@ -1,0 +1,62 @@
+{# Tab Heatmap — matriz subpilar × (loja|fonte), cor contínua, drill p/ verbatins. #}
+<form hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='heatmap') }}"
+      hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-trigger="change" hx-include="this"
+      class="flex flex-wrap items-end gap-3 mb-3 text-sm">
+  <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
+  <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
+  <label class="flex flex-col gap-1"><span class="text-xs text-loyall-500">Eixo</span>
+    <select name="eixo" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="loja" {% if heatmap.eixo=='loja' %}selected{% endif %}>Local</option>
+      <option value="fonte" {% if heatmap.eixo=='fonte' %}selected{% endif %}>Fonte</option>
+    </select>
+  </label>
+  <label class="flex flex-col gap-1"><span class="text-xs text-loyall-500">Métrica</span>
+    <select name="metrica" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="ratio" {% if heatmap.metrica=='ratio' %}selected{% endif %}>Ratio (prom/det)</option>
+      <option value="detratores" {% if heatmap.metrica=='detratores' %}selected{% endif %}>Detratores</option>
+      <option value="conversiveis" {% if heatmap.metrica=='conversiveis' %}selected{% endif %}>Conversíveis</option>
+      <option value="pct_det" {% if heatmap.metrica=='pct_det' %}selected{% endif %}>% Detratores</option>
+    </select>
+  </label>
+  <label class="flex flex-col gap-1"><span class="text-xs text-loyall-500">Top colunas</span>
+    <input type="number" name="topn" value="{{ heatmap.topn }}" min="5" max="50"
+           class="w-20 px-2 py-1.5 border border-loyall-200 rounded">
+  </label>
+</form>
+
+{% if not heatmap.linhas %}
+<div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">Sem dados no escopo/período.</div>
+{% else %}
+<div class="overflow-x-auto border border-loyall-200 rounded-lg">
+  <table class="border-separate" style="border-spacing:0">
+    <thead>
+      <tr>
+        <th class="bg-loyall-50 sticky left-0 z-10 border-b border-loyall-200"></th>
+        {% for c in heatmap.colunas %}
+        <th class="border-b border-loyall-200 align-bottom px-1" style="height:150px;min-width:34px" title="{{ c.nome }} ({{ c.total }})">
+          <div class="text-[11px] text-loyall-600 whitespace-nowrap origin-bottom-left" style="transform:rotate(-50deg);width:1.5em">{{ c.nome }}</div>
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for linha in heatmap.linhas %}
+      <tr>
+        <th class="text-left px-3 py-1.5 bg-loyall-50 border-r border-loyall-200 whitespace-nowrap" title="{{ linha.nome }}">
+          <span class="text-xs font-semibold text-loyall-700">{{ linha.sub }}</span>
+          <span class="text-[10px] text-loyall-400 font-normal">{{ linha.nome }}</span>
+        </th>
+        {% for cell in linha.cells %}
+        <td class="text-center text-xs border border-white {% if cell.v %}cursor-pointer hover:ring-2 hover:ring-loyall-400{% endif %}"
+            style="{{ cell.style }};padding:8px 6px" title="{{ cell.title }}"
+            {% if cell.v %}onclick="location.href='{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ cell.sub }}&{{ 'local_id' if heatmap.eixo=='loja' else 'fonte_id' }}={{ cell.col_id }}&origem=heatmap'"{% endif %}>
+          {{ cell.v }}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-loyall-400 mt-2">Clique numa célula para abrir os verbatins do subpilar × {{ 'local' if heatmap.eixo=='loja' else 'fonte' }}.</p>
+{% endif %}
