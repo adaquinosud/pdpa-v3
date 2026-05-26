@@ -1,0 +1,8 @@
+{# Última coleta da empresa (Bloco 6.6 CP-4). Requer `empresa.ultima_coleta`. #}
+{% if empresa.ultima_coleta %}
+<span class="text-xs text-loyall-500" title="Última coleta de dados desta empresa">
+  🕒 Última coleta: {{ empresa.ultima_coleta.strftime('%d/%m/%Y %H:%M') }}
+</span>
+{% else %}
+<span class="text-xs text-loyall-400 italic">sem coleta registrada</span>
+{% endif %}

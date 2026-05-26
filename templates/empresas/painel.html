@@ -34,6 +34,7 @@
       <span class="text-loyall-600">Painel</span>
     </nav>
     <h1 class="text-2xl font-semibold mt-1">Painel · <span class="text-loyall-400 text-base">{{ n1.total_verbatins }} verbatins</span></h1>
+    <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
   </div>
   <a id="btn-exportar-painel"
      href="{{ url_for('empresas.exportar_painel_xlsx', empresa_id=empresa.id) }}"

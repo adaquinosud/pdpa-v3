@@ -109,7 +109,20 @@ def _wrap_agrupamento(a, locais_w=None) -> SimpleNamespace:
     )
 
 
-def _wrap_empresa(e) -> SimpleNamespace:
+def _ultima_coleta(s, empresa_id):
+    """Última coleta da empresa: MAX(fonte.ultima_coleta), fallback
+    MAX(verbatim.data_coleta). ``None`` se nunca coletou."""
+    from sqlalchemy import func
+
+    mf = s.query(func.max(Fonte.ultima_coleta)).filter(Fonte.empresa_id == empresa_id).scalar()
+    if mf is not None:
+        return mf
+    return (
+        s.query(func.max(Verbatim.data_coleta)).filter(Verbatim.empresa_id == empresa_id).scalar()
+    )
+
+
+def _wrap_empresa(e, ultima_coleta=None) -> SimpleNamespace:
     return SimpleNamespace(
         id=e.id,
         nome=e.nome,
@@ -119,6 +132,7 @@ def _wrap_empresa(e) -> SimpleNamespace:
         observacao=e.observacao,
         criada_em=e.criada_em,
         atualizada_em=e.atualizada_em,
+        ultima_coleta=ultima_coleta,
     )
 
 
@@ -302,7 +316,7 @@ def _carregar_detalhe_empresa(empresa_id: int):
         locais_db = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fontes_db = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.id).all()
 
-        empresa_w = _wrap_empresa(empresa_db)
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_db.id))
 
         # Indexa fontes por local_id; separa diretas da empresa
         fontes_por_local: dict[int, list] = {}
@@ -478,7 +492,7 @@ def verbatins_empresa(empresa_id: int):
         empresa_db = s.get(Empresa, empresa_id)
         if empresa_db is None:
             return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db)
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_db.id))
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
@@ -590,7 +604,7 @@ def painel_empresa(empresa_id: int):
         empresa_db = s.get(Empresa, empresa_id)
         if empresa_db is None:
             return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db)
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_db.id))
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
@@ -752,7 +766,7 @@ def admin_temas(empresa_id: int):
         empresa_db = s.get(Empresa, empresa_id)
         if empresa_db is None:
             return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db)
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_db.id))
 
     return render_template(
         "admin/temas.html",

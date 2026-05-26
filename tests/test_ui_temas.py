@@ -338,3 +338,19 @@ def test_transversais_filtra_por_agrupamento(client_loyall, db_session):
     assert "preço lojas" not in html_g
     # mensagem de nível agrupamento presente
     assert "nível de" in html_lojas and "agrupamento" in html_lojas
+
+
+# ── B6.6 CP-4: "Última coleta" nas telas ─────────────────────────────
+
+
+def test_painel_mostra_ultima_coleta(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "uc1")
+    _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "txt")  # data_coleta = agora
+    html = client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
+    assert "Última coleta:" in html
+
+
+def test_detalhe_sem_coleta_mostra_placeholder(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": "ESemColeta"}).get_json()
+    html = client_loyall.get(f"/empresas/{e['id']}").get_data(as_text=True)
+    assert "sem coleta registrada" in html

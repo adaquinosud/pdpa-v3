@@ -17,6 +17,7 @@
   <div>
     <a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="text-sm text-loyall-400 hover:underline">← Painel</a>
     <h1 class="text-2xl font-semibold mt-1">Catálogo de temas · <span class="text-loyall-400 text-base">{{ temas|length }} temas</span></h1>
+    <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
     <p class="text-xs text-loyall-500 mt-1">Curadoria Loyall — temas extraídos automaticamente ou criados manualmente. Sinônimos podem ser consolidados via merge.</p>
   </div>
 </div>
