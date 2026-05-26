@@ -70,11 +70,18 @@ def _bucket_chave(ag_id: Optional[int], sub: str, tipo: str) -> str:
     return f"{ag_id if ag_id is not None else 'NULL'}:{sub}:{tipo}"
 
 
-def _carregar_verbatins_empresa(empresa_id: int, so_com_texto: bool = True) -> List[dict]:
-    """Lê verbatins + agrupamento_id (via Local) em dicts puros."""
+def _carregar_verbatins_empresa(
+    empresa_id: int, so_com_texto: bool = True, corte: Optional[datetime] = None
+) -> List[dict]:
+    """Lê verbatins + agrupamento_id (via Local) em dicts puros.
+
+    ``corte``: se fornecido, só verbatins com ``data_criacao_original >= corte``
+    (janela temporal; verbatins sem data entram).
+    """
     from src.models.agrupamento import Agrupamento
     from src.models.local import Local
     from src.models.verbatim import Verbatim
+    from src.temas.janela import filtro_janela
     from src.utils.db import db_session
 
     with db_session() as s:
@@ -95,6 +102,9 @@ def _carregar_verbatins_empresa(empresa_id: int, so_com_texto: bool = True) -> L
         )
         if so_com_texto:
             q = q.filter(Verbatim.tem_texto.is_(True))
+        clausula = filtro_janela(corte)
+        if clausula is not None:
+            q = q.filter(clausula)
         out = []
         for r in q.all():
             out.append(
@@ -383,6 +393,7 @@ def processar_empresa(
     max_usd: Optional[float] = None,
     callback_progresso: Optional[Callable] = None,
     dry_run: bool = False,
+    aplicar_janela: bool = True,
 ) -> ResumoPipeline:
     """Pipeline ponta-a-ponta — apenas buckets com ≥ MIN_BUCKET_HDBSCAN membros.
 
@@ -394,11 +405,14 @@ def processar_empresa(
         callback_progresso: ``fn(chave, label, volume) -> None`` por cluster
             rotulado.
         dry_run: lista buckets elegíveis + custo, sem chamar LLM nem escrever DB.
+        aplicar_janela: aplica a janela temporal (últimos N dias desde a última
+            coleta, ``PDPA_TEMAS_JANELA_DIAS``). ``False`` processa tudo.
 
     Returns:
         ``ResumoPipeline``.
     """
     from src.models.empresa import Empresa
+    from src.temas.janela import data_corte
     from src.utils.db import db_session
 
     with db_session() as s:
@@ -410,7 +424,8 @@ def processar_empresa(
 
     resumo = ResumoPipeline(empresa_id=empresa_id, empresa_nome=empresa_nome)
 
-    verbatins = _carregar_verbatins_empresa(empresa_id)
+    corte = data_corte(empresa_id) if aplicar_janela else None
+    verbatins = _carregar_verbatins_empresa(empresa_id, corte=corte)
     buckets = bucketizar_verbatins(verbatins)
 
     if so_buckets:

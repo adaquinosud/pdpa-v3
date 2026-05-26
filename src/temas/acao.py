@@ -49,6 +49,8 @@ def _carregar_alvos(empresa_id: int, top_pontuais: int = 23) -> List[Dict[str, A
     from sqlalchemy import func
 
     from src.models.temas import Tema, TemaCruzamento, VerbatimTema
+    from src.models.verbatim import Verbatim
+    from src.temas.janela import data_corte, filtro_janela
     from src.utils.db import db_session
 
     alvos: List[Dict[str, Any]] = []
@@ -73,18 +75,21 @@ def _carregar_alvos(empresa_id: int, top_pontuais: int = 23) -> List[Dict[str, A
                 }
             )
 
-        vols = (
+        # Volume dos pontuais conta só vínculos dentro da janela temporal.
+        vq = (
             s.query(Tema.nome, func.count(VerbatimTema.id).label("vol"))
             .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+            .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
             .filter(
                 Tema.empresa_id == empresa_id,
                 Tema.ativo.is_(True),
                 VerbatimTema.bucket_chave.isnot(None),
             )
-            .group_by(Tema.id)
-            .order_by(func.count(VerbatimTema.id).desc())
-            .all()
         )
+        clausula = filtro_janela(data_corte(empresa_id, s))
+        if clausula is not None:
+            vq = vq.filter(clausula)
+        vols = vq.group_by(Tema.id).order_by(func.count(VerbatimTema.id).desc()).all()
     n = 0
     for nome, _vol in vols:
         if nome in excluir:
@@ -104,10 +109,11 @@ def _contexto_labels(
     """Volume, buckets ``subpilar:tipo``, tipos e exemplos para um conjunto de labels."""
     from src.models.temas import Tema, VerbatimTema
     from src.models.verbatim import Verbatim
+    from src.temas.janela import data_corte, filtro_janela
     from src.utils.db import db_session
 
     with db_session() as s:
-        rows = (
+        q = (
             s.query(VerbatimTema.bucket_chave, Verbatim.texto)
             .join(Tema, Tema.id == VerbatimTema.tema_id)
             .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
@@ -116,8 +122,11 @@ def _contexto_labels(
                 Tema.nome.in_(labels),
                 VerbatimTema.bucket_chave.isnot(None),
             )
-            .all()
         )
+        clausula = filtro_janela(data_corte(empresa_id, s))
+        if clausula is not None:
+            q = q.filter(clausula)
+        rows = q.all()
     volume = len(rows)
     buckets = sorted({st for bc, _ in rows if (st := _subpilar_tipo(bc or ""))})
     tipos = sorted({b.split(":")[1] for b in buckets})

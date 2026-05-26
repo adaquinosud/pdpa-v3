@@ -80,6 +80,7 @@ def _carregar_label_buckets(empresa_id: int) -> Dict[str, Dict[str, Any]]:
     """
     from src.models.temas import Tema, VerbatimTema
     from src.models.verbatim import Verbatim
+    from src.temas.janela import data_corte, filtro_janela
     from src.utils.db import db_session
 
     agg: Dict[str, Dict[str, Any]] = {}
@@ -98,6 +99,9 @@ def _carregar_label_buckets(empresa_id: int) -> Dict[str, Dict[str, Any]]:
                 VerbatimTema.bucket_chave.isnot(None),
             )
         )
+        clausula = filtro_janela(data_corte(empresa_id, s))
+        if clausula is not None:
+            rows = rows.filter(clausula)
         for nome, bucket_chave, data in rows.all():
             st = _subpilar_tipo(bucket_chave or "")
             if st is None:
@@ -211,11 +215,12 @@ def _carregar_temas_centroides(empresa_id: int) -> Dict[int, Dict[str, Any]]:
     from src.models.temas import Tema, VerbatimTema
     from src.models.verbatim import Verbatim
     from src.temas.embeddings import MODELO_PADRAO, carregar_embeddings
+    from src.temas.janela import data_corte, filtro_janela
     from src.utils.db import db_session
 
     info: Dict[int, Dict[str, Any]] = {}
     with db_session() as s:
-        rows = (
+        q = (
             s.query(
                 Tema.id,
                 Tema.nome,
@@ -231,8 +236,11 @@ def _carregar_temas_centroides(empresa_id: int) -> Dict[int, Dict[str, Any]]:
                 Tema.ativo.is_(True),
                 VerbatimTema.bucket_chave.isnot(None),
             )
-            .all()
         )
+        clausula = filtro_janela(data_corte(empresa_id, s))
+        if clausula is not None:
+            q = q.filter(clausula)
+        rows = q.all()
     for tid, nome, vid, bc, texto, data in rows:
         st = _subpilar_tipo(bc or "")
         if st is None:
