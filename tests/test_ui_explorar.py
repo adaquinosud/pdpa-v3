@@ -80,6 +80,60 @@ def test_tab_comparar_placeholder(client_loyall, db_session):
     assert "Em construção" in html and "CP-A3" in html
 
 
+def test_locais_tabela_densa_e_pills(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "tab")
+    (l1, f1), _ = locs
+    _verb(db_session, e, l1, f1, "D2", "detrator", 3)
+    _verb(db_session, e, l1, f1, "D2", "promotor", 1)
+    db_session.commit()
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True)
+    assert "% Impacto" in html and "Ratio" in html and "Faixa" in html  # colunas da tabela
+    assert "Conversíveis" in html and "Promotores" in html  # pills
+    assert "vis=detratores" in html  # link da pill
+
+
+def test_locais_vis_detratores_ordena(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "visd")
+    (pior, fp), (maisdet, fm) = locs  # "Loja Pior", "Loja Melhor"
+    _verb(db_session, e, pior, fp, "D2", "promotor", 1)
+    _verb(db_session, e, pior, fp, "D2", "detrator", 2)  # ratio 0.5, 2 det
+    _verb(db_session, e, maisdet, fm, "D2", "promotor", 5)
+    _verb(db_session, e, maisdet, fm, "D2", "detrator", 4)  # ratio 1.25, 4 det
+    db_session.commit()
+    # default (todos): pior ratio primeiro
+    h1 = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais").get_data(as_text=True)
+    assert h1.index("Loja Pior") < h1.index("Loja Melhor")
+    # vis=detratores: mais detratores primeiro (Loja Melhor tem 4)
+    h2 = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais&vis=detratores").get_data(
+        as_text=True
+    )
+    assert h2.index("Loja Melhor") < h2.index("Loja Pior")
+
+
+def test_drill_inclui_detratores_recentes(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "detr")
+    (loja, f), _ = locs
+    db_session.add(
+        Verbatim(
+            empresa_id=e["id"],
+            fonte_id=f["id"],
+            local_id=loja["id"],
+            texto="atendimento horrível e demorado na retirada",
+            subpilar="D2",
+            tipo="detrator",
+            tem_texto=True,
+            data_criacao_original=datetime(2026, 5, 1),
+            hash_dedup=f"hdr-{datetime.utcnow().timestamp()}",
+        )
+    )
+    db_session.commit()
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar/locais/{loja['id']}").get_data(
+        as_text=True
+    )
+    assert "Detratores recentes" in html
+    assert "atendimento horrível" in html and "ver completo" in html
+
+
 def test_drill_loja_por_subpilar(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "drill")
     (loja, f), _ = locs

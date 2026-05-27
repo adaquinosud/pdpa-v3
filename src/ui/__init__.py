@@ -1936,8 +1936,17 @@ def _explorar_filtros():
     return {"agrupamento_id": ag_raw, "periodo": periodo}, ag_id, corte
 
 
-def _explorar_locais_ranking(s, empresa_id, ag_id=None, corte=None):
-    """Ranking de locais (piores primeiro) com mix prom/conv/det + ratio."""
+_VIS_SORT = {
+    "detratores": lambda x: -x.detrator,
+    "conversiveis": lambda x: -x.conversivel,
+    "promotores": lambda x: -x.promotor,
+}
+
+
+def _explorar_locais_ranking(s, empresa_id, ag_id=None, corte=None, vis="todos"):
+    """Ranking de locais (tabela densa). Mix prom/conv/det + ratio + faixa +
+    % impacto (peso no total da empresa). Ordenação conforme ``vis``:
+    todos→ratio asc (pior primeiro); det/conv/prom→volume desc do tipo."""
     from sqlalchemy import func
 
     from src.api.painel import calcular_ratio, faixa_ratio
@@ -1966,19 +1975,22 @@ def _explorar_locais_ranking(s, empresa_id, ag_id=None, corte=None):
         if tipo in d:
             d[tipo] += int(n)
     if not por_local:
-        return []
-    nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(por_local)).all()}
-    out = []
+        return SimpleNamespace(linhas=[], total_geral=0, vis=vis)
+    locs = {x.id: x for x in s.query(Local).filter(Local.id.in_(por_local)).all()}
+    linhas = []
     for lid, d in por_local.items():
         prom, conv, detr = d["promotor"], d["conversivel"], d["detrator"]
-        if prom + conv + detr == 0:  # só verbatins sem classificação → sem sinal p/ ranquear
+        total = prom + conv + detr
+        if total == 0:  # só verbatins sem classificação → sem sinal p/ ranquear
             continue
+        loc = locs.get(lid)
         ratio = calcular_ratio(prom, detr)
-        out.append(
+        linhas.append(
             SimpleNamespace(
                 id=lid,
-                nome=nomes.get(lid, f"loja {lid}"),
-                total=prom + conv + detr,
+                nome=loc.nome if loc else f"loja {lid}",
+                cidade=(loc.cidade if loc else None),
+                total=total,
                 promotor=prom,
                 conversivel=conv,
                 detrator=detr,
@@ -1986,7 +1998,50 @@ def _explorar_locais_ranking(s, empresa_id, ag_id=None, corte=None):
                 faixa=faixa_ratio(ratio),
             )
         )
-    out.sort(key=lambda x: (x.ratio, -x.total))  # piores (menor ratio) primeiro
+    total_geral = sum(x.total for x in linhas) or 1
+    max_total = max((x.total for x in linhas), default=1)
+    for x in linhas:
+        x.pct = round(x.total / total_geral * 100, 1)  # peso real no total da empresa
+        x.bar = round(x.total / max_total * 100)  # largura relativa (maior = barra cheia)
+    linhas.sort(key=_VIS_SORT.get(vis, lambda x: (x.ratio, -x.total)))
+    return SimpleNamespace(linhas=linhas, total_geral=total_geral, vis=vis)
+
+
+def _explorar_loja_detratores(s, empresa_id, local_id, corte=None, limit=5):
+    """Até ``limit`` detratores mais recentes de um local (p/ o drill)."""
+    from src.models.fonte import Fonte
+    from src.models.verbatim import Verbatim
+
+    q = (
+        s.query(
+            Verbatim.id,
+            Verbatim.texto,
+            Verbatim.subpilar,
+            Verbatim.data_criacao_original,
+            Fonte.conector_tipo,
+        )
+        .outerjoin(Fonte, Fonte.id == Verbatim.fonte_id)
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id == local_id,
+            Verbatim.tipo == "detrator",
+            Verbatim.tem_texto.is_(True),
+        )
+        .order_by(Verbatim.data_criacao_original.desc())
+    )
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+    out = []
+    for vid, texto, sub, data, fonte in q.limit(limit).all():
+        out.append(
+            SimpleNamespace(
+                id=vid,
+                texto=(texto or "")[:200],
+                subpilar=sub,
+                fonte=fonte,
+                data=data,
+            )
+        )
     return out
 
 
@@ -2165,14 +2220,19 @@ def _explorar_contexto(empresa_id, tab):
         empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
-        locais = _explorar_locais_ranking(s, empresa_id, ag_id, corte) if tab == "locais" else None
+        locais = None
+        if tab == "locais":
+            vis = request.args.get("vis", "todos")
+            vis = vis if vis in ("todos", "detratores", "conversiveis", "promotores") else "todos"
+            locais = _explorar_locais_ranking(s, empresa_id, ag_id, corte, vis)
         heatmap = None
         if tab == "heatmap":
             eixo = request.args.get("eixo", "loja")
             eixo = eixo if eixo in ("loja", "fonte") else "loja"
             metrica = request.args.get("metrica", "ratio")
-            metrica = metrica if metrica in ("ratio", "detratores", "pct_det") else "ratio"
-            topn_raw = request.args.get("topn", "15")
+            if metrica not in ("ratio", "detratores", "conversiveis", "pct_det"):
+                metrica = "ratio"
+            topn_raw = request.args.get("topn", "20")
             topn = None if topn_raw == "all" else (int(topn_raw) if topn_raw.isdigit() else 15)
             heatmap = _explorar_heatmap(s, empresa_id, ag_id, corte, eixo, metrica, topn)
     return {
@@ -2236,12 +2296,14 @@ def explorar_loja_drill(empresa_id: int, local_id: int):
         loc = s.get(Local, local_id)
         nome = loc.nome if loc and loc.empresa_id == empresa_id else None
         subpilares = _explorar_loja_subpilares(s, empresa_id, local_id, corte) if nome else []
+        detratores = _explorar_loja_detratores(s, empresa_id, local_id, corte) if nome else []
     return render_template(
         "partials/explorar_loja_drill.html",
         empresa_id=empresa_id,
         local_id=local_id,
         loja_nome=nome,
         subpilares=subpilares,
+        detratores=detratores,
     )
 
 

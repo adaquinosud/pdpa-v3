@@ -1,4 +1,4 @@
-{# Tab Locais — ranking de lojas (piores primeiro) com mix prom/conv/det. #}
+{# Tab Locais — tabela densa (estilo v2): mix, ratio, faixa, % impacto, drill. #}
 {% set fclass = {
   'critico':   {'bg':'bg-rose-100','text':'text-rose-700'},
   'fraco':     {'bg':'bg-orange-100','text':'text-orange-700'},
@@ -6,47 +6,82 @@
   'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700'},
   'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800'},
 } %}
-{% if not locais %}
+{% set vis = locais.vis %}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
+
+{# ── Pills de visualização ── #}
+<div class="flex items-center gap-1 mb-3 text-sm">
+  {% for v, lbl, cls in [
+    ('todos','Todos',''),
+    ('detratores','Detratores','text-rose-700'),
+    ('conversiveis','Conversíveis','text-amber-700'),
+    ('promotores','Promotores','text-emerald-700')] %}
+  <button
+    hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='locais') }}?{{ qs }}&vis={{ v }}"
+    hx-target="#explorar-conteudo" hx-swap="innerHTML"
+    hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=locais&{{ qs }}&vis={{ v }}"
+    class="px-3 py-1 rounded border {{ cls }} {% if vis==v %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">
+    {{ lbl }}
+  </button>
+  {% endfor %}
+  <span class="ml-auto text-xs text-loyall-400">
+    {% if vis=='todos' %}ordenado por ratio (pior primeiro){% else %}ordenado por nº de {{ vis }} (maior primeiro){% endif %}
+  </span>
+</div>
+
+{% if not locais.linhas %}
 <div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
   Nenhum local com verbatins no escopo/período selecionado.
 </div>
 {% else %}
-<p class="text-xs text-loyall-500 mb-3">{{ locais|length }} locais · ordenados do pior ao melhor ratio P/D. Clique numa linha para abrir a quebra por subpilar.</p>
-<div class="space-y-2">
-  {% for l in locais %}
-  {% set fc = fclass.get(l.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
-  {% set tot = l.total if l.total else 1 %}
-  <div class="border border-loyall-200 rounded-lg">
-    <button type="button"
-            class="w-full text-left p-3 flex items-center gap-3 hover:bg-loyall-50"
-            hx-get="{{ url_for('ui.explorar_loja_drill', empresa_id=empresa.id, local_id=l.id) }}?periodo={{ filtros.periodo }}"
-            hx-target="#drill-{{ l.id }}" hx-swap="innerHTML"
-            onclick="this.querySelector('.chev').classList.toggle('rotate-90')">
-      <span class="chev text-loyall-300 transition-transform shrink-0">▸</span>
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-medium text-loyall-800 truncate">{{ l.nome }}</span>
-          <span class="shrink-0 flex items-center gap-2">
-            <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span>
-            <span class="text-sm font-bold text-loyall-800" title="ratio promotor/detrator">{{ '%.2f'|format(l.ratio) }}</span>
-            <span class="text-xs text-loyall-400">{{ l.total }} verb.</span>
-          </span>
-        </div>
-        <div class="flex h-2 rounded overflow-hidden bg-loyall-100 mt-1.5"
-             title="promotor {{ l.promotor }} · conversível {{ l.conversivel }} · detrator {{ l.detrator }}">
-          <div class="bg-emerald-400" style="width: {{ (l.promotor / tot * 100) | round(0,'floor') }}%"></div>
-          <div class="bg-amber-400" style="width: {{ (l.conversivel / tot * 100) | round(0,'floor') }}%"></div>
-          <div class="bg-rose-400" style="width: {{ (l.detrator / tot * 100) | round(0,'floor') }}%"></div>
-        </div>
-        <div class="flex gap-3 mt-1 text-[11px] text-loyall-500">
-          <span>● {{ l.promotor }} prom</span>
-          <span>● {{ l.conversivel }} conv</span>
-          <span>● {{ l.detrator }} detr</span>
-        </div>
-      </div>
-    </button>
-    <div id="drill-{{ l.id }}" class="px-3 pb-1"></div>
-  </div>
-  {% endfor %}
+<div class="overflow-x-auto border border-loyall-200 rounded-lg">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-loyall-50 text-loyall-500 text-xs uppercase tracking-wider">
+        <th class="text-left px-3 py-2 font-medium">Local</th>
+        <th class="text-right px-2 py-2 font-medium">Total</th>
+        <th class="text-right px-2 py-2 font-medium text-rose-600">Det</th>
+        <th class="text-right px-2 py-2 font-medium text-amber-600">Conv</th>
+        <th class="text-right px-2 py-2 font-medium text-emerald-600">Prom</th>
+        <th class="text-right px-2 py-2 font-medium">Ratio</th>
+        <th class="text-center px-2 py-2 font-medium">Faixa</th>
+        <th class="text-left px-3 py-2 font-medium" style="min-width:120px">% Impacto</th>
+        <th class="px-2 py-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in locais.linhas %}
+      {% set fc = fclass.get(l.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+      <tr class="border-t border-loyall-100 hover:bg-loyall-50/50">
+        <td class="px-3 py-1.5">
+          <span class="text-loyall-800">{{ l.nome }}</span>
+          {% if l.cidade %}<span class="text-xs text-loyall-400">· {{ l.cidade }}</span>{% endif %}
+        </td>
+        <td class="text-right px-2 py-1.5 text-loyall-600">{{ l.total }}</td>
+        <td class="text-right px-2 py-1.5 {% if l.detrator %}text-rose-700 font-medium{% else %}text-loyall-300{% endif %}">{{ l.detrator }}</td>
+        <td class="text-right px-2 py-1.5 {% if l.conversivel %}text-amber-700{% else %}text-loyall-300{% endif %}">{{ l.conversivel }}</td>
+        <td class="text-right px-2 py-1.5 {% if l.promotor %}text-emerald-700{% else %}text-loyall-300{% endif %}">{{ l.promotor }}</td>
+        <td class="text-right px-2 py-1.5 font-bold text-loyall-800">{{ '%.2f'|format(l.ratio) }}</td>
+        <td class="text-center px-2 py-1.5"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span></td>
+        <td class="px-3 py-1.5">
+          <div class="flex items-center gap-2">
+            <div class="flex-1 h-2 rounded bg-loyall-100 overflow-hidden"><div class="h-2 rounded bg-loyall-400" style="width:{{ l.bar }}%"></div></div>
+            <span class="text-[11px] text-loyall-400 w-10 text-right">{{ l.pct }}%</span>
+          </div>
+        </td>
+        <td class="px-2 py-1.5 text-right">
+          <button class="loja-exp text-loyall-300 hover:text-loyall-700 w-6 h-6"
+                  hx-get="{{ url_for('ui.explorar_loja_drill', empresa_id=empresa.id, local_id=l.id) }}?periodo={{ filtros.periodo }}"
+                  hx-target="#drill-{{ l.id }}" hx-trigger="click once"
+                  onclick="document.getElementById('drillrow-{{ l.id }}').classList.toggle('hidden'); this.classList.toggle('rotate-90')">▸</button>
+        </td>
+      </tr>
+      <tr id="drillrow-{{ l.id }}" class="hidden">
+        <td colspan="9" class="bg-loyall-50 px-3 py-0"><div id="drill-{{ l.id }}" class="py-2 text-xs text-loyall-400">carregando…</div></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+<p class="text-xs text-loyall-400 mt-2">{{ locais.linhas|length }} locais · % Impacto = peso do local no total de verbatins da empresa.</p>
 {% endif %}
