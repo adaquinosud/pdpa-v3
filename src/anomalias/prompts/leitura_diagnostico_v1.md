@@ -15,8 +15,11 @@ Campos podem vir `null`. Use só o que existe.
 - `exemplos` — verbatins reais (use como evidência; nunca invente)
 - `eh_gargalo` (bool) — este subpilar pertence ao pilar gargalo do Lastro
 - `gargalo_pilar` (código) · `gargalo_pilar_nome` — o pilar gargalo (contexto
-  sequencial P→D→Pa→A). **Use SEMPRE `gargalo_pilar_nome` ao citar o gargalo — nunca
-  invente outro nome para o pilar.**
+  sequencial do Lastro).
+- `lastro_sequencia` — os 4 pilares na ordem, com os nomes corretos.
+  **Ao citar QUALQUER pilar (o gargalo, o atual ou os seguintes), use EXATAMENTE
+  os nomes de `lastro_sequencia`/`gargalo_pilar_nome`/`pilar_nome` — NUNCA invente
+  ou troque o nome de um pilar.**
 - `setor` — setor da empresa (ou null)
 
 ## Saída — SEMPRE estas 2 chaves (JSON puro, nesta ordem)

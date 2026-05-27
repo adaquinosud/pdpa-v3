@@ -96,13 +96,14 @@ def montar_payload_subpilar(s, empresa_id, ag_id, subpilar, dados, gargalo) -> D
     """Payload de negócio de um subpilar p/ o Sonnet (sem estatística crua)."""
     from sqlalchemy import func
 
-    from src.api.painel import NOME_PILAR, NOME_SUBPILAR
+    from src.api.painel import NOME_PILAR, NOME_SUBPILAR, PILARES_ORDEM
     from src.models.empresa import Empresa
     from src.models.temas import TemaCache
     from src.models.verbatim import Verbatim
 
     emp = s.get(Empresa, empresa_id)
     pilar = _pilar_de(subpilar)
+    lastro_sequencia = " → ".join(NOME_PILAR.get(p, p) for p in PILARES_ORDEM)
 
     tq = s.query(TemaCache.tema_label, func.sum(TemaCache.volume)).filter(
         TemaCache.empresa_id == empresa_id,
@@ -140,6 +141,7 @@ def montar_payload_subpilar(s, empresa_id, ag_id, subpilar, dados, gargalo) -> D
         "eh_gargalo": pilar == gargalo,
         "gargalo_pilar": gargalo,
         "gargalo_pilar_nome": NOME_PILAR.get(gargalo) if gargalo else None,
+        "lastro_sequencia": lastro_sequencia,
         "setor": emp.setor if emp else None,
     }
 
