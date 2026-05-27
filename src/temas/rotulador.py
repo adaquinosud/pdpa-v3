@@ -127,7 +127,16 @@ def rotular_cluster(
         resposta = client.messages.create(
             model=HAIKU_MODEL,
             max_tokens=MAX_TOKENS,
-            system=system_prompt,
+            # Prompt caching: o system (~1,3K tokens) é idêntico em toda chamada
+            # do full run. cache_control ephemeral corta ~90% do custo de input
+            # das chamadas repetidas dentro da janela (TTL ~5min). Pendência #2.
+            system=[
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
             messages=[{"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)}],
         )
         raw = "".join(
