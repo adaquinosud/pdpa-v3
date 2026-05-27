@@ -2210,6 +2210,111 @@ def _explorar_heatmap(s, empresa_id, ag_id=None, corte=None, eixo="loja", metric
     return {"linhas": linhas, "colunas": colunas, "eixo": eixo, "metrica": metrica, "topn": topn}
 
 
+def _explorar_comparar_opcoes(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loja"):
+    """Opções selecionáveis: lojas (top 80 por volume) ou os 12 subpilares."""
+    if tipo_elemento == "subpilar":
+        from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+
+        return [
+            SimpleNamespace(v=sp, label=f"{sp} · {NOME_SUBPILAR.get(sp, sp)}")
+            for sp in SUBPILARES_ORDEM
+        ]
+    from sqlalchemy import func
+
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    q = (
+        s.query(Verbatim.local_id, func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.local_id.isnot(None))
+        .group_by(Verbatim.local_id)
+    )
+    if ag_id is not None:
+        locais_ag = [
+            lid
+            for (lid,) in s.query(Local.id)
+            .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+            .all()
+        ]
+        q = q.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+    tot_by = {lid: int(n) for lid, n in q.all()}
+    if not tot_by:
+        return []
+    nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(tot_by)).all()}
+    ordenadas = sorted(tot_by.items(), key=lambda kv: -kv[1])[:80]
+    return [
+        SimpleNamespace(v=str(lid), label=f"{nomes.get(lid, lid)} ({n})") for lid, n in ordenadas
+    ]
+
+
+def _explorar_comparar(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loja", elementos=None):
+    """KPIs por elemento (2-3 lojas ou subpilares) p/ comparação lado a lado.
+    PASSO 1: total/det/conv/prom + ratio + faixa + %det/%conv (sem sparkline/distrib)."""
+    from sqlalchemy import func
+
+    from src.api.painel import NOME_SUBPILAR, calcular_ratio, faixa_ratio
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    elementos = [e for e in (elementos or []) if e][:3]
+    if not elementos:
+        return []
+    locais_ag = None
+    if ag_id is not None:
+        locais_ag = [
+            lid
+            for (lid,) in s.query(Local.id)
+            .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+            .all()
+        ] or [-1]
+    nomes = {}
+    if tipo_elemento == "loja":
+        ids = [int(e) for e in elementos if e.isdigit()]
+        nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(ids)).all()}
+
+    cards = []
+    for el in elementos:
+        q = s.query(Verbatim.tipo, func.count(Verbatim.id)).filter(
+            Verbatim.empresa_id == empresa_id
+        )
+        if tipo_elemento == "loja":
+            if not el.isdigit():
+                continue
+            q = q.filter(Verbatim.local_id == int(el))
+            label = nomes.get(int(el), f"loja {el}")
+        else:
+            q = q.filter(Verbatim.subpilar == el)
+            if locais_ag is not None:
+                q = q.filter(Verbatim.local_id.in_(locais_ag))
+            label = f"{el} · {NOME_SUBPILAR.get(el, el)}"
+        if corte is not None:
+            q = q.filter(Verbatim.data_criacao_original >= corte)
+        d = {"promotor": 0, "conversivel": 0, "detrator": 0}
+        for tipo, n in q.group_by(Verbatim.tipo).all():
+            if tipo in d:
+                d[tipo] = int(n)
+        prom, conv, detr = d["promotor"], d["conversivel"], d["detrator"]
+        total = prom + conv + detr
+        ratio = calcular_ratio(prom, detr)
+        cards.append(
+            SimpleNamespace(
+                elemento=el,
+                label=label,
+                total=total,
+                promotor=prom,
+                conversivel=conv,
+                detrator=detr,
+                ratio=ratio,
+                faixa=faixa_ratio(ratio),
+                pct_det=round(100 * detr / total, 1) if total else 0.0,
+                pct_conv=round(100 * conv / total, 1) if total else 0.0,
+            )
+        )
+    return cards
+
+
 def _explorar_contexto(empresa_id, tab):
     """Monta o contexto comum (empresa, agrupamentos, filtros, dados da tab)."""
     filtros, ag_id, corte = _explorar_filtros()
@@ -2235,6 +2340,25 @@ def _explorar_contexto(empresa_id, tab):
             topn_raw = request.args.get("topn", "20")
             topn = None if topn_raw == "all" else (int(topn_raw) if topn_raw.isdigit() else 15)
             heatmap = _explorar_heatmap(s, empresa_id, ag_id, corte, eixo, metrica, topn)
+        comparar = None
+        if tab == "comparar":
+            tipo_el = request.args.get("tipo_elemento", "loja")
+            tipo_el = tipo_el if tipo_el in ("loja", "subpilar") else "loja"
+            # multi-select manda elementos repetidos; deep-link manda vírgula-separado
+            raw = request.args.getlist("elementos")
+            if len(raw) == 1 and "," in raw[0]:
+                raw = raw[0].split(",")
+            selecionados = [e for e in raw if e][:3]
+            comparar = {
+                "tipo_elemento": tipo_el,
+                "opcoes": _explorar_comparar_opcoes(s, empresa_id, ag_id, corte, tipo_el),
+                "selecionados": selecionados,
+                "cards": (
+                    _explorar_comparar(s, empresa_id, ag_id, corte, tipo_el, selecionados)
+                    if len(selecionados) >= 2
+                    else []
+                ),
+            }
     return {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
@@ -2242,6 +2366,7 @@ def _explorar_contexto(empresa_id, tab):
         "tab": tab,
         "locais": locais,
         "heatmap": heatmap,
+        "comparar": comparar,
     }
 
 

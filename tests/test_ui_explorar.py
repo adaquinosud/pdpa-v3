@@ -74,10 +74,31 @@ def test_tab_heatmap_matriz(client_loyall, db_session):
     assert "subpilar=D2" in html  # drill p/ verbatins na célula
 
 
-def test_tab_comparar_placeholder(client_loyall, db_session):
+def test_tab_evolucao_placeholder(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "ph")
-    html = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/comparar").get_data(as_text=True)
-    assert "Em construção" in html and "CP-A3" in html
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/evolucao").get_data(as_text=True)
+    assert "Em construção" in html and "CP-A4" in html
+
+
+def test_tab_comparar_seletor_e_kpis(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "cmp")
+    (l1, f1), (l2, f2) = locs
+    _verb(db_session, e, l1, f1, "D2", "detrator", 3)
+    _verb(db_session, e, l1, f1, "D2", "promotor", 1)
+    _verb(db_session, e, l2, f2, "D2", "promotor", 5)
+    _verb(db_session, e, l2, f2, "D2", "detrator", 1)
+    db_session.commit()
+    # sem seleção → prompt + seletor de tipo + opções
+    h0 = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/comparar").get_data(as_text=True)
+    assert "Selecione" in h0 and "Locais" in h0 and "Subpilares" in h0
+    assert "Loja Pior" in h0  # opção no multi-select
+    # 2 lojas selecionadas → 2 cards com KPIs
+    h = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/comparar"
+        f"?tipo_elemento=loja&elementos={l1['id']}&elementos={l2['id']}"
+    ).get_data(as_text=True)
+    assert "Loja Pior" in h and "Loja Melhor" in h
+    assert "Ratio" in h and "%Det" in h and "%Conv" in h
 
 
 def test_locais_tabela_densa_e_pills(client_loyall, db_session):
