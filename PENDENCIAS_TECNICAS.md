@@ -149,3 +149,17 @@ transparentes. A tabela `acoes_venda` já guarda `impacto_quant_json`
 No Bloco 7 as ações N5 aparecem **inline** no card do tema/cruzamento. A
 **aba dedicada** "Planos de Ação" (visão consolidada, priorização por
 impacto/peso, export) é escopo do **Bloco 8**.
+
+---
+
+## Geradores de ação emitindo perspectiva nativamente — Bloco 8
+
+**Origem:** CP-B2.2 (Planos de Ação). Hoje a perspectiva de consultoria
+(Marketing/Tecnologia/Processos/…) é atribuída por um **classificador LLM em 2ª
+passada** (overlay `acoes_status.perspectiva`), porque as ações já existentes
+(N5/Diagnóstico/Anomalia) não carregam a tag.
+
+**Ação (próxima rodada de geradores):** quando os prompts de geração de ação
+forem revisados (Diagnóstico, Anomalia editorial, N5), fazer cada um **emitir a
+perspectiva nativamente** no momento da criação — eliminando a 2ª passada de
+classificação. O overlay continua válido para ações legadas.
