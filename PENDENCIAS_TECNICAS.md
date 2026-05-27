@@ -163,3 +163,25 @@ passada** (overlay `acoes_status.perspectiva`), porque as ações já existentes
 forem revisados (Diagnóstico, Anomalia editorial, N5), fazer cada um **emitir a
 perspectiva nativamente** no momento da criação — eliminando a 2ª passada de
 classificação. O overlay continua válido para ações legadas.
+
+---
+
+## Classifier — escalar p/ Sonnet em falha persistente do Haiku
+
+**Origem:** detour #3 (classificar 158 verbatins `None:None` da BH Airport),
+2026-05-27.
+
+**Diagnóstico:** o fence/JSON já são tratados. O problema real é o **Haiku
+mal-formatar verbatins vagos** ("boa", "Muito a melhorar.", "salgados e cafés"):
+ora põe um **tipo no campo `subpilar`** (`"conversivel"` → inválido), ora **quebra
+o JSON**. Parte é não-determinística (resolvida pelo reroll `HAIKU_PARSE_RETRIES=3`,
+commit `aff8821`), mas **~47/158 falham consistentemente nas 3 tentativas** — o
+Haiku erra do mesmo jeito sempre nesses textos sem âncora.
+
+**Estado:** 111/158 classificados; 47 seguem `None`. São elogios genéricos sem
+objeto identificável — baixo valor analítico (cairiam em `sem_lastro/inativo`).
+
+**Ação (quando valer):** ao esgotar os rerolls do Haiku, **escalar para Sonnet**
+(segue o schema com confiabilidade) antes de desistir — ou um ajuste no prompt
+do classificador reforçando que `subpilar` nunca recebe um valor de `tipo`.
+Custo extra só nos casos de falha. Resolveria os 47.
