@@ -1,0 +1,112 @@
+{# Tab Evolução — série temporal de ratio (Chart.js). Layout amplo p/ reunião. #}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
+{% set agr = evolucao.agrupar_por %}
+
+{# ── Controles (linha única) ── #}
+<form hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='evolucao') }}"
+      hx-target="#explorar-conteudo" hx-swap="innerHTML"
+      class="flex flex-wrap items-end gap-4 mb-4 text-sm">
+  <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
+  <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
+  <label class="flex flex-col gap-1">
+    <span class="text-xs text-loyall-500">Granularidade</span>
+    <select name="granularidade" onchange="this.form.requestSubmit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="mes" {% if evolucao.granularidade=='mes' %}selected{% endif %}>Mensal</option>
+      <option value="trimestre" {% if evolucao.granularidade=='trimestre' %}selected{% endif %}>Trimestral</option>
+      <option value="semestre" {% if evolucao.granularidade=='semestre' %}selected{% endif %}>Semestral</option>
+    </select>
+  </label>
+  <label class="flex flex-col gap-1">
+    <span class="text-xs text-loyall-500">Agrupar por</span>
+    <select name="agrupar_por" onchange="this.form.requestSubmit()" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="empresa" {% if agr=='empresa' %}selected{% endif %}>Empresa (total)</option>
+      <option value="agrupamento" {% if agr=='agrupamento' %}selected{% endif %}>Agrupamento</option>
+      <option value="subpilar" {% if agr=='subpilar' %}selected{% endif %}>Subpilar</option>
+      <option value="loja" {% if agr=='loja' %}selected{% endif %}>Local</option>
+    </select>
+  </label>
+  {% if agr != 'empresa' %}
+  <label class="flex flex-col gap-1 flex-1 min-w-[280px]">
+    <span class="text-xs text-loyall-500">Séries (até 5 — vazio = top 5 por volume)</span>
+    <select name="valores" multiple size="5" class="w-full px-2 py-1 border border-loyall-200 rounded text-sm">
+      {% for o in evolucao.opcoes %}
+      <option value="{{ o.v }}" {% if o.v in evolucao.selecionados %}selected{% endif %}>{{ o.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit" class="px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 font-medium">Aplicar</button>
+  {% endif %}
+</form>
+
+{# ── Gráfico (largura total, alto) ── #}
+{% if not evolucao.buckets %}
+<div class="text-center text-loyall-400 py-16 border border-dashed border-loyall-200 rounded-lg">
+  Sem série no escopo/período selecionado.
+</div>
+{% else %}
+<div class="bg-white border border-loyall-200 rounded-lg p-5">
+  <div style="height:480px"><canvas id="ev-chart"></canvas></div>
+  <p class="text-xs text-loyall-400 mt-3">
+    Linhas tracejadas: referência de faixa — <span class="text-amber-700">1,0 (limite atenção)</span> e
+    <span class="text-emerald-700">2,0 (limite bom)</span>. Lacunas = períodos sem dados.
+  </p>
+</div>
+<script type="application/json" id="ev-data">{{ {'buckets': evolucao.buckets, 'series': evolucao.series} | tojson }}</script>
+<script>
+  (function () {
+    function draw() {
+      if (!window.Chart) { return setTimeout(draw, 60); }  // espera Chart.js do base.html
+      var el = document.getElementById('ev-chart');
+      var raw = document.getElementById('ev-data');
+      if (!el || !raw) return;
+      var payload = JSON.parse(raw.textContent);
+      if (window._evChart) { try { window._evChart.destroy(); } catch (e) {} }
+      // Paleta consistente e distinguível (até 5 séries + 2 referências).
+      var palette = ["#2563eb", "#d97706", "#dc2626", "#059669", "#7c3aed", "#0891b2", "#be185d"];
+      var datasets = payload.series.map(function (s, i) {
+        var col = palette[i % palette.length];
+        return {
+          label: s.label, data: s.ratio, borderColor: col, backgroundColor: col + "22",
+          borderWidth: 2.5, tension: 0.25, spanGaps: false, pointRadius: 3, pointHoverRadius: 5,
+        };
+      });
+      var n = payload.buckets.length;
+      datasets.push({label: "limite atenção (1,0)", data: Array(n).fill(1.0),
+        borderColor: "#f59e0b", borderDash: [6, 4], borderWidth: 1, pointRadius: 0, fill: false});
+      datasets.push({label: "limite bom (2,0)", data: Array(n).fill(2.0),
+        borderColor: "#10b981", borderDash: [6, 4], borderWidth: 1, pointRadius: 0, fill: false});
+      window._evChart = new Chart(el.getContext('2d'), {
+        type: 'line',
+        data: {labels: payload.buckets, datasets: datasets},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: {mode: 'index', intersect: false},
+          scales: {
+            y: {title: {display: true, text: 'Ratio (promotor / detrator)'},
+                suggestedMin: 0, suggestedMax: 3, grid: {color: '#eef0f2'}},
+            x: {grid: {color: '#f6f7f8'}},
+          },
+          plugins: {
+            legend: {position: 'top', align: 'start', labels: {usePointStyle: true, boxWidth: 8, font: {size: 12}}},
+            tooltip: {
+              callbacks: {
+                afterBody: function (items) {
+                  if (!items.length) return '';
+                  var s = payload.series[items[0].datasetIndex];
+                  var i = items[0].dataIndex;
+                  if (!s || !s.total) return '';
+                  var r = s.ratio[i];
+                  return 'ratio ' + (r == null ? '—' : r) +
+                         ' · total ' + s.total[i] + ' · det ' + s.detratores[i] +
+                         ' · prom ' + s.promotores[i];
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+    draw();
+  })();
+</script>
+{% endif %}

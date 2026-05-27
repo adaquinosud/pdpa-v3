@@ -74,10 +74,29 @@ def test_tab_heatmap_matriz(client_loyall, db_session):
     assert "subpilar=D2" in html  # drill p/ verbatins na célula
 
 
-def test_tab_evolucao_placeholder(client_loyall, db_session):
-    e, a, locs = _ctx(client_loyall, "ph")
-    html = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/evolucao").get_data(as_text=True)
-    assert "Em construção" in html and "CP-A4" in html
+def test_tab_evolucao_grafico(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ev")
+    (l1, f1), _ = locs
+    _verb(db_session, e, l1, f1, "D2", "detrator", 3)
+    _verb(db_session, e, l1, f1, "D2", "promotor", 2)
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/evolucao").get_data(as_text=True)
+    assert "Granularidade" in h and "Agrupar por" in h  # controles
+    assert 'id="ev-chart"' in h and 'id="ev-data"' in h  # canvas + payload JSON
+    assert "limite atenção" in h  # legenda das linhas de referência
+
+
+def test_evolucao_agrupar_subpilar_multiselect(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "evs")
+    (l1, f1), _ = locs
+    _verb(db_session, e, l1, f1, "D2", "promotor", 2)
+    _verb(db_session, e, l1, f1, "P1", "detrator", 2)
+    db_session.commit()
+    h = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/evolucao?agrupar_por=subpilar"
+    ).get_data(as_text=True)
+    assert "Séries" in h and 'name="valores"' in h  # multi-select aparece
+    assert 'id="ev-data"' in h
 
 
 def test_tab_comparar_seletor_e_kpis(client_loyall, db_session):

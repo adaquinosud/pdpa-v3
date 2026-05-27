@@ -2439,6 +2439,123 @@ def _explorar_comparar(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loj
     return cards
 
 
+def _ev_bucket(periodo, granularidade):
+    """'YYYY-MM' → rótulo do bucket conforme granularidade."""
+    y, m = periodo.split("-")
+    mi = int(m)
+    if granularidade == "trimestre":
+        return f"{y}-T{(mi - 1) // 3 + 1}"
+    if granularidade == "semestre":
+        return f"{y}-S{(mi - 1) // 6 + 1}"
+    return periodo
+
+
+def _explorar_evolucao_opcoes(s, empresa_id, ag_id, corte, agrupar_por):
+    """Valores selecionáveis para a série, conforme agrupar_por."""
+    if agrupar_por in ("loja", "subpilar"):
+        return _explorar_comparar_opcoes(s, empresa_id, ag_id, corte, agrupar_por)
+    if agrupar_por == "agrupamento":
+        from src.models.agrupamento import Agrupamento
+
+        ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
+        return [SimpleNamespace(v=str(a.id), label=a.nome) for a in ags]
+    return []  # empresa (total) — sem seleção
+
+
+def _explorar_evolucao(
+    s, empresa_id, ag_id=None, corte=None, granularidade="mes", agrupar_por="empresa", valores=None
+):
+    """Série temporal de ratio a partir de ``ratios_mensais`` (ML CP-2). Agrega
+    por bucket (mês/trimestre/semestre) × grupo (empresa/subpilar/loja/agrupamento),
+    null em buckets vazios (gap). Sem seleção explícita → top-5 grupos por volume.
+    Guarda de frescor: popula ratios_mensais se estiver vazia."""
+    from src.api.painel import NOME_SUBPILAR, calcular_ratio
+    from src.models.agrupamento import Agrupamento
+    from src.models.anomalia import RatioMensal
+    from src.models.local import Local
+
+    if s.query(RatioMensal.id).filter(RatioMensal.empresa_id == empresa_id).first() is None:
+        from src.anomalias.ratios import recomputar_ratios_mensais
+
+        recomputar_ratios_mensais(empresa_id)
+
+    valores = [v for v in (valores or []) if v][:5]
+    q = s.query(RatioMensal).filter(RatioMensal.empresa_id == empresa_id)
+    if ag_id is not None:
+        q = q.filter(RatioMensal.agrupamento_id == ag_id)
+    if corte is not None:
+        q = q.filter(RatioMensal.periodo >= corte.strftime("%Y-%m"))
+    if agrupar_por == "subpilar" and valores:
+        q = q.filter(RatioMensal.subpilar.in_(valores))
+    elif agrupar_por == "loja" and valores:
+        q = q.filter(RatioMensal.local_id.in_([int(v) for v in valores if v.isdigit()]))
+    elif agrupar_por == "agrupamento" and valores:
+        q = q.filter(RatioMensal.agrupamento_id.in_([int(v) for v in valores if v.isdigit()]))
+
+    agg = {}
+    grupos = set()
+    for r in q.all():
+        b = _ev_bucket(r.periodo, granularidade)
+        if agrupar_por == "subpilar":
+            g = r.subpilar
+        elif agrupar_por == "loja":
+            g = r.local_id
+        elif agrupar_por == "agrupamento":
+            g = r.agrupamento_id
+        else:
+            g = ""
+        if g is None:
+            continue
+        grupos.add(g)
+        d = agg.setdefault((b, g), {"prom": 0, "det": 0, "tot": 0})
+        d["prom"] += r.promotor or 0
+        d["det"] += r.detrator or 0
+        d["tot"] += r.total or 0
+
+    buckets = sorted({b for (b, _) in agg})
+    if agrupar_por == "loja":
+        nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(list(grupos))).all()}
+    elif agrupar_por == "agrupamento":
+        nomes = {
+            x.id: x.nome
+            for x in s.query(Agrupamento).filter(Agrupamento.id.in_(list(grupos))).all()
+        }
+    else:
+        nomes = {}
+
+    grupos_ord = sorted(
+        grupos, key=lambda g: -sum(agg[(b, g)]["tot"] for b in buckets if (b, g) in agg)
+    )
+    if agrupar_por != "empresa" and not valores:
+        grupos_ord = grupos_ord[:5]  # default: top-5 por volume p/ não poluir
+
+    series = []
+    for g in grupos_ord:
+        if agrupar_por == "empresa":
+            label = "Empresa (total)"
+        elif agrupar_por == "subpilar":
+            label = f"{g} · {NOME_SUBPILAR.get(g, g)}"
+        else:
+            label = nomes.get(g, str(g))
+        ratio, det, prom, tot = [], [], [], []
+        for b in buckets:
+            d = agg.get((b, g))
+            if d is None or d["tot"] == 0:
+                ratio.append(None)
+                det.append(0)
+                prom.append(0)
+                tot.append(0)
+            else:
+                ratio.append(calcular_ratio(d["prom"], d["det"]))
+                det.append(d["det"])
+                prom.append(d["prom"])
+                tot.append(d["tot"])
+        series.append(
+            {"label": label, "ratio": ratio, "detratores": det, "promotores": prom, "total": tot}
+        )
+    return {"buckets": buckets, "series": series}
+
+
 def _explorar_contexto(empresa_id, tab):
     """Monta o contexto comum (empresa, agrupamentos, filtros, dados da tab)."""
     filtros, ag_id, corte = _explorar_filtros()
@@ -2483,6 +2600,25 @@ def _explorar_contexto(empresa_id, tab):
                     else []
                 ),
             }
+        evolucao = None
+        if tab == "evolucao":
+            gran = request.args.get("granularidade", "mes")
+            gran = gran if gran in ("mes", "trimestre", "semestre") else "mes"
+            agr = request.args.get("agrupar_por", "empresa")
+            agr = agr if agr in ("empresa", "subpilar", "loja", "agrupamento") else "empresa"
+            raw = request.args.getlist("valores")
+            if len(raw) == 1 and "," in raw[0]:
+                raw = raw[0].split(",")
+            valores = [v for v in raw if v][:5]
+            dados = _explorar_evolucao(s, empresa_id, ag_id, corte, gran, agr, valores)
+            evolucao = {
+                "granularidade": gran,
+                "agrupar_por": agr,
+                "opcoes": _explorar_evolucao_opcoes(s, empresa_id, ag_id, corte, agr),
+                "selecionados": valores,
+                "buckets": dados["buckets"],
+                "series": dados["series"],
+            }
     return {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
@@ -2491,6 +2627,7 @@ def _explorar_contexto(empresa_id, tab):
         "locais": locais,
         "heatmap": heatmap,
         "comparar": comparar,
+        "evolucao": evolucao,
     }
 
 

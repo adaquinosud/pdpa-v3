@@ -6,11 +6,11 @@
   {% include 'partials/explorar_heatmap.html' %}
 {% elif tab == 'comparar' %}
   {% include 'partials/explorar_comparar.html' %}
+{% elif tab == 'evolucao' %}
+  {% include 'partials/explorar_evolucao.html' %}
 {% else %}
-  {% set _labels = {'evolucao': ('Evolução', 'CP-A4')} %}
-  {% set _l = _labels.get(tab, (tab, '')) %}
   <div class="text-center text-loyall-400 py-16 border border-dashed border-loyall-200 rounded-lg">
-    <div class="text-lg font-medium text-loyall-500">{{ _l[0] }}</div>
-    <div class="text-sm mt-1">Em construção — {{ _l[1] }}.</div>
+    <div class="text-lg font-medium text-loyall-500">{{ tab }}</div>
+    <div class="text-sm mt-1">Em construção.</div>
   </div>
 {% endif %}
