@@ -45,7 +45,7 @@
     {% for qa in ia.recentes %}
     <details class="border border-loyall-200 rounded-lg">
       <summary class="px-3 py-2 text-sm font-medium text-loyall-700 cursor-pointer hover:bg-loyall-50">{{ qa.pergunta }}</summary>
-      <div class="px-3 py-2 text-sm text-loyall-700 leading-relaxed border-t border-loyall-100 whitespace-pre-line">{{ qa.resposta }}</div>
+      <div class="px-3 py-2 text-sm text-loyall-700 leading-relaxed border-t border-loyall-100 space-y-2">{{ qa.resposta | md_leve }}</div>
     </details>
     {% endfor %}
   </div>

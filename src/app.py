@@ -43,6 +43,11 @@ def create_app() -> Flask:
     def _selo_emoji(volume) -> str:
         return selo_confianca(int(volume or 0))[1]
 
+    # Markdown leve nas respostas do IA Chat (CP-B4): bold + listas + quebras.
+    from src.utils.markdown_leve import render_md_leve
+
+    app.add_template_filter(render_md_leve, "md_leve")
+
     _register_cli_commands(app)
 
     @app.route("/health")
