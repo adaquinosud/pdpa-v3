@@ -20,6 +20,7 @@ from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
 from src.models.local import Local, LocalMetadado
+from src.models.plano_acao import AcaoStatus
 from src.models.temas import (
     AcaoVenda,
     Tema,
@@ -34,6 +35,7 @@ from src.models.verbatim import Verbatim
 from src.models.verbatim_reclassificacao import VerbatimReclassificacao
 
 __all__ = [
+    "AcaoStatus",
     "AcaoVenda",
     "Agrupamento",
     "AnomaliaDetectada",
