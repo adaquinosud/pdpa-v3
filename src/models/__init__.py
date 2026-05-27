@@ -15,6 +15,7 @@ from src.models.anomalia import (
 from src.models.base import Base
 from src.models.classifier_metric import ClassifierMetric
 from src.models.coleta_execucao import ColetaExecucao
+from src.models.diagnostico import LeituraDiagnostico
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
@@ -45,6 +46,7 @@ __all__ = [
     "Empresa",
     "EventoManutencao",
     "Fonte",
+    "LeituraDiagnostico",
     "Local",
     "LocalMetadado",
     "Tema",
