@@ -122,7 +122,9 @@
 {# ── Métricas consolidadas (Manual Cap. 4) ────────────────────────────── #}
 {% set ig_cls = {'saudavel':'emerald','atencao':'amber','critico':'rose'}.get(n1.indice_geral_faixa, 'slate') %}
 {% set conc_cls = {'cirurgico':'amber','misto':'slate','sistemico':'rose','indisponivel':'slate'}.get(n1.concentracao_faixa, 'slate') %}
-<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+{% set eng_cls = 'emerald' if n1.indice_engajamento >= 70 else ('amber' if n1.indice_engajamento >= 40 else 'rose') %}
+{% set eng_selo_txt = {'alta':'volume robusto','media':'volume moderado','baixa':'volume insuficiente'}.get(n1.engajamento_selo, '') %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Índice Geral</div>
     <div class="flex items-baseline gap-2 mt-1">
@@ -152,6 +154,22 @@
     <div class="mt-1 text-loyall-300 text-3xl font-bold">—</div>
     <div class="text-xs text-loyall-400 mt-1">Onde dói. Indisponível: precisa ≥ 5 lojas com volume mínimo.</div>
     {% endif %}
+  </div>
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="flex items-center justify-between">
+      <div class="text-xs uppercase tracking-wider text-loyall-400">Índice de Engajamento</div>
+      <span title="Confiança estatística por volume: {{ eng_selo_txt }} ({{ n1.engajamento_volume }} verbatins)" class="cursor-help text-sm">{{ n1.engajamento_selo_emoji }}</span>
+    </div>
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-{{ eng_cls }}-600">{{ n1.indice_engajamento }}</span>
+      <span class="text-sm text-loyall-400">/ 100</span>
+    </div>
+    <div class="mt-2 flex gap-2 text-[11px] text-loyall-500">
+      <span title="Diversidade de fontes ativas / cadastradas">Fontes {{ n1.engajamento_fontes_ativas }}/{{ n1.engajamento_fontes_cadastradas }}</span>
+      <span class="text-loyall-300">·</span>
+      <span title="Consistência: meses com verbatim na janela">Regularidade {{ (100 * n1.engajamento_componentes.consistencia) | round | int }}%</span>
+    </div>
+    <div class="text-xs text-loyall-400 mt-2">Pré-condição operacional. Sem volume/diversidade/regularidade, os demais indicadores são especulativos.</div>
   </div>
 </div>
 

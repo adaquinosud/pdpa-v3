@@ -69,6 +69,77 @@ def volume_suficiente_ranking(volume: int) -> bool:
     return volume >= VOLUME_CONFIANCA_MEDIA
 
 
+def engajamento_escopo(empresa_id: int, s, base_query_args: Dict) -> Dict:
+    """Índice de Engajamento de um escopo (empresa/agrupamento/local) — camada de
+    dados. No nível empresa o volume_norm satura (volume_max=volume → 1.0): o
+    índice fica em [50,100] e diferencia por diversidade+consistência; o selo
+    (volume absoluto) carrega o sinal de volume insuficiente. Mesmos filtros do
+    painel (agrupamento/local/fonte/período)."""
+    from sqlalchemy import func
+
+    from src.models.fonte import Fonte
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    q = s.query(Verbatim).filter(Verbatim.empresa_id == empresa_id)
+    ag = base_query_args.get("agrupamento_id")
+    if ag:
+        try:
+            locais_ag = [
+                lid
+                for (lid,) in s.query(Local.id)
+                .filter_by(empresa_id=empresa_id, agrupamento_id=int(ag))
+                .all()
+            ]
+            q = q.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("local_id"):
+        try:
+            q = q.filter(Verbatim.local_id == int(base_query_args["local_id"]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("fonte_id"):
+        try:
+            q = q.filter(Verbatim.fonte_id == int(base_query_args["fonte_id"]))
+        except (ValueError, TypeError):
+            pass
+    if base_query_args.get("data_inicio_periodo"):
+        q = q.filter(Verbatim.data_criacao_original >= base_query_args["data_inicio_periodo"])
+
+    volume = q.count()
+    fontes_ativas = q.with_entities(func.count(func.distinct(Verbatim.fonte_id))).scalar() or 0
+    fontes_cad = s.query(func.count(Fonte.id)).filter(Fonte.empresa_id == empresa_id).scalar() or 0
+    mes = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    meses_com = (
+        q.with_entities(func.count(func.distinct(mes)))
+        .filter(Verbatim.data_criacao_original.isnot(None))
+        .scalar()
+        or 0
+    )
+    meses_total = (
+        s.query(func.count(func.distinct(mes)))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.data_criacao_original.isnot(None))
+        .scalar()
+        or 0
+    )
+    # volume_max = volume → vol_norm satura em 1.0 no agregado (ver docstring).
+    idx = indice_engajamento(volume, volume, fontes_ativas, fontes_cad, meses_com, meses_total)
+    comp = componentes_engajamento(
+        volume, volume, fontes_ativas, fontes_cad, meses_com, meses_total
+    )
+    nivel, emoji, _ = selo_confianca(volume)
+    return {
+        "indice": idx,
+        "componentes": comp,
+        "volume": volume,
+        "fontes_ativas": fontes_ativas,
+        "fontes_cadastradas": fontes_cad,
+        "selo": nivel,
+        "selo_emoji": emoji,
+    }
+
+
 def componentes_engajamento(
     volume: int,
     volume_max: int,

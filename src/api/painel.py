@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 
+from src.api.engajamento import engajamento_escopo
 from src.auth import cliente_pode_ver_empresa
 from src.models.local import Local
 from src.models.verbatim import Verbatim
@@ -676,6 +677,9 @@ def painel_nivel1(empresa_id: int):
 
         previsibilidade = calcular_previsibilidade(empresa_id, s, filtros_query, pct_conv)
         concentracao_pct = calcular_concentracao_detratores(empresa_id, s, filtros_query)
+        # Engajamento (CP-E1): 4º indicador — pré-condição operacional (volume/
+        # diversidade/consistência) + selo de confiança por volume.
+        engaj = engajamento_escopo(empresa_id, s, filtros_query)
 
         # Texto descritivo do escopo (hotfix UI 2026-05-24).
         from src.models.agrupamento import Agrupamento
@@ -730,6 +734,14 @@ def painel_nivel1(empresa_id: int):
             "previsibilidade": previsibilidade,
             "concentracao_detratores": concentracao_pct,
             "concentracao_faixa": faixa_concentracao(concentracao_pct),
+            # Engajamento (CP-E1): índice 0-100 + componentes + selo de confiança.
+            "indice_engajamento": engaj["indice"],
+            "engajamento_componentes": engaj["componentes"],
+            "engajamento_selo": engaj["selo"],
+            "engajamento_selo_emoji": engaj["selo_emoji"],
+            "engajamento_volume": engaj["volume"],
+            "engajamento_fontes_ativas": engaj["fontes_ativas"],
+            "engajamento_fontes_cadastradas": engaj["fontes_cadastradas"],
             # Hotfix UI: texto descritivo do escopo p/ os 3 cards
             "filtros_descricao": filtros_descricao,
         }

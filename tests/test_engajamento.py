@@ -1,16 +1,19 @@
-"""Tests do Engajamento CP-E0 (fórmula + selo + gate). Puro, sem DB/LLM."""
+"""Tests do Engajamento CP-E0 (fórmula + selo + gate) e CP-E1 (escopo c/ DB)."""
 
 from __future__ import annotations
 
 import math
+from datetime import datetime
 
 from src.api.engajamento import (
     componentes_engajamento,
+    engajamento_escopo,
     fator_confianca,
     indice_engajamento,
     selo_confianca,
     volume_suficiente_ranking,
 )
+from src.models.verbatim import Verbatim
 
 
 def test_indice_componentes_e_pesos():
@@ -62,3 +65,46 @@ def test_componentes_log1p_valor():
     c = componentes_engajamento(10, 100, 1, 2, 6, 12)
     assert c["volume_norm"] == round(math.log1p(10) / math.log1p(100), 3)
     assert c["consistencia"] == 0.5
+
+
+def test_engajamento_escopo_empresa(client_loyall, db_session):
+    """CP-E1: índice no escopo empresa — volume_norm satura (1.0), diversidade=
+    ativas/cadastradas, consistencia=meses. 1 fonte ativa de 2, 2 meses."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "EEng"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L", "agrupamento_id": a["id"]}
+    ).get_json()
+    f1 = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": "ChIJ_f1"}
+    ).get_json()
+    # f2 cadastrada mas SEM verbatim → diversidade = 1/2 = 0.5
+    client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes",
+        json={"conector_tipo": "tripadvisor", "url": "ChIJ_f2"},
+    )
+    # 30 verbatins (selo alta), em 2 meses distintos (consistencia 2/2 = 1.0)
+    for i in range(30):
+        mes = 4 if i < 15 else 5
+        db_session.add(
+            Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f1["id"],
+                local_id=loc["id"],
+                texto=f"v{i}",
+                tem_texto=True,
+                data_criacao_original=datetime(2026, mes, 1),
+                hash_dedup=f"he{i}-{datetime.utcnow().timestamp()}",
+            )
+        )
+    db_session.commit()
+
+    r = engajamento_escopo(e["id"], db_session, {})
+    assert r["volume"] == 30
+    assert r["fontes_ativas"] == 1 and r["fontes_cadastradas"] == 2
+    assert r["componentes"]["volume_norm"] == 1.0  # volume_max=volume → satura
+    assert r["componentes"]["diversidade"] == 0.5
+    assert r["componentes"]["consistencia"] == 1.0
+    # índice = 50 (vol) + 0.5*30 (div) + 1.0*20 (cons) = 85
+    assert r["indice"] == 85
+    assert r["selo"] == "alta" and r["selo_emoji"] == "🟢"
