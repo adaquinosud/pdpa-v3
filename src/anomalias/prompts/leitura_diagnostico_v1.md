@@ -14,7 +14,9 @@ Campos podem vir `null`. Use só o que existe.
 - `tema_detrator_dominante` — o tema que mais puxa as críticas neste subpilar (ou null)
 - `exemplos` — verbatins reais (use como evidência; nunca invente)
 - `eh_gargalo` (bool) — este subpilar pertence ao pilar gargalo do Lastro
-- `gargalo_pilar` — qual pilar é o gargalo (contexto sequencial P→D→Pa→A)
+- `gargalo_pilar` (código) · `gargalo_pilar_nome` — o pilar gargalo (contexto
+  sequencial P→D→Pa→A). **Use SEMPRE `gargalo_pilar_nome` ao citar o gargalo — nunca
+  invente outro nome para o pilar.**
 - `setor` — setor da empresa (ou null)
 
 ## Saída — SEMPRE estas 2 chaves (JSON puro, nesta ordem)

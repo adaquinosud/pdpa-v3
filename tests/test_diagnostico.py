@@ -68,6 +68,7 @@ def test_payload_e_gargalo(client_loyall, db_session):
 
     p = montar_payload_subpilar(db_session, e["id"], None, "D2", agg["D2"], _gargalo(agg))
     assert p["pilar"] == "D" and p["eh_gargalo"] is True and p["gargalo_pilar"] == "D"
+    assert p["gargalo_pilar_nome"] == "Disponibilidade"  # nome canônico, não inventado
     assert p["det"] == 8 and p["prom"] == 1 and p["faixa"] == "critico"
     assert len(p["exemplos"]) == 3  # verbatins detrator de exemplo
 

@@ -139,6 +139,7 @@ def montar_payload_subpilar(s, empresa_id, ag_id, subpilar, dados, gargalo) -> D
         "exemplos": exemplos,
         "eh_gargalo": pilar == gargalo,
         "gargalo_pilar": gargalo,
+        "gargalo_pilar_nome": NOME_PILAR.get(gargalo) if gargalo else None,
         "setor": emp.setor if emp else None,
     }
 
