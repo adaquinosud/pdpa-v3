@@ -4,10 +4,32 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.diagnostico.leituras import resolver_escopo
+from src.diagnostico.leituras import (
+    agregar_subpilares,
+    loja_qualifica,
+    montar_payload_subpilar,
+    resolver_escopo,
+)
 from src.models.diagnostico import LeituraDiagnostico
 from src.models.sugestao_estrutural import SugestaoEstrutural
 from src.models.verbatim import Verbatim
+
+
+def _vb(db_session, e, loc, f, sub, tipo, n, texto="v"):
+    for i in range(n):
+        db_session.add(
+            Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f["id"],
+                local_id=loc["id"],
+                texto=f"{texto}-{sub}-{tipo}-{i}",
+                subpilar=sub,
+                tipo=tipo,
+                tem_texto=True,
+                data_criacao_original=datetime(2026, 5, 1),
+                hash_dedup=f"hv{loc['id']}{sub}{tipo}{i}-{datetime.utcnow().timestamp()}",
+            )
+        )
 
 
 def _ctx(client_loyall, sfx):
@@ -68,6 +90,55 @@ def test_resolver_escopo_sem_material(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "vazio")
     r = resolver_escopo(db_session, LeituraDiagnostico, e["id"], ag_id=a["id"])
     assert r["origem"] is None
+
+
+def _segunda_loja(client_loyall, e, a, sfx):
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L2", "agrupamento_id": a["id"]}
+    ).get_json()
+    f = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": f"ChIJ2_{sfx}"}
+    ).get_json()
+    return loc, f
+
+
+def test_agregar_por_loja_isola(client_loyall, db_session):
+    """CP-A2: agregação com local_id conta só a loja (não vaza da irmã)."""
+    e, a, l1, f1 = _ctx(client_loyall, "agg")
+    l2, f2 = _segunda_loja(client_loyall, e, a, "agg")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 5)
+    _vb(db_session, e, l2, f2, "D2", "promotor", 7)
+    db_session.commit()
+    # empresa: vê as duas
+    emp = agregar_subpilares(db_session, e["id"])
+    assert emp["D2"]["det"] == 5 and emp["D2"]["prom"] == 7
+    # loja 1: só os 5 detratores dela
+    a1 = agregar_subpilares(db_session, e["id"], local_id=l1["id"])
+    assert a1["D2"]["det"] == 5 and a1["D2"]["prom"] == 0
+
+
+def test_gate_loja_qualifica(client_loyall, db_session):
+    """CP-A2: gate ≥30 verbatins classificados para diagnóstico próprio."""
+    e, a, l1, f1 = _ctx(client_loyall, "gate")
+    l2, f2 = _segunda_loja(client_loyall, e, a, "gate")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 30)  # exatamente 30 → qualifica
+    _vb(db_session, e, l2, f2, "D2", "detrator", 29)  # 29 → herda
+    db_session.commit()
+    assert loja_qualifica(db_session, e["id"], l1["id"]) is True
+    assert loja_qualifica(db_session, e["id"], l2["id"]) is False
+
+
+def test_payload_loja_usa_exemplos_da_loja(client_loyall, db_session):
+    """CP-A2: payload por loja puxa verbatins da própria loja."""
+    e, a, l1, f1 = _ctx(client_loyall, "pl")
+    l2, f2 = _segunda_loja(client_loyall, e, a, "pl")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 4, texto="problema-da-loja-1")
+    _vb(db_session, e, l2, f2, "D2", "detrator", 4, texto="problema-da-loja-2")
+    db_session.commit()
+    agg = agregar_subpilares(db_session, e["id"], local_id=l1["id"])
+    p = montar_payload_subpilar(db_session, e["id"], None, "D2", agg["D2"], "D", local_id=l1["id"])
+    assert p["volume"] == 4
+    assert all("loja-1" in ex for ex in p["exemplos"])  # só exemplos da loja 1
 
 
 def test_consolidar_herda_empresa_wide_sob_filtro_agrupamento(client_loyall, db_session):

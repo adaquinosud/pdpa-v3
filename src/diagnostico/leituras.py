@@ -35,10 +35,11 @@ def _locais_do_agrupamento(s, empresa_id: int, ag_id: int) -> List[int]:
 
 
 def agregar_subpilares(
-    s, empresa_id: int, ag_id: Optional[int] = None
+    s, empresa_id: int, ag_id: Optional[int] = None, local_id: Optional[int] = None
 ) -> Dict[str, Dict[str, Any]]:
-    """Mix prom/conv/det + ratio + faixa por subpilar, no escopo (empresa ou
-    agrupamento). Histórico completo — o diagnóstico é um retrato de estado."""
+    """Mix prom/conv/det + ratio + faixa por subpilar, no escopo (empresa,
+    agrupamento ou loja). ``local_id`` set ⟹ escopo loja (tem precedência).
+    Histórico completo — o diagnóstico é um retrato de estado."""
     from sqlalchemy import func
 
     from src.api.painel import calcular_ratio, faixa_ratio
@@ -49,7 +50,9 @@ def agregar_subpilares(
         .filter(Verbatim.empresa_id == empresa_id, Verbatim.subpilar.isnot(None))
         .group_by(Verbatim.subpilar, Verbatim.tipo)
     )
-    if ag_id is not None:
+    if local_id is not None:
+        q = q.filter(Verbatim.local_id == local_id)
+    elif ag_id is not None:
         q = q.filter(Verbatim.local_id.in_(_locais_do_agrupamento(s, empresa_id, ag_id)))
     bruto: Dict[str, Dict[str, int]] = {}
     for sub, tipo, n in q.all():
@@ -124,8 +127,32 @@ def _gargalo(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
     return min(ratios, key=ratios.get) if ratios else None
 
 
-def montar_payload_subpilar(s, empresa_id, ag_id, subpilar, dados, gargalo) -> Dict[str, Any]:
-    """Payload de negócio de um subpilar p/ o Sonnet (sem estatística crua)."""
+def loja_qualifica(s, empresa_id: int, local_id: int) -> bool:
+    """Gate do diagnóstico próprio (Bloco 9 CP-A2): a loja precisa de volume
+    classificado ≥ 30 (= VOLUME_CONFIANCA_ALTA, selo 🟢). Abaixo disso, herda."""
+    from sqlalchemy import func
+
+    from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+    from src.models.verbatim import Verbatim
+
+    n = (
+        s.query(func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id == local_id,
+            Verbatim.subpilar.isnot(None),
+        )
+        .scalar()
+        or 0
+    )
+    return n >= VOLUME_CONFIANCA_ALTA
+
+
+def montar_payload_subpilar(
+    s, empresa_id, ag_id, subpilar, dados, gargalo, local_id=None
+) -> Dict[str, Any]:
+    """Payload de negócio de um subpilar p/ o Sonnet (sem estatística crua).
+    ``local_id`` set ⟹ tema dominante e exemplos restritos à loja."""
     from sqlalchemy import func
 
     from src.api.painel import NOME_PILAR, NOME_SUBPILAR, PILARES_ORDEM
@@ -137,6 +164,8 @@ def montar_payload_subpilar(s, empresa_id, ag_id, subpilar, dados, gargalo) -> D
     pilar = _pilar_de(subpilar)
     lastro_sequencia = " → ".join(NOME_PILAR.get(p, p) for p in PILARES_ORDEM)
 
+    # Tema dominante: por loja não há TemaCache (é empresa/agrupamento) — cai pro
+    # agrupamento da loja quando em escopo loja; senão pelo ag/empresa.
     tq = s.query(TemaCache.tema_label, func.sum(TemaCache.volume)).filter(
         TemaCache.empresa_id == empresa_id,
         TemaCache.subpilar == subpilar,
@@ -153,7 +182,9 @@ def montar_payload_subpilar(s, empresa_id, ag_id, subpilar, dados, gargalo) -> D
         Verbatim.tipo == "detrator",
         Verbatim.tem_texto.is_(True),
     )
-    if ag_id is not None:
+    if local_id is not None:
+        eq = eq.filter(Verbatim.local_id == local_id)
+    elif ag_id is not None:
         eq = eq.filter(Verbatim.local_id.in_(_locais_do_agrupamento(s, empresa_id, ag_id)))
     exemplos = [t[:200] for (t,) in eq.limit(3).all() if t]
 
