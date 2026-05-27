@@ -266,6 +266,41 @@ def test_diagnostico_mostra_leitura_cacheada(client_loyall, db_session):
     assert "ainda não geradas" not in h  # banner some quando há leitura
 
 
+def test_tab_leaderboard_ranking_e_medalhas(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "lb")
+    (pior, fp), (melhor, fm) = locs
+    _verb(db_session, e, pior, fp, "D2", "promotor", 1)
+    _verb(db_session, e, pior, fp, "D2", "detrator", 3)  # ratio 0.33 → score baixo
+    _verb(db_session, e, melhor, fm, "D2", "promotor", 5)
+    _verb(db_session, e, melhor, fm, "D2", "detrator", 1)  # ratio 5 → score alto
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard").get_data(as_text=True)
+    assert "Score PDPA" in h and "🥇" in h  # ranking gamificado
+    assert "🏆" in h  # badge melhor ratio
+    # Loja Melhor (score maior) deve vir antes da Pior
+    assert h.index("Loja Melhor") < h.index("Loja Pior")
+
+
+def test_leaderboard_order_by_volume(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "lbo")
+    (pior, fp), (melhor, fm) = locs
+    _verb(db_session, e, pior, fp, "D2", "promotor", 1)
+    _verb(db_session, e, pior, fp, "D2", "detrator", 9)  # ratio baixo, volume 10
+    _verb(db_session, e, melhor, fm, "D2", "promotor", 5)
+    _verb(db_session, e, melhor, fm, "D2", "detrator", 1)  # ratio alto, volume 6
+    db_session.commit()
+    # por score: Melhor primeiro
+    hs = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard?order_by=score").get_data(
+        as_text=True
+    )
+    assert hs.index("Loja Melhor") < hs.index("Loja Pior")
+    # por volume: Pior (10) primeiro
+    hv = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/leaderboard?order_by=volume"
+    ).get_data(as_text=True)
+    assert hv.index("Loja Pior") < hv.index("Loja Melhor")
+
+
 def test_filtro_periodo_recorta(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "per")
     (loja, f), _ = locs

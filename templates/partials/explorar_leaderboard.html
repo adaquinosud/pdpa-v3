@@ -1,0 +1,73 @@
+{# Tab Leaderboard — ranking de locais por Índice Geral (0-10), medalhas, badges. #}
+{% set lb = leaderboard %}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
+{% set fclass = {
+  'critico':   {'bg':'bg-rose-100','text':'text-rose-700'},
+  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700'},
+  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800'},
+  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700'},
+  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800'},
+} %}
+{% set medals = {1:'🥇', 2:'🥈', 3:'🥉'} %}
+{% set max_score = (lb.linhas[0].score if lb.linhas else 10) or 10 %}
+
+<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+  <div>
+    <h3 class="text-sm font-semibold text-loyall-700">Leaderboard · Score PDPA</h3>
+    <p class="text-xs text-loyall-500">Score = Índice Geral (0-10) — pior pilar × média ponderada do Lastro.</p>
+  </div>
+  <div class="flex items-center gap-1 text-xs">
+    <span class="text-loyall-400 mr-1">Ordenar:</span>
+    {% for v, l in [('score','Score'),('ratio','Ratio'),('volume','Volume')] %}
+    <a hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='leaderboard') }}?{{ qs }}&order_by={{ v }}"
+       hx-target="#explorar-conteudo" hx-swap="innerHTML"
+       hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=leaderboard&{{ qs }}&order_by={{ v }}"
+       class="px-2 py-1 rounded border {% if lb.order_by==v %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">{{ l }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if not lb.linhas %}
+<div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Sem locais com verbatins classificados no escopo selecionado.
+</div>
+{% else %}
+<div class="space-y-2">
+  {% for l in lb.linhas %}
+  {% set pos = loop.index %}
+  {% set fc = fclass.get(l.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+  <div class="flex items-center gap-3 p-3 rounded-lg border {% if pos <= 3 %}border-amber-300 bg-amber-50/40{% else %}border-loyall-200 bg-white{% endif %}">
+    <div class="w-8 text-center text-lg shrink-0">{{ medals.get(pos, '') }}{% if pos > 3 %}<span class="text-xs text-loyall-400">#{{ pos }}</span>{% endif %}</div>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-medium text-loyall-800 truncate">{{ l.nome }}</span>
+        {% if l.cidade %}<span class="text-xs text-loyall-400">{{ l.cidade }}{% if l.uf %}/{{ l.uf }}{% endif %}</span>{% endif %}
+        {% for emoji, titulo in l.badges %}<span title="{{ titulo }}" class="cursor-help">{{ emoji }}</span>{% endfor %}
+      </div>
+      <div class="h-1.5 rounded bg-loyall-100 overflow-hidden mt-1.5" title="Score {{ l.score }}/10">
+        <div class="h-1.5 rounded" style="width: {{ (100 * l.score / max_score) | round(0,'floor') }}%; background: linear-gradient(90deg,#B89355,#1d3149)"></div>
+      </div>
+    </div>
+    <div class="text-right shrink-0">
+      <div class="text-xl font-bold text-loyall-800">{{ '%.1f'|format(l.score) }}</div>
+      <div class="text-[10px] text-loyall-400 uppercase">score</div>
+    </div>
+    <div class="text-center shrink-0 w-16">
+      <div class="text-sm font-bold text-loyall-700">{{ '%.2f'|format(l.ratio) }}</div>
+      <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span>
+    </div>
+    <div class="text-center shrink-0 w-14">
+      <div class="text-sm font-semibold text-amber-700">{{ l.pct_conv }}%</div>
+      <div class="text-[10px] text-loyall-400 uppercase">conv</div>
+    </div>
+    <div class="text-center shrink-0 w-12">
+      <div class="text-xs text-loyall-500">{{ l.total }}</div>
+      <div class="text-[10px] text-loyall-400 uppercase">verb</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div class="flex flex-wrap gap-3 mt-3 text-[11px] text-loyall-400">
+  <span>🏆 melhor ratio</span><span>📊 volume líder</span><span>🔄 maior conversão</span><span>✨ zero detratores</span>
+</div>
+{% endif %}

@@ -1921,7 +1921,15 @@ def htmx_disparar_fonte(fonte_id: int):
 
 # ── Hub Explorar (Grupo A) ────────────────────────────────────────────
 
-_EXPLORAR_TABS = ("locais", "heatmap", "comparar", "evolucao", "diagnostico", "planos")
+_EXPLORAR_TABS = (
+    "locais",
+    "heatmap",
+    "comparar",
+    "evolucao",
+    "diagnostico",
+    "planos",
+    "leaderboard",
+)
 
 
 def _explorar_filtros():
@@ -2639,6 +2647,106 @@ def _explorar_diagnostico(s, empresa_id, ag_id):
     )
 
 
+def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score"):
+    """Ranking de locais por Índice Geral (Bloco 5, 0-10) + faixa v3 + %conv +
+    badges on-the-fly. Sem proximidade/previsibilidade/selo/split físico-digital."""
+    from sqlalchemy import func
+
+    from src.api.painel import calcular_indice_geral, calcular_ratio, faixa_ratio
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    q = (
+        s.query(Verbatim.local_id, Verbatim.subpilar, Verbatim.tipo, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id.isnot(None),
+            Verbatim.subpilar.isnot(None),
+        )
+        .group_by(Verbatim.local_id, Verbatim.subpilar, Verbatim.tipo)
+    )
+    if ag_id is not None:
+        locais_ag = [
+            lid
+            for (lid,) in s.query(Local.id)
+            .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+            .all()
+        ]
+        q = q.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+
+    por_loja = {}
+    for lid, sub, tipo, n in q.all():
+        d = por_loja.setdefault(lid, {}).setdefault(
+            sub, {"promotor": 0, "conversivel": 0, "detrator": 0}
+        )
+        if tipo in d:
+            d[tipo] += int(n)
+    if not por_loja:
+        return []
+    nomes = {x.id: x for x in s.query(Local).filter(Local.id.in_(por_loja)).all()}
+
+    linhas = []
+    for lid, subs in por_loja.items():
+        matriz = []
+        prom = conv = det = 0
+        for sub, c in subs.items():
+            p, cv, dt = c["promotor"], c["conversivel"], c["detrator"]
+            matriz.append(
+                {
+                    "subpilar": sub,
+                    "ratio": calcular_ratio(p, dt),
+                    "total": p + cv + dt,
+                    "promotor": p,
+                    "detrator": dt,
+                }
+            )
+            prom += p
+            conv += cv
+            det += dt
+        total = prom + conv + det
+        if total == 0:
+            continue
+        loc = nomes.get(lid)
+        ratio = calcular_ratio(prom, det)
+        linhas.append(
+            SimpleNamespace(
+                id=lid,
+                nome=loc.nome if loc else f"loja {lid}",
+                cidade=loc.cidade if loc else None,
+                uf=loc.uf if loc else None,
+                score=calcular_indice_geral(matriz),
+                ratio=ratio,
+                faixa=faixa_ratio(ratio),
+                total=total,
+                promotor=prom,
+                conversivel=conv,
+                detrator=det,
+                pct_conv=round(100 * conv / total, 1) if total else 0.0,
+                badges=[],
+            )
+        )
+
+    # Badges on-the-fly (deterministas dos agregados atuais).
+    if linhas:
+        max(linhas, key=lambda x: x.ratio).badges.append(("🏆", "Melhor ratio"))
+        max(linhas, key=lambda x: x.total).badges.append(("📊", "Volume líder"))
+        melhor_conv = max(linhas, key=lambda x: x.pct_conv)
+        if melhor_conv.conversivel > 0:
+            melhor_conv.badges.append(("🔄", "Maior conversão"))
+        for x in linhas:
+            if x.detrator == 0 and x.total >= 5:
+                x.badges.append(("✨", "Zero detratores"))
+
+    chave = {
+        "ratio": lambda x: -x.ratio,
+        "volume": lambda x: -x.total,
+    }.get(order_by, lambda x: (-x.score, -x.total))
+    linhas.sort(key=chave)
+    return linhas
+
+
 _PERSP_LABELS = [
     ("marketing", "Marketing & Comunicação"),
     ("produto_preco", "Produto & Preço"),
@@ -2764,6 +2872,13 @@ def _explorar_contexto(empresa_id, tab):
                 "series": dados["series"],
             }
         diagnostico = _explorar_diagnostico(s, empresa_id, ag_id) if tab == "diagnostico" else None
+        leaderboard = None
+        if tab == "leaderboard":
+            ob = request.args.get("order_by", "score")
+            ob = ob if ob in ("score", "ratio", "volume") else "score"
+            leaderboard = SimpleNamespace(
+                linhas=_explorar_leaderboard(s, empresa_id, ag_id, corte, ob), order_by=ob
+            )
     planos = _explorar_planos(empresa_id, ag_id, request.args) if tab == "planos" else None
     return {
         "empresa": empresa_w,
@@ -2776,6 +2891,7 @@ def _explorar_contexto(empresa_id, tab):
         "evolucao": evolucao,
         "diagnostico": diagnostico,
         "planos": planos,
+        "leaderboard": leaderboard,
     }
 
 
