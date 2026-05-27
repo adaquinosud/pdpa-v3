@@ -780,6 +780,34 @@ def _register_cli_commands(app: Flask) -> None:
         for e in m["erros"]:
             click.echo(f"  ERRO {e['subpilar']}: {e['erro']}", err=True)
 
+    # ── Bloco 8 / Planos de Ação CP-B2.2: flask perspectivas-classificar ──
+    @app.cli.command("perspectivas-classificar")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option("--limite", type=int, default=None, help="Limita o nº de ações (amostra).")
+    def perspectivas_classificar(empresa_arg, limite):
+        """Classifica a perspectiva (1 das 6) das ações sem perspectiva, via Sonnet
+        em lote. Persiste no overlay acoes_status. Incremental. Custa LLM."""
+        from src.models.empresa import Empresa
+        from src.planos.perspectiva import classificar_perspectivas
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, empresa_nome = emp.id, emp.nome
+
+        click.echo(f"[perspectivas] empresa={empresa_nome!r} (id={empresa_id}) limite={limite}")
+        m = classificar_perspectivas(empresa_id, limite=limite)
+        click.echo(
+            f"[perspectivas] classificados={m['classificados']} falhas={m['falhas']} "
+            f"lotes={m['lotes']} tokens(in={m['in']} out={m['out']}) custo~${m['custo_usd']}"
+        )
+
 
 if __name__ == "__main__":
     app = create_app()
