@@ -101,6 +101,34 @@ def test_tab_comparar_seletor_e_kpis(client_loyall, db_session):
     assert "Ratio" in h and "%Det" in h and "%Conv" in h
 
 
+def test_comparar_sparkline_trimestral(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "spk")
+    (l1, f1), (l2, f2) = locs
+    # l1 com dados em 2 trimestres (T1 e T2 de 2026) → sparkline com 2 pontos
+    for mes, tipo, n in [("2026-01", "detrator", 3), ("2026-05", "promotor", 4)]:
+        for i in range(n):
+            db_session.add(
+                Verbatim(
+                    empresa_id=e["id"],
+                    fonte_id=f1["id"],
+                    local_id=l1["id"],
+                    texto=f"x{mes}{i}",
+                    subpilar="D2",
+                    tipo=tipo,
+                    tem_texto=True,
+                    data_criacao_original=datetime.fromisoformat(mes + "-15"),
+                    hash_dedup=f"hs{mes}{i}-{datetime.utcnow().timestamp()}",
+                )
+            )
+    _verb(db_session, e, l2, f2, "D2", "promotor", 2)  # par comparável
+    db_session.commit()
+    h = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/comparar"
+        f"?tipo_elemento=loja&elementos={l1['id']}&elementos={l2['id']}"
+    ).get_data(as_text=True)
+    assert "Ratio por trimestre" in h and "<polyline" in h
+
+
 def test_locais_tabela_densa_e_pills(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "tab")
     (l1, f1), _ = locs

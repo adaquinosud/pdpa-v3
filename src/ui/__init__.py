@@ -2249,9 +2249,64 @@ def _explorar_comparar_opcoes(s, empresa_id, ag_id=None, corte=None, tipo_elemen
     ]
 
 
+def _comparar_sparkline(s, empresa_id, el, tipo_elemento, locais_ag, corte):
+    """Série de ratio por trimestre (p/ o sparkline). Devolve (ratios, labels)."""
+    from sqlalchemy import func
+
+    from src.api.painel import calcular_ratio
+    from src.models.verbatim import Verbatim
+
+    mes = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    q = s.query(mes, Verbatim.tipo, func.count(Verbatim.id)).filter(
+        Verbatim.empresa_id == empresa_id, Verbatim.data_criacao_original.isnot(None)
+    )
+    if tipo_elemento == "loja":
+        if not el.isdigit():
+            return [], []
+        q = q.filter(Verbatim.local_id == int(el))
+    else:
+        q = q.filter(Verbatim.subpilar == el)
+        if locais_ag is not None:
+            q = q.filter(Verbatim.local_id.in_(locais_ag))
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+
+    by_q = {}
+    for m, tipo, n in q.group_by(mes, Verbatim.tipo).all():
+        if not m:
+            continue
+        y, mo = m.split("-")
+        chave = f"{y}-T{(int(mo) - 1) // 3 + 1}"
+        d = by_q.setdefault(chave, {"promotor": 0, "detrator": 0})
+        if tipo in d:
+            d[tipo] += int(n)
+    labels = sorted(by_q)
+    ratios = [round(calcular_ratio(by_q[k]["promotor"], by_q[k]["detrator"]), 2) for k in labels]
+    return ratios, labels
+
+
+def _spark_points(serie):
+    """Pontos do polyline SVG (viewBox 0 0 100 32), normalização do v2."""
+    vals = [v for v in serie if v is not None]
+    if len(vals) < 2:
+        return ""
+    vmax = max(vals + [2.0])
+    vmin = min(vals + [0.0])
+    span = (vmax - vmin) or 1
+    n = len(serie)
+    pts = []
+    for i, v in enumerate(serie):
+        if v is None:
+            continue
+        x = (i / (n - 1)) * 100 if n > 1 else 0
+        y = 30 - ((v - vmin) / span) * 28
+        pts.append(f"{x:.1f},{y:.1f}")
+    return " ".join(pts)
+
+
 def _explorar_comparar(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loja", elementos=None):
     """KPIs por elemento (2-3 lojas ou subpilares) p/ comparação lado a lado.
-    PASSO 1: total/det/conv/prom + ratio + faixa + %det/%conv (sem sparkline/distrib)."""
+    PASSO 2: + sparkline de ratio trimestral. (distribuição vem no passo 3)."""
     from sqlalchemy import func
 
     from src.api.painel import NOME_SUBPILAR, calcular_ratio, faixa_ratio
@@ -2298,6 +2353,7 @@ def _explorar_comparar(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loj
         prom, conv, detr = d["promotor"], d["conversivel"], d["detrator"]
         total = prom + conv + detr
         ratio = calcular_ratio(prom, detr)
+        sparkline, buckets = _comparar_sparkline(s, empresa_id, el, tipo_elemento, locais_ag, corte)
         cards.append(
             SimpleNamespace(
                 elemento=el,
@@ -2310,6 +2366,9 @@ def _explorar_comparar(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loj
                 faixa=faixa_ratio(ratio),
                 pct_det=round(100 * detr / total, 1) if total else 0.0,
                 pct_conv=round(100 * conv / total, 1) if total else 0.0,
+                sparkline=sparkline,
+                buckets=buckets,
+                spark_points=_spark_points(sparkline),
             )
         )
     return cards

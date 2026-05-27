@@ -64,6 +64,20 @@
       <span class="text-loyall-300 mx-1">·</span> %Det {{ c.pct_det }}%
       <span class="text-loyall-300 mx-1">·</span> %Conv {{ c.pct_conv }}%
     </div>
+    {# Sparkline: evolução do ratio por trimestre #}
+    {% if c.spark_points %}
+    <div class="mt-3">
+      <div class="text-[10px] uppercase tracking-wider text-loyall-400 mb-0.5">Ratio por trimestre
+        <span class="lowercase tracking-normal">({{ c.buckets[0] }} → {{ c.buckets[-1] }})</span></div>
+      <svg viewBox="0 0 100 32" preserveAspectRatio="none" class="w-full" style="height:32px"
+           title="ratio: {{ c.sparkline|join(' · ') }}">
+        <polyline points="{{ c.spark_points }}" fill="none" stroke="#395672" stroke-width="1.5"
+                  vector-effect="non-scaling-stroke"/>
+      </svg>
+    </div>
+    {% elif c.sparkline %}
+    <div class="mt-3 text-[11px] text-loyall-400">Histórico curto p/ tendência (1 trimestre).</div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
