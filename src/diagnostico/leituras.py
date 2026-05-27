@@ -74,6 +74,38 @@ def agregar_subpilares(
     return out
 
 
+def resolver_escopo(s, modelo, empresa_id: int, ag_id=None, local_id=None) -> Dict[str, Any]:
+    """Resolve qual escopo de material cacheado exibir, com herança
+    loja→agrupamento→empresa (Bloco 9 CP-A1). Escopos exclusivos na chave:
+    empresa (ag/local NULL), agrupamento (ag set), loja (local set).
+
+    Retorna ``{ag, local, herdado, origem}`` — o escopo EFETIVO com material, se
+    ``herdado`` (o pedido era mais específico que o disponível) e a ``origem``
+    ("loja"|"agrupamento"|"empresa"|None)."""
+
+    def tem(ag, loc):
+        q = s.query(modelo.id).filter(modelo.empresa_id == empresa_id)
+        q = q.filter(
+            modelo.agrupamento_id == ag if ag is not None else modelo.agrupamento_id.is_(None)
+        )
+        q = q.filter(modelo.local_id == loc if loc is not None else modelo.local_id.is_(None))
+        return s.query(q.exists()).scalar()
+
+    pediu_especifico = local_id is not None or ag_id is not None
+    if local_id is not None and tem(None, local_id):
+        return {"ag": None, "local": local_id, "herdado": False, "origem": "loja"}
+    if ag_id is not None and tem(ag_id, None):
+        return {
+            "ag": ag_id,
+            "local": None,
+            "herdado": local_id is not None,
+            "origem": "agrupamento",
+        }
+    if tem(None, None):
+        return {"ag": None, "local": None, "herdado": pediu_especifico, "origem": "empresa"}
+    return {"ag": None, "local": None, "herdado": False, "origem": None}
+
+
 def _gargalo(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
     """Pilar de menor ratio (agregado) entre os com volume — gargalo do Lastro."""
     from src.api.painel import calcular_ratio

@@ -28,6 +28,8 @@ class LeituraDiagnostico(Base):
     agrupamento_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("agrupamentos.id", ondelete="CASCADE")
     )
+    # Escopo loja (Bloco 9 CP-A1): local_id set ⟹ diagnóstico próprio da loja.
+    local_id: Mapped[Optional[int]] = mapped_column(ForeignKey("locais.id", ondelete="CASCADE"))
     subpilar: Mapped[str] = mapped_column(String, nullable=False)
     leitura: Mapped[str] = mapped_column(Text, nullable=False)
     acao: Mapped[Optional[str]] = mapped_column(Text)

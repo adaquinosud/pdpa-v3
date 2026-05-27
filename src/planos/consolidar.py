@@ -271,10 +271,17 @@ def consolidar_acoes(
             v = filtros.get(campo)
             if v and getattr(it, campo) != v:
                 return False
-        if filtros.get("agrupamento_id") and it.agrupamento_id != filtros["agrupamento_id"]:
-            return False
-        if filtros.get("local_id") and it.local_id != filtros["local_id"]:
-            return False
+        # Escopo com HERANÇA (Bloco 9 CP-A1): um item empresa-wide (agrupamento_id
+        # NULL) é herdado por qualquer agrupamento/loja — não é descartado pelo
+        # filtro. Idem item de agrupamento (local_id NULL) herdado pela loja.
+        # (Corrige a regressão 161→48: estruturais/diagnóstico empresa-wide somem
+        # ao filtrar por agrupamento.)
+        if filtros.get("agrupamento_id"):
+            if it.agrupamento_id not in (None, filtros["agrupamento_id"]):
+                return False
+        if filtros.get("local_id"):
+            if it.local_id not in (None, filtros["local_id"]):
+                return False
         return True
 
     itens = [it for it in itens if _ok(it)]
