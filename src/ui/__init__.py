@@ -2648,10 +2648,13 @@ def _explorar_diagnostico(s, empresa_id, ag_id):
 
 
 def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score"):
-    """Ranking de locais por Índice Geral (Bloco 5, 0-10) + faixa v3 + %conv +
-    badges on-the-fly. Sem proximidade/previsibilidade/selo/split físico-digital."""
+    """Ranking de locais por score modulado (CP-E3): score = Índice Geral ×
+    (engajamento/100). Três faixas de confiança (limiares = selo): ranking
+    principal ≥30 (🟢), 'em formação' 10-30 (🟡), 'insuficiente' <10 (🔴).
+    Retorna {ranked, formacao, insuficiente}. Badges só no ranking."""
     from sqlalchemy import func
 
+    from src.api.engajamento import engajamento_por_loja
     from src.api.painel import calcular_indice_geral, calcular_ratio, faixa_ratio
     from src.models.local import Local
     from src.models.verbatim import Verbatim
@@ -2684,7 +2687,7 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
         if tipo in d:
             d[tipo] += int(n)
     if not por_loja:
-        return []
+        return {"ranked": [], "formacao": [], "insuficiente": []}
     nomes = {x.id: x for x in s.query(Local).filter(Local.id.in_(por_loja)).all()}
 
     linhas = []
@@ -2728,23 +2731,39 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
             )
         )
 
-    # Badges on-the-fly (deterministas dos agregados atuais).
-    if linhas:
-        max(linhas, key=lambda x: x.ratio).badges.append(("🏆", "Melhor ratio"))
-        max(linhas, key=lambda x: x.total).badges.append(("📊", "Volume líder"))
-        melhor_conv = max(linhas, key=lambda x: x.pct_conv)
+    # Engajamento por loja (CP-E3): modula o score e separa por faixa de confiança.
+    eng_map = engajamento_por_loja(empresa_id, s, ag_id, corte)
+    for x in linhas:
+        em = eng_map.get(x.id, {"engajamento": 0, "volume": 0, "selo": "baixa", "selo_emoji": "🔴"})
+        x.engajamento = em["engajamento"]
+        x.vol_eng = em["volume"]
+        x.selo = em["selo"]
+        x.selo_emoji = em["selo_emoji"]
+        x.score_mod = round(x.score * em["engajamento"] / 100.0, 2)
+
+    # 3 faixas pelo nível do selo (≥30 🟢 / 10-30 🟡 / <10 🔴).
+    ranked = [x for x in linhas if x.selo == "alta"]
+    formacao = [x for x in linhas if x.selo == "media"]
+    insuficiente = [x for x in linhas if x.selo == "baixa"]
+
+    # Badges on-the-fly — só no ranking (deterministas dos agregados atuais).
+    if ranked:
+        max(ranked, key=lambda x: x.ratio).badges.append(("🏆", "Melhor ratio"))
+        max(ranked, key=lambda x: x.total).badges.append(("📊", "Volume líder"))
+        melhor_conv = max(ranked, key=lambda x: x.pct_conv)
         if melhor_conv.conversivel > 0:
             melhor_conv.badges.append(("🔄", "Maior conversão"))
-        for x in linhas:
+        for x in ranked:
             if x.detrator == 0 and x.total >= 5:
                 x.badges.append(("✨", "Zero detratores"))
 
     chave = {
         "ratio": lambda x: -x.ratio,
         "volume": lambda x: -x.total,
-    }.get(order_by, lambda x: (-x.score, -x.total))
-    linhas.sort(key=chave)
-    return linhas
+    }.get(order_by, lambda x: (-x.score_mod, -x.total))
+    for grupo in (ranked, formacao, insuficiente):
+        grupo.sort(key=chave)
+    return {"ranked": ranked, "formacao": formacao, "insuficiente": insuficiente}
 
 
 _PERSP_LABELS = [
@@ -2876,8 +2895,12 @@ def _explorar_contexto(empresa_id, tab):
         if tab == "leaderboard":
             ob = request.args.get("order_by", "score")
             ob = ob if ob in ("score", "ratio", "volume") else "score"
+            lb = _explorar_leaderboard(s, empresa_id, ag_id, corte, ob)
             leaderboard = SimpleNamespace(
-                linhas=_explorar_leaderboard(s, empresa_id, ag_id, corte, ob), order_by=ob
+                linhas=lb["ranked"],
+                formacao=lb["formacao"],
+                insuficiente=lb["insuficiente"],
+                order_by=ob,
             )
     planos = _explorar_planos(empresa_id, ag_id, request.args) if tab == "planos" else None
     return {

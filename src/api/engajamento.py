@@ -65,8 +65,10 @@ def selo_confianca(volume: int) -> Tuple[str, str, str]:
 
 
 def volume_suficiente_ranking(volume: int) -> bool:
-    """Gate do Leaderboard: abaixo do mínimo, vai p/ 'volume insuficiente'."""
-    return volume >= VOLUME_CONFIANCA_MEDIA
+    """Gate do ranking principal do Leaderboard: só entra quem tem confiança
+    'alta' (≥30 verbatins, selo 🟢). 10-30 vai p/ 'em formação', <10 p/ 'volume
+    insuficiente'. Calibração 2026-05-27 (Google News c/ 11 verbatins liderava)."""
+    return volume >= VOLUME_CONFIANCA_ALTA
 
 
 def engajamento_escopo(empresa_id: int, s, base_query_args: Dict) -> Dict:
@@ -138,6 +140,71 @@ def engajamento_escopo(empresa_id: int, s, base_query_args: Dict) -> Dict:
         "selo": nivel,
         "selo_emoji": emoji,
     }
+
+
+def engajamento_por_loja(empresa_id: int, s, ag_id=None, corte=None) -> Dict[int, Dict]:
+    """Índice de Engajamento por loja (CP-E3) — normalização **relativa**:
+    volume_max = maior volume entre as lojas do escopo (loja comparada às pares).
+    Reutilizado pela modulação do Leaderboard. Retorna dict[loja_id] -> {engajamento,
+    volume, selo, selo_emoji}."""
+    from sqlalchemy import func
+
+    from src.models.fonte import Fonte
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    base = s.query(Verbatim).filter(
+        Verbatim.empresa_id == empresa_id, Verbatim.local_id.isnot(None)
+    )
+    if ag_id is not None:
+        locais_ag = [
+            lid
+            for (lid,) in s.query(Local.id)
+            .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+            .all()
+        ]
+        base = base.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+    if corte is not None:
+        base = base.filter(Verbatim.data_criacao_original >= corte)
+
+    mes = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    rows = (
+        base.with_entities(
+            Verbatim.local_id,
+            func.count(Verbatim.id),
+            func.count(func.distinct(Verbatim.fonte_id)),
+            func.count(func.distinct(mes)),
+        )
+        .group_by(Verbatim.local_id)
+        .all()
+    )
+    vol = {lid: v for lid, v, _fa, _mc in rows}
+    fativas = {lid: fa for lid, _v, fa, _mc in rows}
+    mcom = {lid: mc for lid, _v, _fa, mc in rows}
+
+    fcad_rows = (
+        s.query(Fonte.entidade_id, func.count(Fonte.id))
+        .filter(Fonte.empresa_id == empresa_id, Fonte.entidade_tipo == "local")
+        .group_by(Fonte.entidade_id)
+        .all()
+    )
+    fcad = {eid: c for eid, c in fcad_rows}
+    meses_total = (
+        base.with_entities(func.count(func.distinct(mes)))
+        .filter(Verbatim.data_criacao_original.isnot(None))
+        .scalar()
+        or 0
+    )
+    vol_max = max(vol.values()) if vol else 0
+
+    out = {}
+    for lid, v in vol.items():
+        eng = indice_engajamento(
+            v, vol_max, fativas.get(lid, 0), fcad.get(lid, 0), mcom.get(lid, 0), meses_total
+        )
+        nivel, emoji, _ = selo_confianca(v)
+        out[lid] = {"engajamento": eng, "volume": v, "selo": nivel, "selo_emoji": emoji}
+    return out
 
 
 def componentes_engajamento(

@@ -49,9 +49,9 @@ def test_selo_e_gate_por_volume():
     assert selo_confianca(50)[0] == "alta" and selo_confianca(50)[1] == "🟢"
     assert selo_confianca(15)[0] == "media" and selo_confianca(15)[1] == "🟡"
     assert selo_confianca(3)[0] == "baixa" and selo_confianca(3)[1] == "🔴"
-    # gate: < 10 fora do ranking
-    assert volume_suficiente_ranking(10) is True
-    assert volume_suficiente_ranking(9) is False
+    # gate do ranking principal: só confiança alta (≥30) entra
+    assert volume_suficiente_ranking(30) is True
+    assert volume_suficiente_ranking(29) is False
 
 
 def test_fator_confianca_normaliza():

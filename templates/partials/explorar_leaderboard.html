@@ -1,4 +1,5 @@
-{# Tab Leaderboard — ranking de locais por Índice Geral (0-10), medalhas, badges. #}
+{# Tab Leaderboard — ranking por score modulado (Índice Geral × engajamento/100). #}
+{# 3 faixas de confiança (= selo): ranking ≥30 🟢 / em formação 10-30 🟡 / <10 🔴. #}
 {% set lb = leaderboard %}
 {% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
 {% set fclass = {
@@ -9,12 +10,47 @@
   'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800'},
 } %}
 {% set medals = {1:'🥇', 2:'🥈', 3:'🥉'} %}
-{% set max_score = (lb.linhas[0].score if lb.linhas else 10) or 10 %}
+{% set max_score = (lb.linhas[0].score_mod if lb.linhas else 10) or 10 %}
+
+{% macro linha(l, pos) %}
+{% set fc = fclass.get(l.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+<div class="flex items-center gap-3 p-3 rounded-lg border {% if pos and pos <= 3 %}border-amber-300 bg-amber-50/40{% else %}border-loyall-200 bg-white{% endif %}">
+  <div class="w-8 text-center text-lg shrink-0">{% if pos %}{{ medals.get(pos, '') }}{% if pos > 3 %}<span class="text-xs text-loyall-400">#{{ pos }}</span>{% endif %}{% else %}<span class="text-base">{{ l.selo_emoji }}</span>{% endif %}</div>
+  <div class="min-w-0 flex-1">
+    <div class="flex items-center gap-2 flex-wrap">
+      {% if pos %}<span title="Confiança por volume ({{ l.vol_eng }} verbatins)" class="cursor-help">{{ l.selo_emoji }}</span>{% endif %}
+      <span class="font-medium text-loyall-800 truncate">{{ l.nome }}</span>
+      {% if l.cidade %}<span class="text-xs text-loyall-400">{{ l.cidade }}{% if l.uf %}/{{ l.uf }}{% endif %}</span>{% endif %}
+      {% for emoji, titulo in l.badges %}<span title="{{ titulo }}" class="cursor-help">{{ emoji }}</span>{% endfor %}
+    </div>
+    <div class="h-1.5 rounded bg-loyall-100 overflow-hidden mt-1.5" title="Score modulado {{ l.score_mod }}/10">
+      <div class="h-1.5 rounded" style="width: {{ (100 * l.score_mod / max_score) | round(0,'floor') }}%; background: linear-gradient(90deg,#B89355,#1d3149)"></div>
+    </div>
+    <div class="text-[10px] text-loyall-400 mt-1">Índice {{ '%.1f'|format(l.score) }} × Engaj. {{ l.engajamento }}</div>
+  </div>
+  <div class="text-right shrink-0">
+    <div class="text-xl font-bold text-loyall-800">{{ '%.1f'|format(l.score_mod) }}</div>
+    <div class="text-[10px] text-loyall-400 uppercase">score</div>
+  </div>
+  <div class="text-center shrink-0 w-16">
+    <div class="text-sm font-bold text-loyall-700">{{ '%.2f'|format(l.ratio) }}</div>
+    <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span>
+  </div>
+  <div class="text-center shrink-0 w-14">
+    <div class="text-sm font-semibold text-amber-700">{{ l.pct_conv }}%</div>
+    <div class="text-[10px] text-loyall-400 uppercase">conv</div>
+  </div>
+  <div class="text-center shrink-0 w-12">
+    <div class="text-xs text-loyall-500">{{ l.vol_eng }}</div>
+    <div class="text-[10px] text-loyall-400 uppercase">verb</div>
+  </div>
+</div>
+{% endmacro %}
 
 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
   <div>
     <h3 class="text-sm font-semibold text-loyall-700">Leaderboard · Score PDPA</h3>
-    <p class="text-xs text-loyall-500">Score = Índice Geral (0-10) — pior pilar × média ponderada do Lastro.</p>
+    <p class="text-xs text-loyall-500">Score = Índice Geral (0-10) × Engajamento (÷100). Volume sela a confiança; sem volume, o índice não lidera.</p>
   </div>
   <div class="flex items-center gap-1 text-xs">
     <span class="text-loyall-400 mr-1">Ordenar:</span>
@@ -27,47 +63,44 @@
   </div>
 </div>
 
-{% if not lb.linhas %}
+{% if not lb.linhas and not lb.formacao and not lb.insuficiente %}
 <div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
   Sem locais com verbatins classificados no escopo selecionado.
 </div>
 {% else %}
+
+{% if lb.linhas %}
 <div class="space-y-2">
-  {% for l in lb.linhas %}
-  {% set pos = loop.index %}
-  {% set fc = fclass.get(l.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
-  <div class="flex items-center gap-3 p-3 rounded-lg border {% if pos <= 3 %}border-amber-300 bg-amber-50/40{% else %}border-loyall-200 bg-white{% endif %}">
-    <div class="w-8 text-center text-lg shrink-0">{{ medals.get(pos, '') }}{% if pos > 3 %}<span class="text-xs text-loyall-400">#{{ pos }}</span>{% endif %}</div>
-    <div class="min-w-0 flex-1">
-      <div class="flex items-center gap-2 flex-wrap">
-        <span class="font-medium text-loyall-800 truncate">{{ l.nome }}</span>
-        {% if l.cidade %}<span class="text-xs text-loyall-400">{{ l.cidade }}{% if l.uf %}/{{ l.uf }}{% endif %}</span>{% endif %}
-        {% for emoji, titulo in l.badges %}<span title="{{ titulo }}" class="cursor-help">{{ emoji }}</span>{% endfor %}
-      </div>
-      <div class="h-1.5 rounded bg-loyall-100 overflow-hidden mt-1.5" title="Score {{ l.score }}/10">
-        <div class="h-1.5 rounded" style="width: {{ (100 * l.score / max_score) | round(0,'floor') }}%; background: linear-gradient(90deg,#B89355,#1d3149)"></div>
-      </div>
-    </div>
-    <div class="text-right shrink-0">
-      <div class="text-xl font-bold text-loyall-800">{{ '%.1f'|format(l.score) }}</div>
-      <div class="text-[10px] text-loyall-400 uppercase">score</div>
-    </div>
-    <div class="text-center shrink-0 w-16">
-      <div class="text-sm font-bold text-loyall-700">{{ '%.2f'|format(l.ratio) }}</div>
-      <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span>
-    </div>
-    <div class="text-center shrink-0 w-14">
-      <div class="text-sm font-semibold text-amber-700">{{ l.pct_conv }}%</div>
-      <div class="text-[10px] text-loyall-400 uppercase">conv</div>
-    </div>
-    <div class="text-center shrink-0 w-12">
-      <div class="text-xs text-loyall-500">{{ l.total }}</div>
-      <div class="text-[10px] text-loyall-400 uppercase">verb</div>
-    </div>
-  </div>
-  {% endfor %}
+  {% for l in lb.linhas %}{{ linha(l, loop.index) }}{% endfor %}
 </div>
 <div class="flex flex-wrap gap-3 mt-3 text-[11px] text-loyall-400">
   <span>🏆 melhor ratio</span><span>📊 volume líder</span><span>🔄 maior conversão</span><span>✨ zero detratores</span>
+  <span class="text-loyall-300">·</span><span>🟢 ≥30 verb · 🟡 10-30 · 🔴 &lt;10</span>
 </div>
+{% else %}
+<div class="text-center text-loyall-400 py-8 border border-dashed border-loyall-200 rounded-lg">
+  Nenhum local com volume robusto (≥30 verbatins) no escopo. Veja as faixas abaixo.
+</div>
+{% endif %}
+
+{% if lb.formacao %}
+<div class="mt-6">
+  <h4 class="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">🟡 Em formação · 10-30 verbatins ({{ lb.formacao|length }})</h4>
+  <p class="text-[11px] text-loyall-400 mb-2">Volume crescendo, ainda não estatisticamente robusto. Fora do ranking principal até atingir confiança alta (≥30).</p>
+  <div class="space-y-2">
+    {% for l in lb.formacao %}{{ linha(l, none) }}{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if lb.insuficiente %}
+<div class="mt-6">
+  <h4 class="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-1">🔴 Volume insuficiente · &lt;10 verbatins ({{ lb.insuficiente|length }})</h4>
+  <p class="text-[11px] text-loyall-400 mb-2">Dados muito ralos — o índice seria especulativo. Fora do ranking por decisão de confiança.</p>
+  <div class="space-y-2">
+    {% for l in lb.insuficiente %}{{ linha(l, none) }}{% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% endif %}

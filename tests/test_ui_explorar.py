@@ -269,36 +269,72 @@ def test_diagnostico_mostra_leitura_cacheada(client_loyall, db_session):
 def test_tab_leaderboard_ranking_e_medalhas(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "lb")
     (pior, fp), (melhor, fm) = locs
-    _verb(db_session, e, pior, fp, "D2", "promotor", 1)
-    _verb(db_session, e, pior, fp, "D2", "detrator", 3)  # ratio 0.33 → score baixo
-    _verb(db_session, e, melhor, fm, "D2", "promotor", 5)
-    _verb(db_session, e, melhor, fm, "D2", "detrator", 1)  # ratio 5 → score alto
+    # volumes >= 30 (senão caem nas faixas em formação/insuficiente — CP-E3)
+    _verb(db_session, e, pior, fp, "D2", "promotor", 9)
+    _verb(db_session, e, pior, fp, "D2", "detrator", 27)  # vol 36, ratio 0.33 → baixo
+    _verb(db_session, e, melhor, fm, "D2", "promotor", 30)
+    _verb(db_session, e, melhor, fm, "D2", "detrator", 6)  # vol 36, ratio 5 → alto
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard").get_data(as_text=True)
     assert "Score PDPA" in h and "🥇" in h  # ranking gamificado
     assert "🏆" in h  # badge melhor ratio
-    # Loja Melhor (score maior) deve vir antes da Pior
+    # Loja Melhor (score modulado maior) deve vir antes da Pior
     assert h.index("Loja Melhor") < h.index("Loja Pior")
 
 
 def test_leaderboard_order_by_volume(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "lbo")
     (pior, fp), (melhor, fm) = locs
-    _verb(db_session, e, pior, fp, "D2", "promotor", 1)
-    _verb(db_session, e, pior, fp, "D2", "detrator", 9)  # ratio baixo, volume 10
-    _verb(db_session, e, melhor, fm, "D2", "promotor", 5)
-    _verb(db_session, e, melhor, fm, "D2", "detrator", 1)  # ratio alto, volume 6
+    _verb(db_session, e, pior, fp, "D2", "promotor", 6)
+    _verb(db_session, e, pior, fp, "D2", "detrator", 54)  # ratio baixo, volume 60
+    _verb(db_session, e, melhor, fm, "D2", "promotor", 30)
+    _verb(db_session, e, melhor, fm, "D2", "detrator", 6)  # ratio alto, volume 36
     db_session.commit()
-    # por score: Melhor primeiro
+    # por score modulado: Melhor primeiro (índice alto domina)
     hs = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard?order_by=score").get_data(
         as_text=True
     )
     assert hs.index("Loja Melhor") < hs.index("Loja Pior")
-    # por volume: Pior (10) primeiro
+    # por volume: Pior (60) primeiro
     hv = client_loyall.get(
         f"/empresas/{e['id']}/explorar/tab/leaderboard?order_by=volume"
     ).get_data(as_text=True)
     assert hv.index("Loja Pior") < hv.index("Loja Melhor")
+
+
+def test_leaderboard_tres_faixas_confianca(client_loyall, db_session):
+    """CP-E3: ranking ≥30 (🟢) / em formação 10-30 (🟡) / insuficiente <10 (🔴)."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "E3band"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+
+    def _loja(nome):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais", json={"nome": nome, "agrupamento_id": a["id"]}
+        ).get_json()
+        f = client_loyall.post(
+            f"/api/locais/{loc['id']}/fontes",
+            json={"conector_tipo": "google", "url": f"ChIJ_{nome}"},
+        ).get_json()
+        return loc, f
+
+    alta, fa = _loja("Loja Alta")
+    media, fmd = _loja("Loja Media")
+    baixa, fb = _loja("Loja Baixa")
+    _verb(db_session, e, alta, fa, "D2", "promotor", 35)  # vol 40 ≥30 → ranking
+    _verb(db_session, e, alta, fa, "D2", "detrator", 5)
+    _verb(db_session, e, media, fmd, "D2", "promotor", 12)  # vol 15 → em formação
+    _verb(db_session, e, media, fmd, "D2", "detrator", 3)
+    _verb(db_session, e, baixa, fb, "D2", "promotor", 4)  # vol 5 → insuficiente
+    _verb(db_session, e, baixa, fb, "D2", "detrator", 1)
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard").get_data(as_text=True)
+    assert "Em formação" in h and "Volume insuficiente" in h
+    # ordem das seções: ranking (Alta) → Em formação (Media) → Insuficiente (Baixa)
+    assert h.index("Loja Alta") < h.index("Em formação")
+    assert h.index("Em formação") < h.index("Loja Media")
+    assert h.index("Loja Media") < h.index("Volume insuficiente")
+    assert h.index("Volume insuficiente") < h.index("Loja Baixa")
+    assert "🥇" in h[: h.index("Em formação")]  # medalha só no ranking principal
 
 
 def test_filtro_periodo_recorta(client_loyall, db_session):
