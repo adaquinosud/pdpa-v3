@@ -70,6 +70,10 @@ MAX_TEXTO_CHARS = 4000  # defesa técnica para a chamada API; persistência fica
 
 MAX_RETRIES = 5
 BASE_DELAY_SECONDS = 2  # backoff exponencial: 2, 4, 8, 16, 32 segundos
+# Reroll em falha de parse/validação: o Haiku é não-determinístico em verbatins
+# vagos (às vezes põe um tipo no campo subpilar, ou quebra o JSON). Uma nova
+# tentativa costuma corrigir — diferente de 429/5xx (tratados em _call_claude).
+HAIKU_PARSE_RETRIES = 3
 
 # Preços USD por milhão de tokens — referência jan 2026.
 # Revisar mensalmente em https://www.anthropic.com/pricing
@@ -552,8 +556,26 @@ def classificar(
     )
     texto_hash = hashlib.sha1(texto_truncado.encode("utf-8")).hexdigest()[:16]
 
-    # 1) Chamada Haiku
-    resultado, custo_haiku, lat_haiku = _classificar_com_modelo(user_msg, HAIKU_MODEL)
+    # 1) Chamada Haiku — com reroll em falha de parse/validação (não-determinismo
+    # em verbatins vagos). 429/5xx já têm retry próprio em _call_claude_with_retry.
+    resultado = None
+    custo_haiku, lat_haiku = 0.0, 0
+    ultimo_parse_err: Optional[Exception] = None
+    for tentativa in range(HAIKU_PARSE_RETRIES):
+        try:
+            resultado, custo_haiku, lat_haiku = _classificar_com_modelo(user_msg, HAIKU_MODEL)
+            break
+        except ValueError as exc:
+            ultimo_parse_err = exc
+            print(
+                f"[classifier:haiku] parse/validação falhou "
+                f"({tentativa + 1}/{HAIKU_PARSE_RETRIES}): {str(exc)[:120]}"
+            )
+    if resultado is None:
+        raise ValueError(
+            f"Haiku não produziu classificação válida em {HAIKU_PARSE_RETRIES} "
+            f"tentativas. Último erro: {ultimo_parse_err}"
+        )
 
     # 2) Decisão de escalada
     config = get_config()
