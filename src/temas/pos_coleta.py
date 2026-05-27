@@ -53,6 +53,12 @@ class ResumoPosColeta:
     sugestoes_subpilares: int = 0
     sugestoes_geradas: int = 0
     sugestoes_pulados: int = 0
+    # Escopo loja (Bloco 9 / CP-A5) — agregado das lojas qualificadas (≥30)
+    lojas_qualificadas: int = 0
+    loja_diag_gerados: int = 0
+    loja_diag_pulados: int = 0
+    loja_sug_geradas: int = 0
+    loja_sug_pulados: int = 0
     custo_estimado_usd: float = 0.0
 
 
@@ -185,7 +191,6 @@ def executar_pos_coleta(
     r.sugestoes_geradas = ms["sugestoes"]
     r.sugestoes_pulados = ms["pulados"]
 
-    # Custo estimado (Haiku ~$1/$5, Sonnet ~$3/$15 por MTok; classif Haiku flat).
     custo = r.classificados * CUSTO_USD_POR_CLASSIFICACAO
     custo += rp.custo_usd_acumulado
     custo += rsem.input_tokens / 1e6 * 1.0 + rsem.output_tokens / 1e6 * 5.0
@@ -193,5 +198,22 @@ def executar_pos_coleta(
     custo += md["in"] / 1e6 * 3.0 + md["out"] / 1e6 * 15.0
     custo += mp["in"] / 1e6 * 3.0 + mp["out"] / 1e6 * 15.0
     custo += ms["in"] / 1e6 * 3.0 + ms["out"] / 1e6 * 15.0
+
+    # ── Escopo loja (Bloco 9 / CP-A5): diagnóstico + sugestões por loja ≥30 ──
+    from src.diagnostico.leituras import lojas_qualificadas
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        lojas = lojas_qualificadas(s, empresa_id)
+    r.lojas_qualificadas = len(lojas)
+    for lid in lojas:
+        mdl = gerar_e_persistir_diagnostico(empresa_id, local_id=lid, skip_unchanged=True)
+        msl = gerar_e_persistir_sugestoes(empresa_id, local_id=lid, skip_unchanged=True)
+        r.loja_diag_gerados += mdl["gerados"]
+        r.loja_diag_pulados += mdl["pulados"]
+        r.loja_sug_geradas += msl["sugestoes"]
+        r.loja_sug_pulados += msl["pulados"]
+        custo += (mdl["in"] + msl["in"]) / 1e6 * 3.0 + (mdl["out"] + msl["out"]) / 1e6 * 15.0
+
     r.custo_estimado_usd = round(custo, 4)
     return r

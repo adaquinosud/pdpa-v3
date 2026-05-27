@@ -148,6 +148,27 @@ def loja_qualifica(s, empresa_id: int, local_id: int) -> bool:
     return n >= VOLUME_CONFIANCA_ALTA
 
 
+def lojas_qualificadas(s, empresa_id: int) -> List[int]:
+    """IDs das lojas com volume classificado ≥ 30 (gate de diagnóstico próprio,
+    Bloco 9 CP-A5). Usado pelo pipeline para iterar só as lojas que merecem."""
+    from sqlalchemy import func
+
+    from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+    from src.models.verbatim import Verbatim
+
+    rows = (
+        s.query(Verbatim.local_id, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id.isnot(None),
+            Verbatim.subpilar.isnot(None),
+        )
+        .group_by(Verbatim.local_id)
+        .all()
+    )
+    return [lid for lid, n in rows if n >= VOLUME_CONFIANCA_ALTA]
+
+
 def montar_payload_subpilar(
     s, empresa_id, ag_id, subpilar, dados, gargalo, local_id=None
 ) -> Dict[str, Any]:

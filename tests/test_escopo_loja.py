@@ -7,6 +7,7 @@ from datetime import datetime
 from src.diagnostico.leituras import (
     agregar_subpilares,
     loja_qualifica,
+    lojas_qualificadas,
     montar_payload_subpilar,
     resolver_escopo,
 )
@@ -268,6 +269,17 @@ def test_tab_diagnostico_loja_propria_sem_banner_heranca(client_loyall, db_sessi
     ).get_data(as_text=True)
     assert "volume insuficiente" not in h.lower()
     assert "próprio" in h.lower()
+
+
+def test_lojas_qualificadas_lista(client_loyall, db_session):
+    """CP-A5: só lojas com volume classificado ≥30 entram no loop do pipeline."""
+    e, a, l1, f1 = _ctx(client_loyall, "qual")
+    l2, f2 = _segunda_loja(client_loyall, e, a, "qual")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 31)  # qualifica
+    _vb(db_session, e, l2, f2, "D2", "detrator", 10)  # não
+    db_session.commit()
+    quals = lojas_qualificadas(db_session, e["id"])
+    assert l1["id"] in quals and l2["id"] not in quals
 
 
 def test_header_loja_selector_renderiza(client_loyall, db_session):
