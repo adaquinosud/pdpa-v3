@@ -302,6 +302,17 @@ def test_leaderboard_order_by_volume(client_loyall, db_session):
     assert hv.index("Loja Pior") < hv.index("Loja Melhor")
 
 
+def test_selo_confianca_no_diagnostico(client_loyall, db_session):
+    """CP-E2: Mapa de Lastro/Confronto anotam o selo de confiança por volume."""
+    e, a, locs = _ctx(client_loyall, "selo")
+    (l1, f1), _ = locs
+    _verb(db_session, e, l1, f1, "D2", "detrator", 35)  # ≥30 → 🟢 no subpilar D2
+    _verb(db_session, e, l1, f1, "P1", "promotor", 3)  # <10 → 🔴 no subpilar P1
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/diagnostico").get_data(as_text=True)
+    assert "🟢" in h and "🔴" in h  # faixas distintas anotadas
+
+
 def test_leaderboard_tres_faixas_confianca(client_loyall, db_session):
     """CP-E3: ranking ≥30 (🟢) / em formação 10-30 (🟡) / insuficiente <10 (🔴)."""
     e = client_loyall.post("/api/empresas/", json={"nome": "E3band"}).get_json()

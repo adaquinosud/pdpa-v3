@@ -30,7 +30,7 @@
       <span class="font-bold text-loyall-800">{{ '%.2f'|format(p.ratio) }}</span>
       <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ p.faixa }}</span>
     </div>
-    <div class="text-xs text-loyall-400">{{ p.total }} verbatins</div>
+    <div class="text-xs text-loyall-400"><span title="Confiança por volume" class="cursor-help">{{ selo_emoji(p.total) }}</span> {{ p.total }} verbatins</div>
     <div class="mt-2 pt-2 border-t border-loyall-100 space-y-0.5">
       {% for sp in p.subpilares %}
       {% set sfc = fclass[sp.faixa] %}
@@ -73,7 +73,7 @@
       {% for c in d.confronto %}
       {% set fc = fclass.get(c.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
       <tr class="border-t border-loyall-100 align-top">
-        <td class="px-3 py-2"><span class="font-medium text-loyall-800">{{ c.subpilar }}</span> <span class="text-xs text-loyall-400">· {{ c.nome }}</span></td>
+        <td class="px-3 py-2"><span title="Confiança por volume: {{ c.det + c.conv + c.prom }} verbatins" class="cursor-help">{{ selo_emoji(c.det + c.conv + c.prom) }}</span> <span class="font-medium text-loyall-800">{{ c.subpilar }}</span> <span class="text-xs text-loyall-400">· {{ c.nome }}</span></td>
         <td class="text-right px-2 py-2 {% if c.det %}text-rose-700 font-medium{% else %}text-loyall-300{% endif %}">{{ c.det }}</td>
         <td class="text-right px-2 py-2 {% if c.conv %}text-amber-700{% else %}text-loyall-300{% endif %}">{{ c.conv }}</td>
         <td class="text-right px-2 py-2 {% if c.prom %}text-emerald-700{% else %}text-loyall-300{% endif %}">{{ c.prom }}</td>

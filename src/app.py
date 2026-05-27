@@ -36,6 +36,13 @@ def create_app() -> Flask:
     app.register_blueprint(coleta_bp)
     app.register_blueprint(ui_bp)
 
+    # Selo de confiança por volume (CP-E2): fonte única dos limiares 30/10.
+    from src.api.engajamento import selo_confianca
+
+    @app.template_global("selo_emoji")
+    def _selo_emoji(volume) -> str:
+        return selo_confianca(int(volume or 0))[1]
+
     _register_cli_commands(app)
 
     @app.route("/health")
