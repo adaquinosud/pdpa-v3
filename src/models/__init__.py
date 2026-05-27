@@ -22,6 +22,7 @@ from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
 from src.models.local import Local, LocalMetadado
 from src.models.plano_acao import AcaoStatus
+from src.models.sugestao_estrutural import SugestaoEstrutural
 from src.models.temas import (
     AcaoVenda,
     Tema,
@@ -53,6 +54,7 @@ __all__ = [
     "LeituraDiagnostico",
     "Local",
     "LocalMetadado",
+    "SugestaoEstrutural",
     "Tema",
     "TemaCache",
     "TemaCruzamento",
