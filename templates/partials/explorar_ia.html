@@ -1,0 +1,53 @@
+{# Tab IA — assistente executivo single-turn sobre o diagnóstico consolidado. #}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
+
+<div class="mb-3">
+  <h3 class="text-sm font-semibold text-loyall-700">Pergunte ao consultor PDPA</h3>
+  <p class="text-xs text-loyall-500">Responde com base nos dados desta empresa no escopo selecionado (agrupamento + período). Uma pergunta por vez.</p>
+</div>
+
+{# Campo de pergunta #}
+<form hx-post="{{ url_for('ui.explorar_ia_perguntar', empresa_id=empresa.id) }}?{{ qs }}"
+      hx-target="#ia-resposta" hx-swap="innerHTML"
+      hx-indicator="#ia-loading"
+      class="flex gap-2 mb-3">
+  <input type="text" name="pergunta" autocomplete="off"
+         placeholder="Ex.: Qual é o principal gargalo da operação?"
+         class="flex-1 border border-loyall-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-loyall-600">
+  <button type="submit"
+          class="px-4 py-2 rounded bg-loyall-700 text-white text-sm font-medium hover:bg-loyall-800">
+    Perguntar
+  </button>
+</form>
+
+{# Perguntas-sugestão #}
+<div class="flex flex-wrap gap-2 mb-4">
+  {% for q in ia.sugeridas %}
+  <button type="button"
+          hx-post="{{ url_for('ui.explorar_ia_perguntar', empresa_id=empresa.id) }}?{{ qs }}"
+          hx-vals='{"pergunta": {{ q | tojson }}}'
+          hx-target="#ia-resposta" hx-swap="innerHTML"
+          hx-indicator="#ia-loading"
+          class="text-xs px-3 py-1.5 rounded-full border border-loyall-200 text-loyall-600 hover:bg-loyall-50 hover:border-loyall-400">
+    {{ q }}
+  </button>
+  {% endfor %}
+</div>
+
+<div id="ia-loading" class="htmx-indicator text-xs text-loyall-400 mb-2">Consultando…</div>
+<div id="ia-resposta"></div>
+
+{# Q&A recentes cacheadas deste escopo #}
+{% if ia.recentes %}
+<div class="mt-6 border-t border-loyall-100 pt-3">
+  <h4 class="text-xs font-semibold text-loyall-500 uppercase tracking-wider mb-2">Perguntas recentes neste escopo</h4>
+  <div class="space-y-3">
+    {% for qa in ia.recentes %}
+    <details class="border border-loyall-200 rounded-lg">
+      <summary class="px-3 py-2 text-sm font-medium text-loyall-700 cursor-pointer hover:bg-loyall-50">{{ qa.pergunta }}</summary>
+      <div class="px-3 py-2 text-sm text-loyall-700 leading-relaxed border-t border-loyall-100 whitespace-pre-line">{{ qa.resposta }}</div>
+    </details>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

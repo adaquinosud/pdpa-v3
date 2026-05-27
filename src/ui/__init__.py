@@ -1929,6 +1929,7 @@ _EXPLORAR_TABS = (
     "diagnostico",
     "planos",
     "leaderboard",
+    "ia",
 )
 
 
@@ -2903,6 +2904,7 @@ def _explorar_contexto(empresa_id, tab):
                 order_by=ob,
             )
     planos = _explorar_planos(empresa_id, ag_id, request.args) if tab == "planos" else None
+    ia = _explorar_ia(empresa_id, ag_id, filtros) if tab == "ia" else None
     return {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
@@ -2915,7 +2917,26 @@ def _explorar_contexto(empresa_id, tab):
         "diagnostico": diagnostico,
         "planos": planos,
         "leaderboard": leaderboard,
+        "ia": ia,
     }
+
+
+def _explorar_ia(empresa_id, ag_id, filtros):
+    """Contexto da aba IA: perguntas-sugestão + Q&A recentes cacheadas do escopo."""
+    from src.ia.chat import PERGUNTAS_SUGERIDAS, escopo_hash
+    from src.models.chat_cache import ChatCache
+
+    e_hash = escopo_hash(ag_id, filtros.get("periodo") or None)
+    with db_session() as s:
+        recentes = (
+            s.query(ChatCache)
+            .filter(ChatCache.empresa_id == empresa_id, ChatCache.escopo_hash == e_hash)
+            .order_by(ChatCache.criado_em.desc())
+            .limit(8)
+            .all()
+        )
+        recentes = [SimpleNamespace(pergunta=x.pergunta, resposta=x.resposta) for x in recentes]
+    return SimpleNamespace(sugeridas=PERGUNTAS_SUGERIDAS, recentes=recentes)
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar")
@@ -2977,6 +2998,39 @@ def explorar_loja_drill(empresa_id: int, local_id: int):
         loja_nome=nome,
         subpilares=subpilares,
         detratores=detratores,
+    )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/ia/perguntar", methods=["POST"])
+def explorar_ia_perguntar(empresa_id: int):
+    """IA Chat (CP-B4): responde uma pergunta no escopo do header (HTMX).
+    Single-turn; cache exato por (empresa, escopo, pergunta)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    pergunta = (request.form.get("pergunta") or "").strip()
+    filtros, ag_id, corte = _explorar_filtros()
+    periodo = filtros.get("periodo") or None
+    if not pergunta:
+        return render_template(
+            "partials/explorar_ia_resposta.html",
+            pergunta="",
+            resposta="",
+            erro="Digite uma pergunta.",
+        )
+    from src.ia.chat import responder
+
+    with db_session() as s:
+        out = responder(s, empresa_id, pergunta, ag_id, corte, periodo)
+    return render_template(
+        "partials/explorar_ia_resposta.html",
+        pergunta=pergunta,
+        resposta=out.get("resposta", ""),
+        cached=out.get("cached", False),
+        erro=out.get("erro"),
     )
 
 

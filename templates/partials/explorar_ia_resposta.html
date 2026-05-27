@@ -1,0 +1,15 @@
+{# Resposta do IA Chat (HTMX swap em #ia-resposta). #}
+{% if erro %}
+<div class="bg-rose-50 border-l-4 border-rose-300 px-3 py-2 text-sm text-rose-700">{{ erro }}</div>
+{% elif resposta %}
+<div class="border border-loyall-200 rounded-lg p-4 bg-white">
+  <div class="flex items-center gap-2 mb-2">
+    <span class="text-xs font-semibold text-loyall-500 uppercase tracking-wider">Consultor PDPA</span>
+    {% if cached %}<span class="text-[10px] text-loyall-400" title="Resposta reaproveitada do cache (mesma pergunta, mesmo escopo)">· cache</span>{% endif %}
+  </div>
+  <div class="text-sm text-loyall-800 leading-relaxed whitespace-pre-line">{{ resposta }}</div>
+  <div class="mt-2 text-[10px] text-loyall-400">{{ pergunta }}</div>
+</div>
+{% else %}
+<div class="text-sm text-loyall-400">Sem resposta.</div>
+{% endif %}
