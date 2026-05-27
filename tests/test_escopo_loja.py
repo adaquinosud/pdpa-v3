@@ -243,3 +243,37 @@ def test_consolidar_herda_empresa_wide_sob_filtro_agrupamento(client_loyall, db_
     # COM filtro de agrupamento: continua aparecendo (herança), não some
     itens = consolidar_acoes(e["id"], {"agrupamento_id": a["id"]})
     assert any(it.origem == "Estrutural" for it in itens), "empresa-wide sumiu sob filtro de ag"
+
+
+def test_tab_diagnostico_loja_banner_volume_insuficiente(client_loyall, db_session):
+    """CP-A4: loja com <30 verbatins mostra banner de herança 'volume insuficiente'."""
+    e, a, l1, f1 = _ctx(client_loyall, "bannerins")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 5)  # <30 → herda
+    _diag(db_session, e["id"], "D2")  # diagnóstico empresa-wide existe
+    h = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/diagnostico?local_id={l1['id']}"
+    ).get_data(as_text=True)
+    assert "Diagnóstico do empresa aplicado" in h or "Diagnóstico do" in h
+    assert "volume insuficiente" in h.lower()
+    assert "5 verbatins" in h
+
+
+def test_tab_diagnostico_loja_propria_sem_banner_heranca(client_loyall, db_session):
+    """CP-A4: loja com diagnóstico próprio não mostra banner de herança."""
+    e, a, l1, f1 = _ctx(client_loyall, "bannerown")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
+    _diag(db_session, e["id"], "D2", local=l1["id"])  # diagnóstico PRÓPRIO da loja
+    h = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/diagnostico?local_id={l1['id']}"
+    ).get_data(as_text=True)
+    assert "volume insuficiente" not in h.lower()
+    assert "próprio" in h.lower()
+
+
+def test_header_loja_selector_renderiza(client_loyall, db_session):
+    """CP-A4: o header do Explorar tem o 3º nível 'Loja'."""
+    e, a, l1, f1 = _ctx(client_loyall, "hdr")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 3)
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=diagnostico").get_data(as_text=True)
+    assert 'name="local_id"' in h and "L1" in h  # seletor de loja com a loja L1

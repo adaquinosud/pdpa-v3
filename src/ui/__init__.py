@@ -1940,9 +1940,14 @@ def _explorar_filtros():
 
     ag_raw = request.args.get("agrupamento_id", "")
     periodo = request.args.get("periodo", "")
+    local_raw = request.args.get("local_id", "")
     ag_id = int(ag_raw) if ag_raw.isdigit() else None
     corte = _resolver_periodo(periodo)
-    return {"agrupamento_id": ag_raw, "periodo": periodo}, ag_id, corte
+    return (
+        {"agrupamento_id": ag_raw, "periodo": periodo, "local_id": local_raw},
+        ag_id,
+        corte,
+    )
 
 
 _VIS_SORT = {
@@ -2565,9 +2570,55 @@ def _explorar_evolucao(
     return {"buckets": buckets, "series": series}
 
 
-def _explorar_diagnostico(s, empresa_id, ag_id):
+def _escopo_loja(s, empresa_id, ag_id, local_id, modelo):
+    """Resolve o escopo efetivo + monta o banner de herança (Bloco 9 CP-A4).
+    Retorna (eff_ag, eff_local, escopo) onde escopo descreve transparentemente o
+    que está sendo exibido (próprio da loja ou herdado, e por quê)."""
+    from src.diagnostico.leituras import loja_qualifica, resolver_escopo
+    from src.models.local import Local
+
+    if local_id is None:
+        return ag_id, None, None
+    loc = s.get(Local, local_id)
+    loja_ag = loc.agrupamento_id if loc else ag_id
+    loja_nome = loc.nome if loc else f"loja {local_id}"
+    r = resolver_escopo(s, modelo, empresa_id, ag_id=loja_ag, local_id=local_id)
+    if r["origem"] == "loja":
+        escopo = SimpleNamespace(herdado=False, loja_nome=loja_nome, origem="loja")
+        return None, local_id, escopo
+    # Herdou: o pedido era loja, mas o material exibido é do agrupamento/empresa.
+    qualifica = loja_qualifica(s, empresa_id, local_id)
+    from sqlalchemy import func
+
+    from src.models.verbatim import Verbatim
+
+    vol = (
+        s.query(func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id == local_id,
+            Verbatim.subpilar.isnot(None),
+        )
+        .scalar()
+        or 0
+    )
+    escopo = SimpleNamespace(
+        herdado=True,
+        loja_nome=loja_nome,
+        origem=r["origem"],  # "agrupamento" | "empresa" | None
+        qualifica=qualifica,
+        volume=vol,
+        # "em_geracao": qualifica mas ainda sem material próprio (próximo ciclo);
+        # "volume_insuficiente": não atinge o gate de 30.
+        motivo=("em_geracao" if qualifica else "volume_insuficiente"),
+    )
+    return r["ag"], r["local"], escopo
+
+
+def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
     """Mapa de Lastro (4 pilares) + Confronto Visual (12 subpilares) + leitura/ação
-    do cache. Holístico: histórico completo no escopo (período não se aplica)."""
+    do cache. Holístico (período não se aplica). ``local_id``: escopo loja com
+    herança transparente loja→agrupamento→empresa (CP-A4)."""
     from src.api.painel import (
         NOME_PILAR,
         NOME_SUBPILAR,
@@ -2577,17 +2628,17 @@ def _explorar_diagnostico(s, empresa_id, ag_id):
         calcular_ratio,
         faixa_ratio,
     )
-    from src.diagnostico.leituras import _gargalo, agregar_subpilares
+    from src.diagnostico.leituras import _gargalo, _scope_cond, agregar_subpilares
     from src.models.diagnostico import LeituraDiagnostico
 
-    agg = agregar_subpilares(s, empresa_id, ag_id)
+    eff_ag, eff_local, escopo = _escopo_loja(s, empresa_id, ag_id, local_id, LeituraDiagnostico)
+
+    agg = agregar_subpilares(s, empresa_id, eff_ag, eff_local)
     gargalo = _gargalo(agg)
 
-    lq = s.query(LeituraDiagnostico).filter(LeituraDiagnostico.empresa_id == empresa_id)
-    lq = lq.filter(
-        LeituraDiagnostico.agrupamento_id.is_(None)
-        if ag_id is None
-        else LeituraDiagnostico.agrupamento_id == ag_id
+    lq = s.query(LeituraDiagnostico).filter(
+        LeituraDiagnostico.empresa_id == empresa_id,
+        *_scope_cond(LeituraDiagnostico, eff_ag, eff_local),
     )
     leituras = {r.subpilar: r for r in lq.all()}
 
@@ -2651,6 +2702,7 @@ def _explorar_diagnostico(s, empresa_id, ag_id):
         tem_leituras=bool(leituras),
         ultima_geracao=ultima,
         regen_msg=None,
+        escopo=escopo,
     )
 
 
@@ -2874,6 +2926,14 @@ def _explorar_contexto(empresa_id, tab):
         empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
+        # Loja como 3º nível do header (CP-A4): lojas do agrupamento selecionado.
+        local_id = int(filtros["local_id"]) if filtros["local_id"].isdigit() else None
+        lq_header = s.query(Local).filter_by(empresa_id=empresa_id)
+        if ag_id is not None:
+            lq_header = lq_header.filter_by(agrupamento_id=ag_id)
+        lojas_header = [
+            SimpleNamespace(id=x.id, nome=x.nome) for x in lq_header.order_by(Local.nome).all()
+        ]
         locais = None
         if tab == "locais":
             vis = request.args.get("vis", "todos")
@@ -2927,7 +2987,9 @@ def _explorar_contexto(empresa_id, tab):
                 "buckets": dados["buckets"],
                 "series": dados["series"],
             }
-        diagnostico = _explorar_diagnostico(s, empresa_id, ag_id) if tab == "diagnostico" else None
+        diagnostico = (
+            _explorar_diagnostico(s, empresa_id, ag_id, local_id) if tab == "diagnostico" else None
+        )
         leaderboard = None
         if tab == "leaderboard":
             ob = request.args.get("order_by", "score")
@@ -2944,6 +3006,7 @@ def _explorar_contexto(empresa_id, tab):
     return {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
+        "lojas_header": lojas_header,
         "filtros": filtros,
         "tab": tab,
         "locais": locais,

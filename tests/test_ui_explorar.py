@@ -8,6 +8,14 @@ from src.models.diagnostico import LeituraDiagnostico
 from src.models.verbatim import Verbatim
 
 
+def _conteudo(html: str) -> str:
+    """Recorta o conteúdo da aba (após o header). O seletor de Loja no header
+    (CP-A4) lista nomes de loja alfabeticamente — ordenar pela página inteira
+    pegaria essas ocorrências; medimos só dentro de #explorar-conteudo."""
+    i = html.find('id="explorar-conteudo"')
+    return html[i:] if i != -1 else html
+
+
 def _ctx(client_loyall, sfx):
     e = client_loyall.post("/api/empresas/", json={"nome": f"EExp-{sfx}"}).get_json()
     a = client_loyall.post(
@@ -58,7 +66,8 @@ def test_hub_explorar_renderiza_locais_ordenado(client_loyall, db_session):
     html = r.get_data(as_text=True)
     assert "Explorar" in html and "Locais" in html and "Heatmap" in html
     # pior loja deve aparecer antes da melhor (ordenação worst-first)
-    assert html.index("Loja Pior") < html.index("Loja Melhor")
+    cont = _conteudo(html)
+    assert cont.index("Loja Pior") < cont.index("Loja Melhor")
 
 
 def test_tab_heatmap_matriz(client_loyall, db_session):
@@ -188,11 +197,15 @@ def test_locais_vis_detratores_ordena(client_loyall, db_session):
     _verb(db_session, e, maisdet, fm, "D2", "detrator", 4)  # ratio 1.25, 4 det
     db_session.commit()
     # default (todos): pior ratio primeiro
-    h1 = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais").get_data(as_text=True)
+    h1 = _conteudo(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais").get_data(as_text=True)
+    )
     assert h1.index("Loja Pior") < h1.index("Loja Melhor")
     # vis=detratores: mais detratores primeiro (Loja Melhor tem 4)
-    h2 = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais&vis=detratores").get_data(
-        as_text=True
+    h2 = _conteudo(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais&vis=detratores").get_data(
+            as_text=True
+        )
     )
     assert h2.index("Loja Melhor") < h2.index("Loja Pior")
 

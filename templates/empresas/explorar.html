@@ -15,7 +15,7 @@
 {% endblock %}
 
 {% block conteudo %}
-{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo ~ '&local_id=' ~ filtros.local_id %}
 
 {# ── Header ───────────────────────────────────────────────────────── #}
 <div class="mb-4">
@@ -39,6 +39,15 @@
       <option value="">Todos</option>
       {% for a in agrupamentos %}
       <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="flex flex-col gap-1">
+    <label class="text-xs text-loyall-500">Loja</label>
+    <select name="local_id" class="px-2 py-1.5 border border-loyall-200 rounded min-w-[150px]">
+      <option value="">Todas</option>
+      {% for l in lojas_header %}
+      <option value="{{ l.id }}" {% if filtros.local_id == l.id|string %}selected{% endif %}>{{ l.nome }}</option>
       {% endfor %}
     </select>
   </div>

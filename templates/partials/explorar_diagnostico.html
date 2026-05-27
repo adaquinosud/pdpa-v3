@@ -17,6 +17,23 @@
 {% if d.regen_msg %}
 <div class="mb-2 px-3 py-2 rounded text-xs {% if d.regen_msg.startswith('✓') %}bg-emerald-50 text-emerald-700 border-l-4 border-emerald-300{% else %}bg-amber-50 text-amber-800 border-l-4 border-amber-300{% endif %}">{{ d.regen_msg }}</div>
 {% endif %}
+
+{# Banner de herança (CP-A4): deixa inequívoco quando NÃO é diagnóstico da loja. #}
+{% if d.escopo and d.escopo.herdado %}
+{% set origem_nome = {'agrupamento':'agrupamento','empresa':'empresa'}.get(d.escopo.origem, d.escopo.origem) %}
+<div class="mb-3 px-3 py-2 rounded bg-sky-50 border-l-4 border-sky-400 text-xs text-sky-900">
+  <strong>Diagnóstico do {{ origem_nome }} aplicado a {{ d.escopo.loja_nome }}.</strong>
+  {% if d.escopo.motivo == 'volume_insuficiente' %}
+  Esta loja tem <strong>{{ d.escopo.volume }} verbatins</strong> (mínimo 30) — volume insuficiente para diagnóstico próprio. Os números e leituras abaixo são do <strong>{{ origem_nome }}</strong>, não da loja. Aumente o engajamento desta loja para material dedicado.
+  {% else %}
+  A loja já tem volume suficiente ({{ d.escopo.volume }} verbatins), mas o diagnóstico próprio ainda não foi gerado — será produzido no próximo ciclo do pipeline. Por ora, exibindo o do {{ origem_nome }}.
+  {% endif %}
+</div>
+{% elif d.escopo and not d.escopo.herdado %}
+<div class="mb-3 px-3 py-2 rounded bg-emerald-50 border-l-4 border-emerald-400 text-xs text-emerald-800">
+  Diagnóstico <strong>próprio</strong> de {{ d.escopo.loja_nome }}.
+</div>
+{% endif %}
 <div class="flex items-center gap-2 mb-3 flex-wrap">
   <button hx-post="{{ url_for('ui.explorar_regenerar', empresa_id=empresa.id, tipo='diagnostico') }}?agrupamento_id={{ filtros.agrupamento_id }}&periodo={{ filtros.periodo }}"
           hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-indicator="#regen-loading-diag"
