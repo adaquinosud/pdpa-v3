@@ -141,6 +141,71 @@ def test_payload_loja_usa_exemplos_da_loja(client_loyall, db_session):
     assert all("loja-1" in ex for ex in p["exemplos"])  # só exemplos da loja 1
 
 
+def test_geracao_diagnostico_por_loja_persiste_local(client_loyall, db_session):
+    """CP-A3: diagnóstico de loja grava com local_id e agrupamento_id NULL."""
+    from src.diagnostico.leituras import gerar_e_persistir_diagnostico
+
+    e, a, l1, f1 = _ctx(client_loyall, "gendiag")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
+    db_session.commit()
+    m = gerar_e_persistir_diagnostico(
+        e["id"],
+        local_id=l1["id"],
+        gerar_fn=lambda p: {"leitura": f"L-{p['subpilar']}", "acao": "A", "_in": 1, "_out": 1},
+    )
+    assert m["gerados"] == 1
+    row = (
+        db_session.query(LeituraDiagnostico)
+        .filter_by(empresa_id=e["id"], subpilar="D2", local_id=l1["id"])
+        .first()
+    )
+    assert row is not None and row.agrupamento_id is None
+
+
+def test_geracao_sugestoes_por_loja_nao_vaza(client_loyall, db_session):
+    """CP-A3: sugestões de loja não aparecem no escopo de outra loja."""
+    from src.planos.sugestoes import gerar_e_persistir_sugestoes
+
+    e, a, l1, f1 = _ctx(client_loyall, "gensug")
+    l2, f2 = _segunda_loja(client_loyall, e, a, "gensug")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
+    db_session.commit()
+    gerar_e_persistir_sugestoes(
+        e["id"],
+        local_id=l1["id"],
+        subpilares=["D2"],
+        gerar_fn=lambda p: {
+            "sugestoes": [{"perspectiva": "processos", "acao": "X"}],
+            "_in": 1,
+            "_out": 1,
+        },
+    )
+    da_l1 = (
+        db_session.query(SugestaoEstrutural)
+        .filter_by(empresa_id=e["id"], local_id=l1["id"])
+        .count()
+    )
+    da_l2 = (
+        db_session.query(SugestaoEstrutural)
+        .filter_by(empresa_id=e["id"], local_id=l2["id"])
+        .count()
+    )
+    assert da_l1 == 1 and da_l2 == 0
+
+
+def test_skip_por_loja_independente(client_loyall, db_session):
+    """CP-A3: skip por hash opera por escopo de loja (não confunde com empresa)."""
+    from src.diagnostico.leituras import gerar_e_persistir_diagnostico
+
+    e, a, l1, f1 = _ctx(client_loyall, "skiploja")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
+    db_session.commit()
+    fn = lambda p: {"leitura": "L", "acao": "A", "_in": 1, "_out": 1}  # noqa: E731
+    gerar_e_persistir_diagnostico(e["id"], local_id=l1["id"], gerar_fn=fn)
+    m2 = gerar_e_persistir_diagnostico(e["id"], local_id=l1["id"], gerar_fn=fn, skip_unchanged=True)
+    assert m2["pulados"] == 1 and m2["gerados"] == 0
+
+
 def test_consolidar_herda_empresa_wide_sob_filtro_agrupamento(client_loyall, db_session):
     """Regressão 161→48: sugestão estrutural empresa-wide NÃO some ao filtrar
     por agrupamento (é herdada)."""

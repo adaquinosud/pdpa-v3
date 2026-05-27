@@ -131,6 +131,7 @@ def _itens_diagnostico(s, empresa_id) -> List[SimpleNamespace]:
                 volume=d.get("total"),
                 prioridade=prio,
                 agrupamento_id=r.agrupamento_id,
+                local_id=r.local_id,
             )
         )
     return out
@@ -214,6 +215,7 @@ def _itens_estruturais(s, empresa_id) -> List[SimpleNamespace]:
             volume=d.get("total"),
             prioridade=_FAIXA_PRIORIDADE.get(d.get("faixa"), "medio"),
             agrupamento_id=r.agrupamento_id,
+            local_id=r.local_id,
             justificativa=r.justificativa,
         )
         it.perspectiva = r.perspectiva  # nativa (gate do gerador)

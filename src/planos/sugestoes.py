@@ -93,31 +93,34 @@ def gerar_e_persistir_sugestoes(
     subpilares: Optional[List[str]] = None,
     gerar_fn: Optional[Callable] = None,
     skip_unchanged: bool = False,
+    local_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Gera sugestões estruturais por subpilar e persiste (DELETE+INSERT por
     escopo). ``subpilares`` restringe o alvo (None = todos com volume).
-    ``skip_unchanged``: pula o subpilar cujo ``dados_hash`` não mudou (pipeline).
-    ``gerar_fn`` injetável p/ testes. Retorna métricas."""
-    from src.diagnostico.leituras import _gargalo, agregar_subpilares, montar_payload_subpilar
+    ``local_id`` set ⟹ escopo loja (agrupamento_id NULL). ``skip_unchanged``: pula
+    o subpilar cujo ``dados_hash`` não mudou (pipeline). Retorna métricas."""
+    from src.diagnostico.leituras import (
+        _gargalo,
+        _scope_cond,
+        agregar_subpilares,
+        montar_payload_subpilar,
+    )
     from src.models.sugestao_estrutural import SugestaoEstrutural
     from src.utils.db import db_session
     from src.api.painel import SUBPILARES_ORDEM
 
     gerar = gerar_fn or _chamar_sonnet
+    ag_ef = None if local_id is not None else agrupamento_id  # escopos exclusivos
 
     pulados = 0
     with db_session() as s:
-        agg = agregar_subpilares(s, empresa_id, agrupamento_id)
+        agg = agregar_subpilares(s, empresa_id, agrupamento_id, local_id)
         gargalo = _gargalo(agg)
         existentes = {}
         if skip_unchanged:
             eq = s.query(SugestaoEstrutural.subpilar, SugestaoEstrutural.dados_hash).filter(
                 SugestaoEstrutural.empresa_id == empresa_id,
-                (
-                    SugestaoEstrutural.agrupamento_id.is_(None)
-                    if agrupamento_id is None
-                    else SugestaoEstrutural.agrupamento_id == agrupamento_id
-                ),
+                *_scope_cond(SugestaoEstrutural, ag_ef, local_id),
             )
             existentes = {sub: dh for sub, dh in eq.all()}
         alvo_subs = subpilares or [sp for sp in SUBPILARES_ORDEM if sp in agg]
@@ -125,7 +128,9 @@ def gerar_e_persistir_sugestoes(
         for sub in alvo_subs:
             if sub not in agg:
                 continue
-            payload = montar_payload_subpilar(s, empresa_id, agrupamento_id, sub, agg[sub], gargalo)
+            payload = montar_payload_subpilar(
+                s, empresa_id, agrupamento_id, sub, agg[sub], gargalo, local_id=local_id
+            )
             dh = hashlib.sha256(
                 json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
             ).hexdigest()[:32]
@@ -161,21 +166,17 @@ def gerar_e_persistir_sugestoes(
 
     with db_session() as s:
         for sub, sugs, dh in resultados:
-            cond = s.query(SugestaoEstrutural).filter(
+            s.query(SugestaoEstrutural).filter(
                 SugestaoEstrutural.empresa_id == empresa_id,
                 SugestaoEstrutural.subpilar == sub,
-            )
-            cond = cond.filter(
-                SugestaoEstrutural.agrupamento_id.is_(None)
-                if agrupamento_id is None
-                else SugestaoEstrutural.agrupamento_id == agrupamento_id
-            )
-            cond.delete(synchronize_session=False)
+                *_scope_cond(SugestaoEstrutural, ag_ef, local_id),
+            ).delete(synchronize_session=False)
             for i, sug in enumerate(sugs):
                 s.add(
                     SugestaoEstrutural(
                         empresa_id=empresa_id,
-                        agrupamento_id=agrupamento_id,
+                        agrupamento_id=ag_ef,
+                        local_id=local_id,
                         subpilar=sub,
                         perspectiva=sug["perspectiva"],
                         acao=sug["acao"],

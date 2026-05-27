@@ -209,43 +209,52 @@ def montar_payload_subpilar(
     }
 
 
+def _scope_cond(modelo, ag_ef, local_id):
+    """Condições SQLAlchemy do escopo exato (empresa já filtrada à parte)."""
+    return [
+        modelo.agrupamento_id.is_(None) if ag_ef is None else modelo.agrupamento_id == ag_ef,
+        modelo.local_id.is_(None) if local_id is None else modelo.local_id == local_id,
+    ]
+
+
 def gerar_e_persistir_diagnostico(
     empresa_id: int,
     agrupamento_id: Optional[int] = None,
     gerar_fn: Optional[Callable] = None,
     skip_unchanged: bool = False,
+    local_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Gera a leitura+ação de cada subpilar (Sonnet) e persiste em
-    ``leituras_diagnostico`` (upsert por subpilar no escopo). ``gerar_fn`` injetável
-    p/ testes. ``skip_unchanged``: pula o subpilar cujo ``dados_hash`` não mudou
-    (usado pelo pipeline). Retorna métricas (gerados/pulados/falhas/tokens/erros)."""
+    ``leituras_diagnostico`` (upsert por subpilar no escopo). ``local_id`` set ⟹
+    escopo loja (agrupamento_id armazenado como NULL). ``gerar_fn`` injetável p/
+    testes. ``skip_unchanged``: pula o subpilar cujo ``dados_hash`` não mudou.
+    Retorna métricas (gerados/pulados/falhas/tokens/erros)."""
     from src.anomalias.editorial import _chamar_sonnet
     from src.api.painel import SUBPILARES_ORDEM
     from src.models.diagnostico import LeituraDiagnostico
     from src.utils.db import db_session
 
     gerar = gerar_fn or (lambda payload: _chamar_sonnet(payload, prompt_path=PROMPT_PATH))
+    ag_ef = None if local_id is not None else agrupamento_id  # escopos exclusivos
 
     pulados = 0
     with db_session() as s:
-        agg = agregar_subpilares(s, empresa_id, agrupamento_id)
+        agg = agregar_subpilares(s, empresa_id, agrupamento_id, local_id)
         gargalo = _gargalo(agg)
         existentes = {}
         if skip_unchanged:
             eq = s.query(LeituraDiagnostico.subpilar, LeituraDiagnostico.dados_hash).filter(
                 LeituraDiagnostico.empresa_id == empresa_id,
-                (
-                    LeituraDiagnostico.agrupamento_id.is_(None)
-                    if agrupamento_id is None
-                    else LeituraDiagnostico.agrupamento_id == agrupamento_id
-                ),
+                *_scope_cond(LeituraDiagnostico, ag_ef, local_id),
             )
             existentes = {sub: dh for sub, dh in eq.all()}
         alvos = []
         for sub in SUBPILARES_ORDEM:
             if sub not in agg:
                 continue
-            payload = montar_payload_subpilar(s, empresa_id, agrupamento_id, sub, agg[sub], gargalo)
+            payload = montar_payload_subpilar(
+                s, empresa_id, agrupamento_id, sub, agg[sub], gargalo, local_id=local_id
+            )
             dh = hashlib.sha256(
                 json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
             ).hexdigest()[:32]
@@ -278,20 +287,16 @@ def gerar_e_persistir_diagnostico(
 
     with db_session() as s:
         for sub, leitura, acao, dh in resultados:
-            cond = s.query(LeituraDiagnostico).filter(
+            s.query(LeituraDiagnostico).filter(
                 LeituraDiagnostico.empresa_id == empresa_id,
                 LeituraDiagnostico.subpilar == sub,
-            )
-            cond = cond.filter(
-                LeituraDiagnostico.agrupamento_id.is_(None)
-                if agrupamento_id is None
-                else LeituraDiagnostico.agrupamento_id == agrupamento_id
-            )
-            cond.delete(synchronize_session=False)
+                *_scope_cond(LeituraDiagnostico, ag_ef, local_id),
+            ).delete(synchronize_session=False)
             s.add(
                 LeituraDiagnostico(
                     empresa_id=empresa_id,
-                    agrupamento_id=agrupamento_id,
+                    agrupamento_id=ag_ef,
+                    local_id=local_id,
                     subpilar=sub,
                     leitura=leitura,
                     acao=acao,
