@@ -108,17 +108,50 @@ def _itens_n5(s, empresa_id) -> List[SimpleNamespace]:
     return out
 
 
-def _itens_diagnostico(s, empresa_id) -> List[SimpleNamespace]:
+def _rows_resolvidos(s, modelo, empresa_id, ag_id, local_id):
+    """Linhas do escopo pedido com herança 'mais específico vence por subpilar'
+    (Bloco 9): na visão empresa traz só empresa-wide; na visão loja, loja própria
+    onde existe e empresa-wide (ou agrupamento) no resto. Evita inflar/vazar
+    linhas de loja na visão empresa/agrupamento."""
+    from src.diagnostico.leituras import _scope_cond
+
+    # Candidatos do mais específico para o mais geral, dentro da linhagem pedida.
+    escopos = []
+    if local_id is not None:
+        escopos.append((None, local_id))
+    if ag_id is not None:
+        escopos.append((ag_id, None))
+    escopos.append((None, None))  # empresa-wide (sempre o piso da herança)
+
+    por_escopo = {}
+    for ag, loc in escopos:
+        por_escopo[(ag, loc)] = (
+            s.query(modelo)
+            .filter(modelo.empresa_id == empresa_id, *_scope_cond(modelo, ag, loc))
+            .all()
+        )
+    subs = {r.subpilar for rows in por_escopo.values() for r in rows}
+    escolhidas = []
+    for sub in subs:
+        for ag, loc in escopos:  # mais específico primeiro
+            doce = [r for r in por_escopo[(ag, loc)] if r.subpilar == sub]
+            if doce:
+                escolhidas.extend(doce)
+                break
+    return escolhidas
+
+
+def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleNamespace]:
     from src.diagnostico.leituras import agregar_subpilares
     from src.models.diagnostico import LeituraDiagnostico
 
     agg = agregar_subpilares(s, empresa_id, None)
     out = []
-    rows = (
-        s.query(LeituraDiagnostico)
-        .filter(LeituraDiagnostico.empresa_id == empresa_id, LeituraDiagnostico.acao.isnot(None))
-        .all()
-    )
+    rows = [
+        r
+        for r in _rows_resolvidos(s, LeituraDiagnostico, empresa_id, ag_id, local_id)
+        if r.acao is not None
+    ]
     for r in rows:
         d = agg.get(r.subpilar, {})
         prio = _FAIXA_PRIORIDADE.get(d.get("faixa"), "medio")
@@ -191,18 +224,16 @@ def _itens_anomalia(s, empresa_id) -> List[SimpleNamespace]:
     return out
 
 
-def _itens_estruturais(s, empresa_id) -> List[SimpleNamespace]:
+def _itens_estruturais(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleNamespace]:
     """Sugestões estruturais (CP-PA, proativas). Perspectiva NATIVA do gerador —
-    sem reclassificar. Prioridade pela faixa do subpilar (manter < construir)."""
+    sem reclassificar. Escopo resolvido (mais específico vence por subpilar)."""
     from src.diagnostico.leituras import agregar_subpilares
     from src.models.sugestao_estrutural import SugestaoEstrutural
 
     agg = agregar_subpilares(s, empresa_id, None)
-    rows = (
-        s.query(SugestaoEstrutural)
-        .filter(SugestaoEstrutural.empresa_id == empresa_id)
-        .order_by(SugestaoEstrutural.subpilar, SugestaoEstrutural.ordem)
-        .all()
+    rows = sorted(
+        _rows_resolvidos(s, SugestaoEstrutural, empresa_id, ag_id, local_id),
+        key=lambda r: (r.subpilar, r.ordem),
     )
     out = []
     for r in rows:
@@ -233,12 +264,23 @@ def consolidar_acoes(
     from src.utils.db import db_session
 
     filtros = filtros or {}
+
+    def _int(v):
+        try:
+            return int(v) if v not in (None, "") else None
+        except (ValueError, TypeError):
+            return None
+
+    ag_id = _int(filtros.get("agrupamento_id"))
+    local_id = _int(filtros.get("local_id"))
     with db_session() as s:
+        # Diagnóstico/Estrutural resolvem o escopo pedido (herança por subpilar);
+        # N5 sempre empresa-wide; Anomalia por escopo (filtrado em _ok).
         itens = (
             _itens_n5(s, empresa_id)
-            + _itens_diagnostico(s, empresa_id)
+            + _itens_diagnostico(s, empresa_id, ag_id, local_id)
             + _itens_anomalia(s, empresa_id)
-            + _itens_estruturais(s, empresa_id)
+            + _itens_estruturais(s, empresa_id, ag_id, local_id)
         )
         overlay = {
             o.item_chave: {

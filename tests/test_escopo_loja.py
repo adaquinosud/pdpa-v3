@@ -293,6 +293,55 @@ def test_floor_subpilar_nao_gera_ralo(client_loyall, db_session):
     assert subs == {"D2"}  # P1 (ralo) não gerou leitura própria
 
 
+def test_consolidar_scope_resolution_4_visoes(client_loyall, db_session):
+    """CP-A5.2: consolidar resolve escopo (mais específico vence por subpilar) — não
+    infla nem vaza linha de loja na visão empresa."""
+    from src.planos.consolidar import consolidar_acoes
+
+    e, a, l1, f1 = _ctx(client_loyall, "scope4")
+    _vb(db_session, e, l1, f1, "P1", "detrator", 8)
+    db_session.add_all(
+        [
+            SugestaoEstrutural(
+                empresa_id=e["id"],
+                agrupamento_id=None,
+                local_id=None,
+                subpilar="P1",
+                perspectiva="processos",
+                acao="EMP-P1",
+                ordem=0,
+            ),
+            SugestaoEstrutural(
+                empresa_id=e["id"],
+                agrupamento_id=None,
+                local_id=None,
+                subpilar="D2",
+                perspectiva="pessoas",
+                acao="EMP-D2",
+                ordem=0,
+            ),
+            SugestaoEstrutural(
+                empresa_id=e["id"],
+                agrupamento_id=None,
+                local_id=l1["id"],
+                subpilar="D2",
+                perspectiva="tecnologia",
+                acao="LOJA-D2",
+                ordem=0,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    def _est(itens):
+        return {it.texto for it in itens if it.origem == "Estrutural"}
+
+    # Visão empresa: só empresa-wide (não vaza loja) → EMP-P1, EMP-D2
+    assert _est(consolidar_acoes(e["id"])) == {"EMP-P1", "EMP-D2"}
+    # Visão loja: D2 própria (LOJA-D2 vence) + P1 herdada empresa; NÃO EMP-D2
+    assert _est(consolidar_acoes(e["id"], {"local_id": l1["id"]})) == {"EMP-P1", "LOJA-D2"}
+
+
 def test_lojas_qualificadas_lista(client_loyall, db_session):
     """CP-A5: só lojas com volume classificado ≥30 entram no loop do pipeline."""
     e, a, l1, f1 = _ctx(client_loyall, "qual")
