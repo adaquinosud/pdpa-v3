@@ -741,6 +741,45 @@ def _register_cli_commands(app: Flask) -> None:
             f"validacoes preservadas={resumo['validacoes_preservadas']}"
         )
 
+    # ── Bloco 8 / Diagnóstico CP-B1: flask diagnostico-gerar (gasta Sonnet) ──
+    @app.cli.command("diagnostico-gerar")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--agrupamento",
+        "agrupamento_id",
+        type=int,
+        default=None,
+        help="ID do agrupamento (escopo). Omitido = empresa inteira.",
+    )
+    def diagnostico_gerar(empresa_arg, agrupamento_id):
+        """Gera as leituras diagnósticas por subpilar (Sonnet) e grava em
+        leituras_diagnostico. Custa LLM (~12 leituras curtas por escopo)."""
+        from src.diagnostico.leituras import gerar_e_persistir_diagnostico
+        from src.models.empresa import Empresa
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, empresa_nome = emp.id, emp.nome
+
+        click.echo(
+            f"[diagnostico] empresa={empresa_nome!r} (id={empresa_id}) "
+            f"agrupamento={agrupamento_id or '(empresa toda)'}"
+        )
+        m = gerar_e_persistir_diagnostico(empresa_id, agrupamento_id)
+        click.echo(
+            f"[diagnostico] gerados={m['gerados']} falhas={m['falhas']} "
+            f"tokens(in={m['in']} out={m['out']}) custo~${m['custo_usd']}"
+        )
+        for e in m["erros"]:
+            click.echo(f"  ERRO {e['subpilar']}: {e['erro']}", err=True)
+
 
 if __name__ == "__main__":
     app = create_app()
