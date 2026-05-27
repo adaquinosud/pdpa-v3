@@ -2304,9 +2304,70 @@ def _spark_points(serie):
     return " ".join(pts)
 
 
+def _comparar_distribuicao(s, empresa_id, el, tipo_elemento, locais_ag, corte, limite=6):
+    """Distribuição do elemento: por subpilar (se loja) ou por loja (se subpilar).
+    Top-N por volume, com mini-barras det/prom relativas ao maior total."""
+    from sqlalchemy import func
+
+    from src.api.painel import NOME_SUBPILAR
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    if tipo_elemento == "loja":
+        if not el.isdigit():
+            return []
+        chave = Verbatim.subpilar
+        q = s.query(chave, Verbatim.tipo, func.count(Verbatim.id)).filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id == int(el),
+            Verbatim.subpilar.isnot(None),
+        )
+    else:
+        chave = Verbatim.local_id
+        q = s.query(chave, Verbatim.tipo, func.count(Verbatim.id)).filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.subpilar == el,
+            Verbatim.local_id.isnot(None),
+        )
+        if locais_ag is not None:
+            q = q.filter(Verbatim.local_id.in_(locais_ag))
+    if corte is not None:
+        q = q.filter(Verbatim.data_criacao_original >= corte)
+
+    agg = {}
+    for k, tipo, n in q.group_by(chave, Verbatim.tipo).all():
+        d = agg.setdefault(k, {"det": 0, "prom": 0, "tot": 0})
+        d["tot"] += int(n)
+        if tipo == "detrator":
+            d["det"] += int(n)
+        elif tipo == "promotor":
+            d["prom"] += int(n)
+    if not agg:
+        return []
+    if tipo_elemento == "loja":
+        rotulos = {k: f"{k} · {NOME_SUBPILAR.get(k, k)}" for k in agg}
+    else:
+        ids = [k for k in agg if k is not None]
+        nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(ids)).all()}
+        rotulos = {k: nomes.get(k, f"loja {k}") for k in agg}
+    itens = sorted(agg.items(), key=lambda kv: -kv[1]["tot"])[:limite]
+    maxt = max((v["tot"] for _, v in itens), default=1) or 1
+    return [
+        SimpleNamespace(
+            rotulo=rotulos.get(k, str(k)),
+            det=v["det"],
+            prom=v["prom"],
+            tot=v["tot"],
+            det_w=round(v["det"] / maxt * 100),
+            prom_w=round(v["prom"] / maxt * 100),
+        )
+        for k, v in itens
+    ]
+
+
 def _explorar_comparar(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loja", elementos=None):
     """KPIs por elemento (2-3 lojas ou subpilares) p/ comparação lado a lado.
-    PASSO 2: + sparkline de ratio trimestral. (distribuição vem no passo 3)."""
+    PASSO 3: + sparkline de ratio trimestral + distribuição (subpilar↔loja)."""
     from sqlalchemy import func
 
     from src.api.painel import NOME_SUBPILAR, calcular_ratio, faixa_ratio
@@ -2369,6 +2430,10 @@ def _explorar_comparar(s, empresa_id, ag_id=None, corte=None, tipo_elemento="loj
                 sparkline=sparkline,
                 buckets=buckets,
                 spark_points=_spark_points(sparkline),
+                distribuicao=_comparar_distribuicao(
+                    s, empresa_id, el, tipo_elemento, locais_ag, corte
+                ),
+                dist_label="Subpilares" if tipo_elemento == "loja" else "Locais",
             )
         )
     return cards

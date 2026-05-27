@@ -78,6 +78,28 @@
     {% elif c.sparkline %}
     <div class="mt-3 text-[11px] text-loyall-400">Histórico curto p/ tendência (1 trimestre).</div>
     {% endif %}
+
+    {# Distribuição: subpilares (se loja) ou lojas (se subpilar) #}
+    {% if c.distribuicao %}
+    <div class="mt-3">
+      <div class="text-[10px] uppercase tracking-wider text-loyall-400 mb-1">{{ c.dist_label }} (top {{ c.distribuicao|length }})</div>
+      <div class="space-y-1">
+        {% for d in c.distribuicao %}
+        <div class="text-[11px]">
+          <div class="flex justify-between gap-2">
+            <span class="text-loyall-600 truncate" title="{{ d.rotulo }}">{{ d.rotulo }}</span>
+            <span class="text-loyall-400 shrink-0">{{ d.tot }}</span>
+          </div>
+          <div class="flex h-1 rounded bg-loyall-100 overflow-hidden mt-0.5"
+               title="det {{ d.det }} · prom {{ d.prom }} · total {{ d.tot }}">
+            <div class="bg-rose-500" style="width:{{ d.det_w }}%"></div>
+            <div class="bg-emerald-500" style="width:{{ d.prom_w }}%"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>

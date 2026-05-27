@@ -99,6 +99,24 @@ def test_tab_comparar_seletor_e_kpis(client_loyall, db_session):
     ).get_data(as_text=True)
     assert "Loja Pior" in h and "Loja Melhor" in h
     assert "Ratio" in h and "%Det" in h and "%Conv" in h
+    assert "Subpilares" in h and "D2 ·" in h  # distribuição por subpilar (elemento loja)
+
+
+def test_comparar_subpilar_distribui_por_loja(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "sub")
+    (l1, f1), (l2, f2) = locs
+    _verb(db_session, e, l1, f1, "D2", "detrator", 3)
+    _verb(db_session, e, l2, f2, "D2", "promotor", 2)
+    _verb(db_session, e, l1, f1, "P1", "promotor", 4)
+    _verb(db_session, e, l2, f2, "P1", "detrator", 1)
+    db_session.commit()
+    h = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/comparar"
+        "?tipo_elemento=subpilar&elementos=D2&elementos=P1"
+    ).get_data(as_text=True)
+    assert "D2 ·" in h and "P1 ·" in h  # cards de subpilar
+    assert "Locais" in h  # dist_label
+    assert "Loja Pior" in h and "Loja Melhor" in h  # distribuição por loja
 
 
 def test_comparar_sparkline_trimestral(client_loyall, db_session):
