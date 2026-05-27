@@ -59,6 +59,7 @@ def _item(
         agrupamento_id=agrupamento_id,
         # preenchidos pelo overlay
         perspectiva=None,
+        perspectiva_confianca=None,
         status="pendente",
         responsavel=None,
     )
@@ -206,6 +207,7 @@ def consolidar_acoes(
         overlay = {
             o.item_chave: {
                 "perspectiva": o.perspectiva,
+                "perspectiva_confianca": o.perspectiva_confianca,
                 "status": o.status,
                 "responsavel": o.responsavel,
             }
@@ -215,6 +217,7 @@ def consolidar_acoes(
         ov = overlay.get(it.chave)
         if ov:
             it.perspectiva = ov["perspectiva"]
+            it.perspectiva_confianca = ov["perspectiva_confianca"]
             it.status = ov["status"]
             it.responsavel = ov["responsavel"]
 

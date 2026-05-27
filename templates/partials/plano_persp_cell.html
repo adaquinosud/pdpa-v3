@@ -1,0 +1,20 @@
+{# Célula de perspectiva: select (override HTMX) + selo de confiança. Reusada na
+   tabela e na resposta do override. Requer: a (chave/perspectiva/perspectiva_confianca),
+   empresa_id, perspectivas. #}
+<form hx-post="{{ url_for('ui.plano_perspectiva_override', empresa_id=empresa_id) }}"
+      hx-target="closest td" hx-swap="innerHTML" class="flex items-center gap-1">
+  <input type="hidden" name="item_chave" value="{{ a.chave }}">
+  <select name="perspectiva" onchange="this.form.requestSubmit()"
+          class="text-xs border border-loyall-200 rounded px-1 py-0.5">
+    {% for v, lbl in perspectivas %}
+    <option value="{{ v }}" {% if a.perspectiva == v %}selected{% endif %}>{{ lbl }}</option>
+    {% endfor %}
+  </select>
+  {% if a.perspectiva_confianca == 'manual' %}
+  <span class="text-[9px] px-1 rounded bg-sky-100 text-sky-700" title="Reclassificado manualmente">✎</span>
+  {% elif a.perspectiva_confianca == 'media' %}
+  <span class="text-[9px] px-1 rounded bg-amber-100 text-amber-700" title="Confiança média (revisar)">~</span>
+  {% elif a.perspectiva_confianca == 'alta' %}
+  <span class="text-[9px] px-1 rounded bg-emerald-100 text-emerald-700" title="Confiança alta">✓</span>
+  {% endif %}
+</form>

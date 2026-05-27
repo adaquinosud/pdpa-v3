@@ -1921,7 +1921,7 @@ def htmx_disparar_fonte(fonte_id: int):
 
 # ── Hub Explorar (Grupo A) ────────────────────────────────────────────
 
-_EXPLORAR_TABS = ("locais", "heatmap", "comparar", "evolucao", "diagnostico")
+_EXPLORAR_TABS = ("locais", "heatmap", "comparar", "evolucao", "diagnostico", "planos")
 
 
 def _explorar_filtros():
@@ -2639,6 +2639,67 @@ def _explorar_diagnostico(s, empresa_id, ag_id):
     )
 
 
+_PERSP_LABELS = [
+    ("marketing", "Marketing & Comunicação"),
+    ("produto_preco", "Produto & Preço"),
+    ("tecnologia", "Tecnologia & Inovação"),
+    ("processos", "Processos & Operação"),
+    ("pessoas", "Pessoas & Cultura"),
+    ("ativacao", "Ativação do Cliente"),
+]
+_PERSP_DICT = dict(_PERSP_LABELS)
+
+
+def _explorar_planos(empresa_id, ag_id, args):
+    """Consolida ações (3 fontes + overlay), agrupa por perspectiva, calcula gargalo
+    e lojas p/ filtro. modo cliente/loyall; vista perspectiva/tabela."""
+    from src.diagnostico.leituras import _gargalo, agregar_subpilares
+    from src.models.local import Local
+    from src.planos.consolidar import consolidar_acoes
+    from src.utils.db import db_session
+
+    modo = "cliente" if args.get("modo") == "cliente" else "loyall"
+    vista = "tabela" if args.get("vista") == "tabela" else "perspectiva"
+    filtros = {
+        k: (args.get(k) or None) for k in ("perspectiva", "origem", "pilar", "prioridade", "status")
+    }
+    loja_raw = args.get("local_id")
+    if loja_raw and loja_raw.isdigit():
+        filtros["local_id"] = int(loja_raw)
+    cf = dict(filtros)
+    if ag_id is not None:
+        cf["agrupamento_id"] = ag_id
+    itens = consolidar_acoes(empresa_id, cf)
+
+    with db_session() as s:
+        gargalo = _gargalo(agregar_subpilares(s, empresa_id, ag_id))
+        lq = s.query(Local).filter_by(empresa_id=empresa_id)
+        if ag_id is not None:
+            lq = lq.filter_by(agrupamento_id=ag_id)
+        lojas = [SimpleNamespace(id=x.id, nome=x.nome) for x in lq.order_by(Local.nome).all()]
+
+    grupos = []
+    for p, lbl in _PERSP_LABELS:
+        g = [it for it in itens if it.perspectiva == p]
+        if g:
+            grupos.append(SimpleNamespace(perspectiva=p, label=lbl, itens=g))
+    sem = [it for it in itens if it.perspectiva not in _PERSP_DICT]
+    if sem:
+        grupos.append(SimpleNamespace(perspectiva=None, label="Sem perspectiva", itens=sem))
+
+    return SimpleNamespace(
+        itens=itens,
+        grupos=grupos,
+        gargalo=gargalo,
+        lojas=lojas,
+        total=len(itens),
+        modo=modo,
+        vista=vista,
+        filtros=filtros,
+        perspectivas=_PERSP_LABELS,
+    )
+
+
 def _explorar_contexto(empresa_id, tab):
     """Monta o contexto comum (empresa, agrupamentos, filtros, dados da tab)."""
     filtros, ag_id, corte = _explorar_filtros()
@@ -2703,6 +2764,7 @@ def _explorar_contexto(empresa_id, tab):
                 "series": dados["series"],
             }
         diagnostico = _explorar_diagnostico(s, empresa_id, ag_id) if tab == "diagnostico" else None
+    planos = _explorar_planos(empresa_id, ag_id, request.args) if tab == "planos" else None
     return {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
@@ -2713,6 +2775,7 @@ def _explorar_contexto(empresa_id, tab):
         "comparar": comparar,
         "evolucao": evolucao,
         "diagnostico": diagnostico,
+        "planos": planos,
     }
 
 
@@ -2775,6 +2838,33 @@ def explorar_loja_drill(empresa_id: int, local_id: int):
         loja_nome=nome,
         subpilares=subpilares,
         detratores=detratores,
+    )
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/planos/perspectiva", methods=["POST"])
+def plano_perspectiva_override(empresa_id: int):
+    """Override manual da perspectiva de uma ação (HTMX). Marca confiança=manual
+    (preservada em reclassificações futuras). Devolve a célula atualizada."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    from src.models.plano_acao import PERSPECTIVAS
+    from src.planos.perspectiva import definir_perspectiva_manual
+
+    item_chave = request.form.get("item_chave", "")
+    perspectiva = request.form.get("perspectiva", "")
+    if perspectiva not in PERSPECTIVAS or not item_chave:
+        return ("", 400)
+    definir_perspectiva_manual(empresa_id, item_chave, perspectiva)
+    cell = SimpleNamespace(
+        chave=item_chave, perspectiva=perspectiva, perspectiva_confianca="manual"
+    )
+    return render_template(
+        "partials/plano_persp_cell.html", a=cell, empresa_id=empresa_id, perspectivas=_PERSP_LABELS
     )
 
 

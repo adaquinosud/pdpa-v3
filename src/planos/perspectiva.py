@@ -64,6 +64,24 @@ def _chamar_classificador(acoes: List[Dict[str, Any]], prompt_path=PROMPT_PATH):
     )
 
 
+def definir_perspectiva_manual(empresa_id: int, item_chave: str, perspectiva: str) -> bool:
+    """Override manual da perspectiva (confiança='manual' — preservada nas
+    reclassificações futuras, que só tocam itens sem perspectiva)."""
+    from src.models.plano_acao import PERSPECTIVAS, AcaoStatus
+    from src.utils.db import db_session
+
+    if perspectiva not in PERSPECTIVAS:
+        return False
+    with db_session() as s:
+        ov = s.query(AcaoStatus).filter_by(empresa_id=empresa_id, item_chave=item_chave).first()
+        if ov is None:
+            ov = AcaoStatus(empresa_id=empresa_id, item_chave=item_chave, status="pendente")
+            s.add(ov)
+        ov.perspectiva = perspectiva
+        ov.perspectiva_confianca = "manual"
+    return True
+
+
 def classificar_perspectivas(
     empresa_id: int,
     *,
