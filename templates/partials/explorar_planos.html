@@ -7,6 +7,7 @@
 {% set loyall = p.modo == 'loyall' %}
 {% set ncols = 9 if loyall else 8 %}
 {% set tab_url = url_for('ui.explorar_tab', empresa_id=empresa.id, tab='planos') %}
+{% set track_url = url_for('ui.plano_tracking', empresa_id=empresa.id) %}
 
 {# ── Macro: linha da ação ── #}
 {% macro linha(it) %}
@@ -20,8 +21,21 @@
   <td class="px-2 py-2 text-xs text-loyall-600">{{ it.loja or '—' }}</td>
   <td class="px-2 py-2 text-xs text-right text-loyall-500">{{ it.volume if it.volume is not none else '—' }}</td>
   <td class="px-2 py-2 text-center">{% set pc = prio.get(it.prioridade, prio['medio']) %}<span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ pc.bg }} {{ pc.text }}">{{ it.prioridade }}</span></td>
-  <td class="px-2 py-2 text-center">{% set ec = est.get(it.status, est['pendente']) %}<span class="text-[10px] px-1.5 py-0.5 rounded {{ ec.bg }} {{ ec.text }}">{{ it.status }}</span></td>
-  <td class="px-2 py-2 text-xs text-loyall-500">{{ it.responsavel or '—' }}</td>
+  <td class="px-2 py-2 text-center">
+    {% set ec = est.get(it.status, est['pendente']) %}
+    <select name="status" hx-post="{{ track_url }}" hx-vals='{"item_chave": "{{ it.chave }}"}'
+            hx-swap="none" class="text-[10px] rounded px-1 py-0.5 border-0 {{ ec.bg }} {{ ec.text }}">
+      {% for v, lbl in [('pendente','pendente'),('em_curso','em curso'),('concluido','concluído')] %}
+      <option value="{{ v }}" {% if it.status == v %}selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+  </td>
+  <td class="px-2 py-2">
+    <input type="text" name="responsavel" value="{{ it.responsavel or '' }}" placeholder="—"
+           hx-post="{{ track_url }}" hx-vals='{"item_chave": "{{ it.chave }}"}'
+           hx-trigger="change" hx-swap="none"
+           class="text-xs w-24 border border-loyall-200 rounded px-1 py-0.5">
+  </td>
 </tr>
 {% endmacro %}
 

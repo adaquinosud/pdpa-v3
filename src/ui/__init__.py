@@ -2868,6 +2868,31 @@ def plano_perspectiva_override(empresa_id: int):
     )
 
 
+@ui_bp.route("/ui/empresas/<int:empresa_id>/planos/tracking", methods=["POST"])
+def plano_tracking(empresa_id: int):
+    """Atualiza status e/ou responsável de uma ação (HTMX, sem swap — o controle
+    já reflete o valor; o servidor só persiste)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    from src.planos.perspectiva import atualizar_tracking
+
+    item_chave = request.form.get("item_chave", "")
+    if not item_chave:
+        return ("", 400)
+    ok = atualizar_tracking(
+        empresa_id,
+        item_chave,
+        status=request.form.get("status"),
+        responsavel=request.form.get("responsavel"),
+    )
+    return ("", 204) if ok else ("", 400)
+
+
 # ── 404 / 403 handlers ───────────────────────────────────────────────────
 
 

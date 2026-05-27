@@ -82,6 +82,26 @@ def definir_perspectiva_manual(empresa_id: int, item_chave: str, perspectiva: st
     return True
 
 
+def atualizar_tracking(empresa_id, item_chave, *, status=None, responsavel=None) -> bool:
+    """Atualiza status e/ou responsável de uma ação no overlay (upsert).
+    ``status`` ignorado se inválido; ``responsavel`` vazio → None."""
+    from src.models.plano_acao import STATUS_VALIDOS, AcaoStatus
+    from src.utils.db import db_session
+
+    if status is not None and status not in STATUS_VALIDOS:
+        return False
+    with db_session() as s:
+        ov = s.query(AcaoStatus).filter_by(empresa_id=empresa_id, item_chave=item_chave).first()
+        if ov is None:
+            ov = AcaoStatus(empresa_id=empresa_id, item_chave=item_chave, status="pendente")
+            s.add(ov)
+        if status is not None:
+            ov.status = status
+        if responsavel is not None:
+            ov.responsavel = responsavel.strip() or None
+    return True
+
+
 def classificar_perspectivas(
     empresa_id: int,
     *,

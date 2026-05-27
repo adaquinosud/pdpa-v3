@@ -115,3 +115,44 @@ def test_override_perspectiva_invalida_400(client_loyall, db_session):
         data={"item_chave": "diag:1", "perspectiva": "lixo"},
     )
     assert r.status_code == 400
+
+
+def test_tracking_status_e_responsavel(client_loyall, db_session):
+    e = _empresa(client_loyall, "trk")
+    _seed(db_session, e["id"])
+    diag_id = db_session.query(LeituraDiagnostico).filter_by(empresa_id=e["id"]).first().id
+    chave = f"diag:{diag_id}"
+    # status
+    r1 = client_loyall.post(
+        f"/ui/empresas/{e['id']}/planos/tracking",
+        data={"item_chave": chave, "status": "em_curso"},
+    )
+    assert r1.status_code == 204
+    # responsável
+    r2 = client_loyall.post(
+        f"/ui/empresas/{e['id']}/planos/tracking",
+        data={"item_chave": chave, "responsavel": "Bruno"},
+    )
+    assert r2.status_code == 204
+
+    db_session.expire_all()
+    ov = db_session.query(AcaoStatus).filter_by(empresa_id=e["id"], item_chave=chave).first()
+    assert ov.status == "em_curso" and ov.responsavel == "Bruno"
+
+
+def test_tracking_status_invalido_400(client_loyall, db_session):
+    e = _empresa(client_loyall, "trkinv")
+    _seed(db_session, e["id"])
+    r = client_loyall.post(
+        f"/ui/empresas/{e['id']}/planos/tracking",
+        data={"item_chave": "diag:1", "status": "lixo"},
+    )
+    assert r.status_code == 400
+
+
+def test_tracking_renderiza_controles_editaveis(client_loyall, db_session):
+    e = _empresa(client_loyall, "edit")
+    _seed(db_session, e["id"])
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
+    assert 'name="status"' in h and 'name="responsavel"' in h  # editáveis na tabela
+    assert "planos/tracking" in h
