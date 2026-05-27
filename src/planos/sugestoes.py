@@ -92,11 +92,12 @@ def gerar_e_persistir_sugestoes(
     agrupamento_id: Optional[int] = None,
     subpilares: Optional[List[str]] = None,
     gerar_fn: Optional[Callable] = None,
+    skip_unchanged: bool = False,
 ) -> Dict[str, Any]:
     """Gera sugestões estruturais por subpilar e persiste (DELETE+INSERT por
-    escopo). ``subpilares`` restringe o alvo (None = todos com volume). ``gerar_fn``
-    injetável p/ testes. Retorna métricas (subpilares, sugestoes, por_perspectiva,
-    tokens, custo, erros)."""
+    escopo). ``subpilares`` restringe o alvo (None = todos com volume).
+    ``skip_unchanged``: pula o subpilar cujo ``dados_hash`` não mudou (pipeline).
+    ``gerar_fn`` injetável p/ testes. Retorna métricas."""
     from src.diagnostico.leituras import _gargalo, agregar_subpilares, montar_payload_subpilar
     from src.models.sugestao_estrutural import SugestaoEstrutural
     from src.utils.db import db_session
@@ -104,9 +105,21 @@ def gerar_e_persistir_sugestoes(
 
     gerar = gerar_fn or _chamar_sonnet
 
+    pulados = 0
     with db_session() as s:
         agg = agregar_subpilares(s, empresa_id, agrupamento_id)
         gargalo = _gargalo(agg)
+        existentes = {}
+        if skip_unchanged:
+            eq = s.query(SugestaoEstrutural.subpilar, SugestaoEstrutural.dados_hash).filter(
+                SugestaoEstrutural.empresa_id == empresa_id,
+                (
+                    SugestaoEstrutural.agrupamento_id.is_(None)
+                    if agrupamento_id is None
+                    else SugestaoEstrutural.agrupamento_id == agrupamento_id
+                ),
+            )
+            existentes = {sub: dh for sub, dh in eq.all()}
         alvo_subs = subpilares or [sp for sp in SUBPILARES_ORDEM if sp in agg]
         alvos = []
         for sub in alvo_subs:
@@ -116,10 +129,14 @@ def gerar_e_persistir_sugestoes(
             dh = hashlib.sha256(
                 json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
             ).hexdigest()[:32]
+            if skip_unchanged and existentes.get(sub) == dh:
+                pulados += 1
+                continue
             alvos.append((sub, payload, dh))
 
     m: Dict[str, Any] = {
         "subpilares": 0,
+        "pulados": pulados,
         "sugestoes": 0,
         "por_perspectiva": {},
         "in": 0,

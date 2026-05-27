@@ -206,3 +206,47 @@ def test_tab_planos_renderiza_caixa_estrutural(client_loyall, db_session):
     assert "Sugestões estruturais" in h and "🏗️" in h
     assert "Redesenhe a comunicação de valor" in h
     assert "ratio crítico em P1" in h
+
+
+def test_skip_unchanged_pula_subpilar_sem_mudanca(client_loyall, db_session):
+    """PA.5: 2ª geração com skip_unchanged pula o subpilar cujo dados_hash não mudou."""
+    e, a, loc, f = _ctx(client_loyall, "skip")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.commit()
+    chamadas = {"n": 0}
+
+    def fake(payload):
+        chamadas["n"] += 1
+        return {"sugestoes": [{"perspectiva": "processos", "acao": "X"}], "_in": 1, "_out": 1}
+
+    m1 = gerar_e_persistir_sugestoes(e["id"], a["id"], subpilares=["P1"], gerar_fn=fake)
+    assert m1["subpilares"] == 1 and chamadas["n"] == 1
+    # 2ª rodada com skip: dados não mudaram → pula, não chama
+    m2 = gerar_e_persistir_sugestoes(
+        e["id"], a["id"], subpilares=["P1"], gerar_fn=fake, skip_unchanged=True
+    )
+    assert m2["pulados"] == 1 and m2["subpilares"] == 0
+    assert chamadas["n"] == 1  # não chamou de novo
+
+
+def test_botao_regenerar_rate_limit(client_loyall, db_session):
+    """PA.5: regeração recente (< 1h) é recusada com aviso."""
+    e, a, loc, f = _ctx(client_loyall, "rl")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.add(
+        SugestaoEstrutural(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="P1",
+            perspectiva="processos",
+            acao="Já existe",
+            ordem=0,
+            gerado_em=datetime.utcnow(),  # agora → dentro do rate-limit
+        )
+    )
+    db_session.commit()
+    r = client_loyall.post(f"/empresas/{e['id']}/explorar/regenerar/sugestoes")
+    assert r.status_code == 200
+    h = r.get_data(as_text=True)
+    assert "Aguarde até 1h" in h  # recusado
+    assert "Já existe" in h  # mas a aba é re-renderizada com os dados atuais

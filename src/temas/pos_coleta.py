@@ -45,6 +45,14 @@ class ResumoPosColeta:
     cruz_literais: int = 0
     cruz_semanticos: int = 0
     acoes: int = 0
+    # Cauda editorial (Bloco 8 / PA.5)
+    anomalias: int = 0
+    diagnostico_gerados: int = 0
+    diagnostico_pulados: int = 0
+    perspectivas_classificadas: int = 0
+    sugestoes_subpilares: int = 0
+    sugestoes_geradas: int = 0
+    sugestoes_pulados: int = 0
     custo_estimado_usd: float = 0.0
 
 
@@ -148,10 +156,42 @@ def executar_pos_coleta(
     ra = gerar_e_persistir_acoes(empresa_id)
     r.acoes = ra.acoes_geradas
 
+    # ── Cauda editorial (Bloco 8 / PA.5) — estado coerente após cada coleta ──
+    # anomalias ($0): recomputa série + detecta (preserva validação humana).
+    from src.anomalias.combinador import detectar_e_persistir
+    from src.anomalias.ratios import recomputar_ratios_mensais
+
+    recomputar_ratios_mensais(empresa_id)
+    r.anomalias = detectar_e_persistir(empresa_id)["total"]
+
+    # diagnóstico (Sonnet, skip por hash): só os subpilares que mudaram.
+    from src.diagnostico.leituras import gerar_e_persistir_diagnostico
+
+    md = gerar_e_persistir_diagnostico(empresa_id, None, skip_unchanged=True)
+    r.diagnostico_gerados = md["gerados"]
+    r.diagnostico_pulados = md["pulados"]
+
+    # perspectivas (Sonnet, incremental: classifica só ações sem perspectiva).
+    from src.planos.perspectiva import classificar_perspectivas
+
+    mp = classificar_perspectivas(empresa_id)
+
+    # sugestões estruturais (Sonnet, skip por hash).
+    from src.planos.sugestoes import gerar_e_persistir_sugestoes
+
+    ms = gerar_e_persistir_sugestoes(empresa_id, None, skip_unchanged=True)
+    r.perspectivas_classificadas = mp["classificados"]
+    r.sugestoes_subpilares = ms["subpilares"]
+    r.sugestoes_geradas = ms["sugestoes"]
+    r.sugestoes_pulados = ms["pulados"]
+
     # Custo estimado (Haiku ~$1/$5, Sonnet ~$3/$15 por MTok; classif Haiku flat).
     custo = r.classificados * CUSTO_USD_POR_CLASSIFICACAO
     custo += rp.custo_usd_acumulado
     custo += rsem.input_tokens / 1e6 * 1.0 + rsem.output_tokens / 1e6 * 5.0
     custo += ra.input_tokens / 1e6 * 3.0 + ra.output_tokens / 1e6 * 15.0
+    custo += md["in"] / 1e6 * 3.0 + md["out"] / 1e6 * 15.0
+    custo += mp["in"] / 1e6 * 3.0 + mp["out"] / 1e6 * 15.0
+    custo += ms["in"] / 1e6 * 3.0 + ms["out"] / 1e6 * 15.0
     r.custo_estimado_usd = round(custo, 4)
     return r

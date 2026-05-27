@@ -14,6 +14,19 @@
 </div>
 {% else %}
 
+{% if d.regen_msg %}
+<div class="mb-2 px-3 py-2 rounded text-xs {% if d.regen_msg.startswith('✓') %}bg-emerald-50 text-emerald-700 border-l-4 border-emerald-300{% else %}bg-amber-50 text-amber-800 border-l-4 border-amber-300{% endif %}">{{ d.regen_msg }}</div>
+{% endif %}
+<div class="flex items-center gap-2 mb-3 flex-wrap">
+  <button hx-post="{{ url_for('ui.explorar_regenerar', empresa_id=empresa.id, tipo='diagnostico') }}?agrupamento_id={{ filtros.agrupamento_id }}&periodo={{ filtros.periodo }}"
+          hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-indicator="#regen-loading-diag"
+          class="text-xs px-2.5 py-1 rounded border border-sky-300 text-sky-800 bg-sky-50 hover:bg-sky-100">
+    ♻️ Regenerar leituras diagnósticas
+  </button>
+  <span id="regen-loading-diag" class="htmx-indicator text-xs text-loyall-400">gerando… (pode levar ~1 min)</span>
+  {% if d.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ d.ultima_geracao.strftime('%d/%m %H:%M') }}</span>{% endif %}
+</div>
+
 {# ── Mapa de Lastro ── #}
 <h3 class="text-sm font-semibold text-loyall-700 mb-1">Mapa de Lastro</h3>
 <p class="text-xs text-loyall-500 mb-2">Jornada sequencial P→D→Pa→A — resolva o gargalo antes de investir nos pilares seguintes.</p>

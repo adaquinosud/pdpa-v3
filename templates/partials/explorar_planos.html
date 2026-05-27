@@ -73,6 +73,20 @@
 
   {# ── Conteúdo ── #}
   <div class="flex-1 min-w-0">
+    {% if p.regen_msg %}
+    <div class="mb-2 px-3 py-2 rounded text-xs {% if p.regen_msg.startswith('✓') %}bg-emerald-50 text-emerald-700 border-l-4 border-emerald-300{% else %}bg-amber-50 text-amber-800 border-l-4 border-amber-300{% endif %}">{{ p.regen_msg }}</div>
+    {% endif %}
+    <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+      <div class="flex items-center gap-2">
+        <button hx-post="{{ url_for('ui.explorar_regenerar', empresa_id=empresa.id, tipo='sugestoes') }}?agrupamento_id={{ filtros.agrupamento_id }}&periodo={{ filtros.periodo }}"
+                hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-indicator="#regen-loading"
+                class="text-xs px-2.5 py-1 rounded border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100">
+          🏗️ Regenerar sugestões estruturais
+        </button>
+        <span id="regen-loading" class="htmx-indicator text-xs text-loyall-400">gerando… (pode levar ~1 min)</span>
+        {% if p.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ p.ultima_geracao.strftime('%d/%m %H:%M') }}</span>{% endif %}
+      </div>
+    </div>
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
       <span class="text-xs text-loyall-400">{{ p.total }} ações</span>
       <div class="flex gap-3 text-xs">

@@ -147,11 +147,15 @@ def montar_payload_subpilar(s, empresa_id, ag_id, subpilar, dados, gargalo) -> D
 
 
 def gerar_e_persistir_diagnostico(
-    empresa_id: int, agrupamento_id: Optional[int] = None, gerar_fn: Optional[Callable] = None
+    empresa_id: int,
+    agrupamento_id: Optional[int] = None,
+    gerar_fn: Optional[Callable] = None,
+    skip_unchanged: bool = False,
 ) -> Dict[str, Any]:
     """Gera a leitura+ação de cada subpilar (Sonnet) e persiste em
     ``leituras_diagnostico`` (upsert por subpilar no escopo). ``gerar_fn`` injetável
-    p/ testes. Retorna métricas (gerados/falhas/tokens/custo/erros)."""
+    p/ testes. ``skip_unchanged``: pula o subpilar cujo ``dados_hash`` não mudou
+    (usado pelo pipeline). Retorna métricas (gerados/pulados/falhas/tokens/erros)."""
     from src.anomalias.editorial import _chamar_sonnet
     from src.api.painel import SUBPILARES_ORDEM
     from src.models.diagnostico import LeituraDiagnostico
@@ -159,9 +163,21 @@ def gerar_e_persistir_diagnostico(
 
     gerar = gerar_fn or (lambda payload: _chamar_sonnet(payload, prompt_path=PROMPT_PATH))
 
+    pulados = 0
     with db_session() as s:
         agg = agregar_subpilares(s, empresa_id, agrupamento_id)
         gargalo = _gargalo(agg)
+        existentes = {}
+        if skip_unchanged:
+            eq = s.query(LeituraDiagnostico.subpilar, LeituraDiagnostico.dados_hash).filter(
+                LeituraDiagnostico.empresa_id == empresa_id,
+                (
+                    LeituraDiagnostico.agrupamento_id.is_(None)
+                    if agrupamento_id is None
+                    else LeituraDiagnostico.agrupamento_id == agrupamento_id
+                ),
+            )
+            existentes = {sub: dh for sub, dh in eq.all()}
         alvos = []
         for sub in SUBPILARES_ORDEM:
             if sub not in agg:
@@ -170,9 +186,19 @@ def gerar_e_persistir_diagnostico(
             dh = hashlib.sha256(
                 json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
             ).hexdigest()[:32]
+            if skip_unchanged and existentes.get(sub) == dh:
+                pulados += 1
+                continue
             alvos.append((sub, payload, dh))
 
-    m: Dict[str, Any] = {"gerados": 0, "falhas": 0, "in": 0, "out": 0, "erros": []}
+    m: Dict[str, Any] = {
+        "gerados": 0,
+        "pulados": pulados,
+        "falhas": 0,
+        "in": 0,
+        "out": 0,
+        "erros": [],
+    }
     resultados = []
     for sub, payload, dh in alvos:
         try:

@@ -2643,8 +2643,14 @@ def _explorar_diagnostico(s, empresa_id, ag_id):
             )
         )
 
+    ultima = max((r.gerado_em for r in leituras.values()), default=None)
     return SimpleNamespace(
-        pilares=pilares, gargalo=gargalo, confronto=confronto, tem_leituras=bool(leituras)
+        pilares=pilares,
+        gargalo=gargalo,
+        confronto=confronto,
+        tem_leituras=bool(leituras),
+        ultima_geracao=ultima,
+        regen_msg=None,
     )
 
 
@@ -2805,6 +2811,9 @@ def _explorar_planos(empresa_id, ag_id, args):
         if ag_id is not None:
             lq = lq.filter_by(agrupamento_id=ag_id)
         lojas = [SimpleNamespace(id=x.id, nome=x.nome) for x in lq.order_by(Local.nome).all()]
+        from src.models.sugestao_estrutural import SugestaoEstrutural
+
+        ultima_geracao = _ultima_geracao(s, SugestaoEstrutural, empresa_id, ag_id)
 
     grupos = []
     for p, lbl in _PERSP_LABELS:
@@ -2839,7 +2848,20 @@ def _explorar_planos(empresa_id, ag_id, args):
         vista=vista,
         filtros=filtros,
         perspectivas=_PERSP_LABELS,
+        ultima_geracao=ultima_geracao,
+        regen_msg=None,
     )
+
+
+def _ultima_geracao(s, modelo, empresa_id, ag_id):
+    """max(gerado_em) das gerações do escopo (p/ rate-limit + 'última geração')."""
+    from sqlalchemy import func
+
+    q = s.query(func.max(modelo.gerado_em)).filter(modelo.empresa_id == empresa_id)
+    q = q.filter(
+        modelo.agrupamento_id.is_(None) if ag_id is None else modelo.agrupamento_id == ag_id
+    )
+    return q.scalar()
 
 
 def _explorar_contexto(empresa_id, tab):
@@ -3046,6 +3068,66 @@ def explorar_ia_perguntar(empresa_id: int):
         cached=out.get("cached", False),
         erro=out.get("erro"),
     )
+
+
+# Rate-limit do botão "Regenerar" (PA.5): exceção manual; pipeline cobre o automático.
+_REGEN_RATE_LIMIT_SEG = 3600
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/regenerar/<tipo>", methods=["POST"])
+def explorar_regenerar(empresa_id: int, tipo: str):
+    """Regenera diagnóstico ou sugestões estruturais do escopo (Sonnet, skip por
+    hash). Rate-limit 1h via max(gerado_em). Devolve a aba atualizada (HTMX)."""
+    from datetime import datetime
+
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    if tipo not in ("sugestoes", "diagnostico"):
+        return render_template("404.html"), 404
+
+    from src.models.diagnostico import LeituraDiagnostico
+    from src.models.sugestao_estrutural import SugestaoEstrutural
+
+    _, ag_id, _ = _explorar_filtros()
+    modelo = SugestaoEstrutural if tipo == "sugestoes" else LeituraDiagnostico
+    tab = "planos" if tipo == "sugestoes" else "diagnostico"
+
+    with db_session() as s:
+        ultima = _ultima_geracao(s, modelo, empresa_id, ag_id)
+
+    msg = None
+    agora = datetime.utcnow()
+    if ultima is not None and (agora - ultima).total_seconds() < _REGEN_RATE_LIMIT_SEG:
+        mins = int((agora - ultima).total_seconds() // 60)
+        msg = (
+            f"Regenerado há {mins} min. Aguarde até 1h entre regenerações manuais "
+            f"— o pipeline noturno atualiza automaticamente."
+        )
+    elif tipo == "sugestoes":
+        from src.planos.sugestoes import gerar_e_persistir_sugestoes
+
+        m = gerar_e_persistir_sugestoes(empresa_id, ag_id, skip_unchanged=True)
+        msg = (
+            f"✓ {m['sugestoes']} sugestões em {m['subpilares']} subpilares regeneradas "
+            f"({m['pulados']} sem mudança)."
+        )
+    else:
+        from src.diagnostico.leituras import gerar_e_persistir_diagnostico
+
+        m = gerar_e_persistir_diagnostico(empresa_id, ag_id, skip_unchanged=True)
+        msg = f"✓ {m['gerados']} leituras regeneradas ({m['pulados']} sem mudança)."
+
+    ctx = _explorar_contexto(empresa_id, tab)
+    if ctx is None:
+        return render_template("404.html"), 404
+    alvo = ctx.get("planos") if tipo == "sugestoes" else ctx.get("diagnostico")
+    if alvo is not None:
+        alvo.regen_msg = msg
+    return render_template("partials/explorar_conteudo.html", **ctx)
 
 
 @ui_bp.route("/ui/empresas/<int:empresa_id>/planos/perspectiva", methods=["POST"])

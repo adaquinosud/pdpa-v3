@@ -706,6 +706,13 @@ def _register_cli_commands(app: Flask) -> None:
             f"[pos-coleta] clusters={r.clusters_rotulados} cruz_literais={r.cruz_literais} "
             f"cruz_semanticos={r.cruz_semanticos} acoes={r.acoes}"
         )
+        click.echo(
+            f"[pos-coleta] anomalias={r.anomalias} "
+            f"diagnostico(gerados={r.diagnostico_gerados} pulados={r.diagnostico_pulados}) "
+            f"perspectivas={r.perspectivas_classificadas} "
+            f"sugestoes(subpilares={r.sugestoes_subpilares} geradas={r.sugestoes_geradas} "
+            f"pulados={r.sugestoes_pulados})"
+        )
         click.echo(f"[pos-coleta] custo estimado ~${r.custo_estimado_usd}")
 
     # ── Monitoramento ML CP-5: flask anomalias-detectar ($0, sem LLM) ──
