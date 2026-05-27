@@ -130,3 +130,79 @@ def test_regerar_substitui(client_loyall, db_session):
     )
     rows = db_session.query(SugestaoEstrutural).filter_by(empresa_id=e["id"], subpilar="P1").all()
     assert len(rows) == 1 and rows[0].perspectiva == "pessoas"  # substituiu, não acumulou
+
+
+def test_consolidar_inclui_estrutural_com_perspectiva_nativa(client_loyall, db_session):
+    """PA.3: sugestão estrutural entra no consolidar com origem + perspectiva nativa."""
+    from src.planos.consolidar import consolidar_acoes
+
+    e, a, loc, f = _ctx(client_loyall, "cons")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.commit()
+    db_session.add(
+        SugestaoEstrutural(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="P1",
+            perspectiva="processos",
+            acao="Institua um SLA de atendimento",
+            justificativa="ratio 0,3 em P1",
+            ordem=0,
+        )
+    )
+    db_session.commit()
+    itens = consolidar_acoes(e["id"])
+    estrut = [it for it in itens if it.origem == "Estrutural"]
+    assert len(estrut) == 1
+    assert estrut[0].perspectiva == "processos"  # nativa, sem overlay
+    assert estrut[0].justificativa == "ratio 0,3 em P1"
+    assert estrut[0].chave.startswith("estrut:")
+    assert estrut[0].prioridade == "alto"  # P1 crítico (8 det / 0 prom)
+
+
+def test_tracking_preserva_perspectiva_nativa_estrutural(client_loyall, db_session):
+    """Mudar status (overlay sem perspectiva) NÃO apaga a perspectiva nativa."""
+    from src.planos.consolidar import consolidar_acoes
+    from src.planos.perspectiva import atualizar_tracking
+
+    e, a, loc, f = _ctx(client_loyall, "trk")
+    _verb(db_session, e, loc, f, "D2", "detrator", 6)
+    db_session.commit()
+    db_session.add(
+        SugestaoEstrutural(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="D2",
+            perspectiva="tecnologia",
+            acao="Implante sistema de senha",
+            ordem=0,
+        )
+    )
+    db_session.commit()
+    chave = next(it.chave for it in consolidar_acoes(e["id"]) if it.origem == "Estrutural")
+    atualizar_tracking(e["id"], chave, status="em_curso")
+    it = next(x for x in consolidar_acoes(e["id"]) if x.chave == chave)
+    assert it.status == "em_curso"
+    assert it.perspectiva == "tecnologia"  # preservada apesar do overlay de status
+
+
+def test_tab_planos_renderiza_caixa_estrutural(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "uipa")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.commit()
+    db_session.add(
+        SugestaoEstrutural(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="P1",
+            perspectiva="marketing",
+            acao="Redesenhe a comunicação de valor",
+            justificativa="ratio crítico em P1",
+            ordem=0,
+        )
+    )
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
+    assert "Sugestões estruturais" in h and "🏗️" in h
+    assert "Redesenhe a comunicação de valor" in h
+    assert "ratio crítico em P1" in h

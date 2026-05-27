@@ -2810,10 +2810,24 @@ def _explorar_planos(empresa_id, ag_id, args):
     for p, lbl in _PERSP_LABELS:
         g = [it for it in itens if it.perspectiva == p]
         if g:
-            grupos.append(SimpleNamespace(perspectiva=p, label=lbl, itens=g))
+            estrut = [it for it in g if it.origem == "Estrutural"]
+            reat = [it for it in g if it.origem != "Estrutural"]
+            grupos.append(
+                SimpleNamespace(
+                    perspectiva=p, label=lbl, estruturais=estrut, reativas=reat, total=len(g)
+                )
+            )
     sem = [it for it in itens if it.perspectiva not in _PERSP_DICT]
     if sem:
-        grupos.append(SimpleNamespace(perspectiva=None, label="Sem perspectiva", itens=sem))
+        grupos.append(
+            SimpleNamespace(
+                perspectiva=None,
+                label="Sem perspectiva",
+                estruturais=[it for it in sem if it.origem == "Estrutural"],
+                reativas=[it for it in sem if it.origem != "Estrutural"],
+                total=len(sem),
+            )
+        )
 
     return SimpleNamespace(
         itens=itens,

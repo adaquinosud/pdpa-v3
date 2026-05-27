@@ -820,6 +820,46 @@ def _register_cli_commands(app: Flask) -> None:
             f"lotes={m['lotes']} tokens(in={m['in']} out={m['out']}) custo~${m['custo_usd']}"
         )
 
+    # ── Bloco 8 / CP-PA: flask sugestoes-perspectiva (gasta Sonnet) ──
+    @app.cli.command("sugestoes-perspectiva")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--agrupamento",
+        "agrupamento_id",
+        type=int,
+        default=None,
+        help="ID do agrupamento (escopo). Omitido = empresa inteira.",
+    )
+    def sugestoes_perspectiva(empresa_arg, agrupamento_id):
+        """Gera sugestões estruturais por subpilar × perspectiva (Sonnet) e grava em
+        sugestoes_estruturais. ~12 subpilares × 1-6 frentes com alavanca. Custa LLM."""
+        from src.models.empresa import Empresa
+        from src.planos.sugestoes import gerar_e_persistir_sugestoes
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, empresa_nome = emp.id, emp.nome
+
+        click.echo(
+            f"[sugestoes] empresa={empresa_nome!r} (id={empresa_id}) "
+            f"agrupamento={agrupamento_id or '(empresa toda)'}"
+        )
+        m = gerar_e_persistir_sugestoes(empresa_id, agrupamento_id)
+        click.echo(
+            f"[sugestoes] subpilares={m['subpilares']} sugestoes={m['sugestoes']} "
+            f"por_perspectiva={m['por_perspectiva']} tokens(in={m['in']} out={m['out']}) "
+            f"custo~${m['custo_usd']}"
+        )
+        for e in m["erros"]:
+            click.echo(f"  ERRO {e['subpilar']}: {e['erro']}", err=True)
+
 
 if __name__ == "__main__":
     app = create_app()

@@ -114,8 +114,27 @@
         <tbody>
           {% if p.vista == 'perspectiva' %}
             {% for g in p.grupos %}
-            <tr class="bg-loyall-100/60"><td colspan="{{ ncols }}" class="px-3 py-1.5 text-xs font-semibold text-loyall-700">{{ g.label }} <span class="text-loyall-400 font-normal">({{ g.itens|length }})</span></td></tr>
-            {% for it in g.itens %}{{ linha(it) }}{% endfor %}
+            <tr class="bg-loyall-100/60"><td colspan="{{ ncols }}" class="px-3 py-1.5 text-xs font-semibold text-loyall-700">{{ g.label }} <span class="text-loyall-400 font-normal">({{ g.total }})</span>{% if g.estruturais %} <span class="ml-1 text-[9px] uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">🏗️ {{ g.estruturais|length }} estrutural</span>{% endif %}</td></tr>
+            {% if g.estruturais %}
+            <tr><td colspan="{{ ncols }}" class="px-3 py-2 bg-amber-50/50">
+              <details {% if loop.first %}open{% endif %} class="text-xs">
+                <summary class="cursor-pointer font-semibold text-amber-800">🏗️ Sugestões estruturais (proativas) — construir a fundação, não reagir ao reclamado</summary>
+                <div class="mt-2 space-y-2">
+                  {% for it in g.estruturais %}
+                  <div class="border-l-2 border-amber-400 pl-2">
+                    <div class="text-loyall-800">{{ it.texto }}</div>
+                    {% if it.justificativa %}<div class="text-[11px] text-loyall-500 mt-0.5">{{ it.justificativa }}</div>{% endif %}
+                    <div class="text-[10px] text-loyall-400 mt-0.5">
+                      {% if it.subpilar %}{{ it.subpilar }}{% if it.subpilar_nome %} · {{ it.subpilar_nome }}{% endif %}{% if it.pilar == p.gargalo %} 🚩{% endif %}{% endif %}
+                      · status: {{ it.status }}{% if it.responsavel %} · {{ it.responsavel }}{% endif %}
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </details>
+            </td></tr>
+            {% endif %}
+            {% for it in g.reativas %}{{ linha(it) }}{% endfor %}
             {% endfor %}
           {% else %}
             {% for it in p.itens %}{{ linha(it) }}{% endfor %}

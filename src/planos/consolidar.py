@@ -40,6 +40,7 @@ def _item(
     volume=None,
     prioridade=None,
     agrupamento_id=None,
+    justificativa=None,
 ):
     from src.api.painel import NOME_SUBPILAR, PILAR_DE_SUBPILAR
 
@@ -57,6 +58,7 @@ def _item(
         volume=volume,
         prioridade=(prioridade or "medio"),
         agrupamento_id=agrupamento_id,
+        justificativa=justificativa,
         # preenchidos pelo overlay
         perspectiva=None,
         perspectiva_confianca=None,
@@ -188,6 +190,37 @@ def _itens_anomalia(s, empresa_id) -> List[SimpleNamespace]:
     return out
 
 
+def _itens_estruturais(s, empresa_id) -> List[SimpleNamespace]:
+    """Sugestões estruturais (CP-PA, proativas). Perspectiva NATIVA do gerador —
+    sem reclassificar. Prioridade pela faixa do subpilar (manter < construir)."""
+    from src.diagnostico.leituras import agregar_subpilares
+    from src.models.sugestao_estrutural import SugestaoEstrutural
+
+    agg = agregar_subpilares(s, empresa_id, None)
+    rows = (
+        s.query(SugestaoEstrutural)
+        .filter(SugestaoEstrutural.empresa_id == empresa_id)
+        .order_by(SugestaoEstrutural.subpilar, SugestaoEstrutural.ordem)
+        .all()
+    )
+    out = []
+    for r in rows:
+        d = agg.get(r.subpilar, {})
+        it = _item(
+            f"estrut:{r.id}",
+            r.acao,
+            "Estrutural",
+            subpilar=r.subpilar,
+            volume=d.get("total"),
+            prioridade=_FAIXA_PRIORIDADE.get(d.get("faixa"), "medio"),
+            agrupamento_id=r.agrupamento_id,
+            justificativa=r.justificativa,
+        )
+        it.perspectiva = r.perspectiva  # nativa (gate do gerador)
+        out.append(it)
+    return out
+
+
 def consolidar_acoes(
     empresa_id: int, filtros: Optional[Dict[str, Any]] = None
 ) -> List[SimpleNamespace]:
@@ -203,6 +236,7 @@ def consolidar_acoes(
             _itens_n5(s, empresa_id)
             + _itens_diagnostico(s, empresa_id)
             + _itens_anomalia(s, empresa_id)
+            + _itens_estruturais(s, empresa_id)
         )
         overlay = {
             o.item_chave: {
@@ -216,8 +250,11 @@ def consolidar_acoes(
     for it in itens:
         ov = overlay.get(it.chave)
         if ov:
-            it.perspectiva = ov["perspectiva"]
-            it.perspectiva_confianca = ov["perspectiva_confianca"]
+            # Só sobrescreve perspectiva se o overlay tiver uma (override manual);
+            # senão preserva a nativa (estruturais já vêm com perspectiva).
+            if ov["perspectiva"] is not None:
+                it.perspectiva = ov["perspectiva"]
+                it.perspectiva_confianca = ov["perspectiva_confianca"]
             it.status = ov["status"]
             it.responsavel = ov["responsavel"]
 
