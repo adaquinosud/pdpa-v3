@@ -2628,19 +2628,56 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         calcular_ratio,
         faixa_ratio,
     )
-    from src.diagnostico.leituras import _gargalo, _scope_cond, agregar_subpilares
-    from src.models.diagnostico import LeituraDiagnostico
-
-    eff_ag, eff_local, escopo = _escopo_loja(s, empresa_id, ag_id, local_id, LeituraDiagnostico)
-
-    agg = agregar_subpilares(s, empresa_id, eff_ag, eff_local)
-    gargalo = _gargalo(agg)
-
-    lq = s.query(LeituraDiagnostico).filter(
-        LeituraDiagnostico.empresa_id == empresa_id,
-        *_scope_cond(LeituraDiagnostico, eff_ag, eff_local),
+    from src.diagnostico.leituras import (
+        _gargalo,
+        _scope_cond,
+        agregar_subpilares,
+        resolver_escopo,
     )
-    leituras = {r.subpilar: r for r in lq.all()}
+    from src.models.diagnostico import LeituraDiagnostico
+    from src.models.local import Local
+
+    def _leituras(ag, loc):
+        return {
+            r.subpilar: r
+            for r in s.query(LeituraDiagnostico)
+            .filter(
+                LeituraDiagnostico.empresa_id == empresa_id,
+                *_scope_cond(LeituraDiagnostico, ag, loc),
+            )
+            .all()
+        }
+
+    escopo = None
+    herdado_sub = {}  # subpilar -> origem do pai (str) quando herdado; ausente = próprio
+    if local_id is not None:
+        # Números = sempre da própria loja (com selo de volume por subpilar).
+        agg = agregar_subpilares(s, empresa_id, None, local_id)
+        loja_lt = _leituras(None, local_id)  # próprias (só subpilares ≥30)
+        loc = s.get(Local, local_id)
+        loja_ag = loc.agrupamento_id if loc else ag_id
+        # Pai para herança dos subpilares ralos (agrupamento se tiver, senão empresa).
+        par = resolver_escopo(s, LeituraDiagnostico, empresa_id, ag_id=loja_ag, local_id=None)
+        par_lt = _leituras(par["ag"], None) if par["origem"] else {}
+        leituras = {}
+        for sub in agg:
+            if sub in loja_lt:
+                leituras[sub] = loja_lt[sub]  # próprio
+            elif sub in par_lt:
+                leituras[sub] = par_lt[sub]
+                herdado_sub[sub] = par["origem"]  # herdado do pai
+        escopo = SimpleNamespace(
+            loja=True,
+            loja_nome=(loc.nome if loc else f"loja {local_id}"),
+            origem_pai=par["origem"],
+            n_proprios=sum(1 for sub in agg if sub in loja_lt),
+            n_herdados=len(herdado_sub),
+        )
+    else:
+        agg = agregar_subpilares(s, empresa_id, ag_id)
+        leituras = _leituras(ag_id, None)
+
+    gargalo = _gargalo(agg)
 
     confronto = []
     for sub in SUBPILARES_ORDEM:
@@ -2659,6 +2696,7 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                 faixa=d["faixa"],
                 leitura=(lt.leitura if lt else None),
                 acao=(lt.acao if lt else None),
+                herdado=herdado_sub.get(sub),  # None = próprio; str = origem do pai
             )
         )
 

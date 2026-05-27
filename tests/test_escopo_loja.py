@@ -147,7 +147,7 @@ def test_geracao_diagnostico_por_loja_persiste_local(client_loyall, db_session):
     from src.diagnostico.leituras import gerar_e_persistir_diagnostico
 
     e, a, l1, f1 = _ctx(client_loyall, "gendiag")
-    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
+    _vb(db_session, e, l1, f1, "D2", "detrator", 31)
     db_session.commit()
     m = gerar_e_persistir_diagnostico(
         e["id"],
@@ -169,7 +169,7 @@ def test_geracao_sugestoes_por_loja_nao_vaza(client_loyall, db_session):
 
     e, a, l1, f1 = _ctx(client_loyall, "gensug")
     l2, f2 = _segunda_loja(client_loyall, e, a, "gensug")
-    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
+    _vb(db_session, e, l1, f1, "D2", "detrator", 31)
     db_session.commit()
     gerar_e_persistir_sugestoes(
         e["id"],
@@ -199,7 +199,7 @@ def test_skip_por_loja_independente(client_loyall, db_session):
     from src.diagnostico.leituras import gerar_e_persistir_diagnostico
 
     e, a, l1, f1 = _ctx(client_loyall, "skiploja")
-    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
+    _vb(db_session, e, l1, f1, "D2", "detrator", 31)
     db_session.commit()
     fn = lambda p: {"leitura": "L", "acao": "A", "_in": 1, "_out": 1}  # noqa: E731
     gerar_e_persistir_diagnostico(e["id"], local_id=l1["id"], gerar_fn=fn)
@@ -246,29 +246,51 @@ def test_consolidar_herda_empresa_wide_sob_filtro_agrupamento(client_loyall, db_
     assert any(it.origem == "Estrutural" for it in itens), "empresa-wide sumiu sob filtro de ag"
 
 
-def test_tab_diagnostico_loja_banner_volume_insuficiente(client_loyall, db_session):
-    """CP-A4: loja com <30 verbatins mostra banner de herança 'volume insuficiente'."""
-    e, a, l1, f1 = _ctx(client_loyall, "bannerins")
-    _vb(db_session, e, l1, f1, "D2", "detrator", 5)  # <30 → herda
-    _diag(db_session, e["id"], "D2")  # diagnóstico empresa-wide existe
+def test_tab_diagnostico_subpilar_ralo_herda_marcado(client_loyall, db_session):
+    """CP-A5.1: subpilar ralo (<30) na loja herda do empresa, marcado por subpilar."""
+    e, a, l1, f1 = _ctx(client_loyall, "subralo")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 5)  # <30 → herda no subpilar
+    _diag(db_session, e["id"], "D2", local=None)  # leitura empresa-wide de D2 existe
     h = client_loyall.get(
         f"/empresas/{e['id']}/explorar/tab/diagnostico?local_id={l1['id']}"
     ).get_data(as_text=True)
-    assert "Diagnóstico do empresa aplicado" in h or "Diagnóstico do" in h
-    assert "volume insuficiente" in h.lower()
-    assert "5 verbatins" in h
+    assert "herdado do empresa" in h.lower()  # marcador por subpilar
+    assert "herdados do empresa" in h.lower() or "herdado do empresa" in h.lower()
 
 
-def test_tab_diagnostico_loja_propria_sem_banner_heranca(client_loyall, db_session):
-    """CP-A4: loja com diagnóstico próprio não mostra banner de herança."""
-    e, a, l1, f1 = _ctx(client_loyall, "bannerown")
-    _vb(db_session, e, l1, f1, "D2", "detrator", 6)
-    _diag(db_session, e["id"], "D2", local=l1["id"])  # diagnóstico PRÓPRIO da loja
+def test_tab_diagnostico_subpilar_proprio_sem_marcador(client_loyall, db_session):
+    """CP-A5.1: subpilar com leitura própria da loja não mostra marcador de herança."""
+    e, a, l1, f1 = _ctx(client_loyall, "subown")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 31)  # ≥30 → próprio
+    _diag(db_session, e["id"], "D2", local=l1["id"])  # leitura PRÓPRIA da loja
     h = client_loyall.get(
         f"/empresas/{e['id']}/explorar/tab/diagnostico?local_id={l1['id']}"
     ).get_data(as_text=True)
-    assert "volume insuficiente" not in h.lower()
     assert "próprio" in h.lower()
+    assert "↳ herdado" not in h
+
+
+def test_floor_subpilar_nao_gera_ralo(client_loyall, db_session):
+    """CP-A5.1: geração por loja pula subpilares <30 (floor); só gera os ≥30."""
+    from src.diagnostico.leituras import gerar_e_persistir_diagnostico
+
+    e, a, l1, f1 = _ctx(client_loyall, "floor")
+    _vb(db_session, e, l1, f1, "D2", "detrator", 31)  # ≥30 → gera
+    _vb(db_session, e, l1, f1, "P1", "detrator", 5)  # <30 → floor, pula
+    db_session.commit()
+    m = gerar_e_persistir_diagnostico(
+        e["id"],
+        local_id=l1["id"],
+        gerar_fn=lambda p: {"leitura": "L", "acao": "A", "_in": 1, "_out": 1},
+    )
+    assert m["gerados"] == 1  # só D2
+    subs = {
+        r.subpilar
+        for r in db_session.query(LeituraDiagnostico)
+        .filter_by(empresa_id=e["id"], local_id=l1["id"])
+        .all()
+    }
+    assert subs == {"D2"}  # P1 (ralo) não gerou leitura própria
 
 
 def test_lojas_qualificadas_lista(client_loyall, db_session):

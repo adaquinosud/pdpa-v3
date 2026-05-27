@@ -19,20 +19,22 @@
 {% endif %}
 
 {# Banner de herança (CP-A4): deixa inequívoco quando NÃO é diagnóstico da loja. #}
-{% if d.escopo and d.escopo.herdado %}
-{% set origem_nome = {'agrupamento':'agrupamento','empresa':'empresa'}.get(d.escopo.origem, d.escopo.origem) %}
-<div class="mb-3 px-3 py-2 rounded bg-sky-50 border-l-4 border-sky-400 text-xs text-sky-900">
-  <strong>Diagnóstico do {{ origem_nome }} aplicado a {{ d.escopo.loja_nome }}.</strong>
-  {% if d.escopo.motivo == 'volume_insuficiente' %}
-  Esta loja tem <strong>{{ d.escopo.volume }} verbatins</strong> (mínimo 30) — volume insuficiente para diagnóstico próprio. Os números e leituras abaixo são do <strong>{{ origem_nome }}</strong>, não da loja. Aumente o engajamento desta loja para material dedicado.
-  {% else %}
-  A loja já tem volume suficiente ({{ d.escopo.volume }} verbatins), mas o diagnóstico próprio ainda não foi gerado — será produzido no próximo ciclo do pipeline. Por ora, exibindo o do {{ origem_nome }}.
-  {% endif %}
-</div>
-{% elif d.escopo and not d.escopo.herdado %}
+{# Banner de escopo loja (CP-A5.1): números são da loja; leituras próprias dos
+   subpilares ≥30, herdadas do pai nos ralos — sempre marcado por subpilar. #}
+{% if d.escopo and d.escopo.loja %}
+{% if d.escopo.n_proprios > 0 and d.escopo.n_herdados == 0 %}
 <div class="mb-3 px-3 py-2 rounded bg-emerald-50 border-l-4 border-emerald-400 text-xs text-emerald-800">
-  Diagnóstico <strong>próprio</strong> de {{ d.escopo.loja_nome }}.
+  Diagnóstico <strong>próprio</strong> de {{ d.escopo.loja_nome }} — {{ d.escopo.n_proprios }} subpilares com volume suficiente (≥30).
 </div>
+{% elif d.escopo.n_proprios == 0 %}
+<div class="mb-3 px-3 py-2 rounded bg-sky-50 border-l-4 border-sky-400 text-xs text-sky-900">
+  <strong>{{ d.escopo.loja_nome }}:</strong> nenhum subpilar atinge 30 verbatins — diagnóstico inteiro <strong>herdado do {{ d.escopo.origem_pai }}</strong>. Os números abaixo são da loja; as leituras, do {{ d.escopo.origem_pai }}. Aumente o engajamento para material próprio.
+</div>
+{% else %}
+<div class="mb-3 px-3 py-2 rounded bg-sky-50 border-l-4 border-sky-400 text-xs text-sky-900">
+  <strong>Diagnóstico de {{ d.escopo.loja_nome }}:</strong> {{ d.escopo.n_proprios }} subpilares próprios · <strong>{{ d.escopo.n_herdados }} herdados do {{ d.escopo.origem_pai }}</strong> (volume insuficiente nesses subpilares — marcados abaixo).
+</div>
+{% endif %}
 {% endif %}
 <div class="flex items-center gap-2 mb-3 flex-wrap">
   <button hx-post="{{ url_for('ui.explorar_regenerar', empresa_id=empresa.id, tipo='diagnostico') }}?agrupamento_id={{ filtros.agrupamento_id }}&periodo={{ filtros.periodo }}"
@@ -110,6 +112,7 @@
         <td class="text-right px-2 py-2 font-bold text-loyall-800">{{ '%.2f'|format(c.ratio) }}</td>
         <td class="text-center px-2 py-2"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span></td>
         <td class="px-3 py-2 text-xs text-loyall-600 leading-relaxed">
+          {% if c.herdado %}<div class="mb-1 text-[10px] uppercase font-semibold text-amber-700" title="Volume insuficiente neste subpilar (&lt;30) — leitura do {{ c.herdado }}">↳ herdado do {{ c.herdado }}</div>{% endif %}
           {% if c.leitura %}
           <div>{{ c.leitura }}</div>
           {% if c.acao %}<div class="mt-1 border-l-2 border-sky-300 pl-2 text-loyall-700"><span class="text-[10px] uppercase font-semibold text-sky-700">Ação</span> {{ c.acao }}</div>{% endif %}

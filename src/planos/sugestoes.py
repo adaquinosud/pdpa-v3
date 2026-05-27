@@ -123,10 +123,15 @@ def gerar_e_persistir_sugestoes(
                 *_scope_cond(SugestaoEstrutural, ag_ef, local_id),
             )
             existentes = {sub: dh for sub, dh in eq.all()}
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
         alvo_subs = subpilares or [sp for sp in SUBPILARES_ORDEM if sp in agg]
         alvos = []
         for sub in alvo_subs:
             if sub not in agg:
+                continue
+            # Floor por subpilar no escopo loja (CP-A5.1): ralo (<30) herda.
+            if local_id is not None and agg[sub]["total"] < VOLUME_CONFIANCA_ALTA:
                 continue
             payload = montar_payload_subpilar(
                 s, empresa_id, agrupamento_id, sub, agg[sub], gargalo, local_id=local_id
