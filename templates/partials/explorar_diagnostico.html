@@ -1,0 +1,95 @@
+{# Tab Diagnóstico — Mapa de Lastro + Confronto Visual (12 subpilares) + leitura/ação. #}
+{% set fclass = {
+  'critico':   {'bg':'bg-rose-100','text':'text-rose-700','bar':'bg-rose-500'},
+  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700','bar':'bg-orange-500'},
+  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800','bar':'bg-amber-400'},
+  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700','bar':'bg-emerald-400'},
+  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800','bar':'bg-emerald-600'},
+} %}
+{% set d = diagnostico %}
+
+{% if not d.pilares %}
+<div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Sem verbatins classificados no escopo selecionado.
+</div>
+{% else %}
+
+{# ── Mapa de Lastro ── #}
+<h3 class="text-sm font-semibold text-loyall-700 mb-1">Mapa de Lastro</h3>
+<p class="text-xs text-loyall-500 mb-2">Jornada sequencial P→D→Pa→A — resolva o gargalo antes de investir nos pilares seguintes.</p>
+<div class="flex flex-wrap items-stretch gap-2 mb-4">
+  {% for p in d.pilares %}
+  {% set fc = fclass[p.faixa] %}
+  <div class="flex-1 min-w-[190px] border rounded-lg p-3 {% if p.gargalo %}border-rose-400 ring-1 ring-rose-200{% else %}border-loyall-200{% endif %}">
+    <div class="flex items-center justify-between">
+      <span class="font-semibold text-loyall-800">{{ p.nome }}</span>
+      {% if p.gargalo %}<span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">🚩 gargalo</span>{% endif %}
+    </div>
+    <div class="mt-1 text-sm">
+      <span class="text-loyall-500">Ratio P/D:</span>
+      <span class="font-bold text-loyall-800">{{ '%.2f'|format(p.ratio) }}</span>
+      <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ p.faixa }}</span>
+    </div>
+    <div class="text-xs text-loyall-400">{{ p.total }} verbatins</div>
+    <div class="mt-2 pt-2 border-t border-loyall-100 space-y-0.5">
+      {% for sp in p.subpilares %}
+      {% set sfc = fclass[sp.faixa] %}
+      <div class="flex items-center justify-between text-xs text-loyall-600">
+        <span>{{ sp.subpilar }} · {{ sp.nome }}</span>
+        <span class="font-semibold {{ sfc.text }}">{{ '%.2f'|format(sp.ratio) }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% if not loop.last %}<div class="self-center text-loyall-300 text-xl">→</div>{% endif %}
+  {% endfor %}
+</div>
+
+{# ── Banner: leituras não geradas ── #}
+{% if not d.tem_leituras %}
+<div class="bg-amber-50 border-l-4 border-amber-300 px-3 py-2 mb-3 text-xs text-amber-800">
+  <strong>Leituras diagnósticas ainda não geradas neste escopo.</strong>
+  Rode <code class="bg-amber-100 px-1 rounded">flask diagnostico-gerar --empresa {{ empresa.id }}{% if filtros.agrupamento_id %} --agrupamento {{ filtros.agrupamento_id }}{% endif %}</code>
+  (~12 leituras Sonnet, ~$0,05).
+</div>
+{% endif %}
+
+{# ── Confronto Visual ── #}
+<h3 class="text-sm font-semibold text-loyall-700 mb-2">Confronto Visual · 12 Subpilares</h3>
+<div class="overflow-x-auto border border-loyall-200 rounded-lg">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-loyall-50 text-loyall-500 text-xs uppercase tracking-wider">
+        <th class="text-left px-3 py-2 font-medium">Subpilar</th>
+        <th class="text-right px-2 py-2 font-medium text-rose-600">Det</th>
+        <th class="text-right px-2 py-2 font-medium text-amber-600">Conv</th>
+        <th class="text-right px-2 py-2 font-medium text-emerald-600">Prom</th>
+        <th class="text-right px-2 py-2 font-medium">Ratio</th>
+        <th class="text-center px-2 py-2 font-medium">Faixa</th>
+        <th class="text-left px-3 py-2 font-medium" style="min-width:340px">Leitura diagnóstica + ação</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in d.confronto %}
+      {% set fc = fclass.get(c.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+      <tr class="border-t border-loyall-100 align-top">
+        <td class="px-3 py-2"><span class="font-medium text-loyall-800">{{ c.subpilar }}</span> <span class="text-xs text-loyall-400">· {{ c.nome }}</span></td>
+        <td class="text-right px-2 py-2 {% if c.det %}text-rose-700 font-medium{% else %}text-loyall-300{% endif %}">{{ c.det }}</td>
+        <td class="text-right px-2 py-2 {% if c.conv %}text-amber-700{% else %}text-loyall-300{% endif %}">{{ c.conv }}</td>
+        <td class="text-right px-2 py-2 {% if c.prom %}text-emerald-700{% else %}text-loyall-300{% endif %}">{{ c.prom }}</td>
+        <td class="text-right px-2 py-2 font-bold text-loyall-800">{{ '%.2f'|format(c.ratio) }}</td>
+        <td class="text-center px-2 py-2"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span></td>
+        <td class="px-3 py-2 text-xs text-loyall-600 leading-relaxed">
+          {% if c.leitura %}
+          <div>{{ c.leitura }}</div>
+          {% if c.acao %}<div class="mt-1 border-l-2 border-sky-300 pl-2 text-loyall-700"><span class="text-[10px] uppercase font-semibold text-sky-700">Ação</span> {{ c.acao }}</div>{% endif %}
+          {% else %}
+          <em class="text-loyall-300">— leitura não gerada</em>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

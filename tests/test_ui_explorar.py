@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from src.models.diagnostico import LeituraDiagnostico
 from src.models.verbatim import Verbatim
 
 
@@ -231,6 +232,38 @@ def test_drill_loja_por_subpilar(client_loyall, db_session):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert "D2" in html and "P1" in html  # quebra por subpilar
+
+
+def test_tab_diagnostico_lastro_confronto_banner(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "diag")
+    (l1, f1), _ = locs
+    _verb(db_session, e, l1, f1, "D2", "detrator", 4)
+    _verb(db_session, e, l1, f1, "P1", "promotor", 5)
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/diagnostico").get_data(as_text=True)
+    assert "Mapa de Lastro" in h and "Confronto Visual" in h
+    assert "D2" in h and "P1" in h
+    assert "ainda não geradas" in h  # banner (sem leituras cacheadas)
+
+
+def test_diagnostico_mostra_leitura_cacheada(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "diagl")
+    (l1, f1), _ = locs
+    _verb(db_session, e, l1, f1, "D2", "detrator", 4)
+    db_session.add(
+        LeituraDiagnostico(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="D2",
+            leitura="Disponibilidade fraca por demora na retirada.",
+            acao="Revisar o fluxo de retirada com a equipe.",
+        )
+    )
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/diagnostico").get_data(as_text=True)
+    assert "Disponibilidade fraca por demora" in h
+    assert "Revisar o fluxo de retirada" in h
+    assert "ainda não geradas" not in h  # banner some quando há leitura
 
 
 def test_filtro_periodo_recorta(client_loyall, db_session):

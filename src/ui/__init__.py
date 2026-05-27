@@ -1921,7 +1921,7 @@ def htmx_disparar_fonte(fonte_id: int):
 
 # ── Hub Explorar (Grupo A) ────────────────────────────────────────────
 
-_EXPLORAR_TABS = ("locais", "heatmap", "comparar", "evolucao")
+_EXPLORAR_TABS = ("locais", "heatmap", "comparar", "evolucao", "diagnostico")
 
 
 def _explorar_filtros():
@@ -2556,6 +2556,89 @@ def _explorar_evolucao(
     return {"buckets": buckets, "series": series}
 
 
+def _explorar_diagnostico(s, empresa_id, ag_id):
+    """Mapa de Lastro (4 pilares) + Confronto Visual (12 subpilares) + leitura/ação
+    do cache. Holístico: histórico completo no escopo (período não se aplica)."""
+    from src.api.painel import (
+        NOME_PILAR,
+        NOME_SUBPILAR,
+        PILAR_DE_SUBPILAR,
+        PILARES_ORDEM,
+        SUBPILARES_ORDEM,
+        calcular_ratio,
+        faixa_ratio,
+    )
+    from src.diagnostico.leituras import _gargalo, agregar_subpilares
+    from src.models.diagnostico import LeituraDiagnostico
+
+    agg = agregar_subpilares(s, empresa_id, ag_id)
+    gargalo = _gargalo(agg)
+
+    lq = s.query(LeituraDiagnostico).filter(LeituraDiagnostico.empresa_id == empresa_id)
+    lq = lq.filter(
+        LeituraDiagnostico.agrupamento_id.is_(None)
+        if ag_id is None
+        else LeituraDiagnostico.agrupamento_id == ag_id
+    )
+    leituras = {r.subpilar: r for r in lq.all()}
+
+    confronto = []
+    for sub in SUBPILARES_ORDEM:
+        d = agg.get(sub)
+        if d is None:
+            continue
+        lt = leituras.get(sub)
+        confronto.append(
+            SimpleNamespace(
+                subpilar=sub,
+                nome=NOME_SUBPILAR.get(sub, sub),
+                det=d["det"],
+                conv=d["conv"],
+                prom=d["prom"],
+                ratio=d["ratio"],
+                faixa=d["faixa"],
+                leitura=(lt.leitura if lt else None),
+                acao=(lt.acao if lt else None),
+            )
+        )
+
+    pilares = []
+    for p in PILARES_ORDEM:
+        subs = [x for x in SUBPILARES_ORDEM if PILAR_DE_SUBPILAR.get(x) == p and x in agg]
+        if not subs:
+            continue
+        prom = sum(agg[x]["prom"] for x in subs)
+        conv = sum(agg[x]["conv"] for x in subs)
+        det = sum(agg[x]["det"] for x in subs)
+        ratio = calcular_ratio(prom, det)
+        pilares.append(
+            SimpleNamespace(
+                pilar=p,
+                nome=NOME_PILAR.get(p, p),
+                ratio=ratio,
+                faixa=faixa_ratio(ratio),
+                total=prom + conv + det,
+                prom=prom,
+                conv=conv,
+                det=det,
+                gargalo=(p == gargalo),
+                subpilares=[
+                    SimpleNamespace(
+                        subpilar=x,
+                        nome=NOME_SUBPILAR.get(x, x),
+                        ratio=agg[x]["ratio"],
+                        faixa=agg[x]["faixa"],
+                    )
+                    for x in subs
+                ],
+            )
+        )
+
+    return SimpleNamespace(
+        pilares=pilares, gargalo=gargalo, confronto=confronto, tem_leituras=bool(leituras)
+    )
+
+
 def _explorar_contexto(empresa_id, tab):
     """Monta o contexto comum (empresa, agrupamentos, filtros, dados da tab)."""
     filtros, ag_id, corte = _explorar_filtros()
@@ -2619,6 +2702,7 @@ def _explorar_contexto(empresa_id, tab):
                 "buckets": dados["buckets"],
                 "series": dados["series"],
             }
+        diagnostico = _explorar_diagnostico(s, empresa_id, ag_id) if tab == "diagnostico" else None
     return {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
@@ -2628,6 +2712,7 @@ def _explorar_contexto(empresa_id, tab):
         "heatmap": heatmap,
         "comparar": comparar,
         "evolucao": evolucao,
+        "diagnostico": diagnostico,
     }
 
 

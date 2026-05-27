@@ -56,7 +56,7 @@
 
 {# ── Tab bar ──────────────────────────────────────────────────────── #}
 <div class="flex flex-wrap gap-1 border-b border-loyall-200 mb-4">
-  {% for t, lbl in [('locais','Locais'),('heatmap','Heatmap'),('comparar','Comparar'),('evolucao','Evolução')] %}
+  {% for t, lbl in [('locais','Locais'),('heatmap','Heatmap'),('comparar','Comparar'),('evolucao','Evolução'),('diagnostico','Diagnóstico')] %}
   <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t }}&{{ qs }}"
      hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab=t) }}?{{ qs }}"
      hx-target="#explorar-conteudo" hx-swap="innerHTML"
