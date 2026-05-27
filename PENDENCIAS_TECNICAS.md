@@ -201,3 +201,36 @@ Concentração — **não vira capítulo principal novo**.
 **Ação:** Alexandre + Dener redigem a seção/apêndice. Implementação (3 camadas:
 Índice de Engajamento, selo de confiança, modulação do Leaderboard) é código;
 esta pendência é só a **documentação editorial**.
+
+---
+
+## Aba Planos — regressão de contagem + caixa estrutural some [RESOLVIDO]
+
+**RESOLVIDO 2026-05-27 (Bloco 9 CP-A1 + CP-A5.2).** Causa real: (1) servidor flask
+stale (processo com código pré-fallback) → reiniciar carrega o fix; (2) após a
+escala por loja, faltava resolução de escopo no consolidar → `_rows_resolvidos`
+(mais específico vence por subpilar) eliminou a inflação/vazamento. Dados nunca
+foram perdidos. Visões validadas (empresa 161, agrupamento/loja com herança). O
+texto abaixo é o registro histórico do diagnóstico.
+
+**Origem:** observado pelo Alexandre após CP-PA (2026-05-27).
+
+**Sintoma:** ao navegar/filtrar na aba Planos, o total cai (ex.: 161 → 48) e a
+**caixa de Sugestões Estruturais desaparece**.
+
+**Hipótese principal (a confirmar):** as 53 sugestões estruturais e as leituras de
+diagnóstico do BH Airport foram geradas **empresa-wide** (`agrupamento_id = NULL`).
+Quando o cliente seleciona um **agrupamento** no header, `consolidar_acoes` aplica
+`_ok` que filtra por `agrupamento_id` — itens com `agrupamento_id = NULL`
+(empresa-wide) são descartados, derrubando estruturais + diagnóstico do escopo e
+sumindo a caixa. As 48 restantes seriam as ações que casam o agrupamento
+(anomalias/N5 com `agrupamento_id`).
+
+**Direção de correção:** a resolução de escopo precisa de **herança** — um escopo
+mais específico (agrupamento/loja) que não tem material próprio deve **cair para o
+empresa-wide**, não descartá-lo. Isso é exatamente o helper de herança da
+**Evolução A (CP-A1)**; provavelmente se resolve junto, estendido para incluir o
+fallback empresa-wide no `consolidar_acoes`. Confirmar a hipótese antes (checar se
+o filtro de agrupamento é a causa) e tratar no Bloco 9.
+
+**Relacionado:** [[Evolução A — Escopo Loja]] (herança loja→agrupamento→empresa).
