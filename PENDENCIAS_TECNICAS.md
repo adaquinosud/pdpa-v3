@@ -185,3 +185,19 @@ objeto identificável — baixo valor analítico (cairiam em `sem_lastro/inativo
 (segue o schema com confiabilidade) antes de desistir — ou um ajuste no prompt
 do classificador reforçando que `subpilar` nunca recebe um valor de `tipo`.
 Custo extra só nos casos de falha. Resolveria os 47.
+
+---
+
+## Manual — documentar Engajamento (editorial, Alexandre + Dener)
+
+**Origem:** decisão conceitual 2026-05-27.
+
+**Engajamento NÃO é 5º pilar.** É **indicador básico** que sinaliza a
+pré-condição operacional do PDPA — sem volume, os demais indicadores são
+especulativos. Deve ser documentado como **apêndice operacional** ou **seção do
+Cap. 4 (Indicadores Quantitativos)**, ao lado de Índice Geral, Previsibilidade e
+Concentração — **não vira capítulo principal novo**.
+
+**Ação:** Alexandre + Dener redigem a seção/apêndice. Implementação (3 camadas:
+Índice de Engajamento, selo de confiança, modulação do Leaderboard) é código;
+esta pendência é só a **documentação editorial**.
