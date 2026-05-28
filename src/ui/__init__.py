@@ -1123,7 +1123,7 @@ _RELATORIOS = [
         "Diagnóstico Longitudinal",
         "Narrativa quarterly: ratios por período, tendências e inércia estrutural.",
         "B4",
-        "em_construcao",
+        "disponivel",
     ),
 ]
 _RELATORIOS_DICT = {t[0]: t for t in _RELATORIOS}
@@ -1204,6 +1204,17 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         d = _mpe(empresa_w.id)
         return render_template(
             "relatorios/plano_executivo.html",
+            empresa=empresa_w,
+            gerado_em=d.get("gerado_em") or datetime.utcnow(),
+            escopo_label=None,
+            d=d,
+        )
+    if tipo == "diagnostico_longitudinal":
+        from src.relatorios.diagnostico_longitudinal import montar_dados as _mdl
+
+        d = _mdl(empresa_w.id)
+        return render_template(
+            "relatorios/diagnostico_longitudinal.html",
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,

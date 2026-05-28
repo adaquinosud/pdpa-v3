@@ -1,0 +1,176 @@
+{% extends "relatorios/base_pdf.html" %}
+{% import "relatorios/_macros.html" as M %}
+{% block title %}Diagnóstico Longitudinal — {{ empresa.nome }}{% endblock %}
+{% block conteudo %}
+
+{# ═════════════ CAPA · página-choque ═════════════ #}
+<div class="capa-choque">
+  <div class="capa-eyebrow">Diagnóstico Longitudinal · PDPA</div>
+  <h1 class="capa-empresa">{{ empresa.nome }}</h1>
+  <div class="capa-titulo-bloco">
+    <div class="label">EVOLUÇÃO TEMPORAL · {{ d.quarters|length }} QUARTERS</div>
+    <div class="capa-numero">{{ d.capa_manchete }}</div>
+    <div class="dash-sep">— — —</div>
+    <div class="capa-soco">{{ d.capa_soco }}</div>
+    <div class="capa-promessa">
+      → as próximas páginas detalham o movimento de cada subpilar no tempo.
+    </div>
+  </div>
+  <div class="capa-fontes">
+    <div class="titulo">Quarters observados</div>
+    <ul>
+      {% for x in d.indice_por_quarter %}
+      <li><span class="conector">{{ x.quarter }}</span> ·
+          <span class="quant">
+            {%- if x.ratio_medio is not none -%}
+              ratio médio {{ '%.2f'|format(x.ratio_medio) }} · {{ x.n_verbatins }} verbatins
+            {%- else -%}sem dado{%- endif -%}
+          </span></li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+{# ═════════════ 00 · COMO LER ═════════════ #}
+{{ M.titulo_secao('00', 'Como Ler Esta Análise Temporal',
+                  'O que uma quebra estrutural significa · como interpretar a tendência ↑↓→ ·
+                   por que o pilar gargalo persistente é mais grave que oscilação pontual.') }}
+<table>
+  <thead><tr><th style="width:22%">Conceito</th><th>Significado</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Trend ↑↓→</strong></td>
+        <td>Comparação do ratio do último quarter vs o anterior.
+            ↑ acima de +5%; ↓ abaixo de −5%; → entre os dois.</td></tr>
+    <tr><td><strong>Quebra estrutural</strong></td>
+        <td>Mudança de nível (N1↔N2, N2↔N3 etc) entre quarters consecutivos.
+            Sinaliza ruptura de operação, não oscilação.</td></tr>
+    <tr><td><strong>Inércia do gargalo</strong></td>
+        <td>Pilar gargalo persistente nos 6 quarters denuncia falha estrutural
+            que nenhum plano pontual resolveu.</td></tr>
+    <tr><td><strong>Faixa vazia</strong></td>
+        <td>Sem verbatins suficientes nesse subpilar/quarter para calcular ratio
+            (ignorado pelo trend).</td></tr>
+  </tbody>
+</table>
+
+{# ═════════════ ME · MATRIZ DE EVOLUÇÃO 12×6 ═════════════ #}
+{{ M.titulo_secao('ME', 'Matriz de Evolução · 12 subpilares × ' ~ d.quarters|length ~ ' quarters',
+                  'Cada célula: ratio + nível por cor. Última coluna: tendência ↑↓→.') }}
+<table style="font-size:8pt">
+  <thead>
+    <tr>
+      <th style="width:18%">Subpilar</th>
+      {% for q in d.quarters %}<th style="text-align:center">{{ q }}</th>{% endfor %}
+      <th style="text-align:center">Trend</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for linha in d.matriz %}
+    <tr>
+      <td><strong>{{ linha.subpilar }}</strong>
+          <br><span class="muted" style="font-size:7.5pt">{{ linha.nome }}</span></td>
+      {% for c in linha.celulas %}
+        {% set n = M.faixa_to_n(c.faixa) %}
+        <td style="text-align:center{% if n %}; background:var(--{{ n[0] }}1-bg)
+                  {%- if n == 'n1' %}; background:var(--n1-bg); color:var(--n1-tx)
+                  {%- elif n == 'n2' %}; background:var(--n2-bg); color:var(--n2-tx)
+                  {%- elif n == 'n3' %}; background:var(--n3-bg); color:var(--n3-tx)
+                  {%- elif n == 'n4' %}; background:var(--n4-bg); color:var(--n4-tx)
+                  {% endif %}{% endif %}">
+          {%- if c.vazio -%}<span class="muted">—</span>
+          {%- else -%}{{ '%.2f'|format(c.ratio) }}{%- endif -%}
+        </td>
+      {% endfor %}
+      <td style="text-align:center; font-weight:700; font-size:11pt;
+                 color:{% if linha.trend == '↑' %}var(--n3-tx)
+                       {%- elif linha.trend == '↓' %}var(--n1-tx)
+                       {%- else %}var(--cinza-2){% endif %}">
+        {{ linha.trend }}
+        {% if linha.delta_pct is not none %}
+        <div style="font-size:7pt; font-weight:400">
+          {{ '%+.0f'|format(linha.delta_pct) }}%
+        </div>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ═════════════ AG · ANÁLISE GERAL (LLM narrativa) ═════════════ #}
+{{ M.titulo_secao('AG', 'Análise geral · movimento dos 6 quarters') }}
+{% for p in d.narrativa_geral.split('\n\n') if p.strip() %}
+<p style="margin-bottom:7pt">{{ p.strip() }}</p>
+{% endfor %}
+
+{# ═════════════ AQ · ANÁLISE POR QUARTER (4 mais recentes) ═════════════ #}
+{% if d.por_quarter %}
+{{ M.titulo_secao('AQ', 'Análise por Quarter · 4 mais recentes',
+                  'O que aconteceu em cada período, com números específicos.') }}
+{% for pq in d.por_quarter %}
+<div class="card papel" style="margin-bottom:8pt">
+  <h4 style="margin-top:0; color:var(--dourado); letter-spacing:1pt">{{ pq.quarter }}</h4>
+  <p style="margin:0">{{ pq.paragrafo }}</p>
+</div>
+{% endfor %}
+{% endif %}
+
+{# ═════════════ QE · QUEBRAS ESTRUTURAIS ═════════════ #}
+{% if d.quebras %}
+{{ M.titulo_secao('QE', 'Quebras Estruturais detectadas',
+                  'Mudanças de nível N entre quarters consecutivos. Pioras primeiro.') }}
+<table>
+  <thead>
+    <tr>
+      <th>Subpilar</th>
+      <th>Quarter</th>
+      <th>Movimento</th>
+      <th style="text-align:right">Ratio</th>
+      <th>Direção</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for q in d.quebras %}
+    {% set n_old = M.faixa_to_n(q.nivel_anterior) %}
+    {% set n_new = M.faixa_to_n(q.nivel_novo) %}
+    <tr>
+      <td><strong>{{ q.subpilar }}</strong> · {{ q.nome }}</td>
+      <td>{{ q.de }}</td>
+      <td>
+        <span class="cel-{{ n_old }}">{{ q.nivel_anterior }}</span>
+        → <span class="cel-{{ n_new }}">{{ q.nivel_novo }}</span>
+      </td>
+      <td style="text-align:right; font-size:8.5pt">
+        {{ '%.2f'|format(q.ratio_anterior) }} → {{ '%.2f'|format(q.ratio_novo) }}
+      </td>
+      <td>
+        {%- if q.direcao == 'piora' -%}
+          <span class="badge b-critico">↓ piora</span>
+        {%- else -%}
+          <span class="badge b-bom">↑ melhora</span>
+        {%- endif -%}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{# ═════════════ PP · PRÓXIMOS PASSOS ═════════════ #}
+{{ M.titulo_secao('PP', 'Próximos Passos',
+                  'Investigações sugeridas pelas quebras detectadas + monitoramento do gargalo.') }}
+<ul style="font-size:9.5pt; padding-left:14pt; margin:0">
+  {% for pp in d.proximos_passos %}
+  <li style="margin-bottom:5pt">{{ pp }}</li>
+  {% endfor %}
+</ul>
+
+{# ═════════════ Assinatura ═════════════ #}
+<div class="assinatura-final">
+  <div class="nomes">Alexandre D'Aquino · Dener Pereira</div>
+  <div class="loyall">Loyall Company</div>
+  <div style="margin-top:4pt">Gerado em {{ d.gerado_em.strftime('%d/%m/%Y às %H:%M UTC') }}
+       · custo LLM ${{ '%.4f'|format(d.custo_llm) }}
+       ({{ d.tokens_in }} in / {{ d.tokens_out }} out)</div>
+</div>
+{% endblock %}

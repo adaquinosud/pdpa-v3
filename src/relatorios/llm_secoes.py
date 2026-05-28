@@ -459,6 +459,68 @@ def gerar_descricao_pilar(
     return {**data, "cached": False, "tokens_in": ti, "tokens_out": to}
 
 
+# ── 6.5) NARRATIVA LONGITUDINAL · narrativa geral + 4 parágrafos por quarter
+_PROMPT_NARRATIVA_LONG = """Você é consultor sênior Loyall escrevendo a análise
+LONGITUDINAL do Diagnóstico PDPA (evolução temporal · 6 quarters).
+
+ESTRUTURA OBRIGATÓRIA (JSON):
+{
+  "narrativa_geral": "2-3 parágrafos costurando o movimento geral dos 6 quarters
+   — tendência do índice, pilar gargalo persistente, ativo que sustenta.
+   ≤250 palavras totais. Sem clichê.",
+  "por_quarter": [
+    {"quarter": "2025-Q4", "paragrafo": "1 parágrafo curto (3-4 frases) sobre o
+     que aconteceu nesse quarter — citar números/subpilares específicos."},
+    ... (4 quarters MAIS RECENTES do payload, em ordem cronológica)
+  ]
+}
+
+REGRAS:
+- Use SÓ fatos do payload (matriz_evolucao, quebras_estruturais, gargalo_atual).
+- Voz consultor direta, sem alarmismo.
+- pt-BR.
+
+PROIBIDO: jargão (z-score/cluster/N1-N4 fora do contexto técnico); inventar dado;
+recomendar ação (vai em outra seção).
+
+Saída: APENAS o JSON. Sem texto fora.
+"""
+
+
+def gerar_narrativa_longitudinal(
+    empresa_id: int,
+    escopo_hash: str,
+    payload: Dict[str, Any],
+    gerar_fn: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """Saída: {narrativa_geral, por_quarter, cached, tokens_in, tokens_out}."""
+    from src.utils.db import db_session
+
+    dh = _hash_payload(payload)
+    with db_session() as s:
+        hit = _carregar_cache(s, empresa_id, escopo_hash, "narrativa_longitudinal", dh)
+        if hit is not None:
+            return {**hit, "cached": True, "tokens_in": 0, "tokens_out": 0}
+
+    if gerar_fn is not None:
+        out = gerar_fn(_PROMPT_NARRATIVA_LONG, payload)
+        raw, ti, to = out["raw"], out.get("tokens_in", 0), out.get("tokens_out", 0)
+    else:
+        raw, ti, to = _chamar_sonnet(
+            _PROMPT_NARRATIVA_LONG, json.dumps(payload, ensure_ascii=False), max_tokens=1500
+        )
+    data = _parse_json(raw, "obj")
+    if not isinstance(data, dict) or not data.get("narrativa_geral"):
+        raise ValueError("narrativa longitudinal inválida")
+    data = {
+        "narrativa_geral": str(data["narrativa_geral"]).strip(),
+        "por_quarter": data.get("por_quarter") or [],
+    }
+    with db_session() as s:
+        _gravar_cache(s, empresa_id, escopo_hash, "narrativa_longitudinal", dh, data, ti, to)
+    return {**data, "cached": False, "tokens_in": ti, "tokens_out": to}
+
+
 # ── 6) INSIGHT FINAL DO PILAR · 1 frase ≤30 palavras ────────────────────────
 
 _PROMPT_INSIGHT_PILAR = """Você é consultor sênior Loyall escrevendo o INSIGHT

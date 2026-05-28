@@ -36,6 +36,14 @@ def _fake_llm(monkeypatch):
             return ("FAKE descrição do pilar — texto editorial curto.", 8, 8)
         if "pilar PDPA — a síntese estratégica" in prompt:
             return ("FAKE insight final do pilar.", 6, 6)
+        # B4
+        if "LONGITUDINAL do Diagnóstico PDPA" in prompt:
+            return (
+                '{"narrativa_geral":"FAKE narrativa longitudinal geral.",'
+                '"por_quarter":[{"quarter":"2025-Q4","paragrafo":"FAKE q4."}]}',
+                12,
+                12,
+            )
         return ("{}", 5, 5)
 
     monkeypatch.setattr(mod, "_chamar_sonnet", _fake)
@@ -53,7 +61,7 @@ def test_relatorios_index_lista_4(client_loyall, db_session):
         "Diagnóstico Longitudinal",
     ]:
         assert titulo in h
-    assert "em breve" in h  # placeholder até B1-B4
+    # Os 4 relatórios já têm conteúdo (B1' B2' B3' B4 finalizados)
 
 
 def test_relatorio_view_html_renderiza(client_loyall, db_session):
@@ -64,7 +72,7 @@ def test_relatorio_view_html_renderiza(client_loyall, db_session):
         ("resumo_executivo", "Resumo Executivo"),
         ("diagnostico_pontual", "Diagnóstico Pontual"),
         ("plano_executivo", "Plano de Ação Executivo"),
-        ("diagnostico_longitudinal", "em construção"),
+        ("diagnostico_longitudinal", "Diagnóstico Longitudinal"),
     ]:
         r = client_loyall.get(f"/empresas/{e['id']}/relatorios/{tipo}")
         assert r.status_code == 200
