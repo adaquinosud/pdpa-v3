@@ -2890,10 +2890,18 @@ def _explorar_planos(empresa_id, ag_id, args):
     loja_raw = args.get("local_id")
     if loja_raw and loja_raw.isdigit():
         filtros["local_id"] = int(loja_raw)
-    cf = dict(filtros)
+    # Pílulas de perspectiva (PL-2): consolida SEM o filtro de perspectiva para
+    # contar todas as frentes (contagem estável); a perspectiva ativa recorta só
+    # a exibição.
+    cf = {k: v for k, v in filtros.items() if k != "perspectiva"}
     if ag_id is not None:
         cf["agrupamento_id"] = ag_id
-    itens = consolidar_acoes(empresa_id, cf)
+    itens_all = consolidar_acoes(empresa_id, cf)
+    from collections import Counter
+
+    contagem_persp = Counter(it.perspectiva for it in itens_all)
+    persp_sel = filtros.get("perspectiva")
+    itens = [it for it in itens_all if it.perspectiva == persp_sel] if persp_sel else itens_all
 
     with db_session() as s:
         gargalo = _gargalo(agregar_subpilares(s, empresa_id, ag_id))
@@ -2934,10 +2942,13 @@ def _explorar_planos(empresa_id, ag_id, args):
         gargalo=gargalo,
         lojas=lojas,
         total=len(itens),
+        total_geral=len(itens_all),
         modo=modo,
         vista=vista,
         filtros=filtros,
         perspectivas=_PERSP_LABELS,
+        persp_sel=persp_sel,
+        contagem_persp=dict(contagem_persp),
         ultima_geracao=ultima_geracao,
         regen_msg=None,
     )

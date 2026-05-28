@@ -83,6 +83,25 @@
   <p class="text-xs text-loyall-500">Ações priorizadas das 4 fontes — reativas (do que o cliente sinalizou) e <span class="text-amber-700">estruturais</span> (proativas, de fundação). Janela: <strong>últimos 180 dias</strong>.</p>
 </div>
 
+{# ── Pílulas de perspectiva (filtro principal, HTMX) — preservam os demais filtros ── #}
+{% set ns = namespace(qs='agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo ~ '&local_id=' ~ filtros.local_id ~ '&modo=' ~ p.modo ~ '&vista=' ~ p.vista) %}
+{% for k in ['origem','pilar','prioridade','status'] %}{% if filtros[k] %}{% set ns.qs = ns.qs ~ '&' ~ k ~ '=' ~ filtros[k] %}{% endif %}{% endfor %}
+<div class="flex flex-wrap gap-2 mb-4">
+  <button hx-get="{{ tab_url }}?{{ ns.qs }}"
+          hx-target="#explorar-conteudo" hx-swap="innerHTML"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs {% if not p.persp_sel %}border-loyall-600 bg-loyall-700 text-loyall-50 font-medium{% else %}border-loyall-200 text-loyall-600 hover:bg-loyall-50{% endif %}">
+    Todas <span class="opacity-70">{{ p.total_geral }}</span>
+  </button>
+  {% for code, lbl in p.perspectivas %}
+  <button hx-get="{{ tab_url }}?{{ ns.qs }}&perspectiva={{ code }}"
+          hx-target="#explorar-conteudo" hx-swap="innerHTML"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs {% if p.persp_sel == code %}border-loyall-600 bg-loyall-700 text-loyall-50 font-medium{% else %}border-loyall-200 text-loyall-600 hover:bg-loyall-50{% endif %}">
+    <span>{{ persp_icon.get(code, '•') }}</span> {{ lbl }}
+    <span class="px-1.5 rounded-full {% if p.persp_sel == code %}bg-loyall-600{% else %}bg-loyall-100 text-loyall-500{% endif %}">{{ p.contagem_persp.get(code, 0) }}</span>
+  </button>
+  {% endfor %}
+</div>
+
 <div class="flex gap-4">
   {# ── Sidebar de filtros ── #}
   <form id="planos-filtros" hx-get="{{ tab_url }}" hx-target="#explorar-conteudo" hx-swap="innerHTML"
@@ -102,7 +121,7 @@
       </select>
     </label>
     {% endmacro %}
-    {{ sel('perspectiva', 'Perspectiva', p.perspectivas) }}
+    <input type="hidden" name="perspectiva" value="{{ filtros.perspectiva or '' }}">
     {% if loyall %}{{ sel('origem', 'Origem', [('Estrutural','Estrutural'),('N5 tema','N5 tema'),('N5 cruzamento','N5 cruzamento'),('Diagnóstico','Diagnóstico'),('Anomalia','Anomalia')]) }}{% endif %}
     {{ sel('pilar', 'Pilar', [('P','Precisão'),('D','Disponibilidade'),('Pa','Parceria'),('A','Aconselhamento')]) }}
     {{ sel('prioridade', 'Prioridade', [('alto','Alto'),('medio','Médio'),('baixo','Baixo')]) }}

@@ -231,6 +231,43 @@ def test_tab_planos_default_cards_e_publico(client_loyall, db_session):
     assert "📢" in h  # ícone da perspectiva (marketing) no header da seção
 
 
+def test_tab_planos_pilulas_perspectiva(client_loyall, db_session):
+    """PL-2: pílulas de perspectiva com ícones + contagem; filtro recorta a exibição."""
+    e, a, loc, f = _ctx(client_loyall, "pilula")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.add_all(
+        [
+            SugestaoEstrutural(
+                empresa_id=e["id"],
+                agrupamento_id=None,
+                subpilar="P1",
+                perspectiva="marketing",
+                acao="Acao Marketing",
+                ordem=0,
+            ),
+            SugestaoEstrutural(
+                empresa_id=e["id"],
+                agrupamento_id=None,
+                subpilar="P1",
+                perspectiva="pessoas",
+                acao="Acao Pessoas",
+                ordem=0,
+            ),
+        ]
+    )
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
+    # pílulas com todas as 6 frentes + ícones
+    for ic in ["📢", "🏷️", "💡", "⚙️", "👥", "🤝"]:
+        assert ic in h
+    assert "Todas" in h  # pílula "Todas"
+    # filtro por perspectiva marketing → só a ação de marketing
+    hm = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/planos?perspectiva=marketing"
+    ).get_data(as_text=True)
+    assert "Acao Marketing" in hm and "Acao Pessoas" not in hm
+
+
 def test_skip_unchanged_pula_subpilar_sem_mudanca(client_loyall, db_session):
     """PA.5: 2ª geração com skip_unchanged pula o subpilar cujo dados_hash não mudou."""
     e, a, loc, f = _ctx(client_loyall, "skip")
