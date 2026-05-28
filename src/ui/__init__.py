@@ -1102,7 +1102,7 @@ _RELATORIOS = [
         "Resumo Executivo Geral",
         "Overview C-level: índice + engajamento + gargalo + 2 frentes + top achados.",
         "B1",
-        "em_construcao",
+        "disponivel",
     ),
     (
         "diagnostico_pontual",
@@ -1169,13 +1169,24 @@ def relatorios_index(empresa_id: int):
 
 
 def _relatorio_html(empresa_w, tipo: str) -> str:
-    """Renderiza o HTML do relatório (placeholder até B1-B4 preencherem)."""
+    """Dispatch do HTML por tipo de relatório. Cada CP B1-B4 preenche o seu."""
     from datetime import datetime
 
     meta = _RELATORIOS_DICT.get(tipo)
     if meta is None:
         return None
     _, titulo, _, cp, _ = meta
+    if tipo == "resumo_executivo":
+        from src.relatorios.resumo_executivo import montar_dados
+
+        d = montar_dados(empresa_w.id)
+        return render_template(
+            "relatorios/resumo_executivo.html",
+            empresa=empresa_w,
+            gerado_em=d.get("gerado_em") or datetime.utcnow(),
+            escopo_label=None,
+            d=d,
+        )
     return render_template(
         "relatorios/em_construcao.html",
         empresa=empresa_w,

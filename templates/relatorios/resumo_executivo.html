@@ -1,0 +1,112 @@
+{% extends "relatorios/base_pdf.html" %}
+{% block title %}Resumo Executivo — {{ empresa.nome }}{% endblock %}
+{% block conteudo %}
+<h1>Resumo Executivo</h1>
+<p class="sub">{{ d.volume_total }} verbatins · pilar gargalo: <strong>{{ d.gargalo_nome or '—' }}</strong> · Índice Geral <strong>{{ '%.2f'|format(d.indice_geral) }}/10</strong> <span class="badge b-{{ d.indice_faixa }}">{{ d.indice_faixa }}</span></p>
+
+<h2>Indicadores</h2>
+<table>
+  <thead>
+    <tr><th>Indicador</th><th style="text-align:right">Valor</th><th>Faixa / Selo</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Índice Geral</strong> <span class="muted">— saúde da relação</span></td>
+      <td style="text-align:right"><strong>{{ '%.2f'|format(d.indice_geral) }}</strong> / 10</td>
+      <td><span class="badge b-{{ d.indice_faixa }}">{{ d.indice_faixa }}</span></td>
+    </tr>
+    {% if d.engajamento is not none %}
+    <tr>
+      <td><strong>Engajamento</strong> <span class="muted">— pré-condição operacional</span></td>
+      <td style="text-align:right"><strong>{{ d.engajamento }}</strong> / 100</td>
+      <td>{{ d.engajamento_emoji or '' }} <span class="muted">{{ d.engajamento_selo or '' }}</span></td>
+    </tr>
+    {% endif %}
+    {% if d.previsibilidade is not none %}
+    <tr>
+      <td><strong>Previsibilidade</strong> <span class="muted">— consistência da experiência</span></td>
+      <td style="text-align:right"><strong>{{ '%.0f'|format(d.previsibilidade) }}</strong> / 100</td>
+      <td></td>
+    </tr>
+    {% endif %}
+    {% if d.concentracao is not none %}
+    <tr>
+      <td><strong>Concentração de Detratores</strong> <span class="muted">— onde dói</span></td>
+      <td style="text-align:right"><strong>{{ '%.0f'|format(d.concentracao) }}%</strong></td>
+      <td><span class="muted">{{ d.concentracao_faixa }}</span></td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<h2>Lastro Relacional</h2>
+<p class="sub">Sequência evolutiva P → D → Pa → A. O pilar travado puxa os seguintes.</p>
+<table>
+  <thead>
+    <tr><th>Pilar</th><th style="text-align:right">Ratio P/D</th><th>Faixa</th><th style="text-align:right">Volume</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for p in d.pilares %}
+    <tr{% if p.gargalo %} style="background:#fdecec"{% endif %}>
+      <td><strong>{{ p.codigo }}</strong> {{ p.nome }}{% if p.gargalo %} <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
+      <td style="text-align:right"><strong>{{ '%.2f'|format(p.ratio) }}</strong></td>
+      <td><span class="badge b-{{ p.faixa }}">{{ p.faixa }}</span></td>
+      <td style="text-align:right">{{ p.total }}</td>
+      <td class="muted">{{ p.prom }} prom · {{ p.conv }} conv · {{ p.det }} det</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Duas Frentes</h2>
+<div class="card">
+  <h3 style="margin:0">Relacionamento — recuperar quem já reclamou</h3>
+  <p style="margin:2pt 0"><strong>{{ d.det_total }} detratores</strong> · prioridade alta no pilar gargalo ({{ d.gargalo_nome or '—' }}). Fechar o loop com os clientes insatisfeitos antes que o boca-a-boca se propague.</p>
+</div>
+<div class="card">
+  <h3 style="margin:0">Venda — converter quem está na cerca</h3>
+  <p style="margin:2pt 0"><strong>{{ d.conv_total }} conversíveis</strong> · oportunidade direta de virar promotor. Cada conversão é venda preservada + indicação potencial.</p>
+</div>
+
+<h2>Origem dos Detratores — Top 5 subpilares</h2>
+<table>
+  <thead>
+    <tr><th>Subpilar</th><th style="text-align:right">Detratores</th><th style="text-align:right">Ratio</th><th>Faixa</th></tr>
+  </thead>
+  <tbody>
+    {% for s in d.top_detratores %}
+    <tr>
+      <td><strong>{{ s.subpilar }}</strong> · {{ s.nome }}</td>
+      <td style="text-align:right">{{ s.det }}</td>
+      <td style="text-align:right">{{ '%.2f'|format(s.ratio) }}</td>
+      <td><span class="badge b-{{ s.faixa }}">{{ s.faixa }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Ações Prioritárias</h2>
+<p class="sub">{{ d.n_acoes_total }} ações consolidadas no Plano · {{ d.n_acoes_reativas }} reativas · {{ d.n_acoes_estruturais }} estruturais (proativas). Top 8 abaixo:</p>
+{% for a in d.top_acoes %}
+<div class="card{% if a.origem == 'Estrutural' %} estrut{% endif %}">
+  <div>
+    <span class="badge b-{{ {'alto':'critico','medio':'atencao','baixo':'bom'}.get(a.prioridade, 'atencao') }}">{{ a.prioridade }}</span>
+    {% if a.subpilar %}<span class="muted">{{ a.subpilar }} · {{ a.subpilar_nome }}</span>{% endif %}
+    <span class="muted">· {{ a.origem }}</span>
+    {% if a.loja %}<span class="muted">· {{ a.loja }}</span>{% endif %}
+  </div>
+  <p style="margin:2pt 0">{{ a.texto }}</p>
+  {% if a.justificativa %}<p class="muted" style="font-size:8.5pt">{{ a.justificativa }}</p>{% endif %}
+</div>
+{% endfor %}
+
+{% if d.anomalias %}
+<h2>Alertas Críticos</h2>
+{% for an in d.anomalias %}
+<div class="card">
+  <strong>{{ an.alvo }}</strong> <span class="muted">· {{ an.tipo }}{% if an.direcao %} · {{ an.direcao }}{% endif %}</span>
+  {% if an.resumo %}<p style="margin:2pt 0">{{ an.resumo }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
