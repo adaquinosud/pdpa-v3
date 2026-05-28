@@ -1,10 +1,30 @@
-"""Tests do CP-B0: infra de Relatórios (índice, rotas HTML, PDF resiliente)."""
+"""Tests do CP-B0/B1'/B2/B3: infra de Relatórios + doc-ouro Resumo Executivo."""
 
 from __future__ import annotations
+
+import pytest
 
 
 def _empresa(client_loyall, sfx):
     return client_loyall.post("/api/empresas/", json={"nome": f"ERel-{sfx}"}).get_json()
+
+
+@pytest.fixture(autouse=True)
+def _fake_llm(monkeypatch):
+    """Stub das 3 chamadas LLM do doc-ouro — toda a suíte roda $0."""
+    import src.relatorios.llm_secoes as mod
+
+    def _fake(prompt, payload, max_tokens=500):
+        # Detecção por frase única em cada prompt (evita colisão de palavras).
+        if "numero_manchete" in prompt:
+            return ('{"numero_manchete":"FAKE manchete","frase_soco":"FAKE soco"}', 5, 5)
+        if "3 DESCOBERTAS-TEASER" in prompt:
+            return ('["d1","d2","d3"]', 5, 5)
+        if "APENAS o parágrafo" in prompt:
+            return ("FAKE paradoxo costurado.", 5, 5)
+        return ("{}", 5, 5)
+
+    monkeypatch.setattr(mod, "_chamar_sonnet", _fake)
 
 
 def test_relatorios_index_lista_4(client_loyall, db_session):
@@ -37,14 +57,17 @@ def test_relatorio_view_html_renderiza(client_loyall, db_session):
         assert esperado in r.get_data(as_text=True)
 
 
-def test_resumo_executivo_assembly_do_cache(client_loyall, db_session):
-    """B1: Resumo Executivo monta os blocos a partir do estado consolidado."""
+def test_resumo_executivo_doc_ouro(client_loyall, db_session):
+    """B1': Resumo Executivo doc-ouro — CAPA + Fontes + 3 Descobertas + Paradoxo
+    (puro + costura) + Mapa Lastro + Sequência + Confronto + Engajamento +
+    Sugestões Estruturais + Alertas + Convite Fase 2. LLM fake = $0."""
     from datetime import datetime as _dt
 
     from src.models.diagnostico import LeituraDiagnostico
+    from src.models.sugestao_estrutural import SugestaoEstrutural
     from src.models.verbatim import Verbatim
 
-    e = _empresa(client_loyall, "b1")
+    e = _empresa(client_loyall, "b1ouro")
     a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
     loc = client_loyall.post(
         f"/api/empresas/{e['id']}/locais", json={"nome": "Loja Alfa", "agrupamento_id": a["id"]}
@@ -52,20 +75,19 @@ def test_resumo_executivo_assembly_do_cache(client_loyall, db_session):
     f = client_loyall.post(
         f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": "ChIJB1"}
     ).get_json()
-    # P1 (Precisão) crítico → gargalo; D2 com volume também
-    for sub, tipo, n in [("P1", "detrator", 10), ("P1", "promotor", 2), ("D2", "detrator", 4)]:
+    for sub, tipo, n in [("P1", "detrator", 10), ("P1", "promotor", 2), ("Pa1", "promotor", 8)]:
         for i in range(n):
             db_session.add(
                 Verbatim(
                     empresa_id=e["id"],
                     fonte_id=f["id"],
                     local_id=loc["id"],
-                    texto=f"v{i}",
+                    texto=f"verbatim longo número {i} para escolha da capa choque",
                     subpilar=sub,
                     tipo=tipo,
                     tem_texto=True,
                     data_criacao_original=_dt(2026, 5, 1),
-                    hash_dedup=f"hb1{sub}{tipo}{i}-{_dt.utcnow().timestamp()}",
+                    hash_dedup=f"hb1o{sub}{tipo}{i}-{_dt.utcnow().timestamp()}",
                 )
             )
     db_session.add(
@@ -73,18 +95,43 @@ def test_resumo_executivo_assembly_do_cache(client_loyall, db_session):
             empresa_id=e["id"],
             agrupamento_id=None,
             subpilar="P1",
-            leitura="P1 fraco",
+            leitura="Calibração da Promessa em colapso.",
             acao="Reaborde detratores.",
+        )
+    )
+    db_session.add(
+        LeituraDiagnostico(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="Pa1",
+            leitura="Empatia Comercial em destaque.",
+            acao="Documente prática.",
+        )
+    )
+    db_session.add(
+        SugestaoEstrutural(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="P1",
+            perspectiva="marketing",
+            acao="Recalibre a promessa de preço",
+            justificativa="ratio crítico em P1",
+            ordem=0,
         )
     )
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/resumo_executivo").get_data(as_text=True)
-    assert "Resumo Executivo" in h
-    assert "Lastro Relacional" in h and "Precisão" in h  # pilar gargalo nomeado
-    assert "Duas Frentes" in h and "detratores" in h and "conversíveis" in h
-    assert "Origem dos Detratores" in h and "P1" in h  # top subpilar detrator
-    assert "Reaborde detratores" in h  # ação do diagnóstico aparece no top
-    assert "180 dias" in h  # janela no cabeçalho
+    # estrutura doc-ouro
+    assert "DIAGNÓSTICO PDPA · CAPA" in h and "FAKE manchete" in h
+    assert "FONTES · AUDITÁVEL" in h
+    assert "3 DESCOBERTAS" in h and "d1" in h and "d2" in h and "d3" in h
+    assert "PARADOXO CENTRAL" in h and "FAKE paradoxo costurado" in h
+    assert "LASTRO RELACIONAL" in h and "Precisão" in h  # pilar gargalo nomeado
+    assert "Sequência de ação" in h
+    assert "CONFRONTO VISUAL" in h and "Calibração da Promessa em colapso" in h
+    assert "SUGESTÕES ESTRUTURAIS" in h and "Recalibre a promessa" in h
+    assert "CONVITE" in h and "Fase 2" in h
+    assert "180 dias" in h
 
 
 def test_diagnostico_pontual_assembly(client_loyall, db_session):

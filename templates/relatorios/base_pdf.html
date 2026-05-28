@@ -4,34 +4,78 @@
 <meta charset="utf-8">
 <title>{% block title %}Relatório PDPA{% endblock %}</title>
 <style>
+  /* Identidade visual v2 — paleta Loyall consultoria */
+  /* Cadeia de fonte: Calibri (macOS/Windows) → Carlito (Linux, clone métrico
+     idêntico via apt fonts-crosextra-carlito) → Helvetica → sans-serif. */
+  :root {
+    --azul-noite: #1A1A2E;  /* títulos principais, ênfase */
+    --verde:     #1B6B61;   /* subtítulos, marcadores */
+    --dourado:   #B89355;   /* destaques, selos premium */
+    --papel:     #F0EDE4;   /* fundos de respiro */
+    --cinza:     #444440;   /* corpo de texto */
+    --cinza-2:   #7a8aa0;   /* metadata, footer */
+    --linha:     #d9dde4;   /* divisórias */
+  }
   @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
-  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #1d3149; font-size: 10pt; line-height: 1.4; }
-  h1 { font-size: 18pt; color: #1d3149; margin: 0 0 4pt; font-weight: 700; }
-  h2 { font-size: 13pt; color: #1d3149; margin: 14pt 0 4pt; border-bottom: 1px solid #d9dde4; padding-bottom: 3pt; }
-  h3 { font-size: 11pt; color: #4b6079; margin: 10pt 0 3pt; }
+  body {
+    font-family: Calibri, Carlito, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--cinza);
+    font-size: 10pt;
+    line-height: 1.42;
+  }
+  h1 { font-size: 22pt; color: var(--azul-noite); margin: 0 0 6pt; font-weight: 700; letter-spacing: -0.3pt; }
+  h2 { font-size: 13pt; color: var(--azul-noite); margin: 16pt 0 5pt; font-weight: 700; border-bottom: 1.5pt solid var(--dourado); padding-bottom: 3pt; }
+  h3 { font-size: 11pt; color: var(--verde); margin: 10pt 0 3pt; font-weight: 700; }
+  h4 { font-size: 10pt; color: var(--verde); margin: 8pt 0 3pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4pt; }
   p  { margin: 0 0 5pt; }
-  .sub { color: #7a8aa0; font-size: 9pt; }
-  .meta { color: #7a8aa0; font-size: 8.5pt; margin-bottom: 8pt; }
-  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-  th, td { border-bottom: 1px solid #e8eaef; padding: 4pt 6pt; text-align: left; vertical-align: top; }
-  th { color: #4b6079; font-weight: 600; background: #f7f8fb; }
-  .badge { display: inline-block; padding: 1pt 6pt; border-radius: 3pt; font-size: 8pt; font-weight: 600; }
+  strong { color: var(--azul-noite); }
+  a { color: var(--verde); text-decoration: none; }
+
+  .sub { color: var(--cinza-2); font-size: 9pt; }
+  .meta { color: var(--cinza-2); font-size: 8.5pt; margin-bottom: 10pt; }
+  .muted { color: var(--cinza-2); }
+  .papel { background: var(--papel); }
+  .dourado { color: var(--dourado); }
+  .azul { color: var(--azul-noite); }
+  .verde { color: var(--verde); }
+  .rule { border-bottom: 1pt solid var(--dourado); margin: 12pt 0 6pt; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 4pt 0 8pt; }
+  th, td { border-bottom: 1px solid var(--linha); padding: 4pt 6pt; text-align: left; vertical-align: top; }
+  th { color: var(--azul-noite); font-weight: 700; background: var(--papel); border-bottom: 1.5pt solid var(--dourado); text-transform: uppercase; font-size: 8.5pt; letter-spacing: 0.3pt; }
+
+  .badge { display: inline-block; padding: 1pt 6pt; border-radius: 3pt; font-size: 8pt; font-weight: 700; }
   .b-critico { background: #fbe2e2; color: #8a1f1f; }
   .b-fraco   { background: #fde4cf; color: #8a4a1f; }
   .b-atencao { background: #fdedc4; color: #7a5820; }
   .b-bom     { background: #d9efd1; color: #2e5c24; }
   .b-excelente { background: #b9e3ab; color: #1f4d18; }
-  .card { border: 1px solid #d9dde4; border-radius: 4pt; padding: 6pt 8pt; margin-bottom: 5pt; }
-  .card.estrut { border-color: #b89355; background: #fcf6e8; }
-  .muted { color: #7a8aa0; }
-  footer { position: running(footer); color: #7a8aa0; font-size: 8pt; text-align: center; }
+  .b-dourado { background: var(--dourado); color: #fff; }
+  .b-verde   { background: var(--verde); color: #fff; }
+
+  .card { border: 1px solid var(--linha); border-radius: 4pt; padding: 7pt 9pt; margin-bottom: 6pt; }
+  .card.papel { background: var(--papel); border-color: var(--dourado); }
+  .card.estrut { border-color: var(--dourado); background: #fcf6e8; }
+  .card.gargalo { border-left: 3pt solid #8a1f1f; }
+
+  /* CAPA — página choque (Resumo Executivo / Diagnóstico Pontual) */
+  .capa-choque { padding: 28pt 0 18pt; }
+  .capa-numero { font-size: 24pt; line-height: 1.2; font-weight: 700; color: var(--azul-noite); margin-bottom: 14pt; }
+  .capa-soco { font-size: 13pt; line-height: 1.4; color: var(--cinza); font-style: italic; border-left: 3pt solid var(--dourado); padding: 4pt 0 4pt 12pt; }
+  .capa-soco::before { content: "❝ "; color: var(--dourado); font-size: 16pt; }
+  .capa-soco::after  { content: " ❞"; color: var(--dourado); font-size: 12pt; }
+
+  /* Selo de seção (v2) */
+  .sec-label { display: inline-block; background: var(--azul-noite); color: var(--papel); font-size: 8pt; font-weight: 700; letter-spacing: 0.6pt; padding: 2pt 8pt; border-radius: 2pt; margin-top: 14pt; }
+
+  footer { position: running(footer); color: var(--cinza-2); font-size: 8pt; text-align: center; border-top: 0.5pt solid var(--linha); padding-top: 4pt; }
   @page { @bottom-center { content: element(footer); } }
+
+  header.doc-meta { color: var(--cinza-2); font-size: 8.5pt; margin-bottom: 6pt; border-bottom: 0.5pt solid var(--linha); padding-bottom: 4pt; }
 </style>
 </head>
 <body>
-<header>
-  <div class="meta">{{ empresa.nome }}{% if escopo_label %} · {{ escopo_label }}{% endif %} · gerado em {{ gerado_em.strftime('%d/%m/%Y') }} · janela últimos 180 dias</div>
-</header>
+<header class="doc-meta">{{ empresa.nome }}{% if escopo_label %} · {{ escopo_label }}{% endif %} · gerado em {{ gerado_em.strftime('%d/%m/%Y') }} · janela últimos 180 dias</header>
 {% block conteudo %}{% endblock %}
 <footer>PDPA · Loyall — {{ empresa.nome }}</footer>
 </body>
