@@ -1,8 +1,10 @@
 {% extends "relatorios/base_pdf.html" %}
+{% import "relatorios/_macros.html" as M %}
 {% block title %}Plano de Ação Executivo — {{ empresa.nome }}{% endblock %}
 {% block conteudo %}
 {% set prio_badge = {'alto':'critico','medio':'atencao','baixo':'bom'} %}
 
+{# ── Card da ação (mantém estrutura B3 original, paleta doc-ouro) ──────── #}
 {% macro card(it) %}
 <div class="card{% if it.origem == 'Estrutural' %} estrut{% endif %}">
   <div style="margin-bottom:2pt">
@@ -17,20 +19,141 @@
 </div>
 {% endmacro %}
 
-<h1>Plano de Ação Executivo</h1>
-<p class="sub"><strong>{{ d.total }} ações</strong> consolidadas · {{ d.n_estruturais }} estruturais (proativas) · {{ d.n_reativas }} reativas · {{ d.n_alto }} de prioridade alta. Distribuídas em 6 frentes de consultoria.</p>
+{# ═════════════════════════════════════════════════════════════════════════
+   CAPA · página-choque (tese sobre execução, $0 LLM)
+   ═════════════════════════════════════════════════════════════════════════ #}
+<div class="capa-choque">
+  <div class="capa-eyebrow">Plano de Ação Executivo · PDPA</div>
+  <h1 class="capa-empresa">{{ empresa.nome }}</h1>
 
+  <div class="capa-titulo-bloco">
+    <div class="label">O QUE FAZER — EM QUE ORDEM</div>
+    <div class="capa-numero">{{ d.capa_manchete }}</div>
+    <div class="dash-sep">— — —</div>
+    <div class="capa-soco">{{ d.capa_soco }}</div>
+    <div class="capa-promessa">
+      → as próximas páginas distribuem essas ações em 6 frentes de consultoria.
+    </div>
+  </div>
+
+  <div class="capa-fontes">
+    <div class="titulo">Distribuição rápida</div>
+    <ul>
+      <li><span class="conector">🏗️ Estruturais (proativas)</span> ·
+          <span class="quant">{{ d.n_estruturais }} ações</span></li>
+      <li><span class="conector">⚙ Reativas</span> ·
+          <span class="quant">{{ d.n_reativas }} ações</span></li>
+      <li><span class="conector">🚩 No pilar gargalo</span> ·
+          <span class="quant">{{ d.n_no_gargalo }} ações ({{ d.n_no_gargalo_alto }} alta)</span></li>
+      <li><span class="conector">Prioridade</span> ·
+          <span class="quant">{{ d.n_alto }} alta · {{ d.n_medio }} média · {{ d.n_baixo }} baixa</span></li>
+    </ul>
+  </div>
+</div>
+
+{# ═════════════════════════════════════════════════════════════════════════
+   00 · COMO USAR ESTE PLANO (boilerplate constante)
+   ═════════════════════════════════════════════════════════════════════════ #}
+{{ M.titulo_secao('00', 'Como Usar Este Plano',
+                  'Três regras de execução · ordem do Lastro · proibido pular fase.') }}
+<table>
+  <thead>
+    <tr><th style="width:18%">Regra</th><th>O que fazer</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1 · Lastro primeiro</strong></td>
+      <td>Atacar as ações do pilar gargalo antes das outras. Pilar inicial travado
+          puxa todos os seguintes — esforço em pilares posteriores rende menos enquanto
+          o gargalo persiste.</td>
+    </tr>
+    <tr>
+      <td><strong>2 · Estruturais antes de reativas</strong></td>
+      <td>Sugestões 🏗️ <em>estruturais</em> mudam a fundação (não voltam a aparecer).
+          Ações <em>reativas</em> respondem ao reclamado — sem fundação, viram fila
+          infinita de incêndio.</td>
+    </tr>
+    <tr>
+      <td><strong>3 · Alta prioridade no gargalo = veto-vermelho</strong></td>
+      <td>Ações que combinam <span class="badge b-critico">alto</span> + 🚩 (no pilar
+          gargalo) bloqueiam o avanço de qualquer outra frente — devem entrar na
+          próxima semana de execução.</td>
+    </tr>
+  </tbody>
+</table>
+
+{# ═════════════════════════════════════════════════════════════════════════
+   DF · DISTRIBUIÇÃO POR FRENTE (cap-stone, header 6-col + counts)
+   ═════════════════════════════════════════════════════════════════════════ #}
+{{ M.titulo_secao('DF', 'Distribuição por Frente',
+                  'Volume e prioridade alta por perspectiva de consultoria.') }}
+<table>
+  <thead>
+    <tr>
+      <th>Sigla</th><th>Frente</th>
+      <th style="text-align:right">Total</th>
+      <th style="text-align:right">Estruturais</th>
+      <th style="text-align:right">Reativas</th>
+      <th style="text-align:right">Alta</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for g in d.grupos %}
+    <tr{% if g.n_alto > 0 %} style="background:#fcf6e8"{% endif %}>
+      <td><strong style="color:var(--dourado);
+                        font-family:Georgia,serif">{{ g.sigla }}</strong></td>
+      <td>{{ g.icon }} {{ g.label }}</td>
+      <td style="text-align:right"><strong>{{ g.total }}</strong></td>
+      <td style="text-align:right">{{ g.estruturais|length }}</td>
+      <td style="text-align:right">{{ g.reativas|length }}</td>
+      <td style="text-align:right">
+        {%- if g.n_alto > 0 -%}
+          <span class="badge b-critico">{{ g.n_alto }}</span>
+        {%- else -%}—{%- endif -%}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ═════════════════════════════════════════════════════════════════════════
+   MK · PP · TI · OP · PC · AC — uma seção por perspectiva com material
+   ═════════════════════════════════════════════════════════════════════════ #}
 {% for g in d.grupos %}
-<h2>{{ g.icon }} {{ g.label }} <span class="muted">— {{ g.total }} ações</span></h2>
+{{ M.titulo_secao(g.sigla, g.icon ~ ' ' ~ g.label,
+                  g.total ~ ' ações · ' ~ g.estruturais|length ~ ' estruturais · '
+                  ~ g.reativas|length ~ ' reativas'
+                  ~ (' · ' ~ g.n_alto ~ ' alta prioridade' if g.n_alto > 0 else '')) }}
 
 {% if g.estruturais %}
-<p class="sub" style="color:#b89355"><strong>🏗️ Sugestões estruturais</strong> — construir a fundação, não reagir ao reclamado ({{ g.estruturais|length }})</p>
+<div class="persp-titulo"><span class="label">🏗️ Sugestões estruturais</span></div>
+<p class="sub" style="margin:2pt 0 6pt">
+  Construir a fundação — não reagir ao reclamado ({{ g.estruturais|length }} ações).
+</p>
 {% for it in g.estruturais %}{{ card(it) }}{% endfor %}
 {% endif %}
 
 {% if g.reativas %}
-{% if g.estruturais %}<p class="sub"><strong>Ações reativas</strong> — responder ao sinalizado ({{ g.reativas|length }})</p>{% endif %}
+{% if g.estruturais %}
+<div class="persp-titulo" style="margin-top:10pt">
+  <span class="label">⚙ Ações reativas</span>
+</div>
+<p class="sub" style="margin:2pt 0 6pt">
+  Responder ao sinalizado ({{ g.reativas|length }} ações). Só depois das estruturais
+  estabilizarem.
+</p>
+{% endif %}
 {% for it in g.reativas %}{{ card(it) }}{% endfor %}
 {% endif %}
 {% endfor %}
+
+{# ═════════════════════════════════════════════════════════════════════════
+   Assinatura editorial
+   ═════════════════════════════════════════════════════════════════════════ #}
+<div class="assinatura-final">
+  <div class="nomes">Alexandre D'Aquino · Dener Pereira</div>
+  <div class="loyall">Loyall Company</div>
+  <div style="margin-top:4pt">Gerado em {{ d.gerado_em.strftime('%d/%m/%Y às %H:%M UTC') }}
+       · {{ d.total }} ações consolidadas · sem custo LLM (assembly do cache).</div>
+</div>
 {% endblock %}
