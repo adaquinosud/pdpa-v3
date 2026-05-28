@@ -3171,6 +3171,30 @@ def explorar_ia_perguntar(empresa_id: int):
     )
 
 
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/ia/stream", methods=["POST"])
+def explorar_ia_stream(empresa_id: int):
+    """IA Chat com streaming (IA-1): responde em deltas de texto puro. Cache-hit
+    devolve a resposta inteira de uma vez; miss streama o Sonnet token a token."""
+    from flask import Response
+
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    pergunta = (request.form.get("pergunta") or "").strip()
+    if not pergunta:
+        return Response("", mimetype="text/plain; charset=utf-8")
+    filtros, ag_id, corte = _explorar_filtros()
+    periodo = filtros.get("periodo") or None
+
+    from src.ia.chat import responder_stream
+
+    gen = responder_stream(empresa_id, pergunta, ag_id, corte, periodo)
+    return Response(gen, mimetype="text/plain; charset=utf-8")
+
+
 # Rate-limit do botão "Regenerar" (PA.5): exceção manual; pipeline cobre o automático.
 _REGEN_RATE_LIMIT_SEG = 3600
 

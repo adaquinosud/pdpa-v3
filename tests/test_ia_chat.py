@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.ia.chat import _normalizar, escopo_hash, responder
+from src.ia.chat import _normalizar, escopo_hash, responder, responder_stream
 from src.ia.contexto import formatar_contexto, montar_contexto
 from src.models.chat_cache import ChatCache
 from src.models.verbatim import Verbatim
@@ -130,3 +130,52 @@ def test_rota_perguntar_vazia(client_loyall, db_session):
     r = client_loyall.post(f"/empresas/{e['id']}/explorar/ia/perguntar", data={"pergunta": "   "})
     assert r.status_code == 200
     assert "Digite uma pergunta" in r.get_data(as_text=True)
+
+
+def test_responder_stream_acumula_e_cacheia(client_loyall, db_session):
+    """IA-1: stream acumula os deltas e persiste a resposta completa no cache."""
+    e, a, loc, f = _ctx(client_loyall, "stream")
+    _verb(db_session, e, loc, f, "D2", "detrator", 4)
+    db_session.commit()
+
+    def fake_stream(sp, ctx, p):
+        for d in ["O gargalo ", "é ", "Disponibilidade."]:
+            yield d
+
+    chunks = list(responder_stream(e["id"], "Qual o gargalo?", stream_fn=fake_stream))
+    assert "".join(chunks) == "O gargalo é Disponibilidade."
+    assert db_session.query(ChatCache).filter_by(empresa_id=e["id"]).count() == 1
+
+    # 2ª vez (cache hit): devolve a resposta inteira de uma vez, sem stream_fn
+    def _boom(sp, ctx, p):
+        raise AssertionError("não deveria chamar o LLM no cache hit")
+        yield  # noqa
+
+    chunks2 = list(responder_stream(e["id"], "  qual o GARGALO ", stream_fn=_boom))
+    assert "".join(chunks2) == "O gargalo é Disponibilidade."
+
+
+def test_rota_ia_stream(client_loyall, db_session, monkeypatch):
+    e, a, loc, f = _ctx(client_loyall, "rstream")
+    _verb(db_session, e, loc, f, "D2", "detrator", 4)
+    db_session.commit()
+    import src.ia.chat as chat_mod
+
+    monkeypatch.setattr(
+        chat_mod,
+        "_chamar_sonnet_stream",
+        lambda sp, ctx, p: iter(["Gargalo ", "é ", "Precisão."]),
+    )
+    r = client_loyall.post(
+        f"/empresas/{e['id']}/explorar/ia/stream", data={"pergunta": "Qual o gargalo?"}
+    )
+    assert r.status_code == 200
+    assert r.get_data(as_text=True) == "Gargalo é Precisão."
+
+
+def test_tab_ia_tem_streaming_js(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "iajs")
+    _verb(db_session, e, loc, f, "D2", "detrator", 4)
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/ia").get_data(as_text=True)
+    assert "ia/stream" in h and "getReader" in h  # ilha de streaming presente

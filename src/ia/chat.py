@@ -65,6 +65,22 @@ def _chamar_sonnet(system_prompt: str, contexto: str, pergunta: str) -> Dict[str
     }
 
 
+def _chamar_sonnet_stream(system_prompt: str, contexto: str, pergunta: str):
+    """Stream do Sonnet (IA-1): yield dos deltas de texto conforme chegam."""
+    from src.classifier.classifier_v3 import _get_client
+
+    client = _get_client()
+    user = f"DADOS:\n{contexto}\n\nPERGUNTA DO GESTOR: {pergunta}"
+    with client.messages.stream(
+        model=SONNET_MODEL,
+        max_tokens=MAX_TOKENS_RESPOSTA,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user}],
+    ) as stream:
+        for delta in stream.text_stream:
+            yield delta
+
+
 def responder(
     s,
     empresa_id: int,
@@ -132,3 +148,78 @@ def responder(
         "tokens_in": out.get("tokens_in", 0),
         "tokens_out": out.get("tokens_out", 0),
     }
+
+
+def responder_stream(
+    empresa_id: int,
+    pergunta: str,
+    ag_id: Optional[int] = None,
+    corte=None,
+    periodo: Optional[str] = None,
+    stream_fn: Optional[Callable] = None,
+):
+    """Versão streaming (IA-1): generator que produz os deltas da resposta.
+    Cache exato — hit devolve a resposta inteira de uma vez (sem LLM); miss
+    streama os deltas do Sonnet e persiste a resposta completa ao final. Abre a
+    própria sessão (não segura conexão durante o stream longo)."""
+    from src.models.chat_cache import ChatCache
+    from src.utils.db import db_session
+
+    pergunta = (pergunta or "").strip()
+    if not pergunta:
+        return
+
+    e_hash = escopo_hash(ag_id, periodo)
+    p_hash = _hash(_normalizar(pergunta))
+
+    # Lookup + contexto numa sessão curta; não segura conexão durante o stream.
+    with db_session() as s:
+        hit = (
+            s.query(ChatCache)
+            .filter(
+                ChatCache.empresa_id == empresa_id,
+                ChatCache.escopo_hash == e_hash,
+                ChatCache.pergunta_hash == p_hash,
+            )
+            .first()
+        )
+        if hit is not None:
+            yield hit.resposta
+            return
+        dados = montar_contexto(s, empresa_id, ag_id, corte)
+        contexto = formatar_contexto(dados)
+        c_hash = contexto_hash(dados)
+
+    system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    gerar = stream_fn or _chamar_sonnet_stream
+    partes = []
+    for delta in gerar(system_prompt, contexto, pergunta):
+        partes.append(delta)
+        yield delta
+
+    full = "".join(partes).strip()
+    if full:
+        with db_session() as s2:
+            existe = (
+                s2.query(ChatCache)
+                .filter(
+                    ChatCache.empresa_id == empresa_id,
+                    ChatCache.escopo_hash == e_hash,
+                    ChatCache.pergunta_hash == p_hash,
+                )
+                .first()
+            )
+            if existe is None:  # corrida: outra requisição pode ter gravado
+                s2.add(
+                    ChatCache(
+                        empresa_id=empresa_id,
+                        escopo_hash=e_hash,
+                        pergunta_hash=p_hash,
+                        pergunta=pergunta,
+                        resposta=full,
+                        contexto_hash=c_hash,
+                        tokens_in=0,  # stream: contagem não capturada (custo = mesmo Sonnet)
+                        tokens_out=0,
+                    )
+                )
+                s2.commit()

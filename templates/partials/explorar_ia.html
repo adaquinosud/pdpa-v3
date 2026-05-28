@@ -1,20 +1,17 @@
-{# Tab IA — assistente executivo single-turn sobre o diagnóstico consolidado. #}
-{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
+{# Tab IA — assistente executivo single-turn, com STREAMING (IA-1). #}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo ~ '&local_id=' ~ filtros.local_id %}
 
 <div class="mb-3">
   <h3 class="text-sm font-semibold text-loyall-700">Pergunte ao consultor PDPA</h3>
   <p class="text-xs text-loyall-500">Responde com base nos dados desta empresa no escopo selecionado (agrupamento + período). Uma pergunta por vez.</p>
 </div>
 
-{# Campo de pergunta #}
-<form hx-post="{{ url_for('ui.explorar_ia_perguntar', empresa_id=empresa.id) }}?{{ qs }}"
-      hx-target="#ia-resposta" hx-swap="innerHTML"
-      hx-indicator="#ia-loading"
-      class="flex gap-2 mb-3">
-  <input type="text" name="pergunta" autocomplete="off"
+{# Campo de pergunta — envio via JS (fetch streaming), não HTMX. #}
+<form id="ia-form" class="flex gap-2 mb-3" onsubmit="return false;">
+  <input type="text" id="ia-input" autocomplete="off"
          placeholder="Ex.: Qual é o principal gargalo da operação?"
          class="flex-1 border border-loyall-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-loyall-600">
-  <button type="submit"
+  <button type="submit" id="ia-send"
           class="px-4 py-2 rounded bg-loyall-700 text-white text-sm font-medium hover:bg-loyall-800">
     Perguntar
   </button>
@@ -23,18 +20,12 @@
 {# Perguntas-sugestão #}
 <div class="flex flex-wrap gap-2 mb-4">
   {% for q in ia.sugeridas %}
-  <button type="button"
-          hx-post="{{ url_for('ui.explorar_ia_perguntar', empresa_id=empresa.id) }}?{{ qs }}"
-          hx-vals='{"pergunta": {{ q | tojson }}}'
-          hx-target="#ia-resposta" hx-swap="innerHTML"
-          hx-indicator="#ia-loading"
-          class="text-xs px-3 py-1.5 rounded-full border border-loyall-200 text-loyall-600 hover:bg-loyall-50 hover:border-loyall-400">
-    {{ q }}
-  </button>
+  <button type="button" class="ia-chip text-xs px-3 py-1.5 rounded-full border border-loyall-200 text-loyall-600 hover:bg-loyall-50 hover:border-loyall-400"
+          data-q="{{ q }}">{{ q }}</button>
   {% endfor %}
 </div>
 
-<div id="ia-loading" class="htmx-indicator text-xs text-loyall-400 mb-2">Consultando…</div>
+<div id="ia-loading" class="text-xs text-loyall-400 mb-2" style="display:none">Consultando…</div>
 <div id="ia-resposta"></div>
 
 {# Q&A recentes cacheadas deste escopo #}
@@ -51,3 +42,76 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+(function () {
+  var IA_URL = "{{ url_for('ui.explorar_ia_stream', empresa_id=empresa.id) }}?{{ qs }}";
+
+  function esc(s) {
+    return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  // Markdown leve client-side (espelha src/utils/markdown_leve.py): negrito,
+  // listas e quebras. Aplicado ao final do stream.
+  function mdLeve(t) {
+    var safe = esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    var blocos = safe.trim().split(/\n\s*\n/);
+    return blocos.map(function (b) {
+      var linhas = b.split("\n").filter(function (l) { return l.trim(); });
+      if (linhas.length && linhas.every(function (l) { return /^\s*[-*]\s+/.test(l); })) {
+        return '<ul class="list-disc pl-5 space-y-1">' +
+          linhas.map(function (l) { return "<li>" + l.replace(/^\s*[-*]\s+/, "") + "</li>"; }).join("") + "</ul>";
+      }
+      return "<p>" + linhas.join("<br>") + "</p>";
+    }).join("");
+  }
+
+  async function perguntar(pergunta) {
+    pergunta = (pergunta || "").trim();
+    if (!pergunta) return;
+    var resp = document.getElementById("ia-resposta");
+    var loading = document.getElementById("ia-loading");
+    var input = document.getElementById("ia-input");
+    var send = document.getElementById("ia-send");
+    if (input) input.disabled = true;
+    if (send) send.disabled = true;
+    loading.style.display = "inline";
+    resp.innerHTML =
+      '<div class="border border-loyall-200 rounded-lg p-4 bg-white">' +
+      '<div class="text-xs font-semibold text-loyall-500 uppercase tracking-wider mb-2">Consultor PDPA</div>' +
+      '<div id="ia-live" class="text-sm text-loyall-800 leading-relaxed" style="white-space:pre-wrap"></div>' +
+      '<div class="text-[10px] text-loyall-400 mt-2">' + esc(pergunta) + "</div></div>";
+    var live = document.getElementById("ia-live");
+    var full = "";
+    try {
+      var r = await fetch(IA_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "pergunta=" + encodeURIComponent(pergunta),
+        credentials: "same-origin",
+      });
+      var reader = r.body.getReader();
+      var dec = new TextDecoder();
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        full += dec.decode(chunk.value, { stream: true });
+        live.textContent = full;             // ao vivo: texto cru (efeito digitação)
+        live.scrollIntoView({ block: "end" });
+      }
+      live.style.whiteSpace = "normal";
+      live.innerHTML = mdLeve(full) || '<em class="text-loyall-400">Sem resposta.</em>';
+    } catch (e) {
+      live.textContent = "Erro de conexão: " + e.message;
+    }
+    loading.style.display = "none";
+    if (input) { input.disabled = false; input.value = ""; input.focus(); }
+    if (send) send.disabled = false;
+  }
+
+  var form = document.getElementById("ia-form");
+  if (form) form.addEventListener("submit", function () { perguntar(document.getElementById("ia-input").value); });
+  document.querySelectorAll(".ia-chip").forEach(function (b) {
+    b.addEventListener("click", function () { perguntar(b.getAttribute("data-q")); });
+  });
+})();
+</script>
