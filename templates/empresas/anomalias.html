@@ -11,6 +11,7 @@
   <li><a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Explorar</a></li>
   <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Temas</a></li>
   <li><a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Anomalias</a></li>
+  <li><a href="{{ url_for('ui.relatorios_index', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Relatórios</a></li>
 </ul>
 {% endblock %}
 

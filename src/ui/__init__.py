@@ -1095,6 +1095,150 @@ def anomalias_empresa(empresa_id: int):
     )
 
 
+# ── Relatórios (Bloco 9 Evolução B) ──────────────────────────────────────────
+_RELATORIOS = [
+    (
+        "resumo_executivo",
+        "Resumo Executivo Geral",
+        "Overview C-level: índice + engajamento + gargalo + 2 frentes + top achados.",
+        "B1",
+        "em_construcao",
+    ),
+    (
+        "diagnostico_pontual",
+        "Diagnóstico Pontual",
+        "Foto técnica atual: Mapa de Lastro + Confronto + 12 leituras + indicadores.",
+        "B2",
+        "em_construcao",
+    ),
+    (
+        "plano_executivo",
+        "Plano de Ação Executivo",
+        "161 ações priorizadas por perspectiva (reativas + estruturais).",
+        "B3",
+        "em_construcao",
+    ),
+    (
+        "diagnostico_longitudinal",
+        "Diagnóstico Longitudinal",
+        "Narrativa quarterly: ratios por período, tendências e inércia estrutural.",
+        "B4",
+        "em_construcao",
+    ),
+]
+_RELATORIOS_DICT = {t[0]: t for t in _RELATORIOS}
+
+
+def _pdf_disponivel() -> bool:
+    """Detecta se as libs nativas do WeasyPrint estão presentes (sem renderizar)."""
+    try:
+        import weasyprint  # noqa: F401
+        from weasyprint import HTML
+
+        HTML(string="<p>x</p>").write_pdf()
+        return True
+    except Exception:  # noqa: BLE001 — qualquer falha → indisponível
+        return False
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/relatorios")
+def relatorios_index(empresa_id: int):
+    """Índice de relatórios — 4 cards (Resumo Executivo, Diagnóstico Pontual,
+    Plano Executivo, Diagnóstico Longitudinal)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
+    relatorios = [
+        SimpleNamespace(tipo=t, titulo=titulo, descricao=desc, cp=cp, status=st)
+        for t, titulo, desc, cp, st in _RELATORIOS
+    ]
+    return render_template(
+        "relatorios/index.html",
+        empresa=empresa_w,
+        relatorios=relatorios,
+        pdf_disponivel=_pdf_disponivel(),
+    )
+
+
+def _relatorio_html(empresa_w, tipo: str) -> str:
+    """Renderiza o HTML do relatório (placeholder até B1-B4 preencherem)."""
+    from datetime import datetime
+
+    meta = _RELATORIOS_DICT.get(tipo)
+    if meta is None:
+        return None
+    _, titulo, _, cp, _ = meta
+    return render_template(
+        "relatorios/em_construcao.html",
+        empresa=empresa_w,
+        gerado_em=datetime.utcnow(),
+        escopo_label=None,
+        titulo=titulo,
+        cp=cp,
+    )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/relatorios/<tipo>")
+def relatorios_view(empresa_id: int, tipo: str):
+    """Tela do relatório (HTML — funciona sempre, sem deps nativas)."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    if tipo not in _RELATORIOS_DICT:
+        return render_template("404.html"), 404
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
+    html = _relatorio_html(empresa_w, tipo)
+    return html
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/relatorios/<tipo>.pdf")
+def relatorios_pdf(empresa_id: int, tipo: str):
+    """Download PDF (WeasyPrint). 503 com instrução se libs nativas ausentes."""
+    from flask import Response
+
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    if tipo not in _RELATORIOS_DICT:
+        return render_template("404.html"), 404
+    with db_session() as s:
+        empresa_db = s.get(Empresa, empresa_id)
+        if empresa_db is None:
+            return render_template("404.html"), 404
+        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
+    html = _relatorio_html(empresa_w, tipo)
+    from src.relatorios.pdf import PdfIndisponivel, render_pdf
+
+    try:
+        pdf_bytes = render_pdf(html)
+    except PdfIndisponivel as exc:
+        return Response(str(exc), status=503, mimetype="text/plain; charset=utf-8")
+    nome = f"PDPA_{tipo}_{empresa_w.nome.replace(' ', '_')}.pdf"
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
+
+
 @ui_bp.route("/ui/empresas/<int:empresa_id>/anomalias/<int:anomalia_id>/validar", methods=["POST"])
 def anomalia_validar_ui(empresa_id: int, anomalia_id: int):
     """HTMX: valida a anomalia e devolve o card atualizado (swap outerHTML)."""
