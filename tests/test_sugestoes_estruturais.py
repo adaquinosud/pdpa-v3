@@ -208,6 +208,29 @@ def test_tab_planos_renderiza_caixa_estrutural(client_loyall, db_session):
     assert "ratio crítico em P1" in h
 
 
+def test_tab_planos_default_cards_e_publico(client_loyall, db_session):
+    """PL-1: Planos abre em CARDS por default, com público afetado (verbatins/det)."""
+    e, a, loc, f = _ctx(client_loyall, "cards")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.commit()
+    db_session.add(
+        SugestaoEstrutural(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="P1",
+            perspectiva="marketing",
+            acao="Recalibre a promessa de preço",
+            ordem=0,
+        )
+    )
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
+    assert "Planos de Ação" in h and "últimos 180 dias" in h  # header conceitual + janela
+    assert "Cards" in h and "Tabela densa" in h  # toggle (default cards)
+    assert "Público afetado" in h and "detratores" in h  # bloco de público no card
+    assert "📢" in h  # ícone da perspectiva (marketing) no header da seção
+
+
 def test_skip_unchanged_pula_subpilar_sem_mudanca(client_loyall, db_session):
     """PA.5: 2ª geração com skip_unchanged pula o subpilar cujo dados_hash não mudou."""
     e, a, loc, f = _ctx(client_loyall, "skip")

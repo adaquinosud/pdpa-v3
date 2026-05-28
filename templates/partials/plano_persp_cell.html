@@ -2,7 +2,7 @@
    tabela e na resposta do override. Requer: a (chave/perspectiva/perspectiva_confianca),
    empresa_id, perspectivas. #}
 <form hx-post="{{ url_for('ui.plano_perspectiva_override', empresa_id=empresa_id) }}"
-      hx-target="closest td" hx-swap="innerHTML" class="flex items-center gap-1">
+      hx-target="closest .persp-cell" hx-swap="innerHTML" class="flex items-center gap-1">
   <input type="hidden" name="item_chave" value="{{ a.chave }}">
   <select name="perspectiva" onchange="this.form.requestSubmit()"
           class="text-xs border border-loyall-200 rounded px-1 py-0.5">

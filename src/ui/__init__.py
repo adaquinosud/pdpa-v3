@@ -2883,7 +2883,7 @@ def _explorar_planos(empresa_id, ag_id, args):
     from src.utils.db import db_session
 
     modo = "cliente" if args.get("modo") == "cliente" else "loyall"
-    vista = "tabela" if args.get("vista") == "tabela" else "perspectiva"
+    vista = "tabela" if args.get("vista") == "tabela" else "cards"
     filtros = {
         k: (args.get(k) or None) for k in ("perspectiva", "origem", "pilar", "prioridade", "status")
     }

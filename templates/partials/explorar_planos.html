@@ -1,19 +1,57 @@
-{# Tab Planos de Ação — consolida 3 fontes. Toggle perspectiva/tabela + modo
-   cliente/loyall, sidebar de filtros, override de perspectiva, badge gargalo. #}
+{# Tab Planos de Ação — cards espaçosos (default) + tabela densa (alternativa).
+   Por perspectiva: subseção 🏗️ Estruturais (proativas) + Reativas. Janela 180d. #}
 {% set p = planos %}
 {% set empresa_id = empresa.id %}
-{% set prio = {'alto':{'bg':'bg-rose-100','text':'text-rose-700'},'medio':{'bg':'bg-amber-100','text':'text-amber-800'},'baixo':{'bg':'bg-loyall-100','text':'text-loyall-600'}} %}
+{% set prio = {'alto':{'bg':'bg-rose-100','text':'text-rose-700','emoji':'🔴'},'medio':{'bg':'bg-amber-100','text':'text-amber-800','emoji':'🟡'},'baixo':{'bg':'bg-emerald-100','text':'text-emerald-700','emoji':'🟢'}} %}
 {% set est = {'pendente':{'bg':'bg-loyall-100','text':'text-loyall-500'},'em_curso':{'bg':'bg-sky-100','text':'text-sky-700'},'concluido':{'bg':'bg-emerald-100','text':'text-emerald-700'}} %}
+{% set persp_icon = {'marketing':'📢','produto_preco':'🏷️','tecnologia':'💡','processos':'⚙️','pessoas':'👥','ativacao':'🤝'} %}
 {% set loyall = p.modo == 'loyall' %}
 {% set ncols = 9 if loyall else 8 %}
 {% set tab_url = url_for('ui.explorar_tab', empresa_id=empresa.id, tab='planos') %}
 {% set track_url = url_for('ui.plano_tracking', empresa_id=empresa.id) %}
 
-{# ── Macro: linha da ação ── #}
+{# ── Macro: CARD de ação (default) ── #}
+{% macro card(it) %}
+{% set pc = prio.get(it.prioridade, prio['medio']) %}
+{% set ec = est.get(it.status, est['pendente']) %}
+{% set estrut = it.origem == 'Estrutural' %}
+<div class="rounded-lg border p-4 {% if estrut %}border-amber-300 bg-amber-50/40{% else %}border-loyall-200 bg-white{% endif %}">
+  <div class="flex items-center gap-1.5 flex-wrap mb-2 text-[11px]">
+    <span class="uppercase font-semibold px-2 py-0.5 rounded {{ pc.bg }} {{ pc.text }}">{{ pc.emoji }} {{ it.prioridade }}</span>
+    {% if it.subpilar %}<span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-600">{{ it.subpilar }}{% if it.subpilar_nome %} · {{ it.subpilar_nome }}{% endif %}{% if it.pilar == p.gargalo %} <span title="Pilar gargalo do Lastro">🚩</span>{% endif %}</span>{% endif %}
+    {% if loyall %}<span class="px-2 py-0.5 rounded border border-loyall-200 bg-loyall-50 text-loyall-400">{{ it.origem }}{% if it.dimensao %} · {{ it.dimensao }}{% endif %}</span>{% endif %}
+    {% if it.loja %}<span class="px-2 py-0.5 rounded bg-loyall-50 text-loyall-500">📍 {{ it.loja }}</span>{% endif %}
+  </div>
+  <div class="text-sm text-loyall-800 font-medium leading-snug">{{ it.texto }}</div>
+  {% if it.justificativa %}<div class="text-xs text-loyall-500 mt-1.5 leading-relaxed">{{ it.justificativa }}</div>{% endif %}
+  {% if it.volume %}
+  <div class="mt-2.5 inline-flex items-center gap-2 text-[11px] bg-loyall-50 rounded px-2 py-1">
+    <span class="uppercase tracking-wider text-loyall-400">Público afetado</span>
+    <span class="text-loyall-600">{{ it.volume }} verbatins{% if it.det %} · <span class="text-rose-600">{{ it.det }} detratores</span>{% endif %}</span>
+  </div>
+  {% endif %}
+  {% if loyall %}
+  <div class="flex items-center gap-2 flex-wrap mt-3 pt-2 border-t border-loyall-100">
+    <select name="status" hx-post="{{ track_url }}" hx-vals='{"item_chave": "{{ it.chave }}"}' hx-swap="none"
+            class="text-[11px] rounded px-1.5 py-0.5 border-0 {{ ec.bg }} {{ ec.text }}">
+      {% for v, lbl in [('pendente','pendente'),('em_curso','em curso'),('concluido','concluído')] %}
+      <option value="{{ v }}" {% if it.status == v %}selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="responsavel" value="{{ it.responsavel or '' }}" placeholder="responsável"
+           hx-post="{{ track_url }}" hx-vals='{"item_chave": "{{ it.chave }}"}' hx-trigger="change" hx-swap="none"
+           class="text-xs w-28 border border-loyall-200 rounded px-1.5 py-0.5">
+    <span class="persp-cell ml-auto">{% set a = it %}{% include 'partials/plano_persp_cell.html' %}</span>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# ── Macro: linha da tabela densa (alternativa) ── #}
 {% macro linha(it) %}
 <tr class="border-t border-loyall-100 align-top">
   <td class="px-3 py-2 text-loyall-700 max-w-[420px]">{{ it.texto }}</td>
-  <td class="px-2 py-2">{% set a = it %}{% include 'partials/plano_persp_cell.html' %}</td>
+  <td class="px-2 py-2 persp-cell">{% set a = it %}{% include 'partials/plano_persp_cell.html' %}</td>
   {% if loyall %}<td class="px-2 py-2 text-[11px] text-loyall-500 whitespace-nowrap">{{ it.origem }}{% if it.dimensao %} · {{ it.dimensao }}{% endif %}</td>{% endif %}
   <td class="px-2 py-2 text-xs whitespace-nowrap">
     {% if it.subpilar %}{{ it.subpilar }}{% if it.pilar == p.gargalo %} <span class="text-[9px] px-1 rounded bg-rose-100 text-rose-700" title="Pilar gargalo do Lastro">🚩</span>{% endif %}{% else %}<span class="text-loyall-300">—</span>{% endif %}
@@ -39,12 +77,19 @@
 </tr>
 {% endmacro %}
 
+{# ── Header conceitual ── #}
+<div class="mb-3">
+  <h2 class="text-base font-semibold text-loyall-800">Planos de Ação</h2>
+  <p class="text-xs text-loyall-500">Ações priorizadas das 4 fontes — reativas (do que o cliente sinalizou) e <span class="text-amber-700">estruturais</span> (proativas, de fundação). Janela: <strong>últimos 180 dias</strong>.</p>
+</div>
+
 <div class="flex gap-4">
   {# ── Sidebar de filtros ── #}
   <form id="planos-filtros" hx-get="{{ tab_url }}" hx-target="#explorar-conteudo" hx-swap="innerHTML"
-        hx-trigger="change" class="w-48 shrink-0 text-sm space-y-3">
+        hx-trigger="change" class="w-44 shrink-0 text-sm space-y-3">
     <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
     <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
+    <input type="hidden" name="local_id" value="{{ filtros.local_id }}">
     <input type="hidden" name="modo" value="{{ p.modo }}">
     <input type="hidden" name="vista" value="{{ p.vista }}">
     <div class="font-semibold text-loyall-700 text-xs uppercase tracking-wider">Filtros</div>
@@ -58,17 +103,11 @@
     </label>
     {% endmacro %}
     {{ sel('perspectiva', 'Perspectiva', p.perspectivas) }}
-    {% if loyall %}{{ sel('origem', 'Origem', [('N5 tema','N5 tema'),('N5 cruzamento','N5 cruzamento'),('Diagnóstico','Diagnóstico'),('Anomalia','Anomalia')]) }}{% endif %}
+    {% if loyall %}{{ sel('origem', 'Origem', [('Estrutural','Estrutural'),('N5 tema','N5 tema'),('N5 cruzamento','N5 cruzamento'),('Diagnóstico','Diagnóstico'),('Anomalia','Anomalia')]) }}{% endif %}
     {{ sel('pilar', 'Pilar', [('P','Precisão'),('D','Disponibilidade'),('Pa','Parceria'),('A','Aconselhamento')]) }}
     {{ sel('prioridade', 'Prioridade', [('alto','Alto'),('medio','Médio'),('baixo','Baixo')]) }}
     {{ sel('status', 'Status', [('pendente','Pendente'),('em_curso','Em curso'),('concluido','Concluído')]) }}
-    <label class="block">
-      <span class="text-[11px] text-loyall-500">Loja</span>
-      <select name="local_id" class="w-full px-1.5 py-1 border border-loyall-200 rounded text-xs">
-        <option value="">Todas</option>
-        {% for l in p.lojas %}<option value="{{ l.id }}" {% if p.filtros.local_id == l.id %}selected{% endif %}>{{ l.nome }}</option>{% endfor %}
-      </select>
-    </label>
+    <p class="text-[10px] text-loyall-400 pt-1">Loja: use o seletor no topo da página.</p>
   </form>
 
   {# ── Conteúdo ── #}
@@ -91,7 +130,7 @@
       <span class="text-xs text-loyall-400">{{ p.total }} ações</span>
       <div class="flex gap-3 text-xs">
         <span class="inline-flex rounded border border-loyall-200 overflow-hidden">
-          {% for v, lbl in [('perspectiva','Por perspectiva'),('tabela','Tabela densa')] %}
+          {% for v, lbl in [('cards','Cards'),('tabela','Tabela densa')] %}
           <button hx-get="{{ tab_url }}" hx-include="#planos-filtros" hx-vals='{"vista":"{{ v }}"}'
                   hx-target="#explorar-conteudo" hx-swap="innerHTML"
                   class="px-2 py-1 {% if p.vista==v %}bg-loyall-700 text-loyall-50{% else %}hover:bg-loyall-50{% endif %}">{{ lbl }}</button>
@@ -109,6 +148,33 @@
 
     {% if not p.itens %}
     <div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">Nenhuma ação para os filtros selecionados.</div>
+
+    {% elif p.vista == 'cards' %}
+      {% for g in p.grupos %}
+      <section class="mb-6">
+        <div class="flex items-center gap-2 mb-3 border-b border-loyall-100 pb-1">
+          <span class="text-base">{{ persp_icon.get(g.perspectiva, '•') }}</span>
+          <h3 class="text-sm font-semibold text-loyall-700">{{ g.label }}</h3>
+          <span class="text-xs text-loyall-400">{{ g.total }} ações</span>
+          {% if g.estruturais %}<span class="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">🏗️ {{ g.estruturais|length }} estrutural</span>{% endif %}
+        </div>
+        {% if g.estruturais %}
+        <div class="mb-3">
+          <div class="text-xs font-semibold text-amber-800 mb-2">🏗️ Sugestões estruturais — construir a fundação (proativas)</div>
+          <div class="grid gap-3 lg:grid-cols-2">
+            {% for it in g.estruturais %}{{ card(it) }}{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if g.reativas %}
+        {% if g.estruturais %}<div class="text-xs font-semibold text-loyall-500 mb-2">Ações reativas — responder ao sinalizado</div>{% endif %}
+        <div class="grid gap-3 lg:grid-cols-2">
+          {% for it in g.reativas %}{{ card(it) }}{% endfor %}
+        </div>
+        {% endif %}
+      </section>
+      {% endfor %}
+
     {% else %}
     <div class="overflow-x-auto border border-loyall-200 rounded-lg">
       <table class="w-full text-sm">
@@ -126,33 +192,7 @@
           </tr>
         </thead>
         <tbody>
-          {% if p.vista == 'perspectiva' %}
-            {% for g in p.grupos %}
-            <tr class="bg-loyall-100/60"><td colspan="{{ ncols }}" class="px-3 py-1.5 text-xs font-semibold text-loyall-700">{{ g.label }} <span class="text-loyall-400 font-normal">({{ g.total }})</span>{% if g.estruturais %} <span class="ml-1 text-[9px] uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">🏗️ {{ g.estruturais|length }} estrutural</span>{% endif %}</td></tr>
-            {% if g.estruturais %}
-            <tr><td colspan="{{ ncols }}" class="px-3 py-2 bg-amber-50/50">
-              <details {% if loop.first %}open{% endif %} class="text-xs">
-                <summary class="cursor-pointer font-semibold text-amber-800">🏗️ Sugestões estruturais (proativas) — construir a fundação, não reagir ao reclamado</summary>
-                <div class="mt-2 space-y-2">
-                  {% for it in g.estruturais %}
-                  <div class="border-l-2 border-amber-400 pl-2">
-                    <div class="text-loyall-800">{{ it.texto }}</div>
-                    {% if it.justificativa %}<div class="text-[11px] text-loyall-500 mt-0.5">{{ it.justificativa }}</div>{% endif %}
-                    <div class="text-[10px] text-loyall-400 mt-0.5">
-                      {% if it.subpilar %}{{ it.subpilar }}{% if it.subpilar_nome %} · {{ it.subpilar_nome }}{% endif %}{% if it.pilar == p.gargalo %} 🚩{% endif %}{% endif %}
-                      · status: {{ it.status }}{% if it.responsavel %} · {{ it.responsavel }}{% endif %}
-                    </div>
-                  </div>
-                  {% endfor %}
-                </div>
-              </details>
-            </td></tr>
-            {% endif %}
-            {% for it in g.reativas %}{{ linha(it) }}{% endfor %}
-            {% endfor %}
-          {% else %}
-            {% for it in p.itens %}{{ linha(it) }}{% endfor %}
-          {% endif %}
+          {% for it in p.itens %}{{ linha(it) }}{% endfor %}
         </tbody>
       </table>
     </div>

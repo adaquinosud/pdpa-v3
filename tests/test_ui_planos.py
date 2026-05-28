@@ -71,10 +71,15 @@ def test_tab_planos_renderiza(client_loyall, db_session):
     e = _empresa(client_loyall, "r")
     _seed(db_session, e["id"])
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
-    assert "Perspectiva" in h and "Prioridade" in h and "Status" in h  # colunas
-    assert "Por perspectiva" in h and "Tabela densa" in h  # toggle vista
+    assert "Planos de Ação" in h and "últimos 180 dias" in h  # header + janela fixa
+    assert "Cards" in h and "Tabela densa" in h  # toggle vista (default cards)
     assert "Visão Loyall" in h and "Visão cliente" in h  # toggle modo
-    assert "Treinar a equipe no fluxo de retirada" in h  # ação consolidada
+    assert "Treinar a equipe no fluxo de retirada" in h  # ação consolidada (card)
+    # vista tabela densa ainda traz as colunas
+    ht = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos?vista=tabela").get_data(
+        as_text=True
+    )
+    assert "Prioridade" in ht or "Prior." in ht
 
 
 def test_modo_cliente_esconde_origem(client_loyall, db_session):

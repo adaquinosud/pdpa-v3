@@ -41,6 +41,7 @@ def _item(
     prioridade=None,
     agrupamento_id=None,
     justificativa=None,
+    det=None,
 ):
     from src.api.painel import NOME_SUBPILAR, PILAR_DE_SUBPILAR
 
@@ -56,6 +57,7 @@ def _item(
         loja=loja,
         local_id=local_id,
         volume=volume,
+        det=det,
         prioridade=(prioridade or "medio"),
         agrupamento_id=agrupamento_id,
         justificativa=justificativa,
@@ -162,6 +164,7 @@ def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleN
                 "Diagnóstico",
                 subpilar=r.subpilar,
                 volume=d.get("total"),
+                det=d.get("det"),
                 prioridade=prio,
                 agrupamento_id=r.agrupamento_id,
                 local_id=r.local_id,
@@ -244,6 +247,7 @@ def _itens_estruturais(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleN
             "Estrutural",
             subpilar=r.subpilar,
             volume=d.get("total"),
+            det=d.get("det"),
             prioridade=_FAIXA_PRIORIDADE.get(d.get("faixa"), "medio"),
             agrupamento_id=r.agrupamento_id,
             local_id=r.local_id,
