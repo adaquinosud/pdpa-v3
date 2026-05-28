@@ -131,9 +131,11 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
         as_text=True
     )
     assert "Diagnóstico Pontual" in h
+    assert "estado atual" in h and "Diagnóstico Longitudinal" in h  # abertura contextual
     assert "Mapa de Lastro" in h and "Disponibilidade" in h  # pilar
     assert "Confronto Visual" in h and "D2" in h  # subpilar na tabela
     assert "Disponibilidade travada" in h and "Revisar SLA" in h  # leitura+ação
+    assert "Sequência de Lastro" in h and "Regra de execução" in h  # síntese final
     assert "180 dias" in h
 
 

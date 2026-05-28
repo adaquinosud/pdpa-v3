@@ -4,6 +4,10 @@
 <h1>Diagnóstico Pontual</h1>
 <p class="sub">{{ d.volume_total }} verbatins · pilar gargalo: <strong>{{ d.gargalo_nome or '—' }}</strong> · Índice Geral <strong>{{ '%.2f'|format(d.indice_geral) }}/10</strong> <span class="badge b-{{ d.indice_faixa }}">{{ d.indice_faixa }}</span></p>
 
+<div class="card" style="background:#f7f8fb; border-color:#d9dde4">
+  <p style="margin:0">Este diagnóstico retrata o <strong>estado atual</strong> da relação com o cliente, a partir dos <strong>{{ d.volume_total }} verbatins</strong> classificados na janela de <strong>180 dias</strong>. O pilar gargalo é <strong>{{ d.gargalo_nome or '—' }}</strong>, com Índice Geral de <strong>{{ '%.2f'|format(d.indice_geral) }}/10</strong> (faixa {{ d.indice_faixa }}). Foto técnica do AGORA — a dimensão temporal (períodos, tendências, inércia estrutural) está no Diagnóstico Longitudinal.</p>
+</div>
+
 <h2>Indicadores</h2>
 <table>
   <thead><tr><th>Indicador</th><th style="text-align:right">Valor</th><th>Faixa / Selo</th></tr></thead>
@@ -67,4 +71,22 @@
     {% endfor %}
   </tbody>
 </table>
+
+{% if d.priorizacao %}
+<h2>O Que Fazer — Sequência de Lastro</h2>
+<p class="sub">O Lastro é sequencial (P → D → Pa → A): pilar travado puxa os seguintes. <strong>Atacar fora de ordem desperdiça esforço</strong> — Parceria e Aconselhamento não destravam enquanto Precisão/Disponibilidade estiver crítico. Top {{ d.priorizacao|length }} subpilares prioritários, ordenados pelo Lastro:</p>
+<ol style="padding-left:14pt; margin:0">
+  {% for x in d.priorizacao %}
+  <li style="margin-bottom:6pt">
+    <strong>[{{ x.pilar }} {{ x.pilar_nome }}]{% if x.pilar_gargalo %} <span class="badge b-critico">🚩 gargalo</span>{% endif %} · {{ x.subpilar }} {{ x.nome }}</strong>
+    <span class="badge b-{{ x.faixa }}">{{ x.faixa }}</span>
+    <span class="muted">— ratio {{ '%.2f'|format(x.ratio) }} · {{ x.det }} detratores</span>
+    {% if x.acao %}<div class="muted" style="margin-top:1pt; font-size:8.5pt"><strong style="color:#1d3149">Ação:</strong> {{ x.acao }}</div>{% endif %}
+  </li>
+  {% endfor %}
+</ol>
+{% if d.gargalo_nome %}
+<p class="sub" style="margin-top:6pt"><strong>Regra de execução:</strong> resolva o gargalo ({{ d.gargalo_nome }}) primeiro. Cada subpilar crítico do gargalo destrava o próximo pilar; investir em pilares posteriores antes disso retorna pouco.</p>
+{% endif %}
+{% endif %}
 {% endblock %}

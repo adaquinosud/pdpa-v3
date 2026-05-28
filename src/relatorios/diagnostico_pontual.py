@@ -114,6 +114,32 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
     indice = n1.get("indice_geral") or (calcular_indice_geral(matriz) if matriz else 0.0)
     indice_faixa = n1.get("indice_geral_faixa") or faixa_indice_geral(indice)
 
+    # "O Que Fazer — Sequência de Lastro": subpilares críticos/fracos ordenados
+    # pelo Lastro (atacar o do pilar mais inicial primeiro, porque travado
+    # puxa os seguintes). Limita a 5 para foco executivo.
+    _pos = {p: i for i, p in enumerate(PILARES_ORDEM)}
+    priorizacao = sorted(
+        (sub for sub in agg if agg[sub]["faixa"] in ("critico", "fraco")),
+        key=lambda sub: (
+            _pos.get(PILAR_DE_SUBPILAR.get(sub, "Z"), 99),
+            agg[sub]["ratio"],
+        ),
+    )[:5]
+    priorizacao = [
+        SimpleNamespace(
+            subpilar=sub,
+            nome=NOME_SUBPILAR.get(sub, sub),
+            pilar=PILAR_DE_SUBPILAR.get(sub),
+            pilar_nome=NOME_PILAR.get(PILAR_DE_SUBPILAR.get(sub), ""),
+            pilar_gargalo=(PILAR_DE_SUBPILAR.get(sub) == gargalo),
+            ratio=agg[sub]["ratio"],
+            faixa=agg[sub]["faixa"],
+            det=agg[sub]["det"],
+            acao=(leituras.get(sub)[1] if leituras.get(sub) else None),
+        )
+        for sub in priorizacao
+    ]
+
     return {
         "empresa_nome": empresa_nome,
         "gerado_em": datetime.utcnow(),
@@ -132,4 +158,5 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
         "confronto": confronto,
         "tem_leituras": bool(leituras),
         "n_leituras": len(leituras),
+        "priorizacao": priorizacao,
     }
