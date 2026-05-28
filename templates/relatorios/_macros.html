@@ -1,0 +1,35 @@
+{# ───────────────────────────────────────────────────────────────────────────
+   Macros reutilizáveis dos relatórios doc-ouro (B1', B2', B3, B4).
+   Importar nos templates filhos:
+     {% import "relatorios/_macros.html" as M %}
+     {{ M.titulo_secao('RE', 'Resumo Executivo', 'subtítulo opcional') }}
+     {{ M.lastro_interp('critico') }}
+     {{ M.faixa_to_n('atencao') }}     → 'n2'
+   ─────────────────────────────────────────────────────────────────────────── #}
+
+{% macro titulo_secao(numero, titulo, subtitulo='') -%}
+<h2 class="titulo-secao">
+  <span class="numero">{{ numero }}</span>{{ titulo }}
+  {% if subtitulo %}<span class="subtit">{{ subtitulo }}</span>{% endif %}
+</h2>
+{%- endmacro %}
+
+{% macro lastro_interp(faixa) -%}
+{%- if faixa == 'critico' -%}
+  <span class="cel-n1 lastro-cell">🔴 Interrompe</span>
+{%- elif faixa in ('fraco', 'atencao') -%}
+  <span class="cel-n2 lastro-cell">⚠ Fragiliza</span>
+{%- elif faixa == 'bom' -%}
+  <span class="cel-n3 lastro-cell">✓ Sustenta</span>
+{%- elif faixa == 'excelente' -%}
+  <span class="cel-n4 lastro-cell">★ Âncora</span>
+{%- else -%}—{%- endif -%}
+{%- endmacro %}
+
+{% macro faixa_to_n(faixa) -%}
+{%- if faixa == 'critico' -%}n1
+{%- elif faixa in ('fraco', 'atencao') -%}n2
+{%- elif faixa == 'bom' -%}n3
+{%- elif faixa == 'excelente' -%}n4
+{%- else -%}{%- endif -%}
+{%- endmacro %}

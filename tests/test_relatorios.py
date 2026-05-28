@@ -11,17 +11,31 @@ def _empresa(client_loyall, sfx):
 
 @pytest.fixture(autouse=True)
 def _fake_llm(monkeypatch):
-    """Stub das 3 chamadas LLM do doc-ouro — toda a suíte roda $0."""
+    """Stub das chamadas LLM do doc-ouro (B1' + B2') — toda a suíte roda $0.
+    Detecção por frase única em cada system prompt (evita colisão de palavras)."""
     import src.relatorios.llm_secoes as mod
 
     def _fake(prompt, payload, max_tokens=500):
-        # Detecção por frase única em cada prompt (evita colisão de palavras).
+        # B1'
         if "numero_manchete" in prompt:
             return ('{"numero_manchete":"FAKE manchete","frase_soco":"FAKE soco"}', 5, 5)
         if "3 DESCOBERTAS-TEASER" in prompt:
             return ('["d1","d2","d3"]', 5, 5)
-        if "APENAS o parágrafo" in prompt:
+        if "ESTRUTURA OBRIGATÓRIA do parágrafo" in prompt:
             return ("FAKE paradoxo costurado.", 5, 5)
+        # B2' — frases-âncora únicas (cabem numa linha do system prompt, sem \n no meio)
+        if "01 · Contexto Estratégico" in prompt:
+            return (
+                "FAKE quem é a empresa parágrafo 1.\n\n"
+                "FAKE momento operacional parágrafo 2.\n\n"
+                "FAKE hipótese liderança parágrafo 3.",
+                10,
+                10,
+            )
+        if "4 pilares PDPA" in prompt:
+            return ("FAKE descrição do pilar — texto editorial curto.", 8, 8)
+        if "pilar PDPA — a síntese estratégica" in prompt:
+            return ("FAKE insight final do pilar.", 6, 6)
         return ("{}", 5, 5)
 
     monkeypatch.setattr(mod, "_chamar_sonnet", _fake)
@@ -121,17 +135,20 @@ def test_resumo_executivo_doc_ouro(client_loyall, db_session):
     )
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/resumo_executivo").get_data(as_text=True)
-    # estrutura doc-ouro
-    assert "DIAGNÓSTICO PDPA · CAPA" in h and "FAKE manchete" in h
-    assert "FONTES · AUDITÁVEL" in h
-    assert "3 DESCOBERTAS" in h and "d1" in h and "d2" in h and "d3" in h
-    assert "PARADOXO CENTRAL" in h and "FAKE paradoxo costurado" in h
-    assert "LASTRO RELACIONAL" in h and "Precisão" in h  # pilar gargalo nomeado
+    # estrutura doc-ouro (porte fiel v2 — capa-choque + RE + 02 + EN + SE + AL + FZ + 10)
+    assert "Diagnóstico Pontual · PDPA" in h and "FAKE manchete" in h  # capa-eyebrow + manchete
+    assert "Fontes monitoradas" in h  # bloco fontes na capa azul
+    assert "Três descobertas" in h and "d1" in h and "d2" in h and "d3" in h
+    assert "Paradoxo central" in h and "FAKE paradoxo costurado" in h
+    assert "Mapa de Lastro" in h and "Precisão" in h  # pilar gargalo nomeado
+    assert "Interpretação do Lastro" in h  # coluna nova doc-ouro
     assert "Sequência de ação" in h
-    assert "CONFRONTO VISUAL" in h and "Calibração da Promessa em colapso" in h
-    assert "SUGESTÕES ESTRUTURAIS" in h and "Recalibre a promessa" in h
-    assert "CONVITE" in h and "Fase 2" in h
-    assert "180 dias" in h
+    assert "Confronto Visual PDPA" in h and "Calibração da Promessa em colapso" in h
+    assert "Sugestões Estruturais" in h and "Recalibre a promessa" in h
+    assert "Encerramento Executivo" in h and "Onde investir primeiro" in h  # cap-stone B1'
+    assert "Convite ao Diagnóstico Interno" in h and "Fase 2" in h
+    assert "Loyall Company" in h  # assinatura editorial
+    assert "180 dias" in h  # footer compartilhado
 
 
 def test_diagnostico_pontual_assembly(client_loyall, db_session):
@@ -149,7 +166,12 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     f = client_loyall.post(
         f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": "ChIJB2"}
     ).get_json()
-    for sub, tipo, n in [("D2", "detrator", 6), ("D2", "promotor", 2), ("Pa1", "promotor", 4)]:
+    for sub, tipo, n in [
+        ("D2", "detrator", 6),
+        ("D2", "promotor", 2),
+        ("D2", "conversivel", 3),
+        ("Pa1", "promotor", 4),
+    ]:
         for i in range(n):
             db_session.add(
                 Verbatim(
@@ -177,13 +199,29 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/diagnostico_pontual").get_data(
         as_text=True
     )
-    assert "Diagnóstico Pontual" in h
-    assert "estado atual" in h and "Diagnóstico Longitudinal" in h  # abertura contextual
-    assert "Mapa de Lastro" in h and "Disponibilidade" in h  # pilar
-    assert "Confronto Visual" in h and "D2" in h  # subpilar na tabela
-    assert "Disponibilidade travada" in h and "Revisar SLA" in h  # leitura+ação
-    assert "Sequência de Lastro" in h and "Regra de execução" in h  # síntese final
-    assert "180 dias" in h
+    # Doc-ouro completo: capa + 00 + 01 + TE + RE + 02 + MC + MF
+    #                  + 03..06 + 07 + EN + SE + AL + 09 + 10
+    assert "Diagnóstico Pontual · PDPA" in h and "FAKE manchete" in h  # capa
+    assert "Como Ler Este Relatório" in h  # 00 boilerplate
+    assert "Os 4 Pilares PDPA" in h and "Os 5 Níveis de Saúde" in h
+    assert "Interrompe" in h and "Fragiliza" in h and "Sustenta" in h  # interp lastro educativa
+    assert "Contexto Estratégico" in h and "FAKE quem é a empresa" in h  # 01 LLM
+    assert "Três descobertas" in h and "d1" in h  # TE
+    assert "Paradoxo central" in h  # RE
+    assert "Mapa de Lastro" in h and "Disponibilidade" in h  # RE
+    assert "Sequência de Lastro" in h  # RE síntese
+    assert "Confronto Visual PDPA" in h and "D2" in h  # 02
+    assert "Disponibilidade travada" in h and "Revisar SLA" in h  # cache leitura
+    assert "Mapa de Conversão" in h  # MC
+    assert "Mapa Financeiro Qualitativo" in h and "LTV setorial" in h  # MF
+    assert "Pricing power" in h or "CSAT operacional" in h  # DRIVER_NEGOCIO assembly
+    assert "Plano de Ação · Disponibilidade" in h and "FAKE descrição do pilar" in h  # 04
+    assert "Plano de Ação · Parceria" in h  # 05
+    assert "Insight Final — Disponibilidade" in h and "FAKE insight final" in h  # insight box
+    assert "Nota Metodológica" in h and "Lacunas para a Fase 2" in h  # 09
+    assert "Convite ao Diagnóstico Interno" in h and "Fase 2" in h  # 10
+    assert "Loyall Company" in h  # assinatura
+    assert "180 dias" in h  # footer
 
 
 def test_plano_executivo_assembly(client_loyall, db_session):

@@ -4,79 +4,333 @@
 <meta charset="utf-8">
 <title>{% block title %}Relatório PDPA{% endblock %}</title>
 <style>
-  /* Identidade visual v2 — paleta Loyall consultoria */
-  /* Cadeia de fonte: Calibri (macOS/Windows) → Carlito (Linux, clone métrico
-     idêntico via apt fonts-crosextra-carlito) → Helvetica → sans-serif. */
+  /* ═════════════════════════════════════════════════════════════════════════
+     Identidade visual PDPA · Loyall Company — porte fiel do doc-ouro v2
+     (Camarada Camarão v6.2). Tradução DOCX→HTML/CSS para WeasyPrint.
+
+     Cadeias de fonte:
+       Corpo  : Calibri (Mac/Win) → Carlito (Linux: fonts-crosextra-carlito)
+                → Helvetica Neue → sans-serif
+       Títulos: Georgia (Mac/Win nativa) → Liberation Serif
+                (brew install --cask font-liberation no Mac) → Times → serif
+     ═════════════════════════════════════════════════════════════════════════ */
   :root {
-    --azul-noite: #1A1A2E;  /* títulos principais, ênfase */
-    --verde:     #1B6B61;   /* subtítulos, marcadores */
-    --dourado:   #B89355;   /* destaques, selos premium */
-    --papel:     #F0EDE4;   /* fundos de respiro */
-    --cinza:     #444440;   /* corpo de texto */
-    --cinza-2:   #7a8aa0;   /* metadata, footer */
-    --linha:     #d9dde4;   /* divisórias */
+    --azul-noite: #1A1A2E;   /* títulos, capa, sec-labels */
+    --azul-tom2:  #1A2535;   /* fundo de insight-box (levemente mais claro) */
+    --verde:      #1B6B61;   /* accents, footers */
+    --verde2:     #0E4840;   /* highlights secundários */
+    --dourado:    #B89355;   /* títulos georgia, separadores, accents premium */
+    --papel:      #F0EDE4;   /* fundo suave / texto sobre azul */
+    --cinza:      #444440;   /* corpo */
+    --cinza-2:    #888880;   /* metadata (porta o C_CINZA2 do v2) */
+    --linha:      #d9dde4;
+
+    /* Cores por nível PDPA — porte fiel das constantes C_N1..C_N4 do v2 */
+    --n1-bg: #FDECEA; --n1-tx: #8B2020;   /* crítico — Interrompe */
+    --n2-bg: #FEF6E8; --n2-tx: #7A5820;   /* atenção/fraco — Fragiliza */
+    --n3-bg: #EEF6EC; --n3-tx: #2E5C24;   /* bom — Sustenta */
+    --n4-bg: #E2EFED; --n4-tx: #0E4840;   /* excelente — Âncora */
   }
-  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+
+  /* Cadeias de fonte como variáveis CSS (reuso nos seletores) */
   body {
     font-family: Calibri, Carlito, "Helvetica Neue", Helvetica, Arial, sans-serif;
     color: var(--cinza);
     font-size: 10pt;
     line-height: 1.42;
+    margin: 0;
   }
-  h1 { font-size: 22pt; color: var(--azul-noite); margin: 0 0 6pt; font-weight: 700; letter-spacing: -0.3pt; }
-  h2 { font-size: 13pt; color: var(--azul-noite); margin: 16pt 0 5pt; font-weight: 700; border-bottom: 1.5pt solid var(--dourado); padding-bottom: 3pt; }
+
+  /* ── Páginas ────────────────────────────────────────────────────────────── */
+  @page              { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  @page :first       { margin: 0; }           /* capa ocupa folha inteira */
+  @page capa         { size: A4; margin: 0; background: var(--azul-noite); }
+  .page-break        { page-break-before: always; }
+
+  /* ── Tipografia base ────────────────────────────────────────────────────── */
+  h1 { font-family: Georgia, "Liberation Serif", "Times New Roman", serif;
+       font-size: 22pt; color: var(--azul-noite); margin: 0 0 6pt;
+       font-weight: 700; letter-spacing: -0.3pt; }
+  h2 { font-size: 13pt; color: var(--azul-noite); margin: 14pt 0 5pt;
+       font-weight: 700; border-bottom: 1.5pt solid var(--dourado); padding-bottom: 3pt; }
   h3 { font-size: 11pt; color: var(--verde); margin: 10pt 0 3pt; font-weight: 700; }
-  h4 { font-size: 10pt; color: var(--verde); margin: 8pt 0 3pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4pt; }
+  h4 { font-size: 10pt; color: var(--verde); margin: 8pt 0 3pt; font-weight: 700;
+       text-transform: uppercase; letter-spacing: 0.4pt; }
   p  { margin: 0 0 5pt; }
   strong { color: var(--azul-noite); }
-  a { color: var(--verde); text-decoration: none; }
+  a  { color: var(--verde); text-decoration: none; }
 
-  .sub { color: var(--cinza-2); font-size: 9pt; }
-  .meta { color: var(--cinza-2); font-size: 8.5pt; margin-bottom: 10pt; }
+  .sub   { color: var(--cinza-2); font-size: 9pt; }
+  .meta  { color: var(--cinza-2); font-size: 8.5pt; margin-bottom: 10pt; }
   .muted { color: var(--cinza-2); }
   .papel { background: var(--papel); }
   .dourado { color: var(--dourado); }
-  .azul { color: var(--azul-noite); }
-  .verde { color: var(--verde); }
-  .rule { border-bottom: 1pt solid var(--dourado); margin: 12pt 0 6pt; }
+  .azul    { color: var(--azul-noite); }
+  .verde   { color: var(--verde); }
 
+  /* ── Título de seção doc-ouro (00 · COMO LER, RE · RESUMO, …) ──────────── */
+  .titulo-secao {
+    font-family: Georgia, "Liberation Serif", "Times New Roman", serif;
+    font-size: 14pt; font-weight: 700;
+    color: var(--azul-noite);
+    text-transform: uppercase; letter-spacing: 0.8pt;
+    margin: 18pt 0 6pt;
+    border-bottom: 1.5pt solid var(--dourado);
+    padding-bottom: 5pt;
+  }
+  .titulo-secao .numero {
+    color: var(--dourado);
+    margin-right: 10pt;
+    font-weight: 700;
+  }
+  .titulo-secao .subtit {
+    display: block;
+    font-family: Calibri, Carlito, "Helvetica Neue", sans-serif;
+    font-size: 9pt; color: var(--cinza-2); font-weight: 400;
+    text-transform: none; letter-spacing: 0; margin-top: 3pt; font-style: italic;
+  }
+
+  /* Divisor horizontal dourado entre blocos */
+  hr.rule {
+    border: 0; border-top: 1pt solid var(--dourado);
+    margin: 14pt 0 8pt; opacity: 0.55;
+  }
+
+  /* Separador "— — —" dourado (capa) */
+  .dash-sep {
+    text-align: center; color: var(--dourado);
+    font-size: 10pt; letter-spacing: 6pt; margin: 14pt 0;
+  }
+
+  /* ── Tabelas ────────────────────────────────────────────────────────────── */
   table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 4pt 0 8pt; }
-  th, td { border-bottom: 1px solid var(--linha); padding: 4pt 6pt; text-align: left; vertical-align: top; }
-  th { color: var(--azul-noite); font-weight: 700; background: var(--papel); border-bottom: 1.5pt solid var(--dourado); text-transform: uppercase; font-size: 8.5pt; letter-spacing: 0.3pt; }
+  th, td { border-bottom: 1px solid var(--linha); padding: 4pt 6pt;
+           text-align: left; vertical-align: top; }
+  th {
+    color: var(--papel); font-weight: 700;
+    background: var(--azul-noite);
+    border-bottom: 1.5pt solid var(--dourado);
+    text-transform: uppercase; font-size: 8.5pt; letter-spacing: 0.3pt;
+  }
 
-  .badge { display: inline-block; padding: 1pt 6pt; border-radius: 3pt; font-size: 8pt; font-weight: 700; }
-  .b-critico { background: #fbe2e2; color: #8a1f1f; }
-  .b-fraco   { background: #fde4cf; color: #8a4a1f; }
-  .b-atencao { background: #fdedc4; color: #7a5820; }
-  .b-bom     { background: #d9efd1; color: #2e5c24; }
-  .b-excelente { background: #b9e3ab; color: #1f4d18; }
-  .b-dourado { background: var(--dourado); color: #fff; }
-  .b-verde   { background: var(--verde); color: #fff; }
+  /* Badges de faixa (v3) — mantidos pra compat */
+  .badge { display: inline-block; padding: 1pt 6pt; border-radius: 3pt;
+           font-size: 8pt; font-weight: 700; }
+  .b-critico   { background: var(--n1-bg); color: var(--n1-tx); }
+  .b-fraco     { background: var(--n2-bg); color: var(--n2-tx); }
+  .b-atencao   { background: var(--n2-bg); color: var(--n2-tx); }
+  .b-bom       { background: var(--n3-bg); color: var(--n3-tx); }
+  .b-excelente { background: var(--n4-bg); color: var(--n4-tx); }
+  .b-dourado   { background: var(--dourado); color: #fff; }
+  .b-verde     { background: var(--verde); color: #fff; }
 
-  .card { border: 1px solid var(--linha); border-radius: 4pt; padding: 7pt 9pt; margin-bottom: 6pt; }
-  .card.papel { background: var(--papel); border-color: var(--dourado); }
-  .card.estrut { border-color: var(--dourado); background: #fcf6e8; }
-  .card.gargalo { border-left: 3pt solid #8a1f1f; }
+  /* Células coloridas por nível (NÍVEL na tabela do Confronto/Lastro) */
+  .cel-n1 { background: var(--n1-bg); color: var(--n1-tx); font-weight: 700; }
+  .cel-n2 { background: var(--n2-bg); color: var(--n2-tx); font-weight: 700; }
+  .cel-n3 { background: var(--n3-bg); color: var(--n3-tx); font-weight: 700; }
+  .cel-n4 { background: var(--n4-bg); color: var(--n4-tx); font-weight: 700; }
+  .cel-det-n1 { background: var(--n1-bg); color: var(--n1-tx); font-weight: 700; }
 
-  /* CAPA — página choque (Resumo Executivo / Diagnóstico Pontual) */
-  .capa-choque { padding: 28pt 0 18pt; }
-  .capa-numero { font-size: 24pt; line-height: 1.2; font-weight: 700; color: var(--azul-noite); margin-bottom: 14pt; }
-  .capa-soco { font-size: 13pt; line-height: 1.4; color: var(--cinza); font-style: italic; border-left: 3pt solid var(--dourado); padding: 4pt 0 4pt 12pt; }
-  .capa-soco::before { content: "❝ "; color: var(--dourado); font-size: 16pt; }
-  .capa-soco::after  { content: " ❞"; color: var(--dourado); font-size: 12pt; }
+  /* ── Cards genéricos ───────────────────────────────────────────────────── */
+  .card          { border: 1px solid var(--linha); border-radius: 4pt;
+                   padding: 7pt 9pt; margin-bottom: 6pt; }
+  .card.papel    { background: var(--papel); border-color: var(--dourado); }
+  .card.estrut   { border-color: var(--dourado); background: #fcf6e8; }
+  .card.gargalo  { border-left: 3pt solid var(--n1-tx); }
 
-  /* Selo de seção (v2) */
-  .sec-label { display: inline-block; background: var(--azul-noite); color: var(--papel); font-size: 8pt; font-weight: 700; letter-spacing: 0.6pt; padding: 2pt 8pt; border-radius: 2pt; margin-top: 14pt; }
+  /* Insight-box (paradoxo, insight final) — fundo azul invertido + « dourado */
+  .insight-box {
+    background: var(--azul-tom2);
+    color: var(--papel);
+    border-left: 4pt solid var(--dourado);
+    padding: 10pt 12pt;
+    margin: 8pt 0;
+    border-radius: 2pt;
+  }
+  .insight-box::before {
+    content: "« "; color: var(--dourado);
+    font-size: 14pt; font-weight: 700; line-height: 0;
+  }
+  .insight-box p, .insight-box em { color: var(--papel); font-style: italic;
+                                    margin: 0; font-size: 10.5pt; line-height: 1.5; }
+  .insight-box strong { color: var(--dourado); font-style: normal; }
 
-  footer { position: running(footer); color: var(--cinza-2); font-size: 8pt; text-align: center; border-top: 0.5pt solid var(--linha); padding-top: 4pt; }
+  /* Variante paradoxo: idem insight-box mas mais alto e com h4 dourado */
+  .paradoxo-box { /* alias semântico */ }
+
+  /* ── CAPA · página choque (fiel ao v2: folha inteira azul) ─────────────── */
+  .capa-choque {
+    page: capa;
+    background: var(--azul-noite);
+    color: var(--papel);
+    /* A4 menos margens 0 = ocupa folha cheia. Usa padding em vez de margin. */
+    min-height: 297mm;
+    padding: 50mm 22mm 22mm;
+    box-sizing: border-box;
+    page-break-after: always;
+  }
+  .capa-eyebrow {
+    color: var(--dourado); font-size: 8.5pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 2pt; margin-bottom: 6pt;
+  }
+  .capa-empresa {
+    font-family: Georgia, "Liberation Serif", "Times New Roman", serif;
+    font-size: 32pt; color: var(--papel); font-weight: 700;
+    margin: 0 0 28pt; letter-spacing: -0.4pt;
+  }
+  .capa-titulo-bloco {
+    text-align: center; margin: 30pt 0 20pt;
+  }
+  .capa-titulo-bloco .label {
+    color: var(--dourado); font-size: 9pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 3pt; margin-bottom: 16pt;
+  }
+  .capa-numero {
+    font-family: Georgia, "Liberation Serif", "Times New Roman", serif;
+    font-size: 22pt; line-height: 1.25; font-weight: 700;
+    color: var(--dourado);
+    margin: 0 auto; max-width: 150mm;
+  }
+  .capa-soco {
+    font-size: 13pt; line-height: 1.5; font-weight: 700;
+    color: var(--papel); text-align: center;
+    max-width: 150mm; margin: 0 auto;
+  }
+  .capa-soco::before { content: "“ "; color: var(--dourado); font-size: 18pt; }
+  .capa-soco::after  { content: " ”"; color: var(--dourado); font-size: 18pt; }
+  .capa-promessa {
+    margin-top: 26pt; text-align: center;
+    color: var(--dourado); font-size: 9pt; font-style: italic; letter-spacing: 0.5pt;
+  }
+  .capa-fontes {
+    margin-top: 40pt; padding-top: 14pt;
+    border-top: 0.5pt solid var(--dourado);
+    color: var(--papel); font-size: 8.5pt;
+  }
+  .capa-fontes .titulo {
+    color: var(--dourado); font-size: 8.5pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.5pt; margin-bottom: 8pt;
+  }
+  .capa-fontes ul { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 14pt; }
+  .capa-fontes li { margin-bottom: 3pt; break-inside: avoid; }
+  .capa-fontes .conector { color: var(--papel); }
+  .capa-fontes .quant    { color: var(--cinza-2); font-size: 8pt; }
+
+  /* Selo de seção menor (v2) — usado fora dos títulos formais */
+  .sec-label {
+    display: inline-block; background: var(--azul-noite); color: var(--papel);
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.6pt;
+    padding: 2pt 8pt; border-radius: 2pt; margin-top: 12pt;
+  }
+
+  /* ── 3 DESCOBERTAS · 3 colunas com numeração Georgia ───────────────────── */
+  .descobertas-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10pt;
+    margin: 8pt 0 4pt;
+  }
+  .descoberta-card {
+    background: var(--azul-noite); color: var(--papel);
+    border-left: 4pt solid var(--dourado);
+    padding: 12pt 11pt; border-radius: 2pt;
+    min-height: 70pt;
+  }
+  .descoberta-num {
+    font-family: Georgia, "Liberation Serif", "Times New Roman", serif;
+    color: var(--dourado); font-size: 18pt; font-weight: 700;
+    line-height: 1; margin-bottom: 8pt;
+  }
+  .descoberta-txt {
+    color: var(--papel); font-size: 9.5pt; line-height: 1.4;
+  }
+
+  /* ── Mapa de Lastro: ícones e células por nível ────────────────────────── */
+  .lastro-icone { font-size: 11pt; margin-right: 4pt; }
+
+  /* Sequência de ação inline (1º P1 → … | 2º P3 → …) */
+  .sequencia-inline {
+    font-size: 9.5pt; line-height: 1.7; margin: 4pt 0;
+  }
+  .sequencia-inline .ord {
+    font-weight: 700; color: var(--dourado); margin-right: 2pt;
+  }
+  .sequencia-inline .sep {
+    color: var(--cinza-2); margin: 0 6pt;
+  }
+
+  /* ── Sugestões estruturais: ▸ por perspectiva (v2) ─────────────────────── */
+  .persp-titulo {
+    color: var(--dourado); font-size: 11pt; font-weight: 700;
+    margin: 12pt 0 4pt;
+  }
+  .persp-titulo::before { content: "▸ "; color: var(--dourado); }
+  .persp-titulo .label {
+    color: var(--azul-noite); text-transform: uppercase;
+    letter-spacing: 0.4pt; font-size: 10pt;
+  }
+
+  /* ── Encerramento Executivo (cap-stone B1') ────────────────────────────── */
+  .enc-header {
+    display: table; width: 100%; border-collapse: collapse;
+    margin: 8pt 0; background: var(--azul-noite);
+    color: var(--papel); table-layout: fixed;
+  }
+  .enc-header > div { display: table-cell; padding: 10pt 8pt;
+                      border-right: 0.5pt solid var(--dourado); text-align: center; }
+  .enc-header > div:last-child { border-right: none; }
+  .enc-header .h-label {
+    color: var(--dourado); font-size: 7.5pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1pt; margin-bottom: 4pt;
+  }
+  .enc-header .h-valor {
+    color: var(--papel); font-size: 13pt; font-weight: 700;
+    font-family: Georgia, "Liberation Serif", serif;
+  }
+  .enc-header .h-detalhe {
+    color: var(--cinza-2); font-size: 7.5pt; margin-top: 2pt;
+  }
+
+  .subpilares-strip {
+    width: 100%; border-collapse: collapse; margin: 8pt 0;
+    table-layout: fixed; font-size: 8pt;
+  }
+  .subpilares-strip td {
+    border: 0.5pt solid var(--linha); padding: 5pt 2pt; text-align: center;
+    vertical-align: middle;
+  }
+  .subpilares-strip .sp-codigo {
+    font-weight: 700; color: var(--azul-noite); font-size: 9pt;
+    font-family: Georgia, "Liberation Serif", serif;
+  }
+  .subpilares-strip .sp-faixa {
+    font-size: 7.5pt; margin-top: 2pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.3pt;
+  }
+  .subpilares-strip .sp-ratio { font-size: 8pt; color: var(--cinza-2); margin-top: 1pt; }
+
+  /* ── Footer assinatura ─────────────────────────────────────────────────── */
+  footer { position: running(footer); color: var(--cinza-2); font-size: 8pt;
+           text-align: center; border-top: 0.5pt solid var(--linha); padding-top: 4pt; }
   @page { @bottom-center { content: element(footer); } }
+  @page :first { @bottom-center { content: none; } }
 
-  header.doc-meta { color: var(--cinza-2); font-size: 8.5pt; margin-bottom: 6pt; border-bottom: 0.5pt solid var(--linha); padding-bottom: 4pt; }
+  .assinatura-final {
+    margin-top: 24pt; padding-top: 12pt;
+    border-top: 1pt solid var(--dourado);
+    text-align: center; color: var(--cinza-2); font-size: 8.5pt; line-height: 1.6;
+  }
+  .assinatura-final .nomes { color: var(--azul-noite); font-weight: 700; }
+  .assinatura-final .loyall { color: var(--verde); font-weight: 700;
+                              text-transform: uppercase; letter-spacing: 1pt; }
+
+  header.doc-meta { color: var(--cinza-2); font-size: 8.5pt;
+                    margin-bottom: 6pt; border-bottom: 0.5pt solid var(--linha);
+                    padding-bottom: 4pt; }
 </style>
 </head>
 <body>
-<header class="doc-meta">{{ empresa.nome }}{% if escopo_label %} · {{ escopo_label }}{% endif %} · gerado em {{ gerado_em.strftime('%d/%m/%Y') }} · janela últimos 180 dias</header>
 {% block conteudo %}{% endblock %}
-<footer>PDPA · Loyall — {{ empresa.nome }}</footer>
+<footer>PDPA · Loyall Company — {{ empresa.nome }} · janela últimos 180 dias</footer>
 </body>
 </html>
+</content>
+</invoke>

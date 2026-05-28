@@ -1,183 +1,329 @@
 {% extends "relatorios/base_pdf.html" %}
+{% import "relatorios/_macros.html" as M %}
 {% block title %}Resumo Executivo — {{ empresa.nome }}{% endblock %}
 {% block conteudo %}
 {% set _PERSP = [
-  ('marketing','Marketing & Comunicação','📢'),
-  ('produto_preco','Produto & Preço','🏷️'),
-  ('tecnologia','Tecnologia & Inovação','💡'),
-  ('processos','Processos & Operação','⚙️'),
-  ('pessoas','Pessoas & Cultura','👥'),
-  ('ativacao','Ativação do Cliente','🤝')
+  ('marketing',     'Marketing & Comunicação',   '📢'),
+  ('produto_preco', 'Produto & Preço',           '🏷️'),
+  ('tecnologia',    'Tecnologia & Inovação',     '💡'),
+  ('processos',     'Processos & Operação',      '⚙️'),
+  ('pessoas',       'Pessoas & Cultura',         '👥'),
+  ('ativacao',      'Ativação do Cliente',       '🤝')
 ] %}
 
-{# ═══════════ CAPA · PÁGINA-CHOQUE (LLM) ═══════════ #}
+{# ═════════════════════════════════════════════════════════════════════════
+   CAPA · página-choque (folha inteira azul-noite, page-break-after)
+   ═════════════════════════════════════════════════════════════════════════ #}
 <div class="capa-choque">
-  <span class="sec-label" style="margin-top:0">DIAGNÓSTICO PDPA · CAPA</span>
-  <div class="capa-numero">{{ d.capa.manchete }}</div>
-  {% if d.capa.soco %}<div class="capa-soco">{{ d.capa.soco }}</div>{% endif %}
+  <div class="capa-eyebrow">Diagnóstico Pontual · PDPA</div>
+  <h1 class="capa-empresa">{{ empresa.nome }}</h1>
+
+  <div class="capa-titulo-bloco">
+    <div class="label">O QUE OS DADOS DIZEM — ANTES DE TUDO</div>
+    {% if d.capa.manchete %}<div class="capa-numero">{{ d.capa.manchete }}</div>{% endif %}
+    <div class="dash-sep">— — —</div>
+    {% if d.capa.soco %}<div class="capa-soco">{{ d.capa.soco }}</div>{% endif %}
+    <div class="capa-promessa">→ as próximas páginas explicam por quê.</div>
+  </div>
+
+  {% if d.fontes %}
+  <div class="capa-fontes">
+    <div class="titulo">Fontes monitoradas</div>
+    <ul>
+      {% for f in d.fontes %}
+      <li><span class="conector">{{ f.conector }}</span> ·
+          <span class="quant">{{ f.n_fontes }} fonte{{ 's' if f.n_fontes != 1 else '' }} ·
+                {{ f.n_verbatins }} verbatins</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
 </div>
 
-{# ═══════════ FONTES (auditável) ═══════════ #}
-<span class="sec-label">FONTES · AUDITÁVEL</span>
-<h2>Sobre o que esse diagnóstico fala</h2>
-<p class="sub">{{ d.volume_total or 0 }} verbatins classificados em {{ d.fontes|length }} canal{{ 'is' if d.fontes|length != 1 else '' }} de coleta — janela últimos 180 dias.</p>
-<table>
-  <thead><tr><th>Canal</th><th style="text-align:right">Fontes ativas</th><th style="text-align:right">Verbatins</th></tr></thead>
-  <tbody>
-    {% for f in d.fontes %}
-    <tr><td>{{ f.conector }}</td><td style="text-align:right">{{ f.n_fontes }}</td><td style="text-align:right">{{ f.n_verbatins }}</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+{# ═════════════════════════════════════════════════════════════════════════
+   RE · RESUMO EXECUTIVO — 3 Descobertas + Paradoxo + Lastro + Sequência
+   ═════════════════════════════════════════════════════════════════════════ #}
+{{ M.titulo_secao('RE', 'Resumo Executivo',
+                'Três descobertas-teaser, paradoxo central, mapa de lastro, sequência de ação.') }}
 
-{# ═══════════ 3 DESCOBERTAS (LLM) ═══════════ #}
-<span class="sec-label">3 DESCOBERTAS QUE O DIAGNÓSTICO VAI PROVAR</span>
-<h2>O que você vai encontrar aqui</h2>
-<ol style="padding-left:14pt; margin:0">
+{# ── 3 DESCOBERTAS — 3 colunas, número Georgia, fundo azul-noite ───────── #}
+<h3>Três descobertas que o diagnóstico vai provar</h3>
+<div class="descobertas-grid">
   {% for des in d.descobertas %}
-  <li style="margin-bottom:5pt; font-size:10.5pt; color:var(--azul-noite); font-weight:600">{{ des }}</li>
+  <div class="descoberta-card">
+    <div class="descoberta-num">{{ '%02d'|format(loop.index) }}</div>
+    <div class="descoberta-txt">{{ des }}</div>
+  </div>
   {% endfor %}
-</ol>
+</div>
 
-{# ═══════════ RESUMO EXECUTIVO · PARADOXO (costura LLM, ~$0.007) ═══════════ #}
-{# A composição pura fica em src/relatorios/llm_secoes.py::compor_paradoxo_puro
-   como fallback quando a chamada Sonnet falhar (quota/timeout/Anthropic offline).
-   Não aparece no PDF de produção — só foi visível durante a amostra de CP-B1'. #}
-<span class="sec-label">RESUMO EXECUTIVO · PARADOXO CENTRAL</span>
-<h2>O paradoxo da operação</h2>
+{# ── PARADOXO CENTRAL — insight-box azul invertido com « dourado ───────── #}
+<h3 style="margin-top:14pt">Paradoxo central</h3>
 {% if d.paradoxo_costura %}
-<div class="card papel">
-  <p style="margin:0">{{ d.paradoxo_costura }}</p>
+<div class="insight-box">
+  <p>{{ d.paradoxo_costura }}</p>
 </div>
 {% endif %}
 
-{# ═══════════ MAPA DE LASTRO ═══════════ #}
-<span class="sec-label">LASTRO RELACIONAL · MAPA</span>
-<h2>Onde está o gargalo</h2>
-<p class="sub">Sequência evolutiva P → D → Pa → A. Pilar inicial travado puxa todos os seguintes — atacar fora de ordem desperdiça esforço.</p>
+{# ── MAPA DE LASTRO — com coluna Interpretação (Interrompe/Fragiliza/…) ── #}
+<h3>Mapa de Lastro — visão consolidada</h3>
+<p class="sub">Sequência evolutiva P → D → Pa → A. Pilar inicial travado puxa todos os
+seguintes — atacar fora de ordem desperdiça esforço.</p>
 <table>
-  <thead><tr><th>Pilar</th><th style="text-align:right">Ratio P/D</th><th>Faixa</th><th style="text-align:right">Volume</th><th>Mix</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Pilar</th>
+      <th style="text-align:right">Ratio P/D</th>
+      <th>Nível</th>
+      <th>Interpretação do Lastro</th>
+      <th style="text-align:right">Volume</th>
+      <th>Mix (p · c · d)</th>
+    </tr>
+  </thead>
   <tbody>
     {% for p in d.pilares %}
+    {% set n = M.faixa_to_n(p.faixa) %}
     <tr{% if p.gargalo %} style="background:#fdecec"{% endif %}>
-      <td><strong>{{ p.codigo }}</strong> {{ p.nome }}{% if p.gargalo %} <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
+      <td><strong>{{ p.codigo }}</strong> {{ p.nome }}{% if p.gargalo %}
+        <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
       <td style="text-align:right"><strong>{{ '%.2f'|format(p.ratio) }}</strong></td>
-      <td><span class="badge b-{{ p.faixa }}">{{ p.faixa }}</span></td>
+      <td>
+        {%- if n == 'n1' %}<span class="cel-n1">🔴 N1 · {{ p.faixa }}</span>
+        {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2 · {{ p.faixa }}</span>
+        {%- elif n == 'n3' %}<span class="cel-n3">✓ N3 · {{ p.faixa }}</span>
+        {%- elif n == 'n4' %}<span class="cel-n4">★ N4 · {{ p.faixa }}</span>
+        {%- else %}{{ p.faixa }}{% endif %}
+      </td>
+      <td>{{ M.lastro_interp(p.faixa) }}</td>
       <td style="text-align:right">{{ p.total }}</td>
-      <td class="muted">{{ p.prom }} prom · {{ p.conv }} conv · {{ p.det }} det</td>
+      <td class="muted">{{ p.prom }} · {{ p.conv }} · {{ p.det }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-{# ═══════════ SEQUÊNCIA DE AÇÃO ═══════════ #}
+{# ── SEQUÊNCIA DE AÇÃO — inline 1º P1 → … | 2º P3 → … (v2 fiel) ────────── #}
 {% if d.priorizacao %}
 <h3>Sequência de ação recomendada</h3>
-<p class="sub">Top {{ d.priorizacao|length }} subpilares prioritários, ordenados pelo Lastro:</p>
-<ol style="padding-left:14pt; margin:0">
+<p class="sequencia-inline">
   {% for x in d.priorizacao %}
-  <li style="margin-bottom:5pt">
-    <strong>[{{ x.pilar }} {{ x.pilar_nome }}]{% if x.gargalo %} <span class="badge b-critico">🚩</span>{% endif %} · {{ x.subpilar }} {{ x.nome }}</strong>
-    <span class="badge b-{{ x.faixa }}">{{ x.faixa }}</span>
-    <span class="muted">— ratio {{ '%.2f'|format(x.ratio) }} · {{ x.det }} detratores</span>
-    {% if x.acao %}<div class="muted" style="margin-top:1pt; font-size:8.5pt"><strong class="azul">Ação:</strong> {{ x.acao }}</div>{% endif %}
-  </li>
+  <span class="ord">{{ loop.index }}º</span>
+  <strong>{{ x.subpilar }}</strong> → {{ x.nome }}{% if x.gargalo %} 🚩{% endif %}
+  <span class="muted">(ratio {{ '%.2f'|format(x.ratio) }} · {{ x.det }} det)</span>
+  {%- if not loop.last %}<span class="sep">|</span>{% endif %}
   {% endfor %}
-</ol>
+</p>
 {% endif %}
 
-{# ═══════════ CONFRONTO VISUAL · 12 SUBPILARES ═══════════ #}
-<span class="sec-label">CONFRONTO VISUAL</span>
-<h2>Os 12 subpilares · leitura por linha</h2>
+{# ═════════════════════════════════════════════════════════════════════════
+   02 · CONFRONTO VISUAL — 12 subpilares com nível colorido + leitura
+   ═════════════════════════════════════════════════════════════════════════ #}
+{{ M.titulo_secao('02', 'Confronto Visual PDPA',
+                'Os 12 subpilares · ratios · leitura diagnóstica.') }}
 <table>
   <thead>
     <tr>
       <th>Subpilar</th>
-      <th style="text-align:right">Det</th>
-      <th style="text-align:right">Conv</th>
-      <th style="text-align:right">Prom</th>
+      <th style="text-align:right">Det.</th>
+      <th style="text-align:right">Conv.</th>
+      <th style="text-align:right">Prom.</th>
       <th style="text-align:right">Ratio</th>
-      <th>Faixa</th>
+      <th>Nível</th>
       <th style="text-align:right">Fontes</th>
       <th>Leitura Diagnóstica</th>
     </tr>
   </thead>
   <tbody>
     {% for c in d.confronto %}
+    {% set n = M.faixa_to_n(c.faixa) %}
     <tr>
-      <td><strong>{{ c.subpilar }}</strong>{% if c.gargalo %} 🚩{% endif %}<br><span class="muted" style="font-size:8.5pt">{{ c.nome }}</span></td>
-      <td style="text-align:right">{{ c.det }}</td>
+      <td><strong>{{ c.subpilar }}</strong>{% if c.gargalo %} 🚩{% endif %}
+          <br><span class="muted" style="font-size:8.5pt">{{ c.nome }}</span></td>
+      <td style="text-align:right" {% if n == 'n1' %}class="cel-det-n1"{% endif %}>
+        {{ c.det }}</td>
       <td style="text-align:right">{{ c.conv }}</td>
       <td style="text-align:right">{{ c.prom }}</td>
       <td style="text-align:right"><strong>{{ '%.2f'|format(c.ratio) }}</strong></td>
-      <td><span class="badge b-{{ c.faixa }}">{{ c.faixa }}</span></td>
+      <td>
+        {%- if n == 'n1' %}<span class="cel-n1">🔴 N1</span>
+        {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2</span>
+        {%- elif n == 'n3' %}<span class="cel-n3">✓ N3</span>
+        {%- elif n == 'n4' %}<span class="cel-n4">★ N4</span>
+        {%- else %}{{ c.faixa }}{% endif %}
+      </td>
       <td style="text-align:right">{{ c.n_fontes }}</td>
-      <td style="font-size:8.5pt">{% if c.leitura %}{{ c.leitura }}{% else %}<em class="muted">leitura não gerada</em>{% endif %}</td>
+      <td style="font-size:8.5pt">
+        {%- if c.leitura %}{{ c.leitura }}{% else %}<em class="muted">leitura não gerada</em>{% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-{# ═══════════ ENGAJAMENTO (novo no v3) ═══════════ #}
+{# ═════════════════════════════════════════════════════════════════════════
+   ENGAJAMENTO · pré-condição operacional (selo v3, sem equivalente no v2)
+   ═════════════════════════════════════════════════════════════════════════ #}
 {% if d.engajamento is not none %}
-<span class="sec-label">ENGAJAMENTO · PRÉ-CONDIÇÃO OPERACIONAL</span>
-<h2>Quão presente está o cliente</h2>
-<p class="sub">Sem volume, diversidade e consistência, os indicadores acima são especulativos. Engajamento é o selo de confiança operacional.</p>
+{{ M.titulo_secao('EN', 'Engajamento',
+                'Quão presente está o cliente. Selo de confiança operacional.') }}
 <div class="card papel">
   <div style="display:flex; gap:14pt; align-items:baseline">
-    <div style="font-size:28pt; font-weight:700; color:var(--azul-noite)">{{ d.engajamento }}<span style="font-size:11pt; color:var(--cinza-2)"> / 100</span></div>
+    <div style="font-size:28pt; font-weight:700; color:var(--azul-noite)">
+      {{ d.engajamento }}<span style="font-size:11pt; color:var(--cinza-2)"> / 100</span>
+    </div>
     <div>
-      <div><strong>{{ d.engajamento_emoji or '' }} {{ d.engajamento_selo or '' }}</strong> · {{ d.engajamento_volume }} verbatins</div>
-      <div class="muted" style="font-size:8.5pt">Fontes {{ d.engajamento_fontes_ativas }}/{{ d.engajamento_fontes_cadastradas }} · regularidade {{ (100 * (d.engajamento_componentes.consistencia if d.engajamento_componentes else 0)) | round | int }}%</div>
+      <div><strong>{{ d.engajamento_emoji or '' }} {{ d.engajamento_selo or '' }}</strong>
+           · {{ d.engajamento_volume }} verbatins</div>
+      <div class="muted" style="font-size:8.5pt">
+        Fontes {{ d.engajamento_fontes_ativas }}/{{ d.engajamento_fontes_cadastradas }} ·
+        regularidade
+        {{ (100 * (d.engajamento_componentes.consistencia
+                   if d.engajamento_componentes else 0)) | round | int }}%
+      </div>
     </div>
   </div>
 </div>
 {% endif %}
 
-{# ═══════════ SUGESTÕES ESTRUTURAIS · TOP POR PERSPECTIVA ═══════════ #}
+{# ═════════════════════════════════════════════════════════════════════════
+   SE · SUGESTÕES ESTRUTURAIS · top por perspectiva (▸ azul dourado)
+   ═════════════════════════════════════════════════════════════════════════ #}
 {% if d.sug_por_persp %}
-<span class="sec-label">SUGESTÕES ESTRUTURAIS · TOP POR PERSPECTIVA</span>
-<h2>🏗️ Onde construir fundação (proativas)</h2>
-<p class="sub">As ações reativas (responder ao reclamado) estão no Plano de Ação Executivo. Aqui as estruturais — mudanças de fundação por frente de consultoria.</p>
+{{ M.titulo_secao('SE', 'Sugestões Estruturais · Top por perspectiva',
+                'Onde construir fundação — mudanças de fundação por frente de consultoria.
+                 Ações reativas estão no Plano de Ação Executivo.') }}
 {% for code, label, icon in _PERSP %}
 {% if d.sug_por_persp.get(code) %}
-<h3>{{ icon }} {{ label }}</h3>
+<div class="persp-titulo"><span class="label">{{ label }}</span></div>
 {% for su in d.sug_por_persp.get(code, []) %}
 <div class="card estrut">
   <div class="muted" style="font-size:8.5pt; margin-bottom:1pt">{{ su.subpilar }}</div>
   <div>{{ su.acao }}</div>
-  {% if su.justificativa %}<div class="muted" style="margin-top:2pt; font-size:8.5pt">{{ su.justificativa }}</div>{% endif %}
+  {% if su.justificativa %}
+  <div class="muted" style="margin-top:2pt; font-size:8.5pt">{{ su.justificativa }}</div>
+  {% endif %}
 </div>
 {% endfor %}
 {% endif %}
 {% endfor %}
 {% endif %}
 
-{# ═══════════ ALERTAS CRÍTICOS ═══════════ #}
+{# ═════════════════════════════════════════════════════════════════════════
+   AL · ALERTAS CRÍTICOS · monitoramento ML
+   ═════════════════════════════════════════════════════════════════════════ #}
 {% if d.anomalias %}
-<span class="sec-label">ALERTAS CRÍTICOS · MONITORAMENTO ML</span>
-<h2>O que o sistema apontou agora</h2>
+{{ M.titulo_secao('AL', 'Alertas Críticos · Monitoramento ML',
+                'O que o sistema apontou agora.') }}
 {% for an in d.anomalias %}
 <div class="card gargalo">
-  <strong>{{ an.alvo }}</strong> <span class="muted">· {{ an.tipo }}{% if an.direcao %} · {{ an.direcao }}{% endif %}</span>
+  <strong>{{ an.alvo }}</strong>
+  <span class="muted">· {{ an.tipo }}{% if an.direcao %} · {{ an.direcao }}{% endif %}</span>
   {% if an.resumo %}<p style="margin:2pt 0 0">{{ an.resumo }}</p>{% endif %}
 </div>
 {% endfor %}
 {% endif %}
 
-{# ═══════════ CONVITE · FASE 2 ═══════════ #}
-<span class="sec-label">CONVITE · DIAGNÓSTICO INTERNO FASE 2</span>
-<h2>O próximo passo</h2>
+{# ═════════════════════════════════════════════════════════════════════════
+   ENCERRAMENTO EXECUTIVO · cap-stone do B1' (header 5-col + strip 12 subs)
+   Predict/Proxim/ConvCap pendentes da Lente de Governança — mostrados como
+   "não calibrado" mantendo a ESTRUTURA do encerramento doc-ouro.
+   ═════════════════════════════════════════════════════════════════════════ #}
+{{ M.titulo_secao('FZ', 'Encerramento Executivo',
+                'Onde investir primeiro — síntese cap-stone.') }}
+
+<div class="enc-header">
+  <div>
+    <div class="h-label">Selo</div>
+    <div class="h-valor">—</div>
+    <div class="h-detalhe">Lente de Governança</div>
+  </div>
+  <div>
+    <div class="h-label">Predictability</div>
+    <div class="h-valor">—</div>
+    <div class="h-detalhe">não calibrado</div>
+  </div>
+  <div>
+    <div class="h-label">Proximity</div>
+    <div class="h-valor">—</div>
+    <div class="h-detalhe">não calibrado</div>
+  </div>
+  <div>
+    <div class="h-label">Conversion Capital</div>
+    <div class="h-valor">—</div>
+    <div class="h-detalhe">não calibrado</div>
+  </div>
+  <div>
+    <div class="h-label">Lastro</div>
+    <div class="h-valor" style="font-size:10pt">
+      {% for p in d.pilares -%}
+      {{ p.codigo }}
+      {%- if M.faixa_to_n(p.faixa) == 'n1' %} 🔴
+      {%- elif M.faixa_to_n(p.faixa) == 'n2' %} ⚠
+      {%- elif M.faixa_to_n(p.faixa) == 'n3' %} ✓
+      {%- elif M.faixa_to_n(p.faixa) == 'n4' %} ★{% endif %}
+      {%- if not loop.last %} · {% endif -%}
+      {% endfor %}
+    </div>
+    <div class="h-detalhe">índice geral {{ '%.2f'|format(d.indice_geral) }}/10</div>
+  </div>
+</div>
+
+<h3 style="margin-top:14pt">Onde investir primeiro · 12 subpilares</h3>
+<table class="subpilares-strip">
+  <tr>
+    {% for c in d.confronto %}
+    {% set n = M.faixa_to_n(c.faixa) %}
+    <td{% if n %} class="cel-{{ n }}"{% endif %}>
+      <div class="sp-codigo">{{ c.subpilar }}</div>
+      <div class="sp-faixa">
+        {%- if n == 'n1' %}🔴 N1
+        {%- elif n == 'n2' %}⚠ N2
+        {%- elif n == 'n3' %}✓ N3
+        {%- elif n == 'n4' %}★ N4
+        {%- else %}—{% endif %}
+      </div>
+      <div class="sp-ratio">{{ '%.2f'|format(c.ratio) }}</div>
+    </td>
+    {% endfor %}
+  </tr>
+</table>
+
+{# ═════════════════════════════════════════════════════════════════════════
+   10 · CONVITE FASE 2 — tabela com alternância azul/verde nos rótulos
+   ═════════════════════════════════════════════════════════════════════════ #}
+{{ M.titulo_secao('10', 'Convite ao Diagnóstico Interno · Fase 2',
+                'O próximo passo do PDPA.') }}
 <table>
   <tbody>
-    <tr><td style="width:80pt; font-weight:700; color:var(--verde)">Fase 1</td><td>{{ d.convite.fase1 }}</td></tr>
-    <tr><td style="font-weight:700; color:var(--verde)">Fase 2</td><td>{{ d.convite.fase2 }}</td></tr>
-    <tr><td style="font-weight:700; color:var(--dourado)">Encerramento</td><td>{{ d.convite.encerramento }}</td></tr>
+    <tr>
+      <td style="width:88pt; background:var(--azul-noite); color:var(--papel);
+                 font-weight:700; text-transform:uppercase; letter-spacing:0.6pt;
+                 font-size:8.5pt; padding:8pt 10pt">Fase 1</td>
+      <td>{{ d.convite.fase1 }}</td>
+    </tr>
+    <tr>
+      <td style="background:var(--verde); color:var(--papel); font-weight:700;
+                 text-transform:uppercase; letter-spacing:0.6pt; font-size:8.5pt;
+                 padding:8pt 10pt">Fase 2</td>
+      <td>{{ d.convite.fase2 }}</td>
+    </tr>
+    <tr>
+      <td style="background:var(--dourado); color:#fff; font-weight:700;
+                 text-transform:uppercase; letter-spacing:0.6pt; font-size:8.5pt;
+                 padding:8pt 10pt">Encerramento</td>
+      <td>{{ d.convite.encerramento }}</td>
+    </tr>
   </tbody>
 </table>
 
-<div style="margin-top:18pt; padding-top:8pt; border-top:0.5pt solid var(--linha); color:var(--cinza-2); font-size:8pt">
-  Gerado por PDPA · Loyall — {{ d.gerado_em.strftime('%d/%m/%Y às %H:%M UTC') }} ·
-  custo LLM desta geração: ${{ '%.4f'|format(d.custo_llm) }} ({{ d.tokens_in }} in / {{ d.tokens_out }} out).
+{# ═════════════════════════════════════════════════════════════════════════
+   Assinatura editorial (porta a assinatura do gerador.py v2)
+   ═════════════════════════════════════════════════════════════════════════ #}
+<div class="assinatura-final">
+  <div class="nomes">Alexandre D'Aquino · Dener Pereira</div>
+  <div class="loyall">Loyall Company</div>
+  <div style="margin-top:4pt">Gerado em {{ d.gerado_em.strftime('%d/%m/%Y às %H:%M UTC') }}
+       · custo LLM ${{ '%.4f'|format(d.custo_llm) }}
+       ({{ d.tokens_in }} in / {{ d.tokens_out }} out)</div>
 </div>
 {% endblock %}

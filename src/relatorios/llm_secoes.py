@@ -325,3 +325,190 @@ def compor_paradoxo_puro(
             f"travado — o Lastro é sequencial, e os pilares iniciais decidem o teto da relação."
         )
     return " ".join(partes)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# B2' · Diagnóstico Pontual completo — 3 novas chamadas LLM curtas
+# Total por geração fria: ~$0.04 (1 contexto + 4 desc-pilar + 4 insight-pilar)
+# Todas cacheadas em relatorio_cache, skip por dados_hash.
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+# ── 4) CONTEXTO ESTRATÉGICO · 3 parágrafos (Quem é · Momento · Hipótese) ────
+
+_PROMPT_CONTEXTO = """Você é consultor sênior Loyall escrevendo a abertura da seção
+"01 · Contexto Estratégico" do Diagnóstico Pontual PDPA. O leitor é diretor de
+operação ou C-level da própria empresa diagnosticada.
+
+Produza EXATAMENTE 3 PARÁGRAFOS, separados por linha em branco, na ordem:
+
+1. **Quem é a empresa** — 2-3 frases. Setor, característica relacional dominante
+   (B2C/B2B, transacional/recorrente, presencial/digital), tamanho operacional
+   sugerido pelo volume de verbatins, e o tipo de relação que ela ESTABELECE com
+   o cliente (não o que ela vende — como ela se relaciona).
+
+2. **Momento operacional** — 2-3 frases. Use os números do payload:
+   indice_geral, volume_total, fontes ativas, pilar gargalo (com nome e ratio),
+   pilar ativo. Aponte a tensão estrutural do momento, sem repetir o paradoxo.
+
+3. **Hipótese sobre a percepção da liderança (ponto cego)** — 2-3 frases. O que
+   a liderança PROVAVELMENTE acredita estar funcionando vs o que os dados
+   externos mostram. Esta é a entrada para a Fase 2 (Diagnóstico Interno).
+
+REGRAS:
+- Voz consultor direto, sem clichê ("a empresa precisa", "é fundamental que").
+- Use SOMENTE fatos do payload. Setor desconhecido → trate como "operação de
+  contato direto com cliente final".
+- Cada parágrafo: 2-3 frases. Total ≤ 250 palavras.
+- pt-BR.
+
+PROIBIDO: jargão (z-score, cluster, N1-N4); inventar dado fora do payload;
+recomendar ação concreta (isso vai nos Planos por Pilar).
+
+Saída: APENAS os 3 parágrafos, separados por linha em branco. Sem títulos,
+sem markdown, sem JSON.
+"""
+
+
+def gerar_contexto_estrategico(
+    empresa_id: int,
+    escopo_hash: str,
+    payload: Dict[str, Any],
+    gerar_fn: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """Saída: {texto, cached, tokens_in, tokens_out}. Cacheia em
+    relatorio_cache (secao='contexto_estrategico')."""
+    from src.utils.db import db_session
+
+    dh = _hash_payload(payload)
+    with db_session() as s:
+        hit = _carregar_cache(s, empresa_id, escopo_hash, "contexto_estrategico", dh)
+        if hit is not None:
+            return {**hit, "cached": True, "tokens_in": 0, "tokens_out": 0}
+
+    if gerar_fn is not None:
+        out = gerar_fn(_PROMPT_CONTEXTO, payload)
+        raw, ti, to = out["raw"], out.get("tokens_in", 0), out.get("tokens_out", 0)
+    else:
+        raw, ti, to = _chamar_sonnet(
+            _PROMPT_CONTEXTO, json.dumps(payload, ensure_ascii=False), max_tokens=500
+        )
+    texto = raw.strip().strip("`").strip()
+    if not texto:
+        raise ValueError("contexto estratégico vazio")
+    data = {"texto": texto}
+    with db_session() as s:
+        _gravar_cache(s, empresa_id, escopo_hash, "contexto_estrategico", dh, data, ti, to)
+    return {**data, "cached": False, "tokens_in": ti, "tokens_out": to}
+
+
+# ── 5) DESCRIÇÃO EDITORIAL DO PILAR · 1 parágrafo por P/D/Pa/A ──────────────
+
+_PROMPT_DESC_PILAR = """Você é consultor sênior Loyall escrevendo a descrição
+editorial de UM dos 4 pilares PDPA, para a abertura da seção de "Plano de Ação
+do Pilar".
+
+REGRAS:
+- 1 parágrafo, 4-5 frases, ≤150 palavras.
+- Ancorado na PERGUNTA CENTRAL do pilar (campo `pergunta_central` do payload) e
+  no que os 3 subpilares revelam (campo `subs` — cada um com leitura cacheada,
+  ratio, faixa, det).
+- Voz consultor: descreve o ESTADO do pilar (não o que fazer — ações virão na
+  tabela abaixo), citando o subpilar de pior ratio como evidência principal.
+- Se 2+ subpilares estão na MESMA faixa crítica, fale do padrão; se um está
+  desviado dos outros, nomeie a tensão.
+
+PROIBIDO: jargão (z-score/cluster/N1-N4); recomendar ação concreta;
+inventar número fora do payload; abrir com "neste pilar" ou "o pilar X mostra".
+
+Saída: APENAS o parágrafo, em texto corrido. Sem prefixo, sem JSON.
+"""
+
+
+def gerar_descricao_pilar(
+    empresa_id: int,
+    escopo_hash: str,
+    pilar_code: str,
+    payload: Dict[str, Any],
+    gerar_fn: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """Saída: {texto, cached, tokens_in, tokens_out}. Cacheia em
+    relatorio_cache (secao=f'desc_pilar_{pilar_code}')."""
+    from src.utils.db import db_session
+
+    secao = f"desc_pilar_{pilar_code}"
+    dh = _hash_payload(payload)
+    with db_session() as s:
+        hit = _carregar_cache(s, empresa_id, escopo_hash, secao, dh)
+        if hit is not None:
+            return {**hit, "cached": True, "tokens_in": 0, "tokens_out": 0}
+
+    if gerar_fn is not None:
+        out = gerar_fn(_PROMPT_DESC_PILAR, payload)
+        raw, ti, to = out["raw"], out.get("tokens_in", 0), out.get("tokens_out", 0)
+    else:
+        raw, ti, to = _chamar_sonnet(
+            _PROMPT_DESC_PILAR, json.dumps(payload, ensure_ascii=False), max_tokens=350
+        )
+    texto = raw.strip().strip("`").strip()
+    if not texto:
+        raise ValueError(f"descrição do pilar {pilar_code} vazia")
+    data = {"texto": texto}
+    with db_session() as s:
+        _gravar_cache(s, empresa_id, escopo_hash, secao, dh, data, ti, to)
+    return {**data, "cached": False, "tokens_in": ti, "tokens_out": to}
+
+
+# ── 6) INSIGHT FINAL DO PILAR · 1 frase ≤30 palavras ────────────────────────
+
+_PROMPT_INSIGHT_PILAR = """Você é consultor sênior Loyall escrevendo o INSIGHT
+FINAL de UM pilar PDPA — a síntese estratégica que fecha a seção do Plano de
+Ação do pilar. Esse insight aparece destacado num box com símbolo « na frente.
+
+REGRAS:
+- EXATAMENTE 1 frase, ≤30 palavras.
+- Síntese de prosa consultiva — uma verdade estratégica sobre esse pilar,
+  costurada a partir da descrição (campo `descricao_pilar` do payload) e da
+  posição do pilar no Lastro (campo `lastro_position`: 1º P, 2º D, 3º Pa, 4º A).
+- NÃO repete o que já está na descrição — sintetiza em uma proposição maior.
+- Termina com período. Sem reticências. Sem perguntas (a pergunta já está no
+  paradoxo central, no início do documento).
+
+PROIBIDO: jargão; recomendar ação; abrir com "este pilar" ou "o pilar".
+
+Saída: APENAS a frase. Sem prefixo, sem aspas, sem markdown, sem JSON.
+"""
+
+
+def gerar_insight_pilar(
+    empresa_id: int,
+    escopo_hash: str,
+    pilar_code: str,
+    payload: Dict[str, Any],
+    gerar_fn: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """Saída: {texto, cached, tokens_in, tokens_out}. Cacheia em
+    relatorio_cache (secao=f'insight_pilar_{pilar_code}')."""
+    from src.utils.db import db_session
+
+    secao = f"insight_pilar_{pilar_code}"
+    dh = _hash_payload(payload)
+    with db_session() as s:
+        hit = _carregar_cache(s, empresa_id, escopo_hash, secao, dh)
+        if hit is not None:
+            return {**hit, "cached": True, "tokens_in": 0, "tokens_out": 0}
+
+    if gerar_fn is not None:
+        out = gerar_fn(_PROMPT_INSIGHT_PILAR, payload)
+        raw, ti, to = out["raw"], out.get("tokens_in", 0), out.get("tokens_out", 0)
+    else:
+        raw, ti, to = _chamar_sonnet(
+            _PROMPT_INSIGHT_PILAR, json.dumps(payload, ensure_ascii=False), max_tokens=150
+        )
+    texto = raw.strip().strip("`").strip().strip('"')
+    if not texto:
+        raise ValueError(f"insight do pilar {pilar_code} vazio")
+    data = {"texto": texto}
+    with db_session() as s:
+        _gravar_cache(s, empresa_id, escopo_hash, secao, dh, data, ti, to)
+    return {**data, "cached": False, "tokens_in": ti, "tokens_out": to}
