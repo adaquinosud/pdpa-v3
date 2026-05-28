@@ -40,7 +40,7 @@
     {% for qa in ia.recentes %}
     <details class="border border-loyall-200 rounded-lg bg-loyall-50/40">
       <summary class="px-3 py-2 text-sm font-medium text-loyall-700 cursor-pointer hover:bg-loyall-50">{{ qa.pergunta }}</summary>
-      <div class="px-3 py-2 text-sm text-loyall-700 leading-relaxed border-t border-loyall-100 space-y-2">{{ qa.resposta | md_leve }}</div>
+      <div class="px-3 py-2 text-sm text-loyall-700 leading-relaxed border-t border-loyall-100 space-y-2">{{ qa.resposta_html }}</div>
     </details>
     {% endfor %}
   </div>
@@ -50,12 +50,35 @@
 <script>
 (function () {
   var IA_URL = "{{ url_for('ui.explorar_ia_stream', empresa_id=empresa.id) }}?{{ qs }}";
+  var IA_EID = {{ empresa.id }};
+  var IA_LOJAS = { {% for l in lojas_header %}{{ l.nome|tojson }}: {{ l.id }}{% if not loop.last %}, {% endif %}{% endfor %} };
   var transcript = document.getElementById("ia-transcript");
   var chips = document.getElementById("ia-chips");
   var btnNova = document.getElementById("ia-nova");
+  var MARK = /\[\[(loja|subpilar|tema|anomalia):([^\]]+)\]\]/g;
 
   function esc(s) {
     return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function stripMarks(t) {  // durante o stream: mostra só o valor (sem [[...]])
+    return (t || "").replace(MARK, "$2");
+  }
+  function iaUrl(tipo, val) {  // espelha src/ia/render.py
+    var base = "/empresas/" + IA_EID + "/explorar";
+    if (tipo === "loja") {
+      var id = IA_LOJAS[val] || IA_LOJAS[val.replace(/&amp;/g, "&")];
+      return id ? base + "?tab=locais&local_id=" + id : null;
+    }
+    if (tipo === "subpilar") return base + "?tab=diagnostico";
+    if (tipo === "tema") return "/empresas/" + IA_EID + "/temas";
+    if (tipo === "anomalia") return "/empresas/" + IA_EID + "/anomalias";
+    return null;
+  }
+  function linkify(html) {
+    return html.replace(MARK, function (_, tipo, val) {
+      var url = iaUrl(tipo, val);
+      return url ? '<a href="' + url + '" class="text-loyall-700 underline decoration-dotted hover:text-loyall-900">' + val + "</a>" : val;
+    });
   }
   function mdLeve(t) {
     var safe = esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
@@ -115,11 +138,11 @@
         var c = await reader.read();
         if (c.done) break;
         full += dec.decode(c.value, { stream: true });
-        live.textContent = full;
+        live.textContent = stripMarks(full);  // oculta os marcadores durante o stream
         scrollFim();
       }
       live.style.whiteSpace = "normal";
-      live.innerHTML = mdLeve(full) || '<em class="text-loyall-400">Sem resposta.</em>';
+      live.innerHTML = linkify(mdLeve(full)) || '<em class="text-loyall-400">Sem resposta.</em>';
     } catch (e) {
       live.textContent = "Erro de conexão: " + e.message;
     }

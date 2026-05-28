@@ -3059,20 +3059,33 @@ def _explorar_contexto(empresa_id, tab):
 
 
 def _explorar_ia(empresa_id, ag_id, filtros):
-    """Contexto da aba IA: perguntas-sugestão + Q&A recentes cacheadas do escopo."""
+    """Contexto da aba IA: perguntas-sugestão + Q&A recentes cacheadas do escopo.
+    As recentes já vêm renderizadas com drill-down (marcadores → links v3)."""
     from src.ia.chat import PERGUNTAS_SUGERIDAS, escopo_hash
+    from src.ia.render import render_ia_html
     from src.models.chat_cache import ChatCache
+    from src.models.local import Local
 
     e_hash = escopo_hash(ag_id, filtros.get("periodo") or None)
     with db_session() as s:
-        recentes = (
+        lojas = {
+            n: lid
+            for lid, n in s.query(Local.id, Local.nome).filter_by(empresa_id=empresa_id).all()
+        }
+        rows = (
             s.query(ChatCache)
             .filter(ChatCache.empresa_id == empresa_id, ChatCache.escopo_hash == e_hash)
             .order_by(ChatCache.criado_em.desc())
             .limit(8)
             .all()
         )
-        recentes = [SimpleNamespace(pergunta=x.pergunta, resposta=x.resposta) for x in recentes]
+        recentes = [
+            SimpleNamespace(
+                pergunta=x.pergunta,
+                resposta_html=render_ia_html(x.resposta, empresa_id, lojas),
+            )
+            for x in rows
+        ]
     return SimpleNamespace(sugeridas=PERGUNTAS_SUGERIDAS, recentes=recentes)
 
 

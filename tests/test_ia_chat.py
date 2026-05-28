@@ -181,6 +181,36 @@ def test_tab_ia_tem_streaming_js(client_loyall, db_session):
     assert "ia/stream" in h and "getReader" in h  # ilha de streaming presente
 
 
+def test_render_ia_html_linkifica_marcadores(client_loyall, db_session):
+    """IA-2: marcadores [[tipo:valor]] viram links para telas v3; loja resolve id."""
+    from src.ia.render import render_ia_html
+
+    e, a, loc, f = _ctx(client_loyall, "render")
+    lojas = {"Loja 1": loc["id"]}
+    html = str(
+        render_ia_html(
+            "O gargalo é [[subpilar:D2]] e [[loja:Loja 1]] puxa. Tema [[tema:fila]]. "
+            "[[anomalia:D2]] crítico.",
+            e["id"],
+            lojas,
+        )
+    )
+    assert f'tab=locais&local_id={loc["id"]}' in html  # loja resolvida
+    assert "tab=diagnostico" in html  # subpilar
+    assert f"/empresas/{e['id']}/temas" in html  # tema
+    assert f"/empresas/{e['id']}/anomalias" in html  # anomalia
+    assert "[[" not in html  # nenhum marcador cru sobra
+
+
+def test_render_ia_html_loja_inexistente_vira_texto(client_loyall, db_session):
+    """IA-2: marcador de loja não resolvível vira texto puro (não inventa link)."""
+    from src.ia.render import render_ia_html
+
+    e, a, loc, f = _ctx(client_loyall, "render2")
+    html = str(render_ia_html("Veja [[loja:Loja Fantasma]] aqui.", e["id"], {}))
+    assert "Loja Fantasma" in html and "<a" not in html and "[[" not in html
+
+
 def test_tab_ia_transcript_e_nova_conversa(client_loyall, db_session):
     """IA-3: aba tem transcript de sessão + botão Nova conversa + histórico separado."""
     e, a, loc, f = _ctx(client_loyall, "iatr")
