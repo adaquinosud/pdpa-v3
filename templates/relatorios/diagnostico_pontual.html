@@ -1,0 +1,70 @@
+{% extends "relatorios/base_pdf.html" %}
+{% block title %}Diagnóstico Pontual — {{ empresa.nome }}{% endblock %}
+{% block conteudo %}
+<h1>Diagnóstico Pontual</h1>
+<p class="sub">{{ d.volume_total }} verbatins · pilar gargalo: <strong>{{ d.gargalo_nome or '—' }}</strong> · Índice Geral <strong>{{ '%.2f'|format(d.indice_geral) }}/10</strong> <span class="badge b-{{ d.indice_faixa }}">{{ d.indice_faixa }}</span></p>
+
+<h2>Indicadores</h2>
+<table>
+  <thead><tr><th>Indicador</th><th style="text-align:right">Valor</th><th>Faixa / Selo</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Índice Geral</strong> <span class="muted">— saúde da relação</span></td><td style="text-align:right"><strong>{{ '%.2f'|format(d.indice_geral) }}</strong> / 10</td><td><span class="badge b-{{ d.indice_faixa }}">{{ d.indice_faixa }}</span></td></tr>
+    {% if d.engajamento is not none %}<tr><td><strong>Engajamento</strong> <span class="muted">— pré-condição operacional</span></td><td style="text-align:right"><strong>{{ d.engajamento }}</strong> / 100</td><td>{{ d.engajamento_emoji or '' }} <span class="muted">{{ d.engajamento_selo or '' }}</span></td></tr>{% endif %}
+    {% if d.previsibilidade is not none %}<tr><td><strong>Previsibilidade</strong> <span class="muted">— consistência da experiência</span></td><td style="text-align:right"><strong>{{ '%.0f'|format(d.previsibilidade) }}</strong> / 100</td><td></td></tr>{% endif %}
+    {% if d.concentracao is not none %}<tr><td><strong>Concentração de Detratores</strong> <span class="muted">— onde dói</span></td><td style="text-align:right"><strong>{{ '%.0f'|format(d.concentracao) }}%</strong></td><td><span class="muted">{{ d.concentracao_faixa }}</span></td></tr>{% endif %}
+  </tbody>
+</table>
+
+<h2>Mapa de Lastro · 4 Pilares</h2>
+<p class="sub">Jornada P → D → Pa → A. Pilar travado puxa os seguintes — o gargalo é prioridade absoluta.</p>
+<table>
+  <thead><tr><th>Pilar</th><th style="text-align:right">Ratio P/D</th><th>Faixa</th><th style="text-align:right">Volume</th><th>Mix</th></tr></thead>
+  <tbody>
+    {% for p in d.pilares %}
+    <tr{% if p.gargalo %} style="background:#fdecec"{% endif %}>
+      <td><strong>{{ p.codigo }}</strong> {{ p.nome }}{% if p.gargalo %} <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
+      <td style="text-align:right"><strong>{{ '%.2f'|format(p.ratio) }}</strong></td>
+      <td><span class="badge b-{{ p.faixa }}">{{ p.faixa }}</span></td>
+      <td style="text-align:right">{{ p.total }}</td>
+      <td class="muted">{{ p.prom }} prom · {{ p.conv }} conv · {{ p.det }} det</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Confronto Visual · 12 Subpilares</h2>
+{% if not d.tem_leituras %}
+<p class="sub"><em>Leituras diagnósticas ainda não geradas. Rode <code>flask diagnostico-gerar --empresa {{ empresa.id }}</code> para gerar.</em></p>
+{% else %}
+<p class="sub">Leituras geradas: {{ d.n_leituras }} / 12 subpilares com volume. <em>Cada linha = quantitativo + leitura editorial + ação.</em></p>
+{% endif %}
+<table>
+  <thead>
+    <tr>
+      <th>Subpilar</th>
+      <th style="text-align:right">Det</th>
+      <th style="text-align:right">Conv</th>
+      <th style="text-align:right">Prom</th>
+      <th style="text-align:right">Ratio</th>
+      <th>Faixa</th>
+      <th>Leitura / Ação</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in d.confronto %}
+    <tr>
+      <td><strong>{{ c.subpilar }}</strong>{% if c.pilar_gargalo %} <span title="Pilar gargalo">🚩</span>{% endif %}<br><span class="muted" style="font-size:8.5pt">{{ c.nome }}</span></td>
+      <td style="text-align:right">{{ c.det }}</td>
+      <td style="text-align:right">{{ c.conv }}</td>
+      <td style="text-align:right">{{ c.prom }}</td>
+      <td style="text-align:right"><strong>{{ '%.2f'|format(c.ratio) }}</strong></td>
+      <td><span class="badge b-{{ c.faixa }}">{{ c.faixa }}</span></td>
+      <td style="font-size:8.5pt">
+        {% if c.leitura %}<div>{{ c.leitura }}</div>{% if c.acao %}<div class="muted" style="margin-top:2pt"><strong style="color:#1d3149">Ação:</strong> {{ c.acao }}</div>{% endif %}
+        {% else %}<em class="muted">leitura não gerada</em>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1109,7 +1109,7 @@ _RELATORIOS = [
         "Diagnóstico Pontual",
         "Foto técnica atual: Mapa de Lastro + Confronto + 12 leituras + indicadores.",
         "B2",
-        "em_construcao",
+        "disponivel",
     ),
     (
         "plano_executivo",
@@ -1182,6 +1182,17 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         d = montar_dados(empresa_w.id)
         return render_template(
             "relatorios/resumo_executivo.html",
+            empresa=empresa_w,
+            gerado_em=d.get("gerado_em") or datetime.utcnow(),
+            escopo_label=None,
+            d=d,
+        )
+    if tipo == "diagnostico_pontual":
+        from src.relatorios.diagnostico_pontual import montar_dados as _mdp
+
+        d = _mdp(empresa_w.id)
+        return render_template(
+            "relatorios/diagnostico_pontual.html",
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
