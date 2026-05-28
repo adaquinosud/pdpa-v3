@@ -22,6 +22,13 @@
       <span class="px-2 py-0.5 text-xs rounded bg-loyall-200 text-loyall-700">inativo</span>
     {% endif %}
     <div class="ml-auto flex items-center gap-3 text-xs" onclick="event.stopPropagation()">
+      {% if a.tem_fontes and a.ativo %}
+      <button hx-post="{{ url_for('ui.htmx_disparar_agrupamento', agrupamento_id=a.id) }}"
+              hx-target="#ag-{{ a.id }}-coleta" hx-swap="innerHTML"
+              hx-confirm="Disparar coleta de TODOS os locais de '{{ a.nome }}' ({{ a.locais|length }} locais · {{ a.fontes_ativas }} fontes ativas)? Custo Apify proporcional. Pode demorar minutos. Cooldown 15 min."
+              class="text-loyall-700 hover:underline" title="Coleta todos os locais">🔄 coletar</button>
+      <span id="ag-{{ a.id }}-coleta" class="text-loyall-500"></span>
+      {% endif %}
       {% if eh_loyall %}
       <button hx-get="{{ url_for('ui.htmx_editar_agrupamento_form', agrupamento_id=a.id) }}"
               hx-target="#ag-{{ a.id }}" hx-swap="outerHTML"

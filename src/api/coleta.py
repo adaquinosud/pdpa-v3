@@ -133,15 +133,26 @@ def disparar_coleta(fonte_id: int):
 
     Roteia para o coletor certo conforme ``fonte.conector_tipo`` e devolve
     as ``stats`` do coletor. Atualiza ``fonte.ultima_coleta`` em sucesso
-    (quando ``falhou_apify=False``).
+    (quando ``falhou_apify=False``). Respeita cooldown de 15 min por fonte
+    (admin Loyall pode ignorar com ``?force=1``). Dispara pós-coleta em
+    background ao final.
 
     Returns:
         - 200 com stats ``{coletados, novos, duplicados, erros, falhou_apify}``
           em caso de execução (mesmo com 100% dos itens em erro).
         - 404 se a Fonte não existe.
         - 400 se o ``conector_tipo`` não está mapeado.
+        - 409 se em cooldown ou execução em andamento.
     """
+    from src.coletor.orquestrador import (
+        COOLDOWN_MINUTOS,
+        disparar_pos_coleta_async,
+        em_cooldown,
+        execucao_em_andamento,
+    )
+
     roteamento = _roteamento_coletores()
+    force = request.args.get("force") in ("1", "true", "True")
 
     with db_session() as session:
         fonte = session.get(Fonte, fonte_id)
@@ -167,6 +178,23 @@ def disparar_coleta(fonte_id: int):
         # pipeline interno abre seu próprio db_session por item.
         session.expunge(fonte)
         empresa_id = fonte.empresa_id
+
+    # Cooldown + lock (admin Loyall pode passar com ?force=1)
+    if not force:
+        if execucao_em_andamento("fonte", fonte_id):
+            return jsonify({"erro": "coleta em andamento nesta fonte", "em_andamento": True}), 409
+        ult = em_cooldown("fonte", fonte_id)
+        if ult is not None:
+            return (
+                jsonify(
+                    {
+                        "erro": f"cooldown de {COOLDOWN_MINUTOS} min ativo",
+                        "ultima_coleta": ult.isoformat(),
+                        "em_cooldown": True,
+                    }
+                ),
+                409,
+            )
 
     # CP-E: registra início da execução em coletas_execucoes
     from src.models.coleta_execucao import ColetaExecucao
@@ -216,5 +244,58 @@ def disparar_coleta(fonte_id: int):
             fonte_db = session.get(Fonte, fonte_id)
             if fonte_db is not None:
                 fonte_db.ultima_coleta = datetime.utcnow()
+        # Dispara pipeline pós-coleta em background (Bloco COL · CP-COL-1).
+        disparar_pos_coleta_async(empresa_id)
 
     return jsonify(stats)
+
+
+@coleta_bp.route("/local/<int:local_id>", methods=["POST"])
+@login_required
+def disparar_coleta_local(local_id: int):
+    """Re-coleta todas as fontes ativas do local. Respeita cooldown de 15 min.
+    Admin Loyall pode ignorar com ``?force=1``. 200 com agregado; 409 cooldown;
+    404 local inexistente; 400 sem fontes ativas."""
+    from src.coletor.orquestrador import coletar_local
+    from src.models.local import Local
+
+    force = request.args.get("force") in ("1", "true", "True")
+    with db_session() as s:
+        local = s.get(Local, local_id)
+        if local is None:
+            return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
+
+    r = coletar_local(local_id, force=force)
+    if r.get("em_cooldown") or r.get("em_andamento"):
+        return jsonify(r), 409
+    if "erro" in r and r.get("fontes_processadas", 0) == 0:
+        return jsonify(r), 400
+    return jsonify(r)
+
+
+@coleta_bp.route("/agrupamento/<int:agrupamento_id>", methods=["POST"])
+@login_required
+def disparar_coleta_agrupamento(agrupamento_id: int):
+    """Re-coleta todos os locais do agrupamento. Mesma semântica do endpoint
+    de local: respeita cooldown, ``?force=1`` libera."""
+    from src.coletor.orquestrador import coletar_agrupamento
+    from src.models.agrupamento import Agrupamento
+
+    force = request.args.get("force") in ("1", "true", "True")
+    with db_session() as s:
+        ag = s.get(Agrupamento, agrupamento_id)
+        if ag is None:
+            return jsonify({"erro": "Agrupamento não encontrado"}), 404
+        erro = verificar_acesso_empresa(ag.empresa_id)
+        if erro:
+            return erro
+
+    r = coletar_agrupamento(agrupamento_id, force=force)
+    if r.get("em_cooldown") or r.get("em_andamento"):
+        return jsonify(r), 409
+    if "erro" in r and r.get("locais_processados", 0) == 0:
+        return jsonify(r), 400
+    return jsonify(r)

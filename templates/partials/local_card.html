@@ -22,6 +22,13 @@
       <span class="px-2 py-0.5 text-xs rounded bg-loyall-200 text-loyall-700">{{ loc.status }}</span>
     {% endif %}
     <div class="ml-auto flex items-center gap-3 text-xs" onclick="event.stopPropagation()">
+      {% if loc.tem_fontes and loc.status == 'ativo' %}
+      <button hx-post="{{ url_for('ui.htmx_disparar_local', local_id=loc.id) }}"
+              hx-target="#loc-{{ loc.id }}-coleta" hx-swap="innerHTML"
+              hx-confirm="Disparar coleta de TODAS as fontes ativas do local '{{ loc.nome }}'? Gera custo Apify. Cooldown 15 min."
+              class="text-loyall-700 hover:underline" title="Coleta todas as fontes ativas">🔄 coletar</button>
+      <span id="loc-{{ loc.id }}-coleta" class="text-loyall-500"></span>
+      {% endif %}
       <button hx-get="{{ url_for('ui.htmx_editar_local_form', local_id=loc.id) }}"
               hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
               class="text-loyall-700 hover:underline">editar</button>

@@ -2107,6 +2107,69 @@ def htmx_disparar_fonte(fonte_id: int):
     )
 
 
+def _fmt_stats_coleta(stats: dict) -> str:
+    """HTML inline curto para devolver após coleta (Local/Agrupamento)."""
+    if "erro" in stats:
+        if stats.get("em_cooldown"):
+            return (
+                f"<div class='text-amber-700 text-xs'>"
+                f"⏳ Cooldown 15 min. Última: {stats.get('ultima_coleta', '?')[:16]}</div>"
+            )
+        if stats.get("em_andamento"):
+            return "<div class='text-amber-700 text-xs'>⏳ Coleta em andamento</div>"
+        return f"<div class='text-red-600 text-xs'>Falha: {stats['erro']}</div>"
+    fp = stats.get("fontes_processadas", 0)
+    ok = stats.get("fontes_ok", 0)
+    falha = stats.get("fontes_falha", 0)
+    novos = stats.get("novos", 0)
+    coletados = stats.get("coletados", 0)
+    return (
+        f"<div class='text-emerald-700 text-xs'>"
+        f"✓ {ok}/{fp} fontes ok · {coletados} coletados · {novos} novos"
+        f"{(' · ' + str(falha) + ' falhas') if falha else ''}</div>"
+    )
+
+
+@ui_bp.route("/ui/locais/<int:local_id>/disparar", methods=["POST"])
+def htmx_disparar_local(local_id: int):
+    """Coleta todas as fontes ativas do local (Bloco COL · CP-COL-1)."""
+    from src.coletor.orquestrador import coletar_local
+    from src.models.local import Local
+
+    with db_session() as s:
+        loc = s.get(Local, local_id)
+        if loc is None:
+            return ("<div class='text-red-600 text-xs'>Local não encontrado.</div>", 404)
+        erro = _check_acesso(loc.empresa_id)
+        if erro:
+            return erro
+    try:
+        stats = coletar_local(local_id)
+    except Exception as exc:  # pragma: no cover — robustez
+        return (f"<div class='text-red-600 text-xs'>Falha: {exc!r}</div>", 500)
+    return _fmt_stats_coleta(stats)
+
+
+@ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/disparar", methods=["POST"])
+def htmx_disparar_agrupamento(agrupamento_id: int):
+    """Coleta todos os locais do agrupamento (Bloco COL · CP-COL-1)."""
+    from src.coletor.orquestrador import coletar_agrupamento
+    from src.models.agrupamento import Agrupamento
+
+    with db_session() as s:
+        ag = s.get(Agrupamento, agrupamento_id)
+        if ag is None:
+            return ("<div class='text-red-600 text-xs'>Agrupamento não encontrado.</div>", 404)
+        erro = _check_acesso(ag.empresa_id)
+        if erro:
+            return erro
+    try:
+        stats = coletar_agrupamento(agrupamento_id)
+    except Exception as exc:  # pragma: no cover — robustez
+        return (f"<div class='text-red-600 text-xs'>Falha: {exc!r}</div>", 500)
+    return _fmt_stats_coleta(stats)
+
+
 # ── Hub Explorar (Grupo A) ────────────────────────────────────────────
 
 _EXPLORAR_TABS = (
