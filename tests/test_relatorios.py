@@ -29,7 +29,7 @@ def test_relatorio_view_html_renderiza(client_loyall, db_session):
     for tipo, esperado in [
         ("resumo_executivo", "Resumo Executivo"),
         ("diagnostico_pontual", "Diagnóstico Pontual"),
-        ("plano_executivo", "em construção"),
+        ("plano_executivo", "Plano de Ação Executivo"),
         ("diagnostico_longitudinal", "em construção"),
     ]:
         r = client_loyall.get(f"/empresas/{e['id']}/relatorios/{tipo}")
@@ -134,6 +134,79 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     assert "Mapa de Lastro" in h and "Disponibilidade" in h  # pilar
     assert "Confronto Visual" in h and "D2" in h  # subpilar na tabela
     assert "Disponibilidade travada" in h and "Revisar SLA" in h  # leitura+ação
+    assert "180 dias" in h
+
+
+def test_plano_executivo_assembly(client_loyall, db_session):
+    """B3: Plano Executivo agrupa ações por perspectiva (6 frentes) com ícones,
+    estruturais como subseção destacada e reativas embaixo."""
+    from datetime import datetime as _dt
+
+    from src.models.diagnostico import LeituraDiagnostico
+    from src.models.plano_acao import AcaoStatus
+    from src.models.sugestao_estrutural import SugestaoEstrutural
+    from src.models.verbatim import Verbatim
+
+    e = _empresa(client_loyall, "b3")
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L", "agrupamento_id": a["id"]}
+    ).get_json()
+    f = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": "ChIJB3"}
+    ).get_json()
+    for sub, tipo, n in [("P1", "detrator", 8), ("P1", "promotor", 2)]:
+        for i in range(n):
+            db_session.add(
+                Verbatim(
+                    empresa_id=e["id"],
+                    fonte_id=f["id"],
+                    local_id=loc["id"],
+                    texto=f"v{i}",
+                    subpilar=sub,
+                    tipo=tipo,
+                    tem_texto=True,
+                    data_criacao_original=_dt(2026, 5, 1),
+                    hash_dedup=f"hb3{sub}{tipo}{i}-{_dt.utcnow().timestamp()}",
+                )
+            )
+    # 1 estrutural (marketing) + 1 reativa via diagnóstico (com perspectiva via overlay)
+    db_session.add(
+        SugestaoEstrutural(
+            empresa_id=e["id"],
+            agrupamento_id=None,
+            subpilar="P1",
+            perspectiva="marketing",
+            acao="Recalibre a promessa",
+            ordem=0,
+        )
+    )
+    diag = LeituraDiagnostico(
+        empresa_id=e["id"],
+        agrupamento_id=None,
+        subpilar="P1",
+        leitura="L",
+        acao="Reaborde detratores hoje.",
+    )
+    db_session.add(diag)
+    db_session.commit()
+    db_session.add(
+        AcaoStatus(
+            empresa_id=e["id"],
+            item_chave=f"diag:{diag.id}",
+            perspectiva="pessoas",
+            perspectiva_confianca="manual",
+            status="pendente",
+        )
+    )
+    db_session.commit()
+
+    h = client_loyall.get(f"/empresas/{e['id']}/relatorios/plano_executivo").get_data(as_text=True)
+    assert "Plano de Ação Executivo" in h
+    # 6 frentes com ícones (mesmo que vazias não aparecem; as 2 com material aparecem)
+    assert "📢 Marketing" in h and "👥 Pessoas" in h
+    assert "Sugestões estruturais" in h and "Recalibre a promessa" in h
+    assert "Ações reativas" in h or "Reaborde detratores hoje" in h
     assert "180 dias" in h
 
 

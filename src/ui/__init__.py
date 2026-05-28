@@ -1116,7 +1116,7 @@ _RELATORIOS = [
         "Plano de Ação Executivo",
         "161 ações priorizadas por perspectiva (reativas + estruturais).",
         "B3",
-        "em_construcao",
+        "disponivel",
     ),
     (
         "diagnostico_longitudinal",
@@ -1193,6 +1193,17 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         d = _mdp(empresa_w.id)
         return render_template(
             "relatorios/diagnostico_pontual.html",
+            empresa=empresa_w,
+            gerado_em=d.get("gerado_em") or datetime.utcnow(),
+            escopo_label=None,
+            d=d,
+        )
+    if tipo == "plano_executivo":
+        from src.relatorios.plano_executivo import montar_dados as _mpe
+
+        d = _mpe(empresa_w.id)
+        return render_template(
+            "relatorios/plano_executivo.html",
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,

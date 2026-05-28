@@ -1,0 +1,36 @@
+{% extends "relatorios/base_pdf.html" %}
+{% block title %}Plano de Ação Executivo — {{ empresa.nome }}{% endblock %}
+{% block conteudo %}
+{% set prio_badge = {'alto':'critico','medio':'atencao','baixo':'bom'} %}
+
+{% macro card(it) %}
+<div class="card{% if it.origem == 'Estrutural' %} estrut{% endif %}">
+  <div style="margin-bottom:2pt">
+    <span class="badge b-{{ prio_badge.get(it.prioridade, 'atencao') }}">{{ it.prioridade }}</span>
+    {% if it.subpilar %}<span class="muted">{{ it.subpilar }}{% if it.subpilar_nome %} · {{ it.subpilar_nome }}{% endif %}{% if it.pilar == d.gargalo %} 🚩{% endif %}</span>{% endif %}
+    <span class="muted">· {{ it.origem }}</span>
+    {% if it.loja %}<span class="muted">· 📍 {{ it.loja }}</span>{% endif %}
+  </div>
+  <div>{{ it.texto }}</div>
+  {% if it.justificativa %}<div class="muted" style="margin-top:2pt; font-size:8.5pt">{{ it.justificativa }}</div>{% endif %}
+  {% if it.volume %}<div class="muted" style="margin-top:2pt; font-size:8pt">Público: {{ it.volume }} verbatins{% if it.det %} · {{ it.det }} detratores{% endif %}</div>{% endif %}
+</div>
+{% endmacro %}
+
+<h1>Plano de Ação Executivo</h1>
+<p class="sub"><strong>{{ d.total }} ações</strong> consolidadas · {{ d.n_estruturais }} estruturais (proativas) · {{ d.n_reativas }} reativas · {{ d.n_alto }} de prioridade alta. Distribuídas em 6 frentes de consultoria.</p>
+
+{% for g in d.grupos %}
+<h2>{{ g.icon }} {{ g.label }} <span class="muted">— {{ g.total }} ações</span></h2>
+
+{% if g.estruturais %}
+<p class="sub" style="color:#b89355"><strong>🏗️ Sugestões estruturais</strong> — construir a fundação, não reagir ao reclamado ({{ g.estruturais|length }})</p>
+{% for it in g.estruturais %}{{ card(it) }}{% endfor %}
+{% endif %}
+
+{% if g.reativas %}
+{% if g.estruturais %}<p class="sub"><strong>Ações reativas</strong> — responder ao sinalizado ({{ g.reativas|length }})</p>{% endif %}
+{% for it in g.reativas %}{{ card(it) }}{% endfor %}
+{% endif %}
+{% endfor %}
+{% endblock %}
