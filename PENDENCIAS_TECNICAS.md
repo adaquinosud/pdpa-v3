@@ -5,6 +5,19 @@ adiados (não são bugs abertos; são evoluções com decisão de timing).
 
 ---
 
+## IA Chat — "Ver fonte" de cada afirmação (IA-4)
+
+**Origem:** Bloco 9 IA-2 (drill-down), 2026-05-27. Adiado — decidir quando for útil.
+
+Reusa a **mesma infra de marcadores** do IA-2 (`src/ia/render.py` + linkify JS): o
+prompt passaria a emitir marcadores de **fonte** (`[[diag:D2]]`, `[[anom:id]]`,
+`[[sug:id]]`) que viram um link discreto "ver fonte" → abre a leitura de
+diagnóstico / anomalia / sugestão estrutural que embasou a afirmação. Aumenta a
+confiança/auditabilidade da resposta. Implementação ~0,5-1 dia (prompt + resolução
+dos marcadores de fonte para as telas/registros). Relacionado: [[project_bloco9_escopo_loja]].
+
+---
+
 ## Bloco 6.5 ou Bloco 7 — Estratificação de temas
 
 **Origem:** CP-11 smoke do Caminho A (bucket `10:Pa1:promotor`, BH Airport),
