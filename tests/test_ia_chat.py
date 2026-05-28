@@ -179,3 +179,25 @@ def test_tab_ia_tem_streaming_js(client_loyall, db_session):
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/ia").get_data(as_text=True)
     assert "ia/stream" in h and "getReader" in h  # ilha de streaming presente
+
+
+def test_tab_ia_transcript_e_nova_conversa(client_loyall, db_session):
+    """IA-3: aba tem transcript de sessão + botão Nova conversa + histórico separado."""
+    e, a, loc, f = _ctx(client_loyall, "iatr")
+    _verb(db_session, e, loc, f, "D2", "detrator", 4)
+    db_session.commit()
+    # cria uma Q&A cacheada NO ESCOPO ATUAL (sem filtros → escopo_hash(None, None))
+    db_session.add(
+        ChatCache(
+            empresa_id=e["id"],
+            escopo_hash=escopo_hash(None, None),
+            pergunta_hash="y",
+            pergunta="pergunta antiga",
+            resposta="resposta antiga",
+        )
+    )
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/ia").get_data(as_text=True)
+    assert 'id="ia-transcript"' in h  # transcript da sessão
+    assert "Nova conversa" in h  # botão
+    assert "Histórico do escopo" in h and "pergunta antiga" in h  # cache separado
