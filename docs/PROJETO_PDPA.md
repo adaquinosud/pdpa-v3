@@ -1,0 +1,78 @@
+# PDPA v3 — Documento de Contexto
+
+## O que é o PDPA
+Metodologia de diagnóstico relacional criada por Alexandre D'Aquino e Dener Pereira. Avalia a qualidade da relação entre empresa e cliente em 4 dimensões sequenciais (Precisão, Disponibilidade, Parceria, Aconselhamento) divididas em 12 subpilares.
+
+## Os 4 pilares
+- **P · Precisão**: entrega o que prometeu (P1 Calibração da Promessa, P2 Qualidade da Entrega, P3 Consistência)
+- **D · Disponibilidade**: presente quando o cliente precisa (D1 Acessibilidade, D2 Eficácia Operacional, D3 Proatividade Estruturada)
+- **Pa · Parceria**: vai além da transação (Pa1 Empatia Comercial, Pa2 Mutualidade, Pa3 Comprometimento Relacional)
+- **A · Aconselhamento**: orienta com autoridade moral (A1 Exemplo, A2 Orientação, A3 Recomendação Proativa)
+
+## Conceito-chave: Lastro
+P → D → Pa → A é sequência evolutiva. Pilar inicial travado puxa os seguintes. Atacar fora de ordem desperdiça esforço.
+
+## 5 níveis de saúde por subpilar
+Substituem o antigo N1-N4 (que ainda aparece no v2 do material):
+- **crítico** (ratio < 0.5)
+- **fraco** (0.5–0.99)
+- **atenção** (1.0–1.99)
+- **bom** (2.0–3.99)
+- **excelente** (≥ 4.0)
+
+Ratio = promotores/detratores por subpilar.
+
+> ⚠️ **Nota de implementação:** o código atual (`src/api/painel.py:faixa_ratio`) usa cortes **bom 2.0–4.99 / excelente ≥ 5.0**, divergente dos cortes conceituais acima (bom 2.0–3.99 / excelente ≥ 4.0). A Lente de Governança (`docs/BLOCO_LG.md`) também fixa "ratio de excelência = 9.0" para a escala Proximity. Reconciliar esses três pontos é tarefa do CP-LG-0 (centralizar as faixas).
+
+## Hierarquia de escopo
+Empresa → Agrupamentos → Locais (lojas) → Fontes de coleta
+
+## Coleta
+Sistema coleta verbatins automaticamente via Apify de múltiplas fontes (Google Maps, TikTok, Instagram, TripAdvisor, LinkedIn, Glassdoor, Indeed, Reclame Aqui, Facebook). Cada verbatim é classificado por LLM (Haiku) em: subpilar, tipo (Promotor/Conversível/Detrator), tema, anomalia.
+
+## Indicadores principais
+- **Índice Geral (0-10)**: saúde consolidada da relação
+- **Engajamento (0-100)**: pré-condição operacional (volume + diversidade + regularidade)
+- **Previsibilidade (0-100)**: consistência entre lojas/tempo
+- **Concentração de Detratores**: onde dói mais
+
+## Funcionalidades já entregues
+Lista completa dos blocos:
+- **Bloco 1-7** (base do v3)
+- **Bloco 8** (Hub Explorar + ML + Engajamento + Sugestões Estruturais)
+- **Evolução A** (Escopo Loja como 3º nível)
+- **IA Chat completa** (streaming + drill-down + transcript)
+- **Bloco 9** (4 relatórios PDF doc-ouro)
+- **Coleta Granular** (CP-COL-1, CP-COL-2)
+- **Reorganização leve do menu**
+
+## Stack técnico
+- Python 3.11 (uv), Flask 3.0, SQLAlchemy 2.0, SQLite
+- Tailwind CDN, HTMX
+- Apify (coleta), Anthropic Sonnet 4.5 / Haiku 4.5 (classificação + editorial)
+- OpenAI text-embedding-3-small (clustering temas)
+- WeasyPrint (PDF)
+
+## Mandala do Capital Relacional
+Conceito mais amplo do qual o PDPA é instrumento. Sete camadas concêntricas + destino:
+1. **Capital Relacional** (tese)
+2. **Lastro** (4 pilares — diagnóstico externo)
+3. **Modelo ORIGEM** (Semente, Raiz, Solo, Caminho, Fruto — leitura interna)
+4. **Leitura 360°** (Cliente, Colaborador, Fornecedor, Influenciador)
+5. **Indicadores Auditáveis** (Engajamento, Previsibilidade, Concentração, Proximity, Gini)
+6. **Funções Alimentadas** (CEO, CFO, CRO, CMO, COO, CHRO recebem leituras calibradas)
+7. **Resultados Estratégicos** (pricing power, LTV, retenção)
+8. **CCRO** (Chief Customer Relations Officer — destino organizacional)
+
+Cobertura atual: ~37% da Mandala implementada. Roadmap em 3 horizontes.
+
+## Autores e propriedade
+- **Alexandre D'Aquino** (alexandre.daquino@techmahindra.com) — co-criador da metodologia + sistema, COO Tech Mahindra Brasil
+- **Dener Pereira** — co-criador
+- **Loyall Company** — casa editorial/método
+- Lineage intelectual: Vedanta (Sirshree, TejGyan Foundation, Pune) + Pauline + Frankl + Teilhard + executivo
+
+## Defesa de autoria
+- **Livros:** O Ser Triuno, Os Óculos que Enxergam Corações, Prazer ou Nobreza, A Descida que Eleva
+- **Nomenclatura proprietária registrada:** PDPA, Mandala do Capital Relacional, Modelo ORIGEM, CCRO
+- **Domínios:** pdpa.com.br, ccro.com.br, mandalacapitalrelacional.com.br
