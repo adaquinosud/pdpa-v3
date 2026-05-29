@@ -17,12 +17,12 @@ Substituem o antigo N1-N4 (que ainda aparece no v2 do material):
 - **crítico** (ratio < 0.5)
 - **fraco** (0.5–0.99)
 - **atenção** (1.0–1.99)
-- **bom** (2.0–3.99)
-- **excelente** (≥ 4.0)
+- **bom** (2.0–4.99)
+- **excelente** (ratio ≥ 5.0)
 
 Ratio = promotores/detratores por subpilar.
 
-> ⚠️ **Nota de implementação:** o código atual (`src/api/painel.py:faixa_ratio`) usa cortes **bom 2.0–4.99 / excelente ≥ 5.0**, divergente dos cortes conceituais acima (bom 2.0–3.99 / excelente ≥ 4.0). A Lente de Governança (`docs/BLOCO_LG.md`) também fixa "ratio de excelência = 9.0" para a escala Proximity. Reconciliar esses três pontos é tarefa do CP-LG-0 (centralizar as faixas).
+> **Verdade única (reconciliado 2026-05-29):** estas são as faixas operacionais oficiais, alinhadas ao código (`src/api/painel.py:faixa_ratio`). A versão conceitual antiga (bom 2.0–3.99 / excelente ≥ 4.0) está obsoleta. O **Proximity Index** da Lente de Governança usa uma escala separada (0–100), ancorada em ratio 0.5 → Proximity 0 e ratio 9.0 (cap do sistema) → Proximity 100 — ver `docs/BLOCO_LG.md`. Centralizar as faixas numa constante única é tarefa do CP-LG-0.
 
 ## Hierarquia de escopo
 Empresa → Agrupamentos → Locais (lojas) → Fontes de coleta
