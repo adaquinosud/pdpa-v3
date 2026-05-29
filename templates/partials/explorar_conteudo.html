@@ -16,6 +16,16 @@
   {% include 'partials/explorar_leaderboard.html' %}
 {% elif tab == 'ia' %}
   {% include 'partials/explorar_ia.html' %}
+{% elif tab == 'painel' %}
+  {% include 'partials/explorar_painel.html' %}
+{% elif tab == 'verbatins' %}
+  {% include 'partials/explorar_verbatins.html' %}
+{% elif tab == 'temas' %}
+  {% include 'partials/explorar_temas.html' %}
+{% elif tab == 'anomalias' %}
+  {% include 'partials/explorar_anomalias.html' %}
+{% elif tab == 'relatorios' %}
+  {% include 'partials/explorar_relatorios.html' %}
 {% else %}
   <div class="text-center text-loyall-400 py-16 border border-dashed border-loyall-200 rounded-lg">
     <div class="text-lg font-medium text-loyall-500">{{ tab }}</div>

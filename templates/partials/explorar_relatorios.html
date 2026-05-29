@@ -1,21 +1,5 @@
-{% extends "base.html" %}
-{% block titulo %}Relatórios — {{ empresa.nome }}{% endblock %}
-
-{% block sidebar_extra %}
-<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
-<div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
-<ul class="mt-2 space-y-1 text-sm">
-  <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
-  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
-  <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Painel</a></li>
-  <li><a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Explorar</a></li>
-  <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Temas</a></li>
-  <li><a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Anomalias</a></li>
-  <li><a href="{{ url_for('ui.relatorios_index', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Relatórios</a></li>
-</ul>
-{% endblock %}
-
-{% block conteudo %}
+{# Conteúdo da aba 'relatorios' do Hub Explorar. Extraído de templates/relatorios/index.html.
+   Renderizado via partials/explorar_conteudo.html (full-load). #}
 <div class="mb-4">
   <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
     <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
@@ -51,4 +35,3 @@
   </div>
   {% endfor %}
 </div>
-{% endblock %}

@@ -392,11 +392,13 @@ def test_temas_tela_cliente_outra_empresa_403(client_loyall, client_cliente_fact
 
 
 def test_painel_tem_link_temas_na_sidebar(client_loyall, db_session):
+    # Painel agora é aba do Hub Explorar; Temas também virou aba. A navegação
+    # para Temas se dá pela tab bar (?tab=temas), não mais por link de sidebar.
     e, _, loc, f = _ctx(client_loyall, "side")
     _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "x")
     html = client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
     assert "ui.temas_empresa" not in html  # url_for resolvido, não literal
-    assert f"/empresas/{e['id']}/temas" in html  # link Temas presente
+    assert "tab=temas" in html  # aba Temas presente na tab bar do Explorar
 
 
 def test_temas_tela_top_subpilar_mostra_exemplos(client_loyall, db_session):

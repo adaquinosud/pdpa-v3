@@ -1,24 +1,5 @@
-{% extends "base.html" %}
-{% block titulo %}Painel — {{ empresa.nome }}{% endblock %}
-
-{% block sidebar_extra %}
-<div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
-<div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
-<ul class="mt-2 space-y-1 text-sm">
-  <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
-  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
-  <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Painel</a></li>
-  <li><a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Explorar</a></li>
-  <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Temas</a></li>
-  <li><a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Anomalias</a></li>
-  <li><a href="{{ url_for('ui.relatorios_index', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Relatórios</a></li>
-  {% if eh_loyall %}
-  <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">Temas (admin)</a></li>
-  {% endif %}
-</ul>
-{% endblock %}
-
-{% block conteudo %}
+{# Conteúdo da aba 'painel' do Hub Explorar. Extraído de templates/empresas/painel.html.
+   Renderizado via partials/explorar_conteudo.html (full-load). #}
 {# Faixas semânticas do ratio P/D conforme Manual PDPA v3, Cap. 4 #}
 {% set classes_faixa = {
   'critico':   {'bg':'bg-rose-100',      'text':'text-rose-700',      'dot':'bg-rose-500',    'lbl':'crítico'},
@@ -359,5 +340,3 @@
     btn.href = params.toString() ? `${base}?${params.toString()}` : base;
   })();
 </script>
-
-{% endblock %}

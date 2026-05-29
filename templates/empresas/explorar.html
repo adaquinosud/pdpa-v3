@@ -6,12 +6,10 @@
 <div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
 <ul class="mt-2 space-y-1 text-sm">
   <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
-  <li><a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Verbatins</a></li>
-  <li><a href="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Painel</a></li>
   <li><a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Explorar</a></li>
-  <li><a href="{{ url_for('ui.temas_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Temas</a></li>
-  <li><a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Anomalias</a></li>
-  <li><a href="{{ url_for('ui.relatorios_index', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Relatórios</a></li>
+  {% if eh_loyall %}
+  <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">Temas (admin)</a></li>
+  {% endif %}
 </ul>
 {% endblock %}
 
@@ -65,15 +63,22 @@
 </form>
 
 {# ── Tab bar ──────────────────────────────────────────────────────── #}
+{# Plana e horizontal. `t.grupo` já vem no dict (futuros sub-menus) mas é
+   ignorado aqui. Abas em `tabs_migradas` usam full-load (sem HTMX swap),
+   pois reaproveitam templates com JS inline; as demais mantêm o swap. #}
 <div class="flex flex-wrap gap-1 border-b border-loyall-200 mb-4">
-  {% for t, lbl in [('locais','Locais'),('heatmap','Heatmap'),('comparar','Comparar'),('evolucao','Evolução'),('diagnostico','Diagnóstico'),('planos','Planos de Ação'),('leaderboard','Leaderboard'),('ia','✨ IA')] %}
-  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t }}&{{ qs }}"
-     hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab=t) }}?{{ qs }}"
+  {% for t in tabs %}
+  {% set cls = 'px-4 py-2 -mb-px border-b-2 text-sm ' ~ ('border-loyall-700 text-loyall-800 font-medium' if tab == t.id else 'border-transparent text-loyall-500 hover:text-loyall-700') %}
+  {% if t.id in tabs_migradas %}
+  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
+     class="{{ cls }}">{{ t.label }}</a>
+  {% else %}
+  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
+     hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab=t.id) }}?{{ qs }}"
      hx-target="#explorar-conteudo" hx-swap="innerHTML"
-     hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t }}&{{ qs }}"
-     class="px-4 py-2 -mb-px border-b-2 text-sm {% if tab == t %}border-loyall-700 text-loyall-800 font-medium{% else %}border-transparent text-loyall-500 hover:text-loyall-700{% endif %}">
-    {{ lbl }}
-  </a>
+     hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
+     class="{{ cls }}">{{ t.label }}</a>
+  {% endif %}
   {% endfor %}
 </div>
 

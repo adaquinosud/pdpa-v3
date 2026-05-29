@@ -449,24 +449,23 @@ def htmx_monitoramento_lista():
 
 @ui_bp.route("/empresas/<int:empresa_id>/verbatins")
 def verbatins_empresa(empresa_id: int):
-    """Página da lista paginada de verbatins de uma empresa."""
-    r = _require_login_html()
-    if r:
-        return r
-    user = get_current_user()
-    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
-        return render_template("403.html"), 403
+    """Aba Verbatins do Hub Explorar (rota legada preservada → renderiza o shell
+    in-place com tab=verbatins, status 200)."""
+    return _explorar_render(empresa_id, "verbatins")
 
+
+def _aba_verbatins(empresa_id, empresa_w):
+    """Contexto da aba Verbatins (lista paginada + filtros). Auth e 404 já
+    resolvidos pelo shell; ``empresa_w`` vem pronto do _explorar_contexto."""
     # Chama o handler da API e usa o JSON resultante
     from src.api.verbatins import listar_verbatins_da_empresa as api_handler
 
     resp = api_handler(empresa_id)
-    # api_handler retorna Response (200) ou tupla (response, status) em erro
-    if isinstance(resp, tuple):
-        return resp
-    api_payload = resp.get_json()
+    # api_handler retorna Response (200) ou tupla (response, status) em erro →
+    # na aba, erro de parâmetro degrada para lista vazia (não derruba o shell).
+    api_payload = None if isinstance(resp, tuple) else resp.get_json()
     if api_payload is None:
-        return render_template("404.html"), 404
+        api_payload = {"verbatins": [], "total": 0, "pagina": 1, "por_pagina": 20}
 
     # Filtros lidos da URL
     filtros = {
@@ -489,10 +488,6 @@ def verbatins_empresa(empresa_id: int):
 
     # Listas de filtros (agrupamentos/locais/fontes da empresa)
     with db_session() as s:
-        empresa_db = s.get(Empresa, empresa_id)
-        if empresa_db is None:
-            return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_db.id))
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
@@ -545,52 +540,45 @@ def verbatins_empresa(empresa_id: int):
         voltar_url = url_for("ui.detalhe_empresa", empresa_id=empresa_id)
         voltar_texto = empresa_w.nome
 
-    return render_template(
-        "empresas/verbatins.html",
-        empresa=empresa_w,
-        verbatins=api_payload["verbatins"],
-        total=total,
-        total_paginas=total_paginas,
-        agrupamentos=agrupamentos,
-        locais=locais,
-        fontes=fontes_,
-        temas=temas_filtro,
-        filtros=filtros,
-        subpilares=sorted(SUBPILARES_VALIDOS),
-        tipos=sorted(TIPOS_VALIDOS),
-        pag_qs_anterior=_qs(filtros["pagina"] - 1),
-        pag_qs_proxima=_qs(filtros["pagina"] + 1),
-        voltar_url=voltar_url,
-        voltar_texto=voltar_texto,
-        eh_loyall=(user.papel == PAPEL_LOYALL),
-        user=user,
-    )
+    return {
+        "verbatins": api_payload["verbatins"],
+        "total": total,
+        "total_paginas": total_paginas,
+        "agrupamentos": agrupamentos,
+        "locais": locais,
+        "fontes": fontes_,
+        "temas": temas_filtro,
+        "filtros": filtros,
+        "subpilares": sorted(SUBPILARES_VALIDOS),
+        "tipos": sorted(TIPOS_VALIDOS),
+        "pag_qs_anterior": _qs(filtros["pagina"] - 1),
+        "pag_qs_proxima": _qs(filtros["pagina"] + 1),
+        "voltar_url": voltar_url,
+        "voltar_texto": voltar_texto,
+    }
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/painel")
 def painel_empresa(empresa_id: int):
-    """Painel Executivo (Bloco 5 CP-2): Visão Geral + Detalhamento por Subpilar."""
-    r = _require_login_html()
-    if r:
-        return r
-    user = get_current_user()
-    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
-        return render_template("403.html"), 403
+    """Aba Painel do Hub Explorar (rota legada preservada → shell in-place)."""
+    return _explorar_render(empresa_id, "painel")
 
+
+def _aba_painel(empresa_id, empresa_w):
+    """Contexto da aba Painel Executivo. Retorna None em erro dos endpoints
+    (→ 404 no shell)."""
     # Chama os 2 endpoints do painel via handler interno (zero HTTP overhead)
     from src.api.painel import painel_nivel1 as h_n1
     from src.api.painel import painel_nivel2 as h_n2
 
     resp_n1 = h_n1(empresa_id)
     resp_n2 = h_n2(empresa_id)
-    if isinstance(resp_n1, tuple):
-        return resp_n1
-    if isinstance(resp_n2, tuple):
-        return resp_n2
+    if isinstance(resp_n1, tuple) or isinstance(resp_n2, tuple):
+        return None
     n1 = resp_n1.get_json()
     n2 = resp_n2.get_json()
     if n1 is None or n2 is None:
-        return render_template("404.html"), 404
+        return None
 
     # Filtros lidos da URL (eco para o front; mesmos do n1/n2)
     filtros = {
@@ -601,10 +589,6 @@ def painel_empresa(empresa_id: int):
     }
 
     with db_session() as s:
-        empresa_db = s.get(Empresa, empresa_id)
-        if empresa_db is None:
-            return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_db.id))
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
@@ -615,21 +599,16 @@ def painel_empresa(empresa_id: int):
         ]
         anomalias_resumo = _resumo_anomalias(s, empresa_id)
 
-    # B6.6 CP-5: a seção "Temas transversais" saiu do painel — vive na tela
-    # dedicada /empresas/<id>/temas.
-    return render_template(
-        "empresas/painel.html",
-        empresa=empresa_w,
-        n1=n1,
-        n2=n2,
-        filtros=filtros,
-        agrupamentos=agrupamentos,
-        locais=locais,
-        fontes=fontes_,
-        anomalias_resumo=anomalias_resumo,
-        eh_loyall=(user.papel == PAPEL_LOYALL),
-        user=user,
-    )
+    # B6.6 CP-5: a seção "Temas transversais" saiu do painel — vive na aba Temas.
+    return {
+        "n1": n1,
+        "n2": n2,
+        "filtros": filtros,
+        "agrupamentos": agrupamentos,
+        "locais": locais,
+        "fontes": fontes_,
+        "anomalias_resumo": anomalias_resumo,
+    }
 
 
 def _labels_no_agrupamento(s, empresa_id, agrupamento_id):
@@ -870,18 +849,13 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
 
 @ui_bp.route("/empresas/<int:empresa_id>/temas")
 def temas_empresa(empresa_id: int):
-    """Tela dedicada de análise de temas (Bloco 6.6 CP-5).
+    """Aba Temas do Hub Explorar (rota legada preservada → shell in-place)."""
+    return _explorar_render(empresa_id, "temas")
 
-    Mapa de Lastro + cruzamentos transversais (N4) + ações (N5) + top temas
-    por subpilar. Acessível a cliente_total (sua empresa) e admin_loyall.
-    """
-    r = _require_login_html()
-    if r:
-        return r
-    user = get_current_user()
-    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
-        return render_template("403.html"), 403
 
+def _aba_temas(empresa_id, empresa_w):
+    """Contexto da aba Temas: Mapa de Lastro + cruzamentos transversais (N4) +
+    ações (N5) + top temas por subpilar. Retorna None em erro (→ 404)."""
     from sqlalchemy import distinct, func
 
     from src.api.painel import painel_nivel1 as h_n1
@@ -891,23 +865,17 @@ def temas_empresa(empresa_id: int):
 
     resp1 = h_n1(empresa_id)
     resp2 = h_n2(empresa_id)
-    if isinstance(resp1, tuple):
-        return resp1
-    if isinstance(resp2, tuple):
-        return resp2
+    if isinstance(resp1, tuple) or isinstance(resp2, tuple):
+        return None
     n1 = resp1.get_json()
     n2 = resp2.get_json()
     if n1 is None or n2 is None:
-        return render_template("404.html"), 404
+        return None
 
     filtros = {"agrupamento_id": request.args.get("agrupamento_id", "")}
     ag_filtro = int(filtros["agrupamento_id"]) if filtros["agrupamento_id"].isdigit() else None
 
     with db_session() as s:
-        empresa_db = s.get(Empresa, empresa_id)
-        if empresa_db is None:
-            return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
         ag_filtro_nome = next((a.nome for a in agrupamentos if a.id == ag_filtro), None)
@@ -945,25 +913,21 @@ def temas_empresa(empresa_id: int):
 
     mapa_lastro, gargalo = _montar_mapa_lastro(n1, n2)
 
-    return render_template(
-        "empresas/temas.html",
-        empresa=empresa_w,
-        n1=n1,
-        mapa_lastro=mapa_lastro,
-        gargalo_pilar=gargalo,
-        transversais=transversais,
-        agrupamento_filtrado=ag_filtro_nome,
-        top_subpilar=top_subpilar,
-        totais={"temas": n_temas, "cruzamentos": n_cruz, "acoes": n_acoes},
-        temas_em_anomalia=temas_em_anomalia,
-        cruzamentos_em_anomalia=cruzamentos_em_anomalia,
-        janela_dias=get_janela_dias(),
-        data_corte=corte,
-        filtros=filtros,
-        agrupamentos=agrupamentos,
-        eh_loyall=(user.papel == PAPEL_LOYALL),
-        user=user,
-    )
+    return {
+        "n1": n1,
+        "mapa_lastro": mapa_lastro,
+        "gargalo_pilar": gargalo,
+        "transversais": transversais,
+        "agrupamento_filtrado": ag_filtro_nome,
+        "top_subpilar": top_subpilar,
+        "totais": {"temas": n_temas, "cruzamentos": n_cruz, "acoes": n_acoes},
+        "temas_em_anomalia": temas_em_anomalia,
+        "cruzamentos_em_anomalia": cruzamentos_em_anomalia,
+        "janela_dias": get_janela_dias(),
+        "data_corte": corte,
+        "filtros": filtros,
+        "agrupamentos": agrupamentos,
+    }
 
 
 # ── Monitoramento ML CP-6: tela de anomalias ──────────────────────────
@@ -1062,37 +1026,27 @@ def _carregar_anomalias(s, empresa_id, filtros=None):
 
 @ui_bp.route("/empresas/<int:empresa_id>/anomalias")
 def anomalias_empresa(empresa_id: int):
-    """Tela de Monitoramento ML: anomalias detectadas, com filtros, leitura
-    editorial, drill-down e validação editorial."""
-    r = _require_login_html()
-    if r:
-        return r
-    user = get_current_user()
-    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
-        return render_template("403.html"), 403
+    """Aba Anomalias do Hub Explorar (rota legada preservada → shell in-place)."""
+    return _explorar_render(empresa_id, "anomalias")
 
+
+def _aba_anomalias(empresa_id, empresa_w):
+    """Contexto da aba Monitoramento ML: anomalias detectadas com filtros,
+    leitura editorial, drill-down e validação editorial."""
     filtros = {
         "severidade": request.args.get("severidade", ""),
         "tipo": request.args.get("tipo", ""),
         "estado": request.args.get("estado", ""),
     }
     with db_session() as s:
-        empresa_db = s.get(Empresa, empresa_id)
-        if empresa_db is None:
-            return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
         anomalias = _carregar_anomalias(s, empresa_id, filtros)
         resumo = _resumo_anomalias(s, empresa_id)
 
-    return render_template(
-        "empresas/anomalias.html",
-        empresa=empresa_w,
-        anomalias=anomalias,
-        resumo=resumo,
-        filtros=filtros,
-        eh_loyall=(user.papel == PAPEL_LOYALL),
-        user=user,
-    )
+    return {
+        "anomalias": anomalias,
+        "resumo": resumo,
+        "filtros": filtros,
+    }
 
 
 # ── Relatórios (Bloco 9 Evolução B) ──────────────────────────────────────────
@@ -1143,29 +1097,33 @@ def _pdf_disponivel() -> bool:
 
 @ui_bp.route("/empresas/<int:empresa_id>/relatorios")
 def relatorios_index(empresa_id: int):
-    """Índice de relatórios — 4 cards (Resumo Executivo, Diagnóstico Pontual,
-    Plano Executivo, Diagnóstico Longitudinal)."""
-    r = _require_login_html()
-    if r:
-        return r
-    user = get_current_user()
-    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
-        return render_template("403.html"), 403
-    with db_session() as s:
-        empresa_db = s.get(Empresa, empresa_id)
-        if empresa_db is None:
-            return render_template("404.html"), 404
-        empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
+    """Aba Relatórios do Hub Explorar (rota legada preservada → shell in-place)."""
+    return _explorar_render(empresa_id, "relatorios")
+
+
+def _aba_relatorios(empresa_id, empresa_w):
+    """Contexto da aba Relatórios — 4 cards (Resumo Executivo, Diagnóstico
+    Pontual, Plano Executivo, Diagnóstico Longitudinal)."""
     relatorios = [
         SimpleNamespace(tipo=t, titulo=titulo, descricao=desc, cp=cp, status=st)
         for t, titulo, desc, cp, st in _RELATORIOS
     ]
-    return render_template(
-        "relatorios/index.html",
-        empresa=empresa_w,
-        relatorios=relatorios,
-        pdf_disponivel=_pdf_disponivel(),
-    )
+    return {
+        "relatorios": relatorios,
+        "pdf_disponivel": _pdf_disponivel(),
+    }
+
+
+# Builders das abas migradas → consumidos por _explorar_contexto. Cada um recebe
+# (empresa_id, empresa_w) e devolve o dict de variáveis específico da aba (sem
+# empresa/eh_loyall/user, que o shell já injeta), ou None em erro de dados.
+_ABA_BUILDERS = {
+    "verbatins": _aba_verbatins,
+    "painel": _aba_painel,
+    "temas": _aba_temas,
+    "anomalias": _aba_anomalias,
+    "relatorios": _aba_relatorios,
+}
 
 
 def _relatorio_html(empresa_w, tipo: str) -> str:
@@ -2172,16 +2130,32 @@ def htmx_disparar_agrupamento(agrupamento_id: int):
 
 # ── Hub Explorar (Grupo A) ────────────────────────────────────────────
 
-_EXPLORAR_TABS = (
-    "locais",
-    "heatmap",
-    "comparar",
-    "evolucao",
-    "diagnostico",
-    "planos",
-    "leaderboard",
-    "ia",
-)
+# Estrutura de abas do Hub Explorar. O campo "grupo" já está presente para a
+# futura reorganização em sub-menus (panel/diagnostico/analise/acoes/ia/
+# relatorios) — HOJE é ignorado visualmente: a tab bar continua plana e
+# horizontal. Ordem: 8 abas originais (memória muscular preservada) + 5 novas
+# anexadas no fim (Painel, Verbatins, Temas, Anomalias, Relatórios — migradas
+# de itens do menu lateral para abas).
+_EXPLORAR_TABS = [
+    {"id": "locais", "label": "Locais", "grupo": "analise"},
+    {"id": "heatmap", "label": "Heatmap", "grupo": "analise"},
+    {"id": "comparar", "label": "Comparar", "grupo": "analise"},
+    {"id": "evolucao", "label": "Evolução", "grupo": "analise"},
+    {"id": "diagnostico", "label": "Diagnóstico", "grupo": "diagnostico"},
+    {"id": "planos", "label": "Planos de Ação", "grupo": "acoes"},
+    {"id": "leaderboard", "label": "Leaderboard", "grupo": "acoes"},
+    {"id": "ia", "label": "✨ IA", "grupo": "ia"},
+    {"id": "painel", "label": "Painel", "grupo": "panel"},
+    {"id": "verbatins", "label": "Verbatins", "grupo": "analise"},
+    {"id": "temas", "label": "Temas", "grupo": "analise"},
+    {"id": "anomalias", "label": "Anomalias", "grupo": "analise"},
+    {"id": "relatorios", "label": "Relatórios", "grupo": "relatorios"},
+]
+# Set de ids para validação rápida (substitui o antigo `tab in _EXPLORAR_TABS`).
+_EXPLORAR_TAB_IDS = {t["id"] for t in _EXPLORAR_TABS}
+# Abas migradas: usam full-load (não HTMX swap) e têm contexto montado por um
+# builder dedicado (_ABA_BUILDERS), pois reaproveitam templates com JS inline.
+_EXPLORAR_TABS_MIGRADAS = {"painel", "verbatins", "temas", "anomalias", "relatorios"}
 
 
 def _explorar_filtros():
@@ -3303,7 +3277,7 @@ def _explorar_contexto(empresa_id, tab):
             )
     planos = _explorar_planos(empresa_id, ag_id, request.args) if tab == "planos" else None
     ia = _explorar_ia(empresa_id, ag_id, filtros) if tab == "ia" else None
-    return {
+    ctx = {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
         "lojas_header": lojas_header,
@@ -3318,6 +3292,17 @@ def _explorar_contexto(empresa_id, tab):
         "leaderboard": leaderboard,
         "ia": ia,
     }
+    # Abas migradas (Painel/Verbatins/Temas/Anomalias/Relatórios): o builder
+    # dedicado monta o contexto da aba e sobrescreve as chaves específicas
+    # (ex.: `filtros`, `locais`, `agrupamentos`) com as do template original.
+    # Builder retornando None ⇒ erro de dados ⇒ 404 no shell.
+    builder = _ABA_BUILDERS.get(tab)
+    if builder is not None:
+        extra = builder(empresa_id, empresa_w)
+        if extra is None:
+            return None
+        ctx.update(extra)
+    return ctx
 
 
 def _explorar_ia(empresa_id, ag_id, filtros):
@@ -3351,24 +3336,38 @@ def _explorar_ia(empresa_id, ag_id, filtros):
     return SimpleNamespace(sugeridas=PERGUNTAS_SUGERIDAS, recentes=recentes)
 
 
-@ui_bp.route("/empresas/<int:empresa_id>/explorar")
-def explorar_empresa(empresa_id: int):
-    """Hub Explorar — shell + header global + tab ativa (server-rendered)."""
+def _explorar_render(empresa_id, tab):
+    """Renderiza o shell do Hub Explorar com a aba ``tab`` ativa (status 200).
+
+    Usado tanto pela rota /explorar (tab via querystring) quanto pelas rotas
+    legadas (/verbatins, /painel, /temas, /anomalias, /relatorios), que
+    preservam suas URLs e renderizam o shell in-place na aba correspondente.
+    """
     r = _require_login_html()
     if r:
         return r
     user = get_current_user()
     if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
         return render_template("403.html"), 403
-    tab = request.args.get("tab", "locais")
-    if tab not in _EXPLORAR_TABS:
+    if tab not in _EXPLORAR_TAB_IDS:
         tab = "locais"
     ctx = _explorar_contexto(empresa_id, tab)
     if ctx is None:
         return render_template("404.html"), 404
     return render_template(
-        "empresas/explorar.html", eh_loyall=(user.papel == PAPEL_LOYALL), user=user, **ctx
+        "empresas/explorar.html",
+        eh_loyall=(user.papel == PAPEL_LOYALL),
+        user=user,
+        tabs=_EXPLORAR_TABS,
+        tabs_migradas=_EXPLORAR_TABS_MIGRADAS,
+        **ctx,
     )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar")
+def explorar_empresa(empresa_id: int):
+    """Hub Explorar — shell + header global + tab ativa (server-rendered)."""
+    return _explorar_render(empresa_id, request.args.get("tab", "locais"))
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar/tab/<tab>")
@@ -3380,7 +3379,7 @@ def explorar_tab(empresa_id: int, tab: str):
     user = get_current_user()
     if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
         return render_template("403.html"), 403
-    if tab not in _EXPLORAR_TABS:
+    if tab not in _EXPLORAR_TAB_IDS:
         tab = "locais"
     ctx = _explorar_contexto(empresa_id, tab)
     if ctx is None:
