@@ -140,10 +140,16 @@
     </li>
     {% endmacro %}
     {% if g.ranking.top %}
-    <div class="text-[11px] uppercase tracking-wider text-emerald-600 mb-1">▲ Top {{ g.ranking.top|length }} · Proximity</div>
+    {# Legenda do paradoxo aparente Selo↑ × Proximity↓ — conecta com o Lastro. #}
+    <div class="text-[10px] text-loyall-500 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 mb-2 leading-relaxed">
+      <b>Selo</b> = amplitude de pontos fortes (subpilares excelentes). <b>Proximity (gargalo)</b> =
+      distância do pilar mais fraco. Uma loja pode ter selo alto e Proximity baixa: muitos
+      pontos fortes, mas um elo fraco puxando o conjunto (Lastro).
+    </div>
+    <div class="text-[11px] uppercase tracking-wider text-emerald-600 mb-1">▲ Top {{ g.ranking.top|length }} · ordenado por selo · Proximity (gargalo)</div>
     <ol class="text-xs text-loyall-700 space-y-1 mb-3">{% for l in g.ranking.top %}{{ linha_rank(l) }}{% endfor %}</ol>
     {% if g.ranking.bottom %}
-    <div class="text-[11px] uppercase tracking-wider text-rose-600 mb-1">▼ Bottom {{ g.ranking.bottom|length }} · Proximity</div>
+    <div class="text-[11px] uppercase tracking-wider text-rose-600 mb-1">▼ Bottom {{ g.ranking.bottom|length }} · Proximity (gargalo)</div>
     <ol class="text-xs text-loyall-700 space-y-1">{% for l in g.ranking.bottom %}{{ linha_rank(l) }}{% endfor %}</ol>
     {% endif %}
     <div class="text-[10px] text-loyall-400 mt-2">Leitura factual por Proximity (0-100) — não é julgamento. "base Np" = poucos pilares com lastro.</div>
