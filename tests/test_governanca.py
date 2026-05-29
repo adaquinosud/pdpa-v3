@@ -1240,6 +1240,51 @@ def test_ranking_bottom_desempata_por_mais_pilares(db_session):
     assert [x["local_id"] for x in r["bottom"]] == [1, 2]  # 3 pilares antes de 1
 
 
+# ── CP-LG-8 (leva 3): simulação de cenários composta ───────────────────────
+_AGG_CENARIO = {
+    "P1": {"prom": 20, "det": 40, "conv": 0, "total": 60, "ratio": 0.5},
+    "P2": {"prom": 10, "det": 30, "conv": 0, "total": 40, "ratio": 0.33},
+    "D1": {"prom": 50, "det": 10, "conv": 0, "total": 60, "ratio": 5.0},
+}
+
+
+def test_aplica_det_conv_conserva():
+    from src.governanca.metricas import _aplica_det_conv
+
+    agg = {"P1": {"prom": 20, "det": 40, "conv": 0, "total": 60, "ratio": 0.5}}
+    rec = _aplica_det_conv(agg, "P1", 0.5)
+    d = agg["P1"]
+    assert rec == 20 and d["det"] == 20 and d["conv"] == 20
+    assert d["det"] + d["conv"] + d["prom"] == d["total"]  # conservação
+    assert d["det"] >= 0
+
+
+def test_compor_cenario_monotonico_e_nao_muta_base():
+    from src.governanca.metricas import compor_cenario, ordenar_acoes_cenario
+
+    ordenados, _ = ordenar_acoes_cenario(_AGG_CENARIO, ["P1", "P2", "D1"])
+    seq = [compor_cenario(_AGG_CENARIO, ordenados, k)["indice_n"] for k in range(0, 4)]
+    assert all(seq[i] >= seq[i - 1] for i in range(1, len(seq)))  # monotônico
+    assert _AGG_CENARIO["P1"]["det"] == 40  # base intacto (composição é cópia)
+
+
+def test_ordenar_dedupe_por_subpilar():
+    from src.governanca.metricas import ordenar_acoes_cenario
+
+    ordenados, _ = ordenar_acoes_cenario(_AGG_CENARIO, ["P1", "P1", "P1", "P2"])
+    assert sorted(ordenados) == ["P1", "P2"]  # 3 ações em P1 → 1 só no cenário
+
+
+def test_compor_ordem_fixa_prefixo():
+    """N=2 ⊂ N=3 (mesmas 2 + 1): slider determinístico, ordem não reordena."""
+    from src.governanca.metricas import compor_cenario, ordenar_acoes_cenario
+
+    ordenados, _ = ordenar_acoes_cenario(_AGG_CENARIO, ["P1", "P2", "D1"])
+    a2 = [x["subpilar"] for x in compor_cenario(_AGG_CENARIO, ordenados, 2)["aplicados"]]
+    a3 = [x["subpilar"] for x in compor_cenario(_AGG_CENARIO, ordenados, 3)["aplicados"]]
+    assert a2 == a3[:2]
+
+
 def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     from src.governanca.metricas import recalcular_governanca
 
@@ -1261,6 +1306,8 @@ def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     assert "Previsibilidade da Operação" in html  # Bloco 3
     assert "Em formação" in html  # NULL como categoria à parte (não barra de faixa)
     assert "Ranking de Excelência" in html  # Bloco 4
+    assert "Simulação de Cenários" in html  # Bloco 5
+    assert "Projeção Financeira" in html  # Bloco 6
 
 
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):

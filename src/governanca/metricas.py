@@ -233,6 +233,63 @@ def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None):
     }
 
 
+def _aplica_det_conv(agg, sub, r):
+    """Mutação in-place numa CÓPIA: recupera round(r×det_restante) do subpilar
+    (det→conv). Conserva total; det nunca negativo. Retorna o recuperado."""
+    from src.api.painel import calcular_ratio
+
+    d = agg[sub]
+    rec = min(round(d["det"] * r), d["det"])
+    d["det"] -= rec
+    d["conv"] += rec
+    d["ratio"] = calcular_ratio(d["prom"], d["det"])
+    return rec
+
+
+def _indice_de_agg(agg):
+    from src.api.painel import calcular_indice_geral
+
+    return calcular_indice_geral(_matriz_de_agg(agg))
+
+
+def ordenar_acoes_cenario(agg, subpilares_alta):
+    """Dedupe por subpilar (CP-LG-8 b: máx 1 ação/subpilar — empilhar 50% no mesmo
+    ponto não é realista) + ordem FIXA por impacto individual (Índice lift sobre o
+    estado MEDIDO, calculado UMA vez). Retorna (subpilares_ordenados, {sub: lift})."""
+    import copy
+
+    base = _indice_de_agg(agg)
+    lift = {}
+    for sub in subpilares_alta:
+        if sub not in agg:
+            continue
+        c = copy.deepcopy(agg)
+        _aplica_det_conv(c, sub, TAXA_SUCESSO_PRIORIDADE["alto"])
+        sub_lift = round(_indice_de_agg(c) - base, 2)
+        if sub not in lift or sub_lift > lift[sub]:
+            lift[sub] = sub_lift
+    ordenados = sorted(lift.keys(), key=lambda s: -lift[s])
+    return ordenados, lift
+
+
+def compor_cenario(agg, subpilares_ordenados, n):
+    """Aplica os primeiros ``n`` subpilares (já deduplicados/ordenados) em cadeia
+    sobre uma CÓPIA. Monotônico: cada passo só recupera det → Índice não-decresce.
+    Retorna {indice_base, indice_n, aplicados:[{subpilar,recuperado}]}."""
+    import copy
+
+    c = copy.deepcopy(agg)
+    aplicados = []
+    for sub in subpilares_ordenados[:n]:
+        aplicados.append({"subpilar": sub, "recuperado": _aplica_det_conv(c, sub, 0.5)})
+    return {
+        "indice_base": _indice_de_agg(agg),
+        "indice_n": _indice_de_agg(c),
+        "aplicados": aplicados,
+        "n": n,
+    }
+
+
 def gini_corrigido(g: Optional[float], n: Optional[int]) -> Optional[float]:
     """Correção de viés-por-n do Gini: ``G · n/(n-1)``, cap 1.0.
 

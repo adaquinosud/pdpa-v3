@@ -3020,8 +3020,11 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
 
 
 def _explorar_governanca(s, empresa_id, ag_id=None):
-    """Painel de Governança (CP-LG-8, board view). Levas 1-2: cobertura + radar +
-    concentração + previsibilidade + ranking de selos. Tudo leitura."""
+    """Painel de Governança (CP-LG-8, board view). Levas 1-3: cobertura + radar +
+    concentração + previsibilidade + ranking + simulação de cenários + projeção
+    financeira. Tudo leitura (simulação é projeção efêmera sobre cópia)."""
+    from src.api.painel import NOME_SUBPILAR
+    from src.diagnostico.leituras import agregar_subpilares
     from src.governanca.leitura import (
         cobertura_governanca,
         distribuicao_previsibilidade,
@@ -3033,6 +3036,8 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
         radar_svg_data,
         ranking_lojas_governanca,
     )
+    from src.governanca.metricas import compor_cenario, ordenar_acoes_cenario
+    from src.planos.consolidar import consolidar_acoes
 
     garantir_governanca(empresa_id)
     escopo_tipo = "agrupamento" if ag_id else "empresa"
@@ -3040,6 +3045,30 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     pilares = proximity_pilares_escopo(s, empresa_id, escopo_tipo, escopo_id)
     gini = gini_escopo(s, empresa_id, escopo_tipo, escopo_id)
     top5 = gini["lojas"][:5] if gini and not gini.get("insuficiente") else []
+
+    # Bloco 5 — Simulação de Cenários (efêmera; dedupe por subpilar; ordem fixa).
+    agg = agregar_subpilares(s, empresa_id, ag_id, None)
+    cf = {"agrupamento_id": ag_id} if ag_id else {}
+    subpilares_alta = [
+        it.subpilar
+        for it in consolidar_acoes(empresa_id, cf)
+        if getattr(it, "prioridade", None) == "alto" and getattr(it, "subpilar", None)
+    ]
+    ordenados, lifts = ordenar_acoes_cenario(agg, subpilares_alta)
+    range_max = len(ordenados)
+    try:
+        n = int(request.args.get("cenario_n", min(3, range_max)))
+    except (TypeError, ValueError):
+        n = min(3, range_max)
+    n = max(0, min(n, range_max))
+    cenario = compor_cenario(agg, ordenados, n) if range_max else None
+    if cenario is not None:
+        cenario["range_max"] = range_max
+        cenario["aplicados_nome"] = [
+            {**a, "nome": NOME_SUBPILAR.get(a["subpilar"], a["subpilar"])}
+            for a in cenario["aplicados"]
+        ]
+
     return SimpleNamespace(
         escopo_tipo=escopo_tipo,
         cobertura=cobertura_governanca(s, empresa_id),
@@ -3048,10 +3077,10 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
         gini=gini,
         leitura_conc=leitura_concentracao(gini),
         top5=top5,
-        # Leva 2 (empresa-wide): previsibilidade + selos + ranking nominado.
         prev_dist=distribuicao_previsibilidade(s, empresa_id),
         selo_dist=distribuicao_selos(s, empresa_id),
         ranking=ranking_lojas_governanca(s, empresa_id),
+        cenario=cenario,
     )
 
 

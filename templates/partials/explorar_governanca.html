@@ -158,3 +158,41 @@
     {% endif %}
   </div>
 </div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
+  {# ── Bloco 5 · Simulação de Cenários (slider, dedupe por subpilar) ──────── #}
+  {% set c = g.cenario %}
+  <div class="bg-white border border-loyall-200 rounded-lg p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Simulação de Cenários</div>
+    {% if c and c.range_max %}
+    <p class="text-[11px] text-loyall-500 mb-3">Se a empresa executar as <b>N ações de alta prioridade</b> de maior impacto (uma por subpilar/gargalo distinto), com ~50% de sucesso:</p>
+    <div class="flex items-center gap-3 mb-3">
+      <input type="range" min="1" max="{{ c.range_max }}" value="{{ c.n }}" name="cenario_n"
+             hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='governanca') }}?agrupamento_id={{ filtros.agrupamento_id }}"
+             hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-trigger="change"
+             class="flex-1 accent-loyall-700">
+      <span class="text-sm font-semibold text-loyall-700 whitespace-nowrap">{{ c.n }} de {{ c.range_max }} gargalos</span>
+    </div>
+    <div class="flex items-baseline gap-3 bg-sky-50/40 border border-dashed border-sky-300 rounded p-3">
+      <div class="text-xs text-loyall-500">Índice Geral projetado</div>
+      <div class="text-2xl font-bold text-loyall-800">{{ '%.2f'|format(c.indice_base) }} → <span class="text-sky-700">{{ '%.2f'|format(c.indice_n) }}</span></div>
+      <div class="text-xs text-loyall-400">/ 10</div>
+    </div>
+    {% if c.aplicados_nome %}
+    <div class="text-[11px] text-loyall-500 mt-2">Ações no cenário: {% for a in c.aplicados_nome %}<span class="inline-block bg-loyall-100 rounded px-1.5 py-0.5 mr-1 mb-1">{{ a.subpilar }} · {{ a.nome }} <span class="text-rose-600">−{{ a.recuperado }} det</span></span>{% endfor %}</div>
+    {% endif %}
+    <div class="text-[10px] text-loyall-400 mt-2 italic">Projeção — premissa de ~50% de sucesso por ação, não promessa. Máx. 1 ação por subpilar (atacar o mesmo ponto N vezes não é realista). O Índice sobe ao atacar gargalos distintos; mexer fora do pilar gargalo não move o agregado (Lastro).</div>
+    {% else %}
+    <div class="text-center text-loyall-400 py-10 text-sm">Sem ações de alta prioridade com lastro para simular.</div>
+    {% endif %}
+  </div>
+
+  {# ── Bloco 6 · Projeção Financeira (placeholder até LTV setorial) ───────── #}
+  <div class="bg-white border border-loyall-200 rounded-lg p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Projeção Financeira</div>
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-loyall-300" title="Habilita com LTV setorial">—</span>
+    </div>
+    <p class="text-xs text-loyall-500 mt-2 leading-relaxed">A monetização (R$) da recuperação projetada <b>habilita automaticamente</b> quando o LTV setorial de referência for cadastrado para a empresa (conversíveis × LTV). Sem ele, o valor não é estimado — projeção honesta, sem número inventado.</p>
+  </div>
+</div>
