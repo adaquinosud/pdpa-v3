@@ -5,13 +5,24 @@ from sqlalchemy.exc import IntegrityError
 
 from src.api.painel import FAIXAS_RATIO, faixa_ratio
 from src.governanca.metricas import (
+    calcular_faixa_previsibilidade,
     calcular_faixa_proximity,
     calcular_gini,
+    calcular_previsibilidade_loja,
     calcular_proximity,
     linhas_proximity_escopo,
     recalcular_governanca,
 )
-from src.models import Empresa, Fonte, GiniConcentracao, Local, ProximityCalculation, Verbatim
+from src.models import (
+    Empresa,
+    Fonte,
+    GiniConcentracao,
+    Local,
+    PrevisibilidadeCalculation,
+    ProximityCalculation,
+    Verbatim,
+)
+from src.models.anomalia import RatioMensal
 from src.utils.hashing import hash_payload
 
 
@@ -354,6 +365,125 @@ def test_recalcular_recomputa_quando_muda(db_session):
     db_session.commit()
     res = recalcular_governanca(e.id)
     assert res["proximity_escopos"] >= 1  # empresa + loja recomputados
+
+
+# ── CP-LG-2: Previsibilidade per-loja ──────────────────────────────────────
+@pytest.mark.parametrize(
+    "previsib, faixa",
+    [
+        (0.0, "erratico"),
+        (39.99, "erratico"),
+        (40.0, "medio"),  # >=40 fecha em medio
+        (55.0, "medio"),
+        (70.0, "medio"),  # <=70 fecha em medio
+        (70.01, "estavel"),
+        (100.0, "estavel"),
+        (None, None),
+    ],
+)
+def test_faixa_previsibilidade_bordas(previsib, faixa):
+    assert calcular_faixa_previsibilidade(previsib) == faixa
+
+
+def test_previsibilidade_loja_estavel():
+    # ratios mensais ~[4.0, 4.2, 3.8, 4.1] → CV ~0.042 → previsib ~97.9.
+    meses = [(40, 10, 60), (42, 10, 60), (38, 10, 60), (41, 10, 60)]
+    res = calcular_previsibilidade_loja(meses)
+    assert res["previsibilidade"] == pytest.approx(97.9, abs=0.3)
+    assert res["faixa"] == "estavel"
+    assert res["n_meses"] == 4
+
+
+def test_previsibilidade_loja_piso_meses():
+    # 2 meses qualificados (< piso 3) → tudo None, mas n_meses registrado.
+    res = calcular_previsibilidade_loja([(40, 10, 60), (42, 10, 60)])
+    assert res["previsibilidade"] is None
+    assert res["faixa"] is None
+    assert res["n_meses"] == 2
+
+
+def test_previsibilidade_loja_floor_por_mes():
+    # 4 meses, mas 2 têm total < 3 → só 2 qualificam → < piso → None.
+    meses = [(40, 10, 60), (42, 10, 60), (5, 5, 2), (3, 3, 1)]
+    res = calcular_previsibilidade_loja(meses)
+    assert res["previsibilidade"] is None
+    assert res["n_meses"] == 2
+
+
+# ── Testes-sentinela da régua CV/2 (documentam a sensibilidade) ────────────
+def test_sentinela_erratico_alcancavel():
+    """PROVA que a faixa erratico é alcançável: 2 meses ~0 e 1 mês alto
+    (CV ~1.73 > 1.2) → previsibilidade baixa → erratico."""
+    meses = [(0, 5, 5), (0, 5, 5), (50, 5, 55)]  # ratios [0.0, 0.0, 9.99]
+    res = calcular_previsibilidade_loja(meses)
+    assert res["cv"] > 1.2
+    assert res["previsibilidade"] < 40
+    assert res["faixa"] == "erratico"
+
+
+def test_sentinela_alternancia_suave_e_medio_nao_erratico():
+    """NÃO é bug: alternância 0.3↔9.0 mês a mês dá CV ~1.08 (< 1.2) → medio,
+    não erratico. 2 valores alternados têm CV máximo ~1.155."""
+    meses = [(3, 10, 13), (90, 10, 100), (3, 10, 13), (90, 10, 100)]  # ratios [0.3, 9.0, 0.3, 9.0]
+    res = calcular_previsibilidade_loja(meses)
+    assert 1.0 < res["cv"] < 1.155
+    assert res["faixa"] == "medio"
+
+
+def _add_ratio_mensal(db_session, empresa_id, local_id, periodo, prom, det):
+    db_session.add(
+        RatioMensal(
+            empresa_id=empresa_id,
+            local_id=local_id,
+            subpilar="P1",
+            periodo=periodo,
+            promotor=prom,
+            conversivel=0,
+            detrator=det,
+            total=prom + det,
+            ratio=(prom / det if det else 9.99),
+        )
+    )
+
+
+def test_recalcular_previsibilidade_persiste_por_loja(db_session):
+    e = _empresa(db_session)
+    loja = Local(empresa_id=e.id, nome="Loja P")
+    db_session.add(loja)
+    db_session.commit()
+    for per, prom, det in [("2026-01", 40, 10), ("2026-02", 42, 10), ("2026-03", 38, 10)]:
+        _add_ratio_mensal(db_session, e.id, loja.id, per, prom, det)
+    db_session.commit()
+
+    res = recalcular_governanca(e.id)
+    assert res["previsib_escopos"] >= 1
+
+    row = (
+        db_session.query(PrevisibilidadeCalculation)
+        .filter_by(empresa_id=e.id, escopo_tipo="loja", escopo_id=loja.id)
+        .one()
+    )
+    assert row.previsibilidade_0_100 is not None
+    assert row.faixa == "estavel"  # ratios ~4.0 estáveis
+    assert row.n_meses == 3
+
+
+def test_recalcular_previsibilidade_skip_e_sem_duplicar(db_session):
+    e = _empresa(db_session)
+    loja = Local(empresa_id=e.id, nome="Loja P")
+    db_session.add(loja)
+    db_session.commit()
+    for per, prom, det in [("2026-01", 40, 10), ("2026-02", 42, 10), ("2026-03", 38, 10)]:
+        _add_ratio_mensal(db_session, e.id, loja.id, per, prom, det)
+    db_session.commit()
+
+    recalcular_governanca(e.id)
+    n1 = db_session.query(PrevisibilidadeCalculation).filter_by(empresa_id=e.id).count()
+    res2 = recalcular_governanca(e.id)
+    n2 = db_session.query(PrevisibilidadeCalculation).filter_by(empresa_id=e.id).count()
+    assert res2["previsib_escopos"] == 0
+    assert res2["previsib_pulados"] >= 1
+    assert n2 == n1  # não duplicou
 
 
 def test_dados_hash_persistido_nas_duas_tabelas(db_session):

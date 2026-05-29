@@ -21,6 +21,11 @@ PROXIMITY_RATIO_TETO = 9.0
 # Abaixo disso: proximity=None, faixa=None, excluído do peso e da média do pilar.
 PROXIMITY_FLOOR_VERBATINS = 10
 
+# Previsibilidade per-loja (CP-LG-2): floor por mês e piso de meses (espelha o
+# eixo temporal de api/painel.calcular_previsibilidade, que usa >=3/mês e >=3 meses).
+PREVISIB_FLOOR_VERBATINS_MES = 3
+PREVISIB_MIN_MESES = 3
+
 
 def calcular_proximity(ratio: Optional[float]) -> Optional[float]:
     """Proximity 0-100 a partir do ratio: ``(ratio-0.5)/(9.0-0.5)*100``, cap [0,100].
@@ -48,6 +53,57 @@ def calcular_faixa_proximity(proximity: Optional[float]) -> Optional[str]:
     if proximity <= 60:
         return "medio"
     return "proximo"
+
+
+def calcular_faixa_previsibilidade(previsibilidade: Optional[float]) -> Optional[str]:
+    """Faixa da previsibilidade. Contrato (travado p/ a UI):
+
+    ``< 40`` → ``"erratico"`` · ``40–70`` (>=40 e <=70) → ``"medio"`` · ``> 70`` →
+    ``"estavel"``. Sem acento, casing exato. ``None`` → ``None``.
+    """
+    if previsibilidade is None:
+        return None
+    if previsibilidade < 40:
+        return "erratico"
+    if previsibilidade <= 70:
+        return "medio"
+    return "estavel"
+
+
+def calcular_previsibilidade_loja(meses: Sequence[tuple]) -> Dict[str, Any]:
+    """Previsibilidade (0-100) de uma loja pelo CV temporal dos ratios mensais.
+
+    ``meses`` = sequência de ``(prom, det, total)`` por mês. Floor por mês
+    (``total >= PREVISIB_FLOOR_VERBATINS_MES``) e piso de meses
+    (``>= PREVISIB_MIN_MESES``); abaixo do piso → tudo ``None``.
+
+    Régua **CV/2**, idêntica ao eixo temporal de
+    ``api/painel.calcular_previsibilidade`` (evita divergência de sensibilidade
+    entre as duas previsibilidades): ``previsib = (1 - min(CV/2, 1)) * 100``.
+
+    ATENÇÃO (não é bug): com essa régua a faixa ``erratico`` (<40) só é
+    alcançada com **CV > 1.2**. Alternância suave (ex.: ratios 0.3↔9.0 mês a mês)
+    dá CV ≈ 1.08 → ``medio`` (~46); 2 valores alternados têm CV máximo ~1.155.
+    ``erratico`` exige assimetria forte (ex.: 2 meses ~0 e 1 mês alto). Ver os
+    testes-sentinela em ``tests/test_governanca.py``.
+    """
+    import statistics
+
+    from src.api.painel import calcular_ratio
+
+    ratios = [calcular_ratio(p, d) for (p, d, t) in meses if t >= PREVISIB_FLOOR_VERBATINS_MES]
+    n = len(ratios)
+    if n < PREVISIB_MIN_MESES:
+        return {"previsibilidade": None, "faixa": None, "cv": None, "n_meses": n}
+    media = statistics.mean(ratios)
+    cv = statistics.stdev(ratios) / max(media, 0.01)
+    score = round(max(0.0, min(100.0, (1 - min(cv / 2.0, 1.0)) * 100)), 1)
+    return {
+        "previsibilidade": score,
+        "faixa": calcular_faixa_previsibilidade(score),
+        "cv": round(cv, 4),
+        "n_meses": n,
+    }
 
 
 def calcular_gini(distribuicao: Sequence[float]) -> Optional[float]:
@@ -152,13 +208,77 @@ def _hash_escopo(agg: Dict[str, Dict[str, Any]]) -> str:
     )
 
 
-def recalcular_governanca(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str, int]:
-    """Recalcula Proximity por escopo (empresa, cada agrupamento, cada loja) e
-    persiste em ``proximity_calculations``.
+def recalcular_previsibilidade(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str, int]:
+    """Recalcula Previsibilidade per-loja (CV temporal dos ``ratios_mensais``) e
+    persiste em ``previsibilidade_calculations``.
 
-    Estratégia: **delete-then-insert por escopo** com **skip por hash de escopo**.
-    Se o mix de verbatins do escopo não mudou (mesmo ``dados_hash``), o escopo é
-    pulado sem reescrita. Gini segue no-op até o CP-LG-3.
+    Fonte: ``ratios_mensais`` (recomputada no passo 7, logo antes). Por loja,
+    agrego os subpilares de cada mês (Σprom/Σdet/Σtotal) → série mensal → CV.
+    Mesma mecânica do LG-1: delete-then-insert por loja + skip por hash da série.
+    """
+    from sqlalchemy import and_, func
+
+    from src.models.anomalia import RatioMensal
+    from src.models.governanca import PrevisibilidadeCalculation
+    from src.models.local import Local
+    from src.utils.db import db_session
+
+    recalc = 0
+    pulados = 0
+    with db_session() as s:
+        for loc in s.query(Local).filter_by(empresa_id=empresa_id).all():
+            rows = (
+                s.query(
+                    RatioMensal.periodo,
+                    func.sum(RatioMensal.promotor),
+                    func.sum(RatioMensal.detrator),
+                    func.sum(RatioMensal.total),
+                )
+                .filter(RatioMensal.empresa_id == empresa_id, RatioMensal.local_id == loc.id)
+                .group_by(RatioMensal.periodo)
+                .all()
+            )
+            meses = [(int(p or 0), int(d or 0), int(t or 0)) for (_per, p, d, t) in rows]
+            serie = sorted(
+                [(per, int(p or 0), int(d or 0), int(t or 0)) for (per, p, d, t) in rows]
+            )
+            h = hash_payload(serie)
+            base = and_(
+                PrevisibilidadeCalculation.empresa_id == empresa_id,
+                PrevisibilidadeCalculation.escopo_tipo == "loja",
+                PrevisibilidadeCalculation.escopo_id == loc.id,
+            )
+            if skip_unchanged:
+                atual = s.query(PrevisibilidadeCalculation.dados_hash).filter(base).first()
+                if atual and atual[0] == h:
+                    pulados += 1
+                    continue
+            res = calcular_previsibilidade_loja(meses)
+            s.query(PrevisibilidadeCalculation).filter(base).delete(synchronize_session=False)
+            s.add(
+                PrevisibilidadeCalculation(
+                    empresa_id=empresa_id,
+                    escopo_tipo="loja",
+                    escopo_id=loc.id,
+                    previsibilidade_0_100=res["previsibilidade"],
+                    faixa=res["faixa"],
+                    n_meses=res["n_meses"],
+                    cv=res["cv"],
+                    dados_hash=h,
+                )
+            )
+            recalc += 1
+        s.commit()
+    return {"previsib_escopos": recalc, "previsib_pulados": pulados}
+
+
+def recalcular_governanca(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str, int]:
+    """Recalcula as métricas de governança de uma empresa (passo 7.5 do pós-coleta).
+
+    - **Proximity** por escopo (empresa, cada agrupamento, cada loja) em
+      ``proximity_calculations`` — delete-then-insert por escopo + skip por hash.
+    - **Previsibilidade** per-loja em ``previsibilidade_calculations`` (CP-LG-2).
+    - **Gini**: no-op até o CP-LG-3.
     """
     from sqlalchemy import and_
 
@@ -211,4 +331,13 @@ def recalcular_governanca(empresa_id: int, *, skip_unchanged: bool = True) -> Di
                 )
             recalc += 1
         s.commit()
-    return {"proximity_escopos": recalc, "proximity_pulados": pulados, "gini": 0}
+
+    # Previsibilidade per-loja (sequencial à Proximity — sessões não aninhadas).
+    prev = recalcular_previsibilidade(empresa_id, skip_unchanged=skip_unchanged)
+    return {
+        "proximity_escopos": recalc,
+        "proximity_pulados": pulados,
+        "previsib_escopos": prev["previsib_escopos"],
+        "previsib_pulados": prev["previsib_pulados"],
+        "gini": 0,
+    }

@@ -20,7 +20,11 @@ from src.models.diagnostico import LeituraDiagnostico
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
-from src.models.governanca import GiniConcentracao, ProximityCalculation
+from src.models.governanca import (
+    GiniConcentracao,
+    PrevisibilidadeCalculation,
+    ProximityCalculation,
+)
 from src.models.local import Local, LocalMetadado
 from src.models.plano_acao import AcaoStatus
 from src.models.relatorio_cache import RelatorioCache
@@ -55,6 +59,7 @@ __all__ = [
     "Fonte",
     "GiniConcentracao",
     "LeituraDiagnostico",
+    "PrevisibilidadeCalculation",
     "ProximityCalculation",
     "Local",
     "LocalMetadado",
