@@ -181,6 +181,17 @@
     {% if c.aplicados_nome %}
     <div class="text-[11px] text-loyall-500 mt-2">Ações no cenário: {% for a in c.aplicados_nome %}<span class="inline-block bg-loyall-100 rounded px-1.5 py-0.5 mr-1 mb-1">{{ a.subpilar }} · {{ a.nome }} <span class="text-rose-600">−{{ a.recuperado }} det</span></span>{% endfor %}</div>
     {% endif %}
+    {# Insight do TETO: o plano atual tem limite, e o gargalo remanescente pode não ser atacado. #}
+    {% if c.teto and not c.teto.gargalo_coberto and c.teto.gargalo_pilar %}
+    <div class="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
+      <b>⚠ Teto do plano atual: {{ '%.2f'|format(c.teto.indice) }}/10.</b> O gargalo remanescente é
+      <b>{{ c.teto.gargalo_pilar }} · {{ c.teto.gargalo_nome }}</b> — e <b>nenhuma</b> das {{ c.range_max }} ações
+      de alta prioridade o endereça. Destravar o Índice exige priorizar {{ c.teto.gargalo_nome }}; mais
+      ações fora desse pilar não movem o agregado (Lastro).
+    </div>
+    {% elif c.teto %}
+    <div class="mt-3 text-[11px] text-loyall-500">Teto do plano atual: <b>{{ '%.2f'|format(c.teto.indice) }}/10</b> (executando os {{ c.range_max }} gargalos).</div>
+    {% endif %}
     <div class="text-[10px] text-loyall-400 mt-2 italic">Projeção — premissa de ~50% de sucesso por ação, não promessa. Máx. 1 ação por subpilar (atacar o mesmo ponto N vezes não é realista). O Índice sobe ao atacar gargalos distintos; mexer fora do pilar gargalo não move o agregado (Lastro).</div>
     {% else %}
     <div class="text-center text-loyall-400 py-10 text-sm">Sem ações de alta prioridade com lastro para simular.</div>

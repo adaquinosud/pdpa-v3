@@ -3063,11 +3063,25 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     n = max(0, min(n, range_max))
     cenario = compor_cenario(agg, ordenados, n) if range_max else None
     if cenario is not None:
+        from src.api.painel import NOME_PILAR, PILAR_DE_SUBPILAR
+
         cenario["range_max"] = range_max
         cenario["aplicados_nome"] = [
             {**a, "nome": NOME_SUBPILAR.get(a["subpilar"], a["subpilar"])}
             for a in cenario["aplicados"]
         ]
+        # Insight do TETO: Índice máximo do plano completo + gargalo remanescente
+        # e se alguma ação alta o endereça (senão: 'plano não toca o gargalo').
+        teto = compor_cenario(agg, ordenados, range_max)
+        pilares_alta = {PILAR_DE_SUBPILAR.get(sub) for sub in ordenados}
+        gp = teto["gargalo_pilar"]
+        cenario["teto"] = {
+            "indice": teto["indice_n"],
+            "atingido": cenario["indice_n"] >= teto["indice_n"] - 1e-9,
+            "gargalo_pilar": gp,
+            "gargalo_nome": NOME_PILAR.get(gp, gp),
+            "gargalo_coberto": gp in pilares_alta,
+        }
 
     return SimpleNamespace(
         escopo_tipo=escopo_tipo,

@@ -1275,6 +1275,17 @@ def test_ordenar_dedupe_por_subpilar():
     assert sorted(ordenados) == ["P1", "P2"]  # 3 ações em P1 → 1 só no cenário
 
 
+def test_gargalo_de_agg():
+    from src.governanca.metricas import gargalo_de_agg
+
+    agg = {
+        "P1": {"prom": 10, "det": 40, "conv": 0, "total": 50, "ratio": 0.25},  # P baixo
+        "D1": {"prom": 50, "det": 5, "conv": 0, "total": 55, "ratio": 9.99},  # D alto
+    }
+    g, r = gargalo_de_agg(agg)
+    assert g == "P"  # menor ratio = gargalo
+
+
 def test_compor_ordem_fixa_prefixo():
     """N=2 ⊂ N=3 (mesmas 2 + 1): slider determinístico, ordem não reordena."""
     from src.governanca.metricas import compor_cenario, ordenar_acoes_cenario
@@ -1308,6 +1319,7 @@ def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     assert "Ranking de Excelência" in html  # Bloco 4
     assert "Simulação de Cenários" in html  # Bloco 5
     assert "Projeção Financeira" in html  # Bloco 6
+    # (o insight de teto depende de haver ações alta com lastro — validado no BH real)
 
 
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):

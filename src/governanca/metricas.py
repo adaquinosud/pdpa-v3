@@ -272,21 +272,46 @@ def ordenar_acoes_cenario(agg, subpilares_alta):
     return ordenados, lift
 
 
+def gargalo_de_agg(agg):
+    """Pilar de MENOR ratio (entre os com volume) no agg — o gargalo do Lastro.
+    Retorna (pilar, ratio) ou (None, None)."""
+    from src.api.painel import PILAR_DE_SUBPILAR, calcular_ratio
+
+    pil = {}
+    for sub, d in agg.items():
+        p = PILAR_DE_SUBPILAR.get(sub)
+        if not p:
+            continue
+        a = pil.setdefault(p, {"prom": 0, "det": 0, "total": 0})
+        a["prom"] += d["prom"]
+        a["det"] += d["det"]
+        a["total"] += d["total"]
+    ratios = {p: calcular_ratio(a["prom"], a["det"]) for p, a in pil.items() if a["total"] > 0}
+    if not ratios:
+        return None, None
+    g = min(ratios, key=ratios.get)
+    return g, ratios[g]
+
+
 def compor_cenario(agg, subpilares_ordenados, n):
     """Aplica os primeiros ``n`` subpilares (já deduplicados/ordenados) em cadeia
     sobre uma CÓPIA. Monotônico: cada passo só recupera det → Índice não-decresce.
-    Retorna {indice_base, indice_n, aplicados:[{subpilar,recuperado}]}."""
+    Retorna {indice_base, indice_n, aplicados, gargalo_pilar, gargalo_ratio} — o
+    gargalo é o pilar min() do estado JÁ projetado (alimenta o insight de teto)."""
     import copy
 
     c = copy.deepcopy(agg)
     aplicados = []
     for sub in subpilares_ordenados[:n]:
         aplicados.append({"subpilar": sub, "recuperado": _aplica_det_conv(c, sub, 0.5)})
+    gpilar, gratio = gargalo_de_agg(c)
     return {
         "indice_base": _indice_de_agg(agg),
         "indice_n": _indice_de_agg(c),
         "aplicados": aplicados,
         "n": n,
+        "gargalo_pilar": gpilar,
+        "gargalo_ratio": gratio,
     }
 
 
