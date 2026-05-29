@@ -895,6 +895,92 @@ def test_selo_de_loja_ouro_exige_prev_alta(db_session):
     assert selo_de_loja(db_session, e.id, 77) == "ouro"
 
 
+# ── CP-LG-5: Simulação de impacto (det→conversível, efêmera) ───────────────
+_AGG_CANONICO = {
+    "P1": {"prom": 30, "det": 10, "conv": 0, "total": 40, "ratio": 3.0},
+    "P2": {"prom": 20, "det": 40, "conv": 0, "total": 60, "ratio": 0.5},  # alvo
+    "D1": {"prom": 50, "det": 10, "conv": 0, "total": 60, "ratio": 5.0},
+}
+
+
+def test_simular_canonico_chain():
+    """Exemplo canônico (corrigido do report): P2 alta, det→conv.
+    ratio 0.5→1.0 · Proximity 0→5.88 · Índice 2.0→3.34 · selo None."""
+    from src.governanca.metricas import simular_impacto_acao
+
+    r = simular_impacto_acao(_AGG_CANONICO, "P2", "alto", previsibilidade=None)
+    assert r["taxa"] == 0.5
+    assert r["recuperados"] == 20
+    assert r["ratio"] == (0.5, 1.0)
+    assert r["proximity"] == (0.0, 5.88)
+    assert r["indice"] == (2.0, 3.34)
+    assert r["selo"] == (None, None)
+
+
+def test_simular_subpilar_ausente_none():
+    from src.governanca.metricas import simular_impacto_acao
+
+    assert simular_impacto_acao(_AGG_CANONICO, "A3", "alto", None) is None
+
+
+@pytest.mark.parametrize(
+    "prom, conv, det",
+    [(20, 0, 40), (5, 2, 3), (10, 5, 0), (0, 0, 30)],  # par, ímpar, det=0, det=total
+)
+def test_simular_conserva_total(prom, conv, det):
+    """det→conv conserva o total e nunca deixa new_det negativo (todas prioridades)."""
+    from src.governanca.metricas import TAXA_SUCESSO_PRIORIDADE, simular_impacto_acao
+
+    total = prom + conv + det
+    agg = {"P1": {"prom": prom, "det": det, "conv": conv, "total": total, "ratio": 1.0}}
+    for prio in TAXA_SUCESSO_PRIORIDADE:
+        r = simular_impacto_acao(agg, "P1", prio, None)
+        rec = r["recuperados"]
+        new_det = det - rec
+        new_conv = conv + rec
+        assert new_det >= 0
+        assert new_det + new_conv + prom == total  # conservação
+
+
+def test_simular_sub_floor_degrada():
+    """Subpilar <10 verbatins: ratio move, mas Proximity = None ('—')."""
+    from src.governanca.metricas import simular_impacto_acao
+
+    agg = dict(_AGG_CANONICO)
+    agg["P2"] = {"prom": 2, "det": 4, "conv": 0, "total": 6, "ratio": 0.5}
+    r = simular_impacto_acao(agg, "P2", "alto", None)
+    assert r["sub_floor"] is True
+    assert r["ratio"][0] != r["ratio"][1]  # ratio move
+    assert r["proximity"] == (None, None)  # sem lastro p/ projetar
+
+
+def test_simular_respeita_caps():
+    """Projeção nunca ultrapassa Proximity 100 / Índice 10 (caps das funções de medição)."""
+    from src.governanca.metricas import simular_impacto_acao
+
+    agg = {"P1": {"prom": 999, "det": 1, "conv": 0, "total": 1000, "ratio": 9.99}}
+    r = simular_impacto_acao(agg, "P1", "alto", None)
+    assert r["proximity"][1] <= 100.0 and r["proximity"][1] == 100.0
+    assert r["indice"][1] <= 10.0
+
+
+def test_simular_prev_inalterada_dirige_selo():
+    """Ação não mexe em previsibilidade (CV temporal); selo projetado usa a prev
+    medida. n_sub>60 sobe 3→4 → ouro só com prev_alta; sem prev → teto prata."""
+    from src.governanca.metricas import simular_impacto_acao
+
+    agg = {
+        "P1": {"prom": 99, "det": 1, "conv": 0, "total": 100, "ratio": 9.99},
+        "P2": {"prom": 99, "det": 1, "conv": 0, "total": 100, "ratio": 9.99},
+        "P3": {"prom": 99, "det": 1, "conv": 0, "total": 100, "ratio": 9.99},
+        "D1": {"prom": 60, "det": 20, "conv": 0, "total": 80, "ratio": 3.0},  # alvo → >60 após
+    }
+    com_prev = simular_impacto_acao(agg, "D1", "alto", previsibilidade=80.0)
+    assert com_prev["selo"] == ("prata", "ouro")  # 3→4 sub>60, prev alta
+    sem_prev = simular_impacto_acao(agg, "D1", "alto", previsibilidade=None)
+    assert sem_prev["selo"] == ("prata", "prata")  # prev NULL nunca ouro
+
+
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):
     """Card Gini no Painel: presente em empresa/agrupamento; None (N/A) em loja."""
     from flask import session

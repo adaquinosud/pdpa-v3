@@ -97,15 +97,27 @@ Calibração:
 - Confronto Visual (tela Diagnóstico): nova coluna Proximity por subpilar
 
 ### CP-LG-5 · Simulação de Impacto nos cards do Plano de Ação (2-3 dias)
-- Cada card de ação ganha bloco **"📈 Impacto Projetado"**:
-  - Premissa: sucesso variável por prioridade (alta=50%, média=35%, baixa=20%)
-  - Calcula novo ratio do subpilar
-  - Novo Proximity do subpilar
-  - Novo Índice Geral da loja
-  - Novo Selo (Bronze→Prata? mantém?)
-- Função `simular_impacto_acao(acao_id)` que retorna projeção
-- Integra também nos PDFs (B3' Plano Executivo + B2' Diagnóstico Pontual)
-- Aviso visual: "premissa: X% recuperação · projeção depende de execução"
+> **Mecânica fechada (trava de método, Alexandre+Dener, 2026-05-29): det→CONVERSÍVEL.**
+> Sucesso recupera `r×detratores` movendo-os detrator→conversível (sobe UM degrau na
+> jornada D→C→P). **NÃO** detrator→promotor: uma ação corretiva tira o cliente de
+> detrator (resolve a queixa) mas não o torna promotor — promotor se conquista por
+> Parceria/Aconselhamento, não por consertar Precisão. det→promotor projetaria
+> "reclamante vira fã", contradizendo a tese; numa ferramenta de board, projeção
+> otimista destrói confiança quando a execução não entrega o milagre.
+> `new_det = det − round(det×r)` · `new_conv = conv + round(det×r)` · `new_prom` inalterado.
+
+- Bloco **"📈 Impacto Projetado"** (efêmero, NÃO persistido): ratio → Proximity → Índice → Selo.
+- Premissa por prioridade: **alta 50% · média 35% · baixa 20%**.
+- `simular_impacto_acao(agg, subpilar, prioridade, previsibilidade)` — **reusa** a
+  matemática da medição (`calcular_ratio`/`calcular_proximity`/`calcular_indice_geral`/
+  `selo_loja`); caps (ratio 9.99, Proximity 100, Índice 10) vêm de graça. Zero régua paralela.
+- Sub-floor (<10 verbatins): ratio move, mas Proximity/Selo do alvo = "—" (sem lastro
+  pra projetar; `det→conv` preserva o total → não ganha lastro fake).
+- Lastro respeitado: melhorar um subpilar que NÃO é o gargalo move o Proximity dele mas
+  **não** o Índice da loja (o `min()` do pior pilar segura) — leitura honesta.
+- Selo usa a previsibilidade **medida** (ação não mexe em CV temporal).
+- Aviso não-promessa: "se executada com ~X% de sucesso · premissa por prioridade · depende da execução".
+- Integra também nos PDFs B3' (Plano Executivo) + B2' (Diagnóstico Pontual) — mesma função.
 
 ### CP-LG-6 · Selo Ouro/Prata/Bronze no Leaderboard (0.5 dia) — ✅ CONCLUÍDO
 > **Recalibração (2026-05-29):** a heurística original (≥9/≥7/≥5 subpilares >60) foi

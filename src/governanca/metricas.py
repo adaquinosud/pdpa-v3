@@ -158,6 +158,81 @@ def selo_loja(n_sub_acima: int, previsibilidade: Optional[float]) -> Optional[st
     return None
 
 
+# Simulação de impacto (CP-LG-5): taxa de sucesso por prioridade da ação.
+TAXA_SUCESSO_PRIORIDADE = {"alto": 0.50, "medio": 0.35, "baixo": 0.20}
+
+
+def _matriz_de_agg(agg, override=None):
+    """Matriz {subpilar, ratio, total, promotor, detrator} p/ calcular_indice_geral.
+    ``override`` = {subpilar: (prom, det, total, ratio)} substitui o alvo projetado."""
+    m = []
+    for sub, d in agg.items():
+        if override and sub in override:
+            prom, det, total, ratio = override[sub]
+        else:
+            prom, det, total, ratio = d["prom"], d["det"], d["total"], d["ratio"]
+        m.append(
+            {"subpilar": sub, "ratio": ratio, "total": total, "promotor": prom, "detrator": det}
+        )
+    return m
+
+
+def _n_sub60_de_agg(agg, override_ratio=None):
+    """Nº de subpilares com Proximity > corte (recomputado do agg, mesmo math da
+    medição). ``override_ratio`` = {subpilar: ratio} projeta o alvo."""
+    n = 0
+    for sub, d in agg.items():
+        if d["total"] < PROXIMITY_FLOOR_VERBATINS:
+            continue
+        ratio = override_ratio[sub] if (override_ratio and sub in override_ratio) else d["ratio"]
+        p = calcular_proximity(ratio)
+        if p is not None and p > SELO_PROXIMITY_CORTE:
+            n += 1
+    return n
+
+
+def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None):
+    """Projeção EFÊMERA do impacto de uma ação (CP-LG-5). det→conversível
+    (fidelidade ao Lastro D→C→P: ação corretiva tira de detrator, NÃO promove).
+
+    Reusa a matemática da medição (calcular_ratio/proximity/indice_geral/selo_loja)
+    — caps (ratio 9.99, Proximity 100, Índice 10) vêm de graça. Retorna ``None``
+    se o subpilar alvo não está no ``agg`` (escopo da ação).
+    """
+    from src.api.painel import calcular_indice_geral, calcular_ratio
+
+    if subpilar not in agg:
+        return None
+    r = TAXA_SUCESSO_PRIORIDADE.get(prioridade, TAXA_SUCESSO_PRIORIDADE["medio"])
+    d = agg[subpilar]
+    det0, prom0, total = d["det"], d["prom"], d["total"]
+    recuperados = min(round(det0 * r), det0)  # nunca negativo
+    new_det = det0 - recuperados
+    new_prom = prom0  # inalterado (não promove)
+    # det→conv: conversíveis sobem `recuperados` (não afeta ratio P/D); conservação
+    # garantida pois (det0-rec)+(conv0+rec)+prom0 == total sempre.
+    ratio0 = d["ratio"]
+    ratio1 = calcular_ratio(new_prom, new_det)
+    sub_floor = total < PROXIMITY_FLOOR_VERBATINS
+    prox0 = None if sub_floor else calcular_proximity(ratio0)
+    prox1 = None if sub_floor else calcular_proximity(ratio1)
+    indice0 = calcular_indice_geral(_matriz_de_agg(agg))
+    indice1 = calcular_indice_geral(
+        _matriz_de_agg(agg, override={subpilar: (new_prom, new_det, total, ratio1)})
+    )
+    selo0 = selo_loja(_n_sub60_de_agg(agg), previsibilidade)
+    selo1 = selo_loja(_n_sub60_de_agg(agg, override_ratio={subpilar: ratio1}), previsibilidade)
+    return {
+        "taxa": r,
+        "recuperados": recuperados,
+        "sub_floor": sub_floor,
+        "ratio": (round(ratio0, 2), round(ratio1, 2)),
+        "proximity": (_arred(prox0), _arred(prox1)),
+        "indice": (indice0, indice1),
+        "selo": (selo0, selo1),
+    }
+
+
 def gini_corrigido(g: Optional[float], n: Optional[int]) -> Optional[float]:
     """Correção de viés-por-n do Gini: ``G · n/(n-1)``, cap 1.0.
 

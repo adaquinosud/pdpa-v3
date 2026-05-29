@@ -3213,6 +3213,32 @@ def _explorar_planos(empresa_id, ag_id, args):
 
     with db_session() as s:
         gargalo = _gargalo(agregar_subpilares(s, empresa_id, ag_id))
+
+        # CP-LG-5: projeção de impacto por item (efêmera, det→conversível).
+        # Cache de agg por escopo + previsibilidade por loja → sem N+1.
+        from src.governanca.leitura import previsibilidade_loja
+        from src.governanca.metricas import simular_impacto_acao
+
+        _agg_cache = {}
+        _prev_cache = {}
+        for it in itens_all:
+            sub = getattr(it, "subpilar", None)
+            if not sub:
+                it.impacto = None
+                continue
+            lid = getattr(it, "local_id", None)
+            agid = getattr(it, "agrupamento_id", None)
+            key = (agid, lid)
+            if key not in _agg_cache:
+                _agg_cache[key] = agregar_subpilares(s, empresa_id, agid, lid)
+            prev = None
+            if lid:
+                if lid not in _prev_cache:
+                    _prev_cache[lid] = previsibilidade_loja(s, empresa_id, lid)["valor"]
+                prev = _prev_cache[lid]
+            it.impacto = simular_impacto_acao(_agg_cache[key], sub, it.prioridade, prev)
+            it.impacto_loja = lid is not None  # selo só faz sentido em loja
+
         lq = s.query(Local).filter_by(empresa_id=empresa_id)
         if ag_id is not None:
             lq = lq.filter_by(agrupamento_id=ag_id)
