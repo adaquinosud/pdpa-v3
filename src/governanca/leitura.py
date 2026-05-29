@@ -59,8 +59,13 @@ def proximity_escopo(
 
 
 def proximity_por_loja(s, empresa_id: int) -> Dict[int, Dict[str, Any]]:
-    """Linha agregada de Proximity de cada loja → ``{local_id: {valor, faixa}}``.
-    Usado pelo Leaderboard (1 query)."""
+    """Proximity agregada de cada loja → ``{local_id: {valor, faixa, n_pilares}}``.
+
+    ``n_pilares`` = nº de pilares COM lastro (pilar-level com proximity não-NULL)
+    que embasam o agregado — sinaliza confiança parcial no Leaderboard
+    (mono/bi-pilar). Usado pelo Leaderboard (2 queries, sem N+1)."""
+    from sqlalchemy import func
+
     from src.models.governanca import ProximityCalculation as PC
 
     rows = (
@@ -73,7 +78,20 @@ def proximity_por_loja(s, empresa_id: int) -> Dict[int, Dict[str, Any]]:
         )
         .all()
     )
-    return {lid: {"valor": v, "faixa": f} for lid, v, f in rows}
+    n_pilares = dict(
+        s.query(PC.escopo_id, func.count(PC.id))
+        .filter(
+            PC.empresa_id == empresa_id,
+            PC.escopo_tipo == "loja",
+            PC.pilar.isnot(None),
+            PC.proximity_0_100.isnot(None),
+        )
+        .group_by(PC.escopo_id)
+        .all()
+    )
+    return {
+        lid: {"valor": v, "faixa": f, "n_pilares": int(n_pilares.get(lid, 0))} for lid, v, f in rows
+    }
 
 
 def proximity_subpilares_escopo(

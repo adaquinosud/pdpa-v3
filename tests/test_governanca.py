@@ -631,6 +631,57 @@ def test_leaderboard_proximity_ordena_null_por_ultimo(db_session):
     assert ranked[-1].id == lb.id and ranked[-1].proximity is None  # NULL por último
 
 
+@pytest.mark.parametrize(
+    "subs_com_lastro, n_esperado, anota",
+    [
+        (["P1"], 1, True),  # mono-pilar → base 1p
+        (["P1", "D1"], 2, True),  # bi-pilar (limite) → base 2p
+        (["P1", "D1", "Pa1"], 3, False),  # 3 pilares → sem anotação
+    ],
+)
+def test_leaderboard_anotacao_base_pilares(db_session, subs_com_lastro, n_esperado, anota):
+    """LG-4.1: agregado de < 3 pilares com lastro anota 'base Np'; 3+ fica limpo."""
+    from src.governanca.leitura import proximity_por_loja
+    from src.governanca.metricas import recalcular_governanca
+
+    e, fonte = _empresa_fonte(db_session)
+    loja = Local(empresa_id=e.id, nome="Loja base")
+    db_session.add(loja)
+    db_session.commit()
+    for sub in subs_com_lastro:
+        _verbs(db_session, e, fonte, loja, sub, "promotor", 12, f"{sub}p")  # ≥ floor
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    pm = proximity_por_loja(db_session, e.id)[loja.id]
+    assert pm["n_pilares"] == n_esperado
+    assert (pm["n_pilares"] < 3) is anota  # condição que dispara a anotação no template
+
+
+def test_leaderboard_anotacao_renderiza_no_html(app, db_session, usuario_loyall):
+    """A anotação 'base Np' aparece no HTML do Leaderboard p/ loja mono-pilar."""
+    from flask import session  # noqa: F401
+
+    from src.governanca.metricas import recalcular_governanca
+
+    e, fonte = _empresa_fonte(db_session)
+    loja = Local(empresa_id=e.id, nome="Mono")
+    db_session.add(loja)
+    db_session.commit()
+    _verbs(db_session, e, fonte, loja, "P1", "promotor", 12, "m")
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = usuario_loyall.id
+    r = client.get(f"/empresas/{e.id}/explorar?tab=leaderboard")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "base 1p" in html  # anotação visível
+    assert 'aria-label="base: 1 pilar' in html  # acessível (não só hover)
+
+
 def test_confronto_anexa_proximity_por_subpilar(db_session):
     """Confronto: subpilar ≥ floor tem proximity; subpilar < floor mostra None
     (divergência válida — ratio aparece em qualquer volume, proximity só ≥10)."""

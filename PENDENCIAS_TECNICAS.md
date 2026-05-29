@@ -247,3 +247,28 @@ fallback empresa-wide no `consolidar_acoes`. Confirmar a hipótese antes (checar
 o filtro de agrupamento é a causa) e tratar no Bloco 9.
 
 **Relacionado:** [[Evolução A — Escopo Loja]] (herança loja→agrupamento→empresa).
+
+---
+
+## Lente de Governança — agregado de Proximity por poucos pilares (LG-3+/revisão)
+
+**Origem:** CP-LG-4 (escala do Leaderboard), 2026-05-29.
+
+**Achado:** o Proximity agregado de uma loja = `min(proximity_pilar não-NULL)`
+(regra do CP-LG-1, conceitualmente correta — Lastro). Mas uma loja **esparsa**
+com lastro (≥10 verbatins) em **um único pilar** excelente pode exibir
+**Proximity 100** ao lado do ratio geral baixo (ex.: BH Airport "Aluguel de
+Carros": só Pa1 tem lastro, ratio 9.99 → agregado 100, ratio geral 1.0). No
+ranking, fica lado a lado com lojas que mediram 4 pilares — comparação que
+parece igual sem ser.
+
+**Mitigado no LG-4.1 (apresentação):** o Leaderboard anota "base Np" (cinza-mudo,
+`title`/`aria-label`) quando o agregado vem de < 3 pilares com lastro. Não muda
+o número nem a ordenação — só sinaliza confiança parcial.
+
+**Opção (c) — NÃO implementada (a reavaliar):** exigir um mínimo de pilares com
+lastro para o agregado não ser NULL/penalizado no LG-1 (ex.: agregado só
+"completo" com ≥3 pilares; senão marca confiança parcial no próprio dado). NÃO
+mexer agora: mudaria dado já validado e `agregado=min` está conceitualmente
+certo — o problema é só de apresentação no ranking, já endereçado pela anotação.
+Reavaliar quando houver cliente real usando o ranking de Proximity como decisão.

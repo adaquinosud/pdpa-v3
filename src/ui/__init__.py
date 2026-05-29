@@ -3107,9 +3107,10 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
         x.selo = em["selo"]
         x.selo_emoji = em["selo_emoji"]
         x.score_mod = round(x.score * em["engajamento"] / 100.0, 2)
-        pm = prox_map.get(x.id, {"valor": None, "faixa": None})
+        pm = prox_map.get(x.id, {"valor": None, "faixa": None, "n_pilares": 0})
         x.proximity = pm["valor"]
         x.proximity_faixa = pm["faixa"]
+        x.proximity_n_pilares = pm.get("n_pilares", 0)
 
     # 3 faixas pelo nível do selo (≥30 🟢 / 10-30 🟡 / <10 🔴).
     ranked = [x for x in linhas if x.selo == "alta"]
