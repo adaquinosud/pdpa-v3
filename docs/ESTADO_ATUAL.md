@@ -1,32 +1,42 @@
 # PDPA v3 — Estado Atual
 
 ## Última atualização
-2026-05-29
+2026-05-29 (fim do bloco LG + CP-UX-a)
 
 ## Branch
-`feature/bloco-6-temas-nivel-3` (merge pra main pendente)
+- **`main`**: tem o bloco LG completo (LG-0→8 + LG-3.1) — FF limpo do `feature/bloco-6-temas-nivel-3`, dev-only (não há produção/push).
+- **`feature/ux-herdado`** (commit `53c24ce`): CP-UX-a fechado, **merge pra main pendente** (FF, mão do Alexandre).
+- Contrato de trabalho: **1 branch por CP** (`feature/ux-<nome>`); o agente reporta `git branch --show-current` como 1ª linha de todo CP e PARA se não for a esperada.
 
-## Últimos commits
+## Últimos commits (main + UX-a)
 ```
-755b978 docs: corrige branch (feature/bloco-6) + nota de merge pendente
-24f6388 docs: estado de retomada de sessao (Hub Explorar + proximo bloco Lente de Governanca)
-8d2c3a4 Reorg menu: consolida 5 itens legacy no Hub Explorar
-94ebad6 Bloco COL CP-COL-1+2: coleta granular por Local e Agrupamento
-2648c19 Bloco 9 B4: Diagnostico Longitudinal + pipeline pre-aquece os 4 relatorios
-ebc09bd Bloco 9 B3': Plano de Acao Executivo reskin doc-ouro ($0 LLM)
-2d49243 Bloco 9 B2': Diagnostico Pontual COMPLETO (doc-ouro v2 + cache v3)
-7e3c87c Bloco 9 B1': Resumo Executivo Geral doc-ouro (combinado v2+v3)
-a80ff99 Bloco 9 B2+: Diagnostico Pontual ganha abertura contextual + sequencia de Lastro
-98d991e Bloco 9 B3: Plano de Acao Executivo (cards por perspectiva, $0 LLM)
-a781746 Bloco 9 B2: Diagnostico Pontual (Mapa de Lastro + Confronto + 12 leituras)
-bc77e84 Bloco 9 B1: Resumo Executivo Geral (assembly do cache, $0 LLM)
-de48536 Bloco 9 B0: infra Relatorios (WeasyPrint lazy + menu + rota download)
-71cf7bb Bloco 9 PL-2: pilulas de perspectiva (icones + contagem) no topo dos Planos
-55c3684 Bloco 9 PL-1: Planos de Acao em cards (default) + tabela densa (alternativa)
+53c24ce CP-UX-a: clareza do 'herdado do agrupamento' no Confronto Visual  [feature/ux-herdado]
+549e85e CP-LG-3.1: heatmap loja x subpilar de detratores (aba Concentracao)
+98a8d22 CP-LG-8 COMPLETO: capa-choque fixada (a) tese do Lastro + bloco LG fechado
+5c711d8 CP-LG-8 leva 4: 5o PDF 'Painel de Governanca' (doc-ouro, $0 LLM)
+94df286 CP-LG-8: insight do TETO na Simulacao (tela)
+952ac17 CP-LG-8 leva 3: Simulacao de Cenarios (slider) + Projecao Financeira
+5001295 CP-LG-8: legenda do paradoxo Selo x Proximity no Ranking
+4366f05 CP-LG-8: Ranking de Excelencia ordena por SELO
+6d1a981 CP-LG-8 leva 2: Previsibilidade + Ranking
+2078393 CP-LG-8 leva 1: aba Governanca (radar + concentracao)
+5e8ad6b CP-LG-7: Mapa Financeiro do B2' enriquecido
+35544b9 CP-LG-5 (PDFs) / c1a8872 (tela): Simulacao de Impacto
 ```
 
 ## Testes
-678 verdes
+681 verdes
+
+## ⚠️ PRIMEIRA PRIORIDADE NA RETOMADA
+**Possível erro na tela de Diagnóstico** que o Alexandre mencionou — **investigar antes dos CP-UX restantes** e decidir se é bug real (corrige) ou comportamento esperado. (Detalhe a obter com o Alexandre na retomada — não foi especificado.)
+
+## Pendências de UX (fila pós-LG, CP por CP, branch nova de main cada)
+- **UX-a** ✅ FECHADO (`53c24ce`): clareza do "herdado" no Confronto (boxe âmbar **confirmado na tela pelo Alexandre** + frase de inversão de escopo). Merge pendente.
+- **UX-b** Nome da loja em anomalias (hoje só "loja XX · indicador") — rápida, alto valor.
+- **UX-c** Botão "Aplicar" no filtro do Plano de Ação (hoje filtra a cada clique).
+- **UX-d** Glossário do filtro "origem" (tooltip curto na tela; conteúdo no Manual).
+- **UX-e** Explicar cálculo do score de anomalia (tooltip + conteúdo no Manual).
+- Depois: **Manual** (documenta tudo estável; d/e deixam gancho) + **Postgres migrations** (`PENDENCIAS_TECNICAS.md`).
 
 ## Lente de Governança (LG) — ✅ BLOCO COMPLETO (LG-0 a LG-8)
 Detalhe por CP em `docs/BLOCO_LG.md`. Resumo:
