@@ -588,7 +588,26 @@ def _aba_painel(empresa_id, empresa_w):
         "periodo": request.args.get("periodo", ""),
     }
 
+    # ── Governança (CP-LG-4, leitura): Proximity do escopo + Previsibilidade da
+    # loja (LG-2, CV temporal). No escopo loja a Previsibilidade composta de
+    # empresa é degenerada (var_locais=0) — por isso trocamos a FONTE do card.
+    from src.governanca.leitura import (
+        escopo_de_filtros,
+        garantir_governanca,
+        previsibilidade_loja,
+        proximity_escopo,
+    )
+
+    garantir_governanca(empresa_id)
+    escopo_tipo, escopo_id = escopo_de_filtros(filtros["agrupamento_id"], filtros["local_id"])
+
     with db_session() as s:
+        proximity = proximity_escopo(s, empresa_id, escopo_tipo, escopo_id)
+        if escopo_tipo == "loja":
+            pv = previsibilidade_loja(s, empresa_id, escopo_id)
+            previsib = {"valor": pv["valor"], "faixa": pv["faixa"], "fonte": "loja"}
+        else:
+            previsib = {"valor": n1.get("previsibilidade"), "faixa": None, "fonte": "empresa"}
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
@@ -608,6 +627,9 @@ def _aba_painel(empresa_id, empresa_w):
         "locais": locais,
         "fontes": fontes_,
         "anomalias_resumo": anomalias_resumo,
+        "escopo_tipo": escopo_tipo,
+        "proximity": proximity,
+        "previsib": previsib,
     }
 
 

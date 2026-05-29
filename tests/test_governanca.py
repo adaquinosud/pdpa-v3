@@ -486,6 +486,94 @@ def test_recalcular_previsibilidade_skip_e_sem_duplicar(db_session):
     assert n2 == n1  # não duplicou
 
 
+# ── CP-LG-4: Painel de Loja lê governança das tabelas certas ───────────────
+def _empresa_loja_com_dados(db_session, hash_prefix="x"):
+    e = _empresa(db_session)
+    fonte = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="google",
+        url="http://x",
+    )
+    loja = Local(empresa_id=e.id, nome="Loja LG4")
+    db_session.add_all([fonte, loja])
+    db_session.commit()
+    for i in range(12):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=fonte.id,
+                local_id=loja.id,
+                texto="t",
+                subpilar="P1",
+                tipo="promotor",
+                hash_dedup=f"{hash_prefix}p{i}",
+            )
+        )
+    for i in range(4):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=fonte.id,
+                local_id=loja.id,
+                texto="t",
+                subpilar="P1",
+                tipo="detrator",
+                hash_dedup=f"{hash_prefix}d{i}",
+            )
+        )
+    for per, prom, det in [("2026-01", 40, 10), ("2026-02", 20, 20), ("2026-03", 5, 30)]:
+        _add_ratio_mensal(db_session, e.id, loja.id, per, prom, det)
+    db_session.commit()
+    return e, loja
+
+
+def test_painel_loja_previsibilidade_usa_lg2_nao_composto(app, db_session, usuario_loyall):
+    """REGRESSÃO: no escopo loja, o card Previsibilidade lê do LG-2
+    (previsibilidade_calculations), NÃO da calcular_previsibilidade de empresa.
+    Pega reversão acidental da decisão (4)."""
+    from flask import session
+
+    from src.governanca.metricas import recalcular_governanca
+    from src.ui import _aba_painel, _wrap_empresa
+
+    e, loja = _empresa_loja_com_dados(db_session)
+    recalcular_governanca(e.id)
+    lg2 = (
+        db_session.query(PrevisibilidadeCalculation)
+        .filter_by(empresa_id=e.id, escopo_tipo="loja", escopo_id=loja.id)
+        .one()
+    )
+
+    ew = _wrap_empresa(e)
+    with app.test_request_context(f"/empresas/{e.id}/painel?local_id={loja.id}"):
+        session["user_id"] = usuario_loyall.id
+        ctx = _aba_painel(e.id, ew)
+
+    assert ctx["escopo_tipo"] == "loja"
+    assert ctx["previsib"]["fonte"] == "loja"  # nunca 'empresa'
+    assert ctx["previsib"]["valor"] == lg2.previsibilidade_0_100  # vem do LG-2
+    assert "valor" in ctx["proximity"]  # card proximity presente
+
+
+def test_painel_empresa_previsibilidade_mantem_composto(app, db_session, usuario_loyall):
+    """No escopo empresa, a Previsibilidade segue sendo o composto (n1)."""
+    from flask import session
+
+    from src.ui import _aba_painel, _wrap_empresa
+
+    e, _loja = _empresa_loja_com_dados(db_session, hash_prefix="emp")
+    ew = _wrap_empresa(e)
+    with app.test_request_context(f"/empresas/{e.id}/painel"):
+        session["user_id"] = usuario_loyall.id
+        ctx = _aba_painel(e.id, ew)
+
+    assert ctx["escopo_tipo"] == "empresa"
+    assert ctx["previsib"]["fonte"] == "empresa"
+    assert ctx["previsib"]["valor"] == ctx["n1"]["previsibilidade"]
+
+
 def test_dados_hash_persistido_nas_duas_tabelas(db_session):
     e = _empresa(db_session)
     h = hash_payload({"escopo": "empresa", "subpilar": "P1"})

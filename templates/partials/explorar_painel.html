@@ -116,6 +116,43 @@
     <div class="text-xs text-{{ ig_cls }}-700 mt-1 capitalize">{{ n1.indice_geral_faixa }}</div>
     <div class="text-xs text-loyall-400 mt-2">Saúde da relação {{ n1.filtros_descricao }}. Pilar travado puxa o índice para baixo.</div>
   </div>
+  {# Proximity da Loja (CP-LG-4) — só no escopo loja por ora #}
+  {% if escopo_tipo == 'loja' %}
+  {% set prox_cls = {'distante':'rose','medio':'amber','proximo':'emerald'}.get(proximity.faixa, 'slate') %}
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Proximity da Loja</div>
+    {% if proximity.valor is not none %}
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-{{ prox_cls }}-600">{{ '%.0f'|format(proximity.valor) }}</span>
+      <span class="text-sm text-loyall-400">/ 100</span>
+    </div>
+    <div class="text-xs text-{{ prox_cls }}-700 mt-1 capitalize">{{ proximity.faixa }}</div>
+    <div class="text-xs text-loyall-400 mt-2">Distância da excelência consolidada (ratio 9.0). O pilar gargalo puxa para baixo.</div>
+    {% else %}
+    <div class="mt-1 text-loyall-300 text-3xl font-bold" title="Volume insuficiente (&lt; 10 verbatins/subpilar)">—</div>
+    <div class="text-xs text-loyall-400 mt-1">sem dado — volume insuficiente.</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# Previsibilidade: no escopo loja usa LG-2 (CV temporal puro); senão, composto de empresa #}
+  {% if escopo_tipo == 'loja' %}
+  {% set prev_cls = {'erratico':'rose','medio':'amber','estavel':'emerald'}.get(previsib.faixa, 'slate') %}
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade</div>
+    {% if previsib.valor is not none %}
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-{{ prev_cls }}-600">{{ '%.0f'|format(previsib.valor) }}</span>
+      <span class="text-sm text-loyall-400">/ 100</span>
+    </div>
+    <div class="text-xs text-{{ prev_cls }}-700 mt-1 capitalize">{{ previsib.faixa }}</div>
+    <div class="text-xs text-loyall-400 mt-2" title="CV dos ratios mensais desta loja (LG-2)">Consistência mês a mês desta loja. Baixa = experiência de loteria.</div>
+    {% else %}
+    <div class="mt-1 text-loyall-300 text-3xl font-bold" title="Histórico insuficiente (&lt; 3 meses com volume)">—</div>
+    <div class="text-xs text-loyall-400 mt-1">sem dado — histórico &lt; 3 meses.</div>
+    {% endif %}
+  </div>
+  {% else %}
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade</div>
     <div class="flex items-baseline gap-2 mt-1">
@@ -124,6 +161,7 @@
     </div>
     <div class="text-xs text-loyall-400 mt-2">Consistência da experiência {{ n1.filtros_descricao }}. Baixa = experiência de loteria.</div>
   </div>
+  {% endif %}
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração de Detratores</div>
     {% if n1.concentracao_detratores is not none %}
