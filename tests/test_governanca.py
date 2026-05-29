@@ -1070,6 +1070,108 @@ def test_radar_svg_todos_null():
     assert all(e["null"] for e in r["eixos"])
 
 
+def test_distribuicao_previsibilidade(db_session):
+    """NULL conta como 'sem_dado' (categoria à parte), não como faixa de qualidade."""
+    from src.governanca.leitura import distribuicao_previsibilidade
+    from src.models.governanca import PrevisibilidadeCalculation as PV
+
+    e = _empresa(db_session)
+    db_session.add_all(
+        [
+            PV(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=1,
+                previsibilidade_0_100=80,
+                faixa="estavel",
+                n_meses=4,
+                cv=0.2,
+            ),
+            PV(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=2,
+                previsibilidade_0_100=55,
+                faixa="medio",
+                n_meses=4,
+                cv=0.6,
+            ),
+            PV(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=3,
+                previsibilidade_0_100=20,
+                faixa="erratico",
+                n_meses=4,
+                cv=1.5,
+            ),
+            PV(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=4,
+                previsibilidade_0_100=None,
+                faixa=None,
+                n_meses=2,
+                cv=None,
+            ),
+            PV(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=5,
+                previsibilidade_0_100=None,
+                faixa=None,
+                n_meses=1,
+                cv=None,
+            ),
+        ]
+    )
+    db_session.commit()
+    d = distribuicao_previsibilidade(db_session, e.id)
+    assert d == {"estavel": 1, "medio": 1, "erratico": 1, "sem_dado": 2}
+
+
+def test_ranking_lojas_governanca(db_session):
+    """Top desc / bottom asc por Proximity; carrega n_pilares (anotação base Np)."""
+    from src.governanca.leitura import ranking_lojas_governanca
+
+    e = _empresa(db_session)
+
+    def agg(lid, val, npil):
+        rows = [
+            ProximityCalculation(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=lid,
+                subpilar=None,
+                pilar=None,
+                proximity_0_100=val,
+                faixa="medio",
+            )
+        ]
+        for pil in ["P", "D", "Pa", "A"][:npil]:
+            rows.append(
+                ProximityCalculation(
+                    empresa_id=e.id,
+                    escopo_tipo="loja",
+                    escopo_id=lid,
+                    subpilar=None,
+                    pilar=pil,
+                    proximity_0_100=val,
+                    faixa="medio",
+                )
+            )
+        return rows
+
+    for lid, val, npil in [(1, 90, 4), (2, 50, 1), (3, 10, 2)]:
+        db_session.add_all(agg(lid, val, npil))
+    db_session.commit()
+    r = ranking_lojas_governanca(db_session, e.id, n=2)
+    assert [x["local_id"] for x in r["top"]] == [1, 2]
+    assert r["top"][0]["proximity"] == 90 and r["top"][0]["n_pilares"] == 4
+    assert [x["local_id"] for x in r["bottom"]] == [3, 2]
+    assert r["n_com_dado"] == 3
+
+
 def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     from src.governanca.metricas import recalcular_governanca
 
@@ -1087,6 +1189,10 @@ def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     html = r.get_data(as_text=True)
     assert "Painel de Governança" in html
     assert "Cobertura:" in html  # aviso 'base em formação'
+    assert "Lastro:" in html  # linha do Lastro no radar
+    assert "Previsibilidade da Operação" in html  # Bloco 3
+    assert "Em formação" in html  # NULL como categoria à parte (não barra de faixa)
+    assert "Ranking de Excelência" in html  # Bloco 4
 
 
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):

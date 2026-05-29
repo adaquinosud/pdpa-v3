@@ -3020,16 +3020,18 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
 
 
 def _explorar_governanca(s, empresa_id, ag_id=None):
-    """Painel de Governança (CP-LG-8, board view). LEVA 1: cobertura ('base em
-    formação') + radar 4 pilares (Proximity) + concentração (Gini + top 5 nominadas).
-    Tudo leitura — pilar-proximity, gini json e cobertura já persistidos."""
+    """Painel de Governança (CP-LG-8, board view). Levas 1-2: cobertura + radar +
+    concentração + previsibilidade + ranking de selos. Tudo leitura."""
     from src.governanca.leitura import (
         cobertura_governanca,
+        distribuicao_previsibilidade,
+        distribuicao_selos,
         garantir_governanca,
         gini_escopo,
         leitura_concentracao,
         proximity_pilares_escopo,
         radar_svg_data,
+        ranking_lojas_governanca,
     )
 
     garantir_governanca(empresa_id)
@@ -3046,6 +3048,10 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
         gini=gini,
         leitura_conc=leitura_concentracao(gini),
         top5=top5,
+        # Leva 2 (empresa-wide): previsibilidade + selos + ranking nominado.
+        prev_dist=distribuicao_previsibilidade(s, empresa_id),
+        selo_dist=distribuicao_selos(s, empresa_id),
+        ranking=ranking_lojas_governanca(s, empresa_id),
     )
 
 

@@ -161,6 +161,60 @@ def cobertura_governanca(s, empresa_id: int) -> Dict[str, int]:
     return {"total": total, "com_dado": com_dado}
 
 
+def distribuicao_previsibilidade(s, empresa_id: int) -> Dict[str, int]:
+    """Contagem de lojas por faixa de previsibilidade + 'sem_dado' (NULL = histórico
+    curto, NÃO é faixa de qualidade — categoria à parte). CP-LG-8 Bloco 3."""
+    from src.models.governanca import PrevisibilidadeCalculation as PV
+
+    rows = (
+        s.query(PV.previsibilidade_0_100, PV.faixa)
+        .filter(PV.empresa_id == empresa_id, PV.escopo_tipo == "loja")
+        .all()
+    )
+    d = {"estavel": 0, "medio": 0, "erratico": 0, "sem_dado": 0}
+    for val, faixa in rows:
+        if val is None or faixa is None:
+            d["sem_dado"] += 1
+        else:
+            d[faixa] = d.get(faixa, 0) + 1
+    return d
+
+
+def ranking_lojas_governanca(s, empresa_id: int, n: int = 5) -> Dict[str, Any]:
+    """Top/bottom n lojas por Proximity agregada (NOMINADAS), com selo e n_pilares
+    (anotação 'base Np' do LG-4.1 — mono-pilar não pode parecer = a 4-pilares).
+    Lojas sem Proximity ficam fora do ranking (não são '0'). CP-LG-8 Bloco 4."""
+    from src.models.local import Local
+
+    prox = proximity_por_loja(s, empresa_id)
+    selos = selos_por_loja(s, empresa_id)
+    nomes = {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id).all()}
+    com_dado = [
+        {
+            "local_id": lid,
+            "nome": nomes.get(lid, f"loja {lid}"),
+            "proximity": d["valor"],
+            "n_pilares": d["n_pilares"],
+            "selo": selos.get(lid),
+        }
+        for lid, d in prox.items()
+        if d["valor"] is not None
+    ]
+    com_dado.sort(key=lambda x: -x["proximity"])
+    top = com_dado[:n]
+    bottom = sorted(com_dado, key=lambda x: x["proximity"])[:n] if len(com_dado) > n else []
+    return {"top": top, "bottom": bottom, "n_com_dado": len(com_dado)}
+
+
+def distribuicao_selos(s, empresa_id: int) -> Dict[str, int]:
+    """Contagem de lojas por selo (CP-LG-8 Bloco 4)."""
+    vals = selos_por_loja(s, empresa_id).values()
+    d = {"ouro": 0, "prata": 0, "bronze": 0, "sem_selo": 0}
+    for sl in vals:
+        d[sl if sl else "sem_selo"] += 1
+    return d
+
+
 def radar_svg_data(pilares: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """Geometria do radar 4 pilares (P topo · D direita · Pa baixo · A esquerda),
     SVG inline server-side. ``pilares`` = {pilar: {valor, faixa}}. Pilar NULL →
