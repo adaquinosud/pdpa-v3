@@ -180,10 +180,18 @@ def distribuicao_previsibilidade(s, empresa_id: int) -> Dict[str, int]:
     return d
 
 
+# Ordem de excelência do selo (régua fechada com o Dener — 4/3/2 subpilares >60).
+_SELO_RANK = {"ouro": 3, "prata": 2, "bronze": 1, None: 0}
+
+
 def ranking_lojas_governanca(s, empresa_id: int, n: int = 5) -> Dict[str, Any]:
-    """Top/bottom n lojas por Proximity agregada (NOMINADAS), com selo e n_pilares
-    (anotação 'base Np' do LG-4.1 — mono-pilar não pode parecer = a 4-pilares).
-    Lojas sem Proximity ficam fora do ranking (não são '0'). CP-LG-8 Bloco 4."""
+    """Top/bottom n lojas (NOMINADAS), com selo e n_pilares ('base Np' do LG-4.1).
+    Lojas sem Proximity ficam fora (não são '0'). CP-LG-8 Bloco 4.
+
+    **Top** = régua de EXCELÊNCIA (selo): Ouro>Prata>Bronze>sem selo, proximity
+    desc no desempate. Proximity 100 mono-pilar (sem selo) NÃO lidera — não tem
+    base. **Bottom** = fraqueza: proximity asc; no empate (vários '0'), mais
+    pilares com lastro primeiro (fraqueza ampla confirmada > fraqueza num canto)."""
     from src.models.local import Local
 
     prox = proximity_por_loja(s, empresa_id)
@@ -200,9 +208,14 @@ def ranking_lojas_governanca(s, empresa_id: int, n: int = 5) -> Dict[str, Any]:
         for lid, d in prox.items()
         if d["valor"] is not None
     ]
-    com_dado.sort(key=lambda x: -x["proximity"])
-    top = com_dado[:n]
-    bottom = sorted(com_dado, key=lambda x: x["proximity"])[:n] if len(com_dado) > n else []
+    # Top: selo desc, depois proximity desc.
+    top = sorted(com_dado, key=lambda x: (-_SELO_RANK.get(x["selo"], 0), -x["proximity"]))[:n]
+    # Bottom: proximity asc, depois MAIS pilares primeiro (fraqueza ampla).
+    bottom = (
+        sorted(com_dado, key=lambda x: (x["proximity"], -x["n_pilares"]))[:n]
+        if len(com_dado) > n
+        else []
+    )
     return {"top": top, "bottom": bottom, "n_com_dado": len(com_dado)}
 
 

@@ -1172,6 +1172,74 @@ def test_ranking_lojas_governanca(db_session):
     assert r["n_com_dado"] == 3
 
 
+def _gov_rows(e, lid, agg_val, faixa, n_pilares=0, subs_acima=0):
+    """Linhas de proximity p/ uma loja: agregada + n_pilares pilar-level + subs>60."""
+    out = [
+        ProximityCalculation(
+            empresa_id=e.id,
+            escopo_tipo="loja",
+            escopo_id=lid,
+            subpilar=None,
+            pilar=None,
+            proximity_0_100=agg_val,
+            faixa=faixa,
+        )
+    ]
+    for pil in ["P", "D", "Pa", "A"][:n_pilares]:
+        out.append(
+            ProximityCalculation(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=lid,
+                subpilar=None,
+                pilar=pil,
+                proximity_0_100=agg_val,
+                faixa=faixa,
+            )
+        )
+    for sub in ["P1", "P2", "P3", "D1"][:subs_acima]:
+        out.append(
+            ProximityCalculation(
+                empresa_id=e.id,
+                escopo_tipo="loja",
+                escopo_id=lid,
+                subpilar=sub,
+                pilar=None,
+                proximity_0_100=90.0,
+                faixa="proximo",
+            )
+        )
+    return out
+
+
+def test_ranking_top_lidera_por_selo_nao_proximity(db_session):
+    """REGRESSÃO: bronze (proximity 69) > sem selo (proximity 100 base 1p).
+    Top usa a régua de excelência (selo), não proximity crua."""
+    from src.governanca.leitura import ranking_lojas_governanca
+
+    e = _empresa(db_session)
+    db_session.add_all(_gov_rows(e, 1, 69.0, "proximo", n_pilares=2, subs_acima=2))  # bronze
+    db_session.add_all(_gov_rows(e, 2, 100.0, "proximo", n_pilares=1, subs_acima=1))  # sem selo
+    db_session.commit()
+    r = ranking_lojas_governanca(db_session, e.id, n=5)
+    assert r["top"][0]["local_id"] == 1 and r["top"][0]["selo"] == "bronze"
+    assert r["top"][1]["local_id"] == 2 and r["top"][1]["selo"] is None  # 100 base 1p abaixo
+
+
+def test_ranking_bottom_desempata_por_mais_pilares(db_session):
+    """Entre duas proximity 0, a de MAIS pilares (fraqueza ampla) vem primeiro."""
+    from src.governanca.leitura import ranking_lojas_governanca
+
+    e = _empresa(db_session)
+    db_session.add_all(_gov_rows(e, 1, 0.0, "distante", n_pilares=3))  # 0, 3 pilares
+    db_session.add_all(_gov_rows(e, 2, 0.0, "distante", n_pilares=1))  # 0, 1 pilar
+    db_session.add_all(_gov_rows(e, 3, 50.0, "medio", n_pilares=1))
+    db_session.add_all(_gov_rows(e, 4, 60.0, "medio", n_pilares=1))
+    db_session.commit()
+    r = ranking_lojas_governanca(db_session, e.id, n=2)
+    assert [x["local_id"] for x in r["bottom"]] == [1, 2]  # 3 pilares antes de 1
+
+
 def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     from src.governanca.metricas import recalcular_governanca
 
