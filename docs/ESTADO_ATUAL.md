@@ -26,7 +26,11 @@ de48536 Bloco 9 B0: infra Relatorios (WeasyPrint lazy + menu + rota download)
 ```
 
 ## Testes
-566 verdes
+594 verdes
+
+## Lente de Governança — progresso
+- **CP-LG-0 CONCLUÍDO** (commit `10e37a4`, 594 testes): schema (migration 030: `proximity_calculations` + `gini_concentracao`), models ORM, helpers `calcular_proximity`/`calcular_gini`, `FAIXAS_RATIO` centralizado, `hash_payload` extraído, `recalcular_governanca` no-op costurado no passo 7.5 do pós-coleta.
+- Próximo: CP-LG-1 (Proximity Index per subpilar/pilar/loja).
 
 ## Empresa de validação principal
 BH Airport (empresa #4) — 10.009 verbatins, 47 lojas, 12 canais

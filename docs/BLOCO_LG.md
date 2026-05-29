@@ -56,7 +56,7 @@ Calibração:
 
 ## Estrutura de CPs
 
-### CP-LG-0 · Schema + helpers base (0.5 dia)
+### CP-LG-0 · Schema + helpers base (0.5 dia) — ✅ CONCLUÍDO (commit `10e37a4`, 594 testes)
 - **Tabelas:**
   - `proximity_calculations` (`empresa_id, escopo_tipo, escopo_id, subpilar, pilar, proximity_0_100, faixa, calculado_em, dados_hash`)
   - `gini_concentracao` (`empresa_id, escopo_tipo, escopo_id, gini, top_n_lojas, distribuicao_json, calculado_em`)
