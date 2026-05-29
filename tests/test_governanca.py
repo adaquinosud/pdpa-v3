@@ -1296,6 +1296,43 @@ def test_compor_ordem_fixa_prefixo():
     assert a2 == a3[:2]
 
 
+def test_diagnostico_herdado_boxe_inversao_escopo(app, db_session, usuario_loyall):
+    """CP-UX-a: subpilar herdado (loja sub-floor) → boxe com a frase de inversão
+    de escopo (números=loja, texto=escopo herdado). Linha própria fica sem boxe."""
+    from src.models.diagnostico import LeituraDiagnostico
+
+    e, fonte = _empresa_fonte(db_session)
+    loja = Local(empresa_id=e.id, nome="Loja Herda")  # sem agrupamento → herda de empresa
+    db_session.add(loja)
+    db_session.commit()
+    # P1 com poucos verbatins (sub-floor p/ diagnóstico) → sem leitura própria.
+    _verbs(db_session, e, fonte, loja, "P1", "detrator", 5, "h1")
+    # Leitura empresa-wide de P1 → fonte da herança.
+    db_session.add(
+        LeituraDiagnostico(
+            empresa_id=e.id,
+            agrupamento_id=None,
+            local_id=None,
+            subpilar="P1",
+            leitura="Texto do escopo empresa.",
+            acao="Ação da empresa.",
+        )
+    )
+    db_session.commit()
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = usuario_loyall.id
+    r = client.get(f"/empresas/{e.id}/explorar?tab=diagnostico&local_id={loja.id}")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    # boxe + cabeçalho de inversão de escopo (empresa, N=5 da loja)
+    assert "border border-amber-300 bg-amber-50" in html
+    assert "Leitura da empresa" in html
+    assert "esta loja tem só 5 verbatins" in html  # N = volume da LOJA
+    assert "Os números desta linha são da loja" in html  # frase que mata a contradição
+
+
 def test_painel_governanca_pdf_monta_e_renderiza(app, db_session, usuario_loyall):
     """B5: montar_dados ($0 LLM) + HTML do PDF renderiza com capa/radar/teto."""
     from src.governanca.metricas import recalcular_governanca

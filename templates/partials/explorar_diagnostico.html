@@ -122,12 +122,30 @@
         </td>
         <td class="text-center px-2 py-2"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span></td>
         <td class="px-3 py-2 text-xs text-loyall-600 leading-relaxed">
-          {% if c.herdado %}<div class="mb-1 text-[10px] uppercase font-semibold text-amber-700" title="Volume insuficiente neste subpilar (&lt;30) — leitura do {{ c.herdado }}">↳ herdado do {{ c.herdado }}</div>{% endif %}
+          {% if c.herdado %}
+          {# CP-UX-a: leitura herdada boxeada + cabeçalho que explica a inversão de
+             escopo (números=loja, texto=escopo herdado). Só apresentação. #}
+          {% set _nloja = c.det + c.conv + c.prom %}
+          {% set _esc = {'agrupamento':{'de':'do agrupamento','o':'o agrupamento'},'empresa':{'de':'da empresa','o':'a empresa'}}.get(c.herdado, {'de':'do ' ~ c.herdado,'o':'o ' ~ c.herdado}) %}
+          <div class="rounded border border-amber-300 bg-amber-50/70 p-2">
+            <div class="text-[10px] text-amber-800 font-semibold mb-1 leading-snug">
+              ↳ Leitura {{ _esc.de }} — esta loja tem só {{ _nloja }} verbatins neste subpilar, insuficiente para leitura própria.
+              <span class="font-normal">Os números desta linha são da loja; a leitura e a ação abaixo descrevem {{ _esc.o }}.</span>
+            </div>
+            {% if c.leitura %}
+            <div class="text-loyall-700">{{ c.leitura }}</div>
+            {% if c.acao %}<div class="mt-1 border-l-2 border-sky-300 pl-2 text-loyall-700"><span class="text-[10px] uppercase font-semibold text-sky-700">Ação</span> {{ c.acao }}</div>{% endif %}
+            {% else %}
+            <em class="text-loyall-300">— leitura não gerada</em>
+            {% endif %}
+          </div>
+          {% else %}
           {% if c.leitura %}
           <div>{{ c.leitura }}</div>
           {% if c.acao %}<div class="mt-1 border-l-2 border-sky-300 pl-2 text-loyall-700"><span class="text-[10px] uppercase font-semibold text-sky-700">Ação</span> {{ c.acao }}</div>{% endif %}
           {% else %}
           <em class="text-loyall-300">— leitura não gerada</em>
+          {% endif %}
           {% endif %}
         </td>
       </tr>
