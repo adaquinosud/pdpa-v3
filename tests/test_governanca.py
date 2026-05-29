@@ -574,6 +574,85 @@ def test_painel_empresa_previsibilidade_mantem_composto(app, db_session, usuario
     assert ctx["previsib"]["valor"] == ctx["n1"]["previsibilidade"]
 
 
+# ── CP-LG-4: escala Leaderboard + Confronto ────────────────────────────────
+def _empresa_fonte(db_session):
+    e = _empresa(db_session)
+    fonte = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="google",
+        url="http://x",
+    )
+    db_session.add(fonte)
+    db_session.commit()
+    return e, fonte
+
+
+def _verbs(db_session, e, fonte, loja, sub, tipo, n, pref):
+    for i in range(n):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=fonte.id,
+                local_id=loja.id,
+                texto="t",
+                subpilar=sub,
+                tipo=tipo,
+                hash_dedup=f"{pref}{i}",
+            )
+        )
+
+
+def test_leaderboard_proximity_ordena_null_por_ultimo(db_session):
+    """order_by=proximity: loja com Proximity vem antes; loja NULL (todos os
+    subpilares < floor) sempre por último."""
+    from src.governanca.metricas import recalcular_governanca
+    from src.ui import _explorar_leaderboard
+
+    e, fonte = _empresa_fonte(db_session)
+    # Loja A: P1 com 30 promotores → ratio 9.99 → proximity 100 (≥ floor, selo alta).
+    la = Local(empresa_id=e.id, nome="A boa")
+    # Loja B: 32 verbatins espalhados, cada subpilar < 10 → proximity agregada NULL.
+    lb = Local(empresa_id=e.id, nome="B esparsa")
+    db_session.add_all([la, lb])
+    db_session.commit()
+    _verbs(db_session, e, fonte, la, "P1", "promotor", 30, "a")
+    for sub in ("P1", "P2", "D1", "D2"):
+        _verbs(db_session, e, fonte, lb, sub, "promotor", 8, f"b{sub}")
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    res = _explorar_leaderboard(db_session, e.id, None, None, "proximity")
+    ranked = res["ranked"]
+    ids = [x.id for x in ranked]
+    assert la.id in ids and lb.id in ids
+    assert ranked[0].id == la.id and ranked[0].proximity == 100.0
+    assert ranked[-1].id == lb.id and ranked[-1].proximity is None  # NULL por último
+
+
+def test_confronto_anexa_proximity_por_subpilar(db_session):
+    """Confronto: subpilar ≥ floor tem proximity; subpilar < floor mostra None
+    (divergência válida — ratio aparece em qualquer volume, proximity só ≥10)."""
+    from src.governanca.metricas import recalcular_governanca
+    from src.ui import _explorar_diagnostico
+
+    e, fonte = _empresa_fonte(db_session)
+    loja = Local(empresa_id=e.id, nome="Loja C")
+    db_session.add(loja)
+    db_session.commit()
+    _verbs(db_session, e, fonte, loja, "P1", "promotor", 12, "c1")  # ≥ floor
+    _verbs(db_session, e, fonte, loja, "P2", "detrator", 4, "c2")  # < floor
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    d = _explorar_diagnostico(db_session, e.id, None, loja.id)
+    by = {c.subpilar: c for c in d.confronto}
+    assert by["P1"].proximity is not None  # ≥ floor → tem proximity
+    assert by["P2"].proximity is None  # < floor → "—" na coluna
+    assert by["P2"].ratio is not None  # ratio aparece mesmo assim
+
+
 def test_dados_hash_persistido_nas_duas_tabelas(db_session):
     e = _empresa(db_session)
     h = hash_payload({"escopo": "empresa", "subpilar": "P1"})

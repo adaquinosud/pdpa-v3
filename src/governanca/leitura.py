@@ -58,6 +58,45 @@ def proximity_escopo(
     return {"valor": row[0], "faixa": row[1]} if row else {"valor": None, "faixa": None}
 
 
+def proximity_por_loja(s, empresa_id: int) -> Dict[int, Dict[str, Any]]:
+    """Linha agregada de Proximity de cada loja → ``{local_id: {valor, faixa}}``.
+    Usado pelo Leaderboard (1 query)."""
+    from src.models.governanca import ProximityCalculation as PC
+
+    rows = (
+        s.query(PC.escopo_id, PC.proximity_0_100, PC.faixa)
+        .filter(
+            PC.empresa_id == empresa_id,
+            PC.escopo_tipo == "loja",
+            PC.subpilar.is_(None),
+            PC.pilar.is_(None),
+        )
+        .all()
+    )
+    return {lid: {"valor": v, "faixa": f} for lid, v, f in rows}
+
+
+def proximity_subpilares_escopo(
+    s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
+) -> Dict[str, Dict[str, Any]]:
+    """Linhas subpilar-level de Proximity do escopo → ``{subpilar: {valor, faixa}}``.
+    Usado pela coluna Proximity do Confronto Visual."""
+    from src.models.governanca import ProximityCalculation as PC
+
+    cond_id = PC.escopo_id.is_(None) if escopo_id is None else (PC.escopo_id == escopo_id)
+    rows = (
+        s.query(PC.subpilar, PC.proximity_0_100, PC.faixa)
+        .filter(
+            PC.empresa_id == empresa_id,
+            PC.escopo_tipo == escopo_tipo,
+            cond_id,
+            PC.subpilar.isnot(None),
+        )
+        .all()
+    )
+    return {sub: {"valor": v, "faixa": f} for sub, v, f in rows}
+
+
 def previsibilidade_loja(s, empresa_id: int, local_id: int) -> Dict[str, Any]:
     """Previsibilidade LG-2 (CV temporal puro) de uma loja.
     ``{valor, faixa, n_meses, cv}`` — None se sem linha/dado."""

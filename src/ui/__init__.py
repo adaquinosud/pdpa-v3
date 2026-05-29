@@ -2926,12 +2926,28 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
 
     gargalo = _gargalo(agg)
 
+    # Proximity por subpilar (CP-LG-4, leitura) do escopo do diagnóstico.
+    # NÃO herda do pai: mostra a Proximity própria do escopo (NULL no subpilar
+    # abaixo do floor de 10, mesmo que o ratio apareça — métricas com pisos
+    # distintos: ratio em qualquer volume, Proximity só com ≥10).
+    from src.governanca.leitura import garantir_governanca, proximity_subpilares_escopo
+
+    garantir_governanca(empresa_id)
+    if local_id is not None:
+        _g_tipo, _g_id = "loja", local_id
+    elif ag_id is not None:
+        _g_tipo, _g_id = "agrupamento", ag_id
+    else:
+        _g_tipo, _g_id = "empresa", None
+    prox_sub = proximity_subpilares_escopo(s, empresa_id, _g_tipo, _g_id)
+
     confronto = []
     for sub in SUBPILARES_ORDEM:
         d = agg.get(sub)
         if d is None:
             continue
         lt = leituras.get(sub)
+        px = prox_sub.get(sub, {"valor": None, "faixa": None})
         confronto.append(
             SimpleNamespace(
                 subpilar=sub,
@@ -2941,6 +2957,8 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                 prom=d["prom"],
                 ratio=d["ratio"],
                 faixa=d["faixa"],
+                proximity=px["valor"],
+                proximity_faixa=px["faixa"],
                 leitura=(lt.leitura if lt else None),
                 acao=(lt.acao if lt else None),
                 herdado=herdado_sub.get(sub),  # None = próprio; str = origem do pai
@@ -3077,6 +3095,11 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
 
     # Engajamento por loja (CP-E3): modula o score e separa por faixa de confiança.
     eng_map = engajamento_por_loja(empresa_id, s, ag_id, corte)
+    # Proximity por loja (CP-LG-4, leitura): garante frescor e anexa a cada linha.
+    from src.governanca.leitura import garantir_governanca, proximity_por_loja
+
+    garantir_governanca(empresa_id)
+    prox_map = proximity_por_loja(s, empresa_id)
     for x in linhas:
         em = eng_map.get(x.id, {"engajamento": 0, "volume": 0, "selo": "baixa", "selo_emoji": "🔴"})
         x.engajamento = em["engajamento"]
@@ -3084,6 +3107,9 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
         x.selo = em["selo"]
         x.selo_emoji = em["selo_emoji"]
         x.score_mod = round(x.score * em["engajamento"] / 100.0, 2)
+        pm = prox_map.get(x.id, {"valor": None, "faixa": None})
+        x.proximity = pm["valor"]
+        x.proximity_faixa = pm["faixa"]
 
     # 3 faixas pelo nível do selo (≥30 🟢 / 10-30 🟡 / <10 🔴).
     ranked = [x for x in linhas if x.selo == "alta"]
@@ -3104,6 +3130,8 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
     chave = {
         "ratio": lambda x: -x.ratio,
         "volume": lambda x: -x.total,
+        # Proximity desc; lojas sem dado (NULL) sempre por último.
+        "proximity": lambda x: (x.proximity is None, -(x.proximity or 0.0)),
     }.get(order_by, lambda x: (-x.score_mod, -x.total))
     for grupo in (ranked, formacao, insuficiente):
         grupo.sort(key=chave)
@@ -3289,7 +3317,7 @@ def _explorar_contexto(empresa_id, tab):
         leaderboard = None
         if tab == "leaderboard":
             ob = request.args.get("order_by", "score")
-            ob = ob if ob in ("score", "ratio", "volume") else "score"
+            ob = ob if ob in ("score", "ratio", "volume", "proximity") else "score"
             lb = _explorar_leaderboard(s, empresa_id, ag_id, corte, ob)
             leaderboard = SimpleNamespace(
                 linhas=lb["ranked"],

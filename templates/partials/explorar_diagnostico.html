@@ -97,6 +97,7 @@
         <th class="text-right px-2 py-2 font-medium text-amber-600">Conv</th>
         <th class="text-right px-2 py-2 font-medium text-emerald-600">Prom</th>
         <th class="text-right px-2 py-2 font-medium">Ratio</th>
+        <th class="text-center px-2 py-2 font-medium">Proximity</th>
         <th class="text-center px-2 py-2 font-medium">Faixa</th>
         <th class="text-left px-3 py-2 font-medium" style="min-width:340px">Leitura diagnóstica + ação</th>
       </tr>
@@ -110,6 +111,15 @@
         <td class="text-right px-2 py-2 {% if c.conv %}text-amber-700{% else %}text-loyall-300{% endif %}">{{ c.conv }}</td>
         <td class="text-right px-2 py-2 {% if c.prom %}text-emerald-700{% else %}text-loyall-300{% endif %}">{{ c.prom }}</td>
         <td class="text-right px-2 py-2 font-bold text-loyall-800">{{ '%.2f'|format(c.ratio) }}</td>
+        <td class="text-center px-2 py-2">
+          {% if c.proximity is not none %}
+          {% set pxf = {'distante':{'bg':'bg-rose-100','text':'text-rose-700'},'medio':{'bg':'bg-amber-100','text':'text-amber-800'},'proximo':{'bg':'bg-emerald-100','text':'text-emerald-700'}}.get(c.proximity_faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+          <div class="text-sm font-bold text-loyall-800">{{ '%.0f'|format(c.proximity) }}</div>
+          <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ pxf.bg }} {{ pxf.text }}">{{ c.proximity_faixa }}</span>
+          {% else %}
+          <span class="text-loyall-300" title="Volume insuficiente (&lt; 10 verbatins) — Proximity precisa de mais lastro que o ratio">—</span>
+          {% endif %}
+        </td>
         <td class="text-center px-2 py-2"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span></td>
         <td class="px-3 py-2 text-xs text-loyall-600 leading-relaxed">
           {% if c.herdado %}<div class="mb-1 text-[10px] uppercase font-semibold text-amber-700" title="Volume insuficiente neste subpilar (&lt;30) — leitura do {{ c.herdado }}">↳ herdado do {{ c.herdado }}</div>{% endif %}

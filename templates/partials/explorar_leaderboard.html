@@ -36,6 +36,17 @@
     <div class="text-sm font-bold text-loyall-700">{{ '%.2f'|format(l.ratio) }}</div>
     <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span>
   </div>
+  {% set pxc = {'distante':{'bg':'bg-rose-100','text':'text-rose-700'},'medio':{'bg':'bg-amber-100','text':'text-amber-800'},'proximo':{'bg':'bg-emerald-100','text':'text-emerald-700'}} %}
+  <div class="text-center shrink-0 w-16">
+    {% if l.proximity is not none %}
+    {% set pf = pxc.get(l.proximity_faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+    <div class="text-sm font-bold text-loyall-700">{{ '%.0f'|format(l.proximity) }}</div>
+    <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ pf.bg }} {{ pf.text }}">{{ l.proximity_faixa }}</span>
+    {% else %}
+    <div class="text-sm font-bold text-loyall-300" title="Volume insuficiente (&lt; 10 verbatins/subpilar)">—</div>
+    <div class="text-[10px] text-loyall-400 uppercase">proximity</div>
+    {% endif %}
+  </div>
   <div class="text-center shrink-0 w-14">
     <div class="text-sm font-semibold text-amber-700">{{ l.pct_conv }}%</div>
     <div class="text-[10px] text-loyall-400 uppercase">conv</div>
@@ -54,7 +65,7 @@
   </div>
   <div class="flex items-center gap-1 text-xs">
     <span class="text-loyall-400 mr-1">Ordenar:</span>
-    {% for v, l in [('score','Score'),('ratio','Ratio'),('volume','Volume')] %}
+    {% for v, l in [('score','Score'),('ratio','Ratio'),('proximity','Proximity'),('volume','Volume')] %}
     <a hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='leaderboard') }}?{{ qs }}&order_by={{ v }}"
        hx-target="#explorar-conteudo" hx-swap="innerHTML"
        hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=leaderboard&{{ qs }}&order_by={{ v }}"

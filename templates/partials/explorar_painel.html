@@ -116,11 +116,10 @@
     <div class="text-xs text-{{ ig_cls }}-700 mt-1 capitalize">{{ n1.indice_geral_faixa }}</div>
     <div class="text-xs text-loyall-400 mt-2">Saúde da relação {{ n1.filtros_descricao }}. Pilar travado puxa o índice para baixo.</div>
   </div>
-  {# Proximity da Loja (CP-LG-4) — só no escopo loja por ora #}
-  {% if escopo_tipo == 'loja' %}
+  {# Proximity do escopo ativo (CP-LG-4): loja → "da Loja"; senão "Geral" #}
   {% set prox_cls = {'distante':'rose','medio':'amber','proximo':'emerald'}.get(proximity.faixa, 'slate') %}
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Proximity da Loja</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Proximity {{ 'da Loja' if escopo_tipo == 'loja' else 'Geral' }}</div>
     {% if proximity.valor is not none %}
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ prox_cls }}-600">{{ '%.0f'|format(proximity.valor) }}</span>
@@ -133,7 +132,6 @@
     <div class="text-xs text-loyall-400 mt-1">sem dado — volume insuficiente.</div>
     {% endif %}
   </div>
-  {% endif %}
 
   {# Previsibilidade: no escopo loja usa LG-2 (CV temporal puro); senão, composto de empresa #}
   {% if escopo_tipo == 'loja' %}
