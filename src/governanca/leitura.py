@@ -214,6 +214,42 @@ def selos_por_loja(s, empresa_id: int) -> Dict[int, Optional[str]]:
     return {lid: selo_loja(n_sub.get(lid, 0), prev.get(lid)) for lid in universo}
 
 
+def anexar_impacto_acoes(s, empresa_id, itens):
+    """Anexa ``it.projecao`` (CP-LG-5) + ``it.projecao_loja`` a cada item com
+    ``subpilar``. Cache de agg/previsibilidade por escopo (sem N+1). Mutação
+    in-place. **Mesma função na tela e nos PDFs** → números idênticos por
+    construção. Itens sem ``prioridade`` (ex.: ações de subpilar do B2') derivam-na
+    da faixa via ``_FAIXA_PRIORIDADE``. (Nome ``projecao`` evita colidir com o
+    campo ``impacto`` textual já existente nas ações do B2'.)"""
+    from src.diagnostico.leituras import agregar_subpilares
+    from src.governanca.metricas import simular_impacto_acao
+    from src.planos.consolidar import _FAIXA_PRIORIDADE
+
+    agg_cache = {}
+    prev_cache = {}
+    for it in itens:
+        sub = getattr(it, "subpilar", None)
+        if not sub:
+            it.projecao = None
+            it.projecao_loja = False
+            continue
+        lid = getattr(it, "local_id", None)
+        agid = getattr(it, "agrupamento_id", None)
+        key = (agid, lid)
+        if key not in agg_cache:
+            agg_cache[key] = agregar_subpilares(s, empresa_id, agid, lid)
+        prev = None
+        if lid is not None:
+            if lid not in prev_cache:
+                prev_cache[lid] = previsibilidade_loja(s, empresa_id, lid)["valor"]
+            prev = prev_cache[lid]
+        prioridade = getattr(it, "prioridade", None) or _FAIXA_PRIORIDADE.get(
+            getattr(it, "faixa", None), "medio"
+        )
+        it.projecao = simular_impacto_acao(agg_cache[key], sub, prioridade, prev)
+        it.projecao_loja = lid is not None
+
+
 def selo_de_loja(s, empresa_id: int, local_id: int) -> Optional[str]:
     """Selo de UMA loja (escopo loja) — para o cabeçalho do Painel de Loja."""
     from src.governanca.metricas import selo_loja

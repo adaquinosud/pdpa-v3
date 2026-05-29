@@ -981,6 +981,52 @@ def test_simular_prev_inalterada_dirige_selo():
     assert sem_prev["selo"] == ("prata", "prata")  # prev NULL nunca ouro
 
 
+def test_anexar_impacto_fiel_a_simular(db_session):
+    """Tela e PDFs usam anexar_impacto_acoes → simular_impacto_acao; o helper não
+    transforma o resultado (garante TELA == PDF para a mesma ação)."""
+    from types import SimpleNamespace
+
+    from src.diagnostico.leituras import agregar_subpilares
+    from src.governanca.leitura import anexar_impacto_acoes
+    from src.governanca.metricas import simular_impacto_acao
+
+    e, fonte = _empresa_fonte(db_session)
+    loja = Local(empresa_id=e.id, nome="L")
+    db_session.add(loja)
+    db_session.commit()
+    _verbs(db_session, e, fonte, loja, "P1", "promotor", 30, "ap")
+    _verbs(db_session, e, fonte, loja, "P1", "detrator", 10, "ad")
+    db_session.commit()
+
+    item = SimpleNamespace(subpilar="P1", local_id=loja.id, agrupamento_id=None, prioridade="alto")
+    anexar_impacto_acoes(db_session, e.id, [item])
+    agg = agregar_subpilares(db_session, e.id, None, loja.id)
+    esperado = simular_impacto_acao(agg, "P1", "alto", None)  # loja sem ratios_mensais → prev None
+    assert item.projecao == esperado  # idêntico → tela == PDF
+    assert item.projecao_loja is True
+
+
+def test_anexar_deriva_prioridade_da_faixa(db_session):
+    """Ação do B2' (sem campo prioridade) deriva a taxa da faixa (crítico→alto→50%)."""
+    from types import SimpleNamespace
+
+    from src.governanca.leitura import anexar_impacto_acoes
+
+    e, fonte = _empresa_fonte(db_session)
+    loja = Local(empresa_id=e.id, nome="L")
+    db_session.add(loja)
+    db_session.commit()
+    _verbs(db_session, e, fonte, loja, "P1", "promotor", 10, "fp")
+    _verbs(db_session, e, fonte, loja, "P1", "detrator", 40, "fd")  # ratio 0.25 → faixa critico
+    db_session.commit()
+
+    item = SimpleNamespace(subpilar="P1", faixa="critico")  # sem prioridade nem local_id
+    anexar_impacto_acoes(db_session, e.id, [item])
+    assert item.projecao is not None
+    assert item.projecao["taxa"] == 0.5  # critico → alto → 50%
+    assert item.projecao_loja is False  # empresa-scope
+
+
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):
     """Card Gini no Painel: presente em empresa/agrupamento; None (N/A) em loja."""
     from flask import session

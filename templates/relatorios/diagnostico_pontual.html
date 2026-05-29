@@ -323,7 +323,16 @@ ordem desperdiça esforço.</p>
       <td style="font-size:9pt">{{ a.acao }}</td>
       <td style="font-size:8.5pt">{{ a.como }}</td>
       <td style="background:#f5fbf8; color:var(--verde2); font-size:8.5pt">
-        {{ a.impacto }}</td>
+        {{ a.impacto }}
+        {# Impacto projetado (CP-LG-5) — paleta v2; aviso não-promessa OBRIGATÓRIO #}
+        {% if a.projecao %}
+        <div style="margin-top:3pt; border:1px dashed #B89355; background:#F0EDE4; padding:3pt 5pt; color:#1A1A2E">
+          <div style="font-size:7pt; text-transform:uppercase; letter-spacing:.5px; color:#1B6B61; font-weight:bold">📈 Impacto projetado</div>
+          <div style="font-size:8pt">Ratio {{ '%.2f'|format(a.projecao.ratio[0]) }} → <b>{{ '%.2f'|format(a.projecao.ratio[1]) }}</b>{% if not a.projecao.sub_floor %} · Proximity {{ '%.0f'|format(a.projecao.proximity[0]) }} → <b>{{ '%.0f'|format(a.projecao.proximity[1]) }}</b>{% endif %} · Índice {{ '%.1f'|format(a.projecao.indice[0]) }} → <b>{{ '%.1f'|format(a.projecao.indice[1]) }}</b></div>
+          {% if not a.projecao.sub_floor and a.projecao.proximity[1] > a.projecao.proximity[0] and a.projecao.indice[0] == a.projecao.indice[1] %}<div style="font-size:7pt">↳ não é o pilar gargalo (Lastro segura o Índice).</div>{% endif %}
+          <div style="font-size:7pt; color:#8a7857; font-style:italic">Se executada com ~{{ (a.projecao.taxa*100)|round|int }}% de sucesso · não promessa · depende da execução.</div>
+        </div>
+        {% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>

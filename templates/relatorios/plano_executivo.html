@@ -16,6 +16,22 @@
   <div>{{ it.texto }}</div>
   {% if it.justificativa %}<div class="muted" style="margin-top:2pt; font-size:8.5pt">{{ it.justificativa }}</div>{% endif %}
   {% if it.volume %}<div class="muted" style="margin-top:2pt; font-size:8pt">Público: {{ it.volume }} verbatins{% if it.det %} · {{ it.det }} detratores{% endif %}</div>{% endif %}
+  {# Impacto projetado (CP-LG-5) — paleta v2; aviso não-promessa OBRIGATÓRIO #}
+  {% if it.projecao %}
+  <div style="margin-top:4pt; border:1px dashed #B89355; background:#F0EDE4; padding:4pt 6pt">
+    <div style="font-size:7.5pt; text-transform:uppercase; letter-spacing:.5px; color:#1B6B61; font-weight:bold">📈 Impacto projetado</div>
+    <div style="font-size:8.5pt; color:#1A1A2E; margin-top:1pt">
+      Ratio {{ '%.2f'|format(it.projecao.ratio[0]) }} → <b>{{ '%.2f'|format(it.projecao.ratio[1]) }}</b>
+      {% if not it.projecao.sub_floor %}· Proximity {{ '%.0f'|format(it.projecao.proximity[0]) }} → <b>{{ '%.0f'|format(it.projecao.proximity[1]) }}</b>{% else %}· Proximity —{% endif %}
+      · Índice da {{ 'loja' if it.projecao_loja else 'visão' }} {{ '%.1f'|format(it.projecao.indice[0]) }} → <b>{{ '%.1f'|format(it.projecao.indice[1]) }}</b>
+      {% if it.projecao_loja %}· Selo {{ it.projecao.selo[0] or '—' }} → <b>{{ it.projecao.selo[1] or '—' }}</b>{% endif %}
+    </div>
+    {% if not it.projecao.sub_floor and it.projecao.proximity[1] > it.projecao.proximity[0] and it.projecao.indice[0] == it.projecao.indice[1] %}
+    <div style="font-size:7.5pt; color:#1A1A2E; margin-top:1pt">↳ Proximity sobe mas o Índice não move: este não é o pilar gargalo (Lastro).</div>
+    {% endif %}
+    <div style="font-size:7pt; color:#8a7857; font-style:italic; margin-top:1pt">Se executada com ~{{ (it.projecao.taxa*100)|round|int }}% de sucesso · premissa por prioridade, não promessa · depende da execução.{% if it.projecao.sub_floor %} Subpilar sem lastro — base frágil.{% endif %}</div>
+  </div>
+  {% endif %}
 </div>
 {% endmacro %}
 

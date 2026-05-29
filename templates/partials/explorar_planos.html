@@ -31,25 +31,25 @@
   </div>
   {% endif %}
   {# ── Impacto projetado (CP-LG-5): efêmero, det→conversível. Não promessa. ── #}
-  {% if it.impacto %}
+  {% if it.projecao %}
   <div class="mt-2.5 rounded border border-dashed border-sky-300 bg-sky-50/40 p-2.5">
     <div class="text-[10px] uppercase tracking-wider text-sky-700 font-semibold">📈 Impacto projetado</div>
     <div class="text-[11px] text-loyall-600 mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
       <span>Ratio do subpilar</span>
-      <span class="text-right">{{ '%.2f'|format(it.impacto.ratio[0]) }} → <b class="text-loyall-800">{{ '%.2f'|format(it.impacto.ratio[1]) }}</b></span>
+      <span class="text-right">{{ '%.2f'|format(it.projecao.ratio[0]) }} → <b class="text-loyall-800">{{ '%.2f'|format(it.projecao.ratio[1]) }}</b></span>
       <span>Proximity</span>
-      <span class="text-right">{% if it.impacto.sub_floor %}<span class="text-loyall-300" title="Subpilar sem lastro (&lt;10 verbatins) — sem base p/ projetar Proximity">—</span>{% else %}{{ '%.0f'|format(it.impacto.proximity[0]) }} → <b class="text-loyall-800">{{ '%.0f'|format(it.impacto.proximity[1]) }}</b>{% endif %}</span>
-      <span>Índice da {{ 'loja' if it.impacto_loja else 'visão' }}</span>
-      <span class="text-right">{{ '%.1f'|format(it.impacto.indice[0]) }} → <b class="text-loyall-800">{{ '%.1f'|format(it.impacto.indice[1]) }}</b></span>
-      {% if it.impacto_loja %}
+      <span class="text-right">{% if it.projecao.sub_floor %}<span class="text-loyall-300" title="Subpilar sem lastro (&lt;10 verbatins) — sem base p/ projetar Proximity">—</span>{% else %}{{ '%.0f'|format(it.projecao.proximity[0]) }} → <b class="text-loyall-800">{{ '%.0f'|format(it.projecao.proximity[1]) }}</b>{% endif %}</span>
+      <span>Índice da {{ 'loja' if it.projecao_loja else 'visão' }}</span>
+      <span class="text-right">{{ '%.1f'|format(it.projecao.indice[0]) }} → <b class="text-loyall-800">{{ '%.1f'|format(it.projecao.indice[1]) }}</b></span>
+      {% if it.projecao_loja %}
       <span>Selo</span>
-      <span class="text-right capitalize">{{ it.impacto.selo[0] or '—' }} → <b class="text-loyall-800">{{ it.impacto.selo[1] or '—' }}</b></span>
+      <span class="text-right capitalize">{{ it.projecao.selo[0] or '—' }} → <b class="text-loyall-800">{{ it.projecao.selo[1] or '—' }}</b></span>
       {% endif %}
     </div>
-    {% if not it.impacto.sub_floor and it.impacto.proximity[1] > it.impacto.proximity[0] and it.impacto.indice[0] == it.impacto.indice[1] %}
+    {% if not it.projecao.sub_floor and it.projecao.proximity[1] > it.projecao.proximity[0] and it.projecao.indice[0] == it.projecao.indice[1] %}
     <div class="text-[10px] text-loyall-500 mt-1.5">↳ A Proximity deste subpilar sobe, mas o Índice não move: <b>este não é o pilar gargalo</b> — o Índice é puxado pelo pilar mais travado (Lastro).</div>
     {% endif %}
-    <div class="text-[10px] text-loyall-400 mt-1.5 italic">Se executada com ~{{ (it.impacto.taxa*100)|round|int }}% de sucesso · premissa por prioridade, não promessa · depende da execução.{% if it.impacto.sub_floor %} Subpilar sem lastro — base frágil.{% endif %}</div>
+    <div class="text-[10px] text-loyall-400 mt-1.5 italic">Se executada com ~{{ (it.projecao.taxa*100)|round|int }}% de sucesso · premissa por prioridade, não promessa · depende da execução.{% if it.projecao.sub_floor %} Subpilar sem lastro — base frágil.{% endif %}</div>
   </div>
   {% endif %}
   {% if loyall %}

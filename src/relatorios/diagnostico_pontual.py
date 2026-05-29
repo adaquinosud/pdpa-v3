@@ -580,6 +580,7 @@ def montar_dados(
             )
             acoes.append(
                 SimpleNamespace(
+                    subpilar=sd["subpilar"],  # p/ projeção CP-LG-5
                     dimensao=f"{sd['subpilar']} · {sd['nome']}",
                     acao=(acao_txt or "Estabelecer plano específico após investigação interna."),
                     como=como_txt,
@@ -645,6 +646,12 @@ def montar_dados(
                 acoes=acoes,
             )
         )
+
+    # CP-LG-5: projeção de impacto nas ações (empresa-scope; prioridade derivada
+    # da faixa). Mesma fn da tela/B3' → números idênticos. $0 LLM (cálculo).
+    from src.governanca.leitura import anexar_impacto_acoes
+
+    anexar_impacto_acoes(s, empresa_id, [a for pp in planos_pilar for a in pp.acoes])
 
     # ─── 09 · Lacunas Fase 2 (assembly determinístico) ─────────────────────
     lacunas = []

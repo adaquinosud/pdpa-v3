@@ -32,13 +32,16 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
     from src.planos.consolidar import consolidar_acoes
     from src.utils.db import db_session
 
+    itens = consolidar_acoes(empresa_id)
     with db_session() as s:
         empresa = s.get(Empresa, empresa_id)
         empresa_nome = empresa.nome if empresa else f"empresa #{empresa_id}"
         agg = agregar_subpilares(s, empresa_id, None)
         gargalo = _gargalo(agg)
+        # CP-LG-5: projeção de impacto (mesma fn da tela → números idênticos).
+        from src.governanca.leitura import anexar_impacto_acoes
 
-    itens = consolidar_acoes(empresa_id)
+        anexar_impacto_acoes(s, empresa_id, itens)
     prio_rank = {"alto": 3, "medio": 2, "baixo": 1}
 
     grupos = []
