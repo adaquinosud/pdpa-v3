@@ -704,6 +704,155 @@ def test_confronto_anexa_proximity_por_subpilar(db_session):
     assert by["P2"].ratio is not None  # ratio aparece mesmo assim
 
 
+# ── CP-LG-3: Concentração + Gini ───────────────────────────────────────────
+@pytest.mark.parametrize(
+    "gc, faixa",
+    [
+        (0.0, "baixa"),
+        (0.39, "baixa"),
+        (0.40, "media"),  # >=0.4 fecha em media
+        (0.50, "media"),
+        (0.60, "media"),  # <=0.6 fecha em media
+        (0.61, "alta"),
+        (1.0, "alta"),
+        (None, None),
+    ],
+)
+def test_faixa_gini_bordas(gc, faixa):
+    from src.governanca.metricas import faixa_gini
+
+    assert faixa_gini(gc) == faixa
+
+
+def test_gini_corrigido_normaliza_teto():
+    """Correção viés-por-n: teto (n-1)/n vira 1.0; comparável entre escopos."""
+    from src.governanca.metricas import calcular_gini, gini_corrigido
+
+    # n=5 máximo concentrado: bruto 0.8 → corrigido 1.0
+    bruto5 = calcular_gini([0, 0, 0, 0, 100])
+    assert bruto5 == pytest.approx(0.8, abs=1e-9)
+    assert gini_corrigido(bruto5, 5) == pytest.approx(1.0, abs=1e-9)
+    # exemplo realista n=6: bruto ~0.467 → corrigido ~0.56 (media)
+    bruto6 = calcular_gini([40, 40, 5, 5, 5, 5])
+    assert gini_corrigido(bruto6, 6) == pytest.approx(0.56, abs=0.01)
+
+
+def _loja_com_detratores(db_session, e, fonte, nome, n_det, pref):
+    loja = Local(empresa_id=e.id, nome=nome)
+    db_session.add(loja)
+    db_session.commit()
+    _verbs(db_session, e, fonte, loja, "P1", "detrator", n_det, pref)
+    return loja
+
+
+def test_recalcular_gini_persiste_bolsao_e_json(db_session):
+    """6 lojas com detratores [40,40,5,5,5,5]: Gini media, bolsão 2 lojas (80%)."""
+    import json
+
+    from src.governanca.metricas import recalcular_gini
+    from src.models.governanca import GiniConcentracao as GC
+
+    e, fonte = _empresa_fonte(db_session)
+    for i, n in enumerate([40, 40, 5, 5, 5, 5]):
+        _loja_com_detratores(db_session, e, fonte, f"L{i}", n, f"g{i}_")
+    db_session.commit()
+
+    res = recalcular_gini(e.id)
+    assert res["gini_escopos"] >= 1
+
+    row = (
+        db_session.query(GC)
+        .filter_by(empresa_id=e.id, escopo_tipo="empresa")
+        .filter(GC.escopo_id.is_(None))
+        .one()
+    )
+    assert row.gini == pytest.approx(0.47, abs=0.02)  # bruto na coluna
+    assert row.top_n_lojas == 2
+    dj = json.loads(row.distribuicao_json)
+    assert dj["faixa"] == "media"
+    assert dj["share"] == pytest.approx(0.8, abs=1e-9)
+    assert dj["total_detratores"] == 100
+    assert dj["total_lojas"] == 6
+    assert dj["gini_corrigido"] == pytest.approx(0.56, abs=0.01)
+    assert dj["lojas"][0]["detratores"] == 40  # ordenado desc
+    assert len(dj["lojas"]) == 6  # todas as medidas (p/ barras)
+
+
+def test_recalcular_gini_insuficiente_poucas_lojas(db_session):
+    """< 5 lojas medidas → gini NULL, insuficiente."""
+    import json
+
+    from src.governanca.metricas import recalcular_gini
+    from src.models.governanca import GiniConcentracao as GC
+
+    e, fonte = _empresa_fonte(db_session)
+    for i in range(4):
+        _loja_com_detratores(db_session, e, fonte, f"P{i}", 5, f"p{i}_")
+    db_session.commit()
+
+    recalcular_gini(e.id)
+    row = (
+        db_session.query(GC)
+        .filter_by(empresa_id=e.id, escopo_tipo="empresa")
+        .filter(GC.escopo_id.is_(None))
+        .one()
+    )
+    assert row.gini is None
+    dj = json.loads(row.distribuicao_json)
+    assert dj["insuficiente"] is True
+    assert dj["motivo"] == "poucas_lojas"
+
+
+def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):
+    """Card Gini no Painel: presente em empresa/agrupamento; None (N/A) em loja."""
+    from flask import session
+
+    from src.governanca.metricas import recalcular_governanca
+    from src.ui import _aba_painel, _wrap_empresa
+
+    e, fonte = _empresa_fonte(db_session)
+    lojas = [
+        _loja_com_detratores(db_session, e, fonte, f"L{i}", n, f"pg{i}_")
+        for i, n in enumerate([40, 40, 5, 5, 5, 5])
+    ]
+    db_session.commit()
+    recalcular_governanca(e.id)
+    ew = _wrap_empresa(e)
+
+    with app.test_request_context(f"/empresas/{e.id}/painel"):
+        session["user_id"] = usuario_loyall.id
+        ctx = _aba_painel(e.id, ew)
+    assert ctx["gini"] is not None
+    assert ctx["gini"]["faixa"] == "media"  # [40,40,5,5,5,5] → media
+
+    with app.test_request_context(f"/empresas/{e.id}/painel?local_id={lojas[0].id}"):
+        session["user_id"] = usuario_loyall.id
+        ctx2 = _aba_painel(e.id, ew)
+    assert ctx2["escopo_tipo"] == "loja"
+    assert ctx2["gini"] is None  # Gini N/A em loja única
+
+
+def test_leitura_concentracao_texto():
+    from src.governanca.leitura import leitura_concentracao
+
+    d = {
+        "insuficiente": False,
+        "faixa": "alta",
+        "share": 0.8,
+        "top_n": 2,
+        "total_lojas": 6,
+        "total_detratores": 100,
+    }
+    txt = leitura_concentracao(d)
+    assert "80% dos detratores" in txt
+    assert "2 de 6 lojas" in txt
+    assert "concentração alta" in txt
+    # indisponível
+    assert "menos de 5 lojas" in leitura_concentracao(
+        {"insuficiente": True, "motivo": "poucas_lojas"}
+    )
+
+
 def test_dados_hash_persistido_nas_duas_tabelas(db_session):
     e = _empresa(db_session)
     h = hash_payload({"escopo": "empresa", "subpilar": "P1"})

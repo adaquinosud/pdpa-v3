@@ -161,7 +161,7 @@
   </div>
   {% endif %}
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração de Detratores</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração (top-5)</div>
     {% if n1.concentracao_detratores is not none %}
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ conc_cls }}-600">{{ '%.0f'|format(n1.concentracao_detratores) }}%</span>
@@ -173,6 +173,27 @@
     <div class="text-xs text-loyall-400 mt-1">Onde dói. Indisponível: precisa ≥ 5 lojas com volume mínimo.</div>
     {% endif %}
   </div>
+
+  {# Desigualdade (Gini) — CP-LG-3, escopo empresa/agrupamento. Lidera com a
+     PALAVRA da faixa; coeficiente secundário; linka pra aba Concentração. #}
+  {% if escopo_tipo != 'loja' %}
+  {% set gcls = {'baixa':'emerald','media':'amber','alta':'rose'}.get(gini.faixa if gini else none, 'slate') %}
+  {% set gword = {'baixa':'Baixa','media':'Média','alta':'Alta'} %}
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Desigualdade (Gini)</div>
+    {% if gini and not gini.insuficiente and gini.faixa %}
+    <div class="text-3xl font-bold text-{{ gcls }}-600 mt-1">{{ gword.get(gini.faixa, gini.faixa) }}</div>
+    <div class="text-xs text-loyall-400 mt-1">
+      <span class="cursor-help" title="Gini corrigido por viés-de-n ({{ gini.total_lojas }} lojas); bruto {{ '%.2f'|format(gini.gini_bruto) }}">{{ '%.2f'|format(gini.gini_corrigido) }} / 1.00</span>
+      · <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=concentracao&agrupamento_id={{ filtros.agrupamento_id }}" class="underline hover:text-loyall-600">ver aba</a>
+    </div>
+    <div class="text-xs text-loyall-400 mt-2">Quão concentrados os detratores estão entre as lojas.</div>
+    {% else %}
+    <div class="mt-1 text-loyall-300 text-3xl font-bold">—</div>
+    <div class="text-xs text-loyall-400 mt-1">sem dado — &lt; 5 lojas medidas.</div>
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="flex items-center justify-between">
       <div class="text-xs uppercase tracking-wider text-loyall-400">Índice de Engajamento</div>

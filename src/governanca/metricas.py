@@ -126,6 +126,36 @@ def calcular_gini(distribuicao: Sequence[float]) -> Optional[float]:
     return max(0.0, min(1.0, gini))
 
 
+# Concentração / Gini (CP-LG-3).
+GINI_MIN_LOJAS = 5  # < 5 lojas medidas → Gini indisponível (igual à concentração %)
+GINI_BOLSAO_SHARE = 0.5  # bolsão crítico = menor conjunto que soma ≥ 50% dos detratores
+
+
+def gini_corrigido(g: Optional[float], n: Optional[int]) -> Optional[float]:
+    """Correção de viés-por-n do Gini: ``G · n/(n-1)``, cap 1.0.
+
+    O Gini bruto tem teto ``(n-1)/n`` (0.8 p/ n=5, ~0.98 p/ n=47), o que tornaria
+    as faixas incomparáveis entre escopos de tamanhos diferentes. A correção
+    normaliza o teto para 1.0 em qualquer ``n`` — usada SÓ para classificar a
+    faixa; o ``gini`` bruto (de ``calcular_gini``) é o que fica na coluna."""
+    if g is None or n is None or n < 2:
+        return g
+    return min(1.0, g * n / (n - 1))
+
+
+def faixa_gini(gini_corr: Optional[float]) -> Optional[str]:
+    """Faixa da concentração (sobre o Gini CORRIGIDO). Contrato p/ UI:
+    ``< 0.4`` → ``"baixa"`` (distribuído) · ``0.4–0.6`` → ``"media"`` · ``> 0.6`` →
+    ``"alta"`` (concentrado). ``None`` → ``None``."""
+    if gini_corr is None:
+        return None
+    if gini_corr < 0.4:
+        return "baixa"
+    if gini_corr <= 0.6:
+        return "media"
+    return "alta"
+
+
 def _arred(x: Optional[float]) -> Optional[float]:
     return None if x is None else round(x, 2)
 
@@ -272,13 +302,142 @@ def recalcular_previsibilidade(empresa_id: int, *, skip_unchanged: bool = True) 
     return {"previsib_escopos": recalc, "previsib_pulados": pulados}
 
 
+def recalcular_gini(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str, int]:
+    """Recalcula a Concentração de Detratores (Gini) por escopo (empresa + cada
+    agrupamento) e persiste em ``gini_concentracao``.
+
+    Distribuição = nº de detratores por loja MEDIDA (≥1 verbatim) no escopo,
+    histórico completo. ``gini`` (coluna) = Gini bruto; ``distribuicao_json``
+    guarda ``gini_bruto`` + ``gini_corrigido`` (viés-por-n) + ``faixa`` + bolsão
+    (top_n a ≥50% dos detratores) + todas as lojas medidas ordenadas (p/ as
+    barras). Indisponível (NULL) se < 5 lojas medidas ou 0 detratores.
+    Delete-then-insert por escopo + skip por hash da distribuição.
+    """
+    import json as _json
+
+    from sqlalchemy import and_, func
+
+    from src.models.agrupamento import Agrupamento
+    from src.models.governanca import GiniConcentracao
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    recalc = 0
+    pulados = 0
+    with db_session() as s:
+        nomes = {loc.id: loc.nome for loc in s.query(Local).filter_by(empresa_id=empresa_id).all()}
+        escopos = [("empresa", None, None)]
+        for ag in s.query(Agrupamento).filter_by(empresa_id=empresa_id).all():
+            escopos.append(("agrupamento", ag.id, ag.id))
+
+        for escopo_tipo, escopo_id, ag_id in escopos:
+            q = (
+                s.query(Verbatim.local_id, Verbatim.tipo, func.count(Verbatim.id))
+                .filter(Verbatim.empresa_id == empresa_id, Verbatim.local_id.isnot(None))
+                .group_by(Verbatim.local_id, Verbatim.tipo)
+            )
+            if ag_id is not None:
+                locais_ag = [
+                    lid
+                    for (lid,) in s.query(Local.id)
+                    .filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+                    .all()
+                ]
+                q = q.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+            por_loja: Dict[int, Dict[str, int]] = {}
+            for lid, tipo, n in q.all():
+                d = por_loja.setdefault(lid, {"det": 0, "total": 0})
+                d["total"] += int(n)
+                if tipo == "detrator":
+                    d["det"] += int(n)
+            medidas = {lid: d for lid, d in por_loja.items() if d["total"] >= 1}
+            n_lojas = len(medidas)
+            total_det = sum(d["det"] for d in medidas.values())
+
+            h = hash_payload(sorted((lid, d["det"]) for lid, d in medidas.items()))
+            cond = (
+                GiniConcentracao.escopo_id.is_(None)
+                if escopo_id is None
+                else (GiniConcentracao.escopo_id == escopo_id)
+            )
+            base = and_(
+                GiniConcentracao.empresa_id == empresa_id,
+                GiniConcentracao.escopo_tipo == escopo_tipo,
+                cond,
+            )
+            if skip_unchanged:
+                atual = s.query(GiniConcentracao.dados_hash).filter(base).first()
+                if atual and atual[0] == h:
+                    pulados += 1
+                    continue
+
+            g_raw = None
+            top_n = None
+            if n_lojas < GINI_MIN_LOJAS or total_det == 0:
+                dj = {
+                    "total_lojas": n_lojas,
+                    "total_detratores": total_det,
+                    "insuficiente": True,
+                    "motivo": "poucas_lojas" if n_lojas < GINI_MIN_LOJAS else "sem_detratores",
+                    "lojas": [],
+                }
+            else:
+                g_raw = calcular_gini([d["det"] for d in medidas.values()])
+                g_corr = gini_corrigido(g_raw, n_lojas)
+                faixa = faixa_gini(g_corr)
+                ordenadas = sorted(medidas.items(), key=lambda kv: -kv[1]["det"])
+                lojas_json = [
+                    {
+                        "local_id": lid,
+                        "nome": nomes.get(lid, f"loja {lid}"),
+                        "detratores": d["det"],
+                        "share": round(d["det"] / total_det, 4),
+                    }
+                    for lid, d in ordenadas
+                ]
+                acc = 0
+                top_n = 0
+                for _lid, d in ordenadas:
+                    acc += d["det"]
+                    top_n += 1
+                    if acc / total_det >= GINI_BOLSAO_SHARE:
+                        break
+                dj = {
+                    "total_lojas": n_lojas,
+                    "total_detratores": total_det,
+                    "top_n": top_n,
+                    "share": round(acc / total_det, 4),
+                    "gini_bruto": round(g_raw, 4),
+                    "gini_corrigido": round(g_corr, 4),
+                    "faixa": faixa,
+                    "lojas": lojas_json,
+                }
+
+            s.query(GiniConcentracao).filter(base).delete(synchronize_session=False)
+            s.add(
+                GiniConcentracao(
+                    empresa_id=empresa_id,
+                    escopo_tipo=escopo_tipo,
+                    escopo_id=escopo_id,
+                    gini=(round(g_raw, 4) if g_raw is not None else None),
+                    top_n_lojas=top_n,
+                    distribuicao_json=_json.dumps(dj, ensure_ascii=False),
+                    dados_hash=h,
+                )
+            )
+            recalc += 1
+        s.commit()
+    return {"gini_escopos": recalc, "gini_pulados": pulados}
+
+
 def recalcular_governanca(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str, int]:
     """Recalcula as métricas de governança de uma empresa (passo 7.5 do pós-coleta).
 
     - **Proximity** por escopo (empresa, cada agrupamento, cada loja) em
       ``proximity_calculations`` — delete-then-insert por escopo + skip por hash.
     - **Previsibilidade** per-loja em ``previsibilidade_calculations`` (CP-LG-2).
-    - **Gini**: no-op até o CP-LG-3.
+    - **Gini** (Concentração) por escopo em ``gini_concentracao`` (CP-LG-3).
     """
     from sqlalchemy import and_
 
@@ -332,12 +491,14 @@ def recalcular_governanca(empresa_id: int, *, skip_unchanged: bool = True) -> Di
             recalc += 1
         s.commit()
 
-    # Previsibilidade per-loja (sequencial à Proximity — sessões não aninhadas).
+    # Previsibilidade + Gini (sequenciais à Proximity — sessões não aninhadas).
     prev = recalcular_previsibilidade(empresa_id, skip_unchanged=skip_unchanged)
+    gini = recalcular_gini(empresa_id, skip_unchanged=skip_unchanged)
     return {
         "proximity_escopos": recalc,
         "proximity_pulados": pulados,
         "previsib_escopos": prev["previsib_escopos"],
         "previsib_pulados": prev["previsib_pulados"],
-        "gini": 0,
+        "gini_escopos": gini["gini_escopos"],
+        "gini_pulados": gini["gini_pulados"],
     }

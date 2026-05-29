@@ -594,6 +594,7 @@ def _aba_painel(empresa_id, empresa_w):
     from src.governanca.leitura import (
         escopo_de_filtros,
         garantir_governanca,
+        gini_escopo,
         previsibilidade_loja,
         proximity_escopo,
     )
@@ -608,6 +609,8 @@ def _aba_painel(empresa_id, empresa_w):
             previsib = {"valor": pv["valor"], "faixa": pv["faixa"], "fonte": "loja"}
         else:
             previsib = {"valor": n1.get("previsibilidade"), "faixa": None, "fonte": "empresa"}
+        # Gini (CP-LG-3) só existe p/ empresa/agrupamento — N/A em loja única.
+        gini = gini_escopo(s, empresa_id, escopo_tipo, escopo_id) if escopo_tipo != "loja" else None
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
@@ -630,6 +633,7 @@ def _aba_painel(empresa_id, empresa_w):
         "escopo_tipo": escopo_tipo,
         "proximity": proximity,
         "previsib": previsib,
+        "gini": gini,
     }
 
 
@@ -2164,6 +2168,7 @@ _EXPLORAR_TABS = [
     {"id": "comparar", "label": "Comparar", "grupo": "analise"},
     {"id": "evolucao", "label": "Evolução", "grupo": "analise"},
     {"id": "diagnostico", "label": "Diagnóstico", "grupo": "diagnostico"},
+    {"id": "concentracao", "label": "Concentração", "grupo": "diagnostico"},
     {"id": "planos", "label": "Planos de Ação", "grupo": "acoes"},
     {"id": "leaderboard", "label": "Leaderboard", "grupo": "acoes"},
     {"id": "ia", "label": "✨ IA", "grupo": "ia"},
@@ -3009,6 +3014,27 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
     )
 
 
+def _explorar_concentracao(s, empresa_id, ag_id=None):
+    """Aba Concentração (CP-LG-3): Gini + faixa + leitura editorial + barras.
+    Escopo empresa (ag_id None) ou agrupamento. Leitura, sem recálculo."""
+    from src.governanca.leitura import garantir_governanca, gini_escopo, leitura_concentracao
+
+    garantir_governanca(empresa_id)
+    escopo_tipo = "agrupamento" if ag_id else "empresa"
+    escopo_id = ag_id if ag_id else None
+    d = gini_escopo(s, empresa_id, escopo_tipo, escopo_id)
+    lojas = (d.get("lojas") if d else None) or []
+    barras = lojas[:15]  # top 15 por contribuição; bolsão = primeiras top_n
+    return SimpleNamespace(
+        dados=d,
+        leitura=leitura_concentracao(d),
+        barras=barras,
+        bolsao_n=(d.get("top_n") if d else None),
+        max_det=(barras[0]["detratores"] if barras else 0),
+        escopo_tipo=escopo_tipo,
+    )
+
+
 def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score"):
     """Ranking de locais por score modulado (CP-E3): score = Índice Geral ×
     (engajamento/100). Três faixas de confiança (limiares = selo): ranking
@@ -3315,6 +3341,9 @@ def _explorar_contexto(empresa_id, tab):
         diagnostico = (
             _explorar_diagnostico(s, empresa_id, ag_id, local_id) if tab == "diagnostico" else None
         )
+        concentracao = (
+            _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
+        )
         leaderboard = None
         if tab == "leaderboard":
             ob = request.args.get("order_by", "score")
@@ -3339,6 +3368,7 @@ def _explorar_contexto(empresa_id, tab):
         "comparar": comparar,
         "evolucao": evolucao,
         "diagnostico": diagnostico,
+        "concentracao": concentracao,
         "planos": planos,
         "leaderboard": leaderboard,
         "ia": ia,

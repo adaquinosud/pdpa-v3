@@ -1,0 +1,60 @@
+{# Aba Concentração (CP-LG-3): Gini + faixa + leitura editorial + barras.
+   Heatmap loja×subpilar fica para o LG-3.1. #}
+{% set c = concentracao %}
+{% set d = c.dados %}
+{% set fcls = {'baixa':'emerald','media':'amber','alta':'rose'} %}
+{# Badge = faixa do contrato (baixa/média/alta). Adjetivo editorial
+   (concentrada/distribuída) fica só na frase de leitura, nunca no badge. #}
+{% set fnome = {'baixa':'Baixa','media':'Média','alta':'Alta'} %}
+
+<div class="mb-4">
+  <h3 class="text-sm font-semibold text-loyall-700">Concentração de Detratores</h3>
+  <p class="text-xs text-loyall-500">Onde os detratores se concentram entre as lojas. Gini alto = poucas lojas concentram a dor (cirúrgico); baixo = problema distribuído (sistêmico).</p>
+</div>
+
+{% if d and not d.insuficiente %}
+{% set fc = fcls.get(d.faixa, 'slate') %}
+{# ── Cabeçalho: Gini + faixa + leitura editorial ─────────────────────── #}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração (Gini)</div>
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-{{ fc }}-600 cursor-help"
+            title="Gini corrigido por viés-de-n ({{ d.total_lojas }} lojas) para comparar escopos de tamanhos diferentes. Bruto: {{ '%.2f'|format(d.gini_bruto) }}">{{ '%.2f'|format(d.gini_corrigido) }}</span>
+      <span class="text-sm text-loyall-400">/ 1.00</span>
+    </div>
+    <div class="text-xs text-{{ fc }}-700 mt-1">{{ fnome.get(d.faixa, d.faixa) }}</div>
+  </div>
+  <div class="bg-white border border-loyall-200 rounded p-4 md:col-span-2">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Leitura</div>
+    <p class="text-sm text-loyall-700 mt-2 leading-relaxed">{{ c.leitura }}</p>
+    <div class="text-[11px] text-loyall-400 mt-2">Bolsão crítico: {{ c.bolsao_n }} loja(s) somam ≥50% dos detratores ({{ d.total_detratores }} no total).</div>
+  </div>
+</div>
+
+{# ── Barras: lojas por contribuição ao total de detratores ──────────── #}
+<div class="bg-white border border-loyall-200 rounded p-4">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-3">Lojas por contribuição (top {{ c.barras|length }}) · bolsão crítico destacado</div>
+  <div class="space-y-1.5">
+    {% for l in c.barras %}
+    {% set no_bolsao = loop.index <= c.bolsao_n %}
+    <div class="flex items-center gap-2 text-xs">
+      <div class="w-44 truncate {% if no_bolsao %}font-medium text-loyall-800{% else %}text-loyall-500{% endif %}" title="{{ l.nome }}">
+        {% if no_bolsao %}<span title="No bolsão crítico (≥50% acumulado)">🎯</span> {% endif %}{{ l.nome }}
+      </div>
+      <div class="flex-1 h-3 rounded bg-loyall-100 overflow-hidden">
+        <div class="h-3 rounded {% if no_bolsao %}bg-rose-400{% else %}bg-loyall-300{% endif %}"
+             style="width: {{ (100 * l.detratores / c.max_det) | round(0,'floor') if c.max_det else 0 }}%"></div>
+      </div>
+      <div class="w-20 text-right text-loyall-600">{{ l.detratores }} det · {{ (l.share*100)|round(0,'floor')|int }}%</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+{# ── Indisponível (< 5 lojas medidas ou sem detratores) ──────────────── #}
+<div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  <div class="text-3xl text-loyall-300 mb-1">—</div>
+  <div class="text-sm text-loyall-500">{{ c.leitura }}</div>
+</div>
+{% endif %}

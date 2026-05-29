@@ -272,3 +272,17 @@ lastro para o agregado não ser NULL/penalizado no LG-1 (ex.: agregado só
 mexer agora: mudaria dado já validado e `agregado=min` está conceitualmente
 certo — o problema é só de apresentação no ranking, já endereçado pela anotação.
 Reavaliar quando houver cliente real usando o ranking de Proximity como decisão.
+
+---
+
+## LG-3.1 — Heatmap loja×subpilar de detratores (aba Concentração)
+
+**Origem:** CP-LG-3, 2026-05-29 (faseado por decisão do Alexandre — ship do núcleo
+Gini+barras+leitura primeiro).
+
+A aba Concentração entrega Gini (corrigido por viés-de-n) + barras de lojas por
+contribuição + leitura editorial. **Falta o heatmap loja×subpilar dos detratores**
+(matriz visual de onde, por subpilar, cada loja concentra detratores) — a parte
+mais pesada de render. Encaixar provavelmente depois do LG-6 (Selos) ou junto do
+LG-8 (Painel de Governança, cap-stone visual). Dados já disponíveis via
+`Verbatim` (local_id × subpilar × tipo=detrator); é trabalho de UI/agregação.

@@ -12,18 +12,22 @@ from typing import Any, Dict, Optional, Tuple
 
 
 def garantir_governanca(empresa_id: int) -> None:
-    """Popula a governança se ``proximity_calculations`` estiver vazia p/ a empresa."""
+    """Popula a governança se Proximity OU Gini estiverem vazios p/ a empresa
+    (recalcular_governanca pula o que já está fresco via hash)."""
     from src.governanca.metricas import recalcular_governanca
-    from src.models.governanca import ProximityCalculation
+    from src.models.governanca import GiniConcentracao, ProximityCalculation
     from src.utils.db import db_session
 
     with db_session() as s:
-        existe = (
+        tem_prox = (
             s.query(ProximityCalculation.id)
             .filter(ProximityCalculation.empresa_id == empresa_id)
             .first()
         )
-    if existe is None:
+        tem_gini = (
+            s.query(GiniConcentracao.id).filter(GiniConcentracao.empresa_id == empresa_id).first()
+        )
+    if tem_prox is None or tem_gini is None:
         recalcular_governanca(empresa_id)
 
 
@@ -113,6 +117,55 @@ def proximity_subpilares_escopo(
         .all()
     )
     return {sub: {"valor": v, "faixa": f} for sub, v, f in rows}
+
+
+def gini_escopo(
+    s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
+) -> Optional[Dict[str, Any]]:
+    """Lê a linha de ``gini_concentracao`` do escopo → dict pronto p/ a UI
+    (gini bruto + corrigido + faixa + bolsão + lojas). None se não há linha."""
+    import json
+
+    from src.models.governanca import GiniConcentracao as GC
+
+    cond = GC.escopo_id.is_(None) if escopo_id is None else (GC.escopo_id == escopo_id)
+    row = (
+        s.query(GC.gini, GC.top_n_lojas, GC.distribuicao_json)
+        .filter(GC.empresa_id == empresa_id, GC.escopo_tipo == escopo_tipo, cond)
+        .first()
+    )
+    if row is None:
+        return None
+    dj = json.loads(row[2]) if row[2] else {}
+    return {
+        "gini_bruto": row[0],
+        "gini_corrigido": dj.get("gini_corrigido"),
+        "faixa": dj.get("faixa"),
+        "top_n": dj.get("top_n"),
+        "share": dj.get("share"),
+        "total_lojas": dj.get("total_lojas"),
+        "total_detratores": dj.get("total_detratores"),
+        "lojas": dj.get("lojas", []),
+        "insuficiente": dj.get("insuficiente", False),
+        "motivo": dj.get("motivo"),
+    }
+
+
+def leitura_concentracao(d: Optional[Dict[str, Any]]) -> str:
+    """Leitura editorial determinística ($0 LLM) da concentração."""
+    if d is None or d.get("insuficiente"):
+        if d and d.get("motivo") == "sem_detratores":
+            return "Sem detratores registrados neste escopo — nada a concentrar."
+        return "Concentração indisponível — menos de 5 lojas medidas neste escopo."
+    share_pct = round((d.get("share") or 0) * 100)
+    base_pct = round(100 * d["top_n"] / d["total_lojas"]) if d.get("total_lojas") else 0
+    nome = {"baixa": "baixa (distribuída)", "media": "média", "alta": "alta (concentrada)"}.get(
+        d.get("faixa"), d.get("faixa")
+    )
+    return (
+        f"{share_pct}% dos detratores concentram-se em {d['top_n']} de "
+        f"{d['total_lojas']} lojas ({base_pct}% da base) → concentração {nome}."
+    )
 
 
 def previsibilidade_loja(s, empresa_id: int, local_id: int) -> Dict[str, Any]:

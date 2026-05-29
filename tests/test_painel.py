@@ -762,7 +762,8 @@ def test_ui_painel_3_cards_metricas_consolidadas(client_loyall, db_session):
     html = r.data.decode()
     assert "Índice Geral" in html
     assert "Previsibilidade" in html
-    assert "Concentração de Detratores" in html
+    assert "Concentração (top-5)" in html  # relabel CP-LG-3 (opção i)
+    assert "Desigualdade (Gini)" in html  # card Gini adicionado no CP-LG-3
 
 
 def test_painel_cliente_de_outra_empresa_403(client_loyall, client_cliente_factory):
