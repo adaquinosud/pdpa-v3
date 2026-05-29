@@ -226,7 +226,7 @@ def executar_pos_coleta(
         r.loja_sug_pulados += msl["pulados"]
         custo += (mdl["in"] + msl["in"]) / 1e6 * 3.0 + (mdl["out"] + msl["out"]) / 1e6 * 15.0
 
-    # ── Relatórios (Bloco 9 / B1'..B4) — pré-aquece cache dos 4 PDFs.
+    # ── Relatórios (B1'..B4 + B5 Governança) — pré-aquece cache dos 5 PDFs.
     # Cada montar_dados já faz skip por dados_hash em relatorio_cache; aqui só
     # garantimos que o cache fique quente para a UI/download não esperar LLM.
     # Custo recorrente: $0 quando nada mudou.
@@ -234,6 +234,7 @@ def executar_pos_coleta(
 
     from src.relatorios.diagnostico_longitudinal import montar_dados as _b4
     from src.relatorios.diagnostico_pontual import montar_dados as _b2
+    from src.relatorios.painel_governanca import montar_dados as _b5
     from src.relatorios.plano_executivo import montar_dados as _b3
     from src.relatorios.resumo_executivo import montar_dados as _b1
 
@@ -252,7 +253,7 @@ def executar_pos_coleta(
                     _sess["user_id"] = u.id
             return fn(empresa_id)
 
-    for _fn in (_b1, _b2, _b3, _b4):
+    for _fn in (_b1, _b2, _b3, _b4, _b5):  # B5 (Governança) = $0 LLM
         try:
             d_ = _aquecer(_fn)
             ti_ = int(d_.get("tokens_in", 0) or 0)

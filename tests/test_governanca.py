@@ -1296,6 +1296,30 @@ def test_compor_ordem_fixa_prefixo():
     assert a2 == a3[:2]
 
 
+def test_painel_governanca_pdf_monta_e_renderiza(app, db_session, usuario_loyall):
+    """B5: montar_dados ($0 LLM) + HTML do PDF renderiza com capa/radar/teto."""
+    from src.governanca.metricas import recalcular_governanca
+    from src.relatorios.painel_governanca import montar_dados
+    from src.ui import _relatorio_html, _wrap_empresa
+
+    e, fonte = _empresa_fonte(db_session)
+    for i, n in enumerate([40, 40, 5, 5, 5, 5]):
+        _loja_com_detratores(db_session, e, fonte, f"L{i}", n, f"pg{i}_")
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    d = montar_dados(e.id)
+    assert len(d["capas"]) >= 1  # ao menos o candidato de selos
+    assert d["cobertura"]["total"] == 6
+
+    with app.test_request_context(f"/empresas/{e.id}/relatorios"):
+        html = _relatorio_html(_wrap_empresa(e), "painel_governanca")
+    assert "capa-choque" in html
+    assert "Painel de Governança" in html
+    assert "Projeção, não promessa" in html  # aviso obrigatório no PDF
+    assert "em formação" in html  # cobertura no PDF
+
+
 def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     from src.governanca.metricas import recalcular_governanca
 
