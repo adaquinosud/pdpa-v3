@@ -4,7 +4,7 @@
 2026-05-29 — commit `8d2c3a4` (Reorg menu: consolida 5 itens legacy no Hub Explorar)
 
 ## Estado atual
-- Branch: main
+- Branch: feature/bloco-6-temas-nivel-3 (merge pra main pendente — avaliar quando próximo bloco começar)
 - 232 testes verdes
 - Hub Explorar consolidado (5 itens legacy funcionam via /explorar?tab=X)
 
