@@ -137,12 +137,21 @@ Calibração:
 - Badge no Leaderboard (ao lado do nome) + cabeçalho do Painel de Loja.
 - Distribuição de selos no Painel de Governança (CP-LG-8).
 
-### CP-LG-7 · Integração com Mapa Financeiro (1 dia)
-- Estrutura do Mapa Financeiro nos relatórios (B2', B1') ganha colunas:
-  - Proximity por subpilar
-  - Coluna "R$ Projetado" com placeholder "[habilitar com LTV setorial]"
-- Quando empresa tiver LTV setorial cadastrado (pendência futura), preenche automaticamente
-- Não recodificar o Mapa Financeiro — só enriquecer
+### CP-LG-7 · Integração com Mapa Financeiro — ✅ CONCLUÍDO
+> **Correção de escopo (2026-05-29): só o B2'.** O texto original dizia "B2'/B1'", mas
+> **o B1' (Resumo Executivo) NÃO tem Mapa Financeiro** — tem "Mapa de Lastro" (consolidado
+> de pilares, artefato diferente, não-financeiro). Criar MF no B1' seria recodificar
+> (proibido). LG-7 **enriquece só o Mapa Financeiro do B2' (Diagnóstico Pontual)**.
+
+- Mapa Financeiro do B2' (`mapa_financeiro`) ganha 2 colunas (enriquecimento, sem reescrita):
+  - **Proximity por subpilar** — leitura de `proximity_calculations` (escopo empresa =
+    escopo do relatório; B2' é empresa-wide) via `proximity_subpilares_escopo`. Sub-floor → "—".
+  - **R$ Projetado** — placeholder "—" (não "R$ 0,00"); o disclaimer do topo do MF carrega a
+    explicação ("habilita com LTV setorial"). Evita repetir o texto longo nas 12 linhas.
+- Gancho futuro reservado: `rs_projetado=None` + comentário; quando `Empresa.ltv_setorial`
+  existir (pendência futura, decisão de método), preenche `conversíveis × LTV` — **sem
+  reescrever o Mapa**. Zero cálculo R$ agora; zero heurística.
+- Paleta v2; $0 LLM (enriquecimento de dado já calculado).
 
 ### CP-LG-8 · Painel "Governança" dedicado + 5º relatório PDF (2-3 dias)
 - Nova entrada no menu: **"Governança"** (entre IA e Relatórios)

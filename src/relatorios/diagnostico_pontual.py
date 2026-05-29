@@ -402,17 +402,29 @@ def montar_dados(
         )
 
     # ─── MF · Mapa Financeiro Qualitativo (sem R$) ─────────────────────────
+    # CP-LG-7 (enriquecimento, não reescrita): + Proximity (leitura, escopo empresa
+    # = escopo do relatório) + R$ Projetado (placeholder até LTV setorial existir).
+    from src.governanca.leitura import proximity_subpilares_escopo
+
+    _prox_sub = proximity_subpilares_escopo(s, empresa_id, "empresa", None)
     mapa_financeiro = []
     for sub in SUBPILARES_ORDEM:
         d_ = agg.get(sub)
         if d_ is None:
             continue
         lt = leituras.get(sub)
+        _px = _prox_sub.get(sub, {})
         mapa_financeiro.append(
             SimpleNamespace(
                 subpilar=sub,
                 nome=NOME_SUBPILAR.get(sub, sub),
                 faixa=d_["faixa"],
+                proximity=_px.get("valor"),  # None (sub-floor) → "—" no template
+                proximity_faixa=_px.get("faixa"),
+                # CP-LG-7: R$ reservado — preencher com conversiveis × LTV quando
+                # Empresa.ltv_setorial existir (pendência futura, decisão de método).
+                # NÃO calcular agora; coluna/template já reservados → sem reescrita.
+                rs_projetado=None,
                 driver=DRIVER_NEGOCIO.get(sub, "—"),
                 horizonte=HORIZONTE_POR_FAIXA.get(d_["faixa"], "—"),
                 interpretacao=(

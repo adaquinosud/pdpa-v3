@@ -262,14 +262,17 @@ ordem desperdiça esforço.</p>
                    setorial.') }}
 <div class="card papel" style="border-color:var(--dourado); font-size:9pt">
   <strong>⚙ Valor financeiro habilitado com LTV setorial</strong> · este mapa apresenta
-  drivers e horizontes qualitativos. A monetização absoluta (R$/ação) entra no
-  Diagnóstico Setorial v3, mediante integração de LTV de referência do segmento.
+  drivers e horizontes qualitativos. A coluna <strong>R$ Projetado</strong> aparece como
+  "—" e habilita automaticamente (conversíveis × LTV) quando o LTV setorial de referência
+  do segmento for cadastrado para a empresa.
 </div>
 <table>
   <thead>
     <tr>
       <th>Subpilar</th><th>Nível</th>
+      <th>Proximity</th>
       <th>Driver de Negócio</th><th>Horizonte</th>
+      <th>R$ Projetado</th>
       <th>Interpretação Qualitativa</th>
     </tr>
   </thead>
@@ -286,8 +289,15 @@ ordem desperdiça esforço.</p>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4</span>
         {%- else %}{{ mf.faixa }}{% endif %}
       </td>
+      <td style="text-align:center; font-size:9pt; color:#1A1A2E">
+        {% if mf.proximity is not none %}<b>{{ '%.0f'|format(mf.proximity) }}</b>{% else %}<span class="muted">—</span>{% endif %}
+      </td>
       <td style="font-size:9pt">{{ mf.driver }}</td>
       <td style="font-size:8.5pt">{{ mf.horizonte }}</td>
+      <td style="text-align:center; font-size:9pt; color:#8a7857"
+          title="Habilita com LTV setorial">
+        {% if mf.rs_projetado is none %}—{% else %}{{ mf.rs_projetado }}{% endif %}
+      </td>
       <td style="font-size:8.5pt">{{ mf.interpretacao }}</td>
     </tr>
     {% endfor %}
