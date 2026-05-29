@@ -175,6 +175,12 @@ def executar_pos_coleta(
     recomputar_ratios_mensais(empresa_id)
     r.anomalias = detectar_e_persistir(empresa_id)["total"]
 
+    # ── passo 7.5: governança ($0 no CP-LG-0 — no-op; LG-1+ calcula Proximity/Gini
+    # com skip por hash, reusando a série de ratios_mensais já recomputada acima) ──
+    from src.governanca.metricas import recalcular_governanca
+
+    recalcular_governanca(empresa_id, skip_unchanged=True)
+
     # diagnóstico (Sonnet, skip por hash): só os subpilares que mudaram.
     from src.diagnostico.leituras import gerar_e_persistir_diagnostico
 

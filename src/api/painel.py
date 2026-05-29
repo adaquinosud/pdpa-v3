@@ -119,6 +119,19 @@ def calcular_ratio(promotor: int, detrator: int) -> float:
     return min(RATIO_CAP_SUPERIOR, round(promotor / detrator, 2))
 
 
+# Faixas operacionais do ratio — verdade única (ver docs/PROJETO_PDPA.md).
+# Lista ordenada de (limite_superior_exclusivo, label); o último (inf) é o teto.
+# Centralizado no CP-LG-0 para reuso pela Lente de Governança. NÃO alterar os
+# cortes sem reconciliar PROJETO_PDPA.md + a escala Proximity (que é separada).
+FAIXAS_RATIO = (
+    (0.5, "critico"),
+    (1.0, "fraco"),
+    (2.0, "atencao"),
+    (5.0, "bom"),
+    (float("inf"), "excelente"),
+)
+
+
 def faixa_ratio(ratio: float) -> str:
     """Devolve a faixa semântica do ratio (5 níveis, cores do painel).
 
@@ -126,17 +139,12 @@ def faixa_ratio(ratio: float) -> str:
     - 0.5–1.0  : fraco         (laranja)
     - 1.0–2.0  : atencao       (amarelo)
     - 2.0–5.0  : bom           (verde claro)
-    - 5.0–9.99 : excelente     (verde escuro)
+    - ≥ 5.0    : excelente     (verde escuro)
     """
-    if ratio < 0.5:
-        return "critico"
-    if ratio < 1.0:
-        return "fraco"
-    if ratio < 2.0:
-        return "atencao"
-    if ratio < 5.0:
-        return "bom"
-    return "excelente"
+    for limite, label in FAIXAS_RATIO:
+        if ratio < limite:
+            return label
+    return FAIXAS_RATIO[-1][1]  # inalcançável: o último limite é inf
 
 
 # ── Métricas consolidadas (Manual Cap. 4) ─────────────────────────────

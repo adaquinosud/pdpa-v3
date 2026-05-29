@@ -11,10 +11,10 @@ boas). A ``acao`` alimenta o futuro Plano de Ação (CP-B2).
 
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+from src.utils.hashing import hash_payload
 
 PROMPT_PATH = Path(__file__).parent.parent / "anomalias" / "prompts" / "leitura_diagnostico_v1.md"
 
@@ -282,9 +282,7 @@ def gerar_e_persistir_diagnostico(
             payload = montar_payload_subpilar(
                 s, empresa_id, agrupamento_id, sub, agg[sub], gargalo, local_id=local_id
             )
-            dh = hashlib.sha256(
-                json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
-            ).hexdigest()[:32]
+            dh = hash_payload(payload)
             if skip_unchanged and existentes.get(sub) == dh:
                 pulados += 1
                 continue
