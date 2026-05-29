@@ -1027,6 +1027,68 @@ def test_anexar_deriva_prioridade_da_faixa(db_session):
     assert item.projecao_loja is False  # empresa-scope
 
 
+# ── CP-LG-8 (leva 1): radar + aba Governança ───────────────────────────────
+def test_radar_svg_4_pilares():
+    from src.governanca.leitura import radar_svg_data
+
+    r = radar_svg_data(
+        {
+            "P": {"valor": 50, "faixa": "medio"},
+            "D": {"valor": 80, "faixa": "proximo"},
+            "Pa": {"valor": 20, "faixa": "distante"},
+            "A": {"valor": 100, "faixa": "proximo"},
+        }
+    )
+    assert r["n_dados"] == 4
+    assert len(r["poligono"].split()) == 4
+    assert all(not e["null"] for e in r["eixos"])
+
+
+def test_radar_svg_pilar_null():
+    """Pilar sem dado → eixo null (tracejado), sem vértice; polígono pula."""
+    from src.governanca.leitura import radar_svg_data
+
+    r = radar_svg_data(
+        {
+            "P": {"valor": 50, "faixa": "medio"},
+            "Pa": {"valor": 20, "faixa": "distante"},
+            "A": {"valor": 100, "faixa": "proximo"},
+        }  # D ausente
+    )
+    assert r["n_dados"] == 3
+    eixo_d = [e for e in r["eixos"] if e["pilar"] == "D"][0]
+    assert eixo_d["null"] is True and eixo_d["vx"] is None
+    assert len(r["poligono"].split()) == 3
+
+
+def test_radar_svg_todos_null():
+    from src.governanca.leitura import radar_svg_data
+
+    r = radar_svg_data({})
+    assert r["n_dados"] == 0
+    assert r["poligono"] == ""
+    assert all(e["null"] for e in r["eixos"])
+
+
+def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
+    from src.governanca.metricas import recalcular_governanca
+
+    e, fonte = _empresa_fonte(db_session)
+    for i, n in enumerate([40, 40, 5, 5, 5, 5]):
+        _loja_com_detratores(db_session, e, fonte, f"L{i}", n, f"gv{i}_")
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = usuario_loyall.id
+    r = client.get(f"/empresas/{e.id}/explorar?tab=governanca")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "Painel de Governança" in html
+    assert "Cobertura:" in html  # aviso 'base em formação'
+
+
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):
     """Card Gini no Painel: presente em empresa/agrupamento; None (N/A) em loja."""
     from flask import session

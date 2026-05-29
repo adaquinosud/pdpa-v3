@@ -2180,6 +2180,7 @@ _EXPLORAR_TABS = [
     {"id": "verbatins", "label": "Verbatins", "grupo": "analise"},
     {"id": "temas", "label": "Temas", "grupo": "analise"},
     {"id": "anomalias", "label": "Anomalias", "grupo": "analise"},
+    {"id": "governanca", "label": "Governança", "grupo": "governanca"},
     {"id": "relatorios", "label": "Relatórios", "grupo": "relatorios"},
 ]
 # Set de ids para validação rápida (substitui o antigo `tab in _EXPLORAR_TABS`).
@@ -3018,6 +3019,36 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
     )
 
 
+def _explorar_governanca(s, empresa_id, ag_id=None):
+    """Painel de Governança (CP-LG-8, board view). LEVA 1: cobertura ('base em
+    formação') + radar 4 pilares (Proximity) + concentração (Gini + top 5 nominadas).
+    Tudo leitura — pilar-proximity, gini json e cobertura já persistidos."""
+    from src.governanca.leitura import (
+        cobertura_governanca,
+        garantir_governanca,
+        gini_escopo,
+        leitura_concentracao,
+        proximity_pilares_escopo,
+        radar_svg_data,
+    )
+
+    garantir_governanca(empresa_id)
+    escopo_tipo = "agrupamento" if ag_id else "empresa"
+    escopo_id = ag_id if ag_id else None
+    pilares = proximity_pilares_escopo(s, empresa_id, escopo_tipo, escopo_id)
+    gini = gini_escopo(s, empresa_id, escopo_tipo, escopo_id)
+    top5 = gini["lojas"][:5] if gini and not gini.get("insuficiente") else []
+    return SimpleNamespace(
+        escopo_tipo=escopo_tipo,
+        cobertura=cobertura_governanca(s, empresa_id),
+        radar=radar_svg_data(pilares),
+        pilares=pilares,
+        gini=gini,
+        leitura_conc=leitura_concentracao(gini),
+        top5=top5,
+    )
+
+
 def _explorar_concentracao(s, empresa_id, ag_id=None):
     """Aba Concentração (CP-LG-3): Gini + faixa + leitura editorial + barras.
     Escopo empresa (ag_id None) ou agrupamento. Leitura, sem recálculo."""
@@ -3356,6 +3387,7 @@ def _explorar_contexto(empresa_id, tab):
         concentracao = (
             _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
         )
+        governanca = _explorar_governanca(s, empresa_id, ag_id) if tab == "governanca" else None
         leaderboard = None
         if tab == "leaderboard":
             ob = request.args.get("order_by", "score")
@@ -3381,6 +3413,7 @@ def _explorar_contexto(empresa_id, tab):
         "evolucao": evolucao,
         "diagnostico": diagnostico,
         "concentracao": concentracao,
+        "governanca": governanca,
         "planos": planos,
         "leaderboard": leaderboard,
         "ia": ia,

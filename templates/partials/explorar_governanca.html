@@ -1,0 +1,87 @@
+{# Painel de Governança (CP-LG-8) · visão Board/Conselho. LEVA 1: cobertura +
+   radar (Bloco 1) + concentração (Bloco 2). Blocos 3-6 nas próximas levas. #}
+{% set g = governanca %}
+{% set fcls = {'distante':'rose','medio':'amber','proximo':'emerald'} %}
+
+<div class="mb-4">
+  <h3 class="text-sm font-semibold text-loyall-700">Painel de Governança</h3>
+  <p class="text-xs text-loyall-500">Visão de Conselho: saúde relacional consolidada, concentração de risco, previsibilidade e excelência.</p>
+</div>
+
+{# ── Aviso 'base em formação' (impede leitura de "sistema quebrado") ──────── #}
+<div class="mb-5 rounded-lg border border-loyall-200 bg-loyall-50 px-4 py-2.5 text-xs text-loyall-600">
+  <b>Cobertura:</b> {{ g.cobertura.com_dado }} de {{ g.cobertura.total }} lojas com dado suficiente.
+  Os blocos refletem a base medida; lojas sem volume aparecem como <b>“em formação”</b>, não como zero.
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+  {# ── Bloco 1 · Saúde Relacional Consolidada (radar 4 pilares) ──────────── #}
+  <div class="bg-white border border-loyall-200 rounded-lg p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Saúde Relacional Consolidada · Proximity por pilar</div>
+    {% set r = g.radar %}
+    {% if r.n_dados == 0 %}
+    <div class="text-center text-loyall-400 py-12">Base relacional ainda em formação — sem pilares com lastro suficiente.</div>
+    {% else %}
+    <svg viewBox="0 0 {{ r.size }} {{ r.size }}" class="w-full max-w-[320px] mx-auto" font-family="sans-serif">
+      {# anéis 25/50/75/100 #}
+      {% for ring in r.rings %}
+      <circle cx="{{ r.cx }}" cy="{{ r.cy }}" r="{{ ring }}" fill="none" stroke="#E7E3DC" stroke-width="1"/>
+      {% endfor %}
+      {# eixos (spokes): tracejado cinza se NULL #}
+      {% for e in r.eixos %}
+      <line x1="{{ r.cx }}" y1="{{ r.cy }}" x2="{{ e.tip[0] }}" y2="{{ e.tip[1] }}"
+            stroke="{{ '#C9C2B6' if e.null else '#B89355' }}" stroke-width="1"
+            {% if e.null %}stroke-dasharray="3,3"{% endif %}/>
+      {% endfor %}
+      {# polígono Proximity (só vértices com dado) #}
+      {% if r.n_dados >= 3 %}
+      <polygon points="{{ r.poligono }}" fill="#1B6B61" fill-opacity="0.18" stroke="#1B6B61" stroke-width="2"/>
+      {% endif %}
+      {# vértices + rótulos #}
+      {% for e in r.eixos %}
+      {% if not e.null %}<circle cx="{{ e.vx }}" cy="{{ e.vy }}" r="3" fill="#1B6B61"/>{% endif %}
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" dominant-baseline="middle"
+            font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" dominant-baseline="middle"
+            font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— sem dado' if e.null else '%.0f'|format(e.valor) }}</text>
+      {% endfor %}
+    </svg>
+    <div class="text-[10px] text-loyall-400 mt-1 text-center">Eixo tracejado = sem dado suficiente. 0–100 = distância da excelência (ratio 9.0).</div>
+    {% endif %}
+    {# leitura por pilar #}
+    <div class="mt-3 grid grid-cols-2 gap-1.5 text-[11px]">
+      {% for e in g.radar.eixos %}
+      <div class="flex items-center justify-between border border-loyall-100 rounded px-2 py-1">
+        <span class="text-loyall-600">{{ e.pilar }} · {{ e.nome }}</span>
+        {% if e.null %}<span class="text-loyall-300">—</span>
+        {% else %}<span class="font-semibold text-{{ fcls.get(e.faixa,'slate') }}-600">{{ '%.0f'|format(e.valor) }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Bloco 2 · Concentração de Risco (Gini + top 5 nominadas) ──────────── #}
+  <div class="bg-white border border-loyall-200 rounded-lg p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Concentração de Risco</div>
+    {% if g.gini and not g.gini.insuficiente %}
+    {% set gc = fcls.get('proximo' if g.gini.faixa=='alta' else ('distante' if g.gini.faixa=='baixa' else 'amber'), 'amber') %}
+    {% set gcolor = {'baixa':'emerald','media':'amber','alta':'rose'}.get(g.gini.faixa,'slate') %}
+    <div class="flex items-baseline gap-2">
+      <span class="text-3xl font-bold text-{{ gcolor }}-600 cursor-help" title="Gini corrigido por viés-de-n; bruto {{ '%.2f'|format(g.gini.gini_bruto) }}">{{ '%.2f'|format(g.gini.gini_corrigido) }}</span>
+      <span class="text-sm text-loyall-400">/ 1.00 · {{ {'baixa':'Baixa','media':'Média','alta':'Alta'}.get(g.gini.faixa, g.gini.faixa) }}</span>
+    </div>
+    <p class="text-xs text-loyall-600 mt-2 leading-relaxed">{{ g.leitura_conc }}</p>
+    <div class="text-[11px] uppercase tracking-wider text-loyall-400 mt-3 mb-1">Top {{ g.top5|length }} lojas críticas</div>
+    <ol class="text-xs text-loyall-700 space-y-1">
+      {% for l in g.top5 %}
+      <li class="flex items-center justify-between border-b border-loyall-100 pb-1">
+        <span><b>{{ loop.index }}.</b> {{ l.nome }}</span>
+        <span class="text-rose-600">{{ l.detratores }} det · {{ (l.share*100)|round|int }}%</span>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="text-center text-loyall-400 py-10 text-sm">{{ g.leitura_conc }}</div>
+    {% endif %}
+  </div>
+</div>

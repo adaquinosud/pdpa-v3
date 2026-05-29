@@ -119,6 +119,111 @@ def proximity_subpilares_escopo(
     return {sub: {"valor": v, "faixa": f} for sub, v, f in rows}
 
 
+def proximity_pilares_escopo(
+    s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
+) -> Dict[str, Dict[str, Any]]:
+    """Proximity por pilar (pilar-level rows) do escopo → {pilar: {valor, faixa}}.
+    Usado pelo radar do Painel de Governança (CP-LG-8)."""
+    from src.models.governanca import ProximityCalculation as PC
+
+    cond = PC.escopo_id.is_(None) if escopo_id is None else (PC.escopo_id == escopo_id)
+    rows = (
+        s.query(PC.pilar, PC.proximity_0_100, PC.faixa)
+        .filter(
+            PC.empresa_id == empresa_id,
+            PC.escopo_tipo == escopo_tipo,
+            cond,
+            PC.pilar.isnot(None),
+        )
+        .all()
+    )
+    return {p: {"valor": v, "faixa": f} for p, v, f in rows}
+
+
+def cobertura_governanca(s, empresa_id: int) -> Dict[str, int]:
+    """{total, com_dado}: lojas cadastradas vs lojas com Proximity agregada (lastro).
+    Alimenta o aviso 'base em formação' do board."""
+    from src.models.governanca import ProximityCalculation as PC
+    from src.models.local import Local
+
+    total = s.query(Local).filter_by(empresa_id=empresa_id).count()
+    com_dado = (
+        s.query(PC.escopo_id)
+        .filter(
+            PC.empresa_id == empresa_id,
+            PC.escopo_tipo == "loja",
+            PC.subpilar.is_(None),
+            PC.pilar.is_(None),
+            PC.proximity_0_100.isnot(None),
+        )
+        .count()
+    )
+    return {"total": total, "com_dado": com_dado}
+
+
+def radar_svg_data(pilares: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """Geometria do radar 4 pilares (P topo · D direita · Pa baixo · A esquerda),
+    SVG inline server-side. ``pilares`` = {pilar: {valor, faixa}}. Pilar NULL →
+    eixo tracejado, SEM vértice (polígono pula). 0 pilares com dado → sem polígono
+    (board mostra 'base em formação')."""
+    cx = cy = 130
+    R = 95
+    dirs = [
+        ("P", "Precisão", 0, -1),
+        ("D", "Disponibilidade", 1, 0),
+        ("Pa", "Parceria", 0, 1),
+        ("A", "Aconselhamento", -1, 0),
+    ]
+    eixos = []
+    poly = []
+    for cod, nome, dx, dy in dirs:
+        d = pilares.get(cod) or {}
+        val = d.get("valor")
+        tip = (round(cx + R * dx, 1), round(cy + R * dy, 1))
+        lab = (round(cx + (R + 18) * dx, 1), round(cy + (R + 18) * dy, 1))
+        if val is None:
+            eixos.append(
+                {
+                    "pilar": cod,
+                    "nome": nome,
+                    "valor": None,
+                    "faixa": None,
+                    "tip": tip,
+                    "lab": lab,
+                    "vx": None,
+                    "vy": None,
+                    "null": True,
+                }
+            )
+        else:
+            vx = round(cx + R * (val / 100.0) * dx, 1)
+            vy = round(cy + R * (val / 100.0) * dy, 1)
+            eixos.append(
+                {
+                    "pilar": cod,
+                    "nome": nome,
+                    "valor": val,
+                    "faixa": d.get("faixa"),
+                    "tip": tip,
+                    "lab": lab,
+                    "vx": vx,
+                    "vy": vy,
+                    "null": False,
+                }
+            )
+            poly.append(f"{vx},{vy}")
+    return {
+        "cx": cx,
+        "cy": cy,
+        "R": R,
+        "size": 2 * cx,
+        "rings": [round(R * f, 1) for f in (0.25, 0.5, 0.75, 1.0)],
+        "eixos": eixos,
+        "poligono": " ".join(poly),
+        "n_dados": len(poly),
+    }
+
+
 def gini_escopo(
     s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
 ) -> Optional[Dict[str, Any]]:
