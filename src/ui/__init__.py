@@ -1219,17 +1219,11 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         from src.relatorios.painel_governanca import montar_dados as _mpg
 
         d = _mpg(empresa_w.id)
-        try:
-            capa_idx = int(request.args.get("capa", 0))
-        except (TypeError, ValueError):
-            capa_idx = 0
-        capa_idx = max(0, min(capa_idx, len(d.get("capas", [{}])) - 1))
         return render_template(
             "relatorios/painel_governanca.html",
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
-            capa_idx=capa_idx,
             d=d,
         )
     return render_template(

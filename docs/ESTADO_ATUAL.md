@@ -26,11 +26,21 @@ de48536 Bloco 9 B0: infra Relatorios (WeasyPrint lazy + menu + rota download)
 ```
 
 ## Testes
-594 verdes
+678 verdes
 
-## Lente de Governança — progresso
-- **CP-LG-0 CONCLUÍDO** (commit `10e37a4`, 594 testes): schema (migration 030: `proximity_calculations` + `gini_concentracao`), models ORM, helpers `calcular_proximity`/`calcular_gini`, `FAIXAS_RATIO` centralizado, `hash_payload` extraído, `recalcular_governanca` no-op costurado no passo 7.5 do pós-coleta.
-- Próximo: CP-LG-1 (Proximity Index per subpilar/pilar/loja).
+## Lente de Governança (LG) — ✅ BLOCO COMPLETO (LG-0 a LG-8)
+Detalhe por CP em `docs/BLOCO_LG.md`. Resumo:
+- **LG-0** schema (migrations 030/031: proximity/previsibilidade/gini) + helpers + `FAIXAS_RATIO` central + `hash_payload` + passo 7.5 do pós-coleta.
+- **LG-1** Proximity per subpilar/pilar/loja (floor 10, agregado=min/Lastro).
+- **LG-2** Previsibilidade per-loja (CV temporal, régua CV/2).
+- **LG-4** cards Proximity (Painel) + colunas Leaderboard/Confronto + anotação `base Np` (LG-4.1).
+- **LG-3** Concentração + Gini (corrigido por viés-de-n) + aba nova.
+- **LG-6** Selo Ouro/Prata/Bronze (4/3/2 subpilares >60).
+- **LG-5** Simulação de Impacto (det→conversível) na tela + PDFs B2'/B3'.
+- **LG-7** Mapa Financeiro do B2' enriquecido (Proximity + R$ placeholder).
+- **LG-8** Painel de Governança (6 blocos) + 5º PDF "Painel de Governança" (capa: tese do Lastro).
+
+**Pendências do bloco LG:** LG-3.1 (heatmap loja×subpilar — `PENDENCIAS_TECNICAS.md`) + documentação do método no Manual (Alexandre + Dener).
 
 ## Empresa de validação principal
 BH Airport (empresa #4) — 10.009 verbatins, 47 lojas, 12 canais

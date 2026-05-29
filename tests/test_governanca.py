@@ -1309,7 +1309,7 @@ def test_painel_governanca_pdf_monta_e_renderiza(app, db_session, usuario_loyall
     recalcular_governanca(e.id)
 
     d = montar_dados(e.id)
-    assert len(d["capas"]) >= 1  # ao menos o candidato de selos
+    assert d["capa"]["numero"]  # capa dinâmica fixada (gargalo ou fallback)
     assert d["cobertura"]["total"] == 6
 
     with app.test_request_context(f"/empresas/{e.id}/relatorios"):

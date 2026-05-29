@@ -2,7 +2,7 @@
 {% import "relatorios/_macros.html" as M %}
 {% block title %}Painel de Governança — {{ empresa.nome }}{% endblock %}
 {% block conteudo %}
-{% set capa = d.capas[capa_idx] %}
+{% set capa = d.capa %}
 {% set fnome = {'distante':'Distante','medio':'Médio','proximo':'Próximo'} %}
 
 {# ═══ CAPA-CHOQUE (número real + contextualizado, não alarmista) ═══ #}

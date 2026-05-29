@@ -66,39 +66,28 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
                 "gargalo_coberto": gp in pilares_alta,
             }
 
-    # ── Capa-choque: 3 candidatos com NÚMERO REAL na frente (escolha = tom). ──
+    # ── Capa-choque FIXADA na tese do Lastro (decisão Alexandre+Dener): o pilar
+    # GARGALO + seu Proximity. DINÂMICA — lê o gargalo real da empresa (não fixa
+    # "Precisão"/"3"). Fallback p/ excelência quando não há pilar com lastro. ──
     eyebrow = "Painel de Governança · PDPA"
     gp_pilar = None
     if pilares:
-        com_val = {p: d["valor"] for p, d in pilares.items() if d["valor"] is not None}
+        com_val = {p: dd["valor"] for p, dd in pilares.items() if dd["valor"] is not None}
         gp_pilar = min(com_val, key=com_val.get) if com_val else None
-    capas = []
     if gp_pilar is not None:
-        capas.append(
-            {
-                "eyebrow": eyebrow,
-                "numero": f"{NOME_PILAR.get(gp_pilar, gp_pilar)} em "
-                f"{pilares[gp_pilar]['valor']:.0f}/100",
-                "soco": "o pilar que trava todo o relacionamento — a cadeia do Lastro "
-                "se rompe na origem.",
-            }
-        )
-    if gini and not gini.get("insuficiente"):
-        capas.append(
-            {
-                "eyebrow": eyebrow,
-                "numero": f"{round(gini['share'] * 100)}% dos detratores em "
-                f"{gini['top_n']} de {gini['total_lojas']} lojas",
-                "soco": "o risco está concentrado — poucas lojas carregam a maior parte da dor.",
-            }
-        )
-    capas.append(
-        {
+        _gnome = NOME_PILAR.get(gp_pilar, gp_pilar)
+        capa = {
+            "eyebrow": eyebrow,
+            "numero": f"{_gnome} em {pilares[gp_pilar]['valor']:.0f}/100",
+            "soco": "o pilar que trava todo o relacionamento — a cadeia do Lastro "
+            "se rompe na origem.",
+        }
+    else:
+        capa = {
             "eyebrow": eyebrow,
             "numero": f"{selo['ouro']} de {cob['total']} lojas alcança excelência (Ouro)",
             "soco": "a excelência relacional ainda é exceção — há base ampla a destravar.",
         }
-    )
 
     return {
         "empresa_nome": nome,
@@ -113,5 +102,5 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
         "selo_dist": selo,
         "ranking": ranking,
         "cenario": cen,
-        "capas": capas,
+        "capa": capa,
     }

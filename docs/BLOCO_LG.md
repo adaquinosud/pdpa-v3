@@ -153,7 +153,17 @@ Calibração:
   reescrever o Mapa**. Zero cálculo R$ agora; zero heurística.
 - Paleta v2; $0 LLM (enriquecimento de dado já calculado).
 
-### CP-LG-8 · Painel "Governança" dedicado + 5º relatório PDF (2-3 dias)
+### CP-LG-8 · Painel "Governança" dedicado + 5º relatório PDF — ✅ CONCLUÍDO (4 levas)
+> **Capa-choque do B5 FIXADA (Alexandre+Dener): (a) "{pilar gargalo} em {Proximity}/100 —
+> o pilar que trava todo o relacionamento; a cadeia do Lastro se rompe na origem."**
+> Das 3 candidatas verdadeiras, (a) é a única que é a TESE do método (Lastro), não uma
+> consequência — o relatório inteiro (radar+linha do Lastro, simulação que prova o teto no
+> gargalo, ranking por selo) desenvolve essa espinha; (b) concentração e (c) excelência são
+> capítulos do meio. **Dinâmica:** lê o gargalo REAL da empresa (não fixa "Precisão"/"3").
+> Entregue em 4 levas: (1) radar+concentração · (2) previsibilidade+ranking · (3) simulação
+> slider (dedupe por subpilar, ordem fixa, monotônica) + projeção financeira · (4) 5º PDF.
+> Insight do TETO amplificado (tela+PDF): o plano tem limite e pode deixar o gargalo descoberto.
+
 - Nova entrada no menu: **"Governança"** (entre IA e Relatórios)
 - Tela mostra visão Board/Conselho:
   - Saúde Relacional Consolidada (gráfico radar 4 pilares com Proximity — SVG inline)
