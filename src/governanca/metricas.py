@@ -131,6 +131,33 @@ GINI_MIN_LOJAS = 5  # < 5 lojas medidas → Gini indisponível (igual à concent
 GINI_BOLSAO_SHARE = 0.5  # bolsão crítico = menor conjunto que soma ≥ 50% dos detratores
 
 
+# Selo de excelência da loja (CP-LG-6). Proximity >60 segue sendo o corte de
+# QUALIDADE (não afrouxa); só a CONTAGEM exigida foi recalibrada — o 9/7/5 do
+# BLOCO_LG.md original foi fixado antes de Proximity 60 = ratio 5.6 (mal pareado).
+SELO_PROXIMITY_CORTE = 60  # > 60 estrito (subpilar "proximo")
+SELO_PREV_ALTA = 70  # previsibilidade > 70 (estrito) = estável confirmada
+SELO_OURO_MIN = 4  # ≥4 subpilares >60 + prev_alta
+SELO_PRATA_MIN = 3  # ≥3 (cobre ≥4 sem prev_alta)
+SELO_BRONZE_MIN = 2  # ≥2
+
+
+def selo_loja(n_sub_acima: int, previsibilidade: Optional[float]) -> Optional[str]:
+    """Selo de excelência: ``"ouro"|"prata"|"bronze"`` ou ``None`` (sem selo).
+
+    ``n_sub_acima`` = nº de subpilares da loja com Proximity > 60 (subpilares sem
+    dado NÃO contam). ``prev_alta`` = previsibilidade > 70; ``None`` nunca é alta,
+    logo loja com previsibilidade indisponível tem teto **Prata**.
+    """
+    prev_alta = previsibilidade is not None and previsibilidade > SELO_PREV_ALTA
+    if n_sub_acima >= SELO_OURO_MIN and prev_alta:
+        return "ouro"
+    if n_sub_acima >= SELO_PRATA_MIN:
+        return "prata"
+    if n_sub_acima >= SELO_BRONZE_MIN:
+        return "bronze"
+    return None
+
+
 def gini_corrigido(g: Optional[float], n: Optional[int]) -> Optional[float]:
     """Correção de viés-por-n do Gini: ``G · n/(n-1)``, cap 1.0.
 

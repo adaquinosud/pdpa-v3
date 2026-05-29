@@ -20,6 +20,11 @@
     <div class="flex items-center gap-2 flex-wrap">
       {% if pos %}<span title="Confiança por volume ({{ l.vol_eng }} verbatins)" class="cursor-help">{{ l.selo_emoji }}</span>{% endif %}
       <span class="font-medium text-loyall-800 truncate">{{ l.nome }}</span>
+      {% if l.selo_qualidade %}
+      {% set scls = {'ouro':'bg-amber-100 text-amber-800 border-amber-300','prata':'bg-loyall-100 text-loyall-600 border-loyall-300','bronze':'bg-orange-100 text-orange-800 border-orange-300'} %}
+      <span class="text-[10px] uppercase px-1.5 py-0.5 rounded border {{ scls[l.selo_qualidade] }}"
+            title="Selo de excelência: ≥4 subpilares Proximity>60 + previsibilidade>70 = Ouro; ≥3 = Prata; ≥2 = Bronze">{{ l.selo_qualidade }}</span>
+      {% endif %}
       {% if l.cidade %}<span class="text-xs text-loyall-400">{{ l.cidade }}{% if l.uf %}/{{ l.uf }}{% endif %}</span>{% endif %}
       {% for emoji, titulo in l.badges %}<span title="{{ titulo }}" class="cursor-help">{{ emoji }}</span>{% endfor %}
     </div>

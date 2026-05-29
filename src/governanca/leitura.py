@@ -168,6 +168,66 @@ def leitura_concentracao(d: Optional[Dict[str, Any]]) -> str:
     )
 
 
+def _n_sub_acima(s, empresa_id, escopo_id=None):
+    """{local_id: nº subpilares com Proximity > corte} (escopo loja)."""
+    from sqlalchemy import func
+
+    from src.governanca.metricas import SELO_PROXIMITY_CORTE
+    from src.models.governanca import ProximityCalculation as PC
+
+    q = s.query(PC.escopo_id, func.count(PC.id)).filter(
+        PC.empresa_id == empresa_id,
+        PC.escopo_tipo == "loja",
+        PC.subpilar.isnot(None),
+        PC.proximity_0_100.isnot(None),
+        PC.proximity_0_100 > SELO_PROXIMITY_CORTE,
+    )
+    if escopo_id is not None:
+        q = q.filter(PC.escopo_id == escopo_id)
+    return dict(q.group_by(PC.escopo_id).all())
+
+
+def selos_por_loja(s, empresa_id: int) -> Dict[int, Optional[str]]:
+    """{local_id: selo} para todas as lojas medidas (selo None = sem selo).
+    On-the-fly (2 queries): subpilares >60 por loja + previsibilidade LG-2."""
+    from src.governanca.metricas import selo_loja
+    from src.models.governanca import PrevisibilidadeCalculation as PV
+    from src.models.governanca import ProximityCalculation as PC
+
+    n_sub = _n_sub_acima(s, empresa_id)
+    prev = {
+        r[0]: r[1]
+        for r in s.query(PV.escopo_id, PV.previsibilidade_0_100).filter(
+            PV.empresa_id == empresa_id, PV.escopo_tipo == "loja"
+        )
+    }
+    # universo = lojas com linha agregada de proximity (toda loja medida tem uma)
+    universo = [
+        r[0]
+        for r in s.query(PC.escopo_id).filter(
+            PC.empresa_id == empresa_id,
+            PC.escopo_tipo == "loja",
+            PC.subpilar.is_(None),
+            PC.pilar.is_(None),
+        )
+    ]
+    return {lid: selo_loja(n_sub.get(lid, 0), prev.get(lid)) for lid in universo}
+
+
+def selo_de_loja(s, empresa_id: int, local_id: int) -> Optional[str]:
+    """Selo de UMA loja (escopo loja) — para o cabeçalho do Painel de Loja."""
+    from src.governanca.metricas import selo_loja
+    from src.models.governanca import PrevisibilidadeCalculation as PV
+
+    n = _n_sub_acima(s, empresa_id, local_id).get(local_id, 0)
+    p = (
+        s.query(PV.previsibilidade_0_100)
+        .filter(PV.empresa_id == empresa_id, PV.escopo_tipo == "loja", PV.escopo_id == local_id)
+        .scalar()
+    )
+    return selo_loja(n, p)
+
+
 def previsibilidade_loja(s, empresa_id: int, local_id: int) -> Dict[str, Any]:
     """Previsibilidade LG-2 (CV temporal puro) de uma loja.
     ``{valor, faixa, n_meses, cv}`` — None se sem linha/dado."""

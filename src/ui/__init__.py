@@ -597,6 +597,7 @@ def _aba_painel(empresa_id, empresa_w):
         gini_escopo,
         previsibilidade_loja,
         proximity_escopo,
+        selo_de_loja,
     )
 
     garantir_governanca(empresa_id)
@@ -611,6 +612,8 @@ def _aba_painel(empresa_id, empresa_w):
             previsib = {"valor": n1.get("previsibilidade"), "faixa": None, "fonte": "empresa"}
         # Gini (CP-LG-3) só existe p/ empresa/agrupamento — N/A em loja única.
         gini = gini_escopo(s, empresa_id, escopo_tipo, escopo_id) if escopo_tipo != "loja" else None
+        # Selo de excelência (CP-LG-6) — só no escopo loja.
+        selo = selo_de_loja(s, empresa_id, escopo_id) if escopo_tipo == "loja" else None
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
         fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
@@ -634,6 +637,7 @@ def _aba_painel(empresa_id, empresa_w):
         "proximity": proximity,
         "previsib": previsib,
         "gini": gini,
+        "selo": selo,
     }
 
 
@@ -3122,10 +3126,11 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
     # Engajamento por loja (CP-E3): modula o score e separa por faixa de confiança.
     eng_map = engajamento_por_loja(empresa_id, s, ag_id, corte)
     # Proximity por loja (CP-LG-4, leitura): garante frescor e anexa a cada linha.
-    from src.governanca.leitura import garantir_governanca, proximity_por_loja
+    from src.governanca.leitura import garantir_governanca, proximity_por_loja, selos_por_loja
 
     garantir_governanca(empresa_id)
     prox_map = proximity_por_loja(s, empresa_id)
+    selo_map = selos_por_loja(s, empresa_id)
     for x in linhas:
         em = eng_map.get(x.id, {"engajamento": 0, "volume": 0, "selo": "baixa", "selo_emoji": "🔴"})
         x.engajamento = em["engajamento"]
@@ -3137,6 +3142,7 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
         x.proximity = pm["valor"]
         x.proximity_faixa = pm["faixa"]
         x.proximity_n_pilares = pm.get("n_pilares", 0)
+        x.selo_qualidade = selo_map.get(x.id)  # ouro|prata|bronze|None (CP-LG-6)
 
     # 3 faixas pelo nível do selo (≥30 🟢 / 10-30 🟡 / <10 🔴).
     ranked = [x for x in linhas if x.selo == "alta"]

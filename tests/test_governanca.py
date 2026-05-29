@@ -803,6 +803,98 @@ def test_recalcular_gini_insuficiente_poucas_lojas(db_session):
     assert dj["motivo"] == "poucas_lojas"
 
 
+# ── CP-LG-6: Selo Ouro/Prata/Bronze ────────────────────────────────────────
+@pytest.mark.parametrize(
+    "n_sub, prev, esperado",
+    [
+        (4, 71, "ouro"),  # ≥4 + prev>70
+        (4, 70, "prata"),  # prev=70 não é >70 → teto prata
+        (4, None, "prata"),  # prev NULL → nunca ouro
+        (3, 99, "prata"),  # n<4 → não ouro mesmo com prev alta
+        (2, 99, "bronze"),
+        (1, 99, None),  # <2 → sem selo
+        (0, None, None),
+        (9, 80, "ouro"),  # contagem alta + prev alta
+    ],
+)
+def test_selo_loja_regua(n_sub, prev, esperado):
+    from src.governanca.metricas import selo_loja
+
+    assert selo_loja(n_sub, prev) == esperado
+
+
+def _pc(e, escopo_id, sub, val):
+    return ProximityCalculation(
+        empresa_id=e.id,
+        escopo_tipo="loja",
+        escopo_id=escopo_id,
+        subpilar=sub,
+        pilar=None,
+        proximity_0_100=val,
+        faixa=None,
+    )
+
+
+def _pc_agg(e, escopo_id):
+    return ProximityCalculation(
+        empresa_id=e.id,
+        escopo_tipo="loja",
+        escopo_id=escopo_id,
+        subpilar=None,
+        pilar=None,
+        proximity_0_100=20.0,
+        faixa="distante",
+    )
+
+
+def test_selo_conta_corte_estrito_e_ignora_null(db_session):
+    """Conta subpilar >60 estrito: 60.0 NÃO conta, 60.01 conta, NULL não conta."""
+    from src.governanca.leitura import _n_sub_acima, selos_por_loja
+
+    e = _empresa(db_session)
+    db_session.add_all(
+        [
+            _pc(e, 99, "P1", 70.0),
+            _pc(e, 99, "P2", 80.0),
+            _pc(e, 99, "P3", 90.0),
+            _pc(e, 99, "D1", 60.0),  # == 60 → não conta
+            _pc(e, 99, "D2", 60.01),  # > 60 → conta
+            _pc(e, 99, "D3", None),  # NULL → não conta
+            _pc_agg(e, 99),
+        ]
+    )
+    db_session.commit()
+    assert _n_sub_acima(db_session, e.id).get(99) == 4  # 70,80,90,60.01
+    assert selos_por_loja(db_session, e.id)[99] == "prata"  # n=4 sem prev → teto prata
+
+
+def test_selo_de_loja_ouro_exige_prev_alta(db_session):
+    from src.governanca.leitura import selo_de_loja
+    from src.models.governanca import PrevisibilidadeCalculation
+
+    e = _empresa(db_session)
+    db_session.add_all(
+        [_pc(e, 77, sub, 75.0) for sub in ("P1", "P2", "P3", "D1")] + [_pc_agg(e, 77)]
+    )
+    db_session.commit()
+    # sem previsib → prata
+    assert selo_de_loja(db_session, e.id, 77) == "prata"
+    # com previsib alta → ouro
+    db_session.add(
+        PrevisibilidadeCalculation(
+            empresa_id=e.id,
+            escopo_tipo="loja",
+            escopo_id=77,
+            previsibilidade_0_100=80.0,
+            faixa="estavel",
+            n_meses=5,
+            cv=0.2,
+        )
+    )
+    db_session.commit()
+    assert selo_de_loja(db_session, e.id, 77) == "ouro"
+
+
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):
     """Card Gini no Painel: presente em empresa/agrupamento; None (N/A) em loja."""
     from flask import session

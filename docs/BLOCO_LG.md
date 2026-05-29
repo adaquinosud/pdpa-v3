@@ -107,16 +107,23 @@ Calibração:
 - Integra também nos PDFs (B3' Plano Executivo + B2' Diagnóstico Pontual)
 - Aviso visual: "premissa: X% recuperação · projeção depende de execução"
 
-### CP-LG-6 · Selo Ouro/Prata/Bronze no Leaderboard (0.5 dia)
-- **Heurística:**
-  - **Ouro:** ≥9 subpilares com Proximity >60 + Previsibilidade >70
-  - **Prata:** ≥7 subpilares com Proximity >60 (ou Ouro sem Previsibilidade alta)
-  - **Bronze:** ≥5 subpilares com Proximity >60
-  - **Sem selo:** <5
-- Subpilares sem dado suficiente NÃO contam pra heurística
-- Badge no Leaderboard 🥇🥈🥉
-- Badge no Painel de Loja
-- Distribuição de selos no Painel de Governança (CP-LG-8)
+### CP-LG-6 · Selo Ouro/Prata/Bronze no Leaderboard (0.5 dia) — ✅ CONCLUÍDO
+> **Recalibração (2026-05-29):** a heurística original (≥9/≥7/≥5 subpilares >60) foi
+> fixada **antes** de travarmos no LG-1 que **Proximity 60 = ratio 5.6** (perto do topo
+> da escala). Exigir 9 de 12 subpilares nesse nível = quase-perfeição; validação real no
+> BH Airport zerou (67/67 sem selo). A **contagem** foi recalibrada (4/3/2); o **corte de
+> qualidade Proximity >60 NÃO afrouxou**. Conceito absoluto preservado, distribuição vira
+> pirâmide sã.
+
+- **Heurística (final):** `n_sub>60` = nº de subpilares com Proximity > 60 (subpilares sem dado NÃO contam); `prev_alta` = previsibilidade > 70 (NULL nunca é alta).
+  - **Ouro:** `n_sub>60 ≥ 4` **E** `prev_alta`
+  - **Prata:** `n_sub>60 ≥ 3` (cobre "≥4 sem prev_alta"; NULL/≤70 com ≥4 caem aqui)
+  - **Bronze:** `n_sub>60 ≥ 2`
+  - **Sem selo:** `< 2`
+- On-the-fly (`selo_loja` + `selos_por_loja`/`selo_de_loja`), sem persistência/migration.
+- Badge de **texto** Ouro/Prata/Bronze (âmbar/cinza/bronze) — **não** medalha (🥇🥈🥉 já é posição de rank; 🟢🟡🔴 é confiança por volume; três famílias visuais distintas).
+- Badge no Leaderboard (ao lado do nome) + cabeçalho do Painel de Loja.
+- Distribuição de selos no Painel de Governança (CP-LG-8).
 
 ### CP-LG-7 · Integração com Mapa Financeiro (1 dia)
 - Estrutura do Mapa Financeiro nos relatórios (B2', B1') ganha colunas:

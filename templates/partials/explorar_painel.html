@@ -18,7 +18,12 @@
       <span class="mx-1">›</span>
       <span class="text-loyall-600">Painel</span>
     </nav>
-    <h1 class="text-2xl font-semibold mt-1">Painel · <span class="text-loyall-400 text-base">{{ n1.total_verbatins }} verbatins</span></h1>
+    <h1 class="text-2xl font-semibold mt-1">Painel · <span class="text-loyall-400 text-base">{{ n1.total_verbatins }} verbatins</span>
+    {% if escopo_tipo == 'loja' and selo %}
+    {% set scls = {'ouro':'bg-amber-100 text-amber-800 border-amber-300','prata':'bg-loyall-100 text-loyall-600 border-loyall-300','bronze':'bg-orange-100 text-orange-800 border-orange-300'} %}
+    <span class="align-middle ml-1 text-xs uppercase px-2 py-0.5 rounded border {{ scls[selo] }}"
+          title="Selo de excelência: ≥4 subpilares Proximity>60 + previsibilidade>70 = Ouro; ≥3 = Prata; ≥2 = Bronze">{{ selo }}</span>
+    {% endif %}</h1>
     <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
   </div>
   <a id="btn-exportar-painel"
