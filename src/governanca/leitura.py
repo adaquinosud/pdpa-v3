@@ -291,6 +291,120 @@ def radar_svg_data(pilares: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def heatmap_detratores(s, empresa_id: int, ag_id=None, top_n: int = 12) -> Dict[str, Any]:
+    """Dados do heatmap loja×subpilar de DETRATORES (CP-LG-3.1). Leitura de
+    ``Verbatim`` agregado por (local, subpilar, tipo) — contagem, sem métrica nova.
+    Mostra as ``top_n`` lojas por total de detratores (legibilidade). Por célula:
+    {det, total} (distingue 'medido zero' de 'sem dado')."""
+    from sqlalchemy import func
+
+    from src.api.painel import SUBPILARES_ORDEM
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    q = (
+        s.query(Verbatim.local_id, Verbatim.subpilar, Verbatim.tipo, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id.isnot(None),
+            Verbatim.subpilar.isnot(None),
+        )
+        .group_by(Verbatim.local_id, Verbatim.subpilar, Verbatim.tipo)
+    )
+    if ag_id is not None:
+        locais_ag = [
+            lid
+            for (lid,) in s.query(Local.id).filter_by(empresa_id=empresa_id, agrupamento_id=ag_id)
+        ]
+        q = q.filter(Verbatim.local_id.in_(locais_ag or [-1]))
+    cell: Dict = {}
+    det_loja: Dict[int, int] = {}
+    for lid, sub, tipo, n in q.all():
+        c = cell.setdefault((lid, sub), {"det": 0, "total": 0})
+        c["total"] += int(n)
+        if tipo == "detrator":
+            c["det"] += int(n)
+            det_loja[lid] = det_loja.get(lid, 0) + int(n)
+    total_det = sum(det_loja.values())
+    top = sorted(det_loja, key=lambda lid: -det_loja[lid])[:top_n]
+    nomes = {x.id: x.nome for x in s.query(Local).filter(Local.id.in_(top)).all()} if top else {}
+    cob = sum(det_loja[lid] for lid in top)
+    return {
+        "subpilares": list(SUBPILARES_ORDEM),
+        "lojas": [
+            {"local_id": lid, "nome": nomes.get(lid, f"loja {lid}"), "det_total": det_loja[lid]}
+            for lid in top
+        ],
+        "cells": {f"{lid}|{sub}": c for (lid, sub), c in cell.items() if lid in top},
+        "total_det": total_det,
+        "cobertura_pct": round(100 * cob / total_det) if total_det else 0,
+        "n_lojas_com_detrator": len(det_loja),
+        "n_omitidas": max(0, len(det_loja) - len(top)),
+        "top_n": top_n,
+    }
+
+
+def heatmap_render(dados: Dict[str, Any], modo: str = "abs") -> Dict[str, Any]:
+    """Matriz pronta p/ SVG: por célula state (sem_dado|zero|det) + fill + opacity.
+    Escala SQRT (não-linear) p/ o outlier não achatar o meio. ``modo``: 'abs'
+    (detratores) ou 'pct' (% dos detratores da loja). Função pura."""
+    import math
+
+    det_loja = {lj["local_id"]: lj["det_total"] for lj in dados["lojas"]}
+    cells = dados["cells"]
+
+    def _base(lid, det):
+        if modo == "pct" and det_loja.get(lid):
+            return det / det_loja[lid]
+        return det
+
+    vals = [_base(int(k.split("|")[0]), c["det"]) for k, c in cells.items() if c["det"] > 0]
+    scale_max = max(vals) if vals else 1.0
+
+    matriz = []
+    for loja in dados["lojas"]:
+        lid = loja["local_id"]
+        row = []
+        for sub in dados["subpilares"]:
+            c = cells.get(f"{lid}|{sub}")
+            if c is None or c["total"] == 0:
+                row.append(
+                    {
+                        "state": "sem_dado",
+                        "fill": "#C9C2B6",
+                        "opacity": 1.0,
+                        "det": None,
+                        "total": 0,
+                        "share": None,
+                    }
+                )
+            elif c["det"] == 0:
+                row.append(
+                    {
+                        "state": "zero",
+                        "fill": "#FBF9F5",
+                        "opacity": 1.0,
+                        "det": 0,
+                        "total": c["total"],
+                        "share": 0,
+                    }
+                )
+            else:
+                inten = math.sqrt(_base(lid, c["det"]) / scale_max) if scale_max > 0 else 0.0
+                row.append(
+                    {
+                        "state": "det",
+                        "fill": "#b3261e",
+                        "opacity": round(0.12 + 0.88 * inten, 3),
+                        "det": c["det"],
+                        "total": c["total"],
+                        "share": round(100 * c["det"] / det_loja[lid]) if det_loja.get(lid) else 0,
+                    }
+                )
+        matriz.append({"loja": loja, "cells": row})
+    return {"matriz": matriz, "modo": modo}
+
+
 def gini_escopo(
     s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
 ) -> Optional[Dict[str, Any]]:

@@ -275,7 +275,13 @@ Reavaliar quando houver cliente real usando o ranking de Proximity como decisão
 
 ---
 
-## LG-3.1 — Heatmap loja×subpilar de detratores (aba Concentração)
+## LG-3.1 — Heatmap loja×subpilar de detratores (aba Concentração) [RESOLVIDO]
+
+**RESOLVIDO 2026-05-29** (branch `feature/lg-3.1-heatmap`): heatmap top-12 lojas ×
+12 subpilares na aba Concentração — célula = detratores absolutos (default) +
+toggle "% por loja"; escala √ (outlier não achata o meio); sem-dado (cinza) vs
+medido-zero (creme) inconfundíveis; SVG inline server-side; $0 LLM. Helpers
+`heatmap_detratores`/`heatmap_render` (leitura). Texto histórico abaixo.
 
 **Origem:** CP-LG-3, 2026-05-29 (faseado por decisão do Alexandre — ship do núcleo
 Gini+barras+leitura primeiro).
@@ -286,3 +292,19 @@ contribuição + leitura editorial. **Falta o heatmap loja×subpilar dos detrato
 mais pesada de render. Encaixar provavelmente depois do LG-6 (Selos) ou junto do
 LG-8 (Painel de Governança, cap-stone visual). Dados já disponíveis via
 `Verbatim` (local_id × subpilar × tipo=detrator); é trabalho de UI/agregação.
+
+---
+
+## Migrations: SQLite-isms a portar na 1ª subida pra Postgres
+
+**Origem:** fechamento do bloco LG / merge pra main, 2026-05-29.
+
+As migrations (`migrations/*.sql`) usam **sintaxe específica de SQLite** —
+`INTEGER PRIMARY KEY AUTOINCREMENT`, `CHECK (...)` inline, `func.strftime` em
+queries, etc. Hoje tudo roda em SQLite (dev). O roadmap prevê **Produção em
+PostgreSQL** (Render); a 1ª subida vai exigir **revalidar/portar todas as
+migrations no dialeto Postgres** (`SERIAL`/`GENERATED ... AS IDENTITY`, tipos,
+CHECK nomeado, `to_char` no lugar de `strftime`, BOOLEAN nativo) e re-testar o
+schema completo num restore real. Não é dívida do bloco LG em si — é do passo de
+Produção, mas o merge do LG (migrations 030/031) a deixou visível. Avaliar
+Alembic ou um runner dialeto-aware quando Postgres entrar.

@@ -1320,6 +1320,55 @@ def test_painel_governanca_pdf_monta_e_renderiza(app, db_session, usuario_loyall
     assert "em formação" in html  # cobertura no PDF
 
 
+# ── CP-LG-3.1: Heatmap loja×subpilar de detratores ─────────────────────────
+def test_heatmap_detratores_top_n_e_celulas(db_session):
+    from src.governanca.leitura import heatmap_detratores
+
+    e, fonte = _empresa_fonte(db_session)
+    la = Local(empresa_id=e.id, nome="A")
+    lb = Local(empresa_id=e.id, nome="B")
+    lc = Local(empresa_id=e.id, nome="C")
+    db_session.add_all([la, lb, lc])
+    db_session.commit()
+    _verbs(db_session, e, fonte, la, "P1", "detrator", 5, "a1")
+    _verbs(db_session, e, fonte, la, "P2", "promotor", 3, "a2")  # P2 medido, 0 det
+    _verbs(db_session, e, fonte, lb, "P1", "detrator", 2, "b1")  # omitida (top 2)
+    _verbs(db_session, e, fonte, lc, "D1", "detrator", 8, "c1")
+    db_session.commit()
+
+    hd = heatmap_detratores(db_session, e.id, top_n=2)
+    assert [x["local_id"] for x in hd["lojas"]] == [lc.id, la.id]  # mais detratores 1º
+    assert hd["n_omitidas"] == 1  # lb fora do top 2
+    assert len(hd["subpilares"]) == 12
+    assert hd["cells"][f"{la.id}|P1"]["det"] == 5
+    assert hd["cells"][f"{la.id}|P2"] == {"det": 0, "total": 3}  # medido zero
+    assert f"{la.id}|D2" not in hd["cells"]  # sem dado (sem verbatim)
+    assert f"{lb.id}|P1" not in hd["cells"]  # loja omitida não entra nas células
+
+
+def test_heatmap_render_estados_e_escala_sqrt():
+    from src.governanca.leitura import heatmap_render
+
+    dados = {
+        "subpilares": ["P1", "P2", "P3", "D1"],
+        "lojas": [{"local_id": 1, "nome": "A", "det_total": 110}],
+        "cells": {
+            "1|P1": {"det": 100, "total": 120},  # outlier
+            "1|P2": {"det": 10, "total": 40},
+            "1|P3": {"det": 0, "total": 5},  # medido zero
+            # D1 ausente → sem dado
+        },
+    }
+    row = heatmap_render(dados, "abs")["matriz"][0]["cells"]
+    assert row[0]["state"] == "det" and row[0]["opacity"] == 1.0  # P1 max
+    # escala SQRT: P2 (10/100) não some — opacity bem acima do linear (~0.21)
+    assert row[1]["state"] == "det" and row[1]["opacity"] > 0.35
+    assert row[2]["state"] == "zero" and row[2]["fill"] == "#FBF9F5"  # creme
+    assert row[3]["state"] == "sem_dado" and row[3]["fill"] == "#C9C2B6"  # cinza
+    # cinza (sem dado) e creme (zero) são cores DISTINTAS
+    assert row[2]["fill"] != row[3]["fill"]
+
+
 def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     from src.governanca.metricas import recalcular_governanca
 

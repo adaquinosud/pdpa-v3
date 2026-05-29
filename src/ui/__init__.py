@@ -3117,9 +3117,15 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
 
 
 def _explorar_concentracao(s, empresa_id, ag_id=None):
-    """Aba Concentração (CP-LG-3): Gini + faixa + leitura editorial + barras.
-    Escopo empresa (ag_id None) ou agrupamento. Leitura, sem recálculo."""
-    from src.governanca.leitura import garantir_governanca, gini_escopo, leitura_concentracao
+    """Aba Concentração (CP-LG-3): Gini + faixa + leitura + barras + heatmap
+    loja×subpilar (LG-3.1). Escopo empresa (ag_id None) ou agrupamento. Leitura."""
+    from src.governanca.leitura import (
+        garantir_governanca,
+        gini_escopo,
+        heatmap_detratores,
+        heatmap_render,
+        leitura_concentracao,
+    )
 
     garantir_governanca(empresa_id)
     escopo_tipo = "agrupamento" if ag_id else "empresa"
@@ -3127,6 +3133,9 @@ def _explorar_concentracao(s, empresa_id, ag_id=None):
     d = gini_escopo(s, empresa_id, escopo_tipo, escopo_id)
     lojas = (d.get("lojas") if d else None) or []
     barras = lojas[:15]  # top 15 por contribuição; bolsão = primeiras top_n
+    # Heatmap (LG-3.1): top 12 lojas × 12 subpilares, modo abs|pct via ?heat=.
+    modo = "pct" if request.args.get("heat") == "pct" else "abs"
+    hm_dados = heatmap_detratores(s, empresa_id, ag_id, top_n=12)
     return SimpleNamespace(
         dados=d,
         leitura=leitura_concentracao(d),
@@ -3134,6 +3143,9 @@ def _explorar_concentracao(s, empresa_id, ag_id=None):
         bolsao_n=(d.get("top_n") if d else None),
         max_det=(barras[0]["detratores"] if barras else 0),
         escopo_tipo=escopo_tipo,
+        heatmap=heatmap_render(hm_dados, modo),
+        heatmap_dados=hm_dados,
+        heatmap_modo=modo,
     )
 
 

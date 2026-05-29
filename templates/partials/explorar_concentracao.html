@@ -58,3 +58,56 @@
   <div class="text-sm text-loyall-500">{{ c.leitura }}</div>
 </div>
 {% endif %}
+
+{# ── Heatmap loja×subpilar de detratores (LG-3.1) ──────────────────────── #}
+{% set hm = c.heatmap %}
+{% set hd = c.heatmap_dados %}
+{% if hm.matriz %}
+{% set LBL = 130 %}{% set CELL = 26 %}{% set HDR = 22 %}
+{% set ncol = hd.subpilares|length %}{% set nrow = hm.matriz|length %}
+{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id %}
+<div class="bg-white border border-loyall-200 rounded-lg p-4 mt-5">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Heatmap loja × subpilar · detratores</div>
+    <div class="flex items-center gap-1 text-[11px]">
+      <span class="text-loyall-400 mr-1">Modo:</span>
+      {% for v, lbl in [('abs','Absoluto'),('pct','% por loja')] %}
+      <a hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='concentracao') }}?{{ qs }}&heat={{ v }}"
+         hx-target="#explorar-conteudo" hx-swap="innerHTML"
+         class="px-2 py-0.5 rounded border {% if c.heatmap_modo==v %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">{{ lbl }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="overflow-x-auto">
+    <svg viewBox="0 0 {{ LBL + ncol*CELL + 4 }} {{ HDR + nrow*CELL + 4 }}" style="min-width:{{ LBL + ncol*CELL }}px; max-width:640px" font-family="sans-serif">
+      {# cabeçalho: subpilares #}
+      {% for sub in hd.subpilares %}
+      <text x="{{ LBL + loop.index0*CELL + CELL/2 }}" y="{{ HDR - 7 }}" text-anchor="middle" font-size="9" fill="#1A1A2E" font-weight="bold">{{ sub }}</text>
+      {% endfor %}
+      {# linhas #}
+      {% for r in hm.matriz %}
+      {% set ry = HDR + loop.index0*CELL %}
+      <text x="{{ LBL - 6 }}" y="{{ ry + CELL/2 + 3 }}" text-anchor="end" font-size="9" fill="#1A1A2E">{{ r.loja.nome[:20] }}</text>
+      {% for cell in r.cells %}
+      {% set cx = LBL + loop.index0*CELL %}
+      <rect x="{{ cx }}" y="{{ ry }}" width="{{ CELL-2 }}" height="{{ CELL-2 }}" rx="2"
+            fill="{{ cell.fill }}" fill-opacity="{{ cell.opacity }}" stroke="#E7E3DC" stroke-width="0.5">
+        <title>{{ r.loja.nome }} · {{ hd.subpilares[loop.index0] }}: {% if cell.state=='sem_dado' %}sem verbatim{% elif cell.state=='zero' %}0 detratores ({{ cell.total }} verbatins){% else %}{{ cell.det }} detratores{% if cell.share is not none %} · {{ cell.share }}% da loja{% endif %}{% endif %}</title>
+      </rect>
+      {% endfor %}
+      {% endfor %}
+    </svg>
+  </div>
+  {# legenda: sem dado vs zero INCONFUNDÍVEIS + escala #}
+  <div class="flex items-center gap-4 flex-wrap text-[10px] text-loyall-500 mt-3">
+    <span class="flex items-center gap-1"><span style="display:inline-block;width:12px;height:12px;background:#C9C2B6;border:0.5px solid #E7E3DC;border-radius:2px"></span> sem dado</span>
+    <span class="flex items-center gap-1"><span style="display:inline-block;width:12px;height:12px;background:#FBF9F5;border:0.5px solid #ddd;border-radius:2px"></span> medido · 0 detratores</span>
+    <span class="flex items-center gap-1">menos
+      <span style="display:inline-block;width:12px;height:12px;background:#b3261e;opacity:0.25;border-radius:2px"></span>
+      <span style="display:inline-block;width:12px;height:12px;background:#b3261e;opacity:0.6;border-radius:2px"></span>
+      <span style="display:inline-block;width:12px;height:12px;background:#b3261e;opacity:1;border-radius:2px"></span>
+      mais detratores {% if c.heatmap_modo=='pct' %}(% da loja){% endif %} · escala não-linear (√)</span>
+  </div>
+  <div class="text-[10px] text-loyall-400 mt-2">{{ hm.matriz|length }} lojas com mais detratores · {{ hd.cobertura_pct }}% do total{% if hd.n_omitidas %} · {{ hd.n_omitidas }} demais lojas omitidas do mapa{% endif %}.</div>
+</div>
+{% endif %}

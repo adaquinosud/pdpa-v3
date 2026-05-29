@@ -40,7 +40,9 @@ Detalhe por CP em `docs/BLOCO_LG.md`. Resumo:
 - **LG-7** Mapa Financeiro do B2' enriquecido (Proximity + R$ placeholder).
 - **LG-8** Painel de Governança (6 blocos) + 5º PDF "Painel de Governança" (capa: tese do Lastro).
 
-**Pendências do bloco LG:** LG-3.1 (heatmap loja×subpilar — `PENDENCIAS_TECNICAS.md`) + documentação do método no Manual (Alexandre + Dener).
+- **LG-3.1** ✅ heatmap loja×subpilar de detratores na aba Concentração (top-12, toggle abs/%, escala √, sem-dado vs zero inconfundíveis).
+
+**Bloco LG 100% técnico.** Pendência restante: documentação do método no Manual (Alexandre + Dener) + Postgres migrations (passo Produção — `PENDENCIAS_TECNICAS.md`).
 
 ## Empresa de validação principal
 BH Airport (empresa #4) — 10.009 verbatins, 47 lojas, 12 canais
