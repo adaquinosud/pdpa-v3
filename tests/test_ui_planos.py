@@ -161,3 +161,37 @@ def test_tracking_renderiza_controles_editaveis(client_loyall, db_session):
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
     assert 'name="status"' in h and 'name="responsavel"' in h  # editáveis na tabela
     assert "planos/tracking" in h
+
+
+# ── CP-UX-c: botão "Aplicar" no filtro (seleção acumulada, 1 requisição) ──
+
+
+def test_filtro_planos_tem_botao_aplicar_sem_autotrigger(client_loyall, db_session):
+    """A sidebar de filtros não dispara a cada change: o form NÃO tem
+    hx-trigger='change' e há um botão submit 'Aplicar filtros'."""
+    e = _empresa(client_loyall, "aplicar")
+    _seed(db_session, e["id"])
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
+    # Isola o bloco do <form> de filtros (o hx-trigger="change" dos cards de
+    # ação — campo responsável — é legítimo e não conta).
+    ini = h.index('id="planos-filtros"')
+    fim = h.index("</form>", ini)
+    bloco = h[ini:fim]
+    assert 'hx-trigger="change"' not in bloco  # a sidebar não re-filtra a cada toque
+    # botão Aplicar (submit) presente no form de filtros
+    assert 'id="planos-aplicar"' in bloco
+    assert 'type="submit"' in bloco
+    assert "Aplicar filtros" in bloco
+
+
+def test_filtro_planos_multiplos_params_voltam_selected(client_loyall, db_session):
+    """Aplicar pilar=D + prioridade=alto juntos → ambos voltam 'selected' no
+    re-render (estado dos filtros persiste; nada se perde ao aplicar)."""
+    e = _empresa(client_loyall, "multi")
+    _seed(db_session, e["id"])
+    h = client_loyall.get(
+        f"/empresas/{e['id']}/explorar/tab/planos?pilar=D&prioridade=alto"
+    ).get_data(as_text=True)
+    # os dois filtros aplicados voltam marcados nos selects
+    assert '<option value="D" selected>Disponibilidade</option>' in h
+    assert '<option value="alto" selected>Alto</option>' in h

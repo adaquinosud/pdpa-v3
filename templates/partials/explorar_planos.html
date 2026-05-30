@@ -125,9 +125,14 @@
 </div>
 
 <div class="flex gap-4">
-  {# ── Sidebar de filtros ── #}
+  {# ── Sidebar de filtros (CP-UX-c): seleção acumulada + botão "Aplicar".
+       Sem hx-trigger="change" — os selects NÃO disparam sozinhos; o submit do
+       botão manda UMA requisição com todos os filtros juntos. O `oninput` marca
+       o botão como "pendente" (só classe CSS, sem JS externo) p/ o usuário não
+       esquecer de aplicar. ── #}
   <form id="planos-filtros" hx-get="{{ tab_url }}" hx-target="#explorar-conteudo" hx-swap="innerHTML"
-        hx-trigger="change" class="w-44 shrink-0 text-sm space-y-3">
+        oninput="document.getElementById('planos-aplicar').classList.add('ring-2','ring-amber-400','bg-amber-500')"
+        class="w-44 shrink-0 text-sm space-y-3 self-start sticky top-2">
     <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
     <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
     <input type="hidden" name="local_id" value="{{ filtros.local_id }}">
@@ -148,6 +153,10 @@
     {{ sel('pilar', 'Pilar', [('P','Precisão'),('D','Disponibilidade'),('Pa','Parceria'),('A','Aconselhamento')]) }}
     {{ sel('prioridade', 'Prioridade', [('alto','Alto'),('medio','Médio'),('baixo','Baixo')]) }}
     {{ sel('status', 'Status', [('pendente','Pendente'),('em_curso','Em curso'),('concluido','Concluído')]) }}
+    <button id="planos-aplicar" type="submit"
+            class="w-full mt-1 px-2 py-1.5 rounded bg-loyall-700 text-loyall-50 text-xs font-medium hover:bg-loyall-600 transition-colors">
+      Aplicar filtros
+    </button>
     <p class="text-[10px] text-loyall-400 pt-1">Loja: use o seletor no topo da página.</p>
   </form>
 
