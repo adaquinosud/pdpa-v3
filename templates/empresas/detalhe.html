@@ -26,8 +26,15 @@
     <button hx-get="{{ url_for('ui.htmx_editar_empresa_modal', empresa_id=empresa.id) }}"
             hx-target="body" hx-swap="beforeend"
             class="text-xs px-2 py-1 rounded border border-loyall-200 hover:bg-loyall-100 text-loyall-700">editar</button>
+    <button hx-post="{{ url_for('ui.htmx_reprocessar_empresa', empresa_id=empresa.id) }}"
+            hx-target="#reprocessar-msg" hx-swap="innerHTML" hx-indicator="#reprocessar-loading"
+            hx-confirm="Reprocessar TODA a empresa? Pode consumir LLM (alguns centavos). Roda em segundo plano."
+            title="Recalcula números e regenera o que mudou. Pode consumir LLM (centavos)."
+            class="text-xs px-2 py-1 rounded border border-sky-300 text-sky-800 bg-sky-50 hover:bg-sky-100">♻️ Reprocessar empresa</button>
+    <span id="reprocessar-loading" class="htmx-indicator text-xs text-loyall-400">iniciando…</span>
     {% endif %}
   </div>
+  {% if eh_loyall %}<div id="reprocessar-msg" class="mt-2"></div>{% endif %}
   <div class="text-sm text-loyall-400 mt-1">
     {% if empresa.setor %}<span>Setor: <strong class="text-loyall-700">{{ empresa.setor }}</strong></span> · {% endif %}
     {% if empresa.site %}<a href="{{ empresa.site }}" target="_blank" class="text-loyall-600 hover:underline">{{ empresa.site }}</a>{% endif %}

@@ -159,3 +159,38 @@ def test_disparar_roteia_para_todos_conectores(
         response = client_loyall.post(f"/api/coleta/disparar/{fonte.id}")
         assert response.status_code == 200, f"{conector}: {response.json}"
         assert response.json == _stats_sucesso(), conector
+
+
+# ── CP-UX-reprocessar: botão admin "Reprocessar empresa" ──────────────────
+
+
+def test_reprocessar_cliente_403(client_cliente_factory, db_session: Session) -> None:
+    """Cliente (não-Loyall) recebe 403 — rota restrita a admin Loyall."""
+    empresa = Empresa(nome="ReprocGate")
+    db_session.add(empresa)
+    db_session.commit()
+
+    tc = client_cliente_factory(empresa.id)
+    resp = tc.post(f"/ui/empresas/{empresa.id}/reprocessar")
+    assert resp.status_code == 403
+
+
+def test_reprocessar_loyall_dispara_async(
+    client_loyall: FlaskClient, db_session: Session, monkeypatch
+) -> None:
+    """Loyall: 200 + banner, e a rota CHAMA disparar_pos_coleta_async com o
+    empresa_id (wiring — sem rodar o pipeline). Confirma o fire-and-forget."""
+    empresa = Empresa(nome="ReprocLoyall")
+    db_session.add(empresa)
+    db_session.commit()
+
+    chamadas = []
+    monkeypatch.setattr(
+        "src.coletor.orquestrador.disparar_pos_coleta_async",
+        lambda empresa_id, *a, **k: chamadas.append(empresa_id),
+    )
+
+    resp = client_loyall.post(f"/ui/empresas/{empresa.id}/reprocessar")
+    assert resp.status_code == 200
+    assert "segundo plano" in resp.data.decode()
+    assert chamadas == [empresa.id]
