@@ -97,3 +97,65 @@ def test_validar_estado_invalido_400(client_loyall, db_session):
         f"/ui/empresas/{e['id']}/anomalias/{aid}/validar", data={"estado": "lixo"}
     )
     assert r.status_code == 400
+
+
+# ── CP-UX-b: título legível (nome da loja) no header da anomalia ──────────
+
+
+def test_anomalia_view_titulo_com_local_usa_nome():
+    """Indicador com local_nome → titulo = 'Nome · subpilar' (substitui loja XX)."""
+    from types import SimpleNamespace
+
+    from src.ui import _anomalia_view
+
+    a = SimpleNamespace(
+        id=1,
+        tipo="indicador",
+        chave="loja 77 · D3",
+        severidade="atencao",
+        score_final=50.0,
+        score_temporal=None,
+        score_cross_sectional=None,
+        magnitude=None,
+        direcao="negativa",
+        tendencia=None,
+        subpilar="D3",
+        periodo="2026-04",
+        local_id=77,
+        tema_id=None,
+        leitura_editorial=None,
+        estado_validacao="pendente",
+        nota_editorial=None,
+    )
+    view = _anomalia_view(a, local_nome="TikTok @bhairport", tema_nome=None)
+    assert view.titulo == "TikTok @bhairport · D3"
+    assert view.local_nome == "TikTok @bhairport"
+
+
+def test_anomalia_view_titulo_sem_local_usa_chave():
+    """Tema/cruzamento (sem local) → titulo = chave (fallback, inalterado)."""
+    from types import SimpleNamespace
+
+    from src.ui import _anomalia_view
+
+    a = SimpleNamespace(
+        id=2,
+        tipo="tema",
+        chave="tema: fila no balcão",
+        severidade="critico",
+        score_final=88.0,
+        score_temporal=None,
+        score_cross_sectional=None,
+        magnitude=None,
+        direcao="negativa",
+        tendencia=None,
+        subpilar=None,
+        periodo=None,
+        local_id=None,
+        tema_id=9,
+        leitura_editorial=None,
+        estado_validacao="pendente",
+        nota_editorial=None,
+    )
+    view = _anomalia_view(a, local_nome=None, tema_nome="fila no balcão")
+    assert view.titulo == "tema: fila no balcão"

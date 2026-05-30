@@ -26,7 +26,7 @@
         {% if a.corroborado %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700" title="Confirmado por tema detrator no mesmo subpilar">🔗 corroborado</span>{% endif %}
         <span class="text-[10px] px-1.5 py-0.5 rounded {{ est.bg }} {{ est.text }}">{{ est.lbl }}</span>
       </div>
-      <div class="font-medium text-loyall-800 mt-1 truncate">{{ a.chave }}</div>
+      <div class="font-medium text-loyall-800 mt-1 truncate">{{ a.titulo }}</div>
       {# resumo curto — só no colapsado (escondido quando aberto) #}
       <div class="anom-resumo text-xs text-loyall-500 mt-0.5 truncate">{{ a.resumo }}</div>
     </div>
@@ -70,9 +70,9 @@
     <div class="text-xs text-loyall-400 italic">Leitura editorial ainda não gerada.</div>
     {% endif %}
 
-    {# escopo do sinal #}
+    {# escopo do sinal — nome da loja já está no header (CP-UX-b); aqui fica o
+       restante do escopo (subpilar/período/direção) sem repetir o nome. #}
     <div class="text-xs text-loyall-500 mt-2">
-      {% if a.local_nome %}{{ a.local_nome }} · {% endif %}
       {% if a.subpilar %}subpilar {{ a.subpilar }} · {% endif %}
       {% if a.periodo %}{{ a.periodo }} · {% endif %}{{ a.direcao }}
     </div>

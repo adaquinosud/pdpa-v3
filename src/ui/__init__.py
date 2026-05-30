@@ -985,10 +985,19 @@ def _anomalia_view(a, local_nome=None, tema_nome=None):
     else:
         resumo = a.tendencia or "Leitura editorial ainda não gerada."
     resumo = resumo[:180]
+    # CP-UX-b: título legível p/ o header. Anomalia de indicador tem local_id →
+    # "Nome da loja · subpilar" (o nome substitui o "loja XX" cru da chave). Tema/
+    # cruzamento não têm local → mantém a chave (já descritiva). Lógica aqui (não
+    # no template) p/ centralizar a regra. $0 — local_nome já vem do lookup batch.
+    if local_nome:
+        titulo = f"{local_nome} · {a.subpilar}" if a.subpilar else local_nome
+    else:
+        titulo = a.chave
     return SimpleNamespace(
         id=a.id,
         tipo=a.tipo,
         chave=a.chave,
+        titulo=titulo,
         severidade=a.severidade,
         score=a.score_final,
         score_temporal=a.score_temporal,
