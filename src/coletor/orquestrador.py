@@ -14,9 +14,51 @@ from typing import Any, Dict, List, Optional
 
 COOLDOWN_MINUTOS = 15
 
+# Timeout duro por fonte (CP-1 timeout-por-fonte). Generoso de propósito: o pior
+# google LEGÍTIMO observado levou ~2192s (36,5min); 45min dá folga pra não cortar
+# fonte lenta-mas-viva, só pega fonte PENDURADA/infinita (ex. 84/YouTube). Uma
+# fonte travada não aborta mais o lote — marca erro/timeout e segue. NÃO resolve o
+# estouro de timeout do navegador numa coleta longa (isso é o CP-2, thread de fundo).
+TIMEOUT_FONTE_SEGUNDOS = 2700
+
 
 def _agora() -> datetime:
     return datetime.utcnow()
+
+
+class TimeoutFonte(Exception):
+    """A coleta de uma fonte excedeu TIMEOUT_FONTE_SEGUNDOS (provável fonte travada)."""
+
+
+def _executar_com_timeout(fn, arg, timeout_s: int):
+    """Executa ``fn(arg)`` com teto de wall-clock. Em Python não dá pra matar uma
+    thread à força; se ``fn`` não retornar a tempo, a thread vira ÓRFÃ (segue
+    rodando em background — Apify continua, custo continua) e levantamos
+    ``TimeoutFonte`` pra o lote prosseguir.
+
+    Race com a thread órfã: ela roda APENAS ``fn`` (o coletor), que persiste
+    *verbatins* via ``processar_verbatim_coletado`` (idempotente, dedup por
+    review_id_externo). Ela NÃO toca ``ColetaExecucao`` — esse registro é escrito
+    só pelo corpo de ``_coletar_fonte_direto``, fora da thread. Logo não há o
+    cenário "thread acorda 10min depois e marca 'concluído' por cima do 'erro'":
+    a escrita do status vive estruturalmente fora da thread. O único efeito tardio
+    da órfã é gravar verbatins que chegam atrasados — deduplicados e inofensivos."""
+    holder: Dict[str, Any] = {}
+
+    def _alvo() -> None:
+        try:
+            holder["res"] = fn(arg)
+        except Exception as exc:  # noqa: BLE001 — propaga a exceção real do coletor
+            holder["exc"] = exc
+
+    t = threading.Thread(target=_alvo, daemon=True, name=f"coleta-fonte-{timeout_s}s")
+    t.start()
+    t.join(timeout_s)
+    if t.is_alive():
+        raise TimeoutFonte(f"fonte não respondeu em {timeout_s}s")
+    if "exc" in holder:
+        raise holder["exc"]
+    return holder["res"]
 
 
 def em_cooldown(
@@ -186,7 +228,20 @@ def _coletar_fonte_direto(fonte_id: int) -> Dict[str, Any]:
         execucao_id = exe.id
 
     try:
-        stats = coletor_fn(fonte)
+        stats = _executar_com_timeout(coletor_fn, fonte, TIMEOUT_FONTE_SEGUNDOS)
+    except TimeoutFonte as exc:
+        mins = TIMEOUT_FONTE_SEGUNDOS // 60
+        print(
+            f"[coleta] fonte {fonte_id} timeout {mins}min — pulada, thread órfã em bg "
+            f"(Apify pode seguir rodando)"
+        )
+        with db_session() as s:
+            exe = s.get(ColetaExecucao, execucao_id)
+            if exe is not None:
+                exe.status = "erro"
+                exe.concluido_em = _agora()
+                exe.mensagem_erro = f"timeout: {exc} (>{mins}min) — provavelmente travada"
+        return {"erro": str(exc), "fonte_id": fonte_id, "falhou_apify": True, "timeout": True}
     except Exception as exc:  # noqa: BLE001
         with db_session() as s:
             exe = s.get(ColetaExecucao, execucao_id)
