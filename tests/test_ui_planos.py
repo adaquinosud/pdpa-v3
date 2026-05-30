@@ -195,3 +195,49 @@ def test_filtro_planos_multiplos_params_voltam_selected(client_loyall, db_sessio
     # os dois filtros aplicados voltam marcados nos selects
     assert '<option value="D" selected>Disponibilidade</option>' in h
     assert '<option value="alto" selected>Alto</option>' in h
+
+
+# ── CP-UX-d: glossario do filtro "origem" (rotulos + legenda) ──────────────
+
+
+def test_filtro_origem_rotulo_venda_preserva_value(client_loyall, db_session):
+    """Os dois N5 ganham "(venda)" no rotulo VISIVEL, mas o value enviado ao
+    backend continua "N5 tema"/"N5 cruzamento" (casa com it.origem)."""
+    e = _empresa(client_loyall, "origvenda")
+    _seed(db_session, e["id"])
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
+    # value preservado + label com "(venda)"
+    assert '<option value="N5 tema" >N5 tema (venda)</option>' in h
+    assert '<option value="N5 cruzamento" >N5 cruzamento (venda)</option>' in h
+    # as outras 3 origens permanecem auto-explicativas (sem sufixo)
+    assert '<option value="Estrutural" >Estrutural</option>' in h
+    assert '<option value="Diagnóstico" >Diagnóstico</option>' in h
+    assert '<option value="Anomalia" >Anomalia</option>' in h
+
+
+def test_filtro_origem_tem_legenda_dos_5(client_loyall, db_session):
+    """Legenda <details> (funciona no mobile) explica as 5 origens."""
+    e = _empresa(client_loyall, "origleg")
+    _seed(db_session, e["id"])
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
+    assert "o que é cada origem?" in h
+    # uma frase-chave de cada definicao
+    assert "construir o subpilar" in h  # Estrutural
+    assert "tema de alto volume num subpilar" in h  # N5 tema
+    assert "atravessa vários subpilares (causa raiz)" in h  # N5 cruzamento
+    assert "acompanha a leitura diagnóstica" in h  # Diagnóstico
+    assert "sinal anômalo detectado" in h  # Anomalia
+
+
+def test_filtro_origem_n5_tema_ainda_filtra(client_loyall, db_session):
+    """O value preservado garante que filtrar por origem=N5 tema continua
+    funcionando (so apresentacao mudou; consolidar_acoes intacto)."""
+    e = _empresa(client_loyall, "origfiltra")
+    _seed(db_session, e["id"])
+    # _seed cria 1 AcaoVenda sem cruzamento_id -> origem "N5 tema"
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos?origem=N5 tema").get_data(
+        as_text=True
+    )
+    # a acao N5 do seed aparece; as de outras origens (Diagnostico/Anomalia) nao
+    assert "Treinar a equipe no fluxo de retirada" in h
+    assert "Reabordar detratores." not in h  # essa e' Anomalia

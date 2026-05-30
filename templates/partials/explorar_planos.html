@@ -149,7 +149,22 @@
     </label>
     {% endmacro %}
     <input type="hidden" name="perspectiva" value="{{ filtros.perspectiva or '' }}">
-    {% if loyall %}{{ sel('origem', 'Origem', [('Estrutural','Estrutural'),('N5 tema','N5 tema'),('N5 cruzamento','N5 cruzamento'),('Diagnóstico','Diagnóstico'),('Anomalia','Anomalia')]) }}{% endif %}
+    {# CP-UX-d: rótulos N5 ganham "(venda)" (value preservado = it.origem). Legenda
+       das 5 origens num <details> — funciona no mobile (tap pra abrir), não só
+       hover. Só apresentação. #}
+    {% if loyall %}
+    {{ sel('origem', 'Origem', [('Estrutural','Estrutural'),('N5 tema','N5 tema (venda)'),('N5 cruzamento','N5 cruzamento (venda)'),('Diagnóstico','Diagnóstico'),('Anomalia','Anomalia')]) }}
+    <details class="text-[10px] text-loyall-500 -mt-1">
+      <summary class="cursor-pointer text-loyall-400 hover:text-loyall-600 select-none">ⓘ o que é cada origem?</summary>
+      <dl class="mt-1 space-y-1 leading-snug">
+        <div><dt class="inline font-semibold text-loyall-600">Estrutural:</dt> <dd class="inline">sugestão proativa para construir o subpilar — não responde a uma reclamação específica.</dd></div>
+        <div><dt class="inline font-semibold text-loyall-600">N5 tema (venda):</dt> <dd class="inline">ação de venda a partir de um tema de alto volume num subpilar.</dd></div>
+        <div><dt class="inline font-semibold text-loyall-600">N5 cruzamento (venda):</dt> <dd class="inline">ação de venda a partir de um problema que atravessa vários subpilares (causa raiz).</dd></div>
+        <div><dt class="inline font-semibold text-loyall-600">Diagnóstico:</dt> <dd class="inline">ação que acompanha a leitura diagnóstica do subpilar.</dd></div>
+        <div><dt class="inline font-semibold text-loyall-600">Anomalia:</dt> <dd class="inline">ação reativa a um sinal anômalo detectado (relacionamento e venda).</dd></div>
+      </dl>
+    </details>
+    {% endif %}
     {{ sel('pilar', 'Pilar', [('P','Precisão'),('D','Disponibilidade'),('Pa','Parceria'),('A','Aconselhamento')]) }}
     {{ sel('prioridade', 'Prioridade', [('alto','Alto'),('medio','Médio'),('baixo','Baixo')]) }}
     {{ sel('status', 'Status', [('pendente','Pendente'),('em_curso','Em curso'),('concluido','Concluído')]) }}
