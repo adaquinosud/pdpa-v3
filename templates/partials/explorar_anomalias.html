@@ -30,6 +30,23 @@
     <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-600">{{ resumo.pendentes }} pendentes</span>
     <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">{{ resumo.confirmados }} confirmadas</span>
   </div>
+  {# CP-UX-e: explicação do score (resumo sempre visível + legenda <details>,
+     padrão do UX-d — clique pra abrir, sem hover/JS, funciona no mobile).
+     UMA vez no topo da aba, não por card. Só apresentação. #}
+  <div class="mt-2 text-[11px] text-loyall-500">
+    <span class="text-loyall-600">Score 0–100: quanto maior, mais forte o sinal. <b>≥70</b> crítico · <b>40–69</b> atenção.</span>
+    <details class="mt-1">
+      <summary class="cursor-pointer text-loyall-400 hover:text-loyall-600 select-none">ⓘ como o score é calculado?</summary>
+      <ul class="mt-1 space-y-0.5 leading-snug list-disc pl-4">
+        <li><b>O que é:</b> mede o quão fora do normal está o sinal (0–100). Só estatística, sem IA.</li>
+        <li><b>Loja × subpilar:</b> o maior entre (1) quanto a loja está abaixo das comparáveis nos meses recentes e (2) se o último mês destoou do histórico dela.</li>
+        <li><b>Tema/cruzamento:</b> o tamanho do movimento do tema entre períodos.</li>
+        <li><b>Faixas:</b> ≥70 crítico · 40–69 atenção · &lt;40 não vira alerta.</li>
+        <li><b>🔗 corroborado:</b> sinal recente confirmado por um tema detrator no mesmo subpilar.</li>
+        <li><b>Pré-requisito:</b> loja precisa de ≥6 meses e ≥3 menções/mês.</li>
+      </ul>
+    </details>
+  </div>
 </div>
 
 {# ── Filtros ──────────────────────────────────────────────────────── #}

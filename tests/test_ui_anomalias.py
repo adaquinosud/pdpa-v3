@@ -159,3 +159,29 @@ def test_anomalia_view_titulo_sem_local_usa_chave():
     )
     view = _anomalia_view(a, local_nome=None, tema_nome="fila no balcão")
     assert view.titulo == "tema: fila no balcão"
+
+
+# ── CP-UX-e: explicação do score de anomalia (resumo + legenda) ───────────
+
+
+def test_aba_anomalias_tem_resumo_do_score(client_loyall):
+    """Resumo do score sempre visível no topo da aba (faixas 70/40)."""
+    e = _empresa(client_loyall, "scorehdr")
+    _seed(e["id"])
+    h = client_loyall.get(f"/empresas/{e['id']}/anomalias").get_data(as_text=True)
+    assert "Score 0" in h
+    assert "quanto maior, mais forte o sinal" in h
+    assert "crítico" in h and "atenção" in h
+
+
+def test_aba_anomalias_tem_legenda_detalhada_do_score(client_loyall):
+    """Legenda <details> (clique pra abrir) explica os 6 itens do cálculo."""
+    e = _empresa(client_loyall, "scoreleg")
+    _seed(e["id"])
+    h = client_loyall.get(f"/empresas/{e['id']}/anomalias").get_data(as_text=True)
+    assert "como o score é calculado?" in h
+    assert "Só estatística, sem IA" in h
+    assert "abaixo das comparáveis nos meses recentes" in h
+    assert "tamanho do movimento do tema" in h
+    assert "tema detrator no mesmo subpilar" in h
+    assert "≥6 meses e ≥3 menções/mês" in h
