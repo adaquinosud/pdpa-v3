@@ -30,6 +30,13 @@ from src.temas.pipeline import processar_empresa
 LIMIAR_NOVOS_DEFAULT = 50
 CUSTO_USD_POR_CLASSIFICACAO = 0.0005  # Haiku, estimativa
 
+# Marcador terminal de falha de classificação (CP-fix-classificador). Gravado em
+# verbatins.prompt_versao quando o classificador esgota reroll Haiku (3x) +
+# escalada Sonnet. Distingue falha real de sem_lastro legítimo (prompt_versao=
+# 'v3.0') sem violar o CHECK de subpilar nem poluir a auditoria. Auditável via
+# WHERE prompt_versao = 'falha-classificacao'.
+MARCADOR_FALHA_CLASSIFICACAO = "falha-classificacao"
+
 
 @dataclass
 class ResumoPosColeta:
@@ -127,8 +134,34 @@ def classificar_pendentes(empresa_id: int, limite: Optional[int] = None) -> Dict
                 v.justificativa = r.justificativa
                 v.prompt_versao = r.prompt_versao
                 stats["classificados"] += 1
+            except ValueError as exc:
+                # Falha TERMINAL: reroll Haiku (3x) + escalada Sonnet esgotados
+                # (ou restrição violada) — o conteúdo é inclassificável
+                # (ambíguo/sem âncora). Grava marcador em vez de NULL: sai da
+                # fila (subpilar != NULL) e não reprocessa a cada rodada (custo
+                # LLM invisível). O flag em prompt_versao distingue de sem_lastro
+                # legítimo (v3.0); subpilar=sem_lastro/tipo=inativo respeita o
+                # CHECK e fica fora do ratio/Proximity.
+                v.subpilar = "sem_lastro"
+                v.tipo = "inativo"
+                v.confianca = 0.0
+                v.prompt_versao = MARCADOR_FALHA_CLASSIFICACAO
+                stats["falhas"] += 1
+                print(
+                    f"[pos-coleta] verbatim={v.id} MARCADO "
+                    f"{MARCADOR_FALHA_CLASSIFICACAO} (terminal, fora da fila) "
+                    f"após reroll+Sonnet: {exc}"
+                )
             except Exception as exc:  # noqa: BLE001
-                print(f"[pos-coleta] classificar verbatim={v.id}: {type(exc).__name__}: {exc}")
+                # Falha de INFRA (rede/API; RuntimeError de retry 429/5xx
+                # esgotado): NÃO é terminal — pode ser transitória. Mantém
+                # subpilar=NULL para o verbatim reentrar na fila e ser
+                # reprocessado numa próxima rodada (não marca como falha um
+                # verbatim classificável só porque a rede caiu).
+                print(
+                    f"[pos-coleta] verbatim={v.id} falha NÃO-terminal "
+                    f"(mantido na fila): {type(exc).__name__}: {exc}"
+                )
                 stats["falhas"] += 1
     return stats
 

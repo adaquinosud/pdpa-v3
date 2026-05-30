@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from src.models.verbatim import Verbatim
 from src.temas.pos_coleta import (
+    MARCADOR_FALHA_CLASSIFICACAO,
     classificar_pendentes,
     contar_novos,
     executar_pos_coleta,
@@ -132,3 +133,64 @@ def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypat
     assert r.cruz_literais == 2 and r.cruz_semanticos == 1
     assert r.acoes == 3
     assert r.custo_estimado_usd > 0
+
+
+# ── CP-fix-classificador: marcador terminal de falha (opção ii) ───────────
+
+
+def test_falha_terminal_recebe_marcador_e_sai_da_fila(client_loyall, db_session, monkeypatch):
+    """Falha TERMINAL (ValueError = reroll+Sonnet esgotados): verbatim recebe
+    marcador em vez de NULL e NÃO reentra na fila numa 2ª rodada."""
+    e, a, loc, f = _ctx(client_loyall, "ft")
+    v = _verb(db_session, e["id"], f["id"], loc["id"], "Muito a melhorar.")
+    assert v.subpilar is None  # começa NULL (pendente)
+
+    chamadas = {"n": 0}
+
+    def _terminal(**kw):
+        chamadas["n"] += 1
+        raise ValueError("Haiku não produziu classificação válida (simulado)")
+
+    monkeypatch.setattr("src.classifier.classifier_v3.classificar", _terminal)
+
+    stats1 = classificar_pendentes(e["id"])
+    assert chamadas["n"] == 1
+    assert stats1 == {"classificados": 0, "falhas": 1}
+
+    db_session.expire_all()
+    vd = db_session.get(Verbatim, v.id)
+    assert vd.subpilar == "sem_lastro"  # NÃO ficou NULL
+    assert vd.tipo == "inativo"
+    assert vd.confianca == 0.0
+    assert vd.prompt_versao == MARCADOR_FALHA_CLASSIFICACAO
+
+    # 2ª rodada: saiu da fila (subpilar != NULL) → classificar NÃO é chamado.
+    classificar_pendentes(e["id"])
+    assert chamadas["n"] == 1  # não reentrou
+
+
+def test_falha_infra_nao_marca_e_reentra_na_fila(client_loyall, db_session, monkeypatch):
+    """Falha de INFRA (RuntimeError/rede) NÃO é terminal: verbatim continua NULL
+    e reentra na fila numa 2ª rodada — blip de rede não vira marcador."""
+    e, a, loc, f = _ctx(client_loyall, "fi")
+    v = _verb(db_session, e["id"], f["id"], loc["id"], "Atendimento excelente!")
+
+    chamadas = {"n": 0}
+
+    def _infra(**kw):
+        chamadas["n"] += 1
+        raise RuntimeError("Classificador falhou após 5 tentativas (rede/API)")
+
+    monkeypatch.setattr("src.classifier.classifier_v3.classificar", _infra)
+
+    classificar_pendentes(e["id"])
+    assert chamadas["n"] == 1
+
+    db_session.expire_all()
+    vd = db_session.get(Verbatim, v.id)
+    assert vd.subpilar is None  # NÃO marcado — continua pendente
+    assert vd.prompt_versao != MARCADOR_FALHA_CLASSIFICACAO
+
+    # 2ª rodada: como segue NULL, reentra na fila (classificar chamado de novo).
+    classificar_pendentes(e["id"])
+    assert chamadas["n"] == 2  # reentrou (retryable)
