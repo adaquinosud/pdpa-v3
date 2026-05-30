@@ -31,6 +31,7 @@
 **Possível erro na tela de Diagnóstico** que o Alexandre mencionou — **investigar antes dos CP-UX restantes** e decidir se é bug real (corrige) ou comportamento esperado. (Detalhe a obter com o Alexandre na retomada — não foi especificado.)
 
 ## Pendências de UX (fila pós-LG, CP por CP, branch nova de main cada)
+- **UX-reprocessar** (ALTA — destrava piloto): botão admin "Reprocessar empresa" (interface, sem terminal) p/ operador Loyall recalcular após reagrupar. Dois botões: "Recalcular números ($0)" vs "Regenerar tudo (LLM)". Reusa `disparar_pos_coleta_async` + `callback_progresso`. Detalhe em `PENDENCIAS_TECNICAS.md`.
 - **UX-a** ✅ FECHADO (`53c24ce`): clareza do "herdado" no Confronto (boxe âmbar **confirmado na tela pelo Alexandre** + frase de inversão de escopo). Merge pendente.
 - **UX-b** Nome da loja em anomalias (hoje só "loja XX · indicador") — rápida, alto valor.
 - **UX-c** Botão "Aplicar" no filtro do Plano de Ação (hoje filtra a cada clique).

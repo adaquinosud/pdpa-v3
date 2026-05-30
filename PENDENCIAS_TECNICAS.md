@@ -5,6 +5,46 @@ adiados (não são bugs abertos; são evoluções com decisão de timing).
 
 ---
 
+## Botão admin "Reprocessar empresa" (destrava reagrupamento sem dev)
+
+**Origem:** investigação de reagrupar-por-ramo, 2026-05-29. **Prioridade: alta**
+(perto do topo da fila de UX) — é pré-requisito pro operador Loyall reagrupar
+lojas no piloto sem depender de dev.
+
+**Necessidade:** hoje, recalcular Proximity/Gini/Mapa após mexer em agrupamentos
+exige terminal (`uv run flask pipeline-pos-coleta --empresa N --force`). A lazy-load
+da tela (`garantir_governanca`) **não** resolve — só repopula se Proximity/Gini
+estiverem vazios, e em empresa já processada não estão. Isso barra qualquer
+operador não-dev, e reagrupar por ramo (fluxo recém-validado) será tarefa de
+operador, não de dev.
+
+**Escopo provável (dimensionar quando virar CP):**
+- Botão "Reprocessar" no admin/cadastro da empresa (`templates/empresas/detalhe.html`),
+  visível só pra `eh_loyall` (como os demais controles de admin).
+- Dispara o equivalente a `pipeline-pos-coleta --empresa N --force` **em background**
+  (não trava a tela — o pos-coleta é demorado), com feedback "processando…" no
+  estilo do `htmx-indicator` que o botão "♻️ Regenerar leituras" já usa.
+- **Dois botões** para separar custo: **"Recalcular números ($0)"** (só
+  `recalcular_governanca` + ratios — cálculo puro) vs **"Regenerar tudo (inclui
+  texto, custo LLM)"** (pos-coleta completo). Operador não pode disparar LLM sem querer.
+
+**Confirmações técnicas (investigação 2026-05-29, read-only):**
+- **Async já existe e é reusável:** `disparar_pos_coleta_async(empresa_id)`
+  (`src/coletor/orquestrador.py:132`) roda `executar_pos_coleta(empresa_id,
+  limiar=1, force=True)` em thread daemon. Hoje só é chamado encadeado a uma coleta
+  real (`src/api/coleta.py:248`); o botão exporia esse disparo isolado (sem coleta/Apify).
+- **Progresso:** `executar_pos_coleta` aceita `callback_progresso` (usado no CLI
+  `pipeline-pos-coleta`, `src/app.py:691`) — base pro feedback de progresso.
+- **Recompute $0 isolado:** `recalcular_governanca(empresa_id, skip_unchanged=True)`
+  (`src/governanca/metricas.py`, passo 7.5 do pos-coleta) recalcula Proximity/Gini/
+  Concentração sem LLM — é o que o botão "Recalcular números ($0)" chamaria direto.
+- **Cuidado modo TESTING:** `disparar_pos_coleta_async` é no-op sob `TESTING`
+  (SQLite não thread-safe) — o teste do CP deve chamar o pipeline direto.
+
+Relacionado: [[project_bloco9_escopo_loja]], Lente de Governança.
+
+---
+
 ## IA Chat — "Ver fonte" de cada afirmação (IA-4)
 
 **Origem:** Bloco 9 IA-2 (drill-down), 2026-05-27. Adiado — decidir quando for útil.
