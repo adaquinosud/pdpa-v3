@@ -15,9 +15,16 @@
     </nav>
     <h1 class="text-2xl font-semibold mt-1">
       <a href="{{ voltar_url }}" class="text-sm text-loyall-400 hover:underline align-middle mr-1">← {{ voltar_texto }}</a>
-      Verbatins · <span class="text-loyall-400 text-base">{{ total }}</span>
+      Verbatins {{ glossario_i('verbatim') }} · <span class="text-loyall-400 text-base">{{ total }}</span>
     </h1>
     <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
+    {# CP-glossario-2f: tipos/subpilar/sem-lastro aparecem como badge em cada
+       verbatim_item (loop) — 1 ⓘ aqui (legenda), não por item. #}
+    <p class="text-[11px] text-loyall-400 mt-1">
+      Tipos: promotor {{ glossario_i('promotor') }} · conversível {{ glossario_i('conversivel') }} ·
+      detrator {{ glossario_i('detrator') }} · inativo {{ glossario_i('inativo') }}
+      &nbsp;·&nbsp; subpilar {{ glossario_i('subpilar') }} · sem_lastro {{ glossario_i('sem-lastro') }}
+    </p>
   </div>
   <a id="btn-exportar-xlsx"
      href="#"

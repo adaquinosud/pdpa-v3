@@ -6,7 +6,7 @@
          role="dialog" aria-modal="true" aria-labelledby="temas-drawer-titulo">
     <header class="px-4 py-3 border-b border-loyall-200 flex items-center justify-between gap-3">
       <div>
-        <div class="text-xs uppercase tracking-wider text-loyall-400">Top temas</div>
+        <div class="text-xs uppercase tracking-wider text-loyall-400">Top temas {{ glossario_i('tema') }}</div>
         <h2 id="temas-drawer-titulo" class="text-lg font-semibold text-loyall-800">
           {{ subpilar }} <span class="text-loyall-400">·</span> {{ tipo or 'todos os tipos' }}
         </h2>

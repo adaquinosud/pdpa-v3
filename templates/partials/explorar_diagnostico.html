@@ -28,11 +28,11 @@
 </div>
 {% elif d.escopo.n_proprios == 0 %}
 <div class="mb-3 px-3 py-2 rounded bg-sky-50 border-l-4 border-sky-400 text-xs text-sky-900">
-  <strong>{{ d.escopo.loja_nome }}:</strong> nenhum subpilar atinge 30 verbatins — diagnóstico inteiro <strong>herdado do {{ d.escopo.origem_pai }}</strong>. Os números abaixo são da loja; as leituras, do {{ d.escopo.origem_pai }}. Aumente o engajamento para material próprio.
+  <strong>{{ d.escopo.loja_nome }}:</strong> nenhum subpilar atinge 30 verbatins — diagnóstico inteiro <strong>herdado do {{ d.escopo.origem_pai }}</strong> {{ glossario_i('herdado') }}. Os números abaixo são da loja; as leituras, do {{ d.escopo.origem_pai }}. Aumente o engajamento para material próprio.
 </div>
 {% else %}
 <div class="mb-3 px-3 py-2 rounded bg-sky-50 border-l-4 border-sky-400 text-xs text-sky-900">
-  <strong>Diagnóstico de {{ d.escopo.loja_nome }}:</strong> {{ d.escopo.n_proprios }} subpilares próprios · <strong>{{ d.escopo.n_herdados }} herdados do {{ d.escopo.origem_pai }}</strong> (volume insuficiente nesses subpilares — marcados abaixo).
+  <strong>Diagnóstico de {{ d.escopo.loja_nome }}:</strong> {{ d.escopo.n_proprios }} subpilares próprios · <strong>{{ d.escopo.n_herdados }} herdados do {{ d.escopo.origem_pai }}</strong> {{ glossario_i('herdado') }} (volume insuficiente nesses subpilares — marcados abaixo).
 </div>
 {% endif %}
 {% endif %}
@@ -47,8 +47,8 @@
 </div>
 
 {# ── Mapa de Lastro ── #}
-<h3 class="text-sm font-semibold text-loyall-700 mb-1">Mapa de Lastro</h3>
-<p class="text-xs text-loyall-500 mb-2">Jornada sequencial P→D→Pa→A — resolva o gargalo antes de investir nos pilares seguintes.</p>
+<h3 class="text-sm font-semibold text-loyall-700 mb-1">Mapa de Lastro {{ glossario_i('pilar') }}</h3>
+<p class="text-xs text-loyall-500 mb-2">Jornada sequencial P→D→Pa→A — resolva o gargalo {{ glossario_i('gargalo') }} antes de investir nos pilares seguintes.</p>
 <div class="flex flex-wrap items-stretch gap-2 mb-4">
   {% for p in d.pilares %}
   {% set fc = fclass[p.faixa] %}
@@ -92,14 +92,14 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-loyall-50 text-loyall-500 text-xs uppercase tracking-wider">
-        <th class="text-left px-3 py-2 font-medium">Subpilar</th>
+        <th class="text-left px-3 py-2 font-medium">Subpilar {{ glossario_i('subpilar') }}</th>
         <th class="text-right px-2 py-2 font-medium text-rose-600">Det</th>
         <th class="text-right px-2 py-2 font-medium text-amber-600">Conv</th>
         <th class="text-right px-2 py-2 font-medium text-emerald-600">Prom</th>
-        <th class="text-right px-2 py-2 font-medium">Ratio</th>
-        <th class="text-center px-2 py-2 font-medium">Proximity</th>
+        <th class="text-right px-2 py-2 font-medium">Ratio {{ glossario_i('ratio') }}</th>
+        <th class="text-center px-2 py-2 font-medium">Proximity {{ glossario_i('proximity') }}</th>
         <th class="text-center px-2 py-2 font-medium">Faixa</th>
-        <th class="text-left px-3 py-2 font-medium" style="min-width:340px">Leitura diagnóstica + ação</th>
+        <th class="text-left px-3 py-2 font-medium" style="min-width:340px">Leitura diagnóstica + ação {{ glossario_i('leitura-diagnostica') }}</th>
       </tr>
     </thead>
     <tbody>

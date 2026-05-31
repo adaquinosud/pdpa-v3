@@ -2,6 +2,12 @@
 {% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
 {% set agr = evolucao.agrupar_por %}
 
+{# CP-glossario-2f: o gráfico é a série de ratio ao longo do tempo; a consistência
+   da série é a Previsibilidade. ⓘ no rótulo do conceito (1x). #}
+<p class="text-[11px] text-loyall-400 mb-2">
+  Evolução do ratio {{ glossario_i('ratio') }} ao longo do tempo — a consistência da série é a previsibilidade {{ glossario_i('previsibilidade') }}.
+</p>
+
 {# ── Controles (linha única) ── #}
 <form hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='evolucao') }}"
       hx-target="#explorar-conteudo" hx-swap="innerHTML"

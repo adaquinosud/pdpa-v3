@@ -17,16 +17,21 @@
     <span class="mx-1">›</span>
     <span class="text-loyall-600">Temas</span>
   </nav>
-  <h1 class="text-2xl font-semibold mt-1">Temas</h1>
+  <h1 class="text-2xl font-semibold mt-1">Temas {{ glossario_i('tema') }}</h1>
   <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
   <p class="text-xs text-loyall-500 mt-1">
     Análise dos últimos {{ janela_dias }} dias{% if data_corte %} (desde {{ data_corte.strftime('%d/%m/%Y') }}){% endif %}.
   </p>
   <div class="mt-2 flex flex-wrap gap-2 text-sm">
     <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.temas }} temas</span>
-    <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.cruzamentos }} cruzamentos</span>
+    <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.cruzamentos }} cruzamentos {{ glossario_i('cruzamento') }}</span>
     <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.acoes }} ações N5</span>
   </div>
+  {# CP-glossario-2f: tipos aparecem nas barras empilhadas do Mapa/temas (loop) —
+     1 ⓘ aqui (legenda), não por barra. #}
+  <p class="text-[11px] text-loyall-400 mt-1">
+    Tipos: promotor {{ glossario_i('promotor') }} · conversível {{ glossario_i('conversivel') }} · detrator {{ glossario_i('detrator') }}
+  </p>
 </div>
 
 {# ── Filtro agrupamento ───────────────────────────────────────────── #}
