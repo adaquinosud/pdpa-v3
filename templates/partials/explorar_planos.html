@@ -103,6 +103,13 @@
 <div class="mb-3">
   <h2 class="text-base font-semibold text-loyall-800">Planos de Ação</h2>
   <p class="text-xs text-loyall-500">Ações priorizadas das 4 fontes — reativas (do que o cliente sinalizou) e <span class="text-amber-700">estruturais</span> (proativas, de fundação). Janela: <strong>últimos 180 dias</strong>.</p>
+  {# CP-glossario-2d: legenda de conceitos. perspectiva/dimensão/n5/ação-de-venda
+     só aparecem em badge/cell dentro do loop de ações — 1 ⓘ aqui (não por card).
+     prioridade fica no filtro e sugestão-estrutural no botão Regenerar. #}
+  <p class="text-[11px] text-loyall-400 mt-1">
+    Conceitos: perspectiva {{ glossario_i('perspectiva') }}
+    {% if loyall %} · dimensão {{ glossario_i('dimensao-acao') }} · N5 {{ glossario_i('n5') }} · ação de venda {{ glossario_i('acao-venda') }}{% endif %}
+  </p>
 </div>
 
 {# ── Pílulas de perspectiva (filtro principal, HTMX) — preservam os demais filtros ── #}
@@ -158,6 +165,7 @@
     {% endif %}
     {{ sel('pilar', 'Pilar', [('P','Precisão'),('D','Disponibilidade'),('Pa','Parceria'),('A','Aconselhamento')]) }}
     {{ sel('prioridade', 'Prioridade', [('alto','Alto'),('medio','Médio'),('baixo','Baixo')]) }}
+    {{ glossario_i('prioridade') }}
     {{ sel('status', 'Status', [('pendente','Pendente'),('em_curso','Em curso'),('concluido','Concluído')]) }}
     <button id="planos-aplicar" type="submit"
             class="w-full mt-1 px-2 py-1.5 rounded bg-loyall-700 text-loyall-50 text-xs font-medium hover:bg-loyall-600 transition-colors">
@@ -178,6 +186,7 @@
                 class="text-xs px-2.5 py-1 rounded border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100">
           🏗️ Regenerar sugestões estruturais
         </button>
+        {{ glossario_i('sugestao-estrutural') }}
         <span id="regen-loading" class="htmx-indicator text-xs text-loyall-400">gerando… (pode levar ~1 min)</span>
         {% if p.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ p.ultima_geracao.strftime('%d/%m %H:%M') }}</span>{% endif %}
       </div>
