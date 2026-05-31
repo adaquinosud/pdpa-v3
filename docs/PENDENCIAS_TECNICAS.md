@@ -132,7 +132,12 @@ Fallback do hash legacy mantido para itens sem id capturado.
 
 ### Classifier — robustez a JSON envolto em markdown fence
 
-**Status:** AVERIGUAR (Bloco 4, prioridade baixa)
+**Status:** RESOLVIDO em 2026-05-30. O parser do classifier remove o markdown
+fence antes do `json.loads` — `_FENCE_OPEN = re.compile(r"^\s*```(?:json)?\s*")`
+em `src/classifier/classifier_v3.py:407`, com `_reparar_json_truncado` para o
+caso truncado por max_tokens. Coberto por testes (`tests/test_classifier_parse.py`:
+`test_parse_resposta_com_markdown_fence`, `test_parse_resposta_truncada_com_markdown_fence`
+— caso real Linx fonte 128). Histórico original abaixo.
 
 Em 2026-05-24 (recoleta CP-E2 da fonte 128 Linx Confins), pelo menos 1
 review em francês causou erro não-fatal:
