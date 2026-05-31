@@ -334,6 +334,26 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
     ),
     # ── Pilares (src/api/painel.py) ───────────────────────────────────────
     (
+        "pilar",
+        "Pilar",
+        "Pilares",
+        "Um dos 4 alicerces do método: Precisão, Disponibilidade, Parceria, Aconselhamento.",
+        "Os 4 pilares formam o Lastro, na ordem evolutiva P → D → Pa → A. Cada pilar "
+        "se desdobra em 3 subpilares (12 no total). O ratio de cada pilar agrega os "
+        "verbatins dos seus subpilares.",
+        "Painel, Confronto, Governança",
+    ),
+    (
+        "subpilar",
+        "Subpilar",
+        "Pilares",
+        "Uma das 12 dimensões de análise — cada pilar tem 3.",
+        "Subdivisão de um pilar. São 12 ao todo (P1–P3, D1–D3, Pa1–Pa3, A1–A3). É o "
+        "grão mais fino em que ratio, Proximity e temas são calculados. Verbatins "
+        "fora dos 12 caem em sem_lastro.",
+        "Painel, Confronto, Verbatins, Anomalias",
+    ),
+    (
         "pilar-precisao",
         "Precisão (P)",
         "Pilares",
@@ -720,6 +740,17 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "Ação de nível N5 com impacto qualitativo estimado (alto, médio ou baixo). O "
         "impacto em R$ depende de LTV setorial (reservado para evolução futura).",
         "Plano de Ação",
+    ),
+    # ── Diagnóstico (src/diagnostico/leituras.py) ─────────────────────────
+    (
+        "leitura-diagnostica",
+        "Leitura diagnóstica",
+        "Diagnóstico",
+        "Análise textual de um subpilar: o que os verbatins dizem e a ação sugerida.",
+        "Gerada por subpilar (não por anomalia): combina o quadro do subpilar num "
+        "texto de leitura mais uma ação recomendada. Fica em cache por escopo "
+        "(empresa/agrupamento), atualizada por subpilar. (Bloco 8)",
+        "aba Diagnóstico, Plano de Ação",
     ),
 ]
 

@@ -3972,6 +3972,54 @@ def htmx_glossario_inativar(termo_id: int):
     return render_template("partials/glossario_row.html", t=_glossario_termo_detached(termo_id))
 
 
+# ── Mecanismo dos ⓘ do glossário (CP-glossario-plugar-ui CP-2a) ──────────
+# glossario_i(slug) é registrado como template global em app.py (padrão do
+# selo_emoji). Lê o cadastro (glossario_termo, ativo=1) por slug — fonte única,
+# editar em /glossario reflete nos ⓘ. Carrega TODOS os termos ativos uma vez por
+# request (flask.g) → 1 query por página, sem N+1 por ⓘ.
+
+
+def _glossario_cache_dict() -> dict:
+    """Mapa slug → {termo, curta, completa} de todos os termos ativos. 1 query."""
+    from src.models.glossario_termo import GlossarioTermo
+
+    out: dict = {}
+    with db_session() as s:
+        for t in (
+            s.query(GlossarioTermo)
+            .filter(GlossarioTermo.ativo.is_(True))
+            .order_by(GlossarioTermo.slug)
+            .all()
+        ):
+            out[t.slug] = {
+                "termo": t.termo,
+                "curta": t.definicao_curta,
+                "completa": t.definicao_completa,
+            }
+    return out
+
+
+def glossario_i(slug: str, debug: bool = False):
+    """Renderiza o ⓘ do termo `slug` (Markup). Cacheia o glossário em flask.g
+    (1 query/request). Slug ausente → marcador discreto se debug, senão vazio."""
+    from flask import g
+    from markupsafe import Markup
+
+    cache = getattr(g, "_glossario_cache", None)
+    if cache is None:
+        cache = _glossario_cache_dict()
+        g._glossario_cache = cache
+    termo = cache.get(slug)
+    if termo is None:
+        if debug:
+            return Markup(
+                f'<span class="text-red-400 text-xs" '
+                f'title="glossário: slug ausente">ⓘ?{slug}</span>'
+            )
+        return Markup("")
+    return Markup(render_template("partials/glossario_i.html", t=termo))
+
+
 # ── 404 / 403 handlers ───────────────────────────────────────────────────
 
 

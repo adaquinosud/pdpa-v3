@@ -175,11 +175,17 @@ def test_aba_anomalias_tem_resumo_do_score(client_loyall):
 
 
 def test_aba_anomalias_tem_legenda_detalhada_do_score(client_loyall):
-    """Legenda <details> (clique pra abrir) explica os 6 itens do cálculo."""
+    """Explicação do score migrou para o ⓘ do glossário (slug score-anomalia,
+    CP-glossario-2a). O texto aprovado no UX-e agora vem do cadastro."""
+    from scripts.seed_glossario import seed
+
+    seed()  # popula o glossário no banco de teste (fonte única do texto)
     e = _empresa(client_loyall, "scoreleg")
     _seed(e["id"])
     h = client_loyall.get(f"/empresas/{e['id']}/anomalias").get_data(as_text=True)
-    assert "como o score é calculado?" in h
+    # resumo sempre visível (UX-e) preservado
+    assert "quanto maior, mais forte o sinal" in h
+    # detalhe agora vem do cadastro (mesmas frases aprovadas, via ⓘ)
     assert "Só estatística, sem IA" in h
     assert "abaixo das comparáveis nos meses recentes" in h
     assert "tamanho do movimento do tema" in h

@@ -48,6 +48,14 @@ def create_app() -> Flask:
 
     app.add_template_filter(render_md_leve, "md_leve")
 
+    # ⓘ do glossário (CP-glossario-plugar-ui): {{ glossario_i('ratio') }} nas telas.
+    # Lê do cadastro (glossario_termo) por slug; 1 query/request via flask.g.
+    from src.ui import glossario_i as _glossario_i
+
+    @app.template_global("glossario_i")
+    def glossario_i(slug):  # noqa: ANN001, ANN201
+        return _glossario_i(slug, debug=app.debug)
+
     _register_cli_commands(app)
 
     @app.route("/health")

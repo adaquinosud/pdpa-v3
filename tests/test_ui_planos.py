@@ -216,12 +216,15 @@ def test_filtro_origem_rotulo_venda_preserva_value(client_loyall, db_session):
 
 
 def test_filtro_origem_tem_legenda_dos_5(client_loyall, db_session):
-    """Legenda <details> (funciona no mobile) explica as 5 origens."""
+    """A legenda das 5 origens migrou para o ⓘ do glossário (slug origem-plano,
+    CP-glossario-2a). O texto aprovado no UX-d agora vem do cadastro."""
+    from scripts.seed_glossario import seed
+
+    seed()  # popula o glossário no banco de teste (fonte única do texto)
     e = _empresa(client_loyall, "origleg")
     _seed(db_session, e["id"])
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/planos").get_data(as_text=True)
-    assert "o que é cada origem?" in h
-    # uma frase-chave de cada definicao
+    # uma frase-chave de cada definicao (agora via ⓘ, lendo do cadastro)
     assert "construir o subpilar" in h  # Estrutural
     assert "tema de alto volume num subpilar" in h  # N5 tema
     assert "atravessa vários subpilares (causa raiz)" in h  # N5 cruzamento
