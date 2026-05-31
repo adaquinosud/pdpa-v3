@@ -1,16 +1,18 @@
 # PDPA v3 — Estado Atual
 
 ## Última atualização
-2026-05-30 (glossário completo 2a→2f + mapa de cobertura honesto)
+2026-05-30 (glossário completo 2a→2f + mapa de cobertura + roadmap de produção)
 
 ## Branch / HEAD
-- **`main`** (atual): HEAD `10c2e71`. Ahead de `origin/main` por ~140 commits — **dev-only, sem push/produção**.
+- **`main`** (atual): HEAD `463cdcc`. Ahead de `origin/main` (~140+ commits) — **dev-only, sem push/produção**.
 - Contrato de trabalho: **1 branch por CP**; o agente reporta `git branch --show-current` na 1ª linha de todo CP e PARA se não for a esperada.
 - **Testes: 734 verdes.** Migrations até `032`.
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 
 ## Últimos commits (main)
 ```
+463cdcc docs: ROADMAP_PRODUCAO (ordem ajustada + blockers de deploy)
+126b7e7 docs: atualiza ESTADO_ATUAL + baixa pendencia markdown-fence
 10c2e71 CP-glossario-2f: ⓘ em Temas + Verbatins + Diagnostico/Evolucao
 8dc19e3 CP-glossario-2e: ⓘ no Painel + Leaderboard + Comparar
 df3bdac CP-glossario-2d: ⓘ no Plano de Acao
@@ -43,14 +45,16 @@ f9f594b CP-fix-classificador
 
 ## PENDENTE / O QUE FALTA
 
+### Decisão — "dados frescos" (2026-05-30)
+A necessidade de manter os dados atualizados é coberta pela **coleta noturna agendada em produção** (Render Cron Job → roadmap #10), NÃO pelo CP-2. Hoje a noturna é um **script BH-Airport-specific** (`data/run_noturna.sh` + `coleta_noturna_confins.py`, hardcoded `--empresa=4`, loop próprio com kill-switches `MAX_USD`/`MAX_HOURS`) que precisa virar **rotina-produto genérica** (roadmap #2) antes de agendar. Já roda como processo (não trava) — só falta agendar (depende de Produção, pois o Mac dev dorme).
+
 ### 🔴 Bloqueadores de PILOTO (Dener / Confins-Carbel)
-- **CP-2 coleta async** (thread de fundo + poll na UI): `coletar_agrupamento` ainda é **síncrono** (`src/coletor/orquestrador.py:334`). Coleta longa (google ~155s avg, até 2192s; youtube 730s) **estoura o timeout do navegador** mesmo sem fonte travada. **MAIOR buraco operacional** — o CP-1 (timeout) não resolve isso. Reusar o padrão `disparar_pos_coleta_async`.
 - **Gestão de usuários (UI)**: hoje só CLI `flask create-admin`; **zero rota UI** (confirmado). Operador sem terminal não cria/edita usuário.
 - **Conectores frágeis — A REVALIDAR** *(estado inferido do `PENDENCIAS_TECNICAS.md` de 24/05, **NÃO confirmado em runtime** — revalidar chamando Apify):* youtube (falta fluxo 2-step p/ comentários), mercadolivre (validar empiricamente), glassdoor + indeed (ausentes — citados no método, sem conector), appstore + linkedin (investigar).
+- **CP-2 coleta async sob demanda** — agora **OPCIONAL** (não mais "maior buraco"): `coletar_agrupamento` é síncrono (`src/coletor/orquestrador.py:334`) e coleta longa estoura o navegador. **Só fazer se o Dener confirmar a necessidade de "forçar coleta de um agrupamento na hora pela tela"** — a noturna agendada já mantém fresco. Padrão de ref.: `disparar_pos_coleta_async`.
 
-### 🟠 Bloqueadores de PRODUÇÃO
-- **PostgreSQL** (migrations Postgres) + **credenciais dedicadas** (hoje compartilha ANTHROPIC/APIFY/OPENAI com v2) + **deploy Render** + domínio pdpa.com.br.
-- **Personas** (Loyall Admin vs Cliente) — separar visões. ~1 semana.
+### 🟠 PRODUÇÃO — ver `docs/ROADMAP_PRODUCAO.md`
+A ordem completa pré-produção (Postgres/Alembic, blockers de deploy gunicorn+WeasyPrint, secrets/CORS, credenciais dedicadas, Render+domínio, agendamento da noturna, Personas) é **fonte canônica no `ROADMAP_PRODUCAO.md`** — com dependências, paralelizável vs sequencial, tamanho e checkbox por item. **Não duplicado aqui** (pra os dois não divergirem).
 
 ### ✏️ Editorial (Alexandre + Dener, não-código)
 - **Lapidar a voz dos 77 termos** do glossário (conteúdo atual é factual-do-código) — direto pela tela `/glossario`.
@@ -62,7 +66,7 @@ f9f594b CP-fix-classificador
 
 ### 🧭 Decisões estratégicas (Alexandre + Dener)
 - **Instância dedicada vs multi-tenant** (pedido do CEO do aeroporto).
-- **Agendamento da coleta noturna** (depende de Produção).
+- *(Agendamento da noturna: decidido — ver "Decisão dados frescos" acima + roadmap #10.)*
 
 ---
 
