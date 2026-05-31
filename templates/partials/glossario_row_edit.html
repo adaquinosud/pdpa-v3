@@ -1,0 +1,45 @@
+{# Linha do glossário (modo edição inline). Contexto: t (GlossarioTermo detached).
+   slug é mostrado mas NÃO editável (âncora estável dos ⓘ). #}
+<div id="gl-{{ t.id }}" class="border border-amber-300 rounded bg-amber-50 px-3 py-3">
+  <form hx-put="{{ url_for('ui.htmx_glossario_salvar', termo_id=t.id) }}"
+        hx-target="#gl-{{ t.id }}" hx-swap="outerHTML" class="space-y-2">
+    <div class="grid grid-cols-12 gap-2">
+      <div class="col-span-5">
+        <label class="block text-[11px] text-loyall-500 mb-0.5">Termo*</label>
+        <input name="termo" value="{{ t.termo }}" required autofocus
+               class="w-full px-2 py-1 border border-loyall-300 rounded text-sm">
+      </div>
+      <div class="col-span-4">
+        <label class="block text-[11px] text-loyall-500 mb-0.5">Categoria</label>
+        <input name="categoria" value="{{ t.categoria or '' }}"
+               class="w-full px-2 py-1 border border-loyall-300 rounded text-sm">
+      </div>
+      <div class="col-span-3">
+        <label class="block text-[11px] text-loyall-500 mb-0.5">slug (fixo)</label>
+        <code class="block px-2 py-1 text-xs text-loyall-400 truncate">{{ t.slug }}</code>
+      </div>
+    </div>
+    <div>
+      <label class="block text-[11px] text-loyall-500 mb-0.5">Definição curta* (tooltip)</label>
+      <input name="definicao_curta" value="{{ t.definicao_curta }}" required
+             class="w-full px-2 py-1 border border-loyall-300 rounded text-sm">
+    </div>
+    <div>
+      <label class="block text-[11px] text-loyall-500 mb-0.5">Definição completa</label>
+      <textarea name="definicao_completa" rows="4"
+                class="w-full px-2 py-1 border border-loyall-300 rounded text-sm">{{ t.definicao_completa or '' }}</textarea>
+    </div>
+    <div>
+      <label class="block text-[11px] text-loyall-500 mb-0.5">Onde aparece</label>
+      <input name="onde_aparece" value="{{ t.onde_aparece or '' }}"
+             class="w-full px-2 py-1 border border-loyall-300 rounded text-sm">
+    </div>
+    <div class="flex gap-2">
+      <button type="submit" class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded text-xs">salvar</button>
+      <button type="button"
+              hx-get="{{ url_for('ui.htmx_glossario_row', termo_id=t.id) }}"
+              hx-target="#gl-{{ t.id }}" hx-swap="outerHTML"
+              class="px-3 py-1 border border-loyall-300 hover:bg-loyall-100 rounded text-xs">cancelar</button>
+    </div>
+  </form>
+</div>

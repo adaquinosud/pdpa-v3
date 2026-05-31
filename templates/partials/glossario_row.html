@@ -1,0 +1,30 @@
+{# Linha do glossário (modo leitura). Contexto: t (GlossarioTermo detached). #}
+<div id="gl-{{ t.id }}"
+     class="border rounded px-3 py-2 {% if t.ativo %}border-loyall-200 bg-white{% else %}border-loyall-200 bg-loyall-50 opacity-60{% endif %}">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="font-semibold text-loyall-800">{{ t.termo }}</span>
+        <code class="text-[11px] text-loyall-400">{{ t.slug }}</code>
+        {% if not t.ativo %}<span class="text-[11px] px-1.5 py-0.5 rounded bg-loyall-200 text-loyall-600">inativo</span>{% endif %}
+      </div>
+      <p class="text-sm text-loyall-700 mt-0.5">{{ t.definicao_curta }}</p>
+      {% if t.definicao_completa %}
+        <p class="text-xs text-loyall-500 mt-1 whitespace-pre-line">{{ t.definicao_completa }}</p>
+      {% endif %}
+      {% if t.onde_aparece %}
+        <p class="text-[11px] text-loyall-400 mt-1">aparece em: {{ t.onde_aparece }}</p>
+      {% endif %}
+    </div>
+    <div class="flex flex-col gap-1 shrink-0">
+      <button hx-get="{{ url_for('ui.htmx_glossario_editar_form', termo_id=t.id) }}"
+              hx-target="#gl-{{ t.id }}" hx-swap="outerHTML"
+              class="px-2 py-1 border border-loyall-300 hover:bg-loyall-100 rounded text-xs">editar</button>
+      <button hx-post="{{ url_for('ui.htmx_glossario_inativar', termo_id=t.id) }}"
+              hx-target="#gl-{{ t.id }}" hx-swap="outerHTML"
+              class="px-2 py-1 border rounded text-xs {% if t.ativo %}border-amber-300 text-amber-700 hover:bg-amber-50{% else %}border-emerald-300 text-emerald-700 hover:bg-emerald-50{% endif %}">
+        {% if t.ativo %}inativar{% else %}reativar{% endif %}
+      </button>
+    </div>
+  </div>
+</div>

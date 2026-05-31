@@ -1,0 +1,15 @@
+{# Lista do glossário agrupada por categoria. Contexto: grupos (dict categoria -> [termos]). #}
+{% if not grupos %}
+  <p class="text-sm text-loyall-400">Nenhum termo cadastrado ainda.</p>
+{% endif %}
+<p class="text-xs text-loyall-400 mb-3">{{ grupos.values() | map('length') | sum }} termos no glossário</p>
+{% for categoria, termos in grupos.items() %}
+<section class="mb-6">
+  <h2 class="text-xs uppercase tracking-wider text-loyall-400 mb-2 border-b border-loyall-200 pb-1">{{ categoria }}</h2>
+  <div class="space-y-2">
+    {% for t in termos %}
+      {% include "partials/glossario_row.html" %}
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}

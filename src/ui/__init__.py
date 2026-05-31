@@ -3819,6 +3819,159 @@ def plano_tracking(empresa_id: int):
     return ("", 204) if ok else ("", 400)
 
 
+# ── Glossário de termos do método (CP-glossario-cadastro) ────────────────
+# CRUD admin (gated PAPEL_LOYALL). Listar por categoria + editar inline + novo
+# + inativar (soft-delete). `slug` é a âncora estável dos ⓘ futuros — gerado no
+# "novo" e NÃO editável depois (renomear o termo não muda a referência).
+
+
+def _glossario_agrupado():
+    """Lista os termos agrupados por categoria (ativos primeiro, depois inativos),
+    com objetos detachados para uso no template."""
+    from src.models.glossario_termo import GlossarioTermo
+
+    with db_session() as s:
+        termos = (
+            s.query(GlossarioTermo)
+            .order_by(
+                GlossarioTermo.ativo.desc(),
+                GlossarioTermo.categoria,
+                GlossarioTermo.ordem,
+            )
+            .all()
+        )
+        for t in termos:
+            s.expunge(t)
+    grupos: dict = {}
+    for t in termos:
+        grupos.setdefault(t.categoria or "(sem categoria)", []).append(t)
+    return grupos
+
+
+def _glossario_termo_detached(termo_id: int):
+    from src.models.glossario_termo import GlossarioTermo
+
+    with db_session() as s:
+        t = s.get(GlossarioTermo, termo_id)
+        if t is not None:
+            s.expunge(t)
+    return t
+
+
+@ui_bp.route("/glossario")
+def glossario():
+    r = _require_loyall_html()
+    if r:
+        return r
+    return render_template(
+        "admin/glossario.html", grupos=_glossario_agrupado(), user=get_current_user()
+    )
+
+
+@ui_bp.route("/ui/glossario/novo", methods=["POST"])
+def htmx_glossario_novo():
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.models.glossario_termo import GlossarioTermo
+    from src.temas.slug import slugify
+
+    termo = (request.form.get("termo") or "").strip()
+    curta = (request.form.get("definicao_curta") or "").strip()
+    if not termo or not curta:
+        return (
+            "<div class='text-red-600 text-xs'>Termo e definição curta são obrigatórios.</div>",
+            400,
+        )
+
+    base_slug = slugify(termo) or "termo"
+    with db_session() as s:
+        slug = base_slug
+        n = 2
+        while s.query(GlossarioTermo).filter(GlossarioTermo.slug == slug).first() is not None:
+            slug = f"{base_slug}-{n}"
+            n += 1
+        s.add(
+            GlossarioTermo(
+                termo=termo,
+                slug=slug,
+                definicao_curta=curta,
+                definicao_completa=(request.form.get("definicao_completa") or "").strip() or None,
+                categoria=(request.form.get("categoria") or "").strip() or None,
+                onde_aparece=(request.form.get("onde_aparece") or "").strip() or None,
+            )
+        )
+    return render_template("partials/glossario_lista.html", grupos=_glossario_agrupado())
+
+
+@ui_bp.route("/ui/glossario/<int:termo_id>/editar", methods=["GET"])
+def htmx_glossario_editar_form(termo_id: int):
+    r = _require_loyall_html()
+    if r:
+        return r
+    t = _glossario_termo_detached(termo_id)
+    if t is None:
+        return ("", 404)
+    return render_template("partials/glossario_row_edit.html", t=t)
+
+
+@ui_bp.route("/ui/glossario/<int:termo_id>/row", methods=["GET"])
+def htmx_glossario_row(termo_id: int):
+    r = _require_loyall_html()
+    if r:
+        return r
+    t = _glossario_termo_detached(termo_id)
+    if t is None:
+        return ("", 404)
+    return render_template("partials/glossario_row.html", t=t)
+
+
+@ui_bp.route("/ui/glossario/<int:termo_id>", methods=["PUT"])
+def htmx_glossario_salvar(termo_id: int):
+    r = _require_loyall_html()
+    if r:
+        return r
+    from datetime import datetime
+
+    from src.models.glossario_termo import GlossarioTermo
+
+    termo = (request.form.get("termo") or "").strip()
+    curta = (request.form.get("definicao_curta") or "").strip()
+    if not termo or not curta:
+        return (
+            "<div class='text-red-600 text-xs'>Termo e definição curta são obrigatórios.</div>",
+            400,
+        )
+    with db_session() as s:
+        t = s.get(GlossarioTermo, termo_id)
+        if t is None:
+            return ("", 404)
+        # slug NÃO é editável (âncora estável dos ⓘ).
+        t.termo = termo
+        t.definicao_curta = curta
+        t.definicao_completa = (request.form.get("definicao_completa") or "").strip() or None
+        t.categoria = (request.form.get("categoria") or "").strip() or None
+        t.onde_aparece = (request.form.get("onde_aparece") or "").strip() or None
+        t.atualizado_em = datetime.utcnow()
+    return render_template("partials/glossario_row.html", t=_glossario_termo_detached(termo_id))
+
+
+@ui_bp.route("/ui/glossario/<int:termo_id>/inativar", methods=["POST"])
+def htmx_glossario_inativar(termo_id: int):
+    """Soft-delete reversível: alterna `ativo`. Devolve a linha re-renderizada."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.models.glossario_termo import GlossarioTermo
+
+    with db_session() as s:
+        t = s.get(GlossarioTermo, termo_id)
+        if t is None:
+            return ("", 404)
+        t.ativo = not t.ativo
+    return render_template("partials/glossario_row.html", t=_glossario_termo_detached(termo_id))
+
+
 # ── 404 / 403 handlers ───────────────────────────────────────────────────
 
 

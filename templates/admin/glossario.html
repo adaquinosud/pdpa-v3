@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titulo %}Glossário{% endblock %}
+{% block conteudo %}
+<div class="mb-4">
+  <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
+  <h1 class="text-2xl font-semibold mt-1">Glossário do método</h1>
+  <p class="text-sm text-loyall-500 mt-1">
+    Definições dos termos do método. Conteúdo inicial é factual (inferido do sistema) —
+    edite para refinar com a voz do método. O identificador (slug) é fixo após criar.
+  </p>
+</div>
+
+<details class="bg-white border border-loyall-200 rounded p-4 mb-6 max-w-3xl">
+  <summary class="cursor-pointer font-medium text-loyall-700 select-none">+ Novo termo</summary>
+  <form hx-post="{{ url_for('ui.htmx_glossario_novo') }}"
+        hx-target="#glossario-lista" hx-swap="innerHTML"
+        hx-on::after-request="if(event.detail.successful) this.reset()"
+        class="mt-4 space-y-3">
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-loyall-600 mb-1">Termo*</label>
+        <input name="termo" required class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-loyall-600 mb-1">Categoria</label>
+        <input name="categoria" list="glossario-categorias" placeholder="ex: Governança"
+               class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+        <datalist id="glossario-categorias">
+          {% for cat in grupos.keys() %}<option value="{{ cat }}">{% endfor %}
+        </datalist>
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-loyall-600 mb-1">Definição curta* (tooltip)</label>
+      <input name="definicao_curta" required class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-loyall-600 mb-1">Definição completa</label>
+      <textarea name="definicao_completa" rows="3" class="w-full px-3 py-2 border border-loyall-200 rounded text-sm"></textarea>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-loyall-600 mb-1">Onde aparece</label>
+      <input name="onde_aparece" placeholder="ex: Painel, Confronto" class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+    </div>
+    <button type="submit" class="px-4 py-2 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded text-sm">Criar termo</button>
+  </form>
+</details>
+
+<div id="glossario-lista">
+  {% include "partials/glossario_lista.html" %}
+</div>
+{% endblock %}

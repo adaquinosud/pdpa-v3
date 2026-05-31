@@ -20,6 +20,7 @@ from src.models.diagnostico import LeituraDiagnostico
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
+from src.models.glossario_termo import GlossarioTermo
 from src.models.governanca import (
     GiniConcentracao,
     PrevisibilidadeCalculation,
@@ -57,6 +58,7 @@ __all__ = [
     "Empresa",
     "EventoManutencao",
     "Fonte",
+    "GlossarioTermo",
     "GiniConcentracao",
     "LeituraDiagnostico",
     "PrevisibilidadeCalculation",
