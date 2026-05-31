@@ -8,7 +8,7 @@
 {% set fnome = {'baixa':'Baixa','media':'Média','alta':'Alta'} %}
 
 <div class="mb-4">
-  <h3 class="text-sm font-semibold text-loyall-700">Concentração de Detratores</h3>
+  <h3 class="text-sm font-semibold text-loyall-700">Concentração de Detratores {{ glossario_i('concentracao-detratores') }}</h3>
   <p class="text-xs text-loyall-500">Onde os detratores se concentram entre as lojas. Gini alto = poucas lojas concentram a dor (cirúrgico); baixo = problema distribuído (sistêmico).</p>
 </div>
 
@@ -17,7 +17,7 @@
 {# ── Cabeçalho: Gini + faixa + leitura editorial ─────────────────────── #}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração (Gini)</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração (Gini) {{ glossario_i('gini') }}</div>
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ fc }}-600 cursor-help"
             title="Gini corrigido por viés-de-n ({{ d.total_lojas }} lojas) para comparar escopos de tamanhos diferentes. Bruto: {{ '%.2f'|format(d.gini_bruto) }}">{{ '%.2f'|format(d.gini_corrigido) }}</span>

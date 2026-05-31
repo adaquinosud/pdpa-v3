@@ -17,7 +17,7 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
   {# ── Bloco 1 · Saúde Relacional Consolidada (radar 4 pilares) ──────────── #}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Saúde Relacional Consolidada · Proximity por pilar</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Saúde Relacional Consolidada · Proximity por pilar {{ glossario_i('proximity') }}</div>
     {% set r = g.radar %}
     {% if r.n_dados == 0 %}
     <div class="text-center text-loyall-400 py-12">Base relacional ainda em formação — sem pilares com lastro suficiente.</div>
@@ -61,7 +61,7 @@
     {# Leitura do Lastro: o radar pinta 4 eixos iguais, mas a sequência trava no
        primeiro elo fraco — evita a leitura otimista "metade bom = ok". #}
     <div class="mt-3 text-[11px] text-loyall-600 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 leading-relaxed">
-      <b>Lastro:</b> a sequência P→D→Pa→A trava no primeiro elo fraco. Parceria ou
+      <b>Lastro:</b> {{ glossario_i('lastro') }} a sequência P→D→Pa→A trava no primeiro elo fraco. Parceria ou
       Aconselhamento fortes <b>não compensam</b> uma Precisão/Disponibilidade crítica — a
       cadeia se rompe na origem.
     </div>
@@ -69,7 +69,7 @@
 
   {# ── Bloco 2 · Concentração de Risco (Gini + top 5 nominadas) ──────────── #}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Concentração de Risco</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Concentração de Risco {{ glossario_i('gini') }}</div>
     {% if g.gini and not g.gini.insuficiente %}
     {% set gc = fcls.get('proximo' if g.gini.faixa=='alta' else ('distante' if g.gini.faixa=='baixa' else 'amber'), 'amber') %}
     {% set gcolor = {'baixa':'emerald','media':'amber','alta':'rose'}.get(g.gini.faixa,'slate') %}
@@ -98,7 +98,7 @@
   {% set pd = g.prev_dist %}
   {% set pv_total = pd.estavel + pd.medio + pd.erratico %}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-3">Previsibilidade da Operação</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-3">Previsibilidade da Operação {{ glossario_i('previsibilidade') }}</div>
     {% set pvmax = [pd.estavel, pd.medio, pd.erratico, 1]|max %}
     <div class="space-y-2">
       {% for chave, rotulo, cor, val in [('estavel','Estável (>70)','emerald',pd.estavel),('medio','Médio (40-70)','amber',pd.medio),('erratico','Errático (<40)','rose',pd.erratico)] %}
@@ -122,7 +122,7 @@
   {# ── Bloco 4 · Ranking de Excelência (selos + top/bottom 5 nominadas) ──── #}
   {% set scls = {'ouro':'amber','prata':'loyall','bronze':'orange'} %}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Ranking de Excelência</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Ranking de Excelência {{ glossario_i('selo') }}</div>
     {% set sd = g.selo_dist %}
     <div class="flex gap-2 text-[11px] mb-3">
       <span class="px-2 py-0.5 rounded border border-amber-300 bg-amber-100 text-amber-800">🏅 Ouro {{ sd.ouro }}</span>
@@ -171,7 +171,7 @@
              hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='governanca') }}?agrupamento_id={{ filtros.agrupamento_id }}"
              hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-trigger="change"
              class="flex-1 accent-loyall-700">
-      <span class="text-sm font-semibold text-loyall-700 whitespace-nowrap">{{ c.n }} de {{ c.range_max }} gargalos</span>
+      <span class="text-sm font-semibold text-loyall-700 whitespace-nowrap">{{ c.n }} de {{ c.range_max }} gargalos {{ glossario_i('gargalo') }}</span>
     </div>
     <div class="flex items-baseline gap-3 bg-sky-50/40 border border-dashed border-sky-300 rounded p-3">
       <div class="text-xs text-loyall-500">Índice Geral projetado</div>
