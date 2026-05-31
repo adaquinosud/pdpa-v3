@@ -22,7 +22,7 @@
     {% if escopo_tipo == 'loja' and selo %}
     {% set scls = {'ouro':'bg-amber-100 text-amber-800 border-amber-300','prata':'bg-loyall-100 text-loyall-600 border-loyall-300','bronze':'bg-orange-100 text-orange-800 border-orange-300'} %}
     <span class="align-middle ml-1 text-xs uppercase px-2 py-0.5 rounded border {{ scls[selo] }}"
-          title="Selo de excelência: ≥4 subpilares Proximity>60 + previsibilidade>70 = Ouro; ≥3 = Prata; ≥2 = Bronze">{{ selo }}</span>
+          title="Selo de excelência: ≥4 subpilares Proximity>60 + previsibilidade>70 = Ouro; ≥3 = Prata; ≥2 = Bronze">{{ selo }}</span>{{ glossario_i('selo') }}
     {% endif %}</h1>
     <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
   </div>
@@ -113,7 +113,7 @@
 {% set eng_selo_txt = {'alta':'volume robusto','media':'volume moderado','baixa':'volume insuficiente'}.get(n1.engajamento_selo, '') %}
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Índice Geral</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Índice Geral {{ glossario_i('indice-geral') }}</div>
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ ig_cls }}-600">{{ '%.1f'|format(n1.indice_geral) }}</span>
       <span class="text-sm text-loyall-400">/ 10</span>
@@ -124,7 +124,7 @@
   {# Proximity do escopo ativo (CP-LG-4): loja → "da Loja"; senão "Geral" #}
   {% set prox_cls = {'distante':'rose','medio':'amber','proximo':'emerald'}.get(proximity.faixa, 'slate') %}
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Proximity {{ 'da Loja' if escopo_tipo == 'loja' else 'Geral' }}</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Proximity {{ 'da Loja' if escopo_tipo == 'loja' else 'Geral' }} {{ glossario_i('proximity') }}</div>
     {% if proximity.valor is not none %}
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ prox_cls }}-600">{{ '%.0f'|format(proximity.valor) }}</span>
@@ -142,7 +142,7 @@
   {% if escopo_tipo == 'loja' %}
   {% set prev_cls = {'erratico':'rose','medio':'amber','estavel':'emerald'}.get(previsib.faixa, 'slate') %}
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade {{ glossario_i('previsibilidade') }}</div>
     {% if previsib.valor is not none %}
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ prev_cls }}-600">{{ '%.0f'|format(previsib.valor) }}</span>
@@ -157,7 +157,7 @@
   </div>
   {% else %}
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade {{ glossario_i('previsibilidade') }}</div>
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-loyall-800">{{ '%.0f'|format(n1.previsibilidade) }}</span>
       <span class="text-sm text-loyall-400">/ 100</span>
@@ -166,7 +166,7 @@
   </div>
   {% endif %}
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração (top-5)</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração (top-5) {{ glossario_i('concentracao-detratores') }}</div>
     {% if n1.concentracao_detratores is not none %}
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ conc_cls }}-600">{{ '%.0f'|format(n1.concentracao_detratores) }}%</span>
@@ -201,7 +201,7 @@
   {% endif %}
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="flex items-center justify-between">
-      <div class="text-xs uppercase tracking-wider text-loyall-400">Índice de Engajamento</div>
+      <div class="text-xs uppercase tracking-wider text-loyall-400">Índice de Engajamento {{ glossario_i('engajamento') }}</div>
       <span title="Confiança estatística por volume: {{ eng_selo_txt }} ({{ n1.engajamento_volume }} verbatins)" class="cursor-help text-sm">{{ n1.engajamento_selo_emoji }}</span>
     </div>
     <div class="flex items-baseline gap-2 mt-1">
@@ -287,10 +287,10 @@
       <tr>
         <th class="text-left px-3 py-2">Subpilar</th>
         <th class="text-right px-3 py-2">Promotor</th>
-        <th class="text-right px-3 py-2">Conversível</th>
+        <th class="text-right px-3 py-2">Conversível {{ glossario_i('conversivel') }}</th>
         <th class="text-right px-3 py-2">Detrator</th>
         <th class="text-right px-3 py-2">Total</th>
-        <th class="text-right px-3 py-2">Ratio P/D</th>
+        <th class="text-right px-3 py-2">Ratio P/D {{ glossario_i('ratio') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -384,7 +384,7 @@
 
 {# Legenda das faixas do ratio #}
 <div class="text-xs text-loyall-500 mb-6 flex flex-wrap items-center gap-3">
-  <span class="font-medium text-loyall-600">Faixas do Ratio P/D:</span>
+  <span class="font-medium text-loyall-600">Faixas do Ratio P/D: {{ glossario_i('faixa-ratio') }}</span>
   <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span>0.0–0.5 crítico</span>
   <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-500"></span>0.5–1.0 fraco</span>
   <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span>1.0–2.0 atenção</span>

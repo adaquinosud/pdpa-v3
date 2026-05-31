@@ -18,6 +18,8 @@
      hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=comparar&{{ qs }}&tipo_elemento={{ v }}"
      class="px-3 py-1 rounded border {% if tipo==v %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">{{ lbl }}</a>
   {% endfor %}
+  {# CP-glossario-2e: ratio/conversível ficam nos cards (loop) — 1 ⓘ aqui. #}
+  <span class="ml-3 text-[11px] text-loyall-400">ratio {{ glossario_i('ratio') }} · conversível {{ glossario_i('conversivel') }}</span>
 </div>
 
 {# ── Form de seleção (2-3) ── #}

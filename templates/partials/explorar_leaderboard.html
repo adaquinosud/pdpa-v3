@@ -71,7 +71,13 @@
 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
   <div>
     <h3 class="text-sm font-semibold text-loyall-700">Leaderboard · Score PDPA</h3>
-    <p class="text-xs text-loyall-500">Score = Índice Geral (0-10) × Engajamento (÷100). Volume sela a confiança; sem volume, o índice não lidera.</p>
+    <p class="text-xs text-loyall-500">Score = Índice Geral {{ glossario_i('indice-geral') }} (0-10) × Engajamento {{ glossario_i('engajamento') }} (÷100). Volume sela a confiança; sem volume, o índice não lidera.</p>
+    {# CP-glossario-2e: colunas (ratio/proximity/selo/conv) ficam no macro linha()
+       que renderiza por loja — 1 ⓘ aqui (legenda), não por linha. #}
+    <p class="text-[11px] text-loyall-400 mt-0.5">
+      Colunas: ratio {{ glossario_i('ratio') }} · proximity {{ glossario_i('proximity') }} ·
+      selo {{ glossario_i('selo') }} · conversível {{ glossario_i('conversivel') }}
+    </p>
   </div>
   <div class="flex items-center gap-1 text-xs">
     <span class="text-loyall-400 mr-1">Ordenar:</span>
