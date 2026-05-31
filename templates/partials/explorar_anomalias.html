@@ -21,9 +21,16 @@
   <h1 class="text-2xl font-semibold mt-1">Monitoramento</h1>
   <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
   <p class="text-xs text-loyall-500 mt-1">
-    Sinais detectados automaticamente (indicadores por loja, temas em alta e cruzamentos de causa raiz).
+    Sinais detectados automaticamente (indicadores por loja, temas em alta e cruzamentos de causa raiz). {{ glossario_i('anomalia') }}
     Valide cada um: confirmado, falso positivo ou em investigação.
   </p>
+  {# CP-glossario-2c: legenda única dos marcadores que só aparecem como badge no
+     card (anomalia_card renderiza por card; ⓘ aqui = 1x por conceito, não por card). #}
+  <div class="mt-1 text-[11px] text-loyall-400">
+    Marcadores dos cards: cruzamento {{ glossario_i('cruzamento') }} ·
+    direção {{ glossario_i('direcao-anomalia') }} ·
+    🔗 corroborado {{ glossario_i('corroborado') }}
+  </div>
   <div class="mt-2 flex flex-wrap gap-2 text-sm">
     <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-medium">{{ resumo.critico }} críticas</span>
     <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">{{ resumo.atencao }} atenção</span>
@@ -42,7 +49,7 @@
 {# ── Filtros ──────────────────────────────────────────────────────── #}
 <form method="get" class="mb-5 flex items-center gap-3 text-sm flex-wrap">
   <div class="flex items-center gap-1">
-    <label class="text-loyall-500">Severidade:</label>
+    <label class="text-loyall-500">Severidade: {{ glossario_i('severidade') }}</label>
     <select name="severidade" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
       <option value="">Todas</option>
       <option value="critico" {% if filtros.severidade=='critico' %}selected{% endif %}>Crítica</option>
@@ -59,7 +66,7 @@
     </select>
   </div>
   <div class="flex items-center gap-1">
-    <label class="text-loyall-500">Estado:</label>
+    <label class="text-loyall-500">Estado: {{ glossario_i('estado-validacao') }}</label>
     <select name="estado" onchange="this.form.submit()" class="px-2 py-1.5 border border-loyall-200 rounded">
       <option value="">Todos</option>
       <option value="pendente" {% if filtros.estado=='pendente' %}selected{% endif %}>Pendente</option>
