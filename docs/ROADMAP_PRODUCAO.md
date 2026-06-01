@@ -5,10 +5,14 @@ reais do código. Priorizada por **"dor de arrumar depois"** (o que custa muito
 mais caro/arriscado com o sistema no ar).
 
 ## Estado atual
-- **Branch:** `main` · HEAD `a707ce6` · dev-only, sem push/produção (ahead de `origin/main`).
-- **Testes:** 734 verdes em **SQLite e Postgres** (PG via `pgserver`, CP-1.1/1.2).
+- **Branch:** `main` · HEAD `f33ded8` · dev-only, sem push/produção (ahead de `origin/main`).
+- **Testes:** 737 verdes em **SQLite** (+ 734 em **Postgres** via `pgserver`, CP-1.1/1.2).
 - **Schema:** runner = **Alembic** (baseline `8295ca9dc780`, fonte = models);
   `migrations/*.sql` aposentados em `migrations/legacy/`.
+- **Progresso do roadmap:** **Bloco 1 (Postgres) ✅** · **#4 segurança-código ✅** ·
+  **#8/H .gitignore ✅**. Resta: **#2 noturna-produto** (paralelo) e **Bloco 4
+  (deploy)** — #5 gunicorn/Procfile, #6 WeasyPrint/Dockerfile, #7 alembic-no-release,
+  #8 secrets/creds no env, #9 Render+domínio, #10 Cron.
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 - **Feito até aqui (resumo):** núcleo do método (Lastro/ratio/5 faixas), Lente de
   Governança completa, anomalias (ML), temas/cruzamentos, plano de ação, Hub
@@ -90,23 +94,23 @@ mais caro/arriscado com o sistema no ar).
   servir — e aí vira pós-#1.
 - **(d)** Pequeno-médio (se reusar `relatorio_cache`).
 
-### 4. Segurança — código `[ ]`
-- **(a)** Restringir **CORS** a origens conhecidas (hoje
-  `CORS(app, supports_credentials=True)` sem origin → credentialed de qualquer
-  origem) + **cookie de sessão `Secure`/`SameSite`** (hoje sem config; em prod
-  HTTPS a sessão fica exposta).
-- **(b)** ANTES do deploy — buraco de segurança vivo se subir errado. É código
-  dev, não depende de schema.
-- **(c)** Independente. Paralelizável. (A parte de **env** — SECRET_KEY/JWT — é
-  deploy-time, ver #8.)
-- **(d)** Pequeno.
+### 4. Segurança — código `[x]` ✅ **COMPLETO** (`f33ded8`, em main)
+- **✅ FEITO:** **CORS** restrito (allowlist via env `CORS_ORIGINS`, default vazio
+  = desabilitado; UI HTMX é same-origin, não passa por CORS). **Cookie de sessão**
+  `HTTPONLY`+`SameSite=Lax` (incondicional) + `Secure` `False` dev / `True` prod
+  (condicional via `FLASK_ENV`). **Boot-check do SECRET_KEY**: em
+  `FLASK_ENV=production`, `create_app` falha se `SECRET_KEY` ausente/`dev-key`
+  (assina a sessão de login). `JWT_SECRET_KEY` removido (dead code). 3 testes
+  (`test_seguranca_deploy`) + `.env.example` atualizado. Login dev/HTMX/testes não
+  quebram (rodam como dev). **Falta só a parte de env** (setar `FLASK_SECRET_KEY`
+  no Render) — é deploy-time, ver #8.
 
-### H. Higiene — `.gitignore` `[ ]`
-- **(a)** Cobrir `*.db.bak-*` (backups pré-migration) e `data/*.jsonl`/dumps —
-  hoje o `.gitignore` cobre `*.db`/`.env` mas não os backups/dumps (poluem o
-  status e a imagem de deploy).
-- **(b)** A qualquer hora — não fica mais caro depois; fazer já p/ imagem limpa.
-- **(c)** Nenhuma. **(d)** Trivial (5 min).
+### H. Higiene — `.gitignore` `[x]` ✅ **COMPLETO** (`eb67535`, em main)
+- **✅ FEITO:** `.gitignore` cobre `*.db.bak-*`, `.coverage*`, `~$*`, e os
+  artefatos de `data/` (`*.jsonl/json/md/xlsx/docx`) — o código `.py/.sh` segue
+  versionado. `git status` caiu de ~40 untracked → 3. **`uv.lock` commitado**
+  (build reproduzível). Os 7 artefatos históricos já tracked em `data/` ficaram
+  (decisão: na dúvida mantém o versionado; sem `git rm --cached`).
 
 ---
 
