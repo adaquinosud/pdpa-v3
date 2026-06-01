@@ -1,5 +1,7 @@
 """Flask app principal — PDPA v3."""
 
+import os
+
 import click
 from flask import Flask
 from flask_cors import CORS
@@ -23,7 +25,25 @@ def create_app() -> Flask:
     # Garante SECRET_KEY para assinar a sessão (cookie HttpOnly).
     if not app.secret_key:
         app.secret_key = app.config.get("SECRET_KEY") or "dev-key"
-    CORS(app, supports_credentials=True)
+
+    # Em produção, NÃO subir com o SECRET_KEY default (assina a sessão de login —
+    # default = forja trivial). Falha no boot em vez de rodar inseguro silencioso.
+    # Dev mantém o default (FLASK_ENV != production).
+    if os.getenv("FLASK_ENV") == "production" and app.config.get("SECRET_KEY") in (
+        None,
+        "",
+        "dev-key",
+    ):
+        raise RuntimeError(
+            "FLASK_SECRET_KEY obrigatório em produção (não usar o default 'dev-key')."
+        )
+
+    # CORS: a UI é HTMX server-rendered (same-origin, não passa por CORS). Só
+    # habilita CORS se houver origens cross-origin explícitas em CORS_ORIGINS
+    # (CSV); default vazio = sem CORS (seguro). supports_credentials só com origens.
+    cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+    if cors_origins:
+        CORS(app, origins=cors_origins, supports_credentials=True)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(empresas_bp)

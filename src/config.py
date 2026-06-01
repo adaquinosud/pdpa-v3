@@ -14,8 +14,13 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     APIFY_TOKEN = os.getenv("APIFY_TOKEN")
     FERNET_KEY = os.getenv("FERNET_KEY")
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-jwt-key")
-    JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", 24))
+
+    # Cookie de sessão (login = Flask session assinada). HTTPONLY + SameSite=Lax
+    # são seguros e incondicionais (app server-rendered, same-origin). SECURE é
+    # condicional ao ambiente — ver Dev/ProductionConfig (Secure=True exige HTTPS,
+    # quebraria o login em http://localhost no dev).
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
 
     # Classifier — escalada Haiku→Sonnet (Frente 3 do Bloco 3.1)
     CLASSIFIER_ESCALATION_ENABLED = (
@@ -28,10 +33,12 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    SESSION_COOKIE_SECURE = False  # http://localhost no dev — sem HTTPS
 
 
 class ProductionConfig(Config):
     DEBUG = False
+    SESSION_COOKIE_SECURE = True  # exige HTTPS — cookie só vai por conexão segura
 
 
 def get_config():
