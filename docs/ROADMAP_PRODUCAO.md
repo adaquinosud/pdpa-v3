@@ -105,10 +105,20 @@ mais caro/arriscado com o sistema no ar).
 - **(c)** Depende de #1 (DB pronto). **(d)** Pequeno (config), mas obrigatório.
 
 ### 6. WeasyPrint — libs nativas no build `[ ]` **[BLOCKER]**
-- **(a)** Instalar **cairo/pango/libffi** no build do Render (apt/buildpack).
+- **(a)** Instalar **cairo/pango/libffi/harfbuzz** via **Dockerfile** (`apt-get
+  install libpango-1.0-0 libcairo2 …`) — **NÃO** apt nativo do Render: o runtime
+  nativo tem pango fixo (pode ser velho), e o WeasyPrint é **version-sensitive**
+  (mismatch de pango quebra o render). Dockerfile dá controle de versão. **Não
+  trocar a engine de PDF** — o código já degrada gracioso (`PdfIndisponivel`/503
+  sem libs); é dependência de build, não reescrita.
+- **(a2)** **Smoke test de 1 PDF real quando as libs entrarem**: a renderização
+  HTML→PDF do WeasyPrint **NÃO é coberta por teste hoje** (a suíte testa só a
+  montagem do HTML + o fallback 503-sem-libs; CP-1.1 confirmou que os 8 testes de
+  relatório passam SEM as libs). Gerar 1 PDF de verdade no build valida o render.
 - **(b)** Os 5 PDFs usam WeasyPrint (import lazy, `OSError` se faltar lib) →
-  **sem as libs, todo PDF quebra em prod**.
-- **(c)** Depende de #5 (mesma config de deploy). **(d)** Pequeno (config de build).
+  **sem as libs, todo PDF quebra em prod** (degradação 503, mas sem PDF).
+- **(c)** Depende de #5 (mesma config de deploy; Dockerfile substitui o
+  buildpack nativo). **(d)** Pequeno-médio (Dockerfile + smoke test).
 
 ### 7. Release/migration no deploy `[ ]`
 - **(a)** Wire do `alembic upgrade` no build/release command do Render (aplica o
