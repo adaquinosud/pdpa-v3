@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
@@ -32,7 +33,11 @@ class Agrupamento(Base):
     """
 
     __tablename__ = "agrupamentos"
-    __table_args__ = (UniqueConstraint("empresa_id", "nome"),)
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "nome"),
+        # espelha migration 004
+        CheckConstraint("tipo IN ('lista','criterio')", name="ck_agrupamentos_tipo"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

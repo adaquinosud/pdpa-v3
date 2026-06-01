@@ -6,6 +6,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -25,6 +26,13 @@ if TYPE_CHECKING:
 
 class Local(Base):
     __tablename__ = "locais"
+    __table_args__ = (
+        # espelha migration 003
+        CheckConstraint(
+            "status IN ('ativo','em_obra','desativado','encerrado')",
+            name="ck_locais_status",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

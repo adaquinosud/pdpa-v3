@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Set
 from flask import Blueprint, jsonify, request
 from sqlalchemy import and_, func
 
+from src.utils.sql import group_concat
 from src.auth import (
     cliente_pode_ver_empresa,
     get_current_user,
@@ -235,7 +236,7 @@ def painel_temas(empresa_id: int):
                 Tema.slug.label("slug"),
                 TemaCache.tipo.label("tipo"),
                 func.sum(TemaCache.volume).label("volume"),
-                func.group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
+                group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
             )
             .join(
                 Tema,

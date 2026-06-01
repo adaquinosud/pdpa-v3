@@ -796,6 +796,7 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
 
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
     from src.models.temas import Tema, TemaCache
+    from src.utils.sql import group_concat
 
     q = (
         s.query(
@@ -803,7 +804,7 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
             TemaCache.tema_label,
             TemaCache.tipo,
             func.sum(TemaCache.volume).label("vol"),
-            func.group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
+            group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
             Tema.id.label("tema_id"),
         )
         .join(
@@ -2577,8 +2578,9 @@ def _comparar_sparkline(s, empresa_id, el, tipo_elemento, locais_ag, corte):
 
     from src.api.painel import calcular_ratio
     from src.models.verbatim import Verbatim
+    from src.utils.sql import fmt_ano_mes
 
-    mes = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    mes = fmt_ano_mes(Verbatim.data_criacao_original)
     q = s.query(mes, Verbatim.tipo, func.count(Verbatim.id)).filter(
         Verbatim.empresa_id == empresa_id, Verbatim.data_criacao_original.isnot(None)
     )

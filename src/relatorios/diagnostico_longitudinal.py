@@ -64,6 +64,7 @@ def montar_dados(
     from src.models.empresa import Empresa
     from src.models.verbatim import Verbatim
     from src.relatorios.llm_secoes import gerar_narrativa_longitudinal
+    from src.utils.sql import fmt_ano, fmt_mes
     from src.utils.db import db_session
 
     quarters = _ultimos_quarters(6)
@@ -78,8 +79,8 @@ def montar_dados(
         rows = (
             s.query(
                 Verbatim.subpilar,
-                func.strftime("%Y", Verbatim.data_criacao_original).label("ano"),
-                func.strftime("%m", Verbatim.data_criacao_original).label("mes"),
+                fmt_ano(Verbatim.data_criacao_original).label("ano"),
+                fmt_mes(Verbatim.data_criacao_original).label("mes"),
                 Verbatim.tipo,
                 func.count(Verbatim.id).label("n"),
             )

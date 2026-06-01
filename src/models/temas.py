@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -96,7 +97,14 @@ class VerbatimTema(Base):
     bucket_chave: Mapped[Optional[str]] = mapped_column(String)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (UniqueConstraint("verbatim_id", "tema_id", name="uq_verbatim_temas_par"),)
+    __table_args__ = (
+        UniqueConstraint("verbatim_id", "tema_id", name="uq_verbatim_temas_par"),
+        # espelham migration 019
+        CheckConstraint(
+            "confianca >= 0.0 AND confianca <= 1.0", name="ck_verbatim_temas_confianca"
+        ),
+        CheckConstraint("origem IN ('llm','manual','merge')", name="ck_verbatim_temas_origem"),
+    )
 
     verbatim: Mapped["Verbatim"] = relationship("Verbatim")
     tema: Mapped["Tema"] = relationship("Tema")

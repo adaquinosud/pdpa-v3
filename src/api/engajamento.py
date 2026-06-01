@@ -21,6 +21,8 @@ from __future__ import annotations
 import math
 from typing import Dict, Tuple
 
+from src.utils.sql import fmt_ano_mes
+
 # Pesos da fórmula (Cap. 4 — Indicadores Quantitativos; pendência editorial).
 PESO_VOLUME = 0.5
 PESO_DIVERSIDADE = 0.3
@@ -112,7 +114,7 @@ def engajamento_escopo(empresa_id: int, s, base_query_args: Dict) -> Dict:
     volume = q.count()
     fontes_ativas = q.with_entities(func.count(func.distinct(Verbatim.fonte_id))).scalar() or 0
     fontes_cad = s.query(func.count(Fonte.id)).filter(Fonte.empresa_id == empresa_id).scalar() or 0
-    mes = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    mes = fmt_ano_mes(Verbatim.data_criacao_original)
     meses_com = (
         q.with_entities(func.count(func.distinct(mes)))
         .filter(Verbatim.data_criacao_original.isnot(None))
@@ -167,7 +169,7 @@ def engajamento_por_loja(empresa_id: int, s, ag_id=None, corte=None) -> Dict[int
     if corte is not None:
         base = base.filter(Verbatim.data_criacao_original >= corte)
 
-    mes = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    mes = fmt_ano_mes(Verbatim.data_criacao_original)
     rows = (
         base.with_entities(
             Verbatim.local_id,

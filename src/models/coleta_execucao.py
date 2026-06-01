@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -28,6 +28,10 @@ class ColetaExecucao(Base):
     """
 
     __tablename__ = "coletas_execucoes"
+    __table_args__ = (
+        # espelha migration 016
+        CheckConstraint("status IN ('rodando','concluido','erro')", name="ck_coletas_status"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

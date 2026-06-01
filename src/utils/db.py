@@ -1,12 +1,16 @@
 """Utilitários de banco — engine, session factory e context manager.
 
-O event listener `_set_sqlite_pragma` é o ponto crítico: SQLite desativa
-FK por padrão e o `PRAGMA foreign_keys` é por-conexão, então precisa ser
-ligado em todo `connect` (não basta o init_db.py rodar uma vez).
+O event listener `_set_sqlite_pragma` liga FK no SQLite (desativado por padrão,
+por-conexão). **É SQLite-only**: `PRAGMA foreign_keys` é SQL inválido no Postgres
+(erro em todo connect), então o listener só roda quando a conexão é de fato
+SQLite (no Postgres a FK já vem ligada). O engine usa `pool_pre_ping` (Postgres/
+Render derruba conexão ociosa) e dimensiona o pool fora do SQLite (as daemon
+threads de coleta pegam conexão do pool).
 """
 
 from __future__ import annotations
 
+import sqlite3
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
@@ -23,23 +27,32 @@ _SessionLocal: Optional[sessionmaker[Session]] = None
 
 @event.listens_for(Engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record) -> None:
-    """Liga PRAGMA foreign_keys=ON em toda nova conexão.
+    """Liga `PRAGMA foreign_keys=ON` — SOMENTE em conexões SQLite.
 
-    Args:
-        dbapi_connection: Conexão DB-API recém-aberta.
-        connection_record: Registro interno do SQLAlchemy para a conexão.
+    No Postgres a FK já vem ligada e o PRAGMA é inválido; o guard por tipo de
+    conexão (`sqlite3.Connection`) torna isto no-op fora do SQLite.
     """
+    if not isinstance(dbapi_connection, sqlite3.Connection):
+        return
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
 
 def get_engine() -> Engine:
-    """Retorna o engine SQLAlchemy do projeto (singleton no módulo)."""
+    """Retorna o engine SQLAlchemy do projeto (singleton no módulo).
+
+    `pool_pre_ping=True` em qualquer dialeto (inócuo no SQLite; evita conexão
+    morta no Postgres). `pool_size`/`max_overflow` só fora do SQLite."""
     global _engine
     if _engine is None:
         config = get_config()
-        _engine = create_engine(config.SQLALCHEMY_DATABASE_URI)
+        url = config.SQLALCHEMY_DATABASE_URI
+        kwargs: dict = {"pool_pre_ping": True}
+        if not url.startswith("sqlite"):
+            kwargs["pool_size"] = 5
+            kwargs["max_overflow"] = 10
+        _engine = create_engine(url, **kwargs)
     return _engine
 
 

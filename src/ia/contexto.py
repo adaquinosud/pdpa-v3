@@ -97,7 +97,9 @@ def montar_contexto(s, empresa_id: int, ag_id: Optional[int] = None, corte=None)
         TemaCache.tema_label,
         func.sum(TemaCache.volume),
         TemaCache.tipo,
-        TemaCache.subpilar,
+        # subpilar não está no GROUP BY → func.min pega um representativo
+        # determinístico (Postgres é estrito; SQLite pegava arbitrário).
+        func.min(TemaCache.subpilar),
     ).filter(TemaCache.empresa_id == empresa_id)
     if ag_id is not None:
         tq = tq.filter(TemaCache.agrupamento_id == ag_id)

@@ -7,13 +7,16 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,7 +31,29 @@ if TYPE_CHECKING:
 
 class Verbatim(Base):
     __tablename__ = "verbatins"
-    __table_args__ = (UniqueConstraint("empresa_id", "hash_dedup"),)
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "hash_dedup"),
+        # Índice parcial UNIQUE (espelha migration 015): dedup autoritativo por
+        # review_id_externo quando não-nulo. Postgres e SQLite suportam partial.
+        Index(
+            "idx_verbatins_review_ext",
+            "fonte_id",
+            "review_id_externo",
+            unique=True,
+            sqlite_where=text("review_id_externo IS NOT NULL"),
+            postgresql_where=text("review_id_externo IS NOT NULL"),
+        ),
+        # CHECKs estáveis (espelham migration 006). NULL passa (coluna nullable).
+        CheckConstraint(
+            "subpilar IN ('P1','P2','P3','D1','D2','D3','Pa1','Pa2','Pa3',"
+            "'A1','A2','A3','sem_lastro')",
+            name="ck_verbatins_subpilar",
+        ),
+        CheckConstraint(
+            "tipo IN ('promotor','conversivel','detrator','inativo')",
+            name="ck_verbatins_tipo",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

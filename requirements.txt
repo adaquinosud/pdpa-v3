@@ -7,6 +7,7 @@ PyJWT==2.8.0
 # ORM e banco
 SQLAlchemy==2.0.25
 alembic==1.13.1
+psycopg[binary]==3.3.4  # driver Postgres (prod); SQLite no dev não precisa
 
 # LLM
 anthropic==0.18.0
@@ -47,3 +48,4 @@ flake8==7.0.0
 mypy==1.8.0
 pre-commit==3.6.0
 weasyprint==68.1  # PDF (B0): requer libs nativas (brew install pango / apt libpango-1.0-0)
+pgserver==0.1.4  # Postgres efêmero self-contained p/ rodar a suíte em PG (scripts/run_tests_postgres.py)

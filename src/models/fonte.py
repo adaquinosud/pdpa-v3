@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -22,6 +22,14 @@ if TYPE_CHECKING:
 
 class Fonte(Base):
     __tablename__ = "fontes"
+    __table_args__ = (
+        # espelham migration 005
+        CheckConstraint("entidade_tipo IN ('local','empresa')", name="ck_fontes_entidade_tipo"),
+        CheckConstraint(
+            "autenticacao_tipo IN ('publica','autenticada')", name="ck_fontes_autenticacao_tipo"
+        ),
+        CheckConstraint("status IN ('ativa','pausada','erro')", name="ck_fontes_status"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

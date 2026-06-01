@@ -324,7 +324,9 @@ def montar_payload_tema(s, empresa_id: int, anomalia: Dict[str, Any]) -> Dict[st
     # série mensal recente (p/ o_que_mudou)
     serie: List[tuple] = []
     if tema_id:
-        mes_col = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+        from src.utils.sql import fmt_ano_mes
+
+        mes_col = fmt_ano_mes(Verbatim.data_criacao_original)
         serie = [
             (m, int(n))
             for m, n in (

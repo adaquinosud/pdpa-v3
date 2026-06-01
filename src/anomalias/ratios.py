@@ -26,6 +26,7 @@ def recomputar_ratios_mensais(empresa_id: int) -> int:
 
     from src.models.anomalia import RatioMensal
     from src.models.local import Local
+    from src.utils.sql import fmt_ano_mes
     from src.models.verbatim import Verbatim
     from src.utils.db import db_session
 
@@ -45,7 +46,7 @@ def recomputar_ratios_mensais(empresa_id: int) -> int:
             s.query(
                 Verbatim.local_id,
                 Verbatim.subpilar,
-                func.strftime("%Y-%m", Verbatim.data_criacao_original).label("periodo"),
+                fmt_ano_mes(Verbatim.data_criacao_original).label("periodo"),
                 Verbatim.tipo,
                 func.count(Verbatim.id),
             )

@@ -17,11 +17,13 @@ do Flask e a verificação direta no banco operem sobre o mesmo engine isolado.
 
 from __future__ import annotations
 
-from typing import Iterator
+import os
+from typing import Iterator, Optional
 
 import pytest
 from flask.testing import FlaskClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -30,19 +32,52 @@ import src.utils.db  # noqa: F401  registra PRAGMA foreign_keys listener
 from src.models.base import Base
 
 
+@pytest.fixture(scope="session")
+def _pg_engine() -> Iterator[Optional[Engine]]:
+    """Engine Postgres compartilhado da SESSÃO, se ``TEST_DATABASE_URL`` setado
+    (ex. via ``scripts/run_tests_postgres.py``). Cria o schema UMA vez; cada
+    teste só faz ``TRUNCATE ... RESTART IDENTITY`` (rápido + reseta sequences),
+    em vez de drop+create por teste. Sem a env, rende ``None`` (usa SQLite)."""
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        yield None
+        return
+    eng = create_engine(url)
+    Base.metadata.drop_all(eng)
+    Base.metadata.create_all(eng)
+    yield eng
+    eng.dispose()
+
+
+def _truncar_tudo(engine: Engine) -> None:
+    nomes = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {nomes} RESTART IDENTITY CASCADE"))
+
+
 @pytest.fixture
-def db_session() -> Iterator[Session]:
-    """Sessão SQLite ``:memory:`` por teste + override do singleton em ``src.utils.db``."""
+def db_session(_pg_engine: Optional[Engine]) -> Iterator[Session]:
+    """Sessão por teste + override do singleton em ``src.utils.db``.
+
+    SQLite ``:memory:`` (default): engine novo por teste (StaticPool, conexão
+    única). Postgres (``_pg_engine`` setado): engine da sessão + TRUNCATE limpa
+    os dados antes do teste — mesma isolação, muito mais rápido."""
     from src.utils import db as db_module
 
-    test_engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(test_engine)
-    SessionLocal = sessionmaker(bind=test_engine)
+    if _pg_engine is not None:
+        _truncar_tudo(_pg_engine)
+        test_engine = _pg_engine
+        dispose_no_fim = False
+    else:
+        test_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(test_engine)
+        dispose_no_fim = True
 
+    SessionLocal = sessionmaker(bind=test_engine)
     original_engine = db_module._engine
     original_session_local = db_module._SessionLocal
     db_module._engine = test_engine
@@ -55,7 +90,8 @@ def db_session() -> Iterator[Session]:
         session.close()
         db_module._engine = original_engine
         db_module._SessionLocal = original_session_local
-        test_engine.dispose()
+        if dispose_no_fim:
+            test_engine.dispose()
 
 
 @pytest.fixture

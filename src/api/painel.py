@@ -29,6 +29,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 
 from src.api.engajamento import engajamento_escopo
+from src.utils.sql import fmt_ano_mes
 from src.auth import cliente_pode_ver_empresa
 from src.models.local import Local
 from src.models.verbatim import Verbatim
@@ -266,7 +267,7 @@ def calcular_previsibilidade(
     ]
 
     # 2. Ratios por mês — usa só meses com >= 3 verbatins
-    mes_expr = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    mes_expr = fmt_ano_mes(Verbatim.data_criacao_original)
     q_meses = (
         s.query(mes_expr.label("mes"), Verbatim.tipo, func.count(Verbatim.id))
         .filter(Verbatim.empresa_id == empresa_id)

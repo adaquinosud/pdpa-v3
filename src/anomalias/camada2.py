@@ -245,8 +245,9 @@ def _detectar_trend(empresa_id: int, s) -> List[Dict[str, Any]]:
 
     from src.models.temas import Tema, VerbatimTema
     from src.models.verbatim import Verbatim
+    from src.utils.sql import fmt_ano_mes
 
-    mes_col = func.strftime("%Y-%m", Verbatim.data_criacao_original)
+    mes_col = fmt_ano_mes(Verbatim.data_criacao_original)
     rows = (
         s.query(
             Tema.id,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -16,6 +16,13 @@ if TYPE_CHECKING:
 
 class Usuario(Base):
     __tablename__ = "usuarios"
+    __table_args__ = (
+        # espelha migration 002
+        CheckConstraint(
+            "papel IN ('admin_loyall','cliente_total','cliente_restrito')",
+            name="ck_usuarios_papel",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
