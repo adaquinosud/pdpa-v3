@@ -4,9 +4,11 @@ Ordem de execução pré-produção, derivada da auditoria de cobertura + depend
 reais do código. Priorizada por **"dor de arrumar depois"** (o que custa muito
 mais caro/arriscado com o sistema no ar).
 
-## Estado atual (ponto de partida)
-- **Branch:** `main` · dev-only, sem push/produção (ahead de `origin/main`).
-- **Testes:** 734 verdes. Migrations até `032` (SQLite).
+## Estado atual
+- **Branch:** `main` · HEAD `a707ce6` · dev-only, sem push/produção (ahead de `origin/main`).
+- **Testes:** 734 verdes em **SQLite e Postgres** (PG via `pgserver`, CP-1.1/1.2).
+- **Schema:** runner = **Alembic** (baseline `8295ca9dc780`, fonte = models);
+  `migrations/*.sql` aposentados em `migrations/legacy/`.
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 - **Feito até aqui (resumo):** núcleo do método (Lastro/ratio/5 faixas), Lente de
   Governança completa, anomalias (ML), temas/cruzamentos, plano de ação, Hub
@@ -27,7 +29,19 @@ mais caro/arriscado com o sistema no ar).
 
 ## 🔴 CAMINHO CRÍTICO (sequencial — sozinho na frente)
 
-### 1. Port Postgres testado `[ ]`
+### 1. Port Postgres testado `[x]` ✅ **COMPLETO** (CP-1.1 + CP-1.2, em main)
+- **✅ FEITO:** **734 testes verdes em Postgres real** (provisionado no dev via
+  `pgserver`, sem Docker; `scripts/run_tests_postgres.py`). Ajustes de dialeto
+  reportados e corrigidos (não no escuro): `func.strftime`→helper `to_char`,
+  `func.group_concat`→`string_agg`, GROUP BY estrito (`func.min`), guard do
+  `PRAGMA foreign_keys` só-SQLite, `pool_pre_ping`+pool. **Alembic baseline
+  `8295ca9dc780`** gerado por autogenerate dos models (fonte única), aplica
+  `upgrade head` rc=0, PKs SERIAL. **Drift reconciliado:** diff column-set
+  (`.sql` vivo vs models) achou **~55 índices/colunas só no `.sql`** → adicionados
+  aos models (60 índices no baseline); re-diff = **drift-zero**. `migrations/*.sql`
+  → `migrations/legacy/` (histórico); `init_db.py` virou wrapper de `alembic
+  upgrade head`. **tz:** naive UTC. **CHECK anomalias morto:** confirmado, baseline
+  sem CHECK. Detalhe nos commits `8514f3c` (CP-1.1) + `a707ce6` (CP-1.2).
 - **(a)** Migrar de SQLite p/ Postgres com versionamento real: adotar **Alembic**
   (baseline do schema atual, sem re-rodar o `init_db` "roda todos os .sql"),
   portar o dialeto (**`INTEGER PRIMARY KEY AUTOINCREMENT` → `SERIAL`/`IDENTITY`**
