@@ -24,6 +24,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -66,7 +67,10 @@ class Tema(Base):
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )
 
-    __table_args__ = (UniqueConstraint("empresa_id", "slug", name="uq_temas_empresa_slug"),)
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "slug", name="uq_temas_empresa_slug"),
+        Index("idx_temas_empresa_ativo", "empresa_id", "ativo"),
+    )
 
     empresa: Mapped["Empresa"] = relationship("Empresa")
     autor: Mapped[Optional["Usuario"]] = relationship("Usuario", foreign_keys=[criado_por])
@@ -104,6 +108,9 @@ class VerbatimTema(Base):
             "confianca >= 0.0 AND confianca <= 1.0", name="ck_verbatim_temas_confianca"
         ),
         CheckConstraint("origem IN ('llm','manual','merge')", name="ck_verbatim_temas_origem"),
+        Index("idx_verbatim_temas_verbatim", "verbatim_id"),
+        Index("idx_verbatim_temas_tema", "tema_id"),
+        Index("idx_verbatim_temas_bucket", "bucket_chave"),
     )
 
     verbatim: Mapped["Verbatim"] = relationship("Verbatim")
@@ -122,6 +129,10 @@ class TemaMerge(Base):
     """
 
     __tablename__ = "temas_merges"
+    __table_args__ = (
+        Index("idx_temas_merges_origem", "tema_origem_id"),
+        Index("idx_temas_merges_destino", "tema_destino_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tema_origem_id: Mapped[int] = mapped_column(
@@ -149,6 +160,11 @@ class TemaMerge(Base):
 
 class TemaCache(Base):
     __tablename__ = "temas_cache"
+    __table_args__ = (
+        Index("idx_temas_empresa", "empresa_id"),
+        Index("idx_temas_bucket", "empresa_id", "subpilar", "tipo"),
+        Index("idx_temas_escopo", "hash_escopo"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(
@@ -178,6 +194,7 @@ class TemaCache(Base):
 
 class TemaCruzamento(Base):
     __tablename__ = "temas_cruzamentos"
+    __table_args__ = (Index("idx_cruz_empresa", "empresa_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(
@@ -218,6 +235,10 @@ class AcaoVenda(Base):
     """
 
     __tablename__ = "acoes_venda"
+    __table_args__ = (
+        Index("idx_acoes_empresa", "empresa_id"),
+        Index("idx_acoes_cruzamento", "cruzamento_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(
@@ -260,6 +281,7 @@ class VerbatimEmbedding(Base):
     """
 
     __tablename__ = "verbatim_embeddings"
+    __table_args__ = (Index("idx_verbatim_embeddings_modelo", "modelo"),)
 
     verbatim_id: Mapped[int] = mapped_column(
         ForeignKey("verbatins.id", ondelete="CASCADE"), primary_key=True

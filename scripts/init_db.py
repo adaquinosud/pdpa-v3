@@ -1,30 +1,26 @@
-"""Inicializa o banco aplicando todas as migrations em ordem."""
+"""Inicializa/atualiza o schema do banco.
 
-import os
-import sqlite3
-from pathlib import Path
+**Wrapper fino (CP-1.2):** o runner real do schema é o **Alembic**, não mais os
+`.sql` (aposentados em `migrations/legacy/`). Este script roda `alembic upgrade
+head` — quem usava `python scripts/init_db.py` não quebra, só é redirecionado.
+
+A URL do banco é resolvida pelo `alembic/env.py` (env `DATABASE_URL` com fallback
+no `SQLALCHEMY_DATABASE_URI` do projeto). Em produção, o release roda
+`alembic upgrade head` direto (ver docs/ROADMAP_PRODUCAO.md, Bloco 4 #7).
+"""
+
+import subprocess
+import sys
+
 from dotenv import load_dotenv
 
-load_dotenv()
 
-MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations"
-DB_PATH = os.getenv("DATABASE_URL", "sqlite:///pdpa_v3_dev.db").replace("sqlite:///", "")
-
-
-def run_migrations():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA foreign_keys = ON")
-
-    migrations = sorted(MIGRATIONS_DIR.glob("*.sql"))
-    for m in migrations:
-        print(f"Aplicando {m.name}...")
-        with open(m) as f:
-            conn.executescript(f.read())
-        conn.commit()
-
-    conn.close()
-    print(f"Banco inicializado em {DB_PATH}")
+def run_migrations() -> int:
+    """Aplica o schema via Alembic. Retorna o exit code do alembic."""
+    load_dotenv()
+    print("[init_db] runner: alembic upgrade head (os .sql estão em migrations/legacy/)")
+    return subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"]).returncode
 
 
 if __name__ == "__main__":
-    run_migrations()
+    raise SystemExit(run_migrations())

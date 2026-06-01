@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 class Empresa(Base):
     __tablename__ = "empresas"
+    __table_args__ = (Index("idx_empresas_nome", "nome"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nome: Mapped[str] = mapped_column(String, unique=True, nullable=False)

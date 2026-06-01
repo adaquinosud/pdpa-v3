@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -28,7 +28,10 @@ PERSPECTIVAS = (
 
 class AcaoStatus(Base):
     __tablename__ = "acoes_status"
-    __table_args__ = (UniqueConstraint("empresa_id", "item_chave"),)
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "item_chave"),
+        Index("ix_acoes_status_empresa", "empresa_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

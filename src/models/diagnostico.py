@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -20,6 +20,10 @@ class LeituraDiagnostico(Base):
     por escopo. ``agrupamento_id`` NULL = empresa inteira."""
 
     __tablename__ = "leituras_diagnostico"
+    __table_args__ = (
+        Index("ix_leituras_diag_escopo", "empresa_id", "agrupamento_id", "subpilar"),
+        Index("ix_diag_escopo_loja", "empresa_id", "agrupamento_id", "local_id", "subpilar"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

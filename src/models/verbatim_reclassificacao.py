@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -24,6 +24,10 @@ class VerbatimReclassificacao(Base):
     """
 
     __tablename__ = "verbatins_reclassificacoes"
+    __table_args__ = (
+        Index("idx_recl_verbatim", "verbatim_id"),
+        Index("idx_recl_em", "reclassificado_em"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     verbatim_id: Mapped[int] = mapped_column(

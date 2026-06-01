@@ -53,6 +53,12 @@ class Verbatim(Base):
             "tipo IN ('promotor','conversivel','detrator','inativo')",
             name="ck_verbatins_tipo",
         ),
+        # índices de performance (espelham as migrations)
+        Index("idx_verbatins_empresa", "empresa_id"),
+        Index("idx_verbatins_fonte", "fonte_id"),
+        Index("idx_verbatins_local", "local_id"),
+        Index("idx_verbatins_data", "data_criacao_original"),
+        Index("idx_verbatins_classif", "subpilar", "tipo"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

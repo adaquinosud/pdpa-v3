@@ -8,6 +8,9 @@ repos:
     hooks:
       - id: flake8
         args: [--max-line-length=100]
+        # alembic/versions: migrations autogeradas (linhas longas que o black
+        # não quebra, ex. CHECK de enum); o pre-commit não as passa ao flake8.
+        exclude: ^alembic/versions/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:

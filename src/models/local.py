@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -32,6 +33,9 @@ class Local(Base):
             "status IN ('ativo','em_obra','desativado','encerrado')",
             name="ck_locais_status",
         ),
+        Index("idx_locais_empresa", "empresa_id"),
+        Index("idx_locais_agrupamento", "agrupamento_id"),
+        Index("idx_locais_place", "place_id_google"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -69,7 +73,11 @@ class Local(Base):
 
 class LocalMetadado(Base):
     __tablename__ = "locais_metadados"
-    __table_args__ = (UniqueConstraint("local_id", "chave"),)
+    __table_args__ = (
+        UniqueConstraint("local_id", "chave"),
+        Index("idx_metadados_local", "local_id"),
+        Index("idx_metadados_chave", "chave"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     local_id: Mapped[int] = mapped_column(

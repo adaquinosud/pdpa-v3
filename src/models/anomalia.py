@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -24,6 +24,13 @@ class AnomaliaDetectada(Base):
     """
 
     __tablename__ = "anomalias_detectadas"
+    __table_args__ = (
+        Index("idx_anomalias_empresa", "empresa_id"),
+        Index("idx_anomalias_tipo", "tipo"),
+        Index("idx_anomalias_tema", "tema_id"),
+        Index("idx_anomalias_cruzamento", "cruzamento_id"),
+        Index("idx_anomalias_sev", "severidade"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(
@@ -75,6 +82,7 @@ class TemaSnapshot(Base):
     sumiço e contágio (loja X → loja Y). Identidade estável por ``tema_slug``."""
 
     __tablename__ = "temas_snapshot"
+    __table_args__ = (Index("idx_temas_snap", "empresa_id", "periodo", "tema_slug"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(
@@ -102,6 +110,7 @@ class CruzamentoSnapshot(Base):
     """Foto de um cruzamento N4 num período — base p/ emergência e Δpeso."""
 
     __tablename__ = "cruzamentos_snapshot"
+    __table_args__ = (Index("idx_cruz_snap", "empresa_id", "periodo", "tema_slug"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(
@@ -126,6 +135,10 @@ class RatioMensal(Base):
     """Série mensal de ratio P/D por (loja|agrupamento × subpilar) — camada 1."""
 
     __tablename__ = "ratios_mensais"
+    __table_args__ = (
+        Index("idx_ratios_mensais", "empresa_id", "subpilar", "periodo"),
+        Index("idx_ratios_mensais_local", "local_id", "subpilar", "periodo"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -20,6 +20,10 @@ class ChatCache(Base):
     reusa a resposta sem nova chamada ao Sonnet. Single-turn."""
 
     __tablename__ = "chat_cache"
+    __table_args__ = (
+        Index("ix_chat_cache_chave", "empresa_id", "escopo_hash", "pergunta_hash", unique=True),
+        Index("ix_chat_cache_empresa", "empresa_id", "criado_em"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

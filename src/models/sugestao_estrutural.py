@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 class SugestaoEstrutural(Base):
     __tablename__ = "sugestoes_estruturais"
+    __table_args__ = (
+        Index("ix_sugest_estrut_escopo", "empresa_id", "agrupamento_id", "subpilar"),
+        Index("ix_sugest_escopo_loja", "empresa_id", "agrupamento_id", "local_id", "subpilar"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     empresa_id: Mapped[int] = mapped_column(

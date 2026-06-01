@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -22,6 +22,7 @@ class Usuario(Base):
             "papel IN ('admin_loyall','cliente_total','cliente_restrito')",
             name="ck_usuarios_papel",
         ),
+        Index("idx_usuarios_empresa", "empresa_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

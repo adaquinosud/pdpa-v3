@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -26,6 +26,10 @@ class EventoManutencao(Base):
     """
 
     __tablename__ = "eventos_manutencao"
+    __table_args__ = (
+        Index("idx_eventos_manut_tipo", "tipo"),
+        Index("idx_eventos_manut_em", "executado_em"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tipo: Mapped[str] = mapped_column(String, nullable=False)

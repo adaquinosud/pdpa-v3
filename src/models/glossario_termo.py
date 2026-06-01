@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -18,6 +18,7 @@ from src.models.base import Base
 
 class GlossarioTermo(Base):
     __tablename__ = "glossario_termo"
+    __table_args__ = (Index("idx_glossario_categoria", "categoria", "ordem"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     termo: Mapped[str] = mapped_column(String, nullable=False)

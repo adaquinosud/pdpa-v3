@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -18,6 +18,11 @@ from src.models.base import Base
 
 class ClassifierMetric(Base):
     __tablename__ = "classifier_metrics"
+    __table_args__ = (
+        Index("idx_classifier_metrics_modelo", "modelo"),
+        Index("idx_classifier_metrics_chamada_em", "chamada_em"),
+        Index("idx_classifier_metrics_escalado", "escalado"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     chamada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
