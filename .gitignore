@@ -7,7 +7,7 @@ env/
 venv/
 .venv/
 .pytest_cache/
-.coverage
+.coverage*
 htmlcov/
 
 # Distribuição
@@ -43,3 +43,23 @@ logs/
 /tmp/
 /outputs/
 documentos_gerados/
+
+# Backups do banco (pré-migration)
+*.db.bak-*
+
+# Locks temporários do Office (Word/Excel)
+~$*
+
+# Export/deliverable na raiz (one-off)
+/Glossario_PDPA_para_revisao_Dener.docx
+
+# Artefatos gerados em data/ (dumps de coleta, benchmarks, relatórios, planilhas).
+# O CÓDIGO em data/ (*.py, *.sh) NÃO é pego — segue versionado.
+# Nota: alguns artefatos HISTÓRICOS já versionados (ex. pdpa_v2_explorar_inventario.md,
+# os xlsx golden-set) seguem TRACKED por decisão — o .gitignore vale pros NOVOS,
+# pra parar de poluir o git status. Inconsistência aceita (seguro > cosmético).
+data/*.jsonl
+data/*.json
+data/*.md
+data/*.xlsx
+data/*.docx
