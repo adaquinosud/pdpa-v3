@@ -5,15 +5,17 @@ reais do código. Priorizada por **"dor de arrumar depois"** (o que custa muito
 mais caro/arriscado com o sistema no ar).
 
 ## Estado atual
-- **Branch:** `main` · HEAD `2d4088b` · dev-only, sem push/produção (ahead de `origin/main`).
-- **Testes:** 748 verdes em **SQLite** (+ 734 em **Postgres** via `pgserver`, CP-1.1/1.2).
+- **Branch:** `feature/deploy-3-dockerfile` · HEAD `a0ce256` · dev-only, sem
+  push/produção (deploy-1 já em `main`; deploy-2/3 na branch, ff-merge limpo).
+- **Testes:** 759 verdes em **SQLite** (+ 734 em **Postgres** via `pgserver`, CP-1.1/1.2).
 - **Schema:** runner = **Alembic** (baseline `8295ca9dc780`, fonte = models);
   `migrations/*.sql` aposentados em `migrations/legacy/`.
 - **Progresso do roadmap:** **TODO o código pré-deploy fechado** — **Bloco 1
   (Postgres) ✅** · **#2 noturna-produto ✅** (2a+2b+2c) · **#3 saída durável ✅** ·
-  **#4 segurança-código ✅** · **#8/H .gitignore ✅**. Resta **só o Bloco 4
-  (deploy)** — #5 gunicorn/Procfile, #6 WeasyPrint/Dockerfile, #7 alembic-no-release,
-  #8 secrets/creds no env, #9 Render+domínio, #10 Cron.
+  **#4 segurança-código ✅** · **#8/H .gitignore ✅**. Bloco 4 em andamento: **#5
+  entrypoint ✅** · **#6 WeasyPrint/Dockerfile ✅ PROVADO** (imagem builda + PDF
+  real 2746 bytes). Resta **#7 alembic-no-release, #8 secrets/creds no env, #9
+  Render+domínio, #10 Cron** (+ #5b coleta on-demand async).
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 - **Feito até aqui (resumo):** núcleo do método (Lastro/ratio/5 faixas), Lente de
   Governança completa, anomalias (ML), temas/cruzamentos, plano de ação, Hub
@@ -131,11 +133,13 @@ mais caro/arriscado com o sistema no ar).
 
 ## 🟠 DEPLOY (Bloco 4 — estritamente após #1 + #2 + #3 + #4)
 
-### 5. Entrypoint de produção `[ ]` **[BLOCKER — não existe hoje]** · **[CÓDIGO]**
-- **(a)** `gunicorn` + `Procfile`/`render.yaml` + callable WSGI (`create_app()`)
-  + `gunicorn` no `pyproject`/deps. Hoje o app só roda via `app.run` (dev).
-- **(b)** Bloqueia o deploy — Render não sobe sem start command + WSGI.
-- **(c)** Depende de #1 (DB pronto). **(d)** Pequeno (config), mas obrigatório.
+### 5. Entrypoint de produção `[x]` ✅ **COMPLETO** (CP-deploy-2, `742d151`)
+- **✅ FEITO:** `wsgi.py` na raiz (`app = create_app()` → `gunicorn wsgi:app`);
+  `gunicorn==23.0.0` no requirements; `/healthz` (+ `/health` alias) 200 trivial
+  SEM auth/DB (Render reinicia na falha da probe → não acoplar ao banco). Provado
+  com `gunicorn --check-config wsgi:app` (callable carrega limpo). O comando
+  gunicorn final (workers/threads/timeout) vive no Dockerfile (#6). Boot em prod
+  coberto por `test_seguranca_deploy`.
 
 ### 5b. Coleta on-demand segura em prod `[ ]` · **[CÓDIGO]** (depois do #5)
 - **Problema:** a coleta on-demand pela tela roda **síncrona no request**
@@ -160,21 +164,29 @@ mais caro/arriscado com o sistema no ar).
   de Dener — agrupamento on-demand async + concorrência) segue **adiado**.
 - **(c)** depende de #5 (entrypoint). **(d)** Pequeno (dispatch async leve + gate de UI).
 
-### 6. WeasyPrint — libs nativas no build `[ ]` **[BLOCKER]** · **[CÓDIGO]**
-- **(a)** Instalar **cairo/pango/libffi/harfbuzz** via **Dockerfile** (`apt-get
-  install libpango-1.0-0 libcairo2 …`) — **NÃO** apt nativo do Render: o runtime
-  nativo tem pango fixo (pode ser velho), e o WeasyPrint é **version-sensitive**
-  (mismatch de pango quebra o render). Dockerfile dá controle de versão. **Não
-  trocar a engine de PDF** — o código já degrada gracioso (`PdfIndisponivel`/503
-  sem libs); é dependência de build, não reescrita.
-- **(a2)** **Smoke test de 1 PDF real quando as libs entrarem**: a renderização
-  HTML→PDF do WeasyPrint **NÃO é coberta por teste hoje** (a suíte testa só a
-  montagem do HTML + o fallback 503-sem-libs; CP-1.1 confirmou que os 8 testes de
-  relatório passam SEM as libs). Gerar 1 PDF de verdade no build valida o render.
-- **(b)** Os 5 PDFs usam WeasyPrint (import lazy, `OSError` se faltar lib) →
-  **sem as libs, todo PDF quebra em prod** (degradação 503, mas sem PDF).
-- **(c)** Depende de #5 (mesma config de deploy; Dockerfile substitui o
-  buildpack nativo). **(d)** Pequeno-médio (Dockerfile + smoke test).
+### 6. WeasyPrint — Dockerfile + libs nativas `[x]` ✅ **COMPLETO E PROVADO** (CP-deploy-3, `2c42340`+`a0ce256`)
+- **✅ FEITO + PROVADO (imagem buildou rc=0 + PDF real 2746 bytes):**
+  - **Dockerfile multi-stage** (`python:3.11-slim-bookworm`): builder com
+    `build-essential`+`python3-dev` compila o ML stack (`hdbscan` Cython compilou
+    sem header extra) num venv; runtime slim só com as libs de runtime.
+  - **Libs WeasyPrint 68 (SEM cairo — largado na v53):** `libpango-1.0-0`,
+    `libpangoft2-1.0-0`, `libharfbuzz0b`, `libfontconfig1`, `fonts-dejavu-core` +
+    `libgomp1` (OpenMP do sklearn/lightgbm). psycopg[binary] embute a libpq.
+  - **Smoke PDF REAL como `RUN` no build (#6a):** `scripts/smoke_pdf.py` roda
+    `write_pdf()` e checa magic `%PDF` → libs erradas **falham o build**. Passou no
+    build (2747 bytes) e no `docker run` (2746 bytes). Render real HTML→PDF agora
+    **coberto** (a suíte pytest só cobria montagem + fallback 503).
+  - **`requirements-prod.txt`** separado das dev-deps (tirou `pgserver`/pytest/etc.
+    da imagem; PyJWT morto removido).
+  - **CMD:** `gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4
+    --timeout 120 --worker-class gthread` (sh -c+exec → PID 1; sem `--preload`).
+  - **.dockerignore:** build context caiu pra ~1.6MB.
+- **Tamanho:** content size **310MB** (push/pull) / disk **1.46GB** (descomprimido,
+  dominado pelo ML stack: scipy/sklearn/matplotlib + prophet/cmdstanpy via merlion).
+- **Arch:** provado em **arm64** (Mac); Render builda **amd64** do mesmo Dockerfile
+  (hdbscan tem wheel manylinux em amd64 → menos risco, não mais). Build amd64-exato
+  (qemu) opcional, não considerado necessário.
+- **Não trocou a engine de PDF** — só dependência de build, como planejado.
 
 ### 7. Release/migration no deploy `[ ]` · **[CÓDIGO]**
 - **(a)** Wire do `alembic upgrade` no build/release command do Render (aplica o
