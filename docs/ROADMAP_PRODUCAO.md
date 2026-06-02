@@ -28,7 +28,12 @@ mais caro/arriscado com o sistema no ar).
 - Cada item tem: **(a)** o que é · **(b)** por que antes/depois · **(c)**
   dependências · **(d)** tamanho · **(e)** status `[ ]`.
 - **Caminho crítico** = sequencial. **EM PARALELO** = pode rodar junto do #1.
-- **[BLOCKER]** = impede o deploy e **não existe hoje**.
+- **[BLOCKER]** = impede o deploy e **não existe hoje**. **[BLOCKER de piloto]** =
+  não impede subir, mas trava colocar o cliente pra usar.
+- **Quem faz:** **[CÓDIGO]** = Code escreve/edita no repo (arquivos, deps, config) ·
+  **[OPS-tua]** = Alexandre na conta/infra/painel (criar Render, provisionar
+  Postgres, comprar/apontar domínio, gerar credenciais, editorial) · **[MISTO]** =
+  parte no repo + parte ação tua no painel.
 
 ---
 
@@ -126,13 +131,13 @@ mais caro/arriscado com o sistema no ar).
 
 ## 🟠 DEPLOY (Bloco 4 — estritamente após #1 + #2 + #3 + #4)
 
-### 5. Entrypoint de produção `[ ]` **[BLOCKER — não existe hoje]**
+### 5. Entrypoint de produção `[ ]` **[BLOCKER — não existe hoje]** · **[CÓDIGO]**
 - **(a)** `gunicorn` + `Procfile`/`render.yaml` + callable WSGI (`create_app()`)
   + `gunicorn` no `pyproject`/deps. Hoje o app só roda via `app.run` (dev).
 - **(b)** Bloqueia o deploy — Render não sobe sem start command + WSGI.
 - **(c)** Depende de #1 (DB pronto). **(d)** Pequeno (config), mas obrigatório.
 
-### 6. WeasyPrint — libs nativas no build `[ ]` **[BLOCKER]**
+### 6. WeasyPrint — libs nativas no build `[ ]` **[BLOCKER]** · **[CÓDIGO]**
 - **(a)** Instalar **cairo/pango/libffi/harfbuzz** via **Dockerfile** (`apt-get
   install libpango-1.0-0 libcairo2 …`) — **NÃO** apt nativo do Render: o runtime
   nativo tem pango fixo (pode ser velho), e o WeasyPrint é **version-sensitive**
@@ -148,26 +153,31 @@ mais caro/arriscado com o sistema no ar).
 - **(c)** Depende de #5 (mesma config de deploy; Dockerfile substitui o
   buildpack nativo). **(d)** Pequeno-médio (Dockerfile + smoke test).
 
-### 7. Release/migration no deploy `[ ]`
+### 7. Release/migration no deploy `[ ]` · **[CÓDIGO]**
 - **(a)** Wire do `alembic upgrade` no build/release command do Render (aplica o
   schema antes do app subir).
 - **(b)** Sem isso o app sobe contra DB vazio/desatualizado.
 - **(c)** Depende de #1 (Alembic existir) + #5. **(d)** Pequeno.
 
-### 8. Secrets + credenciais dedicadas (env) `[ ]`
-- **(a)** `SECRET_KEY`/`JWT_SECRET_KEY` fora do default (`dev-key`/`dev-jwt-key`)
-  via env forte; **credenciais dedicadas** ANTHROPIC/APIFY/OPENAI (isolar de v2 —
-  billing/rate-limit/auditoria).
+### 8. Secrets + credenciais dedicadas (env) `[ ]` · **[OPS-tua]**
+- **(a)** `FLASK_SECRET_KEY` forte (fora do default `dev-key`) via env; **gerar
+  credenciais dedicadas** ANTHROPIC/APIFY/OPENAI (isolar de v2 —
+  billing/rate-limit/auditoria) e setá-las no painel do Render. (`JWT_SECRET_KEY`
+  já foi removido como dead code no #4.)
 - **(b)** ANTES de subir (secrets) e antes de volume (creds). É **env config**,
-  zero código (nenhuma chave hardcoded no código — confirmado).
+  **zero código** — o app já lê tudo de env (confirmado no #4; nenhuma chave
+  hardcoded). Gerar conta/chave em cada provedor e colar no Render é **ação tua**.
 - **(c)** Setup do env do Render (junto de #9). **(d)** Pequeno (config).
 
-### 9. Render + Postgres + domínio `[ ]`
-- **(a)** Provisionar web service + Postgres gerenciado + domínio (pdpa.com.br).
+### 9. Render + Postgres + domínio `[ ]` · **[OPS-tua]** (Code entrega `render.yaml`; conta/infra/domínio é tua)
+- **(a)** Criar a conta/projeto no Render, provisionar **web service + Postgres
+  gerenciado**, comprar/apontar o **domínio (pdpa.com.br)** (DNS). Code pode
+  entregar um `render.yaml` blueprint e o `Dockerfile` (#6), mas **criar a conta,
+  apertar deploy, ligar o Postgres e configurar o DNS é ação tua**.
 - **(b)** O deploy em si.
 - **(c)** Depende de #1, #5, #7, #8. **(d)** Médio (infra/config).
 
-### 10. Render Cron Job → agenda a noturna-produto `[ ]`
+### 10. Render Cron Job → agenda a noturna-produto `[ ]` · **[MISTO]** (`render.yaml` cron = código; ativar no painel = tua)
 - **(a)** Job agendado (diário/intervalo) rodando a noturna-produto (#2) —
   coleta automática sem ninguém clicar. Limpo: não depende do app up nem de
   guard multi-worker (vs APScheduler).
@@ -179,28 +189,106 @@ mais caro/arriscado com o sistema no ar).
 
 ## 🟢 PRÉ-PILOTO (não bloqueia subir, mas antes do cliente ver)
 
-### P. Lapidar a voz dos 77 termos do glossário `[ ]`
+### P1. Lapidar a voz dos 77 termos do glossário `[ ]` · **[OPS-tua / editorial]**
 - **(a)** Conteúdo atual é factual-do-código; lapidar na voz do método pela tela
-  `/glossario`.
-- **(b)** É **client-facing** (os ⓘ exibem o texto ao cliente no piloto). Não
-  bloqueia subir, mas polir antes do cliente ver.
-- **(c)** Independente (editorial Alexandre + Dener). **(d)** Médio (editorial,
-  não código).
+  `/glossario`. **(b)** Client-facing (os ⓘ exibem o texto ao cliente no piloto).
+- **(c)** editorial Alexandre + Dener. **(d)** Médio (editorial, não código).
+
+### P2. Revalidar conectores frágeis `[ ]` · **[CÓDIGO + dados]**
+- **(a)** Rodar 1 coleta de validação nos coletores sensíveis: **youtube** e
+  **mercadolivre** (estavam entre as fontes quebradas do EXCLUDE antigo) e
+  **linkedin/tiktok** (dependem de auth/cookies — quebram silenciosamente).
+- **(b)** Fonte morta = lacuna de dados no relatório que o cliente vê. **(c)**
+  independe do deploy. **(d)** Pequeno-médio (1 coleta/conector + fix se quebrado).
+- **Nota honesta:** **glassdoor/indeed NÃO têm coletor hoje.** Coletores existentes:
+  `google, instagram, facebook, tripadvisor, linkedin, tiktok, youtube, appstore,
+  mercadolivre, google_news`. Se glassdoor/indeed forem necessários, é **item NOVO**
+  (escopo a definir), não revalidação.
+
+### P3. Auditar fontes quebradas `[ ]` · **[dados / CÓDIGO]**
+- **(a)** As Fontes que estavam no EXCLUDE hardcoded antes do 2a
+  (`82,83,84,85,86` + `129,131,132,135`): decidir caso a caso — consertar o
+  coletor, corrigir URL/entidade, ou marcar `ativo=False` em definitivo (o 2a já
+  tira do loop quem está `ativo=False`).
+- **(b)** Higiene: sem isso a noturna tenta fontes natimortas toda noite. **(c)**
+  independe do deploy. **(d)** Pequeno (auditoria de ~9 fontes).
 
 ---
 
-## ⚪ DEPOIS DE PRODUÇÃO
+## 🔵 PRA OPERAR COM CLIENTE (bloqueia o piloto, não o deploy)
 
-- **Personas** (Loyall Admin vs Cliente) — `cliente_total` + `_check_acesso` +
-  `eh_loyall` já dão escopo por empresa; refinamento de UX.
-- **print() → logging** centralizado (Render captura stdout → não fica cego).
-- **Configs multi-cliente** (idioma pt-BR, caps por cliente) — só ao 2º cliente.
-- **CP-2 coleta async sob demanda** (forçar agrupamento na hora pela tela) — só
-  se o Dener confirmar a necessidade; a noturna agendada já mantém fresco.
-- **Manual de Operação** (alimentado pelos ⓘ + glossário).
-- **datetime tz-aware** (refactor; a *decisão* do tipo de coluna já entrou no #1).
-- **Decisão instância dedicada vs multi-tenant** (pedido do CEO aeroporto / Dener).
-- **Piloto Confins/Carbel** (depende da noturna genérica + Produção).
+### O1. Gestão de usuários por UI `[ ]` · **[CÓDIGO]** · **[BLOCKER de piloto]**
+- **(a)** Hoje só existe o CLI `create-admin` (cria **admin_loyall**,
+  `empresa_id=None`). **Não há UI de usuários** e **não há caminho para criar um
+  `cliente_total`** (o login do cliente) a não ser SQL cru. **(b)** Pra colocar o
+  cliente pra usar no piloto é obrigatório criar o usuário dele atrelado à empresa
+  — sem UI nem CLI, **trava o piloto**. **(c)** o auth já existe (papéis
+  `admin_loyall`/`cliente_total`, `_check_acesso`, `eh_loyall`). **(d)** Médio
+  (CRUD de usuários + vínculo com empresa + reset de senha).
+
+### O2. Personas (Admin Loyall vs Cliente) `[ ]` · **[CÓDIGO]** (~1 semana)
+- **(a)** Refinar a experiência por papel: o **mecanismo** de escopo já existe
+  (`cliente_total` + `_check_acesso` + `eh_loyall` dão escopo por empresa); falta a
+  **UX** — o que o cliente vê/não vê, navegação reduzida, telas Loyall-only
+  escondidas. **(b)** O cliente não pode topar com telas internas/admin no piloto.
+  **(c)** depende de O1 (precisa de usuário cliente pra testar). **(d)** ~1 semana.
+
+---
+
+## 🟣 ROBUSTEZ (endurecer antes/logo após o piloto)
+
+### R1. `print()` → logging centralizado `[ ]` · **[CÓDIGO]**
+- Render captura stdout, mas `print` solto não tem nível/contexto → trocar por
+  `logging` estruturado pra não ficar cego em prod. Pequeno-médio (pervasivo).
+
+### R2. Resíduos de dados `None:None` `[ ]` · **[dados / CÓDIGO]**
+- ~47 linhas com `None:None` residual (autor/data ausentes exibidos cru) — número
+  **a confirmar na base** (no código só há 1 ocorrência). Quantificar e decidir:
+  filtrar na exibição ou limpar na origem. Pequeno.
+
+### R3. Dicionários Pa2/Pa3 `[ ]` · **[conteúdo / dados]**
+- Completar/revisar os dicionários de subpilares Pa2/Pa3 da classificação. Item de
+  conteúdo do método — alinhar com Alexandre/Dener.
+
+### R4. Impacto em R$ — tirar do placeholder `[ ]` · **[CÓDIGO / produto]**
+- O impacto financeiro exibido é placeholder; definir a fórmula real (ou esconder
+  até ter) pra não mostrar número inventado ao cliente.
+
+### R5. `datetime` tz-aware `[ ]` · **[CÓDIGO]**
+- Refactor pra timezone-aware (a *decisão* do tipo de coluna já entrou no #1: hoje
+  é naive UTC). Não bloqueia; melhora correção de horários.
+
+---
+
+## 📄 CONTEÚDO
+
+### C1. Manual de Operação `[ ]` · **[OPS-tua / conteúdo]**
+- Alimentado pelos ⓘ + glossário. Documento de operação do produto. Editorial.
+
+---
+
+## 🧭 DECISÃO ESTRATÉGICA (com Dener / CEO)
+
+### D1. Instância dedicada vs multi-tenant `[ ]`
+- Pedido do CEO do aeroporto / Dener. Define a arquitetura de hospedagem por
+  cliente (instância isolada vs app multi-empresa). Afeta #9 e D3. **Decidir antes
+  de escalar pro 2º cliente.**
+
+### D2. CP-2 coleta async sob demanda `[ ]`
+- Forçar coleta de um agrupamento na hora pela tela. **Só se o Dener confirmar a
+  necessidade** — a noturna agendada já mantém os dados frescos. Médio (UI + job
+  assíncrono + guard de concorrência).
+
+### D3. Configs multi-cliente `[ ]`
+- Idioma pt-BR fixo, caps de custo por cliente, etc. — **só ao 2º cliente**.
+  Depende de D1.
+
+---
+
+## 🎯 Marco: Piloto Confins/Carbel
+- Depende de: **Produção no ar (Bloco 4)** + **PRÉ-PILOTO (P1–P3)** + **OPERAR COM
+  CLIENTE (O1 user-mgmt é bloqueador, O2 personas)**. ROBUSTEZ/CONTEÚDO podem rodar
+  em paralelo; DECISÃO ESTRATÉGICA destrava o 2º cliente, não o 1º piloto.
 
 ---
 
@@ -220,3 +308,15 @@ H. .gitignore — a qualquer hora
 **só o Bloco Deploy (#5→#10)**, sequencial e gated, agora desbloqueado em todas as
 suas dependências de código. **#10 (agendar) é o último** — precisa de Produção no
 ar; a rotina noturna-produto que ele agenda já está pronta (#2+#3).
+
+**Código vs ops-tua no Bloco Deploy:** **#5, #6, #7 = [CÓDIGO]** (Code escreve
+entrypoint/Dockerfile/release no repo) · **#8, #9 = [OPS-tua]** (gerar
+credenciais, criar Render, provisionar Postgres, apontar domínio) · **#10 =
+[MISTO]**. Code pode entregar `render.yaml` + `Dockerfile`; apertar deploy é teu.
+
+**Depois do deploy** (não bloqueia subir, organizado por camada): **🟢 PRÉ-PILOTO**
+(P1 glossário, P2 conectores, P3 fontes quebradas) → **🔵 OPERAR COM CLIENTE**
+(O1 gestão de usuários = **bloqueador de piloto**, O2 personas) antes do cliente
+ver; **🟣 ROBUSTEZ** / **📄 CONTEÚDO** em paralelo; **🧭 DECISÃO ESTRATÉGICA**
+(dedicada vs multi-tenant) destrava o **2º** cliente. Marco final: **Piloto
+Confins/Carbel**.
