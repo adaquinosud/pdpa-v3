@@ -21,6 +21,11 @@ if [ -z "$EMPRESA" ]; then
     exit 2
 fi
 
+# Interpretadores: em dev usa o .venv local; no container (Docker/Render) o venv
+# está no PATH (/opt/venv) e NÃO existe .venv → cai pro python/flask do PATH.
+PY="$([ -x .venv/bin/python ] && echo .venv/bin/python || echo python)"
+FLASK="$([ -x .venv/bin/flask ] && echo .venv/bin/flask || echo flask)"
+
 ROOT="$(pwd)"
 TS=$(date +%Y%m%d_%H%M%S)
 PIPELINE_LOG="$ROOT/data/pipeline_noturno_${TS}.log"
@@ -40,7 +45,7 @@ echo "[pipeline]   início coleta: $(date -Iseconds)"
 
 PDPA_NOTURNA_MAX_USD=30 \
 PDPA_NOTURNA_MAX_HOURS=8 \
-PYTHONPATH=. .venv/bin/python scripts/coleta_noturna.py --empresa="$EMPRESA"
+PYTHONPATH=. "$PY" scripts/coleta_noturna.py --empresa="$EMPRESA"
 COLETA_EXIT=$?
 echo "[pipeline]   coleta saiu com código $COLETA_EXIT"
 
@@ -51,7 +56,7 @@ echo "[pipeline]   encadeia: classifica novos → embeddings → temas → cruza
 echo "[pipeline]   roda só se novos >= limiar (default 50); aplica janela 180d"
 echo "[pipeline]   início: $(date -Iseconds)"
 
-FLASK_APP=src.app:create_app .venv/bin/flask pipeline-pos-coleta \
+FLASK_APP=src.app:create_app "$FLASK" pipeline-pos-coleta \
     --empresa="$EMPRESA"
 CP6_EXIT=$?
 echo "[pipeline]   pós-coleta saiu com código $CP6_EXIT"
@@ -61,7 +66,7 @@ echo ""
 echo "[pipeline] ▶ PASSO 3/3 — gerador de relatório markdown"
 echo "[pipeline]   início gerador: $(date -Iseconds)"
 
-PYTHONPATH=. .venv/bin/python scripts/gen_relatorio_noturna.py --empresa="$EMPRESA"
+PYTHONPATH=. "$PY" scripts/gen_relatorio_noturna.py --empresa="$EMPRESA"
 GEN_EXIT=$?
 echo "[pipeline]   gerador saiu com código $GEN_EXIT"
 
