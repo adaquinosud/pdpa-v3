@@ -1,0 +1,33 @@
+# CP-deploy-3 — enxuga o build context. Tudo que NÃO precisa no runtime.
+# (a saída da noturna vai pro banco; data/ é efêmero e recriado em runtime.)
+
+# VCS / ferramentas de dev
+.git
+.gitignore
+.github
+.pre-commit-config.yaml
+
+# venv e caches Python (o venv da imagem é compilado do zero no builder)
+.venv
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.coverage*
+htmlcov/
+
+# bancos / backups / dumps locais (pdpa_v3_dev.db tem dezenas de MB)
+*.db
+*.db.bak-*
+
+# artefatos e dados locais (coleta_noturna recria data/ em runtime via mkdir)
+data/
+
+# não vão pro runtime
+tests/
+docs/
+
+# SO
+.DS_Store
+*.egg-info
