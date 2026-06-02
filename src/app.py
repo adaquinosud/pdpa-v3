@@ -78,7 +78,13 @@ def create_app() -> Flask:
 
     _register_cli_commands(app)
 
+    # Health check (liveness) — 200 trivial, SEM auth e SEM tocar o banco. O Render
+    # reinicia o serviço quando a probe falha; acoplar ao DB faria um soluço de
+    # banco virar restart do app. Conectividade de DB é readiness/monitoramento,
+    # não esta probe. /healthz é o path canônico do Render; /health é mantido
+    # (compat com briefings/curl de dev).
     @app.route("/health")
+    @app.route("/healthz")
     def health():
         return {"status": "ok", "version": "3.0.0-dev"}
 
