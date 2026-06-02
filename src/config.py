@@ -3,12 +3,17 @@
 import os
 from dotenv import load_dotenv
 
+from src.utils.db_url import normalize_db_url
+
 load_dotenv()
 
 
 class Config:
     SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "dev-key")
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///pdpa_v3_dev.db")
+    # normalize_db_url: Render/Heroku entregam postgresql:// → força psycopg3.
+    SQLALCHEMY_DATABASE_URI = normalize_db_url(
+        os.getenv("DATABASE_URL", "sqlite:///pdpa_v3_dev.db")
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")

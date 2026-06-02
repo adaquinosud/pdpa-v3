@@ -17,10 +17,14 @@ if config.config_file_name is not None:
 
 # URL do banco: env DATABASE_URL (prod/CI) com fallback no SQLALCHEMY_DATABASE_URI
 # do projeto. Mantém o alembic alinhado ao app, sem hardcode no .ini.
+# normalize_db_url: o env cru do Render é postgresql:// → força psycopg3 (o
+# fallback já vem normalizado do config; normalizar de novo é idempotente).
 from src.config import get_config  # noqa: E402
+from src.utils.db_url import normalize_db_url  # noqa: E402
 
 config.set_main_option(
-    "sqlalchemy.url", os.environ.get("DATABASE_URL", get_config().SQLALCHEMY_DATABASE_URI)
+    "sqlalchemy.url",
+    normalize_db_url(os.environ.get("DATABASE_URL", get_config().SQLALCHEMY_DATABASE_URI)),
 )
 
 # target_metadata = Base.metadata (importar src.models registra todas as tabelas).
