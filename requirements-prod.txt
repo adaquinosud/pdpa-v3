@@ -1,0 +1,45 @@
+# Dependências de PRODUÇÃO (runtime) — instaladas na imagem Docker.
+# Dev/teste ficam em requirements.txt, que faz `-r requirements-prod.txt` + extras.
+
+# Framework / WSGI
+Flask==3.0.0
+Flask-Login==0.6.3
+Flask-Cors==4.0.0
+gunicorn==23.0.0  # WSGI server de produção (Render): `gunicorn wsgi:app`
+
+# ORM e banco
+SQLAlchemy==2.0.25
+alembic==1.13.1
+psycopg[binary]==3.3.4  # driver Postgres (prod); embute a libpq
+
+# LLM
+anthropic==0.18.0
+openai==1.12.0  # apenas para embeddings
+
+# Coleta
+apify-client==1.6.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+
+# Processamento de dados
+pandas==2.1.4
+numpy==1.26.3
+scikit-learn==1.4.0
+hdbscan==0.8.33
+
+# Anomalias
+salesforce-merlion==2.0.4
+
+# Geração de documentos
+python-docx==1.1.0
+openpyxl==3.1.2
+weasyprint==68.1  # PDF (B0): requer libs nativas — ver Dockerfile (pango/harfbuzz/fontconfig)
+
+# Segurança
+cryptography==42.0.0
+bcrypt==4.1.2
+
+# Utils
+python-dotenv==1.0.0
+pydantic==2.5.3
+pyyaml==6.0.1

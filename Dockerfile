@@ -20,10 +20,12 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Cache de camada: deps ANTES do código → mudar código não reinstala o ML stack
-# (que é o passo lento). Só mexer no requirements.txt invalida esta camada.
-COPY requirements.txt .
+# (que é o passo lento). Só requirements-prod.txt (SEM dev-deps: pytest/black/
+# mypy/pre-commit e pgserver, que empacota um Postgres inteiro). Só mexer neste
+# arquivo invalida esta camada.
+COPY requirements-prod.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements-prod.txt
 
 # ──────────────────────────────────────────────────────────────────────────
 # Stage 2 — runtime (slim, sem toolchain)
