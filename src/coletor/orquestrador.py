@@ -171,29 +171,74 @@ def execucao_em_andamento(escopo_tipo: str, escopo_id: int) -> bool:
         return s.query(q.exists()).scalar()
 
 
-def disparar_pos_coleta_async(empresa_id: int, app=None) -> None:
-    """Enfileira ``executar_pos_coleta`` em thread daemon — não bloqueia o
-    handler HTTP. ``app`` é o Flask app (necessário pra app_context na thread).
+def _rodar_async(fn, *, app=None, label: str) -> bool:
+    """Roda ``fn()`` numa daemon-thread com app_context — NÃO bloqueia o handler
+    HTTP. Padrão ÚNICO reusado pelo pós-coleta e pela coleta on-demand (CP-5b).
 
-    Em modo teste (``app.config['TESTING']``) é no-op: SQLite não é thread-safe
-    e a thread sobrevive o teardown do test_client → segfault. Testes que
-    queiram exercitar o pipeline pós-coleta devem chamá-lo direto."""
+    ``app`` é o Flask app (necessário pro app_context na thread). Em TESTING
+    (``app.config['TESTING']``) é no-op e retorna ``False``: SQLite não é
+    thread-safe e a thread sobrevive ao teardown do test_client → segfault; testes
+    que queiram exercitar ``fn`` devem chamá-lo direto. Retorna ``True`` se disparou."""
     from flask import current_app
 
     flask_app = app or current_app._get_current_object()
     if flask_app.config.get("TESTING"):
-        return
+        return False
 
     def _runner():
         with flask_app.app_context():
             try:
-                from src.temas.pos_coleta import executar_pos_coleta
-
-                executar_pos_coleta(empresa_id, limiar=1, force=True)
+                fn()
             except Exception as exc:  # noqa: BLE001
-                print(f"[pos-coleta-async] empresa={empresa_id}: {type(exc).__name__}: {exc}")
+                print(f"[async:{label}] {type(exc).__name__}: {exc}")
 
-    threading.Thread(target=_runner, daemon=True, name=f"pos-coleta-{empresa_id}").start()
+    threading.Thread(target=_runner, daemon=True, name=label).start()
+    return True
+
+
+def disparar_pos_coleta_async(empresa_id: int, app=None) -> None:
+    """Enfileira ``executar_pos_coleta`` numa daemon-thread (não bloqueia o
+    handler). Reusa ``_rodar_async``. No-op em TESTING."""
+
+    def _fn():
+        from src.temas.pos_coleta import executar_pos_coleta
+
+        executar_pos_coleta(empresa_id, limiar=1, force=True)
+
+    _rodar_async(_fn, app=app, label=f"pos-coleta-{empresa_id}")
+
+
+def _coletar_fonte_e_pos(fonte_id: int, empresa_id: int) -> None:
+    """Coleta 1 fonte (reusa ``_coletar_fonte_direto`` — herda o timeout-por-fonte
+    do CP-1) e, se não falhou no Apify, encadeia o pós-coleta. Roda DENTRO da
+    daemon-thread do dispatch on-demand (CP-5b)."""
+    stats = _coletar_fonte_direto(fonte_id)
+    if not stats.get("falhou_apify"):
+        from src.temas.pos_coleta import executar_pos_coleta
+
+        executar_pos_coleta(empresa_id, limiar=1, force=True)
+
+
+def disparar_coleta_fonte_async(fonte_id: int, empresa_id: int, app=None) -> None:
+    """Fire-and-forget de UMA fonte pela tela (CP-5b, Opção A): coleta + pós-coleta
+    numa daemon-thread; o request retorna na hora. O status real fica em
+    ``coletas_execucoes`` (o pollColetas da UI acompanha). No-op em TESTING."""
+    _rodar_async(
+        lambda: _coletar_fonte_e_pos(fonte_id, empresa_id),
+        app=app,
+        label=f"coleta-fonte-{fonte_id}",
+    )
+
+
+def disparar_coleta_local_async(local_id: int, app=None) -> None:
+    """Fire-and-forget de UM local (CP-5b): ``coletar_local`` (loopa as fontes +
+    dispara pós-coleta) numa daemon-thread. ``force=True`` — cooldown/lock já foram
+    checados no handler antes de spawnar. No-op em TESTING."""
+    _rodar_async(
+        lambda: coletar_local(local_id, force=True),
+        app=app,
+        label=f"coleta-local-{local_id}",
+    )
 
 
 def _coletar_fonte_direto(fonte_id: int) -> Dict[str, Any]:

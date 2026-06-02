@@ -76,6 +76,13 @@ def create_app() -> Flask:
     def glossario_i(slug):  # noqa: ANN001, ANN201
         return _glossario_i(slug, debug=app.debug)
 
+    # CP-5b: gate de produção pra esconder o botão de coleta de AGRUPAMENTO
+    # on-demand (estoura o timeout HTTP — dezenas de fontes em série; a coleta
+    # completa é a noturna). Fonte/local seguem visíveis (fire-and-forget).
+    @app.template_global("em_producao")
+    def em_producao() -> bool:
+        return os.getenv("FLASK_ENV") == "production"
+
     _register_cli_commands(app)
 
     # Health check (liveness) — 200 trivial, SEM auth e SEM tocar o banco. O Render

@@ -2079,47 +2079,40 @@ def htmx_salvar_empresa(empresa_id: int):
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/disparar", methods=["POST"])
 def htmx_disparar_fonte(fonte_id: int):
-    """Botão 'disparar coleta' na UI — chama o handler de /api/coleta/disparar."""
+    """Botão 'disparar coleta' — CP-5b (Opção A): FIRE-AND-FORGET. Dispara a coleta
+    da fonte numa daemon-thread e retorna 'coletando…' na hora; não trava a request
+    na cauda do google (p90 ~7min). O status real vai pra ``coletas_execucoes`` (o
+    pollColetas acompanha). Guards síncronos (em_andamento/cooldown) ANTES de
+    spawnar — duplo-clique não cria 2 threads."""
+    from src.coletor.orquestrador import (
+        COOLDOWN_MINUTOS,
+        disparar_coleta_fonte_async,
+        em_cooldown,
+        execucao_em_andamento,
+    )
+
     with db_session() as s:
         f = s.get(Fonte, fonte_id)
         if f is None:
-            return ("<div class='text-red-600'>Fonte não encontrada.</div>", 404)
+            return ("<div class='text-red-600 text-xs'>Fonte não encontrada.</div>", 404)
         erro = _check_acesso(f.empresa_id)
         if erro:
             return erro
-    # Delega para o handler já existente.
-    from src.api.coleta import disparar_coleta
+        empresa_id = f.empresa_id
 
-    try:
-        resp = disparar_coleta(fonte_id)
-    except Exception as exc:  # pragma: no cover — robustez
-        return (f"<div class='text-red-600 text-xs'>Falha: {exc!r}</div>", 500)
-    # ``disparar_coleta`` devolve (Response, status) ou Response.
-    if isinstance(resp, tuple):
-        body, status = resp
-        if status >= 400:
-            return (
-                f"<div class='text-red-600 text-xs'>{body.get_json().get('erro', 'erro')}</div>",
-                status,
-            )
-        stats = body.get_json() or {}
-    else:
-        stats = resp.get_json() or {}
-
-    if stats.get("falhou_apify"):
+    if execucao_em_andamento("fonte", fonte_id):
+        return "<div class='text-amber-700 text-xs'>⏳ Coleta em andamento</div>"
+    ult = em_cooldown("fonte", fonte_id)
+    if ult is not None:
         return (
-            "<div class='text-red-600 text-xs'>Apify falhou — fonte não coletada.</div>",
-            200,
+            f"<div class='text-amber-700 text-xs'>⏳ Cooldown {COOLDOWN_MINUTOS} min. "
+            f"Última: {ult.isoformat()[:16]}</div>"
         )
 
-    coletados = stats.get("coletados", 0)
-    novos = stats.get("novos", 0)
-    duplicados = stats.get("duplicados", 0)
-    erros = stats.get("erros", 0)
+    disparar_coleta_fonte_async(fonte_id, empresa_id)
     return (
-        f"<div class='text-emerald-700 text-xs'>"
-        f"✓ {coletados} coletados · {novos} novos · {duplicados} dup · {erros} erros"
-        f"</div>"
+        "<div class='text-loyall-700 text-xs'>🔄 Coletando… acompanhe o status na lista.</div>",
+        202,
     )
 
 
@@ -2148,8 +2141,14 @@ def _fmt_stats_coleta(stats: dict) -> str:
 
 @ui_bp.route("/ui/locais/<int:local_id>/disparar", methods=["POST"])
 def htmx_disparar_local(local_id: int):
-    """Coleta todas as fontes ativas do local (Bloco COL · CP-COL-1)."""
-    from src.coletor.orquestrador import coletar_local
+    """Coleta as fontes ativas do local — CP-5b: FIRE-AND-FORGET (daemon-thread,
+    retorna 'coletando…' na hora). Guards síncronos antes de spawnar."""
+    from src.coletor.orquestrador import (
+        COOLDOWN_MINUTOS,
+        disparar_coleta_local_async,
+        em_cooldown,
+        execucao_em_andamento,
+    )
     from src.models.local import Local
 
     with db_session() as s:
@@ -2159,16 +2158,38 @@ def htmx_disparar_local(local_id: int):
         erro = _check_acesso(loc.empresa_id)
         if erro:
             return erro
-    try:
-        stats = coletar_local(local_id)
-    except Exception as exc:  # pragma: no cover — robustez
-        return (f"<div class='text-red-600 text-xs'>Falha: {exc!r}</div>", 500)
-    return _fmt_stats_coleta(stats)
+
+    if execucao_em_andamento("local", local_id):
+        return "<div class='text-amber-700 text-xs'>⏳ Coleta em andamento</div>"
+    ult = em_cooldown("local", local_id)
+    if ult is not None:
+        return (
+            f"<div class='text-amber-700 text-xs'>⏳ Cooldown {COOLDOWN_MINUTOS} min. "
+            f"Última: {ult.isoformat()[:16]}</div>"
+        )
+
+    disparar_coleta_local_async(local_id)
+    return (
+        "<div class='text-loyall-700 text-xs'>🔄 Coletando… acompanhe o status na lista.</div>",
+        202,
+    )
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/disparar", methods=["POST"])
 def htmx_disparar_agrupamento(agrupamento_id: int):
-    """Coleta todos os locais do agrupamento (Bloco COL · CP-COL-1)."""
+    """Coleta todos os locais do agrupamento. CP-5b: DESABILITADO em produção
+    (dezenas de fontes em série → não sobrevive ao timeout HTTP; a coleta completa
+    é a noturna). Em dev segue síncrono (útil pra teste). O botão também some em
+    prod (gate ``em_producao`` no template)."""
+    import os
+
+    if os.getenv("FLASK_ENV") == "production":
+        return (
+            "<div class='text-amber-700 text-xs'>Coleta de agrupamento on-demand "
+            "desabilitada em produção — a coleta completa é a noturna.</div>",
+            403,
+        )
+
     from src.coletor.orquestrador import coletar_agrupamento
     from src.models.agrupamento import Agrupamento
 
