@@ -1,15 +1,21 @@
-"""Gera relatório markdown consolidado da execução noturna de UMA empresa
-(CP-#2: ``--empresa`` por id ou nome).
+"""Gera o resumo consolidado da execução noturna de UMA empresa e o grava de
+forma DURÁVEL no banco (CP-#2c).
 
-Lê os artefatos em ``data/`` (o mais recente): ``coleta_noturna_<ts>.resumo.json``
-+ ``.jsonl`` e consulta o banco pro estado final da empresa. Escreve
-``data/relatorio_noturna_<ts>.md`` (a saída durável no banco é o CP-2c).
+Saída durável: ``relatorio_cache`` (secao="noturna"), seguindo a convenção do
+sistema (``llm_secoes._gravar_cache``: DELETE+INSERT por
+``empresa_id+escopo_hash+secao``, escopo empresa-wide). Rodar 2x sobrescreve →
+1 linha, a mais recente. ``relatorio_cache`` é cache (último estado); o histórico
+real por fonte vive em ``coletas_execucoes``.
+
+Fonte dos dados: o BANCO (``coletas_execucoes`` p/ a coleta + agregados de
+verbatins/temas) — NÃO os JSONL efêmeros de ``data/`` (que somem no deploy do
+Render). Nada essencial fica em ``data/``.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
+import hashlib
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -20,14 +26,18 @@ sys.path.insert(0, str(ROOT))
 from sqlalchemy import func  # noqa: E402
 
 from src.app import create_app  # noqa: E402
+from src.models.coleta_execucao import ColetaExecucao  # noqa: E402
 from src.models.empresa import Empresa  # noqa: E402
 from src.models.fonte import Fonte  # noqa: E402
 from src.models.temas import Tema, VerbatimTema  # noqa: E402
 from src.models.verbatim import Verbatim  # noqa: E402
+from src.relatorios.llm_secoes import _gravar_cache  # noqa: E402
 from src.utils.db import db_session  # noqa: E402
 
-
-DATA_DIR = ROOT / "data"
+SECAO_NOTURNA = "noturna"
+# proxy de custo: $0.001/review coletado (compass google maps) — espelha o
+# estimar_custo_apify da coleta_noturna; ColetaExecucao não persiste custo.
+CUSTO_USD_POR_COLETADO = 0.001
 
 
 def _resolver_empresa(session, empresa):
@@ -42,232 +52,233 @@ def _resolver_empresa(session, empresa):
     return emp
 
 
-def _ultimo_arquivo(pattern: str) -> Path | None:
-    candidatos = sorted(DATA_DIR.glob(pattern), key=lambda p: p.stat().st_mtime)
-    return candidatos[-1] if candidatos else None
+def _escopo_hash_empresa(empresa_id: int) -> str:
+    """Escopo empresa-wide — mesma convenção dos relatórios doc-ouro
+    (``resumo_executivo._escopo_hash``). Sem agrupamento/loja por ora."""
+    return hashlib.sha256(f"emp={empresa_id}|ag=|loc=".encode("utf-8")).hexdigest()[:16]
 
 
-def _ler_json(path: Path | None) -> dict:
-    if path is None or not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text())
-    except Exception as exc:
-        return {"_erro_leitura": str(exc)}
-
-
-def _ler_jsonl(path: Path | None) -> list[dict]:
-    if path is None or not path.exists():
-        return []
-    out: list[dict] = []
-    for line in path.read_text().splitlines():
-        if line.strip():
-            try:
-                out.append(json.loads(line))
-            except Exception:
-                pass
-    return out
-
-
-def main(empresa) -> None:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    DATA_DIR.mkdir(exist_ok=True)
-    out_path = DATA_DIR / f"relatorio_noturna_{ts}.md"
-
-    coleta_resumo_path = _ultimo_arquivo("coleta_noturna_*.resumo.json")
-    coleta_jsonl_path = (
-        coleta_resumo_path.with_suffix("").with_suffix(".jsonl") if coleta_resumo_path else None
+def _resumo_coleta(s, empresa_id: int) -> dict:
+    """Agrega a ÚLTIMA execução de cada fonte da empresa (último estado), lendo
+    de ``coletas_execucoes``. Sem dependência de ``data/``."""
+    # latest ColetaExecucao por fonte (id é monotônico → max(id) = mais recente)
+    ult_ids = (
+        s.query(func.max(ColetaExecucao.id))
+        .filter(ColetaExecucao.empresa_id == empresa_id)
+        .group_by(ColetaExecucao.fonte_id)
+        .subquery()
     )
-    temas_resumo_path = _ultimo_arquivo("temas_extracao_*.resumo.json")
-    temas_jsonl_path = (
-        temas_resumo_path.with_suffix("").with_suffix(".jsonl") if temas_resumo_path else None
+    execs = (
+        s.query(ColetaExecucao)
+        .filter(ColetaExecucao.id.in_(s.query(ult_ids)))
+        .order_by(ColetaExecucao.fonte_id)
+        .all()
     )
+    conector_por_fonte = {
+        f.id: f.conector_tipo for f in s.query(Fonte).filter(Fonte.empresa_id == empresa_id).all()
+    }
 
-    coleta_resumo = _ler_json(coleta_resumo_path)
-    coleta_linhas = _ler_jsonl(coleta_jsonl_path)
-    temas_resumo = _ler_json(temas_resumo_path)
+    coletados = sum(e.coletados or 0 for e in execs)
+    erros_fonte = [e for e in execs if e.status == "erro"]
+    iniciadas = [e.iniciado_em for e in execs if e.iniciado_em]
+    concluidas = [e.concluido_em for e in execs if e.concluido_em]
 
-    # Erros por fonte (coleta)
-    erros_coleta = [
-        line
-        for line in coleta_linhas
-        if line.get("status") == "erro" or (line.get("stats") or {}).get("falhou_apify")
+    return {
+        "fontes_processadas": len(execs),
+        "fontes_concluidas": sum(1 for e in execs if e.status == "concluido"),
+        "fontes_erro": len(erros_fonte),
+        "fontes_rodando": sum(1 for e in execs if e.status == "rodando"),
+        "verbatins_coletados_total": coletados,
+        "verbatins_novos_total": sum(e.novos or 0 for e in execs),
+        "verbatins_duplicados_total": sum(e.duplicados or 0 for e in execs),
+        "erros_total": sum(e.erros or 0 for e in execs),
+        "custo_apify_estimado_usd": round(coletados * CUSTO_USD_POR_COLETADO, 4),
+        "ultima_coleta_iniciada": max(iniciadas).isoformat() if iniciadas else None,
+        "ultima_coleta_concluida": max(concluidas).isoformat() if concluidas else None,
+        "erros": [
+            {
+                "fonte_id": e.fonte_id,
+                "conector": conector_por_fonte.get(e.fonte_id),
+                "erro": (e.mensagem_erro or "").split("\n")[0][:200],
+            }
+            for e in erros_fonte
+        ],
+    }
+
+
+def _estado_final(s, empresa_id: int) -> dict:
+    """Estado final da empresa no banco (verbatins, temas, cobertura)."""
+    total_verbatins = (
+        s.query(func.count(Verbatim.id)).filter(Verbatim.empresa_id == empresa_id).scalar()
+    )
+    total_com_texto = (
+        s.query(func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.tem_texto.is_(True))
+        .scalar()
+    )
+    total_fontes = (
+        s.query(func.count(Fonte.id))
+        .filter(Fonte.empresa_id == empresa_id, Fonte.ativo == 1)
+        .scalar()
+    )
+    por_conector = (
+        s.query(Fonte.conector_tipo, func.count(Verbatim.id))
+        .join(Verbatim, Verbatim.fonte_id == Fonte.id)
+        .filter(Verbatim.empresa_id == empresa_id)
+        .group_by(Fonte.conector_tipo)
+        .all()
+    )
+    total_temas = (
+        s.query(func.count(Tema.id))
+        .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
+        .scalar()
+    )
+    total_temas_inativos = (
+        s.query(func.count(Tema.id))
+        .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(False))
+        .scalar()
+    )
+    total_vinculacoes = (
+        s.query(func.count(VerbatimTema.id))
+        .join(Tema, Tema.id == VerbatimTema.tema_id)
+        .filter(Tema.empresa_id == empresa_id)
+        .scalar()
+    )
+    verbatins_com_tema = (
+        s.query(func.count(func.distinct(VerbatimTema.verbatim_id)))
+        .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+        .filter(Verbatim.empresa_id == empresa_id)
+        .scalar()
+    )
+    top20 = (
+        s.query(Tema.nome, Tema.slug, func.count(VerbatimTema.id).label("vol"))
+        .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+        .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
+        .group_by(Tema.id)
+        .order_by(func.count(VerbatimTema.id).desc())
+        .limit(20)
+        .all()
+    )
+    return {
+        "fontes_ativas": total_fontes,
+        "verbatins_total": total_verbatins,
+        "verbatins_com_texto": total_com_texto,
+        "verbatins_com_tema": verbatins_com_tema,
+        "cobertura_pct": (
+            round(100 * verbatins_com_tema / total_com_texto, 1) if total_com_texto else None
+        ),
+        "temas_ativos": total_temas,
+        "temas_inativos": total_temas_inativos,
+        "vinculacoes": total_vinculacoes,
+        "por_conector": [{"conector": c, "verbatins": n} for c, n in por_conector],
+        "top20_temas": [{"nome": nome, "slug": slug, "volume": vol} for nome, slug, vol in top20],
+    }
+
+
+def _render_markdown(empresa_nome: str, gerado_em: str, coleta: dict, estado: dict) -> str:
+    md = [
+        f"# Relatório execução noturna — {empresa_nome}\n",
+        f"Gerado em: {gerado_em}\n\n",
+        f"## 1. Coleta noturna ({empresa_nome})\n",
+        f"- Última coleta iniciada: `{coleta['ultima_coleta_iniciada']}`\n",
+        f"- Última coleta concluída: `{coleta['ultima_coleta_concluida']}`\n",
+        f"- Fontes processadas: {coleta['fontes_processadas']}\n",
+        f"- Fontes concluídas: {coleta['fontes_concluidas']}\n",
+        f"- Fontes com erro: {coleta['fontes_erro']}\n",
+        f"- Verbatins coletados: {coleta['verbatins_coletados_total']}\n",
+        f"- Verbatins novos: {coleta['verbatins_novos_total']}\n",
+        f"- Custo Apify estimado: USD {coleta['custo_apify_estimado_usd']}\n\n",
     ]
-
-    # Banco — estado final da empresa
-    app = create_app()
-    with app.app_context(), db_session() as s:
-        emp = _resolver_empresa(s, empresa)
-        if emp is None:
-            print(f"[gen_relatorio] empresa {empresa!r} não encontrada", file=sys.stderr)
-            return
-        empresa_id = emp.id
-        empresa_nome = emp.nome
-
-        total_verbatins = (
-            s.query(func.count(Verbatim.id)).filter(Verbatim.empresa_id == empresa_id).scalar()
-        )
-        total_com_texto = (
-            s.query(func.count(Verbatim.id))
-            .filter(Verbatim.empresa_id == empresa_id, Verbatim.tem_texto.is_(True))
-            .scalar()
-        )
-        total_fontes = (
-            s.query(func.count(Fonte.id))
-            .filter(Fonte.empresa_id == empresa_id, Fonte.ativo == 1)
-            .scalar()
-        )
-
-        # Por conector
-        por_conector = (
-            s.query(Fonte.conector_tipo, func.count(Verbatim.id))
-            .join(Verbatim, Verbatim.fonte_id == Fonte.id)
-            .filter(Verbatim.empresa_id == empresa_id)
-            .group_by(Fonte.conector_tipo)
-            .all()
-        )
-
-        # Temas
-        total_temas = (
-            s.query(func.count(Tema.id))
-            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
-            .scalar()
-        )
-        total_temas_inativos = (
-            s.query(func.count(Tema.id))
-            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(False))
-            .scalar()
-        )
-        total_vinculacoes = (
-            s.query(func.count(VerbatimTema.id))
-            .join(Tema, Tema.id == VerbatimTema.tema_id)
-            .filter(Tema.empresa_id == empresa_id)
-            .scalar()
-        )
-
-        top20 = (
-            s.query(Tema.nome, Tema.slug, func.count(VerbatimTema.id).label("vol"))
-            .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
-            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
-            .group_by(Tema.id)
-            .order_by(func.count(VerbatimTema.id).desc())
-            .limit(20)
-            .all()
-        )
-
-        # Verbatins com pelo menos 1 tema
-        verbatins_com_tema = (
-            s.query(func.count(func.distinct(VerbatimTema.verbatim_id)))
-            .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
-            .filter(Verbatim.empresa_id == empresa_id)
-            .scalar()
-        )
-
-    # Monta o markdown
-    md = []
-    md.append(f"# Relatório execução noturna — {empresa_nome} — {ts}\n")
-    md.append(f"Gerado em: {datetime.now().isoformat()}\n\n")
-
-    # ── Coleta ────────────────────────────────────────────────
-    md.append(f"## 1. Coleta noturna ({empresa_nome})\n")
-    if not coleta_resumo:
-        md.append("> Sem resumo de coleta encontrado.\n\n")
-    else:
-        md.append(f"- Iniciado: `{coleta_resumo.get('iniciado_em')}`\n")
-        md.append(f"- Concluído: `{coleta_resumo.get('concluido_em')}`\n")
-        rt = coleta_resumo.get("runtime_segundos", 0)
-        md.append(f"- Runtime: {rt:.0f}s ({rt/60:.1f}min)\n")
-        md.append(f"- Empresa: {coleta_resumo.get('empresa')}\n")
-        md.append(
-            f"- Fontes descobertas pendentes: {coleta_resumo.get('total_fontes_descobertas')}\n"
-        )
-        md.append(f"- Fontes disparadas: {coleta_resumo.get('fontes_disparadas')}\n")
-        md.append(f"- Fontes concluídas: {coleta_resumo.get('fontes_concluidas')}\n")
-        md.append(f"- Fontes com erro: {coleta_resumo.get('fontes_erro')}\n")
-        md.append(
-            f"- Fontes skipped (killswitch): {coleta_resumo.get('fontes_skipped_killswitch')}\n"
-        )
-        md.append(f"- Verbatins coletados: {coleta_resumo.get('verbatins_coletados_total')}\n")
-        md.append(f"- Verbatins novos: {coleta_resumo.get('verbatins_novos_total')}\n")
-        md.append(
-            f"- Custo Apify estimado: USD {coleta_resumo.get('custo_apify_estimado_usd')}\n\n"
-        )
-        md.append(f"Log JSONL: `{coleta_jsonl_path.name if coleta_jsonl_path else 'n/a'}`  \n")
-        md.append(f"Resumo JSON: `{coleta_resumo_path.name if coleta_resumo_path else 'n/a'}`\n\n")
-
-    if erros_coleta:
-        md.append(f"### Erros por fonte ({len(erros_coleta)} fontes)\n\n")
+    if coleta["erros"]:
+        md.append(f"### Erros por fonte ({len(coleta['erros'])})\n\n")
         md.append("| Fonte ID | Conector | Erro |\n|---|---|---|\n")
-        for e in erros_coleta[:30]:
-            erro_curto = (e.get("erro") or "").split("\n")[0][:120]
-            md.append(f"| {e.get('fonte_id')} | {e.get('conector')} | {erro_curto} |\n")
-        if len(erros_coleta) > 30:
-            md.append(f"\n_(+{len(erros_coleta)-30} erros adicionais no JSONL)_\n")
+        for e in coleta["erros"][:30]:
+            md.append(f"| {e['fonte_id']} | {e['conector']} | {e['erro']} |\n")
         md.append("\n")
     else:
         md.append("Sem erros registrados.\n\n")
 
-    # ── Temas (CP-6) ──────────────────────────────────────────
-    md.append("## 2. Extração de temas (CP-6 — Bloco 6)\n")
-    if not temas_resumo:
-        md.append("> Sem resumo de temas encontrado.\n\n")
-    else:
-        for k in (
-            "iniciado_em",
-            "concluido_em",
-            "runtime_segundos",
-            "empresa_id",
-            "empresa_nome",
-            "verbatins_processados",
-            "verbatins_com_temas",
-            "verbatins_sem_temas",
-            "erros_llm",
-            "temas_novos_criados",
-            "temas_existentes_reusados",
-            "vinculacoes_criadas",
-            "custo_usd_acumulado",
-            "abort_kill_switch",
-        ):
-            if k in temas_resumo:
-                md.append(f"- {k}: `{temas_resumo[k]}`\n")
-        md.append(f"\nLog JSONL: `{temas_jsonl_path.name if temas_jsonl_path else 'n/a'}`  \n")
-        md.append(f"Resumo JSON: `{temas_resumo_path.name if temas_resumo_path else 'n/a'}`\n\n")
-
-    # ── Estado final do banco ─────────────────────────────────
-    md.append(f"## 3. Estado final — {empresa_nome}\n")
-    md.append(f"- Empresa ID: {empresa_id}\n")
-    md.append(f"- Fontes ativas: {total_fontes}\n")
-    md.append(f"- Verbatins (total): **{total_verbatins}**\n")
-    md.append(f"- Verbatins com texto: {total_com_texto}\n")
-    md.append(f"- Verbatins vinculados a ≥1 tema: {verbatins_com_tema}\n")
-    if total_com_texto:
-        pct = 100 * verbatins_com_tema / total_com_texto
-        md.append(f"  - Cobertura: {pct:.1f}% dos verbatins com texto têm tema\n")
-    md.append(f"- Temas ativos: **{total_temas}**\n")
-    md.append(f"- Temas inativos (merged): {total_temas_inativos}\n")
-    md.append(f"- Vinculações verbatim×tema: {total_vinculacoes}\n\n")
+    md.append(f"## 2. Estado final — {empresa_nome}\n")
+    md.append(f"- Fontes ativas: {estado['fontes_ativas']}\n")
+    md.append(f"- Verbatins (total): **{estado['verbatins_total']}**\n")
+    md.append(f"- Verbatins com texto: {estado['verbatins_com_texto']}\n")
+    md.append(f"- Verbatins vinculados a ≥1 tema: {estado['verbatins_com_tema']}\n")
+    if estado["cobertura_pct"] is not None:
+        md.append(f"  - Cobertura: {estado['cobertura_pct']}% dos verbatins com texto têm tema\n")
+    md.append(f"- Temas ativos: **{estado['temas_ativos']}**\n")
+    md.append(f"- Temas inativos (merged): {estado['temas_inativos']}\n")
+    md.append(f"- Vinculações verbatim×tema: {estado['vinculacoes']}\n\n")
 
     md.append("### Por conector (verbatins)\n\n")
     md.append("| Conector | Verbatins |\n|---|---|\n")
-    for c, n in sorted(por_conector, key=lambda x: -x[1]):
-        md.append(f"| {c} | {n} |\n")
+    for row in sorted(estado["por_conector"], key=lambda x: -x["verbatins"]):
+        md.append(f"| {row['conector']} | {row['verbatins']} |\n")
     md.append("\n")
 
     md.append("### Top 20 temas (por volume)\n\n")
-    if not top20:
+    if not estado["top20_temas"]:
         md.append("_Nenhum tema persistido._\n\n")
     else:
         md.append("| # | Nome | Slug | Volume |\n|---|---|---|---|\n")
-        for i, (nome, slug, vol) in enumerate(top20, start=1):
-            md.append(f"| {i} | {nome} | `{slug}` | {vol} |\n")
+        for i, t in enumerate(estado["top20_temas"], start=1):
+            md.append(f"| {i} | {t['nome']} | `{t['slug']}` | {t['volume']} |\n")
         md.append("\n")
+    return "".join(md)
 
-    out_path.write_text("".join(md))
-    print(f"[gen_relatorio] escrito: {out_path}")
+
+def gerar_resumo_noturna(s, empresa) -> dict | None:
+    """Lê de ``coletas_execucoes`` + agregados do banco, monta o resumo e grava
+    no ``relatorio_cache`` (secao="noturna", DELETE+INSERT). Retorna o conteúdo
+    gravado, ou None se a empresa não existe. Sem leitura/escrita em ``data/``."""
+    emp = _resolver_empresa(s, empresa)
+    if emp is None:
+        return None
+    empresa_id = emp.id
+    empresa_nome = emp.nome
+
+    gerado_em = datetime.now().isoformat()
+    coleta = _resumo_coleta(s, empresa_id)
+    estado = _estado_final(s, empresa_id)
+    markdown = _render_markdown(empresa_nome, gerado_em, coleta, estado)
+
+    conteudo = {
+        "gerado_em": gerado_em,
+        "empresa_id": empresa_id,
+        "empresa_nome": empresa_nome,
+        "coleta": coleta,
+        "estado_final": estado,
+        "markdown": markdown,
+    }
+    _gravar_cache(
+        s,
+        empresa_id,
+        _escopo_hash_empresa(empresa_id),
+        SECAO_NOTURNA,
+        None,  # dados_hash: a noturna sempre regenera (sem skip)
+        conteudo,
+        0,
+        0,
+    )
+    return conteudo
+
+
+def main(empresa) -> None:
+    app = create_app()
+    with app.app_context(), db_session() as s:
+        conteudo = gerar_resumo_noturna(s, empresa)
+        if conteudo is None:
+            print(f"[gen_relatorio] empresa {empresa!r} não encontrada", file=sys.stderr)
+            return
+    print(
+        f"[gen_relatorio] resumo gravado em relatorio_cache "
+        f"(empresa={conteudo['empresa_nome']!r}, secao={SECAO_NOTURNA!r})"
+    )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Relatório markdown da execução noturna")
+    parser = argparse.ArgumentParser(
+        description="Resumo durável da execução noturna (relatorio_cache)"
+    )
     parser.add_argument(
         "--empresa",
         default="BH Airport",
