@@ -7,15 +7,17 @@
 # serviço/Env Group → Environment). Nada de valor de secret versionado.
 #
 # Render mudou `env:` → `runtime:` no schema do blueprint; aqui uso `runtime`.
-# Placeholders marcados PLACEHOLDER (plano, região, horário) — ajustar no setup.
+# Planos/região/horário JÁ definidos (chore/render-yaml-valores): region=virginia
+# (US East, mais perto do BR), Postgres basic-256mb, web/cron standard (2GB),
+# cron 06:00 UTC = 03:00 BRT. Ajustar o tier do Postgres se o piloto crescer.
 
 # ── Postgres gerenciado (IaC: declarado aqui, é o mais limpo — fonte única) ──
 databases:
   - name: pdpa-db
     databaseName: pdpa
     user: pdpa
-    plan: basic-256mb        # PLACEHOLDER — escolher plano real (o free expira em 30d)
-    region: oregon           # PLACEHOLDER — MESMA região dos serviços (latência/internal URL)
+    plan: basic-256mb        # menor tier Basic (256MB RAM); storage à parte ~$0.30/GB/mês
+    region: virginia         # US East — mais perto do Brasil; banco+web+cron na MESMA região
 
 # ── Env compartilhado entre web e crons (secrets + config) ──────────────────
 # fromGroup evita repetir as chaves em cada serviço. DATABASE_URL fica por-serviço
@@ -45,7 +47,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: standard           # 2GB RAM — ML stack; Starter 512MB arrisca OOM
-    region: oregon           # PLACEHOLDER — alinhar com o banco
+    region: virginia         # US East — mesma região do banco (internal URL)
     healthCheckPath: /healthz
     # startCommand OMITIDO de propósito → herda o CMD do Dockerfile (gunicorn
     # wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
@@ -68,8 +70,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: standard           # mesma imagem/ML stack que o web
-    region: oregon           # PLACEHOLDER — alinhar com o banco
-    schedule: "0 5 * * *"    # PLACEHOLDER — 05:00 UTC diário; ajustar horário/fuso
+    region: virginia         # US East — mesma região do banco (internal URL)
+    schedule: "0 6 * * *"    # 06:00 UTC = 03:00 BRT (UTC-3, sem horário de verão). Render usa UTC.
     dockerCommand: bash scripts/run_noturna.sh "BH Airport"
     envVars:
       - fromGroup: pdpa-config           # precisa do FLASK_SECRET_KEY tb: gen_relatorio
