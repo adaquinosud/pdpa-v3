@@ -35,10 +35,9 @@ import os
 import signal
 import sys
 import time
-import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -60,35 +59,15 @@ REDISPARAR_HORAS = float(os.environ.get("PDPA_NOTURNA_REDISPARAR_RECENTES_HORAS"
 
 # ── Imports do projeto (após sys.path) ───────────────────────────────────
 
-from src.coletor import (  # noqa: E402
-    appstore,
-    facebook,
-    google,
-    google_news,
-    instagram,
-    linkedin,
-    mercadolivre,
-    tiktok,
-    tripadvisor,
-    youtube,
-)
+# CP-2b: a noturna reusa a coleta da tela (orquestrador) em vez de reimplementar.
+# ``_coletar_fonte_direto`` já cria ColetaExecucao, dedup via coletor comum e
+# carrega o timeout-por-fonte do CP-1. ``_roteamento_coletores`` é o mapa canônico
+# (conector → coletar) — usado só pra saber quais conectores têm coletor.
+from src.api.coleta import _roteamento_coletores  # noqa: E402
+from src.coletor.orquestrador import _coletar_fonte_direto  # noqa: E402
 from src.models.coleta_execucao import ColetaExecucao  # noqa: E402
 from src.models.fonte import Fonte  # noqa: E402
 from src.utils.db import db_session  # noqa: E402
-
-
-ROTEAMENTO_COLETORES = {
-    "google": google.coletar,
-    "instagram": instagram.coletar,
-    "facebook": facebook.coletar,
-    "tripadvisor": tripadvisor.coletar,
-    "linkedin": linkedin.coletar,
-    "tiktok": tiktok.coletar,
-    "youtube": youtube.coletar,
-    "appstore": appstore.coletar,
-    "mercadolivre": mercadolivre.coletar,
-    "google_news": google_news.coletar,
-}
 
 
 # ── Kill switch via sinal ────────────────────────────────────────────────
@@ -140,7 +119,8 @@ def descobrir_fontes_pendentes(empresa: Union[int, str], redisparar_horas: float
             .order_by(Fonte.id)
             .all()
         )
-        ids_todas = [f.id for f in fontes if f.conector_tipo in ROTEAMENTO_COLETORES]
+        suportados = _roteamento_coletores()
+        ids_todas = [f.id for f in fontes if f.conector_tipo in suportados]
         if INCLUDE_IDS:
             ids_todas = [i for i in ids_todas if i in INCLUDE_IDS]
         if EXCLUDE_IDS:
@@ -161,98 +141,6 @@ def descobrir_fontes_pendentes(empresa: Union[int, str], redisparar_horas: float
             if ult is None:
                 ids_pendentes.append(fid)
         return ids_pendentes
-
-
-# ── Disparo instrumentado (replica src/api/coleta.py:disparar_coleta) ───
-
-
-def disparar_uma_fonte(fonte_id: int) -> Dict[str, Any]:
-    """Roda 1 fonte criando ColetaExecucao (status rodando → concluido/erro).
-
-    Returns dict com {fonte_id, conector, status, stats, erro, duracao_s}.
-    """
-    iniciado_em = datetime.utcnow()
-
-    # Passo 1: cria ColetaExecucao, captura atributos de Fonte como primitivos
-    with db_session() as session:
-        fonte = session.get(Fonte, fonte_id)
-        if fonte is None:
-            return {"fonte_id": fonte_id, "status": "erro", "erro": "Fonte não existe"}
-        conector = fonte.conector_tipo
-        empresa_id = fonte.empresa_id
-        coletor_fn = ROTEAMENTO_COLETORES.get(conector)
-        if coletor_fn is None:
-            return {
-                "fonte_id": fonte_id,
-                "conector": conector,
-                "status": "erro",
-                "erro": f"Conector não suportado: {conector}",
-            }
-        execucao = ColetaExecucao(
-            empresa_id=empresa_id,
-            fonte_id=fonte_id,
-            status="rodando",
-            iniciado_em=iniciado_em,
-        )
-        session.add(execucao)
-        session.flush()
-        execucao_id = execucao.id
-    # commit do `with` acontece aqui; expired_on_commit invalida atributos.
-
-    # Passo 2: re-carrega Fonte numa nova sessão e expunge (detached mas
-    # com atributos hidratados) para chamar coletor_fn sem DetachedInstanceError.
-    with db_session() as session:
-        fonte = session.get(Fonte, fonte_id)
-        # força carga de todos os atributos primitivos usados pelos coletores
-        _ = (
-            fonte.id,
-            fonte.empresa_id,
-            fonte.conector_tipo,
-            fonte.url,
-            fonte.entidade_tipo,
-            fonte.entidade_id,
-        )
-        session.expunge(fonte)
-
-    stats: Optional[Dict[str, Any]] = None
-    erro_msg: Optional[str] = None
-    try:
-        stats = coletor_fn(fonte)
-    except Exception as exc:
-        erro_msg = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
-        stats = {"coletados": 0, "novos": 0, "duplicados": 0, "erros": 0, "falhou_apify": True}
-
-    concluido_em = datetime.utcnow()
-    duracao_s = (concluido_em - iniciado_em).total_seconds()
-
-    with db_session() as session:
-        execucao = session.get(ColetaExecucao, execucao_id)
-        if execucao is not None:
-            execucao.concluido_em = concluido_em
-            execucao.coletados = stats.get("coletados", 0) if stats else 0
-            execucao.novos = stats.get("novos", 0) if stats else 0
-            execucao.duplicados = stats.get("duplicados", 0) if stats else 0
-            execucao.erros = stats.get("erros", 0) if stats else 0
-            execucao.mensagem_erro = erro_msg[:2000] if erro_msg else None
-            if erro_msg or (stats and stats.get("falhou_apify")):
-                execucao.status = "erro"
-            else:
-                execucao.status = "concluido"
-                # Atualiza ultima_coleta da fonte
-                fonte_db = session.get(Fonte, fonte_id)
-                if fonte_db is not None:
-                    fonte_db.ultima_coleta = concluido_em
-
-    return {
-        "fonte_id": fonte_id,
-        "conector": conector,
-        "status": "erro" if erro_msg else ("concluido" if stats else "erro"),
-        "stats": stats,
-        "erro": erro_msg,
-        "duracao_segundos": duracao_s,
-        "iniciado_em": iniciado_em.isoformat(),
-        "concluido_em": concluido_em.isoformat(),
-    }
 
 
 # ── Estimativa de custo ──────────────────────────────────────────────────
@@ -285,6 +173,13 @@ def main(empresa: Union[int, str]) -> None:
     if not ids:
         print("[noturna] nada a fazer.")
         return
+
+    # CP-2b: o resultado de _coletar_fonte_direto vem achatado e sem conector —
+    # a noturna já sabe o conector da fonte, então mapeia uma vez aqui pro log.
+    with db_session() as s:
+        conector_por_id = {
+            f.id: f.conector_tipo for f in s.query(Fonte).filter(Fonte.id.in_(ids)).all()
+        }
 
     start_time = time.monotonic()
     custo_acumulado_usd = 0.0
@@ -323,29 +218,49 @@ def main(empresa: Union[int, str]) -> None:
                 f"\n[noturna] [{i}/{len(ids)}] disparando fonte {fonte_id} "
                 f"(elapsed={elapsed_h:.2f}h, usd_acum=${custo_acumulado_usd:.2f})"
             )
-            res = disparar_uma_fonte(fonte_id)
+            # CP-2b: reusa a coleta da tela (orquestrador) — herda dedup, roteamento
+            # canônico e o timeout-por-fonte do CP-1. Retorno vem achatado:
+            # sucesso → {**stats, fonte_id}; falha → {erro, fonte_id, falhou_apify[, timeout]}.
+            conector = conector_por_id.get(fonte_id)
+            t0 = time.monotonic()
+            res = _coletar_fonte_direto(fonte_id)
+            duracao_s = time.monotonic() - t0
+
+            ok = "erro" not in res and not res.get("falhou_apify")
+            status = "concluido" if ok else "erro"
             resumo["fontes_disparadas"] += 1
-            if res["status"] == "concluido":
+            if ok:
                 resumo["fontes_concluidas"] += 1
             else:
                 resumo["fontes_erro"] += 1
-            stats = res.get("stats") or {}
-            resumo["verbatins_novos_total"] += stats.get("novos", 0)
-            resumo["verbatins_coletados_total"] += stats.get("coletados", 0)
-            custo_apify_fonte = estimar_custo_apify(stats)
+            # res já é o próprio stats (achatado)
+            resumo["verbatins_novos_total"] += res.get("novos", 0)
+            resumo["verbatins_coletados_total"] += res.get("coletados", 0)
+            custo_apify_fonte = estimar_custo_apify(res)
             custo_acumulado_usd += custo_apify_fonte
             resumo["custo_apify_estimado_usd"] = round(custo_acumulado_usd, 4)
 
             log_line = {
-                **{k: res[k] for k in res if k != "erro" or res.get("erro")},
+                "fonte_id": fonte_id,
+                "conector": conector,
+                "status": status,
+                "coletados": res.get("coletados", 0),
+                "novos": res.get("novos", 0),
+                "duplicados": res.get("duplicados", 0),
+                "erros": res.get("erros", 0),
+                "timeout": bool(res.get("timeout")),
+                "duracao_segundos": round(duracao_s, 1),
                 "custo_apify_estimado_usd_fonte": round(custo_apify_fonte, 4),
                 "custo_apify_estimado_usd_acumulado": round(custo_acumulado_usd, 4),
             }
+            if res.get("erro"):
+                log_line["erro"] = res["erro"]
             logf.write(json.dumps(log_line, ensure_ascii=False, default=str) + "\n")
             logf.flush()
             print(
-                f"[noturna] fonte {fonte_id} ({res.get('conector')}): "
-                f"status={res['status']} stats={stats} duracao={res.get('duracao_segundos'):.1f}s"
+                f"[noturna] fonte {fonte_id} ({conector}): status={status} "
+                f"novos={res.get('novos', 0)} coletados={res.get('coletados', 0)} "
+                f"duracao={duracao_s:.1f}s"
             )
 
     resumo["concluido_em"] = datetime.now().isoformat()
