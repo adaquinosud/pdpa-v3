@@ -137,6 +137,29 @@ mais caro/arriscado com o sistema no ar).
 - **(b)** Bloqueia o deploy — Render não sobe sem start command + WSGI.
 - **(c)** Depende de #1 (DB pronto). **(d)** Pequeno (config), mas obrigatório.
 
+### 5b. Coleta on-demand segura em prod `[ ]` · **[CÓDIGO]** (depois do #5)
+- **Problema:** a coleta on-demand pela tela roda **síncrona no request**
+  (`disparar_coleta_local`/`disparar_coleta_agrupamento` → orquestrador inline).
+  Tempos reais (dev, 69 execuções): por **fonte** mediana 33s mas **p90 ~7min, máx
+  36min** (cauda do google); **local** = 1–2 fontes (mesma cauda); **agrupamento**
+  = dezenas de fontes → **horas**. Nenhum sobrevive ao timeout de HTTP do Render
+  (~100s a confirmar) na cauda — e o problema é de **cauda por-fonte**, não só do
+  agrupamento.
+- **Regra v1:**
+  - **Fonte/Local — MANTER o botão** (é o caso de uso real: "atualizar ESTE local
+    agora", sem rodar a noturna inteira; coleta pontual ≠ coleta automática da
+    noturna). Tornar o **dispatch fire-and-forget**: dispara
+    `_coletar_fonte_direto` numa **daemon-thread** (mesmo padrão de
+    `disparar_pos_coleta_async`), retorna 202 na hora, a UI mostra progresso lendo
+    `coletas_execucoes` (status `rodando`→`concluido`/`erro`, **já rastreado**).
+    Remove o risco de timeout sem perder o pontual.
+  - **Agrupamento — esconder/desabilitar em prod** (gate `FLASK_ENV`). Coleta
+    completa = noturna; agrupamento pontual não é caso real (pontual = por local).
+- **NÃO é o D2:** isto **mantém** a coleta pontual funcionando, só troca o dispatch
+  síncrono por fire-and-forget (sem fila/guard de concorrência). O **D2** (pedido
+  de Dener — agrupamento on-demand async + concorrência) segue **adiado**.
+- **(c)** depende de #5 (entrypoint). **(d)** Pequeno (dispatch async leve + gate de UI).
+
 ### 6. WeasyPrint — libs nativas no build `[ ]` **[BLOCKER]** · **[CÓDIGO]**
 - **(a)** Instalar **cairo/pango/libffi/harfbuzz** via **Dockerfile** (`apt-get
   install libpango-1.0-0 libcairo2 …`) — **NÃO** apt nativo do Render: o runtime
