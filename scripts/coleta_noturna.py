@@ -1,37 +1,35 @@
-"""Coleta noturna autônoma — disparo sequencial de todas as fontes ativas
-de uma empresa, com instrumentação em ``coletas_execucoes``, log JSONL e
-kill switches por custo/tempo/sinal.
-
-Uso típico (BH Airport / Confins):
+"""Coleta noturna autônoma — disparo sequencial das fontes ativas de UMA
+empresa, com instrumentação em ``coletas_execucoes``, log JSONL e kill switches
+por custo/tempo/sinal. Rotina de PRODUTO (CP-#2): roda pra qualquer empresa via
+``--empresa`` (um Render Cron por empresa).
 
 .. code-block:: bash
 
-    PYTHONPATH=. nohup python data/coleta_noturna_confins.py \\
-        > data/coleta_noturna_$(date +%Y%m%d_%H%M).log 2>&1 &
+    PYTHONPATH=. python scripts/coleta_noturna.py --empresa 4           # por id
+    PYTHONPATH=. python scripts/coleta_noturna.py --empresa "BH Airport" # por nome
 
-Tudo é configurável via env:
+``--empresa`` (id ou nome) é obrigatório (default = env ``PDPA_NOTURNA_EMPRESA``).
+Demais knobs via env:
 
-- ``PDPA_NOTURNA_EMPRESA`` (default: ``BH Airport``)
 - ``PDPA_NOTURNA_MAX_USD`` (default: ``30``) — soma estimada Apify + classifier
 - ``PDPA_NOTURNA_MAX_HOURS`` (default: ``8``) — runtime total
 - ``PDPA_NOTURNA_INCLUDE_FONTE_IDS`` (default: vazio) — força incluir IDs
-- ``PDPA_NOTURNA_EXCLUDE_FONTE_IDS`` (default: vazio) — força excluir IDs
+- ``PDPA_NOTURNA_EXCLUDE_FONTE_IDS`` (default: vazio) — override de borda; o
+  mecanismo padrão de exclusão é ``Fonte.ativo=False`` (fonte quebrada não coleta
+  nem on-demand nem na noturna). Auditar quais é o CP "fontes quebradas".
 - ``PDPA_NOTURNA_REDISPARAR_RECENTES_HORAS`` (default: ``12``) — pula fontes
   com coleta concluida há menos de N horas
 
-Log estruturado: 1 linha JSON por fonte em
-``data/coleta_noturna_<ts>.jsonl``. Resumo final no stdout.
+Log estruturado: 1 linha JSON por fonte em ``data/coleta_noturna_<ts>.jsonl``
+(a saída durável no banco é o CP-2c). Resumo final no stdout.
 
-Kill switch:
-
-- env ``PDPA_NOTURNA_MAX_USD`` excedido → para antes da próxima fonte.
-- env ``PDPA_NOTURNA_MAX_HOURS`` excedido → para antes da próxima fonte.
-- SIGTERM gracioso (``kill <PID>``) → termina a fonte atual, salva
-  resumo, sai com exit code 130.
+Kill switch: ``MAX_USD``/``MAX_HOURS`` excedidos → para antes da próxima fonte;
+SIGTERM gracioso → termina a fonte atual, salva resumo, exit 130.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import signal
@@ -40,9 +38,10 @@ import time
 import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 
 # ── Config via env ───────────────────────────────────────────────────────
@@ -110,16 +109,31 @@ signal.signal(signal.SIGINT, _handler_sigterm)
 # ── Descoberta de fontes ─────────────────────────────────────────────────
 
 
-def descobrir_fontes_pendentes(empresa_nome: str, redisparar_horas: float) -> List[int]:
-    """Retorna IDs de fontes ativas da empresa, ordenadas, excluindo as que
-    tiveram coleta CONCLUIDA há menos de ``redisparar_horas`` horas."""
+def _resolver_empresa(session, empresa: Union[int, str]):
+    """Resolve a empresa por id (int/dígitos) OU nome. SystemExit se não achar."""
+    from src.models.empresa import Empresa
+
+    emp = None
+    try:
+        emp = session.get(Empresa, int(empresa))
+    except (TypeError, ValueError):
+        pass
+    if emp is None:
+        emp = session.query(Empresa).filter_by(nome=str(empresa)).first()
+    if emp is None:
+        raise SystemExit(f"empresa {empresa!r} não encontrada (id ou nome)")
+    return emp
+
+
+def descobrir_fontes_pendentes(empresa: Union[int, str], redisparar_horas: float) -> List[int]:
+    """Retorna IDs de fontes ATIVAS da empresa (id ou nome), ordenadas, excluindo
+    as que tiveram coleta CONCLUIDA há menos de ``redisparar_horas`` horas.
+
+    Exclusão de fontes quebradas: via ``Fonte.ativo=False`` (filtro abaixo) — não
+    coletam nem on-demand nem na noturna. ``EXCLUDE_FONTE_IDS`` é override de borda."""
     cutoff = datetime.utcnow() - timedelta(hours=redisparar_horas)
     with db_session() as session:
-        from src.models.empresa import Empresa
-
-        emp = session.query(Empresa).filter_by(nome=empresa_nome).first()
-        if emp is None:
-            raise SystemExit(f"empresa {empresa_nome!r} não encontrada")
+        emp = _resolver_empresa(session, empresa)
         fontes = (
             session.query(Fonte)
             .filter(Fonte.empresa_id == emp.id, Fonte.ativo == 1)
@@ -254,16 +268,18 @@ def estimar_custo_apify(stats: Dict[str, Any]) -> float:
 # ── Main ─────────────────────────────────────────────────────────────────
 
 
-def main() -> None:
+def main(empresa: Union[int, str]) -> None:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = Path(__file__).parent / f"coleta_noturna_{ts}.jsonl"
+    data_dir = ROOT / "data"
+    data_dir.mkdir(exist_ok=True)
+    log_path = data_dir / f"coleta_noturna_{ts}.jsonl"
 
     print(f"[noturna] início {datetime.now().isoformat()}")
-    print(f"[noturna] empresa={EMPRESA_NOME!r}")
+    print(f"[noturna] empresa={empresa!r}")
     print(f"[noturna] caps: max_usd={MAX_USD}, max_hours={MAX_HOURS}")
     print(f"[noturna] log: {log_path}")
 
-    ids = descobrir_fontes_pendentes(EMPRESA_NOME, REDISPARAR_HORAS)
+    ids = descobrir_fontes_pendentes(empresa, REDISPARAR_HORAS)
     print(f"[noturna] {len(ids)} fontes pendentes: {ids}")
 
     if not ids:
@@ -274,7 +290,7 @@ def main() -> None:
     custo_acumulado_usd = 0.0
     resumo = {
         "iniciado_em": datetime.now().isoformat(),
-        "empresa": EMPRESA_NOME,
+        "empresa": str(empresa),
         "total_fontes_descobertas": len(ids),
         "fontes_disparadas": 0,
         "fontes_concluidas": 0,
@@ -343,4 +359,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Coleta noturna por empresa (CP-#2).")
+    parser.add_argument(
+        "--empresa",
+        default=EMPRESA_NOME,
+        help="empresa por id ou nome (default: env PDPA_NOTURNA_EMPRESA / 'BH Airport')",
+    )
+    args = parser.parse_args()
+    main(args.empresa)
