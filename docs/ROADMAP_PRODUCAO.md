@@ -5,12 +5,13 @@ reais do código. Priorizada por **"dor de arrumar depois"** (o que custa muito
 mais caro/arriscado com o sistema no ar).
 
 ## Estado atual
-- **Branch:** `main` · HEAD `f33ded8` · dev-only, sem push/produção (ahead de `origin/main`).
-- **Testes:** 737 verdes em **SQLite** (+ 734 em **Postgres** via `pgserver`, CP-1.1/1.2).
+- **Branch:** `main` · HEAD `2d4088b` · dev-only, sem push/produção (ahead de `origin/main`).
+- **Testes:** 748 verdes em **SQLite** (+ 734 em **Postgres** via `pgserver`, CP-1.1/1.2).
 - **Schema:** runner = **Alembic** (baseline `8295ca9dc780`, fonte = models);
   `migrations/*.sql` aposentados em `migrations/legacy/`.
-- **Progresso do roadmap:** **Bloco 1 (Postgres) ✅** · **#4 segurança-código ✅** ·
-  **#8/H .gitignore ✅**. Resta: **#2 noturna-produto** (paralelo) e **Bloco 4
+- **Progresso do roadmap:** **TODO o código pré-deploy fechado** — **Bloco 1
+  (Postgres) ✅** · **#2 noturna-produto ✅** (2a+2b+2c) · **#3 saída durável ✅** ·
+  **#4 segurança-código ✅** · **#8/H .gitignore ✅**. Resta **só o Bloco 4
   (deploy)** — #5 gunicorn/Procfile, #6 WeasyPrint/Dockerfile, #7 alembic-no-release,
   #8 secrets/creds no env, #9 Render+domínio, #10 Cron.
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
@@ -69,30 +70,39 @@ mais caro/arriscado com o sistema no ar).
 
 ## 🟡 EM PARALELO ao #1 (não tocam schema — podem rodar junto)
 
-### 2. Noturna → rotina de produto genérica `[ ]`
-- **(a)** Tirar o hardcode (`PDPA_NOTURNA_EMPRESA` default "BH Airport",
-  `--empresa=4` no step 2 do `run_noturna.sh`, EXCLUDE fixo), parametrizar por
-  empresa/EXCLUDE, e **CONVERGIR o loop próprio da noturna com o orquestrador**:
-  hoje `coleta_noturna_confins.py` tem **loop separado** (escreve `ColetaExecucao`
-  direto, com kill-switches `MAX_USD`/`MAX_HOURS` que `coletar_agrupamento` NÃO
-  tem). É **refactor de convergência, não rename** — reusar `_coletar_fonte_direto`
-  por fonte mantendo os caps.
-- **(b)** ANTES do agendar (#10) e do piloto multi-empresa. Não bloqueia subir,
-  mas o Cron Job (#10) precisa da rotina genérica.
-- **(c)** **NÃO depende de #1** (código ORM puro, sem schema). Inclui o item de
-  higiene "`--empresa` parametrizado". Paralelizável.
-- **(d)** Médio (é convergência de dois caminhos de coleta + caps).
+### 2. Noturna → rotina de produto genérica `[x]` ✅ **COMPLETO** (`5c4bae7`+`16deffe`, em main)
+- **✅ FEITO (CP-#2a + #2b):** noturna virou **rotina de produto genérica**.
+  **2a (`5c4bae7`) — parametrizar:** os 3 passos (`coleta_noturna.py`,
+  `pipeline-pos-coleta`, `gen_relatorio_noturna.py`) aceitam **`--empresa`** por id
+  OU nome; `run_noturna.sh` recebe a empresa como argumento (1 cron por empresa no
+  Render). EXCLUDE hardcoded removido → fontes quebradas via `Fonte.ativo=False`
+  (`PDPA_NOTURNA_EXCLUDE_FONTE_IDS` segue como override de borda). Scripts movidos
+  `data/` → `scripts/`. **2b (`16deffe`) — convergir:** a noturna tinha
+  `disparar_uma_fonte`, **cópia** de `_coletar_fonte_direto` — a dedup não divergiu
+  (mesmos coletores → mesmos 5 pontos de incrementalidade), mas a cópia chamava o
+  coletor **sem o timeout-por-fonte do CP-1**. Convergido para reusar
+  `_coletar_fonte_direto` (loop + kill-switches `MAX_USD`/`MAX_HOURS`/SIGTERM
+  intactos, vivem entre fontes) → **noturna herda o timeout-por-fonte**, roteamento
+  único (`_roteamento_coletores` canônico), fim da cópia (−85 linhas).
+- **5 pontos de incrementalidade herdados** (camada comum, confirmados no código):
+  só novos (dedup por `review_id_externo` em `processar_verbatim_coletado`), não
+  reprocessar, mesmas chaves de API (`get_config().APIFY_TOKEN`), não reclassificar
+  (`pos_coleta` só `subpilar IS NULL`), só o delta.
+- **(b)** ANTES do agendar (#10). O Cron Job (#10) precisa da rotina genérica — **pronta**.
 
-### 3. Saída durável da noturna via `relatorio_cache` `[ ]`
-- **(a)** Hoje a coleta **já persiste no DB** (`coletas_execucoes`); só o
-  **relatório markdown + JSONL** vão pro `data/` (FS efêmero do Render → somem no
-  redeploy). Rotear o artefato pelo **`relatorio_cache` (migration 029, já existe)**
-  ou torná-lo regenerável sob demanda.
-- **(b)** ANTES de agendar em prod (#10) — senão o relatório noturno evapora.
-- **(c)** **NÃO depende de #1 SE usar `relatorio_cache`** (sem schema novo).
-  **Decidir essa via no início.** Só cria tabela nova se `relatorio_cache` não
-  servir — e aí vira pós-#1.
-- **(d)** Pequeno-médio (se reusar `relatorio_cache`).
+### 3. Saída durável da noturna via `relatorio_cache` `[x]` ✅ **COMPLETO** (CP-#2c, `2d4088b`, em main)
+- **✅ FEITO:** `gen_relatorio_noturna.py` reescrito para **ler de
+  `coletas_execucoes`** (última execução por fonte = "último estado") em vez dos
+  JSONL efêmeros de `data/`, e **gravar o resumo no `relatorio_cache`** (029, já
+  existia) via a convenção `llm_secoes._gravar_cache` (DELETE+INSERT por
+  `empresa_id+escopo_hash+secao`, escopo empresa-wide, `secao="noturna"`).
+  **Idempotência (decidida): Opção 1, última sobrescreve** → 1 linha, a mais
+  recente (`relatorio_cache` é cache/último estado; histórico real por fonte vive
+  em `coletas_execucoes`). Seção "temas" legada (lia `temas_extracao_*.json` de
+  `data/`, do temas-extrair morto) removida — estado de temas já vem do DB.
+  **`data/` eliminado da SAÍDA** (sem `DATA_DIR`/leitores; o JSONL de progresso que
+  a coleta ainda escreve é log de tail local não-essencial).
+- **(b)** ANTES de agendar em prod (#10) — senão o relatório noturno evaporava. **Resolvido.**
 
 ### 4. Segurança — código `[x]` ✅ **COMPLETO** (`f33ded8`, em main)
 - **✅ FEITO:** **CORS** restrito (allowlist via env `CORS_ORIGINS`, default vazio
@@ -206,6 +216,7 @@ mais caro/arriscado com o sistema no ar).
 H. .gitignore — a qualquer hora
 ```
 
-**Resumo:** o **#1 é o único caminho crítico solitário**. **#2, #3, #4, H rodam
-em paralelo** a ele (não tocam schema). O **Bloco Deploy (#5→#10) é sequencial e
-gated** por #1+#2+#3+#4. **#10 (agendar) é o último** — precisa de Produção no ar.
+**Resumo:** **#1, #2, #3, #4 e H ✅ — todo o código pré-deploy fechado.** Resta
+**só o Bloco Deploy (#5→#10)**, sequencial e gated, agora desbloqueado em todas as
+suas dependências de código. **#10 (agendar) é o último** — precisa de Produção no
+ar; a rotina noturna-produto que ele agenda já está pronta (#2+#3).
