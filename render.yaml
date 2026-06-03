@@ -63,8 +63,14 @@ services:
 
   # ── Cron Job: noturna por empresa (#10) ───────────────────────────────────
   # 1 cron POR EMPRESA (decisão fixada). Bloco abaixo = TEMPLATE do piloto
-  # (BH Airport). Pra cada cliente novo: DUPLICAR este bloco mudando `name` e o
-  # argumento de empresa no dockerCommand. Mesma imagem Docker.
+  # (BH Airport = empresa id 4). Pra cada cliente novo: DUPLICAR este bloco
+  # mudando `name` e o ID no dockerCommand. Mesma imagem Docker.
+  #
+  # IMPORTANTE — usar o ID (número), NÃO o nome: o Render tokeniza o
+  # dockerCommand por ESPAÇO e NÃO honra aspas, então "BH Airport" chegava como
+  # dois args ('"BH' e 'Airport"') e $1 virava '"BH'. O ID não tem espaço →
+  # imune. run_noturna.sh passa $1 a --empresa, e _resolver_empresa tenta int()
+  # primeiro (id OU nome). O seed preservou os IDs, então o id de prod == dev.
   - type: cron
     name: pdpa-noturna-bh-airport
     runtime: docker
@@ -72,7 +78,7 @@ services:
     plan: standard           # mesma imagem/ML stack que o web
     region: virginia         # US East — mesma região do banco (internal URL)
     schedule: "0 6 * * *"    # 06:00 UTC = 03:00 BRT (UTC-3, sem horário de verão). Render usa UTC.
-    dockerCommand: bash scripts/run_noturna.sh "BH Airport"
+    dockerCommand: bash scripts/run_noturna.sh 4
     envVars:
       - fromGroup: pdpa-config           # precisa do FLASK_SECRET_KEY tb: gen_relatorio
                                          # chama create_app() (boot-check) em produção
