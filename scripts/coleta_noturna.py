@@ -115,7 +115,7 @@ def descobrir_fontes_pendentes(empresa: Union[int, str], redisparar_horas: float
         emp = _resolver_empresa(session, empresa)
         fontes = (
             session.query(Fonte)
-            .filter(Fonte.empresa_id == emp.id, Fonte.ativo == 1)
+            .filter(Fonte.empresa_id == emp.id, Fonte.ativo.is_(True))
             .order_by(Fonte.id)
             .all()
         )

@@ -118,7 +118,7 @@ def _estado_final(s, empresa_id: int) -> dict:
     )
     total_fontes = (
         s.query(func.count(Fonte.id))
-        .filter(Fonte.empresa_id == empresa_id, Fonte.ativo == 1)
+        .filter(Fonte.empresa_id == empresa_id, Fonte.ativo.is_(True))
         .scalar()
     )
     por_conector = (
