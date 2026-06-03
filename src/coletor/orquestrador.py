@@ -123,13 +123,57 @@ def em_cooldown(
     return None
 
 
+# Reaper de órfãs: uma ColetaExecucao presa em 'rodando' (worker morto, deploy no
+# meio, coleta interrompida) nunca é fechada pelo handler de timeout do CP-1 (que
+# vive no processo que morreu) → execucao_em_andamento a trataria como lock eterno
+# e BLOQUEARIA a recoleta da fonte. O limite tem que ser > a coleta legítima mais
+# longa: TIMEOUT_FONTE_SEGUNDOS (45min, o teto por-fonte do CP-1) + 15min de margem
+# = 1h. Acima disso é seguramente órfã — uma execução viva já teria sido fechada.
+REAPER_LIMITE_SEGUNDOS = TIMEOUT_FONTE_SEGUNDOS + 900
+
+
+def re_marca_orfas(limite_segundos: int = REAPER_LIMITE_SEGUNDOS) -> int:
+    """Marca como 'erro' as ColetaExecucao presas em 'rodando' há mais que
+    ``limite_segundos`` — órfãs sem dono. Libera o lock pra a fonte/local voltar a
+    ser coletável. Idempotente; retorna quantas marcou. NÃO toca execução dentro do
+    limite (coleta legítima em andamento). Usa ``_agora()`` (naive UTC, padrão do
+    projeto) — comparação consistente no Postgres."""
+    from src.models.coleta_execucao import ColetaExecucao
+    from src.utils.db import db_session
+
+    cutoff = _agora() - timedelta(seconds=limite_segundos)
+    with db_session() as s:
+        n = (
+            s.query(ColetaExecucao)
+            .filter(ColetaExecucao.status == "rodando", ColetaExecucao.iniciado_em < cutoff)
+            .update(
+                {
+                    ColetaExecucao.status: "erro",
+                    ColetaExecucao.concluido_em: _agora(),
+                    ColetaExecucao.mensagem_erro: (
+                        f"órfã: presa em 'rodando' > {limite_segundos // 60}min (reaper)"
+                    ),
+                },
+                synchronize_session=False,
+            )
+        )
+    if n:
+        print(f"[reaper] {n} órfã(s) 'rodando' > {limite_segundos // 60}min → marcadas erro")
+    return n
+
+
 def execucao_em_andamento(escopo_tipo: str, escopo_id: int) -> bool:
-    """True se há ColetaExecucao status='rodando' no escopo (lock concorrência)."""
+    """True se há ColetaExecucao status='rodando' no escopo (lock concorrência).
+
+    Auto-cura: reaper de órfãs ANTES de checar o lock — uma 'rodando' presa não
+    bloqueia a recoleta pra sempre."""
     from src.models.agrupamento import Agrupamento  # noqa: F401
     from src.models.coleta_execucao import ColetaExecucao
     from src.models.fonte import Fonte
     from src.models.local import Local
     from src.utils.db import db_session
+
+    re_marca_orfas()
 
     with db_session() as s:
         q = s.query(ColetaExecucao).filter(ColetaExecucao.status == "rodando")
