@@ -71,7 +71,17 @@ def _reduzir_dimensao_umap(
     X: np.ndarray, n_components: int = UMAP_DIM, random_state: int = 42
 ) -> np.ndarray:
     """UMAP em distância cosseno. n_neighbors capado a n-1 para buckets pequenos."""
-    import umap
+    # Guard explícito: dep obrigatória do Bloco 6. Converte o ModuleNotFoundError
+    # críptico (repetido por bucket) numa mensagem que GRITA a dep faltante — pra
+    # próxima não degradar calada em prod. Ver requirements-prod.txt.
+    try:
+        import umap
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "umap-learn AUSENTE — o motor de temas (Bloco 6) precisa dele para "
+            "reduzir dimensão antes do HDBSCAN; sem ele NENHUM tema é gerado. "
+            "Instale (requirements-prod.txt: umap-learn==0.5.12) e rebuild."
+        ) from exc
 
     n = X.shape[0]
     if n <= n_components:
