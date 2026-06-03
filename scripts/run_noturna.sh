@@ -28,6 +28,7 @@ FLASK="$([ -x .venv/bin/flask ] && echo .venv/bin/flask || echo flask)"
 
 ROOT="$(pwd)"
 TS=$(date +%Y%m%d_%H%M%S)
+mkdir -p "$ROOT/data"            # garante data/ ANTES do tee (no Render /app/data não existe ainda)
 PIPELINE_LOG="$ROOT/data/pipeline_noturno_${TS}.log"
 
 exec > >(tee -a "$PIPELINE_LOG") 2>&1
