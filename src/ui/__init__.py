@@ -38,8 +38,10 @@ from flask import (
 from werkzeug.exceptions import BadRequest
 
 from src.auth import (
+    PAPEL_CLIENTE,
     PAPEL_LOYALL,
     get_current_user,
+    hash_senha,
     login_user,
     logout_user,
     verificar_senha,
@@ -4041,6 +4043,160 @@ def glossario_i(slug: str, debug: bool = False):
             )
         return Markup("")
     return Markup(render_template("partials/glossario_i.html", t=termo))
+
+
+# ── Gestão de usuários (loyall-only, CRUD soft) ──────────────────────────
+# Backend de auth já existe e é enforced em 17+ pontos (papel + empresa_id).
+# Esta tela só ESCREVE Usuario reusando hash_senha + a semântica papel/empresa_id.
+# Sem migration, sem mexer na autorização. "Excluir" = SOFT (ativo=False).
+
+_PAPEL_LABEL = {
+    PAPEL_LOYALL: "Admin Loyall",
+    PAPEL_CLIENTE: "Cliente",
+    "cliente_restrito": "Cliente (restrito)",
+}
+
+
+def _usuarios_ctx(erro=None, ok=None) -> dict:
+    """Lista de usuários (detached) + empresas pro dropdown + mensagem."""
+    with db_session() as s:
+        emp_nomes = {e.id: e.nome for e in s.query(Empresa).all()}
+        usuarios = [
+            {
+                "id": u.id,
+                "email": u.email,
+                "nome": u.nome,
+                "papel_label": _PAPEL_LABEL.get(u.papel, u.papel),
+                "empresa_nome": (
+                    "Todas" if u.papel == PAPEL_LOYALL else emp_nomes.get(u.empresa_id, "—")
+                ),
+                "ativo": u.ativo,
+                "ultimo_login": (
+                    u.ultimo_login.isoformat(sep=" ", timespec="minutes") if u.ultimo_login else "—"
+                ),
+            }
+            for u in s.query(Usuario).order_by(Usuario.papel, Usuario.nome).all()
+        ]
+        empresas = [
+            {"id": e.id, "nome": e.nome} for e in s.query(Empresa).order_by(Empresa.nome).all()
+        ]
+    return {"usuarios": usuarios, "empresas": empresas, "erro": erro, "ok": ok}
+
+
+def _render_usuarios_lista(erro=None, ok=None):
+    return render_template("partials/usuarios_lista.html", **_usuarios_ctx(erro=erro, ok=ok))
+
+
+@ui_bp.route("/usuarios")
+def usuarios():
+    r = _require_loyall_html()
+    if r:
+        return r
+    return render_template("admin/usuarios.html", **_usuarios_ctx())
+
+
+@ui_bp.route("/ui/usuarios/novo", methods=["POST"])
+def htmx_usuarios_novo():
+    r = _require_loyall_html()
+    if r:
+        return r
+    papel = (request.form.get("papel") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    nome = (request.form.get("nome") or "").strip()
+    senha = request.form.get("senha") or ""
+    empresa_raw = (request.form.get("empresa_id") or "").strip()
+
+    if papel not in (PAPEL_LOYALL, PAPEL_CLIENTE):
+        return _render_usuarios_lista(erro="Papel inválido.")
+    if not email or not nome:
+        return _render_usuarios_lista(erro="Email e nome são obrigatórios.")
+    if len(senha) < 8:
+        return _render_usuarios_lista(erro="Senha deve ter pelo menos 8 caracteres.")
+    if papel == PAPEL_CLIENTE:
+        if not empresa_raw:
+            return _render_usuarios_lista(erro="Cliente exige uma empresa.")
+        empresa_id = int(empresa_raw)
+    else:
+        empresa_id = None  # admin_loyall: acessa todas → empresa_id NULL forçado
+
+    with db_session() as s:
+        ja = s.query(Usuario).filter(Usuario.email == email).first()
+        if ja is not None:
+            return _render_usuarios_lista(erro=f"Email {email!r} já existe.")
+        s.add(
+            Usuario(
+                email=email,
+                nome=nome,
+                senha_hash=hash_senha(senha),
+                papel=papel,
+                empresa_id=empresa_id,
+                ativo=True,
+            )
+        )
+    return _render_usuarios_lista(ok=f"Usuário {email} criado ({_PAPEL_LABEL[papel]}).")
+
+
+@ui_bp.route("/ui/usuarios/<int:user_id>/toggle", methods=["POST"])
+def htmx_usuarios_toggle(user_id: int):
+    r = _require_loyall_html()
+    if r:
+        return r
+    from sqlalchemy import func
+
+    atual = get_current_user()
+    if atual is not None and user_id == atual.id:
+        return _render_usuarios_lista(erro="Você não pode desativar o próprio usuário.")
+    with db_session() as s:
+        u = s.get(Usuario, user_id)
+        if u is None:
+            return _render_usuarios_lista(erro="Usuário não encontrado.")
+        # Não desativar o último Admin Loyall ativo (senão ninguém mais gere usuários).
+        if u.ativo and u.papel == PAPEL_LOYALL:
+            n_loyall = (
+                s.query(func.count(Usuario.id))
+                .filter(Usuario.papel == PAPEL_LOYALL, Usuario.ativo.is_(True))
+                .scalar()
+            )
+            if n_loyall <= 1:
+                return _render_usuarios_lista(
+                    erro="Não dá pra desativar o último Admin Loyall ativo."
+                )
+        u.ativo = not u.ativo
+        acao = "reativado" if u.ativo else "desativado"
+    return _render_usuarios_lista(ok=f"Usuário {acao}.")
+
+
+@ui_bp.route("/ui/usuarios/<int:user_id>/reset-senha", methods=["POST"])
+def htmx_usuarios_reset_senha(user_id: int):
+    r = _require_loyall_html()
+    if r:
+        return r
+    senha = request.form.get("senha") or ""
+    if len(senha) < 8:
+        return _render_usuarios_lista(erro="Senha deve ter pelo menos 8 caracteres.")
+    with db_session() as s:
+        u = s.get(Usuario, user_id)
+        if u is None:
+            return _render_usuarios_lista(erro="Usuário não encontrado.")
+        u.senha_hash = hash_senha(senha)
+        email = u.email
+    return _render_usuarios_lista(ok=f"Senha de {email} redefinida.")
+
+
+@ui_bp.route("/ui/usuarios/<int:user_id>/editar-nome", methods=["POST"])
+def htmx_usuarios_editar_nome(user_id: int):
+    r = _require_loyall_html()
+    if r:
+        return r
+    nome = (request.form.get("nome") or "").strip()
+    if not nome:
+        return _render_usuarios_lista(erro="Nome não pode ser vazio.")
+    with db_session() as s:
+        u = s.get(Usuario, user_id)
+        if u is None:
+            return _render_usuarios_lista(erro="Usuário não encontrado.")
+        u.nome = nome
+    return _render_usuarios_lista(ok="Nome atualizado.")
 
 
 # ── 404 / 403 handlers ───────────────────────────────────────────────────

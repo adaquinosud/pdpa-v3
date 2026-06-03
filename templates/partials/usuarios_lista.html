@@ -1,0 +1,66 @@
+{% if erro %}
+<div class="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded">{{ erro }}</div>
+{% endif %}
+{% if ok %}
+<div class="mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded">{{ ok }}</div>
+{% endif %}
+
+<table class="w-full text-sm bg-white border border-loyall-200 rounded">
+  <thead>
+    <tr class="text-left text-xs uppercase tracking-wider text-loyall-400 border-b border-loyall-200">
+      <th class="px-3 py-2">Nome / Email</th>
+      <th class="px-3 py-2">Nível</th>
+      <th class="px-3 py-2">Empresa</th>
+      <th class="px-3 py-2">Ativo</th>
+      <th class="px-3 py-2">Último login</th>
+      <th class="px-3 py-2">Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in usuarios %}
+    <tr class="border-t border-loyall-100 {% if not u.ativo %}opacity-50{% endif %}">
+      <td class="px-3 py-2">
+        <div class="font-medium">{{ u.nome }}</div>
+        <div class="text-xs text-loyall-400">{{ u.email }}</div>
+      </td>
+      <td class="px-3 py-2">{{ u.papel_label }}</td>
+      <td class="px-3 py-2">{{ u.empresa_nome }}</td>
+      <td class="px-3 py-2">
+        {% if u.ativo %}
+        <span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">ativo</span>
+        {% else %}
+        <span class="px-2 py-0.5 text-xs rounded bg-loyall-200 text-loyall-600">inativo</span>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2 text-xs text-loyall-500">{{ u.ultimo_login }}</td>
+      <td class="px-3 py-2">
+        <div class="flex items-center gap-3 text-xs">
+          <button hx-post="{{ url_for('ui.htmx_usuarios_toggle', user_id=u.id) }}"
+                  hx-target="#usuarios-lista" hx-swap="innerHTML"
+                  hx-confirm="{% if u.ativo %}Desativar{% else %}Reativar{% endif %} {{ u.email }}?"
+                  class="text-loyall-700 hover:underline">{{ 'desativar' if u.ativo else 'reativar' }}</button>
+
+          <form hx-post="{{ url_for('ui.htmx_usuarios_reset_senha', user_id=u.id) }}"
+                hx-target="#usuarios-lista" hx-swap="innerHTML"
+                hx-on::after-request="if(event.detail.successful) this.reset()"
+                class="flex items-center gap-1">
+            <input name="senha" type="password" minlength="8" placeholder="nova senha"
+                   class="w-28 px-2 py-1 border border-loyall-200 rounded">
+            <button type="submit" class="text-loyall-700 hover:underline">reset senha</button>
+          </form>
+
+          <form hx-post="{{ url_for('ui.htmx_usuarios_editar_nome', user_id=u.id) }}"
+                hx-target="#usuarios-lista" hx-swap="innerHTML"
+                hx-on::after-request="if(event.detail.successful) this.reset()"
+                class="flex items-center gap-1">
+            <input name="nome" placeholder="novo nome"
+                   class="w-28 px-2 py-1 border border-loyall-200 rounded">
+            <button type="submit" class="text-loyall-700 hover:underline">renomear</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="text-xs text-loyall-400 mt-2">{{ usuarios|length }} usuário(s).</p>
