@@ -50,25 +50,17 @@
 {% endif %}
 
 {# ── Filtros ─────────────────────────────────────────────────────────── #}
-<form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
-  <select name="periodo" class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Período: tudo</option>
-    {% for p, lbl in [('7d','Últimos 7 dias'),('30d','Últimos 30 dias'),('90d','Últimos 90 dias'),('6m','Últimos 6 meses'),('12m','Últimos 12 meses'),('15m','Últimos 15 meses')] %}
-    <option value="{{ p }}" {% if filtros.periodo == p %}selected{% endif %}>{{ lbl }}</option>
-    {% endfor %}
-  </select>
-  <select name="agrupamento_id" class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Agrupamento…</option>
-    {% for a in agrupamentos %}
-    <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
-    {% endfor %}
-  </select>
-  <select name="local_id" class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Local…</option>
-    {% for l in locais %}
-    <option value="{{ l.id }}" {% if filtros.local_id == l.id|string %}selected{% endif %}>{{ l.nome }}</option>
-    {% endfor %}
-  </select>
+{# CP-A dedupe + Bug 1: escopo (agrupamento/loja/período) vem do HEADER global —
+   removidos os selects próprios (eram duplicata). action→painel_empresa (a rota
+   /painel força tab=painel; sem isso o GET sem `tab` cairia em Locais). Escopo
+   carregado como hidden p/ o filtro de fonte não dropar o recorte. Mantém-se só
+   `fonte`, que é específico do Painel (não está no header). #}
+<form method="get"
+      action="{{ url_for('ui.painel_empresa', empresa_id=empresa.id) }}"
+      class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+  <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
+  <input type="hidden" name="local_id" value="{{ filtros.local_id }}">
+  <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
   <select name="fonte_id" class="px-2 py-1.5 border border-loyall-200 rounded">
     <option value="">Fonte…</option>
     {% for f in fontes %}

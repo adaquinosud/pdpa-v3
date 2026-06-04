@@ -53,26 +53,21 @@
 </script>
 
 {# ── Filtros ─────────────────────────────────────────────────────────── #}
-<form id="filtros" method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
+{# CP-A dedupe + Bug 1: o escopo (agrupamento/loja/período) vem do HEADER global,
+   não de selects próprios aqui. action→verbatins_empresa (rota /verbatins força
+   tab=verbatins, senão o GET sem `tab` caía em Locais). O escopo do header é
+   carregado como hidden pra o submit do filtro não dropar o recorte ativo. #}
+<form id="filtros" method="get"
+      action="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}"
+      class="bg-white border border-loyall-200 rounded p-3 mb-3 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
   <input type="hidden" name="pagina" value="1">
   {% if filtros.origem %}<input type="hidden" name="origem" value="{{ filtros.origem }}">{% endif %}
-  {% if filtros.periodo %}<input type="hidden" name="periodo" value="{{ filtros.periodo }}">{% endif %}
+  {# Escopo do header (consumido, não re-selecionado aqui) — preservado no submit. #}
+  <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
+  <input type="hidden" name="local_id" value="{{ filtros.local_id }}">
+  <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
   <input name="q" value="{{ filtros.q or '' }}" placeholder="Buscar texto ou justificativa"
          class="md:col-span-3 lg:col-span-2 px-2 py-1.5 border border-loyall-200 rounded">
-
-  <select name="agrupamento_id" class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Agrupamento…</option>
-    {% for a in agrupamentos %}
-    <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
-    {% endfor %}
-  </select>
-
-  <select name="local_id" class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Local…</option>
-    {% for l in locais %}
-    <option value="{{ l.id }}" {% if filtros.local_id == l.id|string %}selected{% endif %}>{{ l.nome }}</option>
-    {% endfor %}
-  </select>
 
   <select name="fonte_id" class="px-2 py-1.5 border border-loyall-200 rounded">
     <option value="">Fonte…</option>

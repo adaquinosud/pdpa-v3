@@ -1,5 +1,23 @@
 {# Dispatcher do conteúdo da tab — usado no full-load (incluído pelo shell) e
    no HTMX swap (retornado por ui.explorar_tab). #}
+
+{# ── Chip de escopo ativo (CP-A) ──────────────────────────────────────
+   Vive AQUI (dentro do fragmento trocado), não no shell: re-renderiza sozinho
+   a cada swap HTMX e adapta por aba — `escopo_chip` traz só as dimensões que a
+   aba aceita E que têm valor. Zero OOB/JS. #}
+<div class="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
+  <span class="uppercase tracking-wider text-[10px] text-loyall-400">Analisando</span>
+  {% if escopo_chip %}
+    {% for p in escopo_chip %}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-loyall-100 border border-loyall-200 text-loyall-700">
+      <span class="text-loyall-400">{{ p.label }}:</span>{{ p.valor }}
+    </span>
+    {% endfor %}
+  {% else %}
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-loyall-100 border border-loyall-200 text-loyall-600">visão geral</span>
+  {% endif %}
+</div>
+
 {% if tab == 'locais' %}
   {% include 'partials/explorar_locais.html' %}
 {% elif tab == 'heatmap' %}

@@ -14,7 +14,6 @@
 {% endblock %}
 
 {% block conteudo %}
-{% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo ~ '&local_id=' ~ filtros.local_id %}
 
 {# ── Header ───────────────────────────────────────────────────────── #}
 <div class="mb-4">
@@ -29,58 +28,12 @@
   <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
 </div>
 
-{# ── Header global: agrupamento + período + Aplicar ───────────────── #}
-<form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
-  <input type="hidden" name="tab" value="{{ tab }}">
-  <div class="flex flex-col gap-1">
-    <label class="text-xs text-loyall-500">Agrupamento</label>
-    <select name="agrupamento_id" class="px-2 py-1.5 border border-loyall-200 rounded min-w-[160px]">
-      <option value="">Todos</option>
-      {% for a in agrupamentos %}
-      <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="flex flex-col gap-1">
-    <label class="text-xs text-loyall-500">Loja</label>
-    <select name="local_id" class="px-2 py-1.5 border border-loyall-200 rounded min-w-[150px]">
-      <option value="">Todas</option>
-      {% for l in lojas_header %}
-      <option value="{{ l.id }}" {% if filtros.local_id == l.id|string %}selected{% endif %}>{{ l.nome }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="flex flex-col gap-1">
-    <label class="text-xs text-loyall-500">Período</label>
-    <select name="periodo" class="px-2 py-1.5 border border-loyall-200 rounded">
-      <option value="">Tudo</option>
-      {% for p, lbl in [('7d','7 dias'),('30d','30 dias'),('90d','90 dias'),('6m','6 meses'),('12m','12 meses'),('15m','15 meses')] %}
-      <option value="{{ p }}" {% if filtros.periodo == p %}selected{% endif %}>{{ lbl }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <button type="submit" class="px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 font-medium">Aplicar</button>
-</form>
-
-{# ── Tab bar ──────────────────────────────────────────────────────── #}
-{# Plana e horizontal. `t.grupo` já vem no dict (futuros sub-menus) mas é
-   ignorado aqui. Abas em `tabs_migradas` usam full-load (sem HTMX swap),
-   pois reaproveitam templates com JS inline; as demais mantêm o swap. #}
-<div class="flex flex-wrap gap-1 border-b border-loyall-200 mb-4">
-  {% for t in tabs %}
-  {% set cls = 'px-4 py-2 -mb-px border-b-2 text-sm ' ~ ('border-loyall-700 text-loyall-800 font-medium' if tab == t.id else 'border-transparent text-loyall-500 hover:text-loyall-700') %}
-  {% if t.id in tabs_migradas %}
-  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
-     class="{{ cls }}">{{ t.label }}</a>
-  {% else %}
-  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
-     hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab=t.id) }}?{{ qs }}"
-     hx-target="#explorar-conteudo" hx-swap="innerHTML"
-     hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
-     class="{{ cls }}">{{ t.label }}</a>
-  {% endif %}
-  {% endfor %}
-</div>
+{# ── Header de escopo + Tab bar ───────────────────────────────────────
+   Ambos vivem em partials e são devolvidos via OOB pelo ui.explorar_tab no swap
+   HTMX (o header adapta o escopo por aba; a tab bar acompanha o sublinhado —
+   Bug 2). No full-load o shell os renderiza inline. #}
+{% include 'partials/explorar_header.html' %}
+{% include 'partials/explorar_tabbar.html' %}
 
 <div id="explorar-conteudo">
   {% include 'partials/explorar_conteudo.html' %}

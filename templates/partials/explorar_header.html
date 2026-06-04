@@ -1,0 +1,59 @@
+{# Header de ESCOPO condicional (CP-A). Renderizado (a) inline pelo shell no
+   full-load e (b) via OOB pelo ui.explorar_tab no swap HTMX — sem isso, ao
+   trocar de aba por swap o header mostraria o escopo da aba ANTERIOR (as abas de
+   escopo reduzido — Locais/Concentração/Diagnóstico/Planos — são todas swap).
+
+   `escopo_aceito` (declarado em _EXPLORAR_TABS) define quais dimensões aparecem
+   como <select>. REGRA CRÍTICA: dimensão fora da lista NÃO é removida do form —
+   vira <input type="hidden"> com o valor atual, pra o "Aplicar" não dropar o
+   escopo (persistência preservada).
+
+   O container #explorar-header SEMPRE existe (mesmo escopo vazio ⇒ form some,
+   mas o container vazio re-renderiza via OOB e limpa o header anterior). #}
+<div id="explorar-header"{% if header_oob %} hx-swap-oob="true"{% endif %}>
+{% if escopo_aceito %}
+<form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  {% if 'agrupamento' in escopo_aceito %}
+  <div class="flex flex-col gap-1">
+    <label class="text-xs text-loyall-500">Agrupamento</label>
+    <select name="agrupamento_id" class="px-2 py-1.5 border border-loyall-200 rounded min-w-[160px]">
+      <option value="">Todos</option>
+      {% for a in agrupamentos %}
+      <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% else %}
+  <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
+  {% endif %}
+  {% if 'local' in escopo_aceito %}
+  <div class="flex flex-col gap-1">
+    <label class="text-xs text-loyall-500">Loja</label>
+    <select name="local_id" class="px-2 py-1.5 border border-loyall-200 rounded min-w-[150px]">
+      <option value="">Todas</option>
+      {% for l in lojas_header %}
+      <option value="{{ l.id }}" {% if filtros.local_id == l.id|string %}selected{% endif %}>{{ l.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% else %}
+  <input type="hidden" name="local_id" value="{{ filtros.local_id }}">
+  {% endif %}
+  {% if 'periodo' in escopo_aceito %}
+  <div class="flex flex-col gap-1">
+    <label class="text-xs text-loyall-500">Período</label>
+    <select name="periodo" class="px-2 py-1.5 border border-loyall-200 rounded">
+      <option value="">Tudo</option>
+      {% for p, lbl in [('7d','7 dias'),('30d','30 dias'),('90d','90 dias'),('6m','6 meses'),('12m','12 meses'),('15m','15 meses')] %}
+      <option value="{{ p }}" {% if filtros.periodo == p %}selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% else %}
+  <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
+  {% endif %}
+  <button type="submit" class="px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 font-medium">Aplicar</button>
+</form>
+{% endif %}
+</div>

@@ -2241,25 +2241,68 @@ def htmx_reprocessar_empresa(empresa_id: int):
 # horizontal. Ordem: 8 abas originais (memória muscular preservada) + 5 novas
 # anexadas no fim (Painel, Verbatins, Temas, Anomalias, Relatórios — migradas
 # de itens do menu lateral para abas).
+# Dimensões de escopo do header global, na ordem de exibição. `escopo_aceito`
+# em cada aba lista quais aparecem como <select> visível; as ausentes viram
+# <input type="hidden"> (carregam o valor atual → persistência de escopo entre
+# abas preservada — NUNCA são removidas do form). Editar o filtro de uma aba =
+# mexer em 1 linha aqui (CP-A, header condicional declarativo).
+_ESCOPO_DIMENSOES = ("agrupamento", "local", "periodo")
+_ESCOPO_FULL = list(_ESCOPO_DIMENSOES)  # atalho p/ "como hoje" (as três visíveis)
+
 _EXPLORAR_TABS = [
-    {"id": "locais", "label": "Locais", "grupo": "analise"},
-    {"id": "heatmap", "label": "Heatmap", "grupo": "analise"},
-    {"id": "comparar", "label": "Comparar", "grupo": "analise"},
-    {"id": "evolucao", "label": "Evolução", "grupo": "analise"},
-    {"id": "diagnostico", "label": "Diagnóstico", "grupo": "diagnostico"},
-    {"id": "concentracao", "label": "Concentração", "grupo": "diagnostico"},
-    {"id": "planos", "label": "Planos de Ação", "grupo": "acoes"},
-    {"id": "leaderboard", "label": "Leaderboard", "grupo": "acoes"},
-    {"id": "ia", "label": "✨ IA", "grupo": "ia"},
-    {"id": "painel", "label": "Painel", "grupo": "panel"},
-    {"id": "verbatins", "label": "Verbatins", "grupo": "analise"},
-    {"id": "temas", "label": "Temas", "grupo": "analise"},
-    {"id": "anomalias", "label": "Anomalias", "grupo": "analise"},
-    {"id": "governanca", "label": "Governança", "grupo": "governanca"},
-    {"id": "relatorios", "label": "Relatórios", "grupo": "relatorios"},
+    {"id": "locais", "label": "Locais", "grupo": "analise", "escopo_aceito": []},
+    {"id": "heatmap", "label": "Heatmap", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "comparar", "label": "Comparar", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "evolucao", "label": "Evolução", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
+    {
+        "id": "diagnostico",
+        "label": "Diagnóstico",
+        "grupo": "diagnostico",
+        "escopo_aceito": ["agrupamento", "local"],
+    },
+    {
+        "id": "concentracao",
+        "label": "Concentração",
+        "grupo": "diagnostico",
+        "escopo_aceito": ["agrupamento"],
+    },
+    {
+        "id": "planos",
+        "label": "Planos de Ação",
+        "grupo": "acoes",
+        "escopo_aceito": ["agrupamento", "local"],
+    },
+    {"id": "leaderboard", "label": "Leaderboard", "grupo": "acoes", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "ia", "label": "✨ IA", "grupo": "ia", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "painel", "label": "Painel", "grupo": "panel", "escopo_aceito": _ESCOPO_FULL},
+    # Verbatins NÃO mostra período no header: a API de listagem ignora período
+    # relativo (usa date-pickers absolutos data_de/data_ate, filtro próprio da
+    # aba). Mostrar período aqui faria o chip prometer um recorte não aplicado.
+    {
+        "id": "verbatins",
+        "label": "Verbatins",
+        "grupo": "analise",
+        "escopo_aceito": ["agrupamento", "local"],
+    },
+    {"id": "temas", "label": "Temas", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "anomalias", "label": "Anomalias", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
+    {
+        "id": "governanca",
+        "label": "Governança",
+        "grupo": "governanca",
+        "escopo_aceito": _ESCOPO_FULL,
+    },
+    {
+        "id": "relatorios",
+        "label": "Relatórios",
+        "grupo": "relatorios",
+        "escopo_aceito": _ESCOPO_FULL,
+    },
 ]
 # Set de ids para validação rápida (substitui o antigo `tab in _EXPLORAR_TABS`).
 _EXPLORAR_TAB_IDS = {t["id"] for t in _EXPLORAR_TABS}
+# Mapa id→escopo_aceito p/ o contexto do template (chip + header condicional).
+_EXPLORAR_ESCOPO_ACEITO = {t["id"]: t["escopo_aceito"] for t in _EXPLORAR_TABS}
 # Abas migradas: usam full-load (não HTMX swap) e têm contexto montado por um
 # builder dedicado (_ABA_BUILDERS), pois reaproveitam templates com JS inline.
 _EXPLORAR_TABS_MIGRADAS = {"painel", "verbatins", "temas", "anomalias", "relatorios"}
@@ -2280,6 +2323,42 @@ def _explorar_filtros():
         ag_id,
         corte,
     )
+
+
+# Rótulos de período p/ o chip de escopo (espelham o <select> do header).
+_PERIODO_LABELS = {
+    "7d": "7 dias",
+    "30d": "30 dias",
+    "90d": "90 dias",
+    "6m": "6 meses",
+    "12m": "12 meses",
+    "15m": "15 meses",
+}
+
+
+def _montar_escopo_chip(filtros, agrupamentos, lojas_header, escopo_aceito):
+    """Partes do chip 'Analisando: …' — só as dimensões que a aba ACEITA e que
+    têm valor selecionado. Representa o escopo GLOBAL do header (sempre os
+    valores de _explorar_filtros, independentes da aba). Cada parte =
+    SimpleNamespace(dim, label, valor)."""
+    partes = []
+    if "agrupamento" in escopo_aceito and filtros.get("agrupamento_id"):
+        nome = next((a.nome for a in agrupamentos if str(a.id) == filtros["agrupamento_id"]), None)
+        if nome:
+            partes.append(SimpleNamespace(dim="agrupamento", label="Agrupamento", valor=nome))
+    if "local" in escopo_aceito and filtros.get("local_id"):
+        nome = next((x.nome for x in lojas_header if str(x.id) == filtros["local_id"]), None)
+        if nome:
+            partes.append(SimpleNamespace(dim="local", label="Loja", valor=nome))
+    if "periodo" in escopo_aceito and filtros.get("periodo"):
+        partes.append(
+            SimpleNamespace(
+                dim="periodo",
+                label="Período",
+                valor=_PERIODO_LABELS.get(filtros["periodo"], filtros["periodo"]),
+            )
+        )
+    return partes
 
 
 _VIS_SORT = {
@@ -3538,12 +3617,19 @@ def _explorar_contexto(empresa_id, tab):
             )
     planos = _explorar_planos(empresa_id, ag_id, request.args) if tab == "planos" else None
     ia = _explorar_ia(empresa_id, ag_id, filtros) if tab == "ia" else None
+    # Escopo declarativo (CP-A): quais dimensões o header mostra como <select>
+    # nesta aba; o chip usa a mesma lista p/ exibir só o que a aba aceita. Os
+    # valores vêm do escopo GLOBAL (filtros base), não sobrescritos pelo builder.
+    escopo_aceito = _EXPLORAR_ESCOPO_ACEITO.get(tab, _ESCOPO_FULL)
+    escopo_chip = _montar_escopo_chip(filtros, agrupamentos, lojas_header, escopo_aceito)
     ctx = {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
         "lojas_header": lojas_header,
         "filtros": filtros,
         "tab": tab,
+        "escopo_aceito": escopo_aceito,
+        "escopo_chip": escopo_chip,
         "locais": locais,
         "heatmap": heatmap,
         "comparar": comparar,
@@ -3647,7 +3733,20 @@ def explorar_tab(empresa_id: int, tab: str):
     ctx = _explorar_contexto(empresa_id, tab)
     if ctx is None:
         return render_template("404.html"), 404
-    return render_template("partials/explorar_conteudo.html", **ctx)
+    # Conteúdo (swap em #explorar-conteudo) + header e tab bar via OOB (ambos
+    # vivem fora do alvo do swap): o header adapta o escopo por aba e a tab bar
+    # acompanha o sublinhado da aba ativa (Bug 2). Servidor é a única fonte —
+    # sem JS de toggle.
+    conteudo = render_template("partials/explorar_conteudo.html", **ctx)
+    header = render_template("partials/explorar_header.html", header_oob=True, **ctx)
+    tabbar = render_template(
+        "partials/explorar_tabbar.html",
+        tabs=_EXPLORAR_TABS,
+        tabs_migradas=_EXPLORAR_TABS_MIGRADAS,
+        tabbar_oob=True,
+        **ctx,
+    )
+    return conteudo + header + tabbar
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar/locais/<int:local_id>")

@@ -34,18 +34,10 @@
   </p>
 </div>
 
-{# ── Filtro agrupamento ───────────────────────────────────────────── #}
-<form method="get" class="mb-5 flex items-center gap-2 text-sm">
-  <label class="text-loyall-500">Agrupamento:</label>
-  <select name="agrupamento_id" onchange="this.form.submit()"
-          class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Todos</option>
-    {% for a in agrupamentos %}
-    <option value="{{ a.id }}" {% if filtros.agrupamento_id == a.id|string %}selected{% endif %}>{{ a.nome }}</option>
-    {% endfor %}
-  </select>
-  <span class="text-xs text-loyall-400 italic">janela de {{ janela_dias }} dias (informativo, não filtra)</span>
-</form>
+{# CP-A dedupe: o filtro de agrupamento vinha aqui e duplicava o HEADER global —
+   removido (Temas passa a consumir o escopo do header; sem filtro próprio). Sem
+   <form> não há submit que perca o `tab`. Mantém-se só o aviso da janela. #}
+<div class="mb-5 text-xs text-loyall-400 italic">janela de {{ janela_dias }} dias (informativo, não filtra)</div>
 
 {# ── Mapa de Lastro ───────────────────────────────────────────────── #}
 <h2 class="text-lg font-semibold text-loyall-700 mb-1">Mapa de Lastro</h2>

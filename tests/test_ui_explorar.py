@@ -383,3 +383,115 @@ def test_filtro_periodo_recorta(client_loyall, db_session):
     html = r.get_data(as_text=True)
     # sem verbatins no período → estado vazio
     assert "Nenhum local com verbatins" in html
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# CP-A: header de escopo condicional + chip + dedupe + OOB (Bugs 1 e 2)
+# ─────────────────────────────────────────────────────────────────────────
+def _header(html: str) -> str:
+    """Recorta só o header de escopo (#explorar-header … antes da tab bar)."""
+    i = html.find('id="explorar-header"')
+    j = html.find('id="explorar-tabbar"')
+    return html[i:j] if i != -1 and j != -1 else html
+
+
+def test_cpA_header_condicional_por_aba(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "hdrcond")
+    (loja, f), _ = locs
+    _verb(db_session, e, loja, f, "D2", "detrator", 2)
+    db_session.commit()
+
+    # Concentração → só agrupamento visível; loja e período viram hidden.
+    h = _header(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=concentracao").get_data(as_text=True)
+    )
+    assert '<select name="agrupamento_id"' in h
+    assert '<select name="local_id"' not in h
+    assert '<select name="periodo"' not in h
+    assert '<input type="hidden" name="local_id"' in h
+    assert '<input type="hidden" name="periodo"' in h
+
+    # Diagnóstico → agrupamento + loja visíveis; período hidden.
+    h = _header(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=diagnostico").get_data(as_text=True)
+    )
+    assert '<select name="agrupamento_id"' in h
+    assert '<select name="local_id"' in h
+    assert '<select name="periodo"' not in h
+    assert '<input type="hidden" name="periodo"' in h
+
+    # Locais → escopo vazio: container existe, mas sem <form>.
+    h = _header(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais").get_data(as_text=True)
+    )
+    assert 'id="explorar-header"' in h
+    assert "<form" not in h
+
+
+def test_cpA_persistencia_escopo_via_hidden(client_loyall, db_session):
+    """Loja sobrevive ao passar por Concentração (que esconde loja): o hidden
+    carrega o valor e reaparece SELECIONADA em Diagnóstico."""
+    e, a, locs = _ctx(client_loyall, "persist")
+    (loja, f), _ = locs
+    _verb(db_session, e, loja, f, "D2", "detrator", 2)
+    db_session.commit()
+    lid = str(loja["id"])
+    h = _header(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=concentracao&local_id={lid}").get_data(
+            as_text=True
+        )
+    )
+    assert f'<input type="hidden" name="local_id" value="{lid}"' in h
+    h = _header(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=diagnostico&local_id={lid}").get_data(
+            as_text=True
+        )
+    )
+    assert f'value="{lid}" selected' in h
+
+
+def test_cpA_explorar_tab_oob_header_e_tabbar(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "oob")
+    (loja, f), _ = locs
+    _verb(db_session, e, loja, f, "D2", "detrator", 2)
+    db_session.commit()
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/concentracao").get_data(
+        as_text=True
+    )
+    # header e tab bar voltam via OOB (fora do alvo do swap).
+    assert 'id="explorar-header"' in html
+    assert 'id="explorar-tabbar"' in html
+    assert 'hx-swap-oob="true"' in html
+    # sublinhado da aba ativa presente no fragmento OOB (Bug 2).
+    assert "border-loyall-700" in html
+
+
+def test_cpA_verbatins_dedupe_bug1_e_chip(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "verbded")
+    (loja, f), _ = locs
+    _verb(db_session, e, loja, f, "D2", "detrator", 2)
+    db_session.commit()
+    html = client_loyall.get(
+        f"/empresas/{e['id']}/explorar?tab=verbatins&agrupamento_id={a['id']}&periodo=90d"
+    ).get_data(as_text=True)
+    cont = _conteudo(html)
+    # dedupe: o form de verbatins não tem mais selects próprios de escopo.
+    assert '<select name="agrupamento_id"' not in cont
+    assert '<select name="local_id"' not in cont
+    # Bug 1: form aponta pra rota /verbatins e carrega o escopo como hidden.
+    assert f"/empresas/{e['id']}/verbatins" in cont
+    assert '<input type="hidden" name="agrupamento_id"' in cont
+    assert '<input type="hidden" name="local_id"' in cont
+    # mantém o específico do Verbatins: subpilar/fonte + date-pickers absolutos.
+    assert '<select name="subpilar"' in cont
+    assert '<select name="fonte_id"' in cont
+    assert '<input name="data_de" type="date"' in cont
+    assert '<input name="data_ate" type="date"' in cont
+    # chip de escopo aparece e mostra a dimensão agrupamento.
+    assert "Analisando" in cont
+    assert "Agrupamento:" in cont
+    # Opção B: período NÃO entra no escopo do Verbatins (a API ignora período
+    # relativo). Header não oferece select de período e o chip não promete
+    # "Período:" mesmo com periodo=90d na URL.
+    assert '<select name="periodo"' not in _header(html)
+    assert "Período:" not in cont
