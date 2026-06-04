@@ -5,17 +5,18 @@ reais do código. Priorizada por **"dor de arrumar depois"** (o que custa muito
 mais caro/arriscado com o sistema no ar).
 
 ## Estado atual
-- **Branch:** `feature/deploy-3-dockerfile` · HEAD `a0ce256` · dev-only, sem
-  push/produção (deploy-1 já em `main`; deploy-2/3 na branch, ff-merge limpo).
-- **Testes:** 759 verdes em **SQLite** (+ 734 em **Postgres** via `pgserver`, CP-1.1/1.2).
+- **Branch:** `main` · HEAD `4ec1eec` · **em `origin/main` e EM PRODUÇÃO (Render)**.
+- **Testes:** 786 verdes em **SQLite** (+ Postgres via `pgserver`, CP-1.1/1.2).
 - **Schema:** runner = **Alembic** (baseline `8295ca9dc780`, fonte = models);
   `migrations/*.sql` aposentados em `migrations/legacy/`.
-- **Progresso do roadmap:** **TODO o código pré-deploy fechado** — **Bloco 1
-  (Postgres) ✅** · **#2 noturna-produto ✅** (2a+2b+2c) · **#3 saída durável ✅** ·
-  **#4 segurança-código ✅** · **#8/H .gitignore ✅**. Bloco 4 em andamento: **#5
-  entrypoint ✅** · **#6 WeasyPrint/Dockerfile ✅ PROVADO** (imagem builda + PDF
-  real 2746 bytes). Resta **#7 alembic-no-release, #8 secrets/creds no env, #9
-  Render+domínio, #10 Cron** (+ #5b coleta on-demand async).
+- **Progresso do roadmap:** **PRODUÇÃO NO AR.** Bloco pré-deploy ✅ (Postgres #1 ·
+  noturna #2 · saída durável #3 · segurança #4 · .gitignore H). **Bloco Deploy
+  #5–#9 ✅** (entrypoint, WeasyPrint/Dockerfile PROVADO, alembic-no-release,
+  secrets+**creds dedicadas isoladas do v2**, Render no ar). **+ lockfile dev==prod**
+  (`962749d`, `--require-hashes` no Dockerfile — fecha a drift que quebrou o umap).
+  **Resta:** **#9b domínio `pdpa.com.br`** + **#10 Cron** (agendar a noturna) +
+  **#5b coleta on-demand async** (opcional). Pós-piloto: **CP-B reorg de abas** +
+  **migração das 5 abas legadas full-load → HTMX**.
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 - **Feito até aqui (resumo):** núcleo do método (Lastro/ratio/5 faixas), Lente de
   Governança completa, anomalias (ML), temas/cruzamentos, plano de ação, Hub
@@ -188,29 +189,24 @@ mais caro/arriscado com o sistema no ar).
   (qemu) opcional, não considerado necessário.
 - **Não trocou a engine de PDF** — só dependência de build, como planejado.
 
-### 7. Release/migration no deploy `[ ]` · **[CÓDIGO]**
-- **(a)** Wire do `alembic upgrade` no build/release command do Render (aplica o
-  schema antes do app subir).
-- **(b)** Sem isso o app sobe contra DB vazio/desatualizado.
+### 7. Release/migration no deploy `[x]` ✅ **COMPLETO**
+- **✅ FEITO:** `alembic upgrade` no release do Render (schema aplicado antes do
+  app subir). App em prod contra DB versionado.
+- **(a)** Wire do `alembic upgrade` no build/release command do Render.
 - **(c)** Depende de #1 (Alembic existir) + #5. **(d)** Pequeno.
 
-### 8. Secrets + credenciais dedicadas (env) `[ ]` · **[OPS-tua]**
-- **(a)** `FLASK_SECRET_KEY` forte (fora do default `dev-key`) via env; **gerar
-  credenciais dedicadas** ANTHROPIC/APIFY/OPENAI (isolar de v2 —
-  billing/rate-limit/auditoria) e setá-las no painel do Render. (`JWT_SECRET_KEY`
-  já foi removido como dead code no #4.)
-- **(b)** ANTES de subir (secrets) e antes de volume (creds). É **env config**,
-  **zero código** — o app já lê tudo de env (confirmado no #4; nenhuma chave
-  hardcoded). Gerar conta/chave em cada provedor e colar no Render é **ação tua**.
-- **(c)** Setup do env do Render (junto de #9). **(d)** Pequeno (config).
+### 8. Secrets + credenciais dedicadas (env) `[x]` ✅ **COMPLETO**
+- **✅ FEITO:** `FLASK_SECRET_KEY` forte no env do Render; **credenciais dedicadas
+  ANTHROPIC/APIFY/OPENAI geradas e setadas — completamente isoladas do v2 (zero
+  mistura)**: billing/rate-limit/auditoria separados. (`JWT_SECRET_KEY` removido
+  como dead code no #4.)
+- **(a)** Secrets + creds dedicadas no painel do Render. **(b)** Pré-volume. **(d)** Pequeno.
 
-### 9. Render + Postgres + domínio `[ ]` · **[OPS-tua]** (Code entrega `render.yaml`; conta/infra/domínio é tua)
-- **(a)** Criar a conta/projeto no Render, provisionar **web service + Postgres
-  gerenciado**, comprar/apontar o **domínio (pdpa.com.br)** (DNS). Code pode
-  entregar um `render.yaml` blueprint e o `Dockerfile` (#6), mas **criar a conta,
-  apertar deploy, ligar o Postgres e configurar o DNS é ação tua**.
-- **(b)** O deploy em si.
-- **(c)** Depende de #1, #5, #7, #8. **(d)** Médio (infra/config).
+### 9. Render + Postgres + domínio `[~]` 🟡 **PARCIAL** — web service + Postgres ✅, **falta domínio**
+- **✅ FEITO:** conta/projeto Render, **web service + Postgres gerenciado** no ar
+  (app servindo; validado com `pip freeze` real do Render).
+- **`[ ]` RESTA — #9b domínio:** comprar/apontar **`pdpa.com.br`** (DNS). **[OPS-tua]**.
+- **(c)** Dependeu de #1, #5, #7, #8 (todos ✅). **(d)** o que falta é só o DNS.
 
 ### 10. Render Cron Job → agenda a noturna-produto `[ ]` · **[MISTO]** (`render.yaml` cron = código; ativar no painel = tua)
 - **(a)** Job agendado (diário/intervalo) rodando a noturna-produto (#2) —
@@ -252,14 +248,12 @@ mais caro/arriscado com o sistema no ar).
 
 ## 🔵 PRA OPERAR COM CLIENTE (bloqueia o piloto, não o deploy)
 
-### O1. Gestão de usuários por UI `[ ]` · **[CÓDIGO]** · **[BLOCKER de piloto]**
-- **(a)** Hoje só existe o CLI `create-admin` (cria **admin_loyall**,
-  `empresa_id=None`). **Não há UI de usuários** e **não há caminho para criar um
-  `cliente_total`** (o login do cliente) a não ser SQL cru. **(b)** Pra colocar o
-  cliente pra usar no piloto é obrigatório criar o usuário dele atrelado à empresa
-  — sem UI nem CLI, **trava o piloto**. **(c)** o auth já existe (papéis
-  `admin_loyall`/`cliente_total`, `_check_acesso`, `eh_loyall`). **(d)** Médio
-  (CRUD de usuários + vínculo com empresa + reset de senha).
+### O1. Gestão de usuários por UI `[x]` ✅ **COMPLETO** (`9951d63`) — não bloqueia mais o piloto
+- **✅ FEITO:** tela de gestão de usuários (CRUD soft, loyall-only). **`cliente_total`
+  testado e funcionando**: cria o cliente vinculado à empresa e o login dele
+  **enxerga só a empresa dele**. O caminho que faltava (criar o usuário do cliente
+  sem SQL cru) está fechado. **Deixa de ser [BLOCKER de piloto].**
+- *(Resta a camada de UX por papel — ver **O2 Personas**.)*
 
 ### O2. Personas (Admin Loyall vs Cliente) `[ ]` · **[CÓDIGO]** (~1 semana)
 - **(a)** Refinar a experiência por papel: o **mecanismo** de escopo já existe
@@ -294,6 +288,23 @@ mais caro/arriscado com o sistema no ar).
   é naive UTC). Não bloqueia; melhora correção de horários.
 
 ---
+
+## 🟤 UX EXPLORAR (sequência do CP-A, em main)
+
+### UX1. CP-B — reorganização das abas `[ ]` · **[CÓDIGO]** (depende de decisão de ordem c/ Dener)
+- **(a)** Reordenar/agrupar as 15 abas do Hub Explorar por propósito (panorama →
+  exploração → diagnóstico → ação → governança/saída; IA transversal). A infra de
+  grupo já existe (`grupo` em `_EXPLORAR_TABS`); a tab bar hoje é flat por render.
+- **(b)** A lista plana de 15 abas confunde; agrupar por propósito guia o uso.
+- **(c)** Depende de Alexandre + Dener fecharem a ordem final (proposta levantada
+  na investigação do CP-A). **(d)** Médio (template da tab bar + seções).
+
+### UX2. Migrar 5 abas legadas full-load → HTMX `[ ]` · **[CÓDIGO]**
+- **(a)** Painel/Verbatins/Temas/Anomalias/Relatórios usam full-load (reload da
+  página) enquanto as outras 10 dão HTMX swap — "soluço" inconsistente ao navegar.
+- **(b)** Consistência de navegação; remove o reload. Reaproveita o padrão de OOB
+  do CP-A (header/tabbar já voltam via `hx-swap-oob`). **(c)** independe; melhor
+  junto do CP-B (mesma tab bar). **(d)** Médio (templates com JS inline a adaptar).
 
 ## 📄 CONTEÚDO
 
@@ -339,19 +350,14 @@ mais caro/arriscado com o sistema no ar).
 H. .gitignore — a qualquer hora
 ```
 
-**Resumo:** **#1, #2, #3, #4 e H ✅ — todo o código pré-deploy fechado.** Resta
-**só o Bloco Deploy (#5→#10)**, sequencial e gated, agora desbloqueado em todas as
-suas dependências de código. **#10 (agendar) é o último** — precisa de Produção no
-ar; a rotina noturna-produto que ele agenda já está pronta (#2+#3).
+**Resumo:** **#1–#8 ✅ + #9 (Render no ar) ✅ — PRODUÇÃO NO AR.** Resta **#9b
+domínio `pdpa.com.br`** (DNS) e **#10 Cron** (agendar a noturna — a rotina-produto
+que ele agenda já está pronta, #2+#3). **+ lockfile dev==prod** fechou a drift de
+build. **#5b coleta on-demand async** segue opcional.
 
-**Código vs ops-tua no Bloco Deploy:** **#5, #6, #7 = [CÓDIGO]** (Code escreve
-entrypoint/Dockerfile/release no repo) · **#8, #9 = [OPS-tua]** (gerar
-credenciais, criar Render, provisionar Postgres, apontar domínio) · **#10 =
-[MISTO]**. Code pode entregar `render.yaml` + `Dockerfile`; apertar deploy é teu.
-
-**Depois do deploy** (não bloqueia subir, organizado por camada): **🟢 PRÉ-PILOTO**
-(P1 glossário, P2 conectores, P3 fontes quebradas) → **🔵 OPERAR COM CLIENTE**
-(O1 gestão de usuários = **bloqueador de piloto**, O2 personas) antes do cliente
-ver; **🟣 ROBUSTEZ** / **📄 CONTEÚDO** em paralelo; **🧭 DECISÃO ESTRATÉGICA**
-(dedicada vs multi-tenant) destrava o **2º** cliente. Marco final: **Piloto
-Confins/Carbel**.
+**Depois do deploy** (organizado por camada): **🟢 PRÉ-PILOTO** (P1 glossário, P2
+conectores, P3 fontes quebradas) → **🔵 OPERAR COM CLIENTE** (**O1 gestão de
+usuários ✅ — não bloqueia mais**; resta **O2 personas**) antes do cliente ver;
+**🟤 UX EXPLORAR** (CP-B reorg de abas + migração HTMX) · **🟣 ROBUSTEZ** / **📄
+CONTEÚDO** em paralelo; **🧭 DECISÃO ESTRATÉGICA** (dedicada vs multi-tenant)
+destrava o **2º** cliente. Marco final: **Piloto Confins/Carbel**.

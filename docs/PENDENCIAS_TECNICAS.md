@@ -4,8 +4,11 @@
 
 ### 1. Substituir credenciais compartilhadas com v2
 
-**Status:** PENDENTE
-**Prazo:** antes de coleta em volume (estimativa: 2 semanas após início da implementação)
+**Status:** ✅ CONCLUÍDO (2026-06, no deploy de produção)
+As chaves de produção (ANTHROPIC/APIFY/OPENAI) foram **geradas dedicadas e setadas
+no painel do Render — completamente isoladas do v2 (zero mistura)**: billing,
+rate-limit e auditoria separados. Coleta e classificação validadas em prod.
+(Histórico original abaixo.)
 
 Hoje, v3 compartilha as seguintes chaves com v2:
 - ANTHROPIC_API_KEY
@@ -30,6 +33,36 @@ Como fazer:
 
 ---
 
+## Novas pendências (2026-06, pós-deploy)
+
+### Fontes-conversa (ReclameAqui) — decisão metodológica c/ Dener
+**Status:** PENDENTE (decisão, não código)
+ReclameAqui (e fontes-conversa em geral: threads pergunta→resposta→tréplica) têm
+estrutura conversacional — não é review pontual. Decidir **com o Dener** como o
+método trata isso: cada mensagem é um verbatim? só a reclamação inicial? a
+resolução conta como promotor? Afeta classificação e ratio. Sem conector hoje;
+decisão precede implementação.
+
+### Monitorar taxa de falha de parse do classificador (0,73%)
+**Status:** ABERTO (monitorar — hoje tolerável)
+O bug de parse (JSON em markdown fence) está RESOLVIDO (ver seção do classifier).
+A **taxa residual de falha-terminal** de classificação foi medida em **~0,73% em
+prod** (marcador `prompt_versao='falha-classificacao'` em `verbatins`; dev mediu
+~0,20%). **Abaixo de 1% = tolerável**, não vale endurecer o parser agora. **Ação:**
+monitorar — se passar de ~1%, reabrir e endurecer. Query de medição: contar
+`verbatins` por `prompt_versao='falha-classificacao'` vs total com texto, por
+empresa.
+
+### Pipeline — detecção de falha sistêmica de bucket
+**Status:** PENDENTE (robustez)
+O pipeline pós-coleta processa em buckets/lotes; hoje uma falha **sistêmica** de
+um bucket (ex.: todo um lote falhando por erro de infra/dependência, não por dado
+ruim) pode passar sem alarme — degrada silenciosamente em vez de sinalizar.
+**Ação:** detectar quando um bucket inteiro falha (taxa de falha do lote acima de
+um limiar) e **sinalizar/abortar** em vez de seguir como se fosse falha pontual.
+
+---
+
 ## Manutenção do banco (Bloco 4 CP-D)
 
 ### MEC 1 — Janela de coleta configurável via env (CONCLUÍDO)
@@ -50,8 +83,12 @@ Precedência (mesma de antes, agora documentada):
 
 ### Tela de cadastro/gestão de usuários (CP-F ou similar)
 
-**Status:** PENDENTE
-**Prazo:** próximo CP do Bloco 4 (ou início do Bloco 5)
+**Status:** ✅ CONCLUÍDO (`9951d63` CP usuarios-ui)
+Tela de gestão de usuários (CRUD soft, ``admin_loyall``-only). **`cliente_total`
+testado e funcionando**: cria o usuário do cliente vinculado à empresa e o login
+dele enxerga só a empresa dele. Fecha o caminho que faltava (criar cliente sem SQL
+cru) → **deixa de ser bloqueador de piloto** (O1 do `ROADMAP_PRODUCAO.md`). Resta
+só a camada de UX por papel (O2 Personas). (Histórico original abaixo.)
 
 Hoje o bootstrap de admin é feito só via CLI ``flask create-admin``
 (introduzido no Bloco 4 CP4). UI de gestão de usuários ainda não existe.
@@ -192,21 +229,24 @@ run-actor.
 dos 3 atores; se 404, achar substituto na Apify Store; se 403/payment,
 documentar e decidir se vale assinar.
 
-### Conector Instagram — devolve 0 itens (RESOLVIDO 2026-05-24)
+### Conectores Instagram + Facebook — DESATIVADOS (bug de schema resolvido, mas sem lastro)
 
-**Status:** CONCLUÍDO em 2026-05-24 (Grupo C)
+**Status:** bug de schema do IG ✅ CONCLUÍDO (2026-05-24); fontes IG/FB
+**DESATIVADAS operacionalmente** (decisão posterior).
 
-Causa raiz: o schema do ator `apify/instagram-scraper` tem default
-`searchType="hashtag"`. Sem override explícito, o ator interpretava
-`bhairport` como `#bhairport` (vazio) em vez de username de perfil.
+**IG — causa raiz do bug (resolvida):** o schema do ator
+`apify/instagram-scraper` tem default `searchType="hashtag"`. Sem override, o
+ator interpretava `bhairport` como `#bhairport` (vazio) em vez de username.
+**Fix:** `instagram.py:155` passa explicitamente ``"searchType": "user"``.
 
-**Fix:** `instagram.py:155` agora passa explicitamente
-``"searchType": "user"``.
-
-**Limitação residual**: perfis muito inativos (ex: `@bhairport`, último
-post de 2014) podem continuar devolvendo coleta-zero. Não é erro do
-conector — é falta de conteúdo recente. Decisão CP-C: manter fonte 82
-ativa, aceitar 0 verbatins, esperar perfil voltar a postar.
+**Por que IG/FB estão DESATIVADOS (porquê, p/ não reabrir à toa):**
+- **Cookie/auth frágil** — IG e FB exigem sessão autenticada (cookies) que
+  expira e quebra o scraper silenciosamente; manutenção alta, confiabilidade baixa.
+- **Baixo lastro** — mesmo coletando, o conteúdo desses canais para BH Airport é
+  raso (perfil IG inativo desde 2014; FB sem volume relevante de comentário-cliente).
+- **Decisão:** manter as fontes `ativo=False` (saem do loop da noturna pelo 2a).
+  Reavaliar caso a caso por cliente — se um cliente tiver IG/FB ativos e com
+  volume, reativar a fonte (o conector existe e o bug está corrigido).
 
 ### Atores Apify trocados em 2026-05-24 (CP-C/Grupo C)
 
@@ -372,6 +412,10 @@ verbatins ATIVOS (mais recentes seguem no banco).
 
 ### Threshold de escalada Haiku→Sonnet (0.6 inicial → 0.85)
 
+> ⚠️ **CREDIBILIDADE DO NÚMERO** — afeta a classificação que alimenta o
+> indicador. Hoje a escalada é **decorativa** (0% dos casos caem < 0.6, logo
+> Sonnet nunca é acionado). Priorizar na próxima reauditoria.
+
 **Status:** PENDENTE
 **Prazo:** após a reauditoria mostrar onde Sonnet faz diferença
 
@@ -522,6 +566,10 @@ Como fazer: definir um logger central (sugestão: `src/utils/logging.py`) com ha
 Frente 4 do Bloco 3.1 reescreveu Cirurgia 3 para incluir explicitamente "Antecipação como facilidade oferecida proativamente" (transfer próprio, retira/entrega digital, kit boas-vindas, late check-out proativo, upgrade não solicitado, app que adianta próximo passo). O caso-limite 12 em `src/classifier/casos_limite.yaml` também foi expandido. Aguardando benchmark pós-reauditoria para validar redução da regressão D3→D1 (era 13/47 = 27.6% do D3).
 
 ### Peso por fonte no ratio P/D (especialmente imprensa/google_news)
+
+> ⚠️ **CREDIBILIDADE DO NÚMERO** — `google_news`/imprensa entram no ratio P/D com
+> peso normal e **inflam promotores artificialmente**. Distorce o indicador que o
+> cliente vê. Decidir peso por fonte (opções A/B abaixo).
 
 **Status:** PENDENTE
 **Prazo:** Bloco 5+ (Painel Executivo)
