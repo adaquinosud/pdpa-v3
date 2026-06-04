@@ -20,12 +20,16 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Cache de camada: deps ANTES do código → mudar código não reinstala o ML stack
-# (que é o passo lento). Só requirements-prod.txt (SEM dev-deps: pytest/black/
-# mypy/pre-commit e pgserver, que empacota um Postgres inteiro). Só mexer neste
-# arquivo invalida esta camada.
-COPY requirements-prod.txt .
+# (que é o passo lento). Instala do LOCKFILE (requirements-prod.lock), não do
+# .txt: versões + transitivas travadas com hash, reconciliadas com o freeze de
+# prod. --require-hashes faz o BUILD FALHAR se qualquer pacote divergir do
+# resolvido/testado — mata a drift dev/prod (ex: sklearn 1.8 dev vs 1.4 prod).
+# Regenerar após mudar requirements-prod.txt:
+#   uv pip compile requirements-prod.txt --universal --python-version 3.11 \
+#       --generate-hashes -o requirements-prod.lock
+COPY requirements-prod.lock .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements-prod.txt
+    && pip install --no-cache-dir --require-hashes -r requirements-prod.lock
 
 # ──────────────────────────────────────────────────────────────────────────
 # Stage 2 — runtime (slim, sem toolchain)
