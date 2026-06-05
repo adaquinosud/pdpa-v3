@@ -72,8 +72,8 @@ A ordem completa pré-produção (Postgres/Alembic, blockers de deploy gunicorn+
 
 ### 🟧 Credibilidade do número (afetam o indicador — registrados no `PENDENCIAS_TECNICAS.md`)
 - *(O item de **maior impacto** desta classe — distribuição dos símbolos, que jogava 41% do volume em Pa1 — está **RESOLVIDO e no ar**, ver FEITO.)*
-- **Peso por fonte no ratio P/D**: `google_news`/imprensa entram com peso normal e **inflam promotores**.
-- **Threshold de escalada Haiku→Sonnet** (0.6→0.85): hoje a escalada é **decorativa** (0% dos casos < 0.6).
+- *(**Threshold de escalada Haiku→Sonnet** — avaliado e **RESOLVIDO/não-requer-ação**: fica em 0,6. Revisão Loyall comentário-a-comentário + avaliação objetiva (99,8% conf ≥0,6; baixa confiança = texto vago que o Sonnet não melhora; rating×tipo coerente). Subir seria 3× custo, ganho zero. Detalhe no `PENDENCIAS_TECNICAS.md`.)*
+- **Peso por fonte no ratio P/D**: `google_news`/imprensa entram com peso normal e **inflam promotores** — **único item desta classe ainda aberto.**
 
 ### 🧭 Decisões estratégicas (Alexandre + Dener)
 - **Instância dedicada vs multi-tenant** (pedido do CEO do aeroporto).

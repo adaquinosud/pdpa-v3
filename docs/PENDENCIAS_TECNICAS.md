@@ -429,12 +429,25 @@ verbatins ATIVOS (mais recentes seguem no banco).
 
 ### Threshold de escalada Haiku→Sonnet (0.6 inicial → 0.85)
 
-> ⚠️ **CREDIBILIDADE DO NÚMERO** — afeta a classificação que alimenta o
-> indicador. Hoje a escalada é **decorativa** (0% dos casos caem < 0.6, logo
-> Sonnet nunca é acionado). Priorizar na próxima reauditoria.
+> ✅ **RESOLVIDO — NÃO REQUER AÇÃO** (2026-06-05). Threshold **fica em 0,6.**
+> **Não reabrir sem evidência NOVA de erro de classificação.**
+>
+> **Evidência:**
+> - **Padrão-ouro:** o time da Loyall revisou a empresa 4 **comentário a
+>   comentário** → classificação considerada **muito boa**.
+> - **Avaliação objetiva (Code) confirma:** **99,8% dos textos têm confiança
+>   ≥ 0,6** (avg 0,82; só 9 de 5.992 abaixo de 0,6, todos texto vago tipo
+>   "Top"/"Excelente"). Os casos de baixa confiança são **ambiguidade do dado**,
+>   não fraqueza do Haiku — **o Sonnet chutaria o mesmo** (não há pilar a
+>   extrair em "Bom"). E o **rating × tipo é coerente**: o classificador lê o
+>   **texto**, não a estrela, acertando até 5★-que-são-reclamação (ex.: 5★
+>   "Alimentação muito cara!" → detrator P1).
+> - **Custo/benefício:** subir 0,6→0,85 escalaria **~55% do volume** ao Sonnet
+>   (**3× custo**) sem erro corrigível → **ganho zero**.
 
-**Status:** PENDENTE
-**Prazo:** após a reauditoria mostrar onde Sonnet faz diferença
+**Status:** ✅ RESOLVIDO (não-requer-ação) — threshold mantido em 0,6.
+
+(Histórico do diagnóstico original abaixo.)
 
 `CLASSIFIER_ESCALATION_THRESHOLD` está default em `0.6` (introduzido na Frente 3 do Bloco 3.1). O benchmark v3.1 mostrou que **0% dos 668 casos** tiveram confiança < 0.6 — a escalada virou decorativa.
 
