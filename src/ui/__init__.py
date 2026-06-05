@@ -2235,12 +2235,10 @@ def htmx_reprocessar_empresa(empresa_id: int):
 
 # ── Hub Explorar (Grupo A) ────────────────────────────────────────────
 
-# Estrutura de abas do Hub Explorar. O campo "grupo" já está presente para a
-# futura reorganização em sub-menus (panel/diagnostico/analise/acoes/ia/
-# relatorios) — HOJE é ignorado visualmente: a tab bar continua plana e
-# horizontal. Ordem: 8 abas originais (memória muscular preservada) + 5 novas
-# anexadas no fim (Painel, Verbatins, Temas, Anomalias, Relatórios — migradas
-# de itens do menu lateral para abas).
+# Estrutura de abas do Hub Explorar. O campo "grupo" define a SEÇÃO de cada aba
+# na tab bar (CP-B): a bar é agrupada e rotulada por seção (visao/explorar/
+# diagnostico/acao/saida + ia), na ordem do funil. Ver _EXPLORAR_GRUPOS e
+# templates/partials/explorar_tabbar.html.
 # Dimensões de escopo do header global, na ordem de exibição. `escopo_aceito`
 # em cada aba lista quais aparecem como <select> visível; as ausentes viram
 # <input type="hidden"> (carregam o valor atual → persistência de escopo entre
@@ -2249,11 +2247,30 @@ def htmx_reprocessar_empresa(empresa_id: int):
 _ESCOPO_DIMENSOES = ("agrupamento", "local", "periodo")
 _ESCOPO_FULL = list(_ESCOPO_DIMENSOES)  # atalho p/ "como hoje" (as três visíveis)
 
+# Ordem do FUNIL (CP-B): panorama → explorar → causa → ação → saída. O `grupo` de
+# cada aba aponta p/ uma seção em _EXPLORAR_GRUPOS; a tab bar renderiza as seções
+# rotuladas, na ordem desta lista. IA fica fora do funil (transversal, à direita).
+# Reorg SÓ visual — escopo_aceito de cada aba é o do CP-A, intacto.
 _EXPLORAR_TABS = [
-    {"id": "locais", "label": "Locais", "grupo": "analise", "escopo_aceito": []},
-    {"id": "heatmap", "label": "Heatmap", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
-    {"id": "comparar", "label": "Comparar", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
-    {"id": "evolucao", "label": "Evolução", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
+    # VISÃO (panorama)
+    {"id": "painel", "label": "Painel", "grupo": "visao", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "locais", "label": "Locais", "grupo": "visao", "escopo_aceito": []},
+    {"id": "leaderboard", "label": "Leaderboard", "grupo": "visao", "escopo_aceito": _ESCOPO_FULL},
+    # EXPLORAR (dados)
+    {"id": "heatmap", "label": "Heatmap", "grupo": "explorar", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "comparar", "label": "Comparar", "grupo": "explorar", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "evolucao", "label": "Evolução", "grupo": "explorar", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "temas", "label": "Temas", "grupo": "explorar", "escopo_aceito": _ESCOPO_FULL},
+    # Verbatins NÃO mostra período no header: a API de listagem ignora período
+    # relativo (usa date-pickers absolutos data_de/data_ate, filtro próprio da
+    # aba). Mostrar período aqui faria o chip prometer um recorte não aplicado.
+    {
+        "id": "verbatins",
+        "label": "Verbatins",
+        "grupo": "explorar",
+        "escopo_aceito": ["agrupamento", "local"],
+    },
+    # DIAGNÓSTICO (causa)
     {
         "id": "diagnostico",
         "label": "Diagnóstico",
@@ -2267,37 +2284,32 @@ _EXPLORAR_TABS = [
         "escopo_aceito": ["agrupamento"],
     },
     {
+        "id": "anomalias",
+        "label": "Anomalias",
+        "grupo": "diagnostico",
+        "escopo_aceito": _ESCOPO_FULL,
+    },
+    # AÇÃO
+    {
         "id": "planos",
         "label": "Planos de Ação",
-        "grupo": "acoes",
+        "grupo": "acao",
         "escopo_aceito": ["agrupamento", "local"],
     },
-    {"id": "leaderboard", "label": "Leaderboard", "grupo": "acoes", "escopo_aceito": _ESCOPO_FULL},
+    # GOVERNANÇA & SAÍDA
+    {"id": "governanca", "label": "Governança", "grupo": "saida", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "relatorios", "label": "Relatórios", "grupo": "saida", "escopo_aceito": _ESCOPO_FULL},
+    # IA (transversal — renderizada à direita, fora do funil)
     {"id": "ia", "label": "✨ IA", "grupo": "ia", "escopo_aceito": _ESCOPO_FULL},
-    {"id": "painel", "label": "Painel", "grupo": "panel", "escopo_aceito": _ESCOPO_FULL},
-    # Verbatins NÃO mostra período no header: a API de listagem ignora período
-    # relativo (usa date-pickers absolutos data_de/data_ate, filtro próprio da
-    # aba). Mostrar período aqui faria o chip prometer um recorte não aplicado.
-    {
-        "id": "verbatins",
-        "label": "Verbatins",
-        "grupo": "analise",
-        "escopo_aceito": ["agrupamento", "local"],
-    },
-    {"id": "temas", "label": "Temas", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
-    {"id": "anomalias", "label": "Anomalias", "grupo": "analise", "escopo_aceito": _ESCOPO_FULL},
-    {
-        "id": "governanca",
-        "label": "Governança",
-        "grupo": "governanca",
-        "escopo_aceito": _ESCOPO_FULL,
-    },
-    {
-        "id": "relatorios",
-        "label": "Relatórios",
-        "grupo": "relatorios",
-        "escopo_aceito": _ESCOPO_FULL,
-    },
+]
+# Seções da tab bar (CP-B), na ordem do funil. IA não entra aqui — é transversal e
+# a tab bar a renderiza à direita, separada.
+_EXPLORAR_GRUPOS = [
+    {"id": "visao", "label": "Visão"},
+    {"id": "explorar", "label": "Explorar"},
+    {"id": "diagnostico", "label": "Diagnóstico"},
+    {"id": "acao", "label": "Ação"},
+    {"id": "saida", "label": "Governança & Saída"},
 ]
 # Set de ids para validação rápida (substitui o antigo `tab in _EXPLORAR_TABS`).
 _EXPLORAR_TAB_IDS = {t["id"] for t in _EXPLORAR_TABS}
@@ -3709,6 +3721,7 @@ def _explorar_render(empresa_id, tab):
         user=user,
         tabs=_EXPLORAR_TABS,
         tabs_migradas=_EXPLORAR_TABS_MIGRADAS,
+        grupos=_EXPLORAR_GRUPOS,
         **ctx,
     )
 
@@ -3743,6 +3756,7 @@ def explorar_tab(empresa_id: int, tab: str):
         "partials/explorar_tabbar.html",
         tabs=_EXPLORAR_TABS,
         tabs_migradas=_EXPLORAR_TABS_MIGRADAS,
+        grupos=_EXPLORAR_GRUPOS,
         tabbar_oob=True,
         **ctx,
     )

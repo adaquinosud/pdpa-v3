@@ -1,23 +1,38 @@
 {# Tab bar do Hub Explorar. Renderizada (a) pelo shell no full-load e (b) pelo
-   ui.explorar_tab como fragmento OOB (tabbar_oob=True) no swap HTMX — assim o
-   sublinhado da aba ativa acompanha a seleção mesmo sem recarregar a página
-   (Bug 2). O servidor continua a ÚNICA fonte da classe ativa (zero JS de toggle).
-   `qs` é auto-contido a partir de `filtros` p/ render idêntico nos dois caminhos.
-   Abas em `tabs_migradas` usam full-load; as demais, swap. #}
+   ui.explorar_tab como fragmento OOB (tabbar_oob=True) no swap HTMX — o sublinhado
+   da aba ativa acompanha a seleção sem reload (Bug 2, CP-A). Servidor é a ÚNICA
+   fonte da classe ativa (zero JS).
+
+   CP-B: abas AGRUPADAS por seção (`grupos`, ordem do funil) com rótulo visível;
+   IA à direita, transversal. O markup do <a> de cada aba é o MESMO do CP-A (classe
+   ativa, full-load p/ tabs_migradas, HTMX swap+push p/ as demais) — só a estrutura
+   ao redor (seções) mudou. `qs` auto-contido p/ render idêntico nos dois caminhos. #}
 {% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo ~ '&local_id=' ~ filtros.local_id %}
-<div id="explorar-tabbar"{% if tabbar_oob %} hx-swap-oob="true"{% endif %}
-     class="flex flex-wrap gap-1 border-b border-loyall-200 mb-4">
-  {% for t in tabs %}
-  {% set cls = 'px-4 py-2 -mb-px border-b-2 text-sm ' ~ ('border-loyall-700 text-loyall-800 font-medium' if tab == t.id else 'border-transparent text-loyall-500 hover:text-loyall-700') %}
-  {% if t.id in tabs_migradas %}
-  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
-     class="{{ cls }}">{{ t.label }}</a>
-  {% else %}
+
+{%- macro tablink(t) -%}
+  {%- set cls = 'px-3 py-2 -mb-px border-b-2 text-sm whitespace-nowrap ' ~ ('border-loyall-700 text-loyall-800 font-medium' if tab == t.id else 'border-transparent text-loyall-500 hover:text-loyall-700') -%}
+  {%- if t.id in tabs_migradas -%}
+  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}" class="{{ cls }}">{{ t.label }}</a>
+  {%- else -%}
   <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
      hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab=t.id) }}?{{ qs }}"
      hx-target="#explorar-conteudo" hx-swap="innerHTML"
      hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}"
      class="{{ cls }}">{{ t.label }}</a>
-  {% endif %}
+  {%- endif -%}
+{%- endmacro -%}
+
+<div id="explorar-tabbar"{% if tabbar_oob %} hx-swap-oob="true"{% endif %}
+     class="flex flex-wrap items-end gap-x-4 gap-y-1 border-b border-loyall-200 mb-4">
+  {% for g in grupos %}
+  <div class="flex flex-col">
+    <span class="text-[10px] uppercase tracking-wider text-loyall-400 px-3 pb-0.5">{{ g.label }}</span>
+    <div class="flex">{% for t in tabs if t.grupo == g.id %}{{ tablink(t) }}{% endfor %}</div>
+  </div>
   {% endfor %}
+  {# IA — transversal, fixa à direita, separada do funil #}
+  <div class="flex flex-col ml-auto">
+    <span class="text-[10px] uppercase tracking-wider text-loyall-400 px-3 pb-0.5 text-right">transversal</span>
+    <div class="flex">{% for t in tabs if t.grupo == 'ia' %}{{ tablink(t) }}{% endfor %}</div>
+  </div>
 </div>

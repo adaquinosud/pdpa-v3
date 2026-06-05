@@ -495,3 +495,55 @@ def test_cpA_verbatins_dedupe_bug1_e_chip(client_loyall, db_session):
     # "Período:" mesmo com periodo=90d na URL.
     assert '<select name="periodo"' not in _header(html)
     assert "Período:" not in cont
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# CP-B: reorganização das abas em seções (funil) + IA à direita
+# ─────────────────────────────────────────────────────────────────────────
+def _tabbar(html: str) -> str:
+    """Recorta a tab bar (#explorar-tabbar … antes do conteúdo)."""
+    i = html.find('id="explorar-tabbar"')
+    j = html.find('id="explorar-conteudo"')
+    return html[i:j] if i != -1 and j != -1 else html
+
+
+def test_cpB_abas_agrupadas_em_secoes_na_ordem_do_funil(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "cpb")
+    bar = _tabbar(client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True))
+    # 6 rótulos de seção visíveis na tab bar (& escapa p/ &amp; → testo "Saída")
+    for lbl in ("Visão", "Explorar", "Diagnóstico", "Ação", "Saída", "transversal"):
+        assert lbl in bar
+    # ordem do funil pelos tab=<id> (1ª ocorrência = href de cada aba)
+    ordem = [
+        "painel",
+        "locais",
+        "leaderboard",  # VISÃO
+        "heatmap",
+        "comparar",
+        "evolucao",
+        "temas",
+        "verbatins",  # EXPLORAR
+        "diagnostico",
+        "concentracao",
+        "anomalias",  # DIAGNÓSTICO
+        "planos",  # AÇÃO
+        "governanca",
+        "relatorios",  # GOVERNANÇA & SAÍDA
+        "ia",  # IA (direita)
+    ]
+    pos = [bar.find("tab=" + tid + "&") for tid in ordem]
+    assert all(p != -1 for p in pos)  # 15 abas presentes
+    assert pos == sorted(pos)  # exatamente na ordem do funil
+    # IA fica à direita (depois de relatórios) e visualmente separada (ml-auto)
+    assert bar.find("tab=ia&") > bar.find("tab=relatorios&")
+    assert "ml-auto" in bar
+
+
+def test_cpB_sublinhado_ativo_preservado_no_oob(client_loyall, db_session):
+    """CP-A não regrediu: a aba ativa segue marcada (border-loyall-700) e a tab bar
+    volta via OOB com os grupos no swap HTMX."""
+    e, a, locs = _ctx(client_loyall, "cpboob")
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/heatmap").get_data(as_text=True)
+    assert 'id="explorar-tabbar"' in html and 'hx-swap-oob="true"' in html
+    assert "border-loyall-700" in html  # sublinhado ativo presente
+    assert "Visão" in html and "Explorar" in html  # seções vêm no fragmento OOB
