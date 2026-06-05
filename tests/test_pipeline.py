@@ -94,7 +94,14 @@ def fonte_empresa(db_session):
 def mock_classificar_pa1(monkeypatch):
     """Substitui ``classificar()`` por mock que retorna Pa1/promotor."""
 
-    def fake(texto, empresa_nome=None, empresa_setor=None, fonte_tipo=None):
+    def fake(
+        texto,
+        empresa_nome=None,
+        empresa_setor=None,
+        fonte_tipo=None,
+        local_nome=None,
+        local_tipo=None,
+    ):
         return ResultadoClassificacao(
             subpilar="Pa1",
             tipo="promotor",
@@ -163,7 +170,14 @@ def test_processar_classificacao_recebe_texto_truncado(fonte_local, monkeypatch)
     """Pipeline trunca o texto em MAX_TEXTO_CHARS_CLASSIFIER ao chamar classifier."""
     capturado: dict = {}
 
-    def fake(texto, empresa_nome=None, empresa_setor=None, fonte_tipo=None):
+    def fake(
+        texto,
+        empresa_nome=None,
+        empresa_setor=None,
+        fonte_tipo=None,
+        local_nome=None,
+        local_tipo=None,
+    ):
         capturado["texto_recebido"] = texto
         return ResultadoClassificacao(
             subpilar="Pa1", tipo="promotor", confianca=0.9, justificativa=""
@@ -181,7 +195,14 @@ def test_processar_propaga_hints_classifier(fonte_local, monkeypatch):
     """Pipeline propaga empresa_nome, empresa_setor, fonte_tipo ao classifier."""
     capturado: dict = {}
 
-    def fake(texto, empresa_nome=None, empresa_setor=None, fonte_tipo=None):
+    def fake(
+        texto,
+        empresa_nome=None,
+        empresa_setor=None,
+        fonte_tipo=None,
+        local_nome=None,
+        local_tipo=None,
+    ):
         capturado.update(
             {
                 "empresa_nome": empresa_nome,
@@ -228,4 +249,4 @@ def test_processar_classifier_resultado_populado(fonte_local, mock_classificar_p
     assert v.subpilar == "Pa1"
     assert v.tipo == "promotor"
     assert v.confianca == 0.9
-    assert v.prompt_versao == "v3.0"
+    assert v.prompt_versao == "v3.1"  # bump: prompt local-aware (CP local-no-prompt)

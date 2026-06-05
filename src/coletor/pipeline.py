@@ -181,6 +181,14 @@ def processar_verbatim_coletado(
         empresa = session.get(Empresa, empresa_id)
         empresa_nome = empresa.nome if empresa is not None else None
         empresa_setor = empresa.setor if empresa is not None else None
+        # CP local-no-prompt: nome do local (loja-tenant) p/ o classificador não
+        # descartar review de loja como sem_lastro em empresa multi-tenant.
+        local_nome = None
+        if local_id is not None:
+            from src.models.local import Local
+
+            _loc = session.get(Local, local_id)
+            local_nome = _loc.nome if _loc is not None else None
 
         # 5. Classifica
         subpilar: Optional[str] = None
@@ -202,6 +210,7 @@ def processar_verbatim_coletado(
                     empresa_nome=empresa_nome,
                     empresa_setor=empresa_setor,
                     fonte_tipo=fonte_conector_tipo,
+                    local_nome=local_nome,
                 )
                 subpilar = resultado.subpilar
                 tipo = resultado.tipo

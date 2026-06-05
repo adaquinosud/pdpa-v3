@@ -797,6 +797,98 @@ def _register_cli_commands(app: Flask) -> None:
         for v in ("promotor", "conversivel", "detrator"):
             click.echo(f"[simbolos]   {v:11s} → {r['destino_por_valencia'][v]}")
 
+    # ── CP local-no-prompt: flask reclassificar-tenant-rejection ──────
+    @app.cli.command("reclassificar-tenant-rejection")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Mostra antes→depois SEM gravar (mede a migração antes de aplicar).",
+    )
+    def reclassificar_tenant_rejection(empresa_arg, dry_run):
+        """Reclassifica os verbatins que o classificador (sem o local no prompt)
+        descartou como sem_lastro com justificativa de tenant-rejection ('refere-se
+        a [loja], não ao aeroporto'), MAS que são reviews de loja física (rating).
+        Reusa classificar() já com o local (prompt v3.1). Social (sem rating) fica
+        FORA — listado à parte. ``--dry-run`` não grava."""
+        from sqlalchemy import or_  # noqa: F401  (mantém paridade de imports do módulo)
+
+        from src.classifier.classifier_v3 import classificar
+        from src.models.empresa import Empresa
+        from src.models.fonte import Fonte
+        from src.models.local import Local
+        from src.models.verbatim import Verbatim
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, nome, setor = emp.id, emp.nome, emp.setor
+            fontes = {
+                f.id: f.conector_tipo for f in s.query(Fonte).filter_by(empresa_id=empresa_id)
+            }
+            locais = {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id)}
+
+            # Conjunto-alvo: sem_lastro v3.0, tenant-rejection, COM rating (loja física), COM local.
+            base = s.query(Verbatim).filter(
+                Verbatim.empresa_id == empresa_id,
+                Verbatim.subpilar == "sem_lastro",
+                Verbatim.prompt_versao == "v3.0",
+                Verbatim.local_id.isnot(None),
+                Verbatim.justificativa.like("%refere-se a%"),
+                Verbatim.justificativa.like("%aeroporto%"),
+            )
+            alvos = base.filter(Verbatim.rating.isnot(None)).order_by(Verbatim.id).all()
+            social = base.filter(Verbatim.rating.is_(None)).order_by(Verbatim.id).all()
+
+            modo = "DRY-RUN (não gravou)" if dry_run else "APLICADO"
+            click.echo(f"[tenant] empresa={nome!r} (id={empresa_id}) — {modo}")
+            click.echo(f"[tenant] alvos (c/rating)={len(alvos)} · social (s/rating)={len(social)}")
+
+            reanc = 0
+            por_pilar: dict = {}
+            for v in alvos:
+                try:
+                    r = classificar(
+                        texto=v.texto,
+                        empresa_nome=nome,
+                        empresa_setor=setor,
+                        fonte_tipo=fontes.get(v.fonte_id),
+                        local_nome=locais.get(v.local_id),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    click.echo(f"[tenant]   v{v.id} ERRO: {type(exc).__name__}: {exc}", err=True)
+                    continue
+                antes = v.subpilar
+                if r.subpilar != "sem_lastro":
+                    reanc += 1
+                    por_pilar[r.subpilar] = por_pilar.get(r.subpilar, 0) + 1
+                click.echo(
+                    f"[tenant]   v{v.id} [{locais.get(v.local_id, '?')[:24]}] "
+                    f"{antes} → {r.subpilar}/{r.tipo} (conf {r.confianca}) · {v.texto[:45]!r}"
+                )
+                if not dry_run:
+                    v.subpilar, v.tipo, v.confianca = r.subpilar, r.tipo, r.confianca
+                    v.justificativa, v.prompt_versao = r.justificativa, r.prompt_versao
+
+            ficaram = len(alvos) - reanc
+            click.echo(
+                f"[tenant] RESULTADO: reancorados={reanc} (por pilar {por_pilar}) · "
+                f"seguem sem_lastro (fora-de-lugar reais)={ficaram}"
+            )
+            click.echo(f"[tenant] custo estimado ~${reanc * 0.0005 + ficaram * 0.0005:.4f}")
+            if social:
+                click.echo(f"[tenant] SOCIAL não reprocessado ({len(social)}) — decidir à parte:")
+                for v in social:
+                    src = f"{fontes.get(v.fonte_id)}/{locais.get(v.local_id, '?')[:18]}"
+                    click.echo(f"[tenant]   v{v.id} [{src}] {v.texto[:44]!r}")
+
     # ── Monitoramento ML CP-5: flask anomalias-detectar ($0, sem LLM) ──
     @app.cli.command("anomalias-detectar")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")

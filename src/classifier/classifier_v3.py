@@ -60,7 +60,7 @@ from src.config import get_config
 # ── Constantes ───────────────────────────────────────────────────────────
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "classifier_v3_prompt.md"
-PROMPT_VERSAO = "v3.0"
+PROMPT_VERSAO = "v3.1"  # v3.1: prompt passa o LOCAL (fix tenant-rejection multi-tenant)
 
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MODEL = HAIKU_MODEL  # alias mantido para compatibilidade com imports antigos
@@ -167,6 +167,8 @@ def _build_user_prompt(
     empresa_nome: Optional[str] = None,
     empresa_setor: Optional[str] = None,
     fonte_tipo: Optional[str] = None,
+    local_nome: Optional[str] = None,
+    local_tipo: Optional[str] = None,
 ) -> str:
     """Monta a mensagem do user com hints contextuais + dicionário + casos-limite.
 
@@ -200,6 +202,26 @@ def _build_user_prompt(
         linhas.append(f"Setor: {empresa_setor}")
     if fonte_tipo:
         linhas.append(f"Fonte: {fonte_tipo}")
+
+    # Contexto do LOCAL (CP local-no-prompt): sem isto, em empresa multi-tenant
+    # (aeroporto) o LLM rejeitava reviews de lojas-tenant como sem_lastro ("refere-se
+    # a [loja], não ao aeroporto"). A linha abaixo diz que o local É parte da empresa.
+    # SALVAGUARDA anti-inversão: local válido NÃO obriga ancoragem — texto genuinamente
+    # alheio (ex.: assunto técnico de voo) segue sem_lastro.
+    if local_nome:
+        _emp = empresa_nome or "a empresa"
+        _suf = f" ({local_tipo})" if local_tipo else ""
+        linhas.append(f"Local: {local_nome}{_suf} — uma loja/operação DENTRO de {_emp}.")
+        linhas.append(
+            "Reviews de lojas/operações dentro da empresa (locadoras, restaurantes, "
+            "cafés, hotéis, lojas) SÃO parte dela: classifique a experiência do cliente "
+            "COM este local nos pilares (preço→Precisão, atendimento→Parceria, "
+            "rapidez/acesso→Disponibilidade, orientação→Aconselhamento). NÃO marque "
+            "sem_lastro só por 'não ser o aeroporto/empresa-mãe'. Porém, se o texto for "
+            "genuinamente alheio à experiência neste local (ex.: comentário técnico "
+            "sobre voo sem relação com a loja), mantenha sem_lastro — o local válido "
+            "NÃO obriga ancoragem."
+        )
 
     # Injeta dicionário como heurística contextual
     dicionario = carregar_dicionario(empresa_setor)
@@ -511,6 +533,8 @@ def classificar(
     empresa_nome: Optional[str] = None,
     empresa_setor: Optional[str] = None,
     fonte_tipo: Optional[str] = None,
+    local_nome: Optional[str] = None,
+    local_tipo: Optional[str] = None,
 ) -> ResultadoClassificacao:
     """Classifica um verbatim com escalada Haiku→Sonnet opcional.
 
@@ -553,6 +577,8 @@ def classificar(
         empresa_nome=empresa_nome,
         empresa_setor=empresa_setor,
         fonte_tipo=fonte_tipo,
+        local_nome=local_nome,
+        local_tipo=local_tipo,
     )
     texto_hash = hashlib.sha1(texto_truncado.encode("utf-8")).hexdigest()[:16]
 

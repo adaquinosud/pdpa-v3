@@ -104,6 +104,7 @@ def classificar_pendentes(empresa_id: int, limite: Optional[int] = None) -> Dict
     from src.classifier.classifier_v3 import classificar
     from src.models.empresa import Empresa
     from src.models.fonte import Fonte
+    from src.models.local import Local
     from src.models.verbatim import Verbatim
     from src.utils.db import db_session
 
@@ -115,6 +116,9 @@ def classificar_pendentes(empresa_id: int, limite: Optional[int] = None) -> Dict
         fontes = {
             f.id: f.conector_tipo for f in s.query(Fonte).filter_by(empresa_id=empresa_id).all()
         }
+        # CP local-no-prompt: nome do local p/ o prompt saber que reviews de loja-tenant
+        # (Unidas, McDonald's…) são parte da empresa multi-tenant (não descartar sem_lastro).
+        locais = {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id).all()}
         q = s.query(Verbatim).filter(
             Verbatim.empresa_id == empresa_id,
             Verbatim.tem_texto.is_(True),
@@ -129,6 +133,7 @@ def classificar_pendentes(empresa_id: int, limite: Optional[int] = None) -> Dict
                     empresa_nome=nome,
                     empresa_setor=setor,
                     fonte_tipo=fontes.get(v.fonte_id),
+                    local_nome=locais.get(v.local_id),
                 )
                 v.subpilar = r.subpilar
                 v.tipo = r.tipo
