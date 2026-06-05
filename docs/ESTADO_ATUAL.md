@@ -31,6 +31,7 @@ a1f37ae CP reaper-orfas: auto-cura ColetaExecucao órfã presa em 'rodando'
 - **Lockfile dev==prod** (`962749d`): `requirements-prod.lock`/`requirements-dev.lock` (uv pip compile, hashes), Dockerfile instala com `--require-hashes`. Mata a classe de drift que quebrou o umap em prod (`1b19571`/`08c0823`).
 - **CP-A — filtros do Hub Explorar** (`4ec1eec`): header de escopo condicional declarativo (`escopo_aceito` por aba), chip de escopo ativo, dedupe (Verbatins/Painel/Temas consomem o header), + 2 bugs (filtro pulava p/ Locais; sublinhado da aba congelava). UI-only, cálculos intactos. **Abre o CP-B** (reorg de abas) e a migração das 5 abas legadas full-load → HTMX.
 - **Reaper de threads órfãs** (`a1f37ae`): auto-cura de `ColetaExecucao` presa em `rodando`.
+- **Distribuição de verbatins só-símbolo — NO AR** (`1609f29`): corrige o fallback que forçava **41% dos verbatins** (só-símbolo, ratings-only do Google) no subpilar **Pa1**. Agora cada símbolo é distribuído pelos pilares pela **proporção dos textos da própria loja**, respeitando a **valência** (5★ segue promotores; 4-3★ conversíveis; 2-1★ detratores), com **cascata loja→agrupamento→empresa→igual** (piso 30 textos). Roda no `pipeline-pos-coleta`, $0 (sem LLM), determinístico (maior-resto). **Parceria normalizada** (de ~73% → ~50% do peso dos 4 pilares); **Disponibilidade recebeu o sinal que era dela** (~1.365). Aplicado em prod via `pipeline-pos-coleta --empresa 4 --force`; **persistência confirmada por query**: símbolos hoje em Pa **1.993** · D **1.365** · P **683** · A **230** (marcador `prompt_versao='rating-dist-v1'` nos 4.256). Spec: `docs/PDPA_Spec_Simbolos.docx`. → **Era o item de MAIOR IMPACTO na credibilidade do número — resolvido.**
 
 ### Anteriores
 - **Reagrupamento por ramo — VALIDADO** (locadoras herdam de locadoras; herança de escopo coerente). *Operação de dados/agrupamento, sem commit de código.*
@@ -70,6 +71,7 @@ A ordem completa pré-produção (Postgres/Alembic, blockers de deploy gunicorn+
 - *(Reaper de threads órfãs e `.gitignore`: **RESOLVIDOS**.)*
 
 ### 🟧 Credibilidade do número (afetam o indicador — registrados no `PENDENCIAS_TECNICAS.md`)
+- *(O item de **maior impacto** desta classe — distribuição dos símbolos, que jogava 41% do volume em Pa1 — está **RESOLVIDO e no ar**, ver FEITO.)*
 - **Peso por fonte no ratio P/D**: `google_news`/imprensa entram com peso normal e **inflam promotores**.
 - **Threshold de escalada Haiku→Sonnet** (0.6→0.85): hoje a escalada é **decorativa** (0% dos casos < 0.6).
 

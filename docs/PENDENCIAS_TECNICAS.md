@@ -61,6 +61,23 @@ ruim) pode passar sem alarme — degrada silenciosamente em vez de sinalizar.
 **Ação:** detectar quando um bucket inteiro falha (taxa de falha do lote acima de
 um limiar) e **sinalizar/abortar** em vez de seguir como se fosse falha pontual.
 
+### Distribuição de símbolos — v2 (a CP da v1 `1609f29` está no ar)
+A v1 (distribuir os só-símbolo pelos pilares por proporção de texto + valência)
+está concluída e em produção. Ficaram p/ a v2:
+
+1. **`simbolos-redistribuir --dry-run` deve reportar o DIFF vs estado atual do
+   banco**, não só o plano. **Status:** PENDENTE (UX/operação). Hoje o dry-run
+   recalcula a distribuição do zero e mostra `saem_de_Pa1` ~2.288 **mesmo já
+   aplicado** (é um preview do plano, não um diff de estado) — confunde na
+   verificação pós-apply. Conferir o estado real exige query direta no `subpilar`
+   dos `tem_texto=false`. Ação: o dry-run também imprimir "X símbolos JÁ estão no
+   pilar destino, Y mudariam".
+2. **Estratificação refinada + PESO do símbolo no indicador.** **Status:** PENDENTE
+   (decisão de método com o Dener). Hoje o símbolo conta como **1 voto pleno** e a
+   confiança 0,2–0,4 é **decorativa** (nenhum indicador pondera por ela). Quanto um
+   símbolo vale vs um texto — e refinamentos da estratificação — é a "v2" adiada
+   na spec. Decisão de método antes de implementar.
+
 ---
 
 ## Manutenção do banco (Bloco 4 CP-D)
