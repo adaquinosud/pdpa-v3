@@ -64,7 +64,10 @@ Conceito mais amplo do qual o PDPA é instrumento. Sete camadas concêntricas + 
 7. **Resultados Estratégicos** (pricing power, LTV, retenção)
 8. **CCRO** (Chief Customer Relations Officer — destino organizacional)
 
-Cobertura atual: ~37% da Mandala implementada. Roadmap em 3 horizontes.
+Cobertura atual: ver **`docs/MANDALA_COBERTURA.md`** — mapa camada-a-camada
+(Mandala da Leitura Guiada v2 × estado no app), com % honesto contando só os
+elementos implementáveis em software (≈59% incluindo ORIGEM como feature ausente;
+≈75% tratando ORIGEM como camada de método). O "~37% à mão" foi aposentado.
 
 ## Autores e propriedade
 - **Alexandre D'Aquino** (alexandre.daquino@techmahindra.com) — co-criador da metodologia + sistema, COO Tech Mahindra Brasil
