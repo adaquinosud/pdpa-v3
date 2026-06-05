@@ -52,6 +52,8 @@ class ResumoPosColeta:
     cruz_literais: int = 0
     cruz_semanticos: int = 0
     acoes: int = 0
+    # Distribuição de símbolos pelos pilares (CP distribuicao-simbolos)
+    simbolos_redistribuidos: int = 0
     # Cauda editorial (Bloco 8 / PA.5)
     anomalias: int = 0
     diagnostico_gerados: int = 0
@@ -199,6 +201,15 @@ def executar_pos_coleta(
 
     ra = gerar_e_persistir_acoes(empresa_id)
     r.acoes = ra.acoes_geradas
+
+    # ── Distribuição de símbolos pelos pilares (CP distribuicao-simbolos) ──
+    # ANTES da camada quantitativa (ratios_mensais ↓ e tudo que lê subpilar):
+    # redistribui TODOS os símbolos (tem_texto=False) pela proporção de pilares
+    # dos textos da MESMA valência, cascata loja→agrup→empresa→igual. Roda após a
+    # classificação de texto (proporção final) e $0 (sem LLM). Determinístico.
+    from src.coletor.distribuicao_simbolos import redistribuir_simbolos
+
+    r.simbolos_redistribuidos = redistribuir_simbolos(empresa_id)["total_simbolos"]
 
     # ── Cauda editorial (Bloco 8 / PA.5) — estado coerente após cada coleta ──
     # anomalias ($0): recomputa série + detecta (preserva validação humana).

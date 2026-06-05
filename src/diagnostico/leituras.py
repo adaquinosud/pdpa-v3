@@ -35,11 +35,21 @@ def _locais_do_agrupamento(s, empresa_id: int, ag_id: int) -> List[int]:
 
 
 def agregar_subpilares(
-    s, empresa_id: int, ag_id: Optional[int] = None, local_id: Optional[int] = None
+    s,
+    empresa_id: int,
+    ag_id: Optional[int] = None,
+    local_id: Optional[int] = None,
+    *,
+    so_texto: bool = False,
 ) -> Dict[str, Dict[str, Any]]:
     """Mix prom/conv/det + ratio + faixa por subpilar, no escopo (empresa,
     agrupamento ou loja). ``local_id`` set ⟹ escopo loja (tem precedência).
-    Histórico completo — o diagnóstico é um retrato de estado."""
+    Histórico completo — o diagnóstico é um retrato de estado.
+
+    ``so_texto=True`` exclui os verbatins só-símbolo (``tem_texto=False``) —
+    diagnóstico "só-texto" p/ comparar contra a versão com-símbolo (auditoria do
+    CP distribuicao-simbolos). Default False = comportamento de produção (símbolo
+    distribuído conta como 1 voto pleno)."""
     from sqlalchemy import func
 
     from src.api.painel import calcular_ratio, faixa_ratio
@@ -50,6 +60,8 @@ def agregar_subpilares(
         .filter(Verbatim.empresa_id == empresa_id, Verbatim.subpilar.isnot(None))
         .group_by(Verbatim.subpilar, Verbatim.tipo)
     )
+    if so_texto:
+        q = q.filter(Verbatim.tem_texto.is_(True))
     if local_id is not None:
         q = q.filter(Verbatim.local_id == local_id)
     elif ag_id is not None:

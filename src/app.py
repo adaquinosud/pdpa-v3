@@ -761,6 +761,42 @@ def _register_cli_commands(app: Flask) -> None:
         )
         click.echo(f"[pos-coleta] custo estimado ~${r.custo_estimado_usd}")
 
+    # ── CP distribuicao-simbolos: flask simbolos-redistribuir ($0, sem LLM) ──
+    @app.cli.command("simbolos-redistribuir")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Mede a migração SEM gravar (mostra quantos saem de Pa1 e pra onde).",
+    )
+    def simbolos_redistribuir(empresa_arg, dry_run):
+        """Redistribui os verbatins só-símbolo pelos pilares (cascata por
+        valência). Roda também dentro do pipeline-pos-coleta; este comando é p/
+        rodar/auditar avulso. ``--dry-run`` não grava."""
+        from src.coletor.distribuicao_simbolos import redistribuir_simbolos
+        from src.models.empresa import Empresa
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, empresa_nome = emp.id, emp.nome
+
+        r = redistribuir_simbolos(empresa_id, dry_run=dry_run)
+        modo = "DRY-RUN (não gravou)" if dry_run else "APLICADO"
+        click.echo(f"[simbolos] empresa={empresa_nome!r} (id={empresa_id}) — {modo}")
+        click.echo(f"[simbolos] total={r['total_simbolos']} saem_de_Pa1={r['saem_de_pa1']}")
+        click.echo(f"[simbolos] por nível: {r['por_nivel']}")
+        click.echo(f"[simbolos] destino por pilar: {r['destino_pilar']}")
+        for v in ("promotor", "conversivel", "detrator"):
+            click.echo(f"[simbolos]   {v:11s} → {r['destino_por_valencia'][v]}")
+
     # ── Monitoramento ML CP-5: flask anomalias-detectar ($0, sem LLM) ──
     @app.cli.command("anomalias-detectar")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")

@@ -214,7 +214,10 @@ def processar_verbatim_coletado(
                     f"{type(exc).__name__}: {exc}"
                 )
         elif rating is not None and rating in RATING_PARA_CLASSIFICACAO:
-            # Caminho ratings-only: heurística por rating, sem token gasto
+            # Caminho ratings-only: heurística por rating, sem token gasto. O
+            # subpilar Pa1 aqui é PROVISÓRIO — o pós-coleta (redistribuir_simbolos)
+            # sobrescreve o pilar pela proporção dos textos da mesma valência. A
+            # valência (tipo por nota) é a parte definitiva e não muda.
             sp, tp, cf, jf = RATING_PARA_CLASSIFICACAO[rating]
             subpilar, tipo, confianca, justificativa = sp, tp, cf, jf
             prompt_versao = "rating-heuristica-v1"
