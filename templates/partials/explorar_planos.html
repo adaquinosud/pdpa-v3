@@ -45,6 +45,9 @@
       <span>Selo</span>
       <span class="text-right capitalize">{{ it.projecao.selo[0] or '—' }} → <b class="text-loyall-800">{{ it.projecao.selo[1] or '—' }}</b></span>
       {% endif %}
+      {# CP-impacto-rs: fluxo R$ recuperável (recuperados × LTV_loja). Sem LTV → "—". #}
+      <span>R$ recuperável</span>
+      <span class="text-right">{% if it.projecao.rs_fluxo_fmt %}<b class="text-emerald-700">{{ it.projecao.rs_fluxo_fmt }}</b>{% else %}<span class="text-loyall-300" title="Loja sem LTV (ticket × frequência) ou ação de visão/agrupamento">—</span>{% endif %}</span>
     </div>
     {% if not it.projecao.sub_floor and it.projecao.proximity[1] > it.projecao.proximity[0] and it.projecao.indice[0] == it.projecao.indice[1] %}
     <div class="text-[10px] text-loyall-500 mt-1.5">↳ A Proximity deste subpilar sobe, mas o Índice não move: <b>este não é o pilar gargalo</b> — o Índice é puxado pelo pilar mais travado (Lastro).</div>

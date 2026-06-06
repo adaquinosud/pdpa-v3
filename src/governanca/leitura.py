@@ -508,11 +508,19 @@ def anexar_impacto_acoes(s, empresa_id, itens):
     da faixa via ``_FAIXA_PRIORIDADE``. (Nome ``projecao`` evita colidir com o
     campo ``impacto`` textual já existente nas ações do B2'.)"""
     from src.diagnostico.leituras import agregar_subpilares
+    from src.governanca.impacto_rs import ltv_loja, taxas_empresa
     from src.governanca.metricas import simular_impacto_acao
+    from src.models.empresa import Empresa
+    from src.models.local import Local
     from src.planos.consolidar import _FAIXA_PRIORIDADE
+
+    # Taxas POR EMPRESA (CP-impacto-rs); fallback na constante se a empresa sumiu.
+    _emp = s.get(Empresa, empresa_id)
+    taxas = taxas_empresa(_emp) if _emp is not None else None
 
     agg_cache = {}
     prev_cache = {}
+    ltv_cache: dict = {}  # lid → LTV_loja (None se loja sem ticket/frequencia)
     for it in itens:
         sub = getattr(it, "subpilar", None)
         if not sub:
@@ -529,10 +537,20 @@ def anexar_impacto_acoes(s, empresa_id, itens):
             if lid not in prev_cache:
                 prev_cache[lid] = previsibilidade_loja(s, empresa_id, lid)["valor"]
             prev = prev_cache[lid]
+        # Fluxo R$ só faz sentido com LTV_loja: ação de loja (lid set) → LTV da
+        # loja; ação de empresa/agrupamento → None (R$ "—", sem LTV único).
+        ltv = None
+        if lid is not None:
+            if lid not in ltv_cache:
+                _loc = s.get(Local, lid)
+                ltv_cache[lid] = ltv_loja(_loc) if _loc is not None else None
+            ltv = ltv_cache[lid]
         prioridade = getattr(it, "prioridade", None) or _FAIXA_PRIORIDADE.get(
             getattr(it, "faixa", None), "medio"
         )
-        it.projecao = simular_impacto_acao(agg_cache[key], sub, prioridade, prev)
+        it.projecao = simular_impacto_acao(
+            agg_cache[key], sub, prioridade, prev, taxas=taxas, ltv=ltv
+        )
         it.projecao_loja = lid is not None
 
 

@@ -53,8 +53,19 @@ def serialize_local(local: Local) -> Dict[str, Any]:
             local.data_inicio_operacao.isoformat() if local.data_inicio_operacao else None
         ),
         "observacao": local.observacao,
+        # CP-impacto-rs: inputs do LTV + LTV derivado (ticket×frequencia) + origem.
+        "ticket_medio": local.ticket_medio,
+        "frequencia": local.frequencia,
+        "ltv_origem": local.ltv_origem,
+        "ltv": _ltv_local(local),
         "criado_em": local.criado_em.isoformat() if local.criado_em else None,
     }
+
+
+def _ltv_local(local: Local):
+    from src.governanca.impacto_rs import ltv_loja
+
+    return ltv_loja(local)
 
 
 _CAMPOS_EDITAVEIS = (
@@ -70,6 +81,9 @@ _CAMPOS_EDITAVEIS = (
     "status",
     "data_inicio_operacao",
     "observacao",
+    "ticket_medio",
+    "frequencia",
+    "ltv_origem",
 )
 
 
@@ -115,9 +129,36 @@ def atualizar_local(local_id: int):
         for campo in _CAMPOS_EDITAVEIS:
             if campo in data:
                 setattr(local, campo, data[campo])
+        # Editar ticket/frequência à mão = valor próprio: marca origem (a menos
+        # que o cliente já tenha mandado ltv_origem explícito, ex.: pré-preench).
+        if ("ticket_medio" in data or "frequencia" in data) and "ltv_origem" not in data:
+            local.ltv_origem = "proprio"
         local.atualizado_em = datetime.utcnow()
         session.flush()
         return jsonify(serialize_local(local))
+
+
+@locais_bp.route("/<int:local_id>/ltv-sugestao", methods=["GET"])
+@login_required
+def sugerir_ltv_local(local_id: int):
+    """Pré-preenchimento hierárquico do ticket/frequência (CP-impacto-rs):
+    (i) valor próprio → (ii) última loja do mesmo agrupamento → (iii) IA.
+    ``?ia=0`` desliga o nível IA. Retorna a sugestão + origem, ou 204 se não há
+    sugestão (loja sem agrupamento e IA off/falha → preenchimento manual)."""
+    from src.governanca.impacto_rs import prefill_ltv
+
+    usar_ia = request.args.get("ia", "1") != "0"
+    with db_session() as session:
+        local = session.get(Local, local_id)
+        if local is None:
+            return jsonify({"erro": "Local não encontrado"}), 404
+        erro = verificar_acesso_empresa(local.empresa_id)
+        if erro:
+            return erro
+        sug = prefill_ltv(session, local, usar_ia=usar_ia)
+        if sug is None:
+            return ("", 204)
+        return jsonify(sug)
 
 
 @locais_bp.route("/<int:local_id>/inativar", methods=["PATCH"])

@@ -19,5 +19,28 @@
             hx-get="{{ url_for('ui.htmx_local_row', local_id=loc.id) }}"
             hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
             class="col-span-1 px-2 py-1 border border-loyall-300 hover:bg-loyall-100 rounded text-xs">cancelar</button>
+
+    {# CP-impacto-rs: inputs do LTV (ticket × frequência). LTV é derivado, não
+       digitado. ltv_origem (hidden) rastreia próprio/agrupamento/IA. #}
+    <div class="col-span-12 mt-1 pt-1 border-t border-amber-200 grid grid-cols-12 gap-2 items-center">
+      <label class="col-span-3 text-xs text-loyall-500">Ticket médio (R$)
+        <input name="ticket_medio" value="{{ loc.ticket_medio or '' }}" inputmode="decimal"
+               class="w-full px-2 py-1 border border-loyall-300 rounded" placeholder="—">
+      </label>
+      <label class="col-span-3 text-xs text-loyall-500">Frequência (visitas/ano)
+        <input name="frequencia" value="{{ loc.frequencia or '' }}" inputmode="decimal"
+               class="w-full px-2 py-1 border border-loyall-300 rounded" placeholder="—">
+      </label>
+      <input type="hidden" name="ltv_origem" value="{{ loc.ltv_origem or '' }}">
+      <button type="button"
+              hx-get="{{ url_for('locais.sugerir_ltv_local', local_id=loc.id) }}"
+              hx-trigger="click" hx-swap="none"
+              hx-on::after-request="if(event.detail.successful && event.detail.xhr.status===200){const d=JSON.parse(event.detail.xhr.responseText);const f=this.closest('form');f.ticket_medio.value=d.ticket_medio;f.frequencia.value=d.frequencia;f.ltv_origem.value=d.origem;}"
+              class="col-span-3 px-2 py-1 border border-amber-400 text-amber-700 hover:bg-amber-100 rounded text-xs"
+              title="Pré-preenche por: valor próprio › última loja do agrupamento › estimativa IA">sugerir LTV</button>
+      <span class="col-span-3 text-[11px] text-loyall-400">
+        {% if loc.ticket_medio and loc.frequencia %}LTV ≈ R$ {{ (loc.ticket_medio * loc.frequencia)|round|int }}{% if loc.ltv_origem %} · origem: {{ {'proprio':'próprio','agrupamento':'agrupamento','ia':'IA'}.get(loc.ltv_origem, loc.ltv_origem) }}{% endif %}{% else %}sem LTV → R$ "—"{% endif %}
+      </span>
+    </div>
   </form>
 </div>

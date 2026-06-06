@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Index, Integer, String, Text
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -29,6 +29,13 @@ class Empresa(Base):
     site: Mapped[Optional[str]] = mapped_column(String)
     observacao: Mapped[Optional[str]] = mapped_column(Text)
     branding_json: Mapped[Optional[str]] = mapped_column(Text)
+    # Impacto em R$ (CP-impacto-rs): taxa de sucesso por prioridade da ação, editável
+    # por empresa. Lida por taxas_empresa(); o fluxo R$ = recuperados × LTV, com
+    # recuperados = detratores × taxa[prioridade]. server_default pré-popula as
+    # empresas existentes com os valores sugeridos (0.50/0.35/0.20).
+    taxa_alto: Mapped[float] = mapped_column(Float, server_default="0.50", default=0.50)
+    taxa_medio: Mapped[float] = mapped_column(Float, server_default="0.35", default=0.35)
+    taxa_baixo: Mapped[float] = mapped_column(Float, server_default="0.20", default=0.20)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

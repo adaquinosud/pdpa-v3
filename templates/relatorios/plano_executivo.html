@@ -25,6 +25,7 @@
       {% if not it.projecao.sub_floor %}· Proximity {{ '%.0f'|format(it.projecao.proximity[0]) }} → <b>{{ '%.0f'|format(it.projecao.proximity[1]) }}</b>{% else %}· Proximity —{% endif %}
       · Índice da {{ 'loja' if it.projecao_loja else 'visão' }} {{ '%.1f'|format(it.projecao.indice[0]) }} → <b>{{ '%.1f'|format(it.projecao.indice[1]) }}</b>
       {% if it.projecao_loja %}· Selo {{ it.projecao.selo[0] or '—' }} → <b>{{ it.projecao.selo[1] or '—' }}</b>{% endif %}
+      {% if it.projecao.rs_fluxo_fmt %}· R$ recuperável <b>{{ it.projecao.rs_fluxo_fmt }}</b>{% endif %}
     </div>
     {% if not it.projecao.sub_floor and it.projecao.proximity[1] > it.projecao.proximity[0] and it.projecao.indice[0] == it.projecao.indice[1] %}
     <div style="font-size:7.5pt; color:#1A1A2E; margin-top:1pt">↳ Proximity sobe mas o Índice não move: este não é o pilar gargalo (Lastro).</div>

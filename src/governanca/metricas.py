@@ -191,19 +191,24 @@ def _n_sub60_de_agg(agg, override_ratio=None):
     return n
 
 
-def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None):
+def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None, *, taxas=None, ltv=None):
     """Projeção EFÊMERA do impacto de uma ação (CP-LG-5). det→conversível
     (fidelidade ao Lastro D→C→P: ação corretiva tira de detrator, NÃO promove).
 
     Reusa a matemática da medição (calcular_ratio/proximity/indice_geral/selo_loja)
     — caps (ratio 9.99, Proximity 100, Índice 10) vêm de graça. Retorna ``None``
     se o subpilar alvo não está no ``agg`` (escopo da ação).
+
+    ``taxas`` (CP-impacto-rs): dict {alto,medio,baixo} POR EMPRESA; default cai na
+    constante. ``ltv``: LTV da loja → adiciona ``rs_fluxo`` = recuperados × LTV
+    (R$ recuperável); ``None`` (ação não-loja ou loja sem LTV) → ``rs_fluxo``=None.
     """
     from src.api.painel import calcular_indice_geral, calcular_ratio
 
     if subpilar not in agg:
         return None
-    r = TAXA_SUCESSO_PRIORIDADE.get(prioridade, TAXA_SUCESSO_PRIORIDADE["medio"])
+    tx = taxas or TAXA_SUCESSO_PRIORIDADE
+    r = tx.get(prioridade, tx.get("medio", TAXA_SUCESSO_PRIORIDADE["medio"]))
     d = agg[subpilar]
     det0, prom0, total = d["det"], d["prom"], d["total"]
     recuperados = min(round(det0 * r), det0)  # nunca negativo
@@ -222,6 +227,10 @@ def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None):
     )
     selo0 = selo_loja(_n_sub60_de_agg(agg), previsibilidade)
     selo1 = selo_loja(_n_sub60_de_agg(agg, override_ratio={subpilar: ratio1}), previsibilidade)
+    # Fluxo R$ (CP-impacto-rs): recuperados × LTV_loja. None se sem LTV → "—".
+    from src.governanca.impacto_rs import formatar_brl
+
+    rs_fluxo = round(recuperados * ltv) if ltv is not None else None
     return {
         "taxa": r,
         "recuperados": recuperados,
@@ -230,6 +239,8 @@ def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None):
         "proximity": (_arred(prox0), _arred(prox1)),
         "indice": (indice0, indice1),
         "selo": (selo0, selo1),
+        "rs_fluxo": rs_fluxo,
+        "rs_fluxo_fmt": formatar_brl(rs_fluxo),
     }
 
 

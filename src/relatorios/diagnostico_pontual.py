@@ -404,9 +404,13 @@ def montar_dados(
     # ─── MF · Mapa Financeiro Qualitativo (sem R$) ─────────────────────────
     # CP-LG-7 (enriquecimento, não reescrita): + Proximity (leitura, escopo empresa
     # = escopo do relatório) + R$ Projetado (placeholder até LTV setorial existir).
+    from src.governanca.impacto_rs import formatar_estoque, rs_estoque
     from src.governanca.leitura import proximity_subpilares_escopo
 
     _prox_sub = proximity_subpilares_escopo(s, empresa_id, "empresa", None)
+    # CP-impacto-rs: estoque R$ por subpilar = Σ_loja (conversíveis × LTV_loja),
+    # grão (loja, subpilar). Escopo empresa = escopo do relatório.
+    _estoque = rs_estoque(s, empresa_id)
     mapa_financeiro = []
     for sub in SUBPILARES_ORDEM:
         d_ = agg.get(sub)
@@ -421,10 +425,9 @@ def montar_dados(
                 faixa=d_["faixa"],
                 proximity=_px.get("valor"),  # None (sub-floor) → "—" no template
                 proximity_faixa=_px.get("faixa"),
-                # CP-LG-7: R$ reservado — preencher com conversiveis × LTV quando
-                # Empresa.ltv_setorial existir (pendência futura, decisão de método).
-                # NÃO calcular agora; coluna/template já reservados → sem reescrita.
-                rs_projetado=None,
+                # CP-impacto-rs: conversíveis × LTV_loja, com cobertura parcial.
+                # None (nenhuma loja do sub com LTV) → "—" honesto no template.
+                rs_projetado=formatar_estoque(_estoque.get(sub)),
                 driver=DRIVER_NEGOCIO.get(sub, "—"),
                 horizonte=HORIZONTE_POR_FAIXA.get(d_["faixa"], "—"),
                 interpretacao=(

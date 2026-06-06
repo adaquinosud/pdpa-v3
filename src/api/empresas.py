@@ -47,6 +47,10 @@ def _serialize(e: Empresa) -> Dict[str, Any]:
         "site": e.site,
         "observacao": e.observacao,
         "branding_json": e.branding_json,
+        # CP-impacto-rs: taxas de sucesso por prioridade (fluxo R$).
+        "taxa_alto": e.taxa_alto,
+        "taxa_medio": e.taxa_medio,
+        "taxa_baixo": e.taxa_baixo,
         "criada_em": e.criada_em.isoformat() if e.criada_em else None,
         "atualizada_em": e.atualizada_em.isoformat() if e.atualizada_em else None,
     }
@@ -132,6 +136,9 @@ def atualizar_empresa(empresa_id: int):
             "site",
             "observacao",
             "branding_json",
+            "taxa_alto",
+            "taxa_medio",
+            "taxa_baixo",
         ):
             if campo in data:
                 setattr(e, campo, data[campo])

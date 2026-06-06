@@ -1789,6 +1789,23 @@ def htmx_salvar_local(local_id: int):
     ag_id_raw = request.form.get("agrupamento_id") or ""
     new_ag = int(ag_id_raw) if ag_id_raw.isdigit() else None
     endereco = (request.form.get("endereco") or "").strip() or None
+
+    def _num(campo):  # aceita "12,50" ou "12.50"; vazio → None
+        raw = (request.form.get(campo) or "").strip().replace(".", "").replace(",", ".")
+        if not raw:
+            return None
+        try:
+            v = float(raw)
+            return v if v > 0 else None
+        except ValueError:
+            return None
+
+    ticket = _num("ticket_medio")
+    frequencia = _num("frequencia")
+    # origem vinda do pré-preenchimento (hidden); edição manual c/ valor → 'proprio'.
+    origem = (request.form.get("ltv_origem") or "").strip() or None
+    if (ticket is not None or frequencia is not None) and origem is None:
+        origem = "proprio"
     with db_session() as s:
         loc = s.get(Local, local_id)
         if loc is None:
@@ -1806,6 +1823,9 @@ def htmx_salvar_local(local_id: int):
         loc.nome = nome
         loc.agrupamento_id = new_ag
         loc.endereco = endereco
+        loc.ticket_medio = ticket
+        loc.frequencia = frequencia
+        loc.ltv_origem = origem
         s.flush()
     # Recarrega com fontes + ag_map
     loc, _ags, ag_map = _carregar_local_e_ags(local_id)
@@ -2057,6 +2077,15 @@ def htmx_salvar_empresa(empresa_id: int):
     setor = (request.form.get("setor") or "").strip() or None
     site = (request.form.get("site") or "").strip() or None
     observacao = (request.form.get("observacao") or "").strip() or None
+
+    def _taxa(campo, default):  # 0–1; fora da faixa/ inválida → mantém default
+        raw = (request.form.get(campo) or "").strip().replace(",", ".")
+        try:
+            v = float(raw)
+            return v if 0 <= v <= 1 else default
+        except (ValueError, TypeError):
+            return default
+
     from datetime import datetime as _dt
 
     with db_session() as s:
@@ -2074,6 +2103,9 @@ def htmx_salvar_empresa(empresa_id: int):
         empresa.setor = setor
         empresa.site = site
         empresa.observacao = observacao
+        empresa.taxa_alto = _taxa("taxa_alto", empresa.taxa_alto)
+        empresa.taxa_medio = _taxa("taxa_medio", empresa.taxa_medio)
+        empresa.taxa_baixo = _taxa("taxa_baixo", empresa.taxa_baixo)
         empresa.atualizada_em = _dt.utcnow()
     # Resposta vazia: o modal usa hx-on::after-request="window.location.reload()"
     return ("", 200)

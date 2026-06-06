@@ -47,6 +47,17 @@
       <p class="text-xs text-loyall-700 mb-1">📍 {{ loc.endereco }}</p>
     {% endif %}
 
+    {# CP-impacto-rs: LTV derivado (ticket × frequência) + origem. Sem inputs → "—". #}
+    <p class="text-xs text-loyall-500 mb-1">
+      💰 LTV:
+      {% if loc.ticket_medio and loc.frequencia %}
+        <b class="text-loyall-700">R$ {{ (loc.ticket_medio * loc.frequencia)|round|int }}</b>
+        <span class="text-loyall-400">(ticket R$ {{ loc.ticket_medio|round|int }} × {{ loc.frequencia|round|int }}/ano{% if loc.ltv_origem %} · {{ {'proprio':'próprio','agrupamento':'agrupamento','ia':'estimado por IA'}.get(loc.ltv_origem, loc.ltv_origem) }}{% endif %})</span>
+      {% else %}
+        <span class="text-loyall-300" title="Preencha ticket + frequência (editar) para ligar o R$">—</span>
+      {% endif %}
+    </p>
+
     <div id="loc-{{ loc.id }}-fontes" class="space-y-0.5">
       {% for f in loc.fontes %}
         {% include "partials/fonte_item.html" %}

@@ -56,6 +56,13 @@ class Local(Base):
     status: Mapped[Optional[str]] = mapped_column(String, default="ativo")
     data_inicio_operacao: Mapped[Optional[date]] = mapped_column(Date)
     observacao: Mapped[Optional[str]] = mapped_column(String)
+    # Impacto em R$ (CP-impacto-rs): inputs do LTV da loja. LTV = ticket × frequencia
+    # é DERIVADO (helper ltv_loja), nunca guardado. ltv_origem rastreia a procedência
+    # do pré-preenchimento: 'proprio' | 'agrupamento' (herdado da última loja do mesmo
+    # agrupamento) | 'ia' (estimado). Ausência de qualquer um → R$ "—" honesto.
+    ticket_medio: Mapped[Optional[float]] = mapped_column(Float)
+    frequencia: Mapped[Optional[float]] = mapped_column(Float)
+    ltv_origem: Mapped[Optional[str]] = mapped_column(String)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
