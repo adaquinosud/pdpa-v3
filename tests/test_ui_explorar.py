@@ -623,3 +623,22 @@ def test_ux2b_swap_das_3_preserva_cpA(client_loyall, db_session):
         assert 'id="explorar-header"' in html, tab
         assert "Analisando" in html, tab  # chip de escopo
         assert "border-loyall-700" in html, tab  # sublinhado da aba ativa
+
+
+def test_ux2b_form_de_filtro_aponta_pra_rota_dedicada_nao_pro_hub(client_loyall, db_session):
+    """Trava o Bug-1 (CP-A): as 3 abas full-load-form submetem GET pra SUA rota
+    dedicada, não pro hub /explorar. Sem o action, depois do swap HTMX (URL =
+    hub) o GET cai na aba default (Locais). Regressão que reabriu nas Anomalias
+    no CP-UX2b — este teste impede que reabra numa próxima migração."""
+    e, a, locs = _ctx(client_loyall, "ux2bform")
+    base = f"/empresas/{e['id']}/explorar/tab"
+    rota = {  # aba → rota dedicada que o action DEVE apontar
+        "painel": f'action="/empresas/{e["id"]}/painel"',
+        "verbatins": f'action="/empresas/{e["id"]}/verbatins"',
+        "anomalias": f'action="/empresas/{e["id"]}/anomalias"',
+    }
+    for tab, esperado in rota.items():
+        html = client_loyall.get(f"{base}/{tab}").get_data(as_text=True)
+        assert esperado in html, f"{tab}: form sem action pra rota dedicada → Bug-1"
+        # o action NÃO pode ser o hub (cairia em Locais)
+        assert f'action="/empresas/{e["id"]}/explorar"' not in html, tab
