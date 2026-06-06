@@ -1,5 +1,60 @@
 # Pendências Técnicas — PDPA v3
 
+## 🎯 Curadoria de pendências (2026-06, pós O2 / Impacto R$ / cron)
+
+> **MARCO — PILOTO DESTRAVADO.** Os dois bloqueadores caíram: **O2 personas** (cliente
+> só Explorar da própria empresa; admin tudo — `faa9fc6`) + **cron noturno automático**
+> (dispara sozinho às 03h BRT; evidência: 52 execuções / 189 verbatins novos). **+
+> Impacto R$ NO AR.** O cliente usa com segurança e a coleta roda sozinha. Tudo abaixo
+> é polimento/evolução — **nada bloqueia o 1º piloto.** Detalhes em cada seção abaixo e
+> no `ROADMAP_PRODUCAO.md`.
+
+**🔴 Bloqueia-piloto:** nenhum item de código. Único pré-cliente: **#9b domínio
+`pdpa.com.br`** (DNS, OPS) pra acessar pela URL final.
+
+**🟡 Acabamento (durante/logo após o piloto):**
+- **R1** `print()` → logging centralizado · **R2** resíduos `None:None` · **R5**
+  `datetime` tz-aware · **R3** dicionários Pa2/Pa3 (conteúdo).
+- **Faxina O2:** remover `_require_loyall_html` inline redundantes + `_check_acesso`
+  dead-code (o `@loyall_required_ui` é o gate autoritativo).
+- **Pipeline:** detecção de **falha sistêmica de bucket** (hoje degrada silencioso).
+- **Auto-deploy do Render inconsistente** — vários commits precisaram Manual Deploy;
+  investigar o gatilho.
+- **`seed_exemplo` não idempotente** (quebra re-run; trava CI/dev compartilhado).
+- **Testes não cobrem JS** — o re-init HTMX do CP-UX2 (export/leitura/anomalias) só é
+  verificável no browser; risco de regressão silenciosa.
+- **`ColetaExecucao` sem campo `origem`** (dívida nova, achada na investigação do cron):
+  auto (cron) vs manual só se distingue pelo horário (~06h UTC).
+- **Cache da leitura sequencial Sonnet** no Painel (cada load chama Sonnet).
+- **Parse-fail do classificador 0,73%** — monitorar; reabrir se passar de 1%.
+- **Editorial:** P1 lapidar a voz dos 77 termos do glossário · C1 Manual de Operação.
+
+**🟢 Evolução (escala / features futuras):**
+- **Conectores:** YouTube 2-step (não extrai comentários) · MercadoLivre não validado
+  empírico · glassdoor/indeed sem coletor (fontes 133/134 inativas) · validação de URLs
+  no cadastro de fontes · revalidar appstore/linkedin (P2) / fontes quebradas (P3).
+- **Caps como config** (vão doer ao escalar): `MAX_REVIEWS_PER_PLACE`, Instagram
+  `MAX_POSTS/COMMENTS`, **idioma `pt-BR`** hardcoded.
+- **`impacto_quant_json`** (Bloco 7, 3º gancho de R$) — provável None (redundante c/ o
+  fluxo); decidir se liga.
+- **Temas:** estratificação (Pa1/promotor colapsa em "atendimento personalizado") ·
+  prompt caching no rotulador.
+- **Monitoramento ML:** corroboração nível-loja · anomalias de cruzamento só no 2º
+  ciclo · caminho "investigação manual" em dados esparsos.
+- **Distribuição de símbolos v2:** dry-run mostrar DIFF vs estado (UX).
+- **Painel Executivo "extensões futuras"** (seção abaixo) — varrer staleness (parte já
+  foi feita em blocos posteriores).
+
+**🔵 Decisão de método com o Dener (precede código):**
+- **ReclameAqui / fontes-conversa** — como o método trata thread (pergunta→resposta).
+- **Peso do símbolo** no indicador (hoje 1 voto pleno; confiança 0,2-0,4 decorativa).
+- **Peso por fonte no ratio** (imprensa/google_news) — princípio fechado (>0 e <1),
+  calibrar quando houver cliente com imprensa estrutural.
+- **D1** instância dedicada vs multi-tenant (destrava o 2º cliente) · **D2** coleta
+  async sob demanda · **D3** configs multi-cliente.
+
+---
+
 ## Antes de ir para produção real
 
 ### 1. Substituir credenciais compartilhadas com v2
@@ -99,13 +154,21 @@ cliente com lojas dentro). 4 testes determinísticos + 2 golden.
 página → **54 comentários em dobro** (mesmo `review_id_externo`). O dedup é **por-fonte
 por design** (hash inclui `fonte_id`; review_id varre só na mesma fonte) — não é bug,
 é cadastro redundante. **Fix:** eliminada a fonte Colaboradores; LinkedIn fica como
-**uma fonte só**. **Pendência residual:** verificar se os **54 duplicados já no banco**
-precisam de limpeza (os novos não duplicam mais; os antigos podem precisar de purge).
+**uma fonte só**. **✅ Limpeza dos 54 RESOLVIDA (manual em prod):** o Alexandre
+apagou os verbatins duplicados + eliminou a fonte redundante à mão. Validado por
+query: **1 fonte LinkedIn (id 86), 73 verbatins, 0 duplicados**. O comando
+`purgar-verbatins-fonte` existe como ferramenta reusável (guard fonte-inativa +
+CASCADE), mas **NÃO foi usado** aqui — a ação manual resolveu.
 
-### Impacto em R$ — decisões de método FECHADAS (Alexandre+Dener) → vira CP
-**Status:** PENDENTE de **implementação** (método fechado). Hoje é placeholder honesto
-(`—` + "habilita com LTV"; nunca inventa número) e os **ganchos já existem**
-(`simular_impacto_acao` retorna `recuperados`; `rs_projetado` reservado). Decisões:
+### Impacto em R$ — ✅ NO AR (`cd2130b` + estoque-tela `d7ff089`)
+**Status:** ✅ IMPLEMENTADO E EM PROD. Os dois R$ ligados sem reescrita; LTV por loja
+(`ticket × frequência`, derivado); pré-preenchimento hierárquico (próprio › agrupamento
+› IA Haiku, fallback "—"); taxas por empresa (server_default 0.50/0.35/0.20); cobertura
+parcial ("R$ X · N de M lojas c/ LTV"); estoque na tela **e** no PDF; fórmula uniforme.
+Migration aditiva em prod (`b7e3f9a2c1d8`). **Spec canônica:
+`docs/PDPA_Spec_Impacto_RS.md`.** Fast-follow: `impacto_quant_json` (Bloco 7) — provável
+None (redundante com o fluxo); ver "Curadoria de pendências". (Decisões de método
+fechadas, abaixo, como histórico.)
 - **(a) Dois R$:** **estoque recuperável** = `conv × LTV` (Diagnóstico/Governança) +
   **fluxo da ação** = `recuperados × LTV` onde `recuperados = det × taxa` (Plano).
 - **(b) LTV por loja:** campo no **cadastro do local**, derivado de **`ticket ×

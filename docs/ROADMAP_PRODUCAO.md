@@ -4,19 +4,28 @@ Ordem de execução pré-produção, derivada da auditoria de cobertura + depend
 reais do código. Priorizada por **"dor de arrumar depois"** (o que custa muito
 mais caro/arriscado com o sistema no ar).
 
+## 🎯 MARCO — PILOTO DESTRAVADO (2026-06)
+
+**Os dois bloqueadores de piloto caíram:** **O2 personas** (cliente acessa só o
+Explorar da própria empresa; admin tudo — `faa9fc6`) + **cron noturno automático
+confirmado** (`pdpa-noturna-bh-airport`, "0 6 * * *" = 03h BRT; evidência: coleta
+disparou sozinha, 52 execuções / 189 verbatins novos às 06h UTC). **O cliente pode
+usar o sistema com segurança e a coleta roda sozinha.** O que resta é
+polimento/robustez (R1-R5), conectores e decisões de método com o Dener — nada
+bloqueia o piloto. **+ Impacto em R$ NO AR** (estoque + fluxo, R4 ✅).
+
 ## Estado atual
-- **Branch:** `main` · HEAD `4ec1eec` · **em `origin/main` e EM PRODUÇÃO (Render)**.
-- **Testes:** 786 verdes em **SQLite** (+ Postgres via `pgserver`, CP-1.1/1.2).
-- **Schema:** runner = **Alembic** (baseline `8295ca9dc780`, fonte = models);
-  `migrations/*.sql` aposentados em `migrations/legacy/`.
-- **Progresso do roadmap:** **PRODUÇÃO NO AR.** Bloco pré-deploy ✅ (Postgres #1 ·
-  noturna #2 · saída durável #3 · segurança #4 · .gitignore H). **Bloco Deploy
-  #5–#9 ✅** (entrypoint, WeasyPrint/Dockerfile PROVADO, alembic-no-release,
-  secrets+**creds dedicadas isoladas do v2**, Render no ar). **+ lockfile dev==prod**
-  (`962749d`, `--require-hashes` no Dockerfile — fecha a drift que quebrou o umap).
-  **Resta:** **#9b domínio `pdpa.com.br`** + **#10 Cron** (agendar a noturna) +
-  **#5b coleta on-demand async** (opcional). Pós-piloto: **CP-B reorg de abas** +
-  **migração das 5 abas legadas full-load → HTMX**.
+- **Branch:** `main` · HEAD `faa9fc6` · **em `origin/main` e EM PRODUÇÃO (Render)**.
+- **Testes:** 840 verdes em **SQLite** (+ Postgres via `pgserver`, CP-1.1/1.2).
+- **Schema:** runner = **Alembic** (head `b7e3f9a2c1d8` = impacto-rs; baseline
+  `8295ca9dc780`, fonte = models); `migrations/*.sql` em `migrations/legacy/`.
+- **Progresso do roadmap:** **PRODUÇÃO NO AR + PILOTO DESTRAVADO.** Pré-deploy ✅ ·
+  Deploy #5–#9 ✅ · **#10 Cron ✅** (dispara sozinho) · **O1 usuários ✅** · **O2
+  personas ✅** · **R4 Impacto R$ ✅** · **UX2 abas→HTMX ✅** · **#5b coleta
+  on-demand ✅** (rotas `htmx_disparar_*` no ar). **+ lockfile dev==prod**
+  (`962749d`). **Resta (não bloqueia piloto):** **#9b domínio `pdpa.com.br`** (DNS)
+  + robustez R1-R3/R5 + conectores + decisões-c/-Dener — ver `PENDENCIAS_TECNICAS.md`
+  (seção "Curadoria de pendências").
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 - **Feito até aqui (resumo):** núcleo do método (Lastro/ratio/5 faixas), Lente de
   Governança completa, anomalias (ML), temas/cruzamentos, plano de ação, Hub
@@ -142,8 +151,13 @@ mais caro/arriscado com o sistema no ar).
   gunicorn final (workers/threads/timeout) vive no Dockerfile (#6). Boot em prod
   coberto por `test_seguranca_deploy`.
 
-### 5b. Coleta on-demand segura em prod `[ ]` · **[CÓDIGO]** (depois do #5)
-- **Problema:** a coleta on-demand pela tela roda **síncrona no request**
+### 5b. Coleta on-demand segura em prod `[x]` ✅ **FEITO** (fire-and-forget no ar)
+- **✅ FEITO:** as rotas `htmx_disparar_fonte`/`htmx_disparar_local`/
+  `htmx_disparar_agrupamento` rodam **fire-and-forget** (daemon-thread, retornam na
+  hora; a UI acompanha por `coletas_execucoes`). Agrupamento desabilitado em prod
+  (gate). Pós-O2, essas rotas são **loyall-only** (`@loyall_required_ui`). O **D2**
+  (agrupamento async + concorrência, pedido do Dener) segue adiado. Histórico ↓.
+- **Problema (original):** a coleta on-demand pela tela rodava **síncrona no request**
   (`disparar_coleta_local`/`disparar_coleta_agrupamento` → orquestrador inline).
   Tempos reais (dev, 69 execuções): por **fonte** mediana 33s mas **p90 ~7min, máx
   36min** (cauda do google); **local** = 1–2 fontes (mesma cauda); **agrupamento**
@@ -208,13 +222,14 @@ mais caro/arriscado com o sistema no ar).
 - **`[ ]` RESTA — #9b domínio:** comprar/apontar **`pdpa.com.br`** (DNS). **[OPS-tua]**.
 - **(c)** Dependeu de #1, #5, #7, #8 (todos ✅). **(d)** o que falta é só o DNS.
 
-### 10. Render Cron Job → agenda a noturna-produto `[ ]` · **[MISTO]** (`render.yaml` cron = código; ativar no painel = tua)
-- **(a)** Job agendado (diário/intervalo) rodando a noturna-produto (#2) —
-  coleta automática sem ninguém clicar. Limpo: não depende do app up nem de
-  guard multi-worker (vs APScheduler).
-- **(b)** É o "manter dados frescos" automático. Só confiável em prod
-  (servidor sempre ligado; Mac dev dorme).
-- **(c)** Depende de **#2 + #3 + #9**. **(d)** Pequeno (config de cron).
+### 10. Render Cron Job → agenda a noturna-produto `[x]` ✅ **FEITO — dispara sozinho**
+- **✅ FEITO:** serviço `pdpa-noturna-bh-airport` no `render.yaml` (`schedule:
+  "0 6 * * *"` = 06h UTC = **03h BRT**; `dockerCommand: bash scripts/run_noturna.sh
+  4`). **Confirmado automático:** uma coleta disparou sozinha — **52 execuções, 189
+  verbatins novos, às 06h UTC**. O script encadeia coleta → `pipeline-pos-coleta` →
+  relatório. 1 cron por empresa (template; empresa 4 = BH Airport por id).
+- **Nota (dívida):** `ColetaExecucao` **não tem campo `origem`** → auto (cron) vs
+  manual só se distingue pelo horário (~06h UTC). Ver "Curadoria de pendências".
 
 ---
 
@@ -255,12 +270,17 @@ mais caro/arriscado com o sistema no ar).
   sem SQL cru) está fechado. **Deixa de ser [BLOCKER de piloto].**
 - *(Resta a camada de UX por papel — ver **O2 Personas**.)*
 
-### O2. Personas (Admin Loyall vs Cliente) `[ ]` · **[CÓDIGO]** (~1 semana)
-- **(a)** Refinar a experiência por papel: o **mecanismo** de escopo já existe
-  (`cliente_total` + `_check_acesso` + `eh_loyall` dão escopo por empresa); falta a
-  **UX** — o que o cliente vê/não vê, navegação reduzida, telas Loyall-only
-  escondidas. **(b)** O cliente não pode topar com telas internas/admin no piloto.
-  **(c)** depende de O1 (precisa de usuário cliente pra testar). **(d)** ~1 semana.
+### O2. Personas (Admin Loyall vs Cliente) `[x]` ✅ **COMPLETO** (`faa9fc6`) — último bloqueador de piloto
+- **✅ FEITO:** `cliente_total` acessa **só o Explorar da própria empresa** (tudo
+  dentro liberado: relatórios, validar anomalia, override de plano, reclassificar/
+  excluir verbatim); `admin_loyall` vê tudo. Decorator **`@loyall_required_ui`**
+  padroniza o gating das ~41 rotas internas (UI: 403.html / fragmento p/ HTMX),
+  par do `@loyall_required` da API. **LEAK do monitoramento FECHADO** (era só
+  login). Menu por papel (cliente vê só "Explorar"); home/login/lista/detalhe
+  redirecionam o cliente pro próprio Explorar; sem link morto. `tests/
+  test_o2_personas.py` cobre os 2 perfis. **Era o último [BLOCKER de piloto].**
+- *(Follow-up de faxina: remover os `_require_loyall_html` inline redundantes e o
+  `_check_acesso` dead-code — o decorator é o gate. Ver "Curadoria de pendências".)*
 
 ---
 
@@ -279,12 +299,19 @@ mais caro/arriscado com o sistema no ar).
 - Completar/revisar os dicionários de subpilares Pa2/Pa3 da classificação. Item de
   conteúdo do método — alinhar com Alexandre/Dener.
 
-### R4. Impacto em R$ `[ ]` · **[CÓDIGO]** — **decisões de método FECHADAS** (Alexandre+Dener); vira CP
-- **Estado:** hoje é placeholder honesto (mostra `—` + "habilita com LTV"; nunca
-  inventa número). A **engenharia já deixou os ganchos prontos** (`simular_impacto_acao`
-  retorna `recuperados`; `rs_projetado` reservado no Mapa Financeiro). As decisões de
-  método estão **fechadas** — falta virar CP de implementação. Detalhe completo no
-  `PENDENCIAS_TECNICAS.md` (seção "Impacto em R$"). Resumo:
+### R4. Impacto em R$ `[x]` ✅ **NO AR** (`cd2130b` + estoque-tela `d7ff089`)
+- **✅ FEITO:** os dois R$ ligados. **Estoque** = `conversíveis × LTV_loja` (grão
+  loja×subpilar, cobertura parcial "R$ X · N de M lojas c/ LTV") → `rs_projetado` no
+  Diagnóstico (tela **e** PDF). **Fluxo** = `recuperados × LTV_loja` →
+  `simular_impacto_acao` (`rs_fluxo`) no Plano. **LTV por loja** = `ticket ×
+  frequência` (derivado, helper `ltv_loja`, nunca guardado); **pré-preenchimento
+  hierárquico** (próprio › agrupamento › IA Haiku, fallback "—"); **taxas por
+  empresa** (3 campos, server_default 0.50/0.35/0.20); enquadramento oportunidade;
+  fórmula uniforme (por-driver = v2). Migration aditiva em prod (`b7e3f9a2c1d8`).
+  Spec canônica em `docs/PDPA_Spec_Impacto_RS.md`. Fast-follow: `impacto_quant_json`
+  (Bloco 7, 3º gancho) — ver "Curadoria de pendências". **(Histórico do método ↓.)**
+- **Estado (original):** era placeholder honesto (`—` + "habilita com LTV"). As
+  decisões de método estavam **fechadas** — viraram este CP. Resumo:
   - **(a) Dois R$:** estoque recuperável (`conv × LTV`, Diagnóstico/Governança) +
     fluxo da ação (`recuperados × LTV`, Plano).
   - **(b) LTV por loja:** campo no cadastro do local, de `ticket × frequência` (2
@@ -310,15 +337,17 @@ mais caro/arriscado com o sistema no ar).
   visíveis (sem dropdown). Ajuste `f609da1`: abas de cada grupo quebram em 2 linhas
   (`max-w-[19rem]`) → grupos grandes (Explorar=5) compactam em largura. Só reorg
   visual — zero cálculo; CP-A intacto (sublinhado via OOB, header condicional, chip).
-- **UX do Explorar COMPLETA** (CP-A filtros + CP-B reorg + ajuste tab bar). **Resta**
-  só **UX2** (migração HTMX das 5 abas legadas).
+- **UX do Explorar COMPLETA** (CP-A filtros + CP-B reorg + ajuste tab bar + UX2 HTMX).
 
-### UX2. Migrar 5 abas legadas full-load → HTMX `[ ]` · **[CÓDIGO]**
-- **(a)** Painel/Verbatins/Temas/Anomalias/Relatórios usam full-load (reload da
-  página) enquanto as outras 10 dão HTMX swap — "soluço" inconsistente ao navegar.
-- **(b)** Consistência de navegação; remove o reload. Reaproveita o padrão de OOB
-  do CP-A (header/tabbar já voltam via `hx-swap-oob`). **(c)** independe; melhor
-  junto do CP-B (mesma tab bar). **(d)** Médio (templates com JS inline a adaptar).
+### UX2. Migrar 5 abas legadas full-load → HTMX `[x]` ✅ **NO AR** (UX2a `bd3f9cc` + UX2b)
+- **✅ FEITO:** Temas/Relatórios (UX2a, zero JS) + Painel/Verbatins/Anomalias (UX2b)
+  migrados pra HTMX swap; `_EXPLORAR_TABS_MIGRADAS` vazio (todas HTMX). O `<script>`
+  inline que morria no swap virou **re-init global data-driven** em `base.html`
+  (`htmx:afterSettle` lê `data-export-*`/`data-leitura-url`/`data-anom-empresa`).
+  Forms de filtro seguem full-load por decisão (o "piscar" = feedback). Fix do
+  Bug-1 do CP-A reaberto nas Anomalias (form sem `action` → caía em Locais) também
+  resolvido. **Limite:** pytest não roda JS → fiação testada, comportamento JS
+  verificado no browser.
 
 ## 📄 CONTEÚDO
 
@@ -345,10 +374,12 @@ mais caro/arriscado com o sistema no ar).
 
 ---
 
-## 🎯 Marco: Piloto Confins/Carbel
-- Depende de: **Produção no ar (Bloco 4)** + **PRÉ-PILOTO (P1–P3)** + **OPERAR COM
-  CLIENTE (O1 user-mgmt é bloqueador, O2 personas)**. ROBUSTEZ/CONTEÚDO podem rodar
-  em paralelo; DECISÃO ESTRATÉGICA destrava o 2º cliente, não o 1º piloto.
+## 🎯 Marco: Piloto Confins/Carbel — ✅ **DESTRAVADO**
+- **Bloqueadores caíram:** Produção no ar ✅ + **O1 usuários ✅** + **O2 personas ✅**
+  + **#10 cron automático ✅**. O cliente usa o sistema com segurança e a coleta roda
+  sozinha. **Resta só polimento** (P1–P3 pré-piloto + ROBUSTEZ R1-R3/R5 + #9b domínio
+  + conectores) — nada bloqueia o 1º piloto. DECISÃO ESTRATÉGICA (D1-D3) destrava o
+  **2º cliente**, não o 1º.
 
 ---
 
@@ -364,14 +395,15 @@ mais caro/arriscado com o sistema no ar).
 H. .gitignore — a qualquer hora
 ```
 
-**Resumo:** **#1–#8 ✅ + #9 (Render no ar) ✅ — PRODUÇÃO NO AR.** Resta **#9b
-domínio `pdpa.com.br`** (DNS) e **#10 Cron** (agendar a noturna — a rotina-produto
-que ele agenda já está pronta, #2+#3). **+ lockfile dev==prod** fechou a drift de
-build. **#5b coleta on-demand async** segue opcional.
+**Resumo:** **#1–#10 ✅ — PRODUÇÃO NO AR + CRON AUTOMÁTICO.** **#5b coleta
+on-demand ✅** (fire-and-forget). Resta só **#9b domínio `pdpa.com.br`** (DNS).
+**+ lockfile dev==prod** fechou a drift de build.
 
-**Depois do deploy** (organizado por camada): **🟢 PRÉ-PILOTO** (P1 glossário, P2
-conectores, P3 fontes quebradas) → **🔵 OPERAR COM CLIENTE** (**O1 gestão de
-usuários ✅ — não bloqueia mais**; resta **O2 personas**) antes do cliente ver;
-**🟤 UX EXPLORAR** (CP-B reorg de abas + migração HTMX) · **🟣 ROBUSTEZ** / **📄
-CONTEÚDO** em paralelo; **🧭 DECISÃO ESTRATÉGICA** (dedicada vs multi-tenant)
-destrava o **2º** cliente. Marco final: **Piloto Confins/Carbel**.
+**Pós-deploy / pós-piloto-destravado** (por camada): **🔵 OPERAR COM CLIENTE
+✅** (O1 usuários ✅ + **O2 personas ✅** — piloto destravado) · **🟤 UX EXPLORAR
+✅** (CP-A/B + UX2 HTMX) · **R4 Impacto R$ ✅**. **Resta** (não bloqueia piloto):
+**🟢 PRÉ-PILOTO** (P1 glossário, P2 conectores, P3 fontes quebradas) · **🟣
+ROBUSTEZ** (R1 logging, R2 None:None, R3 Pa2/Pa3, R5 tz) · **📄 CONTEÚDO** ·
+**conectores + decisões-c/-Dener** (ver `PENDENCIAS_TECNICAS.md` → "Curadoria de
+pendências"). **🧭 DECISÃO ESTRATÉGICA** (D1-D3) destrava o **2º** cliente. Marco
+final: **Piloto Confins/Carbel — DESTRAVADO**.
