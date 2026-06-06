@@ -78,6 +78,46 @@ está concluída e em produção. Ficaram p/ a v2:
    símbolo vale vs um texto — e refinamentos da estratificação — é a "v2" adiada
    na spec. Decisão de método antes de implementar.
 
+### Tenant-rejection no classificador — ✅ RESOLVIDO (no ar, `31029d2`)
+**Causa:** `_build_user_prompt` recebia empresa/setor/fonte mas **não o local**. Em
+empresa multi-tenant (aeroporto), reviews de lojas-tenant (Unidas, McDonald's,
+Giraffas…) eram descartados como **sem_lastro** com justificativa "refere-se a
+[loja], não ao aeroporto". **Fix:** `_build_user_prompt`/`classificar()` passam
+`local_nome`/`local_tipo`; o prompt diz que a loja-tenant É parte da empresa, **com
+salvaguarda anti-inversão** (local válido NÃO obriga ancoragem — fora-de-lugar segue
+sem_lastro). `classificar_pendentes` + `pipeline` propagam o local. `PROMPT_VERSAO`
+**v3.0→v3.1**. **Passado corrigido** via comando dirigido `reclassificar-tenant-rejection`
+(só sem_lastro v3.0 de tenant-rejection COM rating = loja física): **22 reancorados**
+pros pilares certos, **5 seguem sem_lastro** (fora-de-lugar reais — misroteados), **18
+social** (sem rating) **listados à parte, não reprocessados**. Derivados recalculados
+via `pipeline-pos-coleta --force`. **Estrutural pro multi-tenant** (vale p/ todo
+cliente com lojas dentro). 4 testes determinísticos + 2 golden.
+
+### Duplicação de verbatim do LinkedIn — ✅ RESOLVIDO (cadastro)
+**Causa:** duas fontes LinkedIn na **mesma URL** `bh-airport` (fonte 86 → local
+"company/Aeroporto"; fonte 132 → local "Empregador/Colaboradores") raspavam a mesma
+página → **54 comentários em dobro** (mesmo `review_id_externo`). O dedup é **por-fonte
+por design** (hash inclui `fonte_id`; review_id varre só na mesma fonte) — não é bug,
+é cadastro redundante. **Fix:** eliminada a fonte Colaboradores; LinkedIn fica como
+**uma fonte só**. **Pendência residual:** verificar se os **54 duplicados já no banco**
+precisam de limpeza (os novos não duplicam mais; os antigos podem precisar de purge).
+
+### Impacto em R$ — decisões de método FECHADAS (Alexandre+Dener) → vira CP
+**Status:** PENDENTE de **implementação** (método fechado). Hoje é placeholder honesto
+(`—` + "habilita com LTV"; nunca inventa número) e os **ganchos já existem**
+(`simular_impacto_acao` retorna `recuperados`; `rs_projetado` reservado). Decisões:
+- **(a) Dois R$:** **estoque recuperável** = `conv × LTV` (Diagnóstico/Governança) +
+  **fluxo da ação** = `recuperados × LTV` onde `recuperados = det × taxa` (Plano).
+- **(b) LTV por loja:** campo no **cadastro do local**, derivado de **`ticket ×
+  frequência`** (2 campos editáveis); pré-preenchimento **hierárquico** (valor próprio
+  → última loja da mesma categoria → estimativa via IA/Claude); **origem sempre
+  visível** ("informado" vs "estimado").
+- **(c) Taxas de sucesso por empresa:** 3 campos editáveis (alto **0,50** / médio
+  **0,35** / baixo **0,20** sugeridos — hoje hardcoded em `TAXA_SUCESSO_PRIORIDADE`).
+- **(d)** Enquadramento **OPORTUNIDADE** (não promessa). **(e)** Fórmula **uniforme na
+  v1** (×LTV pra todos); **por-driver na v2** (os `DRIVER_NEGOCIO` por subpilar já
+  sinalizam a alavanca: P2=Retenção·LTV, A1=Cross-sell·ticket, etc.).
+
 ---
 
 ## Manutenção do banco (Bloco 4 CP-D)
@@ -597,12 +637,25 @@ Frente 4 do Bloco 3.1 reescreveu Cirurgia 3 para incluir explicitamente "Antecip
 
 ### Peso por fonte no ratio P/D (especialmente imprensa/google_news)
 
-> ⚠️ **CREDIBILIDADE DO NÚMERO** — `google_news`/imprensa entram no ratio P/D com
-> peso normal e **inflam promotores artificialmente**. Distorce o indicador que o
-> cliente vê. Decidir peso por fonte (opções A/B abaixo).
+> 🟡 **PRINCÍPIO ACEITO, IMPLEMENTAÇÃO ADIADA** (Alexandre+Dener, 2026-06).
+> Decisão de método: imprensa pesa **>0 e <1** (não zera — ela **discrimina
+> valência**, logo carrega sinal; mas não é voz direta do cliente).
 
-**Status:** PENDENTE
-**Prazo:** Bloco 5+ (Painel Executivo)
+**Status:** ADIADO (princípio fechado; calibrar quando houver cliente com imprensa estrutural).
+
+**Por que adiar (medido no BH Airport):** imprensa ativa (`google_news`) = **11
+verbatins = 0,1% do volume**, impacto no ratio **≈ 0** (1 promotor, 0 detrator). Voz
+do cliente (google+tripadvisor) = **96%**. Calibrar peso com **n=11 seria chutar** —
+implementar quando entrar cliente com **imprensa estrutural** (volume real). *(Os
+portais de imprensa via `website` — em/itatiaia/aeroflap/exame — estão inativos.)*
+
+**Nota técnica (quando virar CP):** peso por **`conector_tipo` é trivial** (`GROUP BY`
+no cálculo do ratio: `google_news`→peso<1, `google`→1). Só **`website`** (site próprio
++ portais de imprensa) e **`instagram`** (perfil próprio + influenciadores) **misturam
+natureza** → precisariam de **regra por URL** ou de um campo **`natureza`** novo na
+`Fonte`. Os demais conectores = uma natureza cada.
+
+**Prazo:** quando houver cliente com imprensa estrutural (Bloco 5+ / Painel Executivo).
 
 O v2 tinha campo `origem` (cliente / interno / institucional) com pesos no ratio (1.0 / 0.5 / 0.0). O v3 eliminou esse campo no Bloco 1 (decisão do CP1 do Bloco 3 quando comparamos schemas). Consequência: o coletor `google_news` (e potencialmente outras fontes institucionais) grava verbatins que entram no ratio P/D com peso normal — pode distorcer indicadores.
 

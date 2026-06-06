@@ -279,9 +279,21 @@ mais caro/arriscado com o sistema no ar).
 - Completar/revisar os dicionários de subpilares Pa2/Pa3 da classificação. Item de
   conteúdo do método — alinhar com Alexandre/Dener.
 
-### R4. Impacto em R$ — tirar do placeholder `[ ]` · **[CÓDIGO / produto]**
-- O impacto financeiro exibido é placeholder; definir a fórmula real (ou esconder
-  até ter) pra não mostrar número inventado ao cliente.
+### R4. Impacto em R$ `[ ]` · **[CÓDIGO]** — **decisões de método FECHADAS** (Alexandre+Dener); vira CP
+- **Estado:** hoje é placeholder honesto (mostra `—` + "habilita com LTV"; nunca
+  inventa número). A **engenharia já deixou os ganchos prontos** (`simular_impacto_acao`
+  retorna `recuperados`; `rs_projetado` reservado no Mapa Financeiro). As decisões de
+  método estão **fechadas** — falta virar CP de implementação. Detalhe completo no
+  `PENDENCIAS_TECNICAS.md` (seção "Impacto em R$"). Resumo:
+  - **(a) Dois R$:** estoque recuperável (`conv × LTV`, Diagnóstico/Governança) +
+    fluxo da ação (`recuperados × LTV`, Plano).
+  - **(b) LTV por loja:** campo no cadastro do local, de `ticket × frequência` (2
+    campos editáveis), pré-preenchimento hierárquico (valor próprio → última loja da
+    mesma categoria → estimativa via IA), **origem sempre visível**.
+  - **(c) Taxas de sucesso por empresa:** 3 campos editáveis (alto 0,50 / médio 0,35
+    / baixo 0,20 sugeridos).
+  - **(d)** Enquadramento **OPORTUNIDADE**. **(e)** Fórmula **uniforme na v1** (×LTV),
+    por-driver na v2.
 
 ### R5. `datetime` tz-aware `[ ]` · **[CÓDIGO]**
 - Refactor pra timezone-aware (a *decisão* do tipo de coluna já entrou no #1: hoje
@@ -291,13 +303,15 @@ mais caro/arriscado com o sistema no ar).
 
 ## 🟤 UX EXPLORAR (sequência do CP-A, em main)
 
-### UX1. CP-B — reorganização das abas `[ ]` · **[CÓDIGO]** (depende de decisão de ordem c/ Dener)
-- **(a)** Reordenar/agrupar as 15 abas do Hub Explorar por propósito (panorama →
-  exploração → diagnóstico → ação → governança/saída; IA transversal). A infra de
-  grupo já existe (`grupo` em `_EXPLORAR_TABS`); a tab bar hoje é flat por render.
-- **(b)** A lista plana de 15 abas confunde; agrupar por propósito guia o uso.
-- **(c)** Depende de Alexandre + Dener fecharem a ordem final (proposta levantada
-  na investigação do CP-A). **(d)** Médio (template da tab bar + seções).
+### UX1. CP-B — reorganização das abas `[x]` ✅ **NO AR** (`49ec6be` + `f609da1`)
+- **✅ FEITO:** as 15 abas do Hub Explorar agrupadas por propósito, na ordem do
+  funil (**Visão → Explorar → Diagnóstico → Ação → Governança & Saída**), com
+  rótulo de seção visível na tab bar; **IA fixa à direita** (transversal). Seções
+  visíveis (sem dropdown). Ajuste `f609da1`: abas de cada grupo quebram em 2 linhas
+  (`max-w-[19rem]`) → grupos grandes (Explorar=5) compactam em largura. Só reorg
+  visual — zero cálculo; CP-A intacto (sublinhado via OOB, header condicional, chip).
+- **UX do Explorar COMPLETA** (CP-A filtros + CP-B reorg + ajuste tab bar). **Resta**
+  só **UX2** (migração HTMX das 5 abas legadas).
 
 ### UX2. Migrar 5 abas legadas full-load → HTMX `[ ]` · **[CÓDIGO]**
 - **(a)** Painel/Verbatins/Temas/Anomalias/Relatórios usam full-load (reload da
