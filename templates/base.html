@@ -57,17 +57,24 @@
   <div class="flex">
     {% if user %}
     <aside class="w-56 bg-loyall-100 border-r border-loyall-200 min-h-[calc(100vh-3.5rem)] p-4 hidden md:block">
+      {# CP-O2 personas: admin_loyall vê o menu completo; cliente vê só Explorar
+         (da própria empresa). Monitoramento agora DENTRO do if (fecha o leak). #}
+      {% if user.papel == 'admin_loyall' %}
       <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Cadastros</div>
       <ul class="space-y-1">
         <li><a href="{{ url_for('ui.lista_empresas') }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Empresas</a></li>
-        {% if user.papel == 'admin_loyall' %}
         <li><a href="{{ url_for('ui.empresa_nova') }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Nova empresa</a></li>
         <li><a href="{{ url_for('ui.empresa_importar') }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Importar Excel</a></li>
         <li><a href="{{ url_for('ui.glossario') }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Glossário</a></li>
         <li><a href="{{ url_for('ui.usuarios') }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Usuários</a></li>
-        {% endif %}
         <li class="pt-2"><a href="{{ url_for('ui.monitoramento') }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs uppercase tracking-wider text-loyall-400">Monitoramento</a></li>
       </ul>
+      {% elif user.empresa_id %}
+      <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Navegação</div>
+      <ul class="space-y-1">
+        <li><a href="{{ url_for('ui.explorar_empresa', empresa_id=user.empresa_id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 font-medium">Explorar</a></li>
+      </ul>
+      {% endif %}
       {% block sidebar_extra %}{% endblock %}
     </aside>
     {% endif %}

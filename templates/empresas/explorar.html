@@ -2,15 +2,17 @@
 {% block titulo %}Explorar — {{ empresa.nome }}{% endblock %}
 
 {% block sidebar_extra %}
+{# CP-O2: seção Empresa (Cadastro/admin) é só Loyall. Cliente navega pelo menu
+   global (só Explorar) — sem link de Cadastro nem rotas internas. #}
+{% if eh_loyall %}
 <div class="mt-6 text-xs uppercase tracking-wider text-loyall-400 mb-2">Empresa</div>
 <div class="px-2 py-1 text-sm font-medium text-loyall-800">{{ empresa.nome }}</div>
 <ul class="mt-2 space-y-1 text-sm">
   <li><a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Cadastro</a></li>
   <li><a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded bg-loyall-200 font-medium">Explorar</a></li>
-  {% if eh_loyall %}
   <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">Temas (admin)</a></li>
-  {% endif %}
 </ul>
+{% endif %}
 {% endblock %}
 
 {% block conteudo %}
@@ -18,9 +20,14 @@
 {# ── Header ───────────────────────────────────────────────────────── #}
 <div class="mb-4">
   <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
+    {# CP-O2: links de Empresas/Cadastro só p/ Loyall; cliente vê o nome sem link. #}
+    {% if eh_loyall %}
     <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
     <span class="mx-1">›</span>
     <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}" class="hover:underline">{{ empresa.nome }}</a>
+    {% else %}
+    <span>{{ empresa.nome }}</span>
+    {% endif %}
     <span class="mx-1">›</span>
     <span class="text-loyall-600">Explorar</span>
   </nav>

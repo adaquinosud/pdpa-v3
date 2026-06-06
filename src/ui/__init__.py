@@ -25,6 +25,7 @@ HTMX partials (retornam fragmento HTML, não página inteira):
 from __future__ import annotations
 
 import json
+from functools import wraps
 from types import SimpleNamespace
 
 from flask import (
@@ -164,6 +165,41 @@ def _require_loyall_html():
     return None
 
 
+def loyall_required_ui(f):
+    """Decorator de NATUREZA (CP-O2 personas): rota INTERNA, só admin_loyall.
+
+    Padroniza o gating das rotas internas (cadastro/coleta/monitoramento/etc.) —
+    antes era inline e inconsistente (o que vazou o monitoramento). Cliente nunca
+    chega aqui pelo menu (escondido por papel); o 403 é a rede de segurança p/
+    URL direta. HTMX recebe fragmento (não a página 403 inteira no target)."""
+
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        user = get_current_user()
+        if user is None:
+            return redirect(url_for("ui.login_form"))
+        if user.papel != PAPEL_LOYALL:
+            if request.headers.get("HX-Request"):
+                return (
+                    "<div class='text-red-600 text-sm'>Acesso restrito a admin Loyall.</div>",
+                    403,
+                )
+            return render_template("403.html"), 403
+        return f(*args, **kwargs)
+
+    return wrapped
+
+
+def _redirect_cliente_para_explorar():
+    """Páginas de navegação fora do Explorar (home/lista/detalhe): cliente é
+    levado ao próprio Explorar em vez de ver cadastro. Retorna a resposta de
+    redirect se for cliente, ou None se for loyall/anônimo (segue o fluxo normal)."""
+    user = get_current_user()
+    if user is not None and user.papel != PAPEL_LOYALL and user.empresa_id is not None:
+        return redirect(url_for("ui.explorar_empresa", empresa_id=user.empresa_id))
+    return None
+
+
 # ── Home ─────────────────────────────────────────────────────────────────
 
 
@@ -171,6 +207,9 @@ def _require_loyall_html():
 def home():
     if get_current_user() is None:
         return redirect(url_for("ui.login_form"))
+    r = _redirect_cliente_para_explorar()  # cliente entra direto no próprio Explorar
+    if r:
+        return r
     return redirect(url_for("ui.lista_empresas"))
 
 
@@ -180,7 +219,7 @@ def home():
 @ui_bp.route("/login", methods=["GET"])
 def login_form():
     if get_current_user() is not None:
-        return redirect(url_for("ui.lista_empresas"))
+        return _redirect_cliente_para_explorar() or redirect(url_for("ui.lista_empresas"))
     return render_template("auth/login.html")
 
 
@@ -202,7 +241,7 @@ def login_submit():
         user.ultimo_login = datetime.utcnow()
         session_db.flush()
         login_user(user)
-    return redirect(url_for("ui.lista_empresas"))
+    return _redirect_cliente_para_explorar() or redirect(url_for("ui.lista_empresas"))
 
 
 @ui_bp.route("/logout", methods=["POST"])
@@ -220,22 +259,21 @@ def lista_empresas():
     r = _require_login_html()
     if r:
         return r
+    # CP-O2: cliente não vê a lista de empresas (cadastro) — vai pro próprio Explorar.
+    r = _redirect_cliente_para_explorar()
+    if r:
+        return r
     user = get_current_user()
     with db_session() as s:
-        query = s.query(Empresa).order_by(Empresa.nome)
-        if user.papel != PAPEL_LOYALL:
-            query = query.filter(Empresa.id == user.empresa_id)
-        empresas = query.all()
+        empresas = s.query(Empresa).order_by(Empresa.nome).all()
         # Detach para uso no template
         for e in empresas:
             s.expunge(e)
-    # Cliente com 1 empresa → atalho para detalhe
-    if user.papel != PAPEL_LOYALL and len(empresas) == 1:
-        return redirect(url_for("ui.detalhe_empresa", empresa_id=empresas[0].id))
     return render_template("empresas/lista.html", empresas=empresas, user=user)
 
 
 @ui_bp.route("/empresas/nova", methods=["GET", "POST"])
+@loyall_required_ui
 def empresa_nova():
     r = _require_loyall_html()
     if r:
@@ -262,6 +300,7 @@ def empresa_nova():
 
 
 @ui_bp.route("/empresas/importar", methods=["GET", "POST"])
+@loyall_required_ui
 def empresa_importar():
     r = _require_loyall_html()
     if r:
@@ -371,9 +410,11 @@ def detalhe_empresa(empresa_id: int):
     r = _require_login_html()
     if r:
         return r
-    user = get_current_user()
-    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
-        return render_template("403.html"), 403
+    # CP-O2: detalhe = cadastro (interno). Cliente vai pro próprio Explorar.
+    r = _redirect_cliente_para_explorar()
+    if r:
+        return r
+    user = get_current_user()  # aqui só admin_loyall (cliente já redirecionou)
     dados = _carregar_detalhe_empresa(empresa_id)
     if dados is None:
         return render_template("404.html"), 404
@@ -394,6 +435,7 @@ def detalhe_empresa(empresa_id: int):
 
 
 @ui_bp.route("/monitoramento")
+@loyall_required_ui
 def monitoramento():
     """Página global de monitoramento de coletas (CP-E)."""
     r = _require_login_html()
@@ -425,6 +467,7 @@ def monitoramento():
 
 
 @ui_bp.route("/ui/empresas/<int:empresa_id>/coletas-em-andamento")
+@loyall_required_ui
 def coletas_em_andamento_redirect(empresa_id: int):
     """Atalho UI -> API JSON usado pelo polling JS na página de detalhe."""
     from src.api.monitoramento import coletas_em_andamento_da_empresa as h
@@ -433,6 +476,7 @@ def coletas_em_andamento_redirect(empresa_id: int):
 
 
 @ui_bp.route("/ui/monitoramento/lista")
+@loyall_required_ui
 def htmx_monitoramento_lista():
     """Fragment HTML da lista — usado pelo polling HTMX de /monitoramento."""
     if get_current_user() is None:
@@ -1371,6 +1415,7 @@ def painel_temas_modal(empresa_id: int):
 
 
 @ui_bp.route("/admin/temas/<int:empresa_id>", methods=["GET"])
+@loyall_required_ui
 def admin_temas(empresa_id: int):
     """Tela admin do catálogo de temas (loyall only)."""
     r = _require_login_html()
@@ -1557,6 +1602,7 @@ def _check_acesso(empresa_id: int):
 
 
 @ui_bp.route("/ui/empresas/<int:empresa_id>/agrupamentos", methods=["POST"])
+@loyall_required_ui
 def htmx_criar_agrupamento(empresa_id: int):
     user = get_current_user()
     if user is None or user.papel != PAPEL_LOYALL:
@@ -1604,6 +1650,7 @@ def _carregar_ag(agrupamento_id: int):
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/row", methods=["GET"])
+@loyall_required_ui
 def htmx_agrupamento_row(agrupamento_id: int):
     """Devolve a row em modo view (para cancelar edição ou após save)."""
     a = _carregar_ag(agrupamento_id)
@@ -1615,6 +1662,7 @@ def htmx_agrupamento_row(agrupamento_id: int):
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/editar", methods=["GET"])
+@loyall_required_ui
 def htmx_editar_agrupamento_form(agrupamento_id: int):
     """Devolve a row em modo edit (inputs em vez de spans)."""
     user = get_current_user()
@@ -1630,6 +1678,7 @@ def htmx_editar_agrupamento_form(agrupamento_id: int):
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>", methods=["PUT"])
+@loyall_required_ui
 def htmx_salvar_agrupamento(agrupamento_id: int):
     user = get_current_user()
     if user is None or user.papel != PAPEL_LOYALL:
@@ -1671,6 +1720,7 @@ def htmx_salvar_agrupamento(agrupamento_id: int):
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/inativar", methods=["PATCH"])
+@loyall_required_ui
 def htmx_inativar_agrupamento(agrupamento_id: int):
     user = get_current_user()
     if user is None or user.papel != PAPEL_LOYALL:
@@ -1688,6 +1738,7 @@ def htmx_inativar_agrupamento(agrupamento_id: int):
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>", methods=["DELETE"])
+@loyall_required_ui
 def htmx_deletar_agrupamento(agrupamento_id: int):
     user = get_current_user()
     if user is None or user.papel != PAPEL_LOYALL:
@@ -1701,6 +1752,7 @@ def htmx_deletar_agrupamento(agrupamento_id: int):
 
 
 @ui_bp.route("/ui/empresas/<int:empresa_id>/locais", methods=["POST"])
+@loyall_required_ui
 def htmx_criar_local(empresa_id: int):
     erro = _check_acesso(empresa_id)
     if erro:
@@ -1758,6 +1810,7 @@ def _carregar_local_e_ags(local_id: int):
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/row", methods=["GET"])
+@loyall_required_ui
 def htmx_local_row(local_id: int):
     loc, ags, ag_map = _carregar_local_e_ags(local_id)
     if loc is None:
@@ -1769,6 +1822,7 @@ def htmx_local_row(local_id: int):
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/editar", methods=["GET"])
+@loyall_required_ui
 def htmx_editar_local_form(local_id: int):
     loc, ags, _ag_map = _carregar_local_e_ags(local_id)
     if loc is None:
@@ -1780,6 +1834,7 @@ def htmx_editar_local_form(local_id: int):
 
 
 @ui_bp.route("/ui/locais/<int:local_id>", methods=["PUT"])
+@loyall_required_ui
 def htmx_salvar_local(local_id: int):
     nome = (request.form.get("nome") or "").strip()
     if not nome:
@@ -1833,6 +1888,7 @@ def htmx_salvar_local(local_id: int):
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/inativar", methods=["PATCH"])
+@loyall_required_ui
 def htmx_inativar_local(local_id: int):
     with db_session() as s:
         loc = s.get(Local, local_id)
@@ -1848,6 +1904,7 @@ def htmx_inativar_local(local_id: int):
 
 
 @ui_bp.route("/ui/locais/<int:local_id>", methods=["DELETE"])
+@loyall_required_ui
 def htmx_deletar_local(local_id: int):
     with db_session() as s:
         loc = s.get(Local, local_id)
@@ -1864,6 +1921,7 @@ def htmx_deletar_local(local_id: int):
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/fontes", methods=["POST"])
+@loyall_required_ui
 def htmx_criar_fonte(local_id: int):
     from src.api.fontes import CONECTORES_COM_SCRAPER, CONECTORES_CONHECIDOS
 
@@ -1939,6 +1997,7 @@ def _carregar_fonte_e_local(fonte_id: int):
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/row", methods=["GET"])
+@loyall_required_ui
 def htmx_fonte_row(fonte_id: int):
     f, local_map = _carregar_fonte_e_local(fonte_id)
     if f is None:
@@ -1950,6 +2009,7 @@ def htmx_fonte_row(fonte_id: int):
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/editar", methods=["GET"])
+@loyall_required_ui
 def htmx_editar_fonte_form(fonte_id: int):
     f, _local_map = _carregar_fonte_e_local(fonte_id)
     if f is None:
@@ -1961,6 +2021,7 @@ def htmx_editar_fonte_form(fonte_id: int):
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>", methods=["PUT"])
+@loyall_required_ui
 def htmx_salvar_fonte(fonte_id: int):
     url = (request.form.get("url") or "").strip()
     observacao = (request.form.get("observacao") or "").strip() or None
@@ -2000,6 +2061,7 @@ def htmx_salvar_fonte(fonte_id: int):
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/inativar", methods=["PATCH"])
+@loyall_required_ui
 def htmx_inativar_fonte(fonte_id: int):
     with db_session() as s:
         f = s.get(Fonte, fonte_id)
@@ -2032,6 +2094,7 @@ def htmx_inativar_fonte(fonte_id: int):
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>", methods=["DELETE"])
+@loyall_required_ui
 def htmx_deletar_fonte(fonte_id: int):
     with db_session() as s:
         f = s.get(Fonte, fonte_id)
@@ -2045,6 +2108,7 @@ def htmx_deletar_fonte(fonte_id: int):
 
 
 @ui_bp.route("/ui/empresas/<int:empresa_id>/editar-modal", methods=["GET"])
+@loyall_required_ui
 def htmx_editar_empresa_modal(empresa_id: int):
     """Devolve o HTML do modal de edição da empresa (HTMX abre como overlay)."""
     user = get_current_user()
@@ -2067,6 +2131,7 @@ def htmx_editar_empresa_modal(empresa_id: int):
 
 
 @ui_bp.route("/ui/empresas/<int:empresa_id>", methods=["PUT"])
+@loyall_required_ui
 def htmx_salvar_empresa(empresa_id: int):
     user = get_current_user()
     if user is None or user.papel != PAPEL_LOYALL:
@@ -2112,6 +2177,7 @@ def htmx_salvar_empresa(empresa_id: int):
 
 
 @ui_bp.route("/ui/fontes/<int:fonte_id>/disparar", methods=["POST"])
+@loyall_required_ui
 def htmx_disparar_fonte(fonte_id: int):
     """Botão 'disparar coleta' — CP-5b (Opção A): FIRE-AND-FORGET. Dispara a coleta
     da fonte numa daemon-thread e retorna 'coletando…' na hora; não trava a request
@@ -2174,6 +2240,7 @@ def _fmt_stats_coleta(stats: dict) -> str:
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/disparar", methods=["POST"])
+@loyall_required_ui
 def htmx_disparar_local(local_id: int):
     """Coleta as fontes ativas do local — CP-5b: FIRE-AND-FORGET (daemon-thread,
     retorna 'coletando…' na hora). Guards síncronos antes de spawnar."""
@@ -2210,6 +2277,7 @@ def htmx_disparar_local(local_id: int):
 
 
 @ui_bp.route("/ui/agrupamentos/<int:agrupamento_id>/disparar", methods=["POST"])
+@loyall_required_ui
 def htmx_disparar_agrupamento(agrupamento_id: int):
     """Coleta todos os locais do agrupamento. CP-5b: DESABILITADO em produção
     (dezenas de fontes em série → não sobrevive ao timeout HTTP; a coleta completa
@@ -2242,6 +2310,7 @@ def htmx_disparar_agrupamento(agrupamento_id: int):
 
 
 @ui_bp.route("/ui/empresas/<int:empresa_id>/reprocessar", methods=["POST"])
+@loyall_required_ui
 def htmx_reprocessar_empresa(empresa_id: int):
     """Dispara o pipeline pós-coleta (passo 7.5 inclui Proximity/Gini/Mapa) da
     empresa em segundo plano, SEM coletar — destrava o reprocessamento após
@@ -3676,12 +3745,16 @@ def _explorar_contexto(empresa_id, tab):
     # valores vêm do escopo GLOBAL (filtros base), não sobrescritos pelo builder.
     escopo_aceito = _EXPLORAR_ESCOPO_ACEITO.get(tab, _ESCOPO_FULL)
     escopo_chip = _montar_escopo_chip(filtros, agrupamentos, lojas_header, escopo_aceito)
+    _u = get_current_user()
     ctx = {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
         "lojas_header": lojas_header,
         "filtros": filtros,
         "tab": tab,
+        # CP-O2: eh_loyall no ctx → chega às abas tanto no full-load quanto no
+        # swap HTMX (explorar_tab renderiza os partials só com **ctx).
+        "eh_loyall": bool(_u and _u.papel == PAPEL_LOYALL),
         "escopo_aceito": escopo_aceito,
         "escopo_chip": escopo_chip,
         "locais": locais,
@@ -3759,12 +3832,11 @@ def _explorar_render(empresa_id, tab):
         return render_template("404.html"), 404
     return render_template(
         "empresas/explorar.html",
-        eh_loyall=(user.papel == PAPEL_LOYALL),
         user=user,
         tabs=_EXPLORAR_TABS,
         tabs_migradas=_EXPLORAR_TABS_MIGRADAS,
         grupos=_EXPLORAR_GRUPOS,
-        **ctx,
+        **ctx,  # inclui eh_loyall (CP-O2)
     )
 
 
@@ -4039,6 +4111,7 @@ def _glossario_termo_detached(termo_id: int):
 
 
 @ui_bp.route("/glossario")
+@loyall_required_ui
 def glossario():
     r = _require_loyall_html()
     if r:
@@ -4049,6 +4122,7 @@ def glossario():
 
 
 @ui_bp.route("/ui/glossario/novo", methods=["POST"])
+@loyall_required_ui
 def htmx_glossario_novo():
     r = _require_loyall_html()
     if r:
@@ -4085,6 +4159,7 @@ def htmx_glossario_novo():
 
 
 @ui_bp.route("/ui/glossario/<int:termo_id>/editar", methods=["GET"])
+@loyall_required_ui
 def htmx_glossario_editar_form(termo_id: int):
     r = _require_loyall_html()
     if r:
@@ -4096,6 +4171,7 @@ def htmx_glossario_editar_form(termo_id: int):
 
 
 @ui_bp.route("/ui/glossario/<int:termo_id>/row", methods=["GET"])
+@loyall_required_ui
 def htmx_glossario_row(termo_id: int):
     r = _require_loyall_html()
     if r:
@@ -4107,6 +4183,7 @@ def htmx_glossario_row(termo_id: int):
 
 
 @ui_bp.route("/ui/glossario/<int:termo_id>", methods=["PUT"])
+@loyall_required_ui
 def htmx_glossario_salvar(termo_id: int):
     r = _require_loyall_html()
     if r:
@@ -4137,6 +4214,7 @@ def htmx_glossario_salvar(termo_id: int):
 
 
 @ui_bp.route("/ui/glossario/<int:termo_id>/inativar", methods=["POST"])
+@loyall_required_ui
 def htmx_glossario_inativar(termo_id: int):
     """Soft-delete reversível: alterna `ativo`. Devolve a linha re-renderizada."""
     r = _require_loyall_html()
@@ -4243,6 +4321,7 @@ def _render_usuarios_lista(erro=None, ok=None):
 
 
 @ui_bp.route("/usuarios")
+@loyall_required_ui
 def usuarios():
     r = _require_loyall_html()
     if r:
@@ -4251,6 +4330,7 @@ def usuarios():
 
 
 @ui_bp.route("/ui/usuarios/novo", methods=["POST"])
+@loyall_required_ui
 def htmx_usuarios_novo():
     r = _require_loyall_html()
     if r:
@@ -4292,6 +4372,7 @@ def htmx_usuarios_novo():
 
 
 @ui_bp.route("/ui/usuarios/<int:user_id>/toggle", methods=["POST"])
+@loyall_required_ui
 def htmx_usuarios_toggle(user_id: int):
     r = _require_loyall_html()
     if r:
@@ -4322,6 +4403,7 @@ def htmx_usuarios_toggle(user_id: int):
 
 
 @ui_bp.route("/ui/usuarios/<int:user_id>/reset-senha", methods=["POST"])
+@loyall_required_ui
 def htmx_usuarios_reset_senha(user_id: int):
     r = _require_loyall_html()
     if r:
@@ -4339,6 +4421,7 @@ def htmx_usuarios_reset_senha(user_id: int):
 
 
 @ui_bp.route("/ui/usuarios/<int:user_id>/editar-nome", methods=["POST"])
+@loyall_required_ui
 def htmx_usuarios_editar_nome(user_id: int):
     r = _require_loyall_html()
     if r:

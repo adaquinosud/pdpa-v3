@@ -89,12 +89,19 @@ def test_detalhe_empresa_renderiza(client_loyall):
     assert "LL" in html
 
 
-def test_detalhe_empresa_cliente_de_outra_403(client_loyall, client_cliente_factory):
+def test_detalhe_empresa_cliente_redireciona_pro_explorar(client_loyall, client_cliente_factory):
+    """CP-O2: cadastro (detalhe) é interno. Cliente — seja da própria empresa ou
+    de outra — é levado ao PRÓPRIO Explorar (302), nunca vê o cadastro."""
     e1 = client_loyall.post("/api/empresas/", json={"nome": "EA"}).get_json()
     e2 = client_loyall.post("/api/empresas/", json={"nome": "EB"}).get_json()
     cli = client_cliente_factory(e1["id"])
+    # tentando o cadastro de OUTRA empresa → redirect pro próprio Explorar
     r = cli.get(f"/empresas/{e2['id']}")
-    assert r.status_code == 403
+    assert r.status_code == 302
+    assert f"/empresas/{e1['id']}/explorar" in r.headers["Location"]
+    # tentando o cadastro da PRÓPRIA empresa → idem (cadastro é interno)
+    r2 = cli.get(f"/empresas/{e1['id']}")
+    assert r2.status_code == 302 and f"/empresas/{e1['id']}/explorar" in r2.headers["Location"]
 
 
 # ── HTMX partials ────────────────────────────────────────────────────────
