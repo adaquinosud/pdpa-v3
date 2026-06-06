@@ -2315,9 +2315,12 @@ _EXPLORAR_GRUPOS = [
 _EXPLORAR_TAB_IDS = {t["id"] for t in _EXPLORAR_TABS}
 # Mapa id→escopo_aceito p/ o contexto do template (chip + header condicional).
 _EXPLORAR_ESCOPO_ACEITO = {t["id"]: t["escopo_aceito"] for t in _EXPLORAR_TABS}
-# Abas migradas: usam full-load (não HTMX swap) e têm contexto montado por um
-# builder dedicado (_ABA_BUILDERS), pois reaproveitam templates com JS inline.
-_EXPLORAR_TABS_MIGRADAS = {"painel", "verbatins", "temas", "anomalias", "relatorios"}
+# Abas que ainda usam full-load (não HTMX swap): têm <script> inline que não roda
+# em swap innerHTML (export-href, toggles). Temas e Relatórios saíram daqui
+# (CP-UX2a): não têm JS inline (SVG/CSS + <a href>), então fazem HTMX swap como as
+# demais — o servidor já as renderiza (builder + explorar_tab + dispatcher prontos).
+# Resta migrar Painel/Verbatins/Anomalias (têm JS) no CP-UX2b.
+_EXPLORAR_TABS_MIGRADAS = {"painel", "verbatins", "anomalias"}
 
 
 def _explorar_filtros():

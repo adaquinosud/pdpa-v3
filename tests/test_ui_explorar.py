@@ -547,3 +547,31 @@ def test_cpB_sublinhado_ativo_preservado_no_oob(client_loyall, db_session):
     assert 'id="explorar-tabbar"' in html and 'hx-swap-oob="true"' in html
     assert "border-loyall-700" in html  # sublinhado ativo presente
     assert "Visão" in html and "Explorar" in html  # seções vêm no fragmento OOB
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# CP-UX2a: Temas e Relatórios migram pra HTMX (saem de _EXPLORAR_TABS_MIGRADAS)
+# ─────────────────────────────────────────────────────────────────────────
+def test_ux2a_temas_relatorios_agora_htmx_e_painel_segue_fullload(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ux2a")
+    bar = _tabbar(client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True))
+    # Temas e Relatórios agora têm hx-get (HTMX swap) na tab bar
+    assert f"/empresas/{e['id']}/explorar/tab/temas" in bar
+    assert f"/empresas/{e['id']}/explorar/tab/relatorios" in bar
+    # As 3 com JS seguem full-load (sem hx-get pra elas)
+    assert f"/empresas/{e['id']}/explorar/tab/painel" not in bar
+    assert f"/empresas/{e['id']}/explorar/tab/verbatins" not in bar
+    assert f"/empresas/{e['id']}/explorar/tab/anomalias" not in bar
+
+
+def test_ux2a_swap_temas_e_relatorios_preserva_cpA(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ux2asw")
+    for tab in ("temas", "relatorios"):
+        r = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/{tab}")
+        assert r.status_code == 200, tab
+        html = r.get_data(as_text=True)
+        # CP-A não regrediu: header+tabbar via OOB + chip no fragmento + sublinhado ativo
+        assert 'id="explorar-tabbar"' in html and 'hx-swap-oob="true"' in html, tab
+        assert 'id="explorar-header"' in html, tab
+        assert "Analisando" in html, tab  # chip de escopo
+        assert "border-loyall-700" in html, tab  # sublinhado da aba ativa
