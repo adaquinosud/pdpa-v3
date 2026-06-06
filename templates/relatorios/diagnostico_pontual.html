@@ -254,17 +254,16 @@ ordem desperdiça esforço.</p>
 {% endif %}
 
 {# ═════════════════════════════════════════════════════════════════════════
-   MF · MAPA FINANCEIRO QUALITATIVO (sem R$ — habilitado com LTV setorial)
+   MF · MAPA FINANCEIRO (R$ projetado = conversíveis × LTV por loja)
    ═════════════════════════════════════════════════════════════════════════ #}
-{{ M.titulo_secao('MF', 'Mapa Financeiro Qualitativo',
-                  'Driver de negócio por subpilar · horizonte de impacto · interpretação.
-                   Valor financeiro absoluto habilitado na Fase 2 com integração de LTV
-                   setorial.') }}
+{{ M.titulo_secao('MF', 'Mapa Financeiro',
+                  'Driver de negócio por subpilar · horizonte de impacto · interpretação ·
+                   R$ projetado (conversíveis × LTV por loja).') }}
 <div class="card papel" style="border-color:var(--dourado); font-size:9pt">
-  <strong>⚙ Valor financeiro habilitado com LTV setorial</strong> · este mapa apresenta
-  drivers e horizontes qualitativos. A coluna <strong>R$ Projetado</strong> aparece como
-  "—" e habilita automaticamente (conversíveis × LTV) quando o LTV setorial de referência
-  do segmento for cadastrado para a empresa.
+  <strong>💰 R$ Projetado = conversíveis × LTV por loja</strong> · o LTV é derivado por
+  loja (ticket médio × frequência). Quando nem todas as lojas do escopo têm LTV cadastrado,
+  a coluna mostra a <strong>cobertura parcial</strong> (ex.: "R$ 4 mil · 1 de 10 lojas c/
+  LTV"). O "—" aparece só nos subpilares sem nenhuma loja com LTV.
 </div>
 <table>
   <thead>
@@ -295,7 +294,7 @@ ordem desperdiça esforço.</p>
       <td style="font-size:9pt">{{ mf.driver }}</td>
       <td style="font-size:8.5pt">{{ mf.horizonte }}</td>
       <td style="text-align:center; font-size:9pt; color:#8a7857"
-          title="Habilita com LTV setorial">
+          title="Conversíveis × LTV por loja; '—' onde nenhuma loja tem LTV">
         {% if mf.rs_projetado is none %}—{% else %}{{ mf.rs_projetado }}{% endif %}
       </td>
       <td style="font-size:8.5pt">{{ mf.interpretacao }}</td>

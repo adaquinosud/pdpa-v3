@@ -127,6 +127,18 @@ def test_rs_estoque_nenhuma_loja_com_ltv_vira_none(client_loyall, db_session):
     assert est["P1"]["n_ltv"] == 0 and est["P1"]["n_total"] == 1
 
 
+def test_estoque_aparece_na_tela_hub_diagnostico(client_loyall, db_session):
+    """fix/estoque-tela-hub: o estoque (que já vivia no PDF) agora vai pra tela
+    Explorar→Diagnóstico (Confronto Visual). 3 conv × LTV 500 = 1500 → 'R$ 2 mil'."""
+    e = _empresa(db_session)
+    loc = _local(db_session, e, nome="Loja LTV", ticket_medio=50.0, frequencia=10.0)
+    f = _fonte(db_session, e, loc)
+    _conv(db_session, e, loc, f, "D2", 3)
+    html = client_loyall.get(f"/empresas/{e.id}/explorar/tab/diagnostico").get_data(as_text=True)
+    assert "R$ estoque" in html  # coluna nova no Confronto Visual
+    assert "R$ 2 mil" in html  # 3 × 500 = 1500 → formatado (cobertura cheia: 1 de 1)
+
+
 # ── Formatação ───────────────────────────────────────────────────────────
 def test_formatacao_brl_e_estoque():
     assert formatar_brl(1_234_567) == "R$ 1,2 mi"

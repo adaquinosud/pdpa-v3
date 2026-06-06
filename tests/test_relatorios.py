@@ -221,7 +221,7 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     assert "Confronto Visual PDPA" in h and "D2" in h  # 02
     assert "Disponibilidade travada" in h and "Revisar SLA" in h  # cache leitura
     assert "Mapa de Conversão" in h  # MC
-    assert "Mapa Financeiro Qualitativo" in h and "LTV setorial" in h  # MF
+    assert "Mapa Financeiro" in h and "conversíveis × LTV por loja" in h  # MF (CP-impacto-rs)
     assert "Pricing power" in h or "CSAT operacional" in h  # DRIVER_NEGOCIO assembly
     assert "Plano de Ação · Disponibilidade" in h and "FAKE descrição do pilar" in h  # 04
     assert "Plano de Ação · Parceria" in h  # 05

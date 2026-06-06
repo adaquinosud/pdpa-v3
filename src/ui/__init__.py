@@ -3153,6 +3153,12 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         _g_tipo, _g_id = "empresa", None
     prox_sub = proximity_subpilares_escopo(s, empresa_id, _g_tipo, _g_id)
 
+    # R$ de ESTOQUE por subpilar (CP-impacto-rs): conversíveis × LTV_loja no grão
+    # (loja, subpilar), no MESMO escopo do diagnóstico. None → "—" honesto.
+    from src.governanca.impacto_rs import formatar_estoque, rs_estoque
+
+    _estoque = rs_estoque(s, empresa_id, ag_id, local_id)
+
     confronto = []
     for sub in SUBPILARES_ORDEM:
         d = agg.get(sub)
@@ -3171,6 +3177,7 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                 faixa=d["faixa"],
                 proximity=px["valor"],
                 proximity_faixa=px["faixa"],
+                rs_estoque=formatar_estoque(_estoque.get(sub)),
                 leitura=(lt.leitura if lt else None),
                 acao=(lt.acao if lt else None),
                 herdado=herdado_sub.get(sub),  # None = próprio; str = origem do pai

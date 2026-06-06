@@ -99,6 +99,7 @@
         <th class="text-right px-2 py-2 font-medium">Ratio {{ glossario_i('ratio') }}</th>
         <th class="text-center px-2 py-2 font-medium">Proximity {{ glossario_i('proximity') }}</th>
         <th class="text-center px-2 py-2 font-medium">Faixa</th>
+        <th class="text-right px-2 py-2 font-medium" style="min-width:120px">R$ estoque</th>
         <th class="text-left px-3 py-2 font-medium" style="min-width:340px">Leitura diagnóstica + ação {{ glossario_i('leitura-diagnostica') }}</th>
       </tr>
     </thead>
@@ -121,6 +122,9 @@
           {% endif %}
         </td>
         <td class="text-center px-2 py-2"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span></td>
+        <td class="text-right px-2 py-2 text-xs">
+          {% if c.rs_estoque %}<span class="text-emerald-700 font-medium" title="Conversíveis × LTV por loja (ticket × frequência); cobertura parcial quando nem todas têm LTV">{{ c.rs_estoque }}</span>{% else %}<span class="text-loyall-300" title="Nenhuma loja deste subpilar tem LTV cadastrado">—</span>{% endif %}
+        </td>
         <td class="px-3 py-2 text-xs text-loyall-600 leading-relaxed">
           {% if c.herdado %}
           {# CP-UX-a: leitura herdada boxeada + cabeçalho que explica a inversão de
