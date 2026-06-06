@@ -28,6 +28,7 @@
   </div>
   <a id="btn-exportar-painel"
      href="{{ url_for('empresas.exportar_painel_xlsx', empresa_id=empresa.id) }}"
+     data-export-base="{{ url_for('empresas.exportar_painel_xlsx', empresa_id=empresa.id) }}"
      class="px-3 py-1.5 text-sm rounded border border-loyall-200 hover:bg-loyall-100 text-loyall-700 self-center">
     Exportar Excel
   </a>
@@ -80,23 +81,13 @@
     <span class="text-xs uppercase tracking-wider text-loyall-500">Leitura editorial</span>
     <span class="text-xs text-loyall-400">Lastro Relacional (P → D → Pa → A)</span>
   </div>
-  <div id="leitura-sequencial-texto" class="text-loyall-800 text-sm leading-relaxed italic">
+  <div id="leitura-sequencial-texto"
+       data-leitura-url="{{ url_for('empresas.painel_leitura', empresa_id=empresa.id) }}"
+       class="text-loyall-800 text-sm leading-relaxed italic">
     Gerando leitura editorial…
   </div>
 </div>
-<script>
-  (function() {
-    const url = "{{ url_for('empresas.painel_leitura', empresa_id=empresa.id) }}";
-    const params = new URLSearchParams(window.location.search);
-    const full = params.toString() ? `${url}?${params.toString()}` : url;
-    const el = document.getElementById('leitura-sequencial-texto');
-    if (!el) return;
-    fetch(full, {credentials: 'same-origin'})
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(j => { el.textContent = j.leitura || 'Sem leitura disponível.'; })
-      .catch(_ => { el.textContent = 'Sem leitura disponível.'; });
-  })();
-</script>
+{# leitura buscada+preenchida pelo re-init global (base.html), via data-leitura-url #}
 
 {# ── Métricas consolidadas (Manual Cap. 4) ────────────────────────────── #}
 {% set ig_cls = {'saudavel':'emerald','atencao':'amber','critico':'rose'}.get(n1.indice_geral_faixa, 'slate') %}
@@ -383,14 +374,3 @@
   <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>2.0–5.0 bom</span>
   <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>5.0–9.99 excelente</span>
 </div>
-
-<script>
-  // Propaga filtros atuais para o botão "Exportar Excel"
-  (function() {
-    const btn = document.getElementById('btn-exportar-painel');
-    if (!btn) return;
-    const base = "{{ url_for('empresas.exportar_painel_xlsx', empresa_id=empresa.id) }}";
-    const params = new URLSearchParams(window.location.search);
-    btn.href = params.toString() ? `${base}?${params.toString()}` : base;
-  })();
-</script>

@@ -2315,12 +2315,12 @@ _EXPLORAR_GRUPOS = [
 _EXPLORAR_TAB_IDS = {t["id"] for t in _EXPLORAR_TABS}
 # Mapa id→escopo_aceito p/ o contexto do template (chip + header condicional).
 _EXPLORAR_ESCOPO_ACEITO = {t["id"]: t["escopo_aceito"] for t in _EXPLORAR_TABS}
-# Abas que ainda usam full-load (não HTMX swap): têm <script> inline que não roda
-# em swap innerHTML (export-href, toggles). Temas e Relatórios saíram daqui
-# (CP-UX2a): não têm JS inline (SVG/CSS + <a href>), então fazem HTMX swap como as
-# demais — o servidor já as renderiza (builder + explorar_tab + dispatcher prontos).
-# Resta migrar Painel/Verbatins/Anomalias (têm JS) no CP-UX2b.
-_EXPLORAR_TABS_MIGRADAS = {"painel", "verbatins", "anomalias"}
+# Abas que ainda usam full-load (não HTMX swap). VAZIO desde o CP-UX2b: todas as
+# abas fazem HTMX swap. O <script> inline que morria no swap innerHTML (export-href,
+# leitura, toggles das anomalias) virou um re-init global data-driven em base.html
+# (lê data-export-*/data-leitura-url/data-anom-empresa no htmx:afterSettle). Os forms
+# de filtro de Painel/Verbatins seguem full-load por decisão (o piscar = feedback).
+_EXPLORAR_TABS_MIGRADAS = set()
 
 
 def _explorar_filtros():

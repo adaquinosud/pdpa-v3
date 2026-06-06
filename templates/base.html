@@ -85,5 +85,78 @@
       {% block conteudo %}{% endblock %}
     </main>
   </div>
+  <script>
+    // Re-init global do Hub Explorar (CP-UX2b). O <script> inline das abas Painel/
+    // Verbatins/Anomalias morria no swap innerHTML; aqui a lógica vive 1× e roda no
+    // DOMContentLoaded (full-load) E no htmx:afterSettle (swap HTMX). Data-driven: os
+    // fragmentos carregam só data-* (sem <script>). Idempotente.
+    (function () {
+      function reinitExportHrefs(root) {
+        root.querySelectorAll('[data-export-base]').forEach(function (btn) {
+          var p = new URLSearchParams(window.location.search);
+          (btn.dataset.exportStrip || '').split(',').forEach(function (k) { if (k) p.delete(k); });
+          var qs = p.toString();
+          btn.href = qs ? (btn.dataset.exportBase + '?' + qs) : btn.dataset.exportBase;
+        });
+      }
+      function reinitLeitura(root) {
+        var el = (root || document).querySelector('[data-leitura-url]');
+        if (!el || el.dataset.leituraDone) return; // 1 fetch por fragmento (guard anti-redundância)
+        el.dataset.leituraDone = '1';
+        fetch(el.dataset.leituraUrl + window.location.search, { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          .then(function (j) { el.textContent = j.leitura || 'Sem leitura disponível.'; })
+          .catch(function () { el.textContent = 'Sem leitura disponível.'; });
+      }
+      // Anomalias: estado aberto/colapsado em sessionStorage, chave por empresa
+      // (lida do DOM via data-anom-empresa, não baked no script).
+      function anomKey() {
+        var r = document.querySelector('[data-anom-empresa]');
+        return r ? ('anom-open-' + r.dataset.anomEmpresa) : null;
+      }
+      function anomGet() {
+        var k = anomKey(); if (!k) return new Set();
+        try { return new Set(JSON.parse(sessionStorage.getItem(k) || '[]')); } catch (e) { return new Set(); }
+      }
+      function anomSave(s) {
+        var k = anomKey(); if (k) sessionStorage.setItem(k, JSON.stringify(Array.from(s)));
+      }
+      window.toggleAnom = function (id) {
+        var card = document.getElementById('anomalia-card-' + id);
+        if (!card) return;
+        var open = anomGet();
+        if (card.classList.toggle('open')) open.add(String(id)); else open.delete(String(id));
+        anomSave(open);
+      };
+      window.anomSetAll = function (openAll) {
+        var open = anomGet();
+        document.querySelectorAll('.anom-card').forEach(function (c) {
+          var id = c.getAttribute('data-anom');
+          c.classList.toggle('open', openAll);
+          if (openAll) open.add(id); else open.delete(id);
+        });
+        anomSave(open);
+      };
+      function applyAnom(root) {
+        var open = anomGet();
+        (root || document).querySelectorAll('.anom-card').forEach(function (c) {
+          if (open.has(c.getAttribute('data-anom'))) c.classList.add('open');
+        });
+      }
+      // Export hrefs e estado das anomalias: varrem o document (idempotentes, baratos,
+      // cobrem troca de aba E swap de card sem depender da granularidade do alvo).
+      // Leitura: escopada no alvo + guard, pra não refazer fetch em swaps alheios.
+      function reinit(root) {
+        reinitExportHrefs(document);
+        reinitLeitura(root || document);
+        applyAnom(document);
+      }
+      document.addEventListener('DOMContentLoaded', function () { reinit(document); });
+      document.body.addEventListener('htmx:afterSettle', function (e) { reinit(e.target); });
+      // Export reflete filtros em progresso (paridade c/ o script antigo).
+      document.addEventListener('change', function () { reinitExportHrefs(document); });
+      document.addEventListener('input', function () { reinitExportHrefs(document); });
+    })();
+  </script>
 </body>
 </html>

@@ -10,7 +10,9 @@
   .anom-card.open .anom-resumo { display: none; }
 </style>
 {# ── Header ───────────────────────────────────────────────────────── #}
-<div class="mb-4">
+{# data-anom-empresa: lido pelo re-init global (base.html) p/ a chave sessionStorage
+   'anom-open-<id>'; toggleAnom/anomSetAll/apply vivem lá, sobrevivem ao swap. #}
+<div class="mb-4" data-anom-empresa="{{ empresa.id }}">
   <nav class="text-sm text-loyall-400" aria-label="Breadcrumb">
     <a href="{{ url_for('ui.lista_empresas') }}" class="hover:underline">Empresas</a>
     <span class="mx-1">›</span>
@@ -103,42 +105,6 @@
   {% endif %}
 </div>
 {% endif %}
-
-<script>
-  (function () {
-    // Estado de cards abertos persiste em sessionStorage (sobrevive ao reload
-    // dos filtros e ao swap HTMX de validação). Chave por empresa.
-    const KEY = 'anom-open-{{ empresa.id }}';
-    const get = () => { try { return new Set(JSON.parse(sessionStorage.getItem(KEY) || '[]')); } catch (e) { return new Set(); } };
-    const save = (s) => sessionStorage.setItem(KEY, JSON.stringify([...s]));
-
-    window.toggleAnom = function (id) {
-      const card = document.getElementById('anomalia-card-' + id);
-      if (!card) return;
-      const open = get();
-      const nowOpen = card.classList.toggle('open');
-      if (nowOpen) open.add(String(id)); else open.delete(String(id));
-      save(open);
-    };
-
-    window.anomSetAll = function (openAll) {
-      const open = get();
-      document.querySelectorAll('.anom-card').forEach(function (c) {
-        const id = c.getAttribute('data-anom');
-        c.classList.toggle('open', openAll);
-        if (openAll) open.add(id); else open.delete(id);
-      });
-      save(open);
-    };
-
-    function apply(root) {
-      const open = get();
-      (root || document).querySelectorAll('.anom-card').forEach(function (c) {
-        if (open.has(c.getAttribute('data-anom'))) c.classList.add('open');
-      });
-    }
-    document.addEventListener('DOMContentLoaded', function () { apply(); });
-    // Reaplica estado após validação (HTMX troca o card via outerHTML).
-    document.body.addEventListener('htmx:afterSwap', function (e) { apply(e.target.parentElement || document); });
-  })();
-</script>
+{# toggleAnom/anomSetAll + reaplicação do estado (sessionStorage) vivem no re-init
+   global (base.html); roda no DOMContentLoaded, no htmx:afterSettle (troca de aba)
+   e cobre o afterSwap da validação de card. #}

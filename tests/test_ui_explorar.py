@@ -552,16 +552,13 @@ def test_cpB_sublinhado_ativo_preservado_no_oob(client_loyall, db_session):
 # ─────────────────────────────────────────────────────────────────────────
 # CP-UX2a: Temas e Relatórios migram pra HTMX (saem de _EXPLORAR_TABS_MIGRADAS)
 # ─────────────────────────────────────────────────────────────────────────
-def test_ux2a_temas_relatorios_agora_htmx_e_painel_segue_fullload(client_loyall, db_session):
+def test_ux2a_temas_relatorios_agora_htmx(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "ux2a")
     bar = _tabbar(client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True))
-    # Temas e Relatórios agora têm hx-get (HTMX swap) na tab bar
+    # Temas e Relatórios têm hx-get (HTMX swap) na tab bar desde o CP-UX2a.
+    # (Painel/Verbatins/Anomalias migraram depois, no CP-UX2b — ver test_ux2b_*.)
     assert f"/empresas/{e['id']}/explorar/tab/temas" in bar
     assert f"/empresas/{e['id']}/explorar/tab/relatorios" in bar
-    # As 3 com JS seguem full-load (sem hx-get pra elas)
-    assert f"/empresas/{e['id']}/explorar/tab/painel" not in bar
-    assert f"/empresas/{e['id']}/explorar/tab/verbatins" not in bar
-    assert f"/empresas/{e['id']}/explorar/tab/anomalias" not in bar
 
 
 def test_ux2a_swap_temas_e_relatorios_preserva_cpA(client_loyall, db_session):
@@ -571,6 +568,57 @@ def test_ux2a_swap_temas_e_relatorios_preserva_cpA(client_loyall, db_session):
         assert r.status_code == 200, tab
         html = r.get_data(as_text=True)
         # CP-A não regrediu: header+tabbar via OOB + chip no fragmento + sublinhado ativo
+        assert 'id="explorar-tabbar"' in html and 'hx-swap-oob="true"' in html, tab
+        assert 'id="explorar-header"' in html, tab
+        assert "Analisando" in html, tab  # chip de escopo
+        assert "border-loyall-700" in html, tab  # sublinhado da aba ativa
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# CP-UX2b: Painel, Verbatins e Anomalias migram pra HTMX. O <script> inline
+# vira data-* + re-init global em base.html (sem JS engine no pytest: testa-se
+# a fiação; o comportamento do JS é verificado manualmente no browser).
+# ─────────────────────────────────────────────────────────────────────────
+def test_ux2b_as_3_abas_com_js_agora_sao_htmx(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ux2b")
+    bar = _tabbar(client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True))
+    # _EXPLORAR_TABS_MIGRADAS vazio → todas as abas têm hx-get (HTMX swap)
+    for tab in ("painel", "verbatins", "anomalias"):
+        assert f"/empresas/{e['id']}/explorar/tab/{tab}" in bar, tab
+
+
+def test_ux2b_fragmentos_carregam_data_attrs_e_perderam_o_script_inline(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ux2bfrag")
+    base = f"/empresas/{e['id']}/explorar/tab"
+
+    verb = client_loyall.get(f"{base}/verbatins").get_data(as_text=True)
+    assert "data-export-base=" in verb and 'data-export-strip="pagina,por_pagina"' in verb
+    assert "URLSearchParams" not in verb  # o <script> inline saiu do fragmento
+
+    pain = client_loyall.get(f"{base}/painel").get_data(as_text=True)
+    assert "data-export-base=" in pain and "data-leitura-url=" in pain
+    assert "URLSearchParams" not in pain and "leitura-sequencial-texto" in pain
+
+    anom = client_loyall.get(f"{base}/anomalias").get_data(as_text=True)
+    assert f'data-anom-empresa="{e["id"]}"' in anom  # chave sessionStorage lida do DOM
+    assert "window.toggleAnom" not in anom  # o <script> inline saiu do fragmento
+
+
+def test_ux2b_reinit_global_vive_no_base(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ux2bbase")
+    # GET full-load do hub renderiza base.html → o re-init global precisa estar lá
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True)
+    assert "htmx:afterSettle" in html
+    assert "data-export-base" in html and "data-leitura-url" in html  # seletores do re-init
+    assert "leituraDone" in html  # guard anti-fetch-redundante
+
+
+def test_ux2b_swap_das_3_preserva_cpA(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "ux2bcpa")
+    for tab in ("painel", "verbatins", "anomalias"):
+        r = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/{tab}")
+        assert r.status_code == 200, tab
+        html = r.get_data(as_text=True)
         assert 'id="explorar-tabbar"' in html and 'hx-swap-oob="true"' in html, tab
         assert 'id="explorar-header"' in html, tab
         assert "Analisando" in html, tab  # chip de escopo

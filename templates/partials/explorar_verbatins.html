@@ -28,29 +28,14 @@
   </div>
   <a id="btn-exportar-xlsx"
      href="#"
+     data-export-base="{{ url_for('empresas.exportar_verbatins_xlsx', empresa_id=empresa.id) }}"
+     data-export-strip="pagina,por_pagina"
      class="px-3 py-1.5 text-sm rounded border border-loyall-200 hover:bg-loyall-100 text-loyall-700 inline-flex items-center gap-1 self-center"
      title="Exporta os verbatins conforme filtros aplicados (até 50k linhas)">
     Exportar Excel
   </a>
 </div>
-<script>
-  // Constrói o href do botão preservando os filtros atuais da query string
-  (function() {
-    const btn = document.getElementById('btn-exportar-xlsx');
-    if (!btn) return;
-    const base = "{{ url_for('empresas.exportar_verbatins_xlsx', empresa_id=empresa.id) }}";
-    function refresh() {
-      const params = new URLSearchParams(window.location.search);
-      params.delete('pagina');
-      params.delete('por_pagina');
-      btn.href = params.toString() ? `${base}?${params.toString()}` : base;
-    }
-    refresh();
-    // Atualiza ao mudar qualquer filtro
-    document.addEventListener('change', refresh);
-    document.addEventListener('input', refresh);
-  })();
-</script>
+{# href do export montado pelo re-init global (base.html), via data-export-* #}
 
 {# ── Filtros ─────────────────────────────────────────────────────────── #}
 {# CP-A dedupe + Bug 1: o escopo (agrupamento/loja/período) vem do HEADER global,
