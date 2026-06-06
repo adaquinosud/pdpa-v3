@@ -889,6 +889,91 @@ def _register_cli_commands(app: Flask) -> None:
                     src = f"{fontes.get(v.fonte_id)}/{locais.get(v.local_id, '?')[:18]}"
                     click.echo(f"[tenant]   v{v.id} [{src}] {v.texto[:44]!r}")
 
+    # ── CP purge-linkedin-dup: flask purgar-verbatins-fonte ───────────
+    @app.cli.command("purgar-verbatins-fonte")
+    @click.option(
+        "--fonte-id", "fonte_id", type=int, required=True, help="ID da fonte (deve estar INATIVA)."
+    )
+    @click.option(
+        "--dry-run", is_flag=True, default=False, help="Mostra o que removeria SEM deletar."
+    )
+    @click.option(
+        "--remover-cadastro",
+        is_flag=True,
+        default=False,
+        help="Além dos verbatins, remove a fonte (e o local, se ficar órfão).",
+    )
+    def purgar_verbatins_fonte(fonte_id, dry_run, remover_cadastro):
+        """Remove os verbatins de uma fonte INATIVA (ex.: fonte duplicada já
+        desativada — LinkedIn /Empregador). GUARDA: só roda se a fonte estiver
+        ``ativo=False``. CASCADE limpa embeddings/temas/reclassificações. Com
+        ``--remover-cadastro`` apaga também a fonte (e o local, se órfão). Depois:
+        ``pipeline-pos-coleta --empresa <id> --force`` recalcula os derivados."""
+        from sqlalchemy import func
+
+        from src.models.fonte import Fonte
+        from src.models.local import Local
+        from src.models.verbatim import Verbatim
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            fonte = s.get(Fonte, fonte_id)
+            if fonte is None:
+                click.echo(f"fonte {fonte_id} não encontrada", err=True)
+                raise SystemExit(1)
+            if fonte.ativo:
+                click.echo(
+                    f"fonte {fonte_id} está ATIVA — desative antes de purgar (guarda).", err=True
+                )
+                raise SystemExit(1)
+            empresa_id = fonte.empresa_id
+            verbs = s.query(Verbatim).filter_by(fonte_id=fonte_id)
+            n = verbs.count()
+            modo = "DRY-RUN (não removeu)" if dry_run else "APLICADO"
+            click.echo(f"[purge] fonte={fonte_id} (empresa {empresa_id}, inativa) — {modo}")
+            click.echo(f"[purge] verbatins a remover: {n}")
+            for v in verbs.order_by(Verbatim.id).limit(5):
+                click.echo(
+                    f"[purge]   v{v.id} rid={v.review_id_externo} · {(v.texto or '')[:42]!r}"
+                )
+
+            local_id = fonte.entidade_id if fonte.entidade_tipo == "local" else None
+            remove_local = False
+            if remover_cadastro and local_id is not None:
+                outras = (
+                    s.query(func.count(Fonte.id))
+                    .filter(
+                        Fonte.entidade_tipo == "local",
+                        Fonte.entidade_id == local_id,
+                        Fonte.id != fonte_id,
+                    )
+                    .scalar()
+                )
+                remove_local = outras == 0
+                loc = s.get(Local, local_id)
+                nome_loc = loc.nome if loc else "?"
+                click.echo(
+                    f"[purge] cadastro: remover fonte {fonte_id}"
+                    + (
+                        f" + local {local_id} ({nome_loc}) [órfão]"
+                        if remove_local
+                        else f" (local {local_id} mantido — {outras} outra(s) fonte(s))"
+                    )
+                )
+
+            if not dry_run:
+                verbs.delete(synchronize_session=False)  # CASCADE: embeddings/temas/reclassif
+                if remover_cadastro:
+                    s.delete(s.get(Fonte, fonte_id))
+                    if remove_local:
+                        loc = s.get(Local, local_id)
+                        if loc is not None:
+                            s.delete(loc)
+            click.echo(f"[purge] OK ({modo}).")
+            click.echo(
+                f"[purge] recompute: flask pipeline-pos-coleta --empresa {empresa_id} --force"
+            )
+
     # ── Monitoramento ML CP-5: flask anomalias-detectar ($0, sem LLM) ──
     @app.cli.command("anomalias-detectar")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")

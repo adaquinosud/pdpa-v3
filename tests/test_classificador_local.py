@@ -143,7 +143,7 @@ def test_comando_mira_so_loja_fisica(app, client_loyall, db_session, monkeypatch
         args=["reclassificar-tenant-rejection", "--empresa", str(e["id"])]
     )
     assert res.exit_code == 0, res.output
-    assert "alvos (loja física c/ rating)=1" in res.output
+    assert "alvos (c/rating)=1" in res.output
     assert "reancorados=1" in res.output
     assert f"v{vC.id}" in res.output and "SOCIAL não reprocessado" in res.output  # C listado
 
