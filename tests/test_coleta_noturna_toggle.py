@@ -39,3 +39,22 @@ def test_toggle_cliente_bloqueado(client_loyall, client_cliente_factory):
     cli = client_cliente_factory(e["id"])
     r = cli.post(f"/ui/empresas/{e['id']}/toggle-coleta-noturna")
     assert r.status_code == 403
+
+
+def test_tela_de_cadastro_reflete_estado_real(client_loyall, db_session):
+    """Bug fbb2ee1: o wrapper de empresa não trazia coleta_noturna_ativa → a tela
+    mostrava 'desligada' mesmo com True no banco. A tela tem que refletir o real."""
+    from src.models.empresa import Empresa
+
+    e = _empresa(client_loyall, "TogTela")
+    # banco = LIGADA → a tela de cadastro deve mostrar "ligada"
+    db_session.get(Empresa, e["id"]).coleta_noturna_ativa = True
+    db_session.commit()
+    html_on = client_loyall.get(f"/empresas/{e['id']}").get_data(as_text=True)
+    assert "<b>ligada</b>" in html_on
+
+    # banco = DESLIGADA → "desligada"
+    db_session.get(Empresa, e["id"]).coleta_noturna_ativa = False
+    db_session.commit()
+    html_off = client_loyall.get(f"/empresas/{e['id']}").get_data(as_text=True)
+    assert "<b>desligada</b>" in html_off

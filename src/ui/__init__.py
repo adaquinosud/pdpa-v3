@@ -136,6 +136,9 @@ def _wrap_empresa(e, ultima_coleta=None) -> SimpleNamespace:
         criada_em=e.criada_em,
         atualizada_em=e.atualizada_em,
         ultima_coleta=ultima_coleta,
+        # CP-noturna-toggle: o toggle 🌙 na tela de cadastro lê este campo. Sem ele
+        # no wrapper, o template lia undefined → sempre "desligada" (bug fbb2ee1).
+        coleta_noturna_ativa=bool(e.coleta_noturna_ativa),
     )
 
 
