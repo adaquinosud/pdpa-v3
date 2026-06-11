@@ -2309,6 +2309,23 @@ def htmx_disparar_agrupamento(agrupamento_id: int):
     return _fmt_stats_coleta(stats)
 
 
+@ui_bp.route("/ui/empresas/<int:empresa_id>/toggle-coleta-noturna", methods=["POST"])
+@loyall_required_ui
+def htmx_toggle_coleta_noturna(empresa_id: int):
+    """Liga/desliga a coleta noturna (cron) da empresa (CP-noturna-toggle).
+    Loyall-only. Devolve o próprio botão re-renderizado (outerHTML)."""
+    with db_session() as s:
+        empresa = s.get(Empresa, empresa_id)
+        if empresa is None:
+            return ("", 404)
+        empresa.coleta_noturna_ativa = not bool(empresa.coleta_noturna_ativa)
+        novo = empresa.coleta_noturna_ativa
+    return render_template(
+        "partials/coleta_noturna_toggle.html",
+        empresa=SimpleNamespace(id=empresa_id, coleta_noturna_ativa=novo),
+    )
+
+
 @ui_bp.route("/ui/empresas/<int:empresa_id>/reprocessar", methods=["POST"])
 @loyall_required_ui
 def htmx_reprocessar_empresa(empresa_id: int):

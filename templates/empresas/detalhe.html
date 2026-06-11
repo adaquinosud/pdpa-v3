@@ -32,6 +32,7 @@
             title="Recalcula números e regenera o que mudou. Pode consumir LLM (centavos)."
             class="text-xs px-2 py-1 rounded border border-sky-300 text-sky-800 bg-sky-50 hover:bg-sky-100">♻️ Reprocessar empresa</button>
     <span id="reprocessar-loading" class="htmx-indicator text-xs text-loyall-400">iniciando…</span>
+    {% include 'partials/coleta_noturna_toggle.html' %}
     {% endif %}
   </div>
   {% if eh_loyall %}<div id="reprocessar-msg" class="mt-2"></div>{% endif %}

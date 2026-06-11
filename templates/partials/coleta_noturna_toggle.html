@@ -1,0 +1,9 @@
+{# Toggle "Coleta noturna" da empresa (CP-noturna-toggle). Loyall-only; troca a si
+   mesmo via outerHTML. Contexto: empresa (com .id e .coleta_noturna_ativa). #}
+<button id="coleta-noturna-toggle"
+        hx-post="{{ url_for('ui.htmx_toggle_coleta_noturna', empresa_id=empresa.id) }}"
+        hx-target="#coleta-noturna-toggle" hx-swap="outerHTML"
+        title="Liga/desliga a coleta automática noturna (cron) desta empresa"
+        class="text-xs px-2 py-1 rounded border {% if empresa.coleta_noturna_ativa %}border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100{% else %}border-loyall-200 text-loyall-500 bg-loyall-50 hover:bg-loyall-100{% endif %}">
+  🌙 Coleta noturna: <b>{% if empresa.coleta_noturna_ativa %}ligada{% else %}desligada{% endif %}</b>
+</button>
