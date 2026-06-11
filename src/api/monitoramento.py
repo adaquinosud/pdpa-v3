@@ -201,7 +201,15 @@ def obter_coleta(execucao_id: int):
 
 @cliente_pode_ver_empresa("empresa_id")
 def coletas_em_andamento_da_empresa(empresa_id: int):
-    """Handler reusado pelo blueprint de empresas. Devolve só status='rodando'."""
+    """Handler reusado pelo blueprint de empresas. Devolve só status='rodando'.
+
+    CP-status-preso: reapa órfãs (presas em 'rodando' > 1h — thread morta em
+    deploy/restart do Render) ANTES de listar, pra a tela AUTO-CURAR sem depender
+    de um novo disparo de coleta. ``re_marca_orfas`` é idempotente e NÃO toca
+    coleta viva (< 1h = timeout-fonte 45min + margem)."""
+    from src.coletor.orquestrador import re_marca_orfas
+
+    re_marca_orfas()
     with db_session() as s:
         execucoes = (
             s.query(ColetaExecucao)

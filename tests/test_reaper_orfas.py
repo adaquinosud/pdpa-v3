@@ -87,3 +87,22 @@ def test_limite_acima_do_timeout_por_fonte(db_session):
     # execução de 44 min (abaixo do timeout-por-fonte de 45) → NÃO reapa
     _exec(db_session, emp, fid, 44 * 60)
     assert re_marca_orfas() == 0
+
+
+def test_polling_da_tela_auto_cura_orfa(db_session, client_loyall):
+    """CP-status-preso: o polling da tela (/ui/.../coletas-em-andamento) reapa a
+    órfã >1h ANTES de listar → ela some de 'em_andamento' (a tela para de mostrar
+    "Coletando..." sem precisar de novo disparo), mas a coleta viva <1h fica."""
+    emp, fid = _empresa_fonte(db_session)
+    orfa = _exec(db_session, emp, fid, REAPER_LIMITE_SEGUNDOS + 600)  # presa há >1h
+    viva = _exec(db_session, emp, fid, 300)  # 5 min — legítima
+
+    r = client_loyall.get(f"/ui/empresas/{emp}/coletas-em-andamento")
+    assert r.status_code == 200
+    ids = {c["id"] for c in r.get_json()["em_andamento"]}
+
+    assert orfa not in ids  # reapada → some da lista (tela auto-cura)
+    assert viva in ids  # coleta viva continua "Coletando..."
+    db_session.expire_all()
+    assert db_session.get(ColetaExecucao, orfa).status == "erro"
+    assert db_session.get(ColetaExecucao, viva).status == "rodando"
