@@ -5,16 +5,24 @@ Refatorado de ``pdpa-v2/classifier.py``. Adaptações principais:
 - System prompt em ``src/classifier/prompts/classifier_v3_prompt.md``
   incorpora as 4 cirurgias do Bloco 3 + regra transversal promotor vs
   conversivel + resolução de ambiguidade entre subpilares vizinhos.
-- Envia o system prompt com ``cache_control: ephemeral`` (TTL ~5 min,
-  ~10% do custo de input do system após o 1º hit).
+- Envia o ``system`` em DOIS blocos ``cache_control: ephemeral``
+  (``_build_system_blocks``): (1) o prompt do classificador, estático e
+  global; (2) o material de referência — dicionário vivo
+  (``src/classifier/dicionarios``) + casos-limite
+  (``src/classifier/casos_limite.yaml``) — estático por setor. Como o
+  cache é prefix-match, o material estável fica no system, ANTES do user.
+  TTL ~5 min, ~10% do custo de input após o 1º hit.
+- **CP-cache (perf/cache-dicionario):** o dicionário + casos-limite eram
+  injetados no *user prompt*, onde — por virem depois dos hints voláteis —
+  nunca cacheavam e pagavam preço cheio (~1.800 tok) em CADA chamada.
+  Movidos para o bloco 2 do system: conteúdo **byte-idêntico**, só
+  reposicionado para um prefixo cacheável. Mesma decisão por verbatim.
 - Retry 5x exponencial (2, 4, 8, 16, 32s) para ``RateLimitError`` e
   ``APIStatusError`` 5xx. 4xx não-429 levanta direto sem retry.
 - Trunca o texto enviado à API em 4000 chars (defesa técnica — a
   persistência do verbatim continua íntegra; ver ``src/coletor/pipeline.py``).
 - User prompt embute ``Empresa:``, ``Setor:`` e ``Fonte:`` como prior
-  contextual quando disponíveis, mais o dicionário vivo
-  (``src/classifier/dicionarios``) e os 12 padrões de fronteira
-  (``src/classifier/casos_limite.yaml``).
+  contextual quando disponíveis, mais o contexto do Local e o verbatim.
 - Restrição rígida: ``subpilar = sem_lastro`` exige ``tipo = inativo``
   e vice-versa.
 - ``confianca`` clamp em [0.0, 1.0]; ``subpilar`` e ``tipo`` validados
@@ -162,28 +170,26 @@ def _get_client() -> Anthropic:
 # ── Construção do user prompt ────────────────────────────────────────────
 
 
-def _build_user_prompt(
-    texto: str,
-    empresa_nome: Optional[str] = None,
-    empresa_setor: Optional[str] = None,
-    fonte_tipo: Optional[str] = None,
-    local_nome: Optional[str] = None,
-    local_tipo: Optional[str] = None,
-) -> str:
-    """Monta a mensagem do user com hints contextuais + dicionário + casos-limite.
+def _build_referencia(empresa_setor: Optional[str] = None) -> str:
+    """Monta o material de referência: dicionário vivo + casos-limite.
 
-    Decisão: injetar no **user prompt** (não no system) preserva o
-    ``cache_control: ephemeral`` do system prompt — mais econômico em
-    volume.
+    **CP-cache (perf/cache-dicionario):** este conteúdo era injetado no
+    *user prompt* (ver histórico desta função em ``_build_user_prompt``),
+    onde — por vir DEPOIS dos hints voláteis — nunca entrava num prefixo
+    cacheável e pagava preço cheio (~1.800 tok) em CADA chamada. Movido
+    para um bloco de *system* cacheado (``_build_system_blocks``): o
+    conteúdo é **byte-idêntico**, apenas reposicionado para um prefixo
+    estável. Material de referência/heurística pertence ao system.
+
+    É estável por setor (o dicionário mergeia ``base.yaml`` + setor; os
+    casos-limite são globais) → cacheia por setor.
 
     Args:
-        texto: Verbatim já truncado em ``MAX_TEXTO_CHARS``.
-        empresa_nome: Nome da empresa (opcional, prior contextual).
-        empresa_setor: Setor de negócio (opcional, prior contextual + dicionário).
-        fonte_tipo: Tipo do conector (opcional, prior contextual).
+        empresa_setor: Setor de negócio (dicionário setorial). ``None`` → só base.
 
     Returns:
-        String pronta para ser enviada como mensagem do role ``user``.
+        Texto plain (dicionário + casos-limite, com os mesmos cabeçalhos
+        que antes iam no user prompt). String vazia se não houver conteúdo.
     """
     # Imports locais: evita ciclo + lru_cache resolve rapidamente após 1º hit.
     from src.classifier.casos_limite import (
@@ -195,6 +201,55 @@ def _build_user_prompt(
         formatar_dicionario_para_prompt,
     )
 
+    linhas: list[str] = []
+
+    # Dicionário como heurística contextual (cabeçalho idêntico ao anterior).
+    dicionario = carregar_dicionario(empresa_setor)
+    if dicionario:
+        linhas.append(
+            "Sinais de referência (heurística — texto pode encaixar mesmo " "sem essas expressões):"
+        )
+        linhas.append(formatar_dicionario_para_prompt(dicionario))
+
+    # Casos-limite (padrões de fronteira da auditoria) — cabeçalho idêntico.
+    casos = carregar_casos_limite()
+    if casos:
+        if linhas:
+            linhas.append("")
+        linhas.append(
+            "Padrões de fronteira (casos onde o subpilar correto NÃO é o "
+            "aparente — consulte ANTES de cravar):"
+        )
+        linhas.append(formatar_casos_limite_para_prompt(casos))
+
+    return "\n".join(linhas)
+
+
+def _build_user_prompt(
+    texto: str,
+    empresa_nome: Optional[str] = None,
+    empresa_setor: Optional[str] = None,
+    fonte_tipo: Optional[str] = None,
+    local_nome: Optional[str] = None,
+    local_tipo: Optional[str] = None,
+) -> str:
+    """Monta a mensagem do user: hints contextuais + contexto do local + verbatim.
+
+    **CP-cache:** o dicionário vivo e os casos-limite (estáticos por setor)
+    foram movidos daqui para um bloco de *system* cacheado
+    (``_build_referencia`` / ``_build_system_blocks``). Aqui fica só o que
+    é **volátil por chamada** — hints (empresa/setor/fonte), o contexto do
+    local e o próprio verbatim — que naturalmente não cacheia.
+
+    Args:
+        texto: Verbatim já truncado em ``MAX_TEXTO_CHARS``.
+        empresa_nome: Nome da empresa (opcional, prior contextual).
+        empresa_setor: Setor de negócio (opcional, prior contextual).
+        fonte_tipo: Tipo do conector (opcional, prior contextual).
+
+    Returns:
+        String pronta para ser enviada como mensagem do role ``user``.
+    """
     linhas = []
     if empresa_nome:
         linhas.append(f"Empresa: {empresa_nome}")
@@ -222,26 +277,6 @@ def _build_user_prompt(
             "sobre voo sem relação com a loja), mantenha sem_lastro — o local válido "
             "NÃO obriga ancoragem."
         )
-
-    # Injeta dicionário como heurística contextual
-    dicionario = carregar_dicionario(empresa_setor)
-    if dicionario:
-        if linhas:
-            linhas.append("")
-        linhas.append(
-            "Sinais de referência (heurística — texto pode encaixar mesmo " "sem essas expressões):"
-        )
-        linhas.append(formatar_dicionario_para_prompt(dicionario))
-
-    # Injeta casos-limite (padrões de fronteira da auditoria)
-    casos = carregar_casos_limite()
-    if casos:
-        linhas.append("")
-        linhas.append(
-            "Padrões de fronteira (casos onde o subpilar correto NÃO é o "
-            "aparente — consulte ANTES de cravar):"
-        )
-        linhas.append(formatar_casos_limite_para_prompt(casos))
 
     if linhas:
         linhas.append("")
@@ -362,7 +397,46 @@ def _calcular_custo(usage, modelo: str) -> float:
 # ── Chamada Claude com retry exponencial ─────────────────────────────────
 
 
-def _call_claude_with_retry(user_msg: str, modelo: str):
+def _build_system_blocks(empresa_setor: Optional[str] = None) -> list[dict]:
+    """Monta os blocos de ``system`` com ``cache_control`` (CP-cache).
+
+    - **Bloco 1**: o prompt do classificador (``classifier_v3_prompt.md``) —
+      estático e global; cacheia para TODAS as chamadas.
+    - **Bloco 2**: material de referência (dicionário + casos-limite, via
+      ``_build_referencia``) — estático por setor; cacheia por setor.
+
+    Dois ``cache_control: ephemeral`` (a API permite até 4 breakpoints/req;
+    usamos 2). Manter o breakpoint no bloco 1 deixa os ~7,5k tok do prompt
+    compartilhados entre setores; o bloco 2 só re-escreve o incremento por
+    setor. O cache é prefix-match (``tools → system → messages``): por isso
+    o material estável fica no system, ANTES do user (volátil).
+
+    Args:
+        empresa_setor: Setor de negócio, para o dicionário setorial.
+
+    Returns:
+        Lista de blocos de texto prontos para o parâmetro ``system``.
+    """
+    blocks: list[dict] = [
+        {
+            "type": "text",
+            "text": _carregar_prompt(),
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+    referencia = _build_referencia(empresa_setor)
+    if referencia:
+        blocks.append(
+            {
+                "type": "text",
+                "text": referencia,
+                "cache_control": {"type": "ephemeral"},
+            }
+        )
+    return blocks
+
+
+def _call_claude_with_retry(system_blocks: list[dict], user_msg: str, modelo: str):
     """Chama o Claude com retry exponencial para 429 e 5xx.
 
     Backoff: 2, 4, 8, 16, 32 segundos (5 tentativas no total). Erros
@@ -370,6 +444,7 @@ def _call_claude_with_retry(user_msg: str, modelo: str):
     retry — não vale insistir.
 
     Args:
+        system_blocks: Blocos de ``system`` já montados (``_build_system_blocks``).
         user_msg: Mensagem já construída para o role ``user``.
         modelo: ID do modelo (``HAIKU_MODEL`` ou ID do Sonnet).
 
@@ -381,13 +456,6 @@ def _call_claude_with_retry(user_msg: str, modelo: str):
         anthropic.APIStatusError: Para erros 4xx não-429.
     """
     client = _get_client()
-    system_blocks = [
-        {
-            "type": "text",
-            "text": _carregar_prompt(),
-            "cache_control": {"type": "ephemeral"},
-        }
-    ]
 
     last_err: Optional[Exception] = None
     for attempt in range(MAX_RETRIES):
@@ -513,11 +581,11 @@ def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificac
 
 
 def _classificar_com_modelo(
-    user_msg: str, modelo: str
+    system_blocks: list[dict], user_msg: str, modelo: str
 ) -> tuple[ResultadoClassificacao, float, int]:
     """Faz UMA chamada ao modelo e devolve (resultado, custo_usd, latencia_ms)."""
     t0 = time.time()
-    resp = _call_claude_with_retry(user_msg, modelo)
+    resp = _call_claude_with_retry(system_blocks, user_msg, modelo)
     latencia_ms = int((time.time() - t0) * 1000)
     raw = resp.content[0].text.strip()
     resultado = _parse_response(raw, modelo=modelo)
@@ -572,6 +640,9 @@ def classificar(
         raise ValueError("texto vazio para classificar")
 
     texto_truncado = texto[:MAX_TEXTO_CHARS] if len(texto) > MAX_TEXTO_CHARS else texto
+    # CP-cache: system = prompt (global) + referência (dicionário+casos, por setor),
+    # ambos cacheados. User = só o volátil (hints + local + verbatim).
+    system_blocks = _build_system_blocks(empresa_setor)
     user_msg = _build_user_prompt(
         texto=texto_truncado,
         empresa_nome=empresa_nome,
@@ -589,7 +660,9 @@ def classificar(
     ultimo_parse_err: Optional[Exception] = None
     for tentativa in range(HAIKU_PARSE_RETRIES):
         try:
-            resultado, custo_haiku, lat_haiku = _classificar_com_modelo(user_msg, HAIKU_MODEL)
+            resultado, custo_haiku, lat_haiku = _classificar_com_modelo(
+                system_blocks, user_msg, HAIKU_MODEL
+            )
             break
         except ValueError as exc:
             ultimo_parse_err = exc
@@ -627,7 +700,7 @@ def classificar(
         else:
             try:
                 resultado_sonnet, custo_sonnet, lat_sonnet = _classificar_com_modelo(
-                    user_msg, sonnet_model
+                    system_blocks, user_msg, sonnet_model
                 )
                 resultado_sonnet.escalado = True
                 resultado_final = resultado_sonnet
