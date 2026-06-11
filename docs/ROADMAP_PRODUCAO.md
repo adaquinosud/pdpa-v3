@@ -259,6 +259,17 @@ bloqueia o piloto. **+ Impacto em R$ NO AR** (estoque + fluxo, R4 ✅).
 - **(b)** Higiene: sem isso a noturna tenta fontes natimortas toda noite. **(c)**
   independe do deploy. **(d)** Pequeno (auditoria de ~9 fontes).
 
+### P4. Onboarding de cliente — resolver place_id `[~]` 🟢 script PRONTO; tela é futura
+- **✅ Script no ar:** `scripts/resolver_place_ids.py` resolve `ChIJ_PLACEHOLDER` de
+  fontes google via **Places API (New)** a partir do nome+endereço do Local. DRY-RUN
+  default; flags **⚠ DUPLICADO** (place_id repetido entre fontes) e **⚠ NOME
+  DIVERGENTE** (Google achou outro lugar) pegam match errado antes de aplicar;
+  `--aplicar` pula suspeitos; guard anti-empresa-4. Fluxo completo em
+  `docs/ONBOARDING_CLIENTE.md` (import → resolver → coletar → pós-coleta → validar).
+- **`[ ]` Futuro (pós-reuniões):** virar **tela no app** — botão "Resolver place_ids"
+  na empresa, dry-run + validação dos matches na UI + aplicar (hoje é script no Shell).
+  Mesma lógica/flags do script. **[CÓDIGO]** Médio.
+
 ---
 
 ## 🔵 PRA OPERAR COM CLIENTE (bloqueia o piloto, não o deploy)
