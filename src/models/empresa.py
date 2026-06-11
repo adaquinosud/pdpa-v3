@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -36,6 +36,12 @@ class Empresa(Base):
     taxa_alto: Mapped[float] = mapped_column(Float, server_default="0.50", default=0.50)
     taxa_medio: Mapped[float] = mapped_column(Float, server_default="0.35", default=0.35)
     taxa_baixo: Mapped[float] = mapped_column(Float, server_default="0.20", default=0.20)
+    # CP-coleta-noturna-toggle: a noturna (cron) só roda nas empresas com isto TRUE.
+    # Default FALSE = empresa nova NÃO coleta à noite até ligar explicitamente na UI.
+    # (A migration marca a empresa 4/Confins como TRUE p/ não interromper o que já roda.)
+    coleta_noturna_ativa: Mapped[bool] = mapped_column(
+        Boolean, server_default="false", default=False, nullable=False
+    )
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
