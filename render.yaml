@@ -61,16 +61,16 @@ services:
           property: connectionString   # Render entrega postgresql:// → o app/alembic
                                         # normalizam p/ +psycopg (deploy-1)
 
-  # ── Cron Job: noturna por empresa (#10) ───────────────────────────────────
-  # 1 cron POR EMPRESA (decisão fixada). Bloco abaixo = TEMPLATE do piloto
-  # (BH Airport = empresa id 4). Pra cada cliente novo: DUPLICAR este bloco
-  # mudando `name` e o ID no dockerCommand. Mesma imagem Docker.
-  #
-  # IMPORTANTE — usar o ID (número), NÃO o nome: o Render tokeniza o
-  # dockerCommand por ESPAÇO e NÃO honra aspas, então "BH Airport" chegava como
-  # dois args ('"BH' e 'Airport"') e $1 virava '"BH'. O ID não tem espaço →
-  # imune. run_noturna.sh passa $1 a --empresa, e _resolver_empresa tenta int()
-  # primeiro (id OU nome). O seed preservou os IDs, então o id de prod == dev.
+  # ── Cron Job: noturna GENÉRICA (#10 · CP-noturna-toggle) ───────────────────
+  # UM cron pra TODAS as empresas. `run_noturna_todas.sh` varre as empresas com
+  # `coleta_noturna_ativa=TRUE` (toggle na UI) + ≥1 fonte ativa com coletor, e roda
+  # run_noturna.sh por empresa em loop (incremental por-fonte, sem all-time, sem
+  # interferência cruzada). Ligar/desligar cliente = toggle na tela, SEM tocar o
+  # Blueprint nem criar cron novo. Default da empresa nova = OFF; Confins(4) já é
+  # TRUE (migration c3f8a1d29b04). O `name` segue `pdpa-noturna-bh-airport` por
+  # histórico — NÃO renomear (evita o Render recriar o serviço); o conteúdo é
+  # genérico, não só BH Airport. (dockerCommand sem args → sem o problema de
+  # tokenização por espaço que exigia passar o ID.)
   - type: cron
     name: pdpa-noturna-bh-airport
     runtime: docker
@@ -78,7 +78,7 @@ services:
     plan: standard           # mesma imagem/ML stack que o web
     region: virginia         # US East — mesma região do banco (internal URL)
     schedule: "0 6 * * *"    # 06:00 UTC = 03:00 BRT (UTC-3, sem horário de verão). Render usa UTC.
-    dockerCommand: bash scripts/run_noturna.sh 4
+    dockerCommand: bash scripts/run_noturna_todas.sh
     envVars:
       - fromGroup: pdpa-config           # precisa do FLASK_SECRET_KEY tb: gen_relatorio
                                          # chama create_app() (boot-check) em produção
