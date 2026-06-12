@@ -25,6 +25,7 @@ HTMX partials (retornam fragmento HTML, não página inteira):
 from __future__ import annotations
 
 import json
+import re
 from functools import wraps
 from types import SimpleNamespace
 
@@ -1836,6 +1837,39 @@ def htmx_editar_local_form(local_id: int):
     return render_template("partials/local_card_edit.html", loc=loc, agrupamentos=ags)
 
 
+# Grupos de milhar PT-BR só-com-ponto: "1.000", "12.500", "1.234.567" (cada ponto
+# seguido de EXATAMENTE 3 dígitos). Distingue milhar de decimal quando não há vírgula.
+_RE_MILHAR_BR = re.compile(r"^\d{1,3}(\.\d{3})+$")
+
+
+def _parse_num_brl(raw):
+    """Converte texto de valor (ticket/frequência) em float > 0, ou None.
+
+    Corrige o bug do parser anterior, que fazia ``.replace(".", "")`` cego e
+    inflava decimais com ponto (a sugestão IA manda float JSON: "45.9" → virava
+    459). Regras:
+
+    - Vírgula presente → formato BR ("1.234,56"): ponto é milhar, vírgula é
+      decimal → remove pontos, vírgula vira ponto.
+    - Só pontos em grupos de 3 ("1.000", "12.500") → milhar → remove pontos.
+    - Senão → ponto é decimal ("45.9", "120.0", "89.90") → float direto.
+
+    Vazio / não-numérico / ``<= 0`` → ``None`` (→ R$ "—" honesto).
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    if "," in raw:
+        raw = raw.replace(".", "").replace(",", ".")
+    elif _RE_MILHAR_BR.match(raw):
+        raw = raw.replace(".", "")
+    try:
+        v = float(raw)
+    except ValueError:
+        return None
+    return v if v > 0 else None
+
+
 @ui_bp.route("/ui/locais/<int:local_id>", methods=["PUT"])
 @loyall_required_ui
 def htmx_salvar_local(local_id: int):
@@ -1848,18 +1882,8 @@ def htmx_salvar_local(local_id: int):
     new_ag = int(ag_id_raw) if ag_id_raw.isdigit() else None
     endereco = (request.form.get("endereco") or "").strip() or None
 
-    def _num(campo):  # aceita "12,50" ou "12.50"; vazio → None
-        raw = (request.form.get(campo) or "").strip().replace(".", "").replace(",", ".")
-        if not raw:
-            return None
-        try:
-            v = float(raw)
-            return v if v > 0 else None
-        except ValueError:
-            return None
-
-    ticket = _num("ticket_medio")
-    frequencia = _num("frequencia")
+    ticket = _parse_num_brl(request.form.get("ticket_medio"))
+    frequencia = _parse_num_brl(request.form.get("frequencia"))
     # origem vinda do pré-preenchimento (hidden); edição manual c/ valor → 'proprio'.
     origem = (request.form.get("ltv_origem") or "").strip() or None
     if (ticket is not None or frequencia is not None) and origem is None:
