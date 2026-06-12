@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-_PROMPT_PATH = Path(__file__).parent / "prompts" / "estimativa_ltv_v1.md"
+_PROMPT_PATH = Path(__file__).parent / "prompts" / "estimativa_ltv_v2.md"
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 _OBJ = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -152,19 +152,23 @@ def _parse_json(raw: str) -> Dict[str, Any]:
 
 
 def estimar_ltv_agrupamento(
-    nome_agrupamento: Optional[str], *, contexto: str = "aeroporto brasileiro"
+    nome_agrupamento: Optional[str], *, setor: Optional[str] = None
 ) -> Optional[Dict[str, float]]:
     """Estima ticket_medio (BRL) + frequencia (visitas/ano) típicos de um
-    agrupamento via Haiku. Retorna ``{"ticket_medio", "frequencia"}`` (separados,
-    NUNCA o LTV) ou ``None`` em qualquer falha/parse — NÃO injeta número sem
-    origem (fallback = "—" honesto / preenchimento manual)."""
+    agrupamento via Haiku, calibrado por SETOR da empresa + NOME do agrupamento
+    (a IA infere o tipo real do negócio — prompt v2, sem hardcode de aeroporto).
+
+    Retorna ``{"ticket_medio", "frequencia"}`` (separados, NUNCA o LTV) ou
+    ``None`` em qualquer falha/parse. Categoria não-comercial (Colaboradores,
+    Imprensa, ESG…) → o prompt devolve 0/0 → cai no ``<= 0`` abaixo → ``None``
+    (pulada honestamente, sem injetar número sem origem)."""
     if not nome_agrupamento:
         return None
     try:
         from src.classifier.classifier_v3 import HAIKU_MODEL, _get_client
 
         system = _PROMPT_PATH.read_text(encoding="utf-8")
-        user = json.dumps({"categoria": nome_agrupamento, "contexto": contexto}, ensure_ascii=False)
+        user = json.dumps({"categoria": nome_agrupamento, "setor": setor or ""}, ensure_ascii=False)
         resp = _get_client().messages.create(
             model=HAIKU_MODEL,
             max_tokens=200,
@@ -218,9 +222,14 @@ def prefill_ltv(s, local, *, usar_ia: bool = True) -> Optional[Dict[str, Any]]:
                 "frequencia": float(irmao.frequencia),
                 "origem": "agrupamento",
             }
-    # (iii) estimativa via IA (precisa do nome do agrupamento)
+    # (iii) estimativa via IA (precisa do nome do agrupamento). Calibra pelo SETOR
+    # da empresa-mãe + nome do agrupamento (prompt v2 — a IA infere o tipo).
     if usar_ia and local.agrupamento is not None and local.agrupamento.nome:
-        est = estimar_ltv_agrupamento(local.agrupamento.nome)
+        from src.models.empresa import Empresa
+
+        emp = s.get(Empresa, local.empresa_id)
+        setor = emp.setor if emp else None
+        est = estimar_ltv_agrupamento(local.agrupamento.nome, setor=setor)
         if est is not None:
             return {**est, "origem": "ia"}
     return None

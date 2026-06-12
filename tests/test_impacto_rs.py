@@ -252,6 +252,32 @@ def test_prefill_sem_agrupamento_e_sem_ia_vira_none(client_loyall, db_session):
     assert prefill_ltv(db_session, loc, usar_ia=False) is None  # → manual/"—"
 
 
+def test_prefill_v2_passa_setor_da_empresa_para_ia(db_session, monkeypatch):
+    """v2: prefill_ltv calibra a IA pelo SETOR da empresa-mãe (não mais o hardcode
+    'aeroporto') + nome do agrupamento. Captura o que é passado à estimativa."""
+    from src.models.empresa import Empresa
+
+    emp = Empresa(nome="Carbel-v2-test", setor="concessionaria")
+    db_session.add(emp)
+    db_session.commit()
+    ag = Agrupamento(empresa_id=emp.id, nome="Concessionárias Novos")
+    db_session.add(ag)
+    db_session.commit()
+    loc = _local(db_session, emp, ag, nome="Loja Novos")  # sem ticket/freq → cai na IA
+
+    capturado = {}
+
+    def _fake(nome, *, setor=None):
+        capturado["nome"], capturado["setor"] = nome, setor
+        return {"ticket_medio": 80000.0, "frequencia": 0.4}
+
+    monkeypatch.setattr("src.governanca.impacto_rs.estimar_ltv_agrupamento", _fake)
+    r = prefill_ltv(db_session, loc, usar_ia=True)
+    assert r["origem"] == "ia"
+    assert capturado["nome"] == "Concessionárias Novos"
+    assert capturado["setor"] == "concessionaria"  # setor real, não 'aeroporto'
+
+
 # ── Fiação de cadastro (API + serialize) ─────────────────────────────────
 def test_local_put_seta_ltv_e_marca_origem_proprio(client_loyall, db_session):
     e = _empresa(db_session)
