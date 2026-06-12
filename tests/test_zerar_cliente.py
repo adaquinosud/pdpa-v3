@@ -53,6 +53,40 @@ def test_plano_filhos_usam_subquery_de_verbatins():
         assert "verbatim_id IN (SELECT id FROM verbatins WHERE empresa_id = :eid)" in where[filho]
 
 
+def test_cobertura_total_das_tabelas():
+    """REDE DE SEGURANÇA: toda tabela do Base.metadata tem de estar classificada —
+    no PLANO (apagar), em MANTIDAS (estrutura) ou em GLOBAIS_IGNORADAS. Se alguém
+    adicionar uma tabela derivada nova (com empresa_id) e esquecer de pô-la no PLANO,
+    este teste FALHA — em vez de o 'zerar' reportar limpo e deixar dados órfãos.
+    Também pega typo: nome classificado que não existe no schema."""
+    import src.models  # noqa: F401  registra todas as tabelas no Base.metadata
+    from src.models.base import Base
+
+    classificadas = {t for _, t, _ in zc.PLANO} | set(zc.MANTIDAS) | set(zc.GLOBAIS_IGNORADAS)
+    todas = set(Base.metadata.tables.keys())
+
+    nao_classificadas = todas - classificadas
+    assert not nao_classificadas, (
+        f"tabela(s) sem classificação em zerar_cliente.py: {sorted(nao_classificadas)}. "
+        "Classifique em PLANO (derivada), MANTIDAS (estrutura) ou GLOBAIS_IGNORADAS."
+    )
+    fantasmas = classificadas - todas
+    assert (
+        not fantasmas
+    ), f"nome(s) classificado(s) inexistente(s) no schema (typo?): {sorted(fantasmas)}"
+
+
+def test_categorias_sao_disjuntas():
+    """PLANO, MANTIDAS e GLOBAIS_IGNORADAS não podem se sobrepor (uma tabela numa
+    categoria só) — senão 'apagar' e 'manter' a mesma tabela seria ambíguo."""
+    plano = {t for _, t, _ in zc.PLANO}
+    mantidas = set(zc.MANTIDAS)
+    globais = set(zc.GLOBAIS_IGNORADAS)
+    assert plano.isdisjoint(mantidas)
+    assert plano.isdisjoint(globais)
+    assert mantidas.isdisjoint(globais)
+
+
 def test_confirmar_interativo_aceita_id_e_sim(monkeypatch):
     emp = type("E", (), {"id": 6, "nome": "Pardini"})()
     for resp in ("6", "SIM", "sim", " 6 "):

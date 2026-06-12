@@ -89,6 +89,12 @@ PLANO: list[tuple[str, str, str]] = [
 # Estrutura que DEVE permanecer (não entra no PLANO de deleção).
 MANTIDAS = ["empresas", "locais", "locais_metadados", "agrupamentos", "fontes", "usuarios"]
 
+# Globais sem empresa_id — intencionalmente NÃO tocadas (não derivam de uma empresa).
+# Lista EXPLÍCITA para o teste de cobertura: PLANO ∪ MANTIDAS ∪ GLOBAIS_IGNORADAS deve
+# cobrir TODAS as tabelas. Se uma derivada nova surgir e ninguém classificá-la, o teste
+# falha — em vez de o wipe deixar dados órfãos achando que limpou tudo.
+GLOBAIS_IGNORADAS = ["glossario_termo", "classifier_metrics", "eventos_manutencao"]
+
 # Pós-check da estrutura: (tabela, where). ``empresas`` filtra por ``id`` (não tem
 # empresa_id); ``locais_metadados`` fica de fora (sem empresa_id — liga via local).
 MANTIDAS_CHECK: list[tuple[str, str]] = [
@@ -225,9 +231,14 @@ def main(empresa, aplicar: bool) -> int:
         for tab, where in MANTIDAS_CHECK:
             print(f"    mantida {tab:<20}: {_count(s, tab, where, eid)}  (estrutura preservada)")
         if restou != 0:
+            # Rollback EXPLÍCITO: não depende do close() implícito. SystemExit é
+            # BaseException → o `except Exception` do db_session NÃO o pega; sem
+            # este rollback, a garantia de "nada commitado" ficaria refém do
+            # close() no finally. Explícito aqui = atômico independente do db.py.
+            s.rollback()
             raise SystemExit(
                 f"[zerar] ABORTADO: pós-check achou {restou} linhas derivadas restantes. "
-                "Rollback — nada foi commitado."
+                "Rollback explícito — nada foi commitado."
             )
 
         print(f"\n[zerar] OK: {apagadas} linhas apagadas. Commit ao sair. Pode recoletar limpo.")
