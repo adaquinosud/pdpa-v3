@@ -56,6 +56,7 @@ import re
 import sqlite3
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -170,6 +171,7 @@ def _get_client() -> Anthropic:
 # ── Construção do user prompt ────────────────────────────────────────────
 
 
+@lru_cache(maxsize=16)
 def _build_referencia(empresa_setor: Optional[str] = None) -> str:
     """Monta o material de referência: dicionário vivo + casos-limite.
 
@@ -182,7 +184,12 @@ def _build_referencia(empresa_setor: Optional[str] = None) -> str:
     estável. Material de referência/heurística pertence ao system.
 
     É estável por setor (o dicionário mergeia ``base.yaml`` + setor; os
-    casos-limite são globais) → cacheia por setor.
+    casos-limite são globais) → ``lru_cache`` por ``empresa_setor`` hoista
+    a formatação (loops + join de ~1.800 tok) para 1× por setor, em vez de
+    re-rodar em cada ``classificar()``. Função pura de 1 arg hashable e
+    retorno imutável (str) → cache não vaza entre setores (cada setor é uma
+    chave distinta; ``None`` = só base). Espelha o ``lru_cache`` dos
+    loaders ``carregar_dicionario``/``carregar_casos_limite``.
 
     Args:
         empresa_setor: Setor de negócio (dicionário setorial). ``None`` → só base.

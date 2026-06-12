@@ -47,8 +47,12 @@ def test_system_blocks_dois_breakpoints_cacheados():
 
 def test_system_block1_supera_minimo_cacheavel_haiku():
     """O prompt (bloco 1) precisa exceder o mínimo cacheável do Haiku 4.5
-    (4096 tok ≈ 14k chars) — senão o cache_control é silenciosamente ignorado."""
-    assert len(_carregar_prompt()) > 14000
+    (4096 tok) — senão o cache_control é silenciosamente ignorado.
+
+    Limiar em CHARS no pior caso de PT-BR (~4.5 chars/tok): 4096 tok ≈ 18,4k
+    chars. Usamos 19000 como guard seguro — 14000 (≈3,1k tok) passaria verde
+    mesmo abaixo do mínimo real. O prompt atual tem ~26k chars, com folga."""
+    assert len(_carregar_prompt()) > 19000
 
 
 # ── Preservação de conteúdo: dicionário + casos byte-idênticos ───────────────
