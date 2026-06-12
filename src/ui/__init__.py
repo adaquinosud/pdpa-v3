@@ -97,6 +97,12 @@ def _wrap_local(loc, fontes=None) -> SimpleNamespace:
         uf=loc.uf,
         status=loc.status,
         observacao=loc.observacao,
+        # CP-impacto-rs: os templates (view local_card + edit) leem estes 3 campos
+        # para exibir o LTV. Sem eles aqui, viram Undefined no Jinja → "—"/input vazio
+        # mesmo com o valor gravado no banco (o salvar sempre funcionou).
+        ticket_medio=loc.ticket_medio,
+        frequencia=loc.frequencia,
+        ltv_origem=loc.ltv_origem,
         fontes=fontes_w,
         fontes_ativas=sum(1 for f in fontes_w if f.ativo),
         tem_fontes=bool(fontes_w),
