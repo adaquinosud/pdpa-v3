@@ -64,7 +64,7 @@ from src.utils.db import db_session
 # disparar lazy-load em objetos detached.
 
 
-def _wrap_fonte(f) -> SimpleNamespace:
+def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     return SimpleNamespace(
         id=f.id,
         empresa_id=f.empresa_id,
@@ -72,6 +72,10 @@ def _wrap_fonte(f) -> SimpleNamespace:
         entidade_id=f.entidade_id,
         conector_tipo=f.conector_tipo,
         url=f.url,
+        # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
+        # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
+        # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).
+        nome_local=nome_local if f.entidade_tipo == "local" else None,
         ativo=bool(f.ativo),
         ultima_coleta=f.ultima_coleta,
         criada_em=f.criada_em,
@@ -80,7 +84,9 @@ def _wrap_fonte(f) -> SimpleNamespace:
 
 
 def _wrap_local(loc, fontes=None) -> SimpleNamespace:
-    fontes_w = [_wrap_fonte(f) for f in (fontes or [])]
+    # nome_local=loc.nome resolve o ChIJ → nome amigável em TODA fonte do local
+    # (cobre local_card e o detalhe da empresa, que passam por aqui).
+    fontes_w = [_wrap_fonte(f, nome_local=loc.nome) for f in (fontes or [])]
     return SimpleNamespace(
         id=loc.id,
         empresa_id=loc.empresa_id,
@@ -2005,7 +2011,9 @@ def htmx_criar_fonte(local_id: int):
             f.observacao,
         )
         s.expunge(f)
-    return render_template("partials/fonte_item.html", f=f, local_nome={local_id: loc_nome})
+    # Embrulha p/ a fonte recém-criada já exibir o nome do local (não o place_id cru).
+    f_w = _wrap_fonte(f, nome_local=loc_nome)
+    return render_template("partials/fonte_item.html", f=f_w, local_nome={local_id: loc_nome})
 
 
 def _carregar_fonte_e_local(fonte_id: int):
@@ -2019,7 +2027,7 @@ def _carregar_fonte_e_local(fonte_id: int):
             loc_db = s.get(Local, f_db.entidade_id)
             if loc_db is not None:
                 local_map[loc_db.id] = loc_db.nome
-        f_w = _wrap_fonte(f_db)
+        f_w = _wrap_fonte(f_db, nome_local=local_map.get(f_db.entidade_id))
     return f_w, local_map
 
 

@@ -1,16 +1,23 @@
 {# Fonte como item simples (não tem filhos) — CP-B.
-   Contexto: f (Fonte), eh_loyall, local_nome (dict id→nome). #}
+   Contexto: f (Fonte wrapper c/ f.nome_local), eh_loyall, local_nome (dict id→nome, fallback).
+   Label = nome do local (amigável) em vez do place_id cru (ChIJ…, fica no title). #}
+{% set _nome_fonte = f.nome_local if f.nome_local
+   else (local_nome[f.entidade_id] if (local_nome is defined and local_nome and f.entidade_id in local_nome) else '') %}
 <div id="fonte-{{ f.id }}"
      class="fonte-item flex items-center gap-2 px-2 py-1 text-xs rounded hover:bg-white
             {% if not f.ativo %}opacity-50{% endif %}"
-     data-nome="{{ (f.conector_tipo ~ ' ' ~ f.url)|lower }}"
+     data-nome="{{ (f.conector_tipo ~ ' ' ~ (_nome_fonte or f.url))|lower }}"
      data-ativo="{{ 'true' if f.ativo else 'false' }}">
   <code class="px-1.5 py-0.5 bg-loyall-100 rounded text-loyall-800 min-w-[6rem] inline-block">{{ f.conector_tipo }}</code>
   <span class="flex-1 truncate text-loyall-700 cursor-pointer hover:underline"
         hx-get="{{ url_for('ui.htmx_editar_fonte_form', fonte_id=f.id) }}"
         hx-target="#fonte-{{ f.id }}" hx-swap="outerHTML"
         title="clique para editar a URL">
+    {% if _nome_fonte %}
+    <code title="{{ f.url }}">{{ _nome_fonte }}</code>
+    {% else %}
     <code title="{{ f.url }}">{{ f.url[:80] }}{% if f.url|length > 80 %}…{% endif %}</code>
+    {% endif %}
   </span>
   {% if f.ativo %}
     <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">ativo</span>
