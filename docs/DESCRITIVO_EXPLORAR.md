@@ -525,11 +525,56 @@ métricas de governança. É a versão "para o Conselho" da aba Governança.
 
 ---
 
-## 15. IA (aba transversal) — não documentada
+## 15. IA (✨ IA — aba transversal)
 
-A aba **✨ IA** (transversal, no canto direito da navegação) **não está descrita neste guia** — não foi
-coberta nas varreduras anteriores. É a única lacuna de *tela inteira*. Se quiser, levanto o conteúdo dela
-(o que mostra, campos e cálculos) e adiciono uma seção no mesmo padrão.
+**Propósito.** Um **consultor PDPA em linguagem natural**: o gestor faz uma pergunta sobre a empresa e
+recebe uma resposta executiva e acionável, ancorada **só** nos dados do recorte ativo (diagnóstico,
+leaderboard, temas, anomalias, verbatins). É "pergunta-e-resposta" — cada pergunta é independente (não é
+um chat com memória da conversa anterior). Usa IA (Claude Sonnet). Fonte: `_explorar_ia` (ui) +
+`src/ia/` (`chat.py`, `contexto.py`, `render.py`) + `explorar_ia.html`.
+
+**Anatomia (ordem de leitura).**
+1. **Título + subtítulo** — "Pergunte ao consultor PDPA" e o aviso de que a resposta respeita o escopo
+   selecionado (agrupamento + período) e é uma pergunta por vez.
+2. **↺ Nova conversa** — limpa a tela da conversa atual (aparece depois da 1ª pergunta). Não apaga o
+   histórico em cache (abaixo).
+3. **Transcript** — a área onde aparecem a sua **pergunta** (bolha à direita) e a **resposta do
+   Consultor** (bolha à esquerda, com texto formatado e links de drill-down).
+4. **Perguntas sugeridas (4 chips)** — atalhos prontos que somem após a 1ª pergunta. As 4 reais:
+   "Qual é o principal gargalo da operação e por quê?"; "Onde estão as maiores oportunidades de converter
+   clientes em promotores?"; "Quais lojas precisam de atenção urgente e quais são referência?"; "Se eu só
+   pudesse agir em uma frente neste mês, qual seria e por quê?". (`chat.py` `PERGUNTAS_SUGERIDAS`.)
+5. **Campo de pergunta + botão "Perguntar"** — caixa de texto livre; o botão desabilita enquanto a
+   resposta está sendo gerada. Pergunta vazia → "Digite uma pergunta."
+6. **"Consultando…"** — indicador de carregamento enquanto a IA responde.
+7. **Histórico do escopo (cache)** — lista das **últimas 8 perguntas já respondidas neste escopo**, cada
+   uma num bloco colapsável (clica e abre a resposta). É reaproveitamento: perguntas repetidas não gastam
+   nova chamada de IA. Distinto da conversa em andamento acima.
+8. **Links de drill-down** — dentro das respostas, menções a uma **loja**, **subpilar**, **tema** ou
+   **anomalia** viram links que levam à tela correspondente (Locais/Diagnóstico/Temas/Anomalias). A IA
+   marca a entidade e o sistema transforma em link (`render.py`).
+
+**Como funciona.**
+- **Modelo:** Claude Sonnet, resposta curta (executiva, ~3–4 parágrafos), em **streaming** (o texto
+  aparece conforme é gerado). (`chat.py`.)
+- **O que a IA "sabe":** antes de cada pergunta, o sistema monta um **resumo consolidado do escopo** com 8
+  blocos e entrega à IA — (1) resumo da empresa + Índice Geral + pilar gargalo; (2) leituras de
+  diagnóstico por subpilar; (3) top-10 lojas do leaderboard; (4) top-15 temas; (5) cruzamentos
+  sistêmicos; (6) anomalias críticas; (7) contagem de ações por perspectiva; (8) verbatins detratores
+  recentes. A IA responde **só com esses dados** — a regra do prompt proíbe inventar números, nomes ou
+  falas. (`contexto.py`.)
+- **Cache:** a resposta é guardada por (empresa + escopo + pergunta); a mesma pergunta no mesmo escopo
+  volta na hora, sem nova chamada de IA. (`ChatCache`.)
+- **Limites/avisos:** é *single-turn* (sem memória da conversa anterior); responde dentro de um teto de
+  tamanho (respostas compactas); usa só o contexto pré-montado do escopo (não faz consultas novas durante
+  a pergunta); erro de conexão é avisado na tela.
+
+**Filtros/escopo.** Respeita **agrupamento + período** do header — o escopo entra no contexto e faz parte
+da chave de cache (mudou o recorte, a resposta é recalculada para ele). O **local (loja)** não filtra a
+IA: ela trabalha sempre na granularidade do agrupamento (os drill-downs é que apontam a loja específica).
+
+*(Sweep: a aba IA não constava no guia; agora documentada. Status no código: funcional, não é
+placeholder.)*
 
 ---
 
