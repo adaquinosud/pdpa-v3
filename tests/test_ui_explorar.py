@@ -64,9 +64,7 @@ def test_hub_explorar_renderiza_locais_ordenado(client_loyall, db_session):
     r = client_loyall.get(f"/empresas/{e['id']}/explorar")
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    # Nav 2 níveis: "Explorar" é rótulo de grupo (linha 1); "Locais"/"Leaderboard"
-    # são itens do grupo ativo Visão (linha 2). "Heatmap" só aparece com Explorar ativo.
-    assert "Explorar" in html and "Locais" in html and "Leaderboard" in html
+    assert "Explorar" in html and "Locais" in html and "Heatmap" in html
     # pior loja deve aparecer antes da melhor (ordenação worst-first)
     cont = _conteudo(html)
     assert cont.index("Loja Pior") < cont.index("Loja Melhor")
@@ -511,40 +509,37 @@ def _tabbar(html: str) -> str:
 
 
 def test_cpB_abas_agrupadas_em_secoes_na_ordem_do_funil(client_loyall, db_session):
-    """CP-D (nav 2 níveis): linha 1 = grupos do funil + IA à direita; linha 2 = itens
-    do grupo ativo. Cada grupo, quando ativo, lista seus itens (na ordem do funil)."""
+    """CP-E (Opção C): grupos inline com rótulo + seus itens, todos visíveis de uma
+    vez, na ordem do funil; IA à direita (transversal, ml-auto)."""
     e, a, locs = _ctx(client_loyall, "cpb")
     bar = _tabbar(client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True))
-    # Linha 1: rótulos dos 5 grupos do funil (& escapa p/ &amp; → testo "Saída").
-    for lbl in ("Visão", "Explorar", "Diagnóstico", "Ação", "Saída"):
+    # 6 rótulos de seção visíveis na tab bar (& escapa p/ &amp; → testo "Saída")
+    for lbl in ("Visão", "Explorar", "Diagnóstico", "Ação", "Saída", "transversal"):
         assert lbl in bar
-    # Abas de grupo apontam p/ o 1º item de cada grupo, na ordem do funil; IA fecha
-    # à direita (transversal, ml-auto).
-    grupos_ordem = ["painel", "heatmap", "diagnostico", "planos", "governanca", "ia"]
-    pos = [bar.find("tab=" + tid + "&") for tid in grupos_ordem]
-    assert all(p != -1 for p in pos)
-    assert pos == sorted(pos)  # grupos exatamente na ordem do funil
-    assert bar.find("tab=ia&") > bar.find("tab=governanca&")  # IA à direita
+    # ordem do funil pelos tab=<id> (1ª ocorrência = href de cada aba)
+    ordem = [
+        "painel",
+        "locais",
+        "leaderboard",  # VISÃO
+        "heatmap",
+        "comparar",
+        "evolucao",
+        "temas",
+        "verbatins",  # EXPLORAR
+        "diagnostico",
+        "concentracao",
+        "anomalias",  # DIAGNÓSTICO
+        "planos",  # AÇÃO
+        "governanca",
+        "relatorios",  # GOVERNANÇA & SAÍDA
+        "ia",  # IA (direita)
+    ]
+    pos = [bar.find("tab=" + tid + "&") for tid in ordem]
+    assert all(p != -1 for p in pos)  # 15 abas presentes de uma vez
+    assert pos == sorted(pos)  # exatamente na ordem do funil
+    # IA fica à direita (depois de relatórios) e visualmente separada (ml-auto)
+    assert bar.find("tab=ia&") > bar.find("tab=relatorios&")
     assert "ml-auto" in bar
-    # Linha 2 (grupo ativo = Visão por padrão): itens do grupo, na ordem.
-    for tid in ("painel", "locais", "leaderboard"):
-        assert ("tab=" + tid + "&") in bar
-    # 2 níveis: clicar num grupo revela seus itens. Cada grupo, quando ativo, lista
-    # seus itens na linha 2 — todas as 15 abas seguem alcançáveis, na ordem do funil.
-    itens_por_grupo = {
-        "painel": ["painel", "locais", "leaderboard"],
-        "heatmap": ["heatmap", "comparar", "evolucao", "temas", "verbatins"],
-        "diagnostico": ["diagnostico", "concentracao", "anomalias"],
-        "planos": ["planos"],
-        "governanca": ["governanca", "relatorios"],
-    }
-    for first, itens in itens_por_grupo.items():
-        b = _tabbar(
-            client_loyall.get(f"/empresas/{e['id']}/explorar?tab={first}").get_data(as_text=True)
-        )
-        p = [b.find("tab=" + tid + "&") for tid in itens]
-        assert all(x != -1 for x in p), first
-        assert p == sorted(p), first
 
 
 def test_cpB_sublinhado_ativo_preservado_no_oob(client_loyall, db_session):
@@ -562,16 +557,11 @@ def test_cpB_sublinhado_ativo_preservado_no_oob(client_loyall, db_session):
 # ─────────────────────────────────────────────────────────────────────────
 def test_ux2a_temas_relatorios_agora_htmx(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "ux2a")
-    # Temas e Relatórios têm hx-get (HTMX swap) na tab bar desde o CP-UX2a. Em 2
-    # níveis (CP-D), cada um aparece na linha 2 quando seu grupo está ativo.
-    bar_t = _tabbar(
-        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=temas").get_data(as_text=True)
-    )
-    assert f"/empresas/{e['id']}/explorar/tab/temas" in bar_t
-    bar_r = _tabbar(
-        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=relatorios").get_data(as_text=True)
-    )
-    assert f"/empresas/{e['id']}/explorar/tab/relatorios" in bar_r
+    bar = _tabbar(client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True))
+    # Temas e Relatórios têm hx-get (HTMX swap) na tab bar desde o CP-UX2a.
+    # (Painel/Verbatins/Anomalias migraram depois, no CP-UX2b — ver test_ux2b_*.)
+    assert f"/empresas/{e['id']}/explorar/tab/temas" in bar
+    assert f"/empresas/{e['id']}/explorar/tab/relatorios" in bar
 
 
 def test_ux2a_swap_temas_e_relatorios_preserva_cpA(client_loyall, db_session):
@@ -594,12 +584,9 @@ def test_ux2a_swap_temas_e_relatorios_preserva_cpA(client_loyall, db_session):
 # ─────────────────────────────────────────────────────────────────────────
 def test_ux2b_as_3_abas_com_js_agora_sao_htmx(client_loyall, db_session):
     e, a, locs = _ctx(client_loyall, "ux2b")
-    # _EXPLORAR_TABS_MIGRADAS vazio → todas as abas têm hx-get (HTMX swap). Em 2
-    # níveis (CP-D), cada uma aparece na linha 2 quando seu grupo está ativo.
+    bar = _tabbar(client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True))
+    # _EXPLORAR_TABS_MIGRADAS vazio → todas as abas têm hx-get (HTMX swap)
     for tab in ("painel", "verbatins", "anomalias"):
-        bar = _tabbar(
-            client_loyall.get(f"/empresas/{e['id']}/explorar?tab={tab}").get_data(as_text=True)
-        )
         assert f"/empresas/{e['id']}/explorar/tab/{tab}" in bar, tab
 
 

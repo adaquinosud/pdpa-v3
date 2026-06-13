@@ -398,11 +398,7 @@ def test_painel_tem_link_temas_na_sidebar(client_loyall, db_session):
     _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "x")
     html = client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
     assert "ui.temas_empresa" not in html  # url_for resolvido, não literal
-    # Nav 2 níveis (CP-D): o grupo Explorar (que contém Temas) está na tab bar do
-    # painel; clicar nele revela Temas. Item Temas aparece com o grupo ativo.
-    assert ">Explorar<" in html and "tab=heatmap" in html
-    bar = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=temas").get_data(as_text=True)
-    assert "tab=temas" in bar  # aba Temas presente quando o grupo Explorar está ativo
+    assert "tab=temas" in html  # aba Temas presente na tab bar do Explorar
 
 
 def test_temas_tela_top_subpilar_mostra_exemplos(client_loyall, db_session):
