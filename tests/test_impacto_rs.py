@@ -152,17 +152,76 @@ def test_formatacao_brl_e_estoque():
     assert formatar_estoque({"valor": None, "n_ltv": 0, "n_total": 1}) is None
 
 
-# ── Fluxo no simular_impacto_acao ────────────────────────────────────────
-def test_simular_impacto_acao_fluxo_rs():
+# ── Fluxo no simular_impacto_acao (agora recebe fluxo_rs JÁ AGREGADO) ─────
+def test_simular_impacto_acao_fluxo_rs_agregado():
     agg = {"D2": {"prom": 2, "conv": 1, "det": 10, "total": 13, "ratio": 0.2}}
-    # taxa alto = 0.5 → recuperados = round(10×0.5) = 5; LTV 600 → R$ 3000
-    out = simular_impacto_acao(agg, "D2", "alto", taxas={"alto": 0.5}, ltv=600.0)
-    assert out["recuperados"] == 5
+    # fluxo_rs já é Σ_loja recuperados × LTV (vem de rs_fluxo_recuperados).
+    out = simular_impacto_acao(
+        agg, "D2", "alto", taxas={"alto": 0.5}, fluxo_rs={"valor": 3000.0, "n_ltv": 3, "n_total": 3}
+    )
+    assert out["recuperados"] == 5  # escopo: round(10×0.5) — métrica, separado do R$
     assert out["rs_fluxo"] == 3000
-    assert out["rs_fluxo_fmt"] == "R$ 3 mil"
-    # sem LTV → rs_fluxo None ("—")
-    out2 = simular_impacto_acao(agg, "D2", "alto", taxas={"alto": 0.5}, ltv=None)
-    assert out2["rs_fluxo"] is None and out2["rs_fluxo_fmt"] is None
+    assert out["rs_fluxo_fmt"] == "R$ 3 mil"  # cobertura total → sem sufixo
+    # cobertura parcial → "N de M lojas c/ LTV" (igual ao Estoque)
+    out_p = simular_impacto_acao(
+        agg, "D2", "alto", taxas={"alto": 0.5}, fluxo_rs={"valor": 3000.0, "n_ltv": 2, "n_total": 3}
+    )
+    assert out_p["rs_fluxo_fmt"] == "R$ 3 mil · 2 de 3 lojas c/ LTV"
+    # sem fluxo / valor None → "—"
+    assert simular_impacto_acao(agg, "D2", "alto", fluxo_rs=None)["rs_fluxo"] is None
+    semvalor = {"valor": None, "n_ltv": 0, "n_total": 2}
+    assert simular_impacto_acao(agg, "D2", "alto", fluxo_rs=semvalor)["rs_fluxo"] is None
+
+
+# ── rs_fluxo_recuperados: Σ_loja recuperados × LTV (espelha rs_estoque) ───
+def test_rs_fluxo_recuperados_agrega_e_cobertura(client_loyall, db_session):
+    from src.governanca.impacto_rs import rs_fluxo_recuperados
+
+    e = _empresa(db_session)
+    lA = _local(db_session, e, nome="A", ticket_medio=50.0, frequencia=10.0)  # LTV 500
+    lB = _local(db_session, e, nome="B")  # sem LTV
+    fA, fB = _fonte(db_session, e, lA), _fonte(db_session, e, lB)
+    _conv(db_session, e, lA, fA, "D2", 6, tipo="detrator")  # rec=round(6×0.5)=3 → 3×500=1500
+    _conv(db_session, e, lB, fB, "D2", 4, tipo="detrator")  # sem LTV → conta na cobertura, não soma
+
+    fx = rs_fluxo_recuperados(db_session, e.id, "D2", 0.5)  # escopo empresa
+    assert fx["valor"] == 1500.0
+    assert fx["n_ltv"] == 1 and fx["n_total"] == 2  # 1 de 2 lojas c/ LTV
+
+
+def test_rs_fluxo_recuperados_escopo_loja(client_loyall, db_session):
+    from src.governanca.impacto_rs import rs_fluxo_recuperados
+
+    e = _empresa(db_session)
+    lA = _local(db_session, e, nome="A", ticket_medio=50.0, frequencia=10.0)
+    fA = _fonte(db_session, e, lA)
+    _conv(db_session, e, lA, fA, "D2", 6, tipo="detrator")
+    fx = rs_fluxo_recuperados(db_session, e.id, "D2", 0.5, local_id=lA.id)
+    assert fx["valor"] == 1500.0 and fx["n_ltv"] == 1 and fx["n_total"] == 1
+
+
+def test_anexar_impacto_acao_de_EMPRESA_agrega_fluxo(client_loyall, db_session):
+    """O cerne do CP: ação estrutural de empresa (local_id=None) — que dava "—" —
+    agora mostra R$ somando as lojas afetadas."""
+    from types import SimpleNamespace
+
+    from src.governanca.leitura import anexar_impacto_acoes
+
+    e = _empresa(db_session)
+    lA = _local(db_session, e, nome="A", ticket_medio=100.0, frequencia=10.0)  # LTV 1000
+    lB = _local(db_session, e, nome="B", ticket_medio=50.0, frequencia=10.0)  # LTV 500
+    fA, fB = _fonte(db_session, e, lA), _fonte(db_session, e, lB)
+    _conv(db_session, e, lA, fA, "D2", 4, tipo="detrator")
+    _conv(db_session, e, lB, fB, "D2", 6, tipo="detrator")
+
+    item = SimpleNamespace(
+        subpilar="D2", local_id=None, agrupamento_id=None, prioridade="alto", faixa=None
+    )
+    anexar_impacto_acoes(db_session, e.id, [item])
+    assert item.projecao_loja is False  # ação de empresa, não loja
+    # ANTES: rs_fluxo None ("—"). AGORA: agregado das 2 lojas > 0.
+    assert item.projecao["rs_fluxo"] is not None and item.projecao["rs_fluxo"] > 0
+    assert "lojas c/ LTV" in (item.projecao["rs_fluxo_fmt"] or "") or item.projecao["rs_fluxo"] > 0
 
 
 # ── Estimativa IA: parse + fallback ──────────────────────────────────────

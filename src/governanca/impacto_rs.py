@@ -59,6 +59,35 @@ def taxas_empresa(empresa) -> Dict[str, float]:
     }
 
 
+# ── Agregação R$ por loja (infra compartilhada Estoque + Fluxo) ──────────
+def _ltvs_de(s, lids) -> Dict[int, Optional[float]]:
+    """{local_id: LTV_loja|None} para um conjunto de lids (1 query)."""
+    from src.models.local import Local
+
+    if not lids:
+        return {}
+    return {loc.id: ltv_loja(loc) for loc in s.query(Local).filter(Local.id.in_(lids)).all()}
+
+
+def _somar_ltv_por_loja(pares, ltvs, fator) -> Dict[str, Any]:
+    """Σ_loja ``fator(count) × LTV_loja`` no grão (loja), com cobertura parcial.
+
+    ``pares``: iterável ``[(local_id, count)]``. ``fator(count)`` é aplicado à
+    contagem antes do LTV (Estoque: ``fator = n``; Fluxo: ``fator = round(n×taxa)``).
+    Retorna ``{"valor": float|None, "n_ltv": int, "n_total": int}`` — ``valor``
+    None se nenhuma loja tem LTV (→ "—" honesto); ``n_ltv``/``n_total`` =
+    cobertura "N de M lojas com LTV".
+    """
+    out: Dict[str, Any] = {"valor": None, "n_ltv": 0, "n_total": 0}
+    for lid, n in pares:
+        out["n_total"] += 1
+        lt = ltvs.get(lid)
+        if lt is not None:
+            out["valor"] = (out["valor"] or 0.0) + fator(int(n)) * lt
+            out["n_ltv"] += 1
+    return out
+
+
 # ── Estoque (conversíveis × LTV, grão loja×subpilar) ─────────────────────
 def rs_estoque(
     s, empresa_id: int, ag_id: Optional[int] = None, local_id: Optional[int] = None
@@ -74,7 +103,6 @@ def rs_estoque(
     """
     from sqlalchemy import func
 
-    from src.models.local import Local
     from src.models.verbatim import Verbatim
 
     q = (
@@ -94,21 +122,55 @@ def rs_estoque(
         q = q.filter(Verbatim.local_id.in_(_locais_do_agrupamento(s, empresa_id, ag_id)))
     rows = q.all()
 
-    lids = {lid for _, lid, _ in rows if lid is not None}
-    ltvs: Dict[int, Optional[float]] = {}
-    if lids:
-        for loc in s.query(Local).filter(Local.id.in_(lids)).all():
-            ltvs[loc.id] = ltv_loja(loc)
-
-    out: Dict[str, Dict[str, Any]] = {}
+    ltvs = _ltvs_de(s, {lid for _, lid, _ in rows if lid is not None})
+    por_sub: Dict[str, list] = {}
     for sub, lid, n in rows:
-        d = out.setdefault(sub, {"valor": None, "n_ltv": 0, "n_total": 0})
-        d["n_total"] += 1
-        lt = ltvs.get(lid)
-        if lt is not None:
-            d["valor"] = (d["valor"] or 0.0) + int(n) * lt
-            d["n_ltv"] += 1
-    return out
+        por_sub.setdefault(sub, []).append((lid, n))
+    return {sub: _somar_ltv_por_loja(pares, ltvs, lambda n: n) for sub, pares in por_sub.items()}
+
+
+# ── Fluxo (recuperados × LTV, grão loja×subpilar) — espelha o Estoque ─────
+def rs_fluxo_recuperados(
+    s,
+    empresa_id: int,
+    subpilar: str,
+    taxa: float,
+    *,
+    ag_id: Optional[int] = None,
+    local_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """R$ de FLUXO recuperável de UMA ação ``(subpilar, escopo)``: Σ_loja
+    (recuperados_{loja} × LTV_loja), com ``recuperados = round(detratores_{loja}
+    × taxa)``. **Mesmo grão (loja, subpilar) e cobertura parcial do rs_estoque**
+    — só muda o tipo (``detrator`` em vez de ``conversivel``) e o fator
+    (``round(n × taxa)`` em vez de ``n``). Substitui o "1 loja única ou nada":
+    ação de empresa/agrupamento soma as lojas afetadas.
+
+    Retorna ``{"valor": float|None, "n_ltv": int, "n_total": int}`` (mesma forma
+    do rs_estoque → reusa ``formatar_estoque`` no display)."""
+    from sqlalchemy import func
+
+    from src.models.verbatim import Verbatim
+
+    q = (
+        s.query(Verbatim.local_id, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.subpilar == subpilar,
+            Verbatim.tipo == "detrator",
+        )
+        .group_by(Verbatim.local_id)
+    )
+    if local_id is not None:
+        q = q.filter(Verbatim.local_id == local_id)
+    elif ag_id is not None:
+        from src.diagnostico.leituras import _locais_do_agrupamento
+
+        q = q.filter(Verbatim.local_id.in_(_locais_do_agrupamento(s, empresa_id, ag_id)))
+    rows = q.all()
+
+    ltvs = _ltvs_de(s, {lid for lid, _ in rows if lid is not None})
+    return _somar_ltv_por_loja(rows, ltvs, lambda n: round(n * taxa))
 
 
 # ── Formatação (pt-BR, compacta — "premissa, não promessa") ──────────────

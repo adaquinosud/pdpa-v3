@@ -191,7 +191,9 @@ def _n_sub60_de_agg(agg, override_ratio=None):
     return n
 
 
-def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None, *, taxas=None, ltv=None):
+def simular_impacto_acao(
+    agg, subpilar, prioridade, previsibilidade=None, *, taxas=None, fluxo_rs=None
+):
     """Projeção EFÊMERA do impacto de uma ação (CP-LG-5). det→conversível
     (fidelidade ao Lastro D→C→P: ação corretiva tira de detrator, NÃO promove).
 
@@ -200,8 +202,11 @@ def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None, *, tax
     se o subpilar alvo não está no ``agg`` (escopo da ação).
 
     ``taxas`` (CP-impacto-rs): dict {alto,medio,baixo} POR EMPRESA; default cai na
-    constante. ``ltv``: LTV da loja → adiciona ``rs_fluxo`` = recuperados × LTV
-    (R$ recuperável); ``None`` (ação não-loja ou loja sem LTV) → ``rs_fluxo``=None.
+    constante. ``fluxo_rs`` (CP-fluxo-agregado): R$ recuperável JÁ AGREGADO no grão
+    loja×subpilar — ``{"valor","n_ltv","n_total"}`` de ``rs_fluxo_recuperados``
+    (Σ_loja recuperados_loja × LTV_loja). ``None`` / sem valor → ``rs_fluxo``=None
+    ("—"). O ``recuperados`` abaixo é o do ESCOPO (p/ ratio/proximity/índice); o R$
+    vem do grão-loja somado — pequena diferença de arredondamento é esperada.
     """
     from src.api.painel import calcular_indice_geral, calcular_ratio
 
@@ -227,10 +232,17 @@ def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None, *, tax
     )
     selo0 = selo_loja(_n_sub60_de_agg(agg), previsibilidade)
     selo1 = selo_loja(_n_sub60_de_agg(agg, override_ratio={subpilar: ratio1}), previsibilidade)
-    # Fluxo R$ (CP-impacto-rs): recuperados × LTV_loja. None se sem LTV → "—".
-    from src.governanca.impacto_rs import formatar_brl
+    # Fluxo R$ (CP-fluxo-agregado): Σ_loja recuperados_loja × LTV_loja, já agregado
+    # em fluxo_rs (rs_fluxo_recuperados). formatar_estoque dá "R$ X · N de M lojas
+    # c/ LTV" — mesma cobertura parcial do Estoque. None / sem valor → "—".
+    from src.governanca.impacto_rs import formatar_estoque
 
-    rs_fluxo = round(recuperados * ltv) if ltv is not None else None
+    if fluxo_rs and fluxo_rs.get("valor") is not None:
+        rs_fluxo = round(fluxo_rs["valor"])
+        rs_fluxo_fmt = formatar_estoque(fluxo_rs)
+    else:
+        rs_fluxo = None
+        rs_fluxo_fmt = None
     return {
         "taxa": r,
         "recuperados": recuperados,
@@ -240,7 +252,7 @@ def simular_impacto_acao(agg, subpilar, prioridade, previsibilidade=None, *, tax
         "indice": (indice0, indice1),
         "selo": (selo0, selo1),
         "rs_fluxo": rs_fluxo,
-        "rs_fluxo_fmt": formatar_brl(rs_fluxo),
+        "rs_fluxo_fmt": rs_fluxo_fmt,
     }
 
 
