@@ -16,9 +16,17 @@
 {% set active_group = (tabs | selectattr('id', 'equalto', tab) | map(attribute='grupo') | first) or grupos[0].id %}
 
 {# Link de aba (target = dict da aba destino). `label`/`is_active` explícitos p/
-   reuso entre a linha de grupos (target = 1º item do grupo) e a de itens. #}
-{%- macro tablink(t, label, is_active) -%}
-  {%- set cls = 'px-3 py-2 -mb-px border-b-2 text-sm whitespace-nowrap ' ~ ('border-loyall-700 text-loyall-800 font-medium' if is_active else 'border-transparent text-loyall-500 hover:text-loyall-700') -%}
+   reuso entre a linha de grupos (target = 1º item do grupo) e a de itens.
+   `is_group`=True (linha 1): grupo ativo ganha realce sutil de fundo (bg-loyall-50
+   + cantos no topo) ALÉM do sublinhado — reforça a hierarquia sem competir com o
+   sublinhado do item ativo na linha 2 (que segue só border-b-2). #}
+{%- macro tablink(t, label, is_active, is_group=False) -%}
+  {%- if is_active -%}
+    {%- set state = 'border-loyall-700 text-loyall-800 font-medium' ~ (' bg-loyall-50 rounded-t-md' if is_group else '') -%}
+  {%- else -%}
+    {%- set state = 'border-transparent text-loyall-500 hover:text-loyall-700' -%}
+  {%- endif -%}
+  {%- set cls = 'px-3 py-2 -mb-px border-b-2 text-sm whitespace-nowrap ' ~ state -%}
   {%- if t.id in tabs_migradas -%}
   <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ t.id }}&{{ qs }}" class="{{ cls }}">{{ label }}</a>
   {%- else -%}
@@ -37,11 +45,11 @@
       {# Aba de grupo aponta p/ o 1º item do grupo; acende quando o item ativo
          pertence a ela. #}
       {% set first_item = (tabs | selectattr('grupo', 'equalto', g.id) | first) %}
-      {{ tablink(first_item, g.label, active_group == g.id) }}
+      {{ tablink(first_item, g.label, active_group == g.id, is_group=True) }}
     {% endfor %}
     {# IA — transversal, fixa à direita, fora do funil. Leaf direto (1 clique). #}
     {% set ia_tab = (tabs | selectattr('grupo', 'equalto', 'ia') | first) %}
-    {% if ia_tab %}<div class="ml-auto">{{ tablink(ia_tab, ia_tab.label, tab == 'ia') }}</div>{% endif %}
+    {% if ia_tab %}<div class="ml-auto">{{ tablink(ia_tab, ia_tab.label, tab == 'ia', is_group=True) }}</div>{% endif %}
   </div>
   {# ── Linha 2: itens do grupo ativo ──────────────────────────────────────── #}
   <div class="flex flex-wrap items-end gap-x-1 border-b border-loyall-200">
