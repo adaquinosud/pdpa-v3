@@ -107,9 +107,11 @@ def _aplicar_filtros_listagem(q, empresa_id: int, s):
         except ValueError:
             return q, (jsonify({"erro": "data_ate deve ser YYYY-MM-DD"}), 400)
 
-    subpilar = request.args.get("subpilar")
-    if subpilar:
-        q = q.filter(Verbatim.subpilar == subpilar)
+    # Multi-select (CP-multiselect): aceita ?subpilar=P1&subpilar=D2. Lista vazia
+    # ou ?subpilar= (vazio) → sem filtro. Drill-link single (?subpilar=P1) segue OK.
+    subpilares = [s for s in request.args.getlist("subpilar") if s]
+    if subpilares:
+        q = q.filter(Verbatim.subpilar.in_(subpilares))
 
     # B5 ext. CP-2: filtra verbatins sem classificação (subpilar NULL).
     # Usado pela linha "sem classificação" do painel para inspeção dos
@@ -130,9 +132,9 @@ def _aplicar_filtros_listagem(q, empresa_id: int, s):
         sub_ids = s.query(_VT.verbatim_id).filter(_VT.tema_id == tema_id).distinct()
         q = q.filter(Verbatim.id.in_(sub_ids))
 
-    tipo = request.args.get("tipo")
-    if tipo:
-        q = q.filter(Verbatim.tipo == tipo)
+    tipos = [t for t in request.args.getlist("tipo") if t]
+    if tipos:
+        q = q.filter(Verbatim.tipo.in_(tipos))
 
     esconder_ro = request.args.get("esconder_rating_only")
     if esconder_ro in ("1", "true", "True"):

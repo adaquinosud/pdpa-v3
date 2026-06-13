@@ -483,7 +483,8 @@ def test_cpA_verbatins_dedupe_bug1_e_chip(client_loyall, db_session):
     assert '<input type="hidden" name="agrupamento_id"' in cont
     assert '<input type="hidden" name="local_id"' in cont
     # mantém o específico do Verbatins: subpilar/fonte + date-pickers absolutos.
-    assert '<select name="subpilar"' in cont
+    # CP-multiselect: subpilar virou checkbox dropdown (multi); fonte segue select.
+    assert 'type="checkbox" name="subpilar"' in cont
     assert '<select name="fonte_id"' in cont
     assert '<input name="data_de" type="date"' in cont
     assert '<input name="data_ate" type="date"' in cont

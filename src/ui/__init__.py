@@ -558,8 +558,9 @@ def _aba_verbatins(empresa_id, empresa_w):
         "agrupamento_id": request.args.get("agrupamento_id", ""),
         "local_id": request.args.get("local_id", ""),
         "fonte_id": request.args.get("fonte_id", ""),
-        "subpilar": request.args.get("subpilar", ""),
-        "tipo": request.args.get("tipo", ""),
+        # Multi-select (CP-multiselect): listas (p/ checkbox + contagem no template).
+        "subpilar": [s for s in request.args.getlist("subpilar") if s],
+        "tipo": [t for t in request.args.getlist("tipo") if t],
         "data_de": request.args.get("data_de", ""),
         "data_ate": request.args.get("data_ate", ""),
         "esconder_rating_only": request.args.get("esconder_rating_only", ""),
@@ -601,9 +602,11 @@ def _aba_verbatins(empresa_id, empresa_w):
     from urllib.parse import urlencode
 
     def _qs(pagina):
-        params = {k: v for k, v in filtros.items() if v not in ("", None) and k != "pagina"}
+        # doseq=True → listas viram params repetidos (?subpilar=P1&subpilar=D2);
+        # exclui [] (subpilar/tipo vazios) além de ""/None.
+        params = {k: v for k, v in filtros.items() if v not in ("", None, []) and k != "pagina"}
         params["pagina"] = pagina
-        return urlencode(params)
+        return urlencode(params, doseq=True)
 
     total = api_payload["total"]
     por_pagina = api_payload["por_pagina"]

@@ -150,6 +150,45 @@ def test_api_filtro_tipo(client_loyall, db_session):
     assert r.get_json()["total"] == 1
 
 
+# ── CP-multiselect: subpilar/tipo aceitam múltiplos valores (.in_) ───────────
+def _ctx_3_subpilares(client_loyall, db_session):
+    ctx = _empresa_com_estrutura(client_loyall)
+    eid, fid, lid = ctx["e"]["id"], ctx["f"]["id"], ctx["loc"]["id"]
+    _criar_verbatim(db_session, eid, fid, lid, texto="a", subpilar="P1", tipo="promotor")
+    _criar_verbatim(db_session, eid, fid, lid, texto="b", subpilar="D2", tipo="detrator")
+    _criar_verbatim(db_session, eid, fid, lid, texto="c", subpilar="Pa1", tipo="conversivel")
+    return eid
+
+
+def test_api_filtro_subpilar_multiselect(client_loyall, db_session):
+    eid = _ctx_3_subpilares(client_loyall, db_session)
+    # ?subpilar=P1&subpilar=D2 → só P1 e D2 (não Pa1)
+    r = client_loyall.get(f"/api/empresas/{eid}/verbatins?subpilar=P1&subpilar=D2")
+    assert sorted(v["subpilar"] for v in r.get_json()["verbatins"]) == ["D2", "P1"]
+    # single ainda funciona (drill-link)
+    r1 = client_loyall.get(f"/api/empresas/{eid}/verbatins?subpilar=P1")
+    assert r1.get_json()["total"] == 1
+    # ?subpilar= (vazio) → sem filtro, todos
+    r0 = client_loyall.get(f"/api/empresas/{eid}/verbatins?subpilar=")
+    assert r0.get_json()["total"] == 3
+
+
+def test_api_filtro_tipo_multiselect(client_loyall, db_session):
+    eid = _ctx_3_subpilares(client_loyall, db_session)
+    r = client_loyall.get(f"/api/empresas/{eid}/verbatins?tipo=promotor&tipo=detrator")
+    assert sorted(v["tipo"] for v in r.get_json()["verbatins"]) == ["detrator", "promotor"]
+
+
+def test_explorar_verbatins_render_checkbox_multi(client_loyall, db_session):
+    """A tela do Explorar renderiza checkboxes (não <select>) e marca os ativos."""
+    eid = _ctx_3_subpilares(client_loyall, db_session)
+    html = client_loyall.get(f"/empresas/{eid}/verbatins?subpilar=P1&subpilar=D2").get_data(
+        as_text=True
+    )
+    assert 'type="checkbox" name="subpilar" value="P1"' in html
+    assert "Subpilar (2)" in html  # contagem dos selecionados no summary
+
+
 def test_api_filtro_busca_texto(client_loyall, db_session):
     ctx = _empresa_com_estrutura(client_loyall)
     _criar_verbatim(

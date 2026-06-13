@@ -65,19 +65,35 @@
     {% endfor %}
   </select>
 
-  <select name="subpilar" class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Subpilar…</option>
-    {% for sp in subpilares %}
-    <option value="{{ sp }}" {% if filtros.subpilar == sp %}selected{% endif %}>{{ sp }}</option>
-    {% endfor %}
-  </select>
+  {# Multi-select (CP-multiselect): checkbox dropdown. Submete name repetido
+     (?subpilar=P1&subpilar=D2); o filtro continua por valor (in_). #}
+  <details class="relative">
+    <summary class="px-2 py-1.5 border border-loyall-200 rounded cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+      Subpilar{% if filtros.subpilar %} ({{ filtros.subpilar|length }}){% else %}…{% endif %}
+    </summary>
+    <div class="absolute left-0 z-20 mt-1 w-44 max-h-64 overflow-auto bg-white border border-loyall-200 rounded shadow p-1">
+      {% for sp in subpilares %}
+      <label class="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-loyall-50 cursor-pointer">
+        <input type="checkbox" name="subpilar" value="{{ sp }}" {% if sp in filtros.subpilar %}checked{% endif %}>
+        <span>{{ sp }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </details>
 
-  <select name="tipo" class="px-2 py-1.5 border border-loyall-200 rounded">
-    <option value="">Tipo…</option>
-    {% for tp in tipos %}
-    <option value="{{ tp }}" {% if filtros.tipo == tp %}selected{% endif %}>{{ tp }}</option>
-    {% endfor %}
-  </select>
+  <details class="relative">
+    <summary class="px-2 py-1.5 border border-loyall-200 rounded cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+      Tipo{% if filtros.tipo %} ({{ filtros.tipo|length }}){% else %}…{% endif %}
+    </summary>
+    <div class="absolute left-0 z-20 mt-1 w-40 bg-white border border-loyall-200 rounded shadow p-1">
+      {% for tp in tipos %}
+      <label class="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-loyall-50 cursor-pointer">
+        <input type="checkbox" name="tipo" value="{{ tp }}" {% if tp in filtros.tipo %}checked{% endif %}>
+        <span>{{ tp }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </details>
 
   {% if temas %}
   <select name="tema_id" class="px-2 py-1.5 border border-loyall-200 rounded">
