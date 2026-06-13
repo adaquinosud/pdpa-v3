@@ -56,6 +56,9 @@ class ResumoPosColeta:
     simbolos_redistribuidos: int = 0
     # Cauda editorial (Bloco 8 / PA.5)
     anomalias: int = 0
+    # leitura editorial das anomalias — só o delta (anomalias sem leitura)
+    anomalias_leituras_geradas: int = 0
+    anomalias_leituras_falhas: int = 0
     diagnostico_gerados: int = 0
     diagnostico_pulados: int = 0
     perspectivas_classificadas: int = 0
@@ -314,6 +317,23 @@ def executar_pos_coleta(
         except Exception as exc:  # noqa: BLE001
             r.relatorios_falhas += 1
             print(f"[pos-coleta] relatorio {_fn.__module__}: {type(exc).__name__}: {exc}")
+
+    # ── Leitura editorial das anomalias (Bloco 8 / PA.5): gera SÓ o delta
+    # (apenas_sem_leitura → IS NULL; a detecção preserva a leitura já paga das
+    # re-detectadas, então só as recém-detectadas entram). limite=50 = teto de
+    # segurança por coleta — em regime usa <<50. Isolado em try/except próprio:
+    # falha aqui (ex.: Sonnet timeout/rate-limit fora do loop) NÃO derruba o
+    # pós-coleta. A função já tem try/except por anomalia (falha 1 não aborta o
+    # resto). É o último passo — nada downstream depende da leitura. ──
+    try:
+        from src.anomalias.editorial import gerar_e_persistir_leituras
+
+        ml = gerar_e_persistir_leituras(empresa_id, limite=50, apenas_sem_leitura=True)
+        r.anomalias_leituras_geradas = ml["gerados"]
+        r.anomalias_leituras_falhas = ml["falhas"]
+        custo += ml["in"] / 1e6 * 3.0 + ml["out"] / 1e6 * 15.0
+    except Exception as exc:  # noqa: BLE001
+        print(f"[pos-coleta] leituras anomalias: {type(exc).__name__}: {exc}")
 
     r.custo_estimado_usd = round(custo, 4)
     return r

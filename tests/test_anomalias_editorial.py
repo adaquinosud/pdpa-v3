@@ -438,3 +438,45 @@ def test_cli_anomalias_gerar_leituras_nada_pendente(app, client_loyall, db_sessi
     assert res.exit_code == 0, res.output
     assert chamou["n"] == 0  # não chamou a geração (custo zero)
     assert "nada a gerar" in res.output
+
+
+def test_gerar_e_persistir_leituras_apenas_sem_leitura(client_loyall, db_session):
+    """apenas_sem_leitura=True gera só o delta — não sobrescreve quem já tem leitura
+    (é o que o pós-coleta usa: a detecção preserva a leitura das re-detectadas)."""
+    import json
+
+    from src.anomalias.editorial import gerar_e_persistir_leituras
+    from src.models.anomalia import AnomaliaDetectada
+
+    e, a, loc, f = _ctx(client_loyall, "delta")
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=e["id"],
+            tipo="indicador",
+            chave="nova",
+            subpilar="D2",
+            severidade="critico",
+            score_final=90.0,
+        )
+    )
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=e["id"],
+            tipo="indicador",
+            chave="ja-tem",
+            subpilar="P1",
+            severidade="critico",
+            score_final=95.0,  # score maior, mas já tem leitura → não regera
+            leitura_editorial='{"o_que": "antiga"}',
+        )
+    )
+    db_session.commit()
+
+    m = gerar_e_persistir_leituras(e["id"], apenas_sem_leitura=True, gerar_fn=_fake_sonnet)
+    assert m["gerados"] == 1  # só a "nova"; a "ja-tem" foi pulada
+
+    db_session.expire_all()
+    nova = db_session.query(AnomaliaDetectada).filter_by(empresa_id=e["id"], chave="nova").first()
+    ja = db_session.query(AnomaliaDetectada).filter_by(empresa_id=e["id"], chave="ja-tem").first()
+    assert json.loads(nova.leitura_editorial)["o_que"]  # leitura gerada agora
+    assert json.loads(ja.leitura_editorial)["o_que"] == "antiga"  # intacta, não regerada

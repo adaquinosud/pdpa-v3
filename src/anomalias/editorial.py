@@ -543,11 +543,16 @@ def gerar_e_persistir_leituras(
     severidade: Optional[str] = None,
     ids: Optional[List[int]] = None,
     limite: Optional[int] = None,
+    apenas_sem_leitura: bool = False,
     gerar_fn: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """Gera a leitura editorial (Sonnet) das anomalias persistidas e grava em
     ``leitura_editorial`` (JSON das 7 seções) + ``dados_hash``. Filtra por
     ``severidade`` e/ou lista de ``ids``; ``limite`` opcional. Idempotente.
+
+    ``apenas_sem_leitura=True`` restringe às anomalias AINDA sem leitura
+    (``leitura_editorial`` NULL/vazio) — o "delta" desde a última geração, já que
+    a detecção preserva a leitura das re-detectadas. Não sobrescreve as que já têm.
 
     Retorna métricas: gerados, falhas, por_tipo, tokens (in/out), custo_usd, erros.
     """
@@ -560,6 +565,15 @@ def gerar_e_persistir_leituras(
             q = q.filter(AnomaliaDetectada.id.in_(ids))
         if severidade:
             q = q.filter(AnomaliaDetectada.severidade == severidade)
+        if apenas_sem_leitura:  # só o delta: anomalias ainda sem leitura editorial
+            from sqlalchemy import or_
+
+            q = q.filter(
+                or_(
+                    AnomaliaDetectada.leitura_editorial.is_(None),
+                    AnomaliaDetectada.leitura_editorial == "",
+                )
+            )
         q = q.order_by(AnomaliaDetectada.score_final.desc())
         if limite:
             q = q.limit(limite)
