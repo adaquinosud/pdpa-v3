@@ -93,7 +93,12 @@ def create_app() -> Flask:
     @app.route("/health")
     @app.route("/healthz")
     def health():
-        return {"status": "ok", "version": "3.0.0-dev"}
+        # ``commit`` = SHA do build vivo. O Render injeta RENDER_GIT_COMMIT (SHA
+        # completo) no serviço; expor os 7 primeiros aqui permite confirmar QUAL
+        # deploy está no ar via ``curl /healthz`` (sem painel/API do Render). Fora
+        # do Render (dev/local), cai pra "dev".
+        commit = os.environ.get("RENDER_GIT_COMMIT") or "dev"
+        return {"status": "ok", "version": "3.0.0-dev", "commit": commit[:7]}
 
     return app
 

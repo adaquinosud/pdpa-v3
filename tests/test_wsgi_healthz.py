@@ -31,3 +31,18 @@ def test_health_alias_mantido(client):
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.get_json()["status"] == "ok"
+
+
+def test_healthz_commit_default_dev(client, monkeypatch):
+    """Sem RENDER_GIT_COMMIT (dev/local), o campo commit cai pra 'dev'."""
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+    resp = client.get("/healthz")
+    assert resp.get_json()["commit"] == "dev"
+
+
+def test_healthz_commit_expoe_sha_do_render(client, monkeypatch):
+    """No Render, /healthz devolve os 7 primeiros do RENDER_GIT_COMMIT — permite
+    confirmar QUAL deploy está vivo via `curl /healthz` (sem painel/API)."""
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "8bce4cbdeadbeef0123456789abcdef")
+    resp = client.get("/healthz")
+    assert resp.get_json()["commit"] == "8bce4cb"
