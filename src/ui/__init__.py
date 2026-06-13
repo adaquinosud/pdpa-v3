@@ -83,6 +83,29 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     )
 
 
+def _fontes_para_filtro(s, empresa_id):
+    """Fontes da empresa p/ o dropdown de FILTRO, com ``nome_local`` resolvido
+    (fonte de local → ``Local.nome``) — exibe o nome amigável em vez do place_id
+    cru (guardado em ``url``). O filtro continua usando ``f.id``; ``nome_local`` é
+    só o label. 1 query batch p/ os nomes dos locais (sem N+1)."""
+    fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
+    lids = {f.entidade_id for f in fonts if f.entidade_tipo == "local"}
+    nomes = (
+        {lid: nome for lid, nome in s.query(Local.id, Local.nome).filter(Local.id.in_(lids))}
+        if lids
+        else {}
+    )
+    return [
+        SimpleNamespace(
+            id=f.id,
+            conector_tipo=f.conector_tipo,
+            url=f.url,
+            nome_local=(nomes.get(f.entidade_id) if f.entidade_tipo == "local" else None),
+        )
+        for f in fonts
+    ]
+
+
 def _wrap_local(loc, fontes=None) -> SimpleNamespace:
     # nome_local=loc.nome resolve o ChIJ → nome amigável em TODA fonte do local
     # (cobre local_card e o detalhe da empresa, que passam por aqui).
@@ -552,12 +575,9 @@ def _aba_verbatins(empresa_id, empresa_w):
     with db_session() as s:
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
-        fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
         agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
         locais = [SimpleNamespace(id=loc.id, nome=loc.nome) for loc in locs]
-        fontes_ = [
-            SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
-        ]
+        fontes_ = _fontes_para_filtro(s, empresa_id)
         # B6 CP-5: temas ativos da empresa, com volume, pra select no UI
         from sqlalchemy import func as _func
 
@@ -678,12 +698,9 @@ def _aba_painel(empresa_id, empresa_w):
         selo = selo_de_loja(s, empresa_id, escopo_id) if escopo_tipo == "loja" else None
         ags = s.query(Agrupamento).filter_by(empresa_id=empresa_id).order_by(Agrupamento.nome).all()
         locs = s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome).all()
-        fonts = s.query(Fonte).filter_by(empresa_id=empresa_id).order_by(Fonte.conector_tipo).all()
         agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
         locais = [SimpleNamespace(id=loc.id, nome=loc.nome) for loc in locs]
-        fontes_ = [
-            SimpleNamespace(id=f.id, conector_tipo=f.conector_tipo, url=f.url) for f in fonts
-        ]
+        fontes_ = _fontes_para_filtro(s, empresa_id)
         anomalias_resumo = _resumo_anomalias(s, empresa_id)
 
     # B6.6 CP-5: a seção "Temas transversais" saiu do painel — vive na aba Temas.

@@ -63,3 +63,45 @@ def test_local_card_mostra_nome_nao_chij(client_loyall, db_session):
     assert 'title="ChIJ_TEST_AIMORES"' in html  # place_id preservado no title (referência)
     assert ">ChIJ_TEST_AIMORES" not in html  # NÃO é mais o label visível
     assert "Aimorés Lab" in html  # nome amigável do local aparece
+
+
+# ── Dropdown de FILTRO (Painel + Verbatins) — mesmo problema, mesmo fix ──────
+def test_fontes_para_filtro_resolve_nome_local(db_session):
+    """O helper dos dropdowns de filtro resolve nome_local p/ fonte de local;
+    fonte de empresa (site/social) mantém url. O filtro usa f.id (label só muda)."""
+    from src.models.empresa import Empresa
+    from src.models.fonte import Fonte
+    from src.models.local import Local
+    from src.ui import _fontes_para_filtro
+
+    e = Empresa(nome="FF-filtro", setor="saude")
+    db_session.add(e)
+    db_session.commit()
+    loc = Local(empresa_id=e.id, nome="Aimorés Lab")
+    db_session.add(loc)
+    db_session.commit()
+    db_session.add(
+        Fonte(
+            empresa_id=e.id,
+            entidade_tipo="local",
+            entidade_id=loc.id,
+            conector_tipo="google",
+            url="ChIJ_TEST",
+        )
+    )
+    db_session.add(
+        Fonte(
+            empresa_id=e.id,
+            entidade_tipo="empresa",
+            entidade_id=e.id,
+            conector_tipo="website",
+            url="https://x.com",
+        )
+    )
+    db_session.commit()
+
+    fontes = _fontes_para_filtro(db_session, e.id)
+    by_url = {f.url: f for f in fontes}
+    assert by_url["ChIJ_TEST"].nome_local == "Aimorés Lab"  # fonte de local → nome
+    assert by_url["https://x.com"].nome_local is None  # fonte de empresa → url
+    assert all(isinstance(f.id, int) for f in fontes)  # value do filtro = id
