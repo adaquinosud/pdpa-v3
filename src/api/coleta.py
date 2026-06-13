@@ -96,6 +96,11 @@ def importar_excel():
     except ValueError:
         return jsonify({"erro": "empresa_id deve ser inteiro"}), 400
 
+    # Authz: cliente só importa na própria empresa (loyall em qualquer uma).
+    erro = verificar_acesso_empresa(empresa_id)
+    if erro:
+        return erro
+
     local_id_raw = request.form.get("local_id")
     fonte_id_raw = request.form.get("fonte_id")
     try:
@@ -115,6 +120,7 @@ def importar_excel():
             empresa_id=empresa_id,
             local_id=local_id,
             fonte_id=fonte_id,
+            disparar_pos=True,  # dentro do app context: dispara pós-coleta ao fim
         )
     except FileNotFoundError as exc:
         return jsonify({"erro": str(exc)}), 400
