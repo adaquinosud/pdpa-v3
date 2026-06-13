@@ -200,6 +200,34 @@ def test_rs_fluxo_recuperados_escopo_loja(client_loyall, db_session):
     assert fx["valor"] == 1500.0 and fx["n_ltv"] == 1 and fx["n_total"] == 1
 
 
+def test_rs_fluxo_ignora_verbatim_orfao(client_loyall, db_session):
+    """Verbatim com local_id=NULL (loja excluída, ondelete=SET NULL) NÃO conta como
+    loja na cobertura — não infla o 'M' de 'N de M lojas c/ LTV'."""
+    from src.governanca.impacto_rs import rs_fluxo_recuperados
+
+    e = _empresa(db_session)
+    lA = _local(db_session, e, nome="A", ticket_medio=50.0, frequencia=10.0)  # LTV 500
+    fA = _fonte(db_session, e, lA)
+    _conv(db_session, e, lA, fA, "D2", 6, tipo="detrator")
+    db_session.add(  # órfão: detrator sem loja
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=fA.id,
+            local_id=None,
+            texto="orfao",
+            subpilar="D2",
+            tipo="detrator",
+            tem_texto=True,
+            data_criacao_original=datetime(2026, 5, 1),
+            hash_dedup=f"orf-{datetime.utcnow().timestamp()}",
+        )
+    )
+    db_session.commit()
+    fx = rs_fluxo_recuperados(db_session, e.id, "D2", 0.5)  # escopo empresa
+    assert fx["n_total"] == 1  # só a loja real; órfão fora
+    assert fx["valor"] == 1500.0  # round(6×0.5)×500
+
+
 def test_anexar_impacto_acao_de_EMPRESA_agrega_fluxo(client_loyall, db_session):
     """O cerne do CP: ação estrutural de empresa (local_id=None) — que dava "—" —
     agora mostra R$ somando as lojas afetadas."""

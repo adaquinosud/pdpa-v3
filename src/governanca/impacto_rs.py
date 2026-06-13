@@ -111,6 +111,9 @@ def rs_estoque(
             Verbatim.empresa_id == empresa_id,
             Verbatim.subpilar.isnot(None),
             Verbatim.tipo == "conversivel",
+            # Verbatim órfão (local_id=NULL após exclusão de Local, ondelete=SET NULL)
+            # não é loja → fora da cobertura "N de M lojas c/ LTV".
+            Verbatim.local_id.isnot(None),
         )
         .group_by(Verbatim.subpilar, Verbatim.local_id)
     )
@@ -158,6 +161,8 @@ def rs_fluxo_recuperados(
             Verbatim.empresa_id == empresa_id,
             Verbatim.subpilar == subpilar,
             Verbatim.tipo == "detrator",
+            # Órfão (local_id=NULL) não é loja → fora da cobertura (igual rs_estoque).
+            Verbatim.local_id.isnot(None),
         )
         .group_by(Verbatim.local_id)
     )
