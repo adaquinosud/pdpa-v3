@@ -1019,6 +1019,72 @@ def _register_cli_commands(app: Flask) -> None:
             f"validacoes preservadas={resumo['validacoes_preservadas']}"
         )
 
+    # ── Monitoramento ML CP-3: flask anomalias-gerar-leituras (gasta Sonnet) ──
+    @app.cli.command("anomalias-gerar-leituras")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--limite",
+        type=int,
+        default=50,
+        help="Máx. de leituras a gerar nesta rodada (controle de custo). Default 50.",
+    )
+    def anomalias_gerar_leituras(empresa_arg, limite):
+        """Gera a leitura editorial (Sonnet) das anomalias SEM leitura e grava em
+        leitura_editorial. NÃO sobrescreve as que já têm — só preenche as pendentes,
+        da maior pra menor severidade/score (limitado por --limite). Custa LLM
+        (~$0.02 por leitura). A detecção (anomalias-detectar) não gera leitura."""
+        from sqlalchemy import or_
+
+        from src.anomalias.editorial import gerar_e_persistir_leituras
+        from src.models.anomalia import AnomaliaDetectada
+        from src.models.empresa import Empresa
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, empresa_nome = emp.id, emp.nome
+            # Pendentes = sem leitura_editorial (NULL/vazio); pior score primeiro.
+            pendentes = [
+                r[0]
+                for r in s.query(AnomaliaDetectada.id)
+                .filter(AnomaliaDetectada.empresa_id == empresa_id)
+                .filter(
+                    or_(
+                        AnomaliaDetectada.leitura_editorial.is_(None),
+                        AnomaliaDetectada.leitura_editorial == "",
+                    )
+                )
+                .order_by(AnomaliaDetectada.score_final.desc())
+                .all()
+            ]
+
+        alvos = pendentes[:limite]
+        # ~$0.02/leitura: Sonnet in~1.4k tok ($3/1M) + out~0.8k tok ($15/1M).
+        custo_est = round(len(alvos) * 0.02, 2)
+        click.echo(
+            f"[leituras] empresa={empresa_nome!r} (id={empresa_id}) "
+            f"pendentes={len(pendentes)} a_gerar={len(alvos)} (limite={limite}) "
+            f"custo_estimado~${custo_est}"
+        )
+        if not alvos:
+            click.echo("[leituras] nada a gerar — todas as anomalias já têm leitura.")
+            return
+
+        m = gerar_e_persistir_leituras(empresa_id, ids=alvos)
+        click.echo(
+            f"[leituras] gerados={m['gerados']} falhas={m['falhas']} "
+            f"por_tipo={m['por_tipo']} tokens(in={m['in']} out={m['out']}) "
+            f"custo_real~${m['custo_usd']}"
+        )
+        for e in m["erros"]:
+            click.echo(f"  ERRO {e['chave']}: {e['erro']}", err=True)
+
     # ── Bloco 8 / Diagnóstico CP-B1: flask diagnostico-gerar (gasta Sonnet) ──
     @app.cli.command("diagnostico-gerar")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")

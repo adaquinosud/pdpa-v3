@@ -310,3 +310,131 @@ def test_gerar_e_persistir_leituras_grava_json(client_loyall, db_session):
         .first()
     )
     assert atencao.leitura_editorial is None
+
+
+def _fake_gep_factory(capturado):
+    """Fake de gerar_e_persistir_leituras: registra os ids recebidos e devolve
+    métricas no mesmo shape da função real (sem chamar Sonnet)."""
+
+    def _fake(empresa_id, *, ids=None, **kw):
+        capturado["ids"] = list(ids or [])
+        n = len(ids or [])
+        return {
+            "gerados": n,
+            "falhas": 0,
+            "por_tipo": {"indicador": n} if n else {},
+            "in": 0,
+            "out": 0,
+            "custo_usd": 0.0,
+            "erros": [],
+        }
+
+    return _fake
+
+
+def test_cli_anomalias_gerar_leituras_so_pendentes(app, client_loyall, db_session, monkeypatch):
+    """flask anomalias-gerar-leituras gera só as anomalias SEM leitura (não
+    sobrescreve a que já tem) e imprime pendentes + custo estimado."""
+    import src.anomalias.editorial as editorial
+    from src.models.anomalia import AnomaliaDetectada
+
+    e, a, loc, f = _ctx(client_loyall, "cli1")
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=e["id"],
+            tipo="indicador",
+            chave="pendente",
+            subpilar="D2",
+            severidade="critico",
+            score_final=90.0,
+        )
+    )
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=e["id"],
+            tipo="indicador",
+            chave="ja-tem",
+            subpilar="P1",
+            severidade="atencao",
+            score_final=80.0,
+            leitura_editorial='{"o_que": "x"}',
+        )
+    )
+    db_session.commit()
+    pend_id = (
+        db_session.query(AnomaliaDetectada.id)
+        .filter_by(empresa_id=e["id"], chave="pendente")
+        .scalar()
+    )
+
+    capturado = {}
+    monkeypatch.setattr(editorial, "gerar_e_persistir_leituras", _fake_gep_factory(capturado))
+
+    res = app.test_cli_runner().invoke(args=["anomalias-gerar-leituras", "--empresa", str(e["id"])])
+    assert res.exit_code == 0, res.output
+    assert capturado["ids"] == [pend_id]  # só a pendente; a com leitura foi pulada
+    assert "pendentes=1" in res.output and "a_gerar=1" in res.output
+    assert "custo_estimado" in res.output
+
+
+def test_cli_anomalias_gerar_leituras_limite(app, client_loyall, db_session, monkeypatch):
+    """--limite corta o nº de leituras geradas (controle de custo)."""
+    import src.anomalias.editorial as editorial
+    from src.models.anomalia import AnomaliaDetectada
+
+    e, a, loc, f = _ctx(client_loyall, "cli2")
+    for i in range(3):
+        db_session.add(
+            AnomaliaDetectada(
+                empresa_id=e["id"],
+                tipo="indicador",
+                chave=f"a{i}",
+                subpilar="D2",
+                severidade="critico",
+                score_final=90.0 - i,
+            )
+        )
+    db_session.commit()
+
+    capturado = {}
+    monkeypatch.setattr(editorial, "gerar_e_persistir_leituras", _fake_gep_factory(capturado))
+
+    res = app.test_cli_runner().invoke(
+        args=["anomalias-gerar-leituras", "--empresa", str(e["id"]), "--limite", "2"]
+    )
+    assert res.exit_code == 0, res.output
+    assert len(capturado["ids"]) == 2  # limite respeitado
+    assert "pendentes=3" in res.output and "a_gerar=2" in res.output
+
+
+def test_cli_anomalias_gerar_leituras_nada_pendente(app, client_loyall, db_session, monkeypatch):
+    """Sem pendentes, não chama a geração e avisa que nada há a gerar."""
+    import src.anomalias.editorial as editorial
+    from src.models.anomalia import AnomaliaDetectada
+
+    e, a, loc, f = _ctx(client_loyall, "cli3")
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=e["id"],
+            tipo="indicador",
+            chave="ja",
+            subpilar="D2",
+            severidade="critico",
+            score_final=90.0,
+            leitura_editorial='{"o_que": "x"}',
+        )
+    )
+    db_session.commit()
+
+    chamou = {"n": 0}
+
+    def _nao_chamar(*args, **kw):
+        chamou["n"] += 1
+        return {}
+
+    monkeypatch.setattr(editorial, "gerar_e_persistir_leituras", _nao_chamar)
+
+    res = app.test_cli_runner().invoke(args=["anomalias-gerar-leituras", "--empresa", str(e["id"])])
+    assert res.exit_code == 0, res.output
+    assert chamou["n"] == 0  # não chamou a geração (custo zero)
+    assert "nada a gerar" in res.output
