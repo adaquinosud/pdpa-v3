@@ -380,6 +380,59 @@ def empresa_importar():
     return redirect(url_for("ui.detalhe_empresa", empresa_id=stats["empresa_id"]))
 
 
+@ui_bp.route("/importar-verbatins", methods=["GET", "POST"])
+@loyall_required_ui
+def importar_verbatins():
+    """Tela de upload de verbatins (CSAT/pesquisa). GET: form. POST acao=preview:
+    detecta colunas sem importar. POST acao=confirmar: importa + dispara pós-coleta."""
+    r = _require_loyall_html()
+    if r:
+        return r
+
+    import tempfile
+    from pathlib import Path
+
+    with db_session() as s:
+        empresas = [
+            SimpleNamespace(id=e.id, nome=e.nome)
+            for e in s.query(Empresa).order_by(Empresa.nome).all()
+        ]
+    if request.method == "GET":
+        return render_template("empresas/importar_verbatins.html", empresas=empresas)
+
+    # POST — acao decide preview vs confirmar.
+    part = "partials/importar_verbatins_resultado.html"
+    acao = request.form.get("acao", "preview")
+    empresa_id_raw = request.form.get("empresa_id", "")
+    if not empresa_id_raw.isdigit():
+        return render_template(part, erro="Selecione a empresa.")
+    empresa_id = int(empresa_id_raw)
+    arquivo = request.files.get("arquivo")
+    if arquivo is None or not arquivo.filename:
+        return render_template(part, erro="Selecione um arquivo (.xlsx/.xls/.csv).")
+
+    suffix = Path(arquivo.filename).suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        arquivo.save(str(tmp_path))
+        if acao == "confirmar":
+            from src.coletor.excel import importar_arquivo
+
+            stats = importar_arquivo(tmp_path, empresa_id=empresa_id, disparar_pos=True)
+            return render_template(part, stats=stats, empresa_id=empresa_id)
+        from src.coletor.excel import prever_arquivo
+
+        preview = prever_arquivo(tmp_path)
+        return render_template(
+            part, preview=preview, empresa_id=empresa_id, arquivo_nome=arquivo.filename
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        return render_template(part, erro=str(exc))
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
 def _carregar_detalhe_empresa(empresa_id: int):
     """Carrega empresa + estrutura hierárquica + stats para o detalhe.
 

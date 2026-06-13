@@ -134,6 +134,22 @@ def _hash_dedup(
     return hashlib.sha256(base.encode()).hexdigest()
 
 
+def prever_arquivo(caminho: Union[str, Path]) -> Dict[str, Any]:
+    """Preview (read-only, sem DB): lê a 1ª aba, detecta as colunas e valida —
+    para a tela mostrar o mapa de campos antes de confirmar o import."""
+    caminho = Path(caminho)
+    if not caminho.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
+    df = _ler_dataframe(caminho)
+    colunas = _detectar_colunas(list(df.columns))
+    return {
+        "colunas_detectadas": colunas,
+        "erros_validacao": _validar(colunas),
+        "total": len(df),
+        "headers": [str(c) for c in df.columns],
+    }
+
+
 def _ler_dataframe(caminho: Path) -> pd.DataFrame:
     """Lê a 1ª aba de xlsx/xls ou um csv. ValueError em formato não suportado."""
     ext = caminho.suffix.lower()

@@ -1,0 +1,73 @@
+{# Resultado do upload de verbatins: erro | preview (mapa de colunas) | stats.
+   Renderizado dentro de #resultado (que vive DENTRO de #form-import), então o
+   botão Importar re-submete o form com o arquivo. #}
+{% if erro %}
+  <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 text-sm">{{ erro }}</div>
+
+{% elif preview is defined and preview %}
+  {% set rotulos = [
+    ('texto', 'Texto'), ('data', 'Data'), ('rating', 'Nota / rating'),
+    ('review_id', 'ID / protocolo'), ('agrupamento', 'Agrupamento (fila)'),
+    ('local', 'Local (origem)'), ('fonte', 'Fonte'), ('autor', 'Autor')
+  ] %}
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <p class="text-sm font-medium text-loyall-700 mb-2">
+      Colunas detectadas em <span class="font-mono text-xs">{{ arquivo_nome }}</span>
+      · {{ preview.total }} linha(s)
+    </p>
+    <ul class="text-sm space-y-1">
+      {% for campo, rot in rotulos %}
+      {% set col = preview.colunas_detectadas.get(campo) %}
+      <li class="flex items-center gap-2">
+        {% if col %}
+          <span class="text-emerald-600">✓</span><span>{{ rot }}</span>
+          <span class="text-loyall-400 text-xs">→ {{ col }}</span>
+        {% else %}
+          <span class="text-loyall-300">—</span><span class="text-loyall-400">{{ rot }}</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% if preview.erros_validacao %}
+      <div class="mt-3 bg-rose-50 border border-rose-200 text-rose-700 rounded p-2 text-xs">
+        {% for e in preview.erros_validacao %}{{ e }}<br>{% endfor %}
+      </div>
+    {% else %}
+      <button type="submit" name="acao" value="confirmar"
+              class="mt-4 px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
+        Importar {{ preview.total }} verbatins
+      </button>
+      <p class="text-[11px] text-loyall-400 mt-2">
+        Importar dispara o processamento completo (classificação, temas, diagnóstico, relatórios)
+        — leva alguns minutos em segundo plano e usa IA.
+      </p>
+    {% endif %}
+  </div>
+
+{% elif stats is defined and stats %}
+  {% if stats.erros_validacao %}
+    <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 text-sm">
+      {% for e in stats.erros_validacao %}{{ e }}<br>{% endfor %}
+    </div>
+  {% else %}
+  <div class="bg-white border border-loyall-200 rounded p-4 text-sm">
+    <p class="font-medium text-emerald-700 mb-2">Importação concluída.</p>
+    <ul class="space-y-1 text-loyall-700">
+      <li><strong>{{ stats.importados }}</strong> importados</li>
+      <li>{{ stats.duplicados }} duplicados (pulados)</li>
+      <li>{{ stats.ignorados }} ignorados (sem texto nem nota)</li>
+      {% if stats.erros %}<li class="text-rose-600">{{ stats.erros }} com erro de linha</li>{% endif %}
+      <li>{{ stats.agrupamentos_criados }} agrupamentos + {{ stats.locais_criados }} locais criados</li>
+    </ul>
+    {% if stats.pos_coleta_disparado %}
+    <p class="text-[11px] text-loyall-400 mt-2">
+      Processamento disparado em segundo plano (classificação → … → relatórios).
+    </p>
+    {% endif %}
+    <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa_id) }}"
+       class="inline-block mt-3 px-4 py-1.5 rounded border border-loyall-300 hover:bg-loyall-100">
+      Ver no Explorar →
+    </a>
+  </div>
+  {% endif %}
+{% endif %}

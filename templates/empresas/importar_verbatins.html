@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}Importar verbatins{% endblock %}
+{% block conteudo %}
+<div class="mb-4 max-w-2xl">
+  <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
+  <h1 class="text-2xl font-semibold mt-1">Importar verbatins (CSAT / pesquisa)</h1>
+  <p class="text-sm text-loyall-500 mt-1">
+    Sobe um Excel/CSV de respostas. Detecta as colunas (texto, data, nota, id, fila, origem),
+    cria os agrupamentos/locais que faltarem e dispara o processamento completo (classificação →
+    temas → diagnóstico → relatórios). A empresa já deve estar cadastrada.
+  </p>
+</div>
+
+{# 2 passos no MESMO form: "Detectar colunas" (acao=preview) → "Importar" (acao=confirmar).
+   #resultado fica DENTRO do form, então o botão Importar (no preview) re-submete o form com
+   o arquivo ainda anexado — sem precisar guardar o arquivo no servidor entre os passos. #}
+<form id="form-import"
+      class="max-w-2xl bg-white border border-loyall-200 rounded p-4 space-y-4"
+      hx-post="{{ url_for('ui.importar_verbatins') }}"
+      hx-target="#resultado" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+  <div>
+    <label class="block text-xs font-medium text-loyall-600 mb-1">Empresa*</label>
+    <select name="empresa_id" required
+            class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+      <option value="">Selecione…</option>
+      {% for e in empresas %}<option value="{{ e.id }}">{{ e.nome }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-loyall-600 mb-1">Arquivo (.xlsx / .xls / .csv)*</label>
+    <input type="file" name="arquivo" accept=".xlsx,.xls,.csv" required class="block w-full text-sm">
+  </div>
+  <div class="flex items-center gap-3">
+    <button type="submit" name="acao" value="preview"
+            class="px-4 py-1.5 rounded border border-loyall-300 hover:bg-loyall-100 text-sm">
+      Detectar colunas
+    </button>
+    <span class="htmx-indicator text-xs text-loyall-400">processando…</span>
+  </div>
+
+  <div id="resultado" class="pt-1"></div>
+</form>
+{% endblock %}
