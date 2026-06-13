@@ -39,7 +39,12 @@ def _slug(titulo: str) -> str:
 def secoes() -> tuple:
     """Seções do manual, na ordem do ``.md``: tupla de dicts
     ``{slug, titulo, html}`` — uma por cabeçalho ``## ``. O conteúdo antes do 1º
-    ``## `` (título do doc + bloco de convenções) é descartado (é meta/dev)."""
+    ``## `` (título do doc + bloco de convenções) é descartado (é meta/dev).
+
+    Se o ``.md`` não estiver no path (ex.: não copiado pra imagem), retorna vazio
+    em vez de estourar — a página mostra um aviso, não um 500."""
+    if not _MD_PATH.exists():
+        return ()
     texto = _MD_PATH.read_text(encoding="utf-8")
     partes = re.split(r"^## ", texto, flags=re.MULTILINE)  # partes[0] = intro (fora)
     out = []

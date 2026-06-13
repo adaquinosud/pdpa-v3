@@ -14,6 +14,11 @@
   </p>
 </div>
 
+{% if not secoes %}
+<div class="max-w-3xl text-sm text-loyall-500 border border-dashed border-loyall-200 rounded-lg p-6">
+  Manual indisponível no momento (documentação não encontrada). Avise o time.
+</div>
+{% else %}
 <div class="flex gap-6">
   {# Índice lateral (sticky) #}
   <nav class="hidden lg:block w-56 shrink-0" aria-label="Índice do manual">
@@ -59,4 +64,5 @@
     font-size: .82em; color: #374151;
   }
 </style>
+{% endif %}
 {% endblock %}

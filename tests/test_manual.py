@@ -37,6 +37,21 @@ def test_manual_por_slug_renderiza_markdown():
     assert "<p>" in html and "<strong>" in html  # mistune converteu o markdown
 
 
+def test_manual_md_ausente_degrada_sem_estourar(monkeypatch):
+    """Se o .md não está no path (ex.: não copiado pra imagem), secoes() retorna
+    vazio em vez de FileNotFoundError — a página mostra aviso, não 500."""
+    from pathlib import Path
+
+    import src.ui.manual as m
+
+    m.secoes.cache_clear()  # lru_cache: força recomputar com o path falso
+    monkeypatch.setattr(m, "_MD_PATH", Path("/nao/existe/DESCRITIVO_EXPLORAR.md"))
+    try:
+        assert m.secoes() == ()
+    finally:
+        m.secoes.cache_clear()  # limpa p/ os demais testes recomputarem com o path real
+
+
 # ── Rota /manual (link na sidebar global, ao lado do Glossário) ───────────────
 def test_manual_rota_loyall_200(client_loyall):
     resp = client_loyall.get("/manual")

@@ -26,7 +26,10 @@ data/
 
 # não vão pro runtime
 tests/
-docs/
+docs/*
+# exceto o Manual do Explorar: a tela /manual renderiza este .md em runtime
+# (src/ui/manual.py). Sem este re-include, COPY . . o deixa de fora → 500.
+!docs/DESCRITIVO_EXPLORAR.md
 
 # SO
 .DS_Store
