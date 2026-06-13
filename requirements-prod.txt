@@ -44,6 +44,7 @@ bcrypt==4.1.2
 python-dotenv==1.0.0
 pydantic==2.5.3
 pyyaml==6.0.3  # paridade com o dev (patch)
+mistune==3.2.1  # render do docs/DESCRITIVO_EXPLORAR.md → HTML na tela Manual do Explorar
 
 # Pins de transitivas p/ paridade EXATA com o que está VALIDADO e no ar (freeze
 # de prod em 2026-06-03). O resolver livre puxa patch/minor mais novo (filelock

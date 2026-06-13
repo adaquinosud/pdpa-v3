@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titulo %}Manual do Explorar{% endblock %}
+{% block conteudo %}
+{# Manual do Explorar — índice lateral sticky + seções com âncoras. Conteúdo vem
+   100% de docs/DESCRITIVO_EXPLORAR.md via src/ui/manual.py (fonte única; zero
+   conteúdo duplicado aqui). Interno (loyall) — gateado na rota ui.manual.
+   `secoes` = tupla de {slug, titulo, html}. #}
+<div class="mb-5">
+  <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
+  <h1 class="text-2xl font-semibold mt-1">Manual do Explorar</h1>
+  <p class="text-sm text-loyall-500 mt-1 max-w-3xl">
+    Guia interno das telas do Explorar — o que cada tela mostra e o que cada campo/métrica
+    significa. Fonte viva: a documentação do produto (atualiza junto com o app).
+  </p>
+</div>
+
+<div class="flex gap-6">
+  {# Índice lateral (sticky) #}
+  <nav class="hidden lg:block w-56 shrink-0" aria-label="Índice do manual">
+    <div class="sticky top-4">
+      <p class="text-[10px] uppercase tracking-wider text-loyall-400 mb-2 px-1">Seções</p>
+      <ul class="space-y-0.5 text-sm">
+        {% for s in secoes %}
+        <li>
+          <a href="#{{ s.slug }}"
+             class="block truncate px-2 py-1 rounded text-loyall-600 hover:text-loyall-800 hover:bg-loyall-100">
+            {{ s.titulo }}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </nav>
+
+  {# Conteúdo #}
+  <article class="manual-prose min-w-0 flex-1 max-w-3xl">
+    {% for s in secoes %}
+    <section id="{{ s.slug }}" class="mb-8 scroll-mt-4">
+      <h2 class="text-lg font-semibold text-loyall-800 border-b border-loyall-200 pb-1 mb-3">
+        {{ s.titulo }}
+      </h2>
+      {{ s.html }}
+    </section>
+    {% endfor %}
+  </article>
+</div>
+
+{# Estilo escopado do conteúdo renderizado (sem plugin `prose` no Tailwind; o
+   mistune devolve <p>/<ul>/<ol>/<strong>/<em>/<code> sem margem pelo reset). #}
+<style>
+  .manual-prose p { margin: 0 0 .6rem; line-height: 1.55; font-size: .9rem; color: #4b5563; }
+  .manual-prose ul { list-style: disc; padding-left: 1.25rem; margin: 0 0 .7rem; }
+  .manual-prose ol { list-style: decimal; padding-left: 1.35rem; margin: 0 0 .7rem; }
+  .manual-prose li { margin: .15rem 0; line-height: 1.5; font-size: .9rem; color: #4b5563; }
+  .manual-prose strong { color: #374151; font-weight: 600; }
+  .manual-prose em { color: #6b7280; }
+  .manual-prose code {
+    background: #f3f4f6; padding: .05rem .3rem; border-radius: .25rem;
+    font-size: .82em; color: #374151;
+  }
+</style>
+{% endblock %}

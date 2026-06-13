@@ -4199,6 +4199,19 @@ def glossario():
     )
 
 
+@ui_bp.route("/manual")
+@loyall_required_ui
+def manual():
+    """Manual do Explorar (interno/loyall): renderiza docs/DESCRITIVO_EXPLORAR.md
+    como página navegável (índice + âncoras). Fonte única — ver src/ui/manual.py."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.ui.manual import secoes as _manual_secoes
+
+    return render_template("admin/manual.html", secoes=_manual_secoes(), user=get_current_user())
+
+
 @ui_bp.route("/ui/glossario/novo", methods=["POST"])
 @loyall_required_ui
 def htmx_glossario_novo():
