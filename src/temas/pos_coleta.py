@@ -98,11 +98,19 @@ def contar_novos(empresa_id: int) -> int:
         )
 
 
-def classificar_pendentes(empresa_id: int, limite: Optional[int] = None) -> Dict[str, int]:
+def classificar_pendentes(
+    empresa_id: int, limite: Optional[int] = None, chunk: int = 200
+) -> Dict[str, int]:
     """Classifica os verbatins pendentes (subpilar NULL) via classifier_v3.
 
     Persiste ``subpilar/tipo/confianca/justificativa/prompt_versao``. Falha
     individual não aborta o lote (loga e segue).
+
+    **Commit a cada ``chunk`` (default 200)**: se o processo morrer no meio (a
+    pós-coleta roda em daemon-thread do worker), o progresso já commitado fica
+    salvo e é RETOMÁVEL — re-rodar pega só os pendentes restantes (subpilar ainda
+    NULL). Carrega os pendentes 1× (não re-consulta por chunk: infra-falha mantém
+    NULL e um re-query daria loop infinito).
     """
     from src.classifier.classifier_v3 import classificar
     from src.models.empresa import Empresa
@@ -129,14 +137,18 @@ def classificar_pendentes(empresa_id: int, limite: Optional[int] = None) -> Dict
         )
         if limite:
             q = q.limit(limite)
-        for v in q.all():
+        # Lê os pendentes 1× e captura o que ``classificar`` precisa em valores
+        # planos: após um ``s.commit()`` os objetos expiram; assim não recarregamos
+        # (set de atributo não dispara load — só leitura dispararia).
+        pend = [(v, v.texto, v.fonte_id, v.local_id) for v in q.all()]
+        for i, (v, texto, fonte_id, local_id) in enumerate(pend, 1):
             try:
                 r = classificar(
-                    texto=v.texto,
+                    texto=texto,
                     empresa_nome=nome,
                     empresa_setor=setor,
-                    fonte_tipo=fontes.get(v.fonte_id),
-                    local_nome=locais.get(v.local_id),
+                    fonte_tipo=fontes.get(fonte_id),
+                    local_nome=locais.get(local_id),
                 )
                 v.subpilar = r.subpilar
                 v.tipo = r.tipo
@@ -173,6 +185,9 @@ def classificar_pendentes(empresa_id: int, limite: Optional[int] = None) -> Dict
                     f"(mantido na fila): {type(exc).__name__}: {exc}"
                 )
                 stats["falhas"] += 1
+            # Commit a cada ``chunk`` → progresso parcial durável e retomável.
+            if i % chunk == 0:
+                s.commit()
     return stats
 
 

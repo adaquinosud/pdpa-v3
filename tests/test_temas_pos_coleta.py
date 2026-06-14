@@ -79,6 +79,51 @@ def test_classificar_pendentes_falha_nao_aborta(client_loyall, db_session, monke
     assert stats["classificados"] == 0 and stats["falhas"] == 2
 
 
+def test_classificar_pendentes_chunk_commit_retomavel(client_loyall, db_session, monkeypatch):
+    """Commit a cada chunk: se morrer no meio, o já feito fica salvo e re-rodar
+    pega só os pendentes restantes (não reprocessa os já classificados)."""
+    import pytest
+
+    e, a, loc, f = _ctx(client_loyall, "chunk")
+    for i in range(5):
+        _verb(db_session, e["id"], f["id"], loc["id"], f"texto {i}")
+
+    ok = SimpleNamespace(
+        subpilar="D2", tipo="detrator", confianca=0.9, justificativa="x", prompt_versao="v3.0"
+    )
+    chamadas = {"n": 0}
+
+    def _classif(**kw):
+        chamadas["n"] += 1
+        if chamadas["n"] == 3:  # "morre" no 3º — KeyboardInterrupt escapa dos except
+            raise KeyboardInterrupt("kill simulado")
+        return ok
+
+    monkeypatch.setattr("src.classifier.classifier_v3.classificar", _classif)
+    with pytest.raises(KeyboardInterrupt):
+        classificar_pendentes(e["id"], chunk=2)
+
+    db_session.expire_all()
+    feitos = (
+        db_session.query(Verbatim)
+        .filter(Verbatim.empresa_id == e["id"], Verbatim.subpilar.isnot(None))
+        .count()
+    )
+    assert feitos == 2  # chunk 1 (2 verbatins) commitado ANTES da morte
+
+    # retoma: agora classifica todos os restantes
+    monkeypatch.setattr("src.classifier.classifier_v3.classificar", lambda **kw: ok)
+    stats = classificar_pendentes(e["id"], chunk=2)
+    assert stats["classificados"] == 3  # só os 3 que faltavam
+    db_session.expire_all()
+    total = (
+        db_session.query(Verbatim)
+        .filter(Verbatim.empresa_id == e["id"], Verbatim.subpilar.isnot(None))
+        .count()
+    )
+    assert total == 5
+
+
 def test_executar_pula_abaixo_do_limiar(client_loyall, db_session, monkeypatch):
     e, a, loc, f = _ctx(client_loyall, "skip")
     _verb(db_session, e["id"], f["id"], loc["id"], "só um novo")  # 1 < 50
