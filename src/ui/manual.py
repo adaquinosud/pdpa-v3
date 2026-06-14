@@ -67,3 +67,14 @@ def secoes() -> tuple:
 def por_slug(slug: str):
     """Uma seção por slug (para o drawer da Parte 2). ``None`` se não existe."""
     return next((s for s in secoes() if s["slug"] == slug), None)
+
+
+# Tab do Explorar → slug da seção no Manual. Quase toda tab já coincide com o slug
+# derivado do cabeçalho do .md (painel→painel, anomalias→anomalias…); só override o
+# que difere. Teste garante que todo slug resolvido existe em secoes().
+_TAB_SLUG_OVERRIDE = {"planos": "plano-de-acao"}
+
+
+def slug_da_tab(tab: str) -> str:
+    """Âncora no Manual (``/manual#<slug>``) correspondente à tab do Explorar."""
+    return _TAB_SLUG_OVERRIDE.get(tab, tab)

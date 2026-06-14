@@ -3877,6 +3877,8 @@ def _explorar_contexto(empresa_id, tab):
     escopo_aceito = _EXPLORAR_ESCOPO_ACEITO.get(tab, _ESCOPO_FULL)
     escopo_chip = _montar_escopo_chip(filtros, agrupamentos, lojas_header, escopo_aceito)
     _u = get_current_user()
+    from src.ui.manual import slug_da_tab as _slug_da_tab
+
     ctx = {
         "empresa": empresa_w,
         "agrupamentos": agrupamentos,
@@ -3886,6 +3888,8 @@ def _explorar_contexto(empresa_id, tab):
         # CP-O2: eh_loyall no ctx → chega às abas tanto no full-load quanto no
         # swap HTMX (explorar_tab renderiza os partials só com **ctx).
         "eh_loyall": bool(_u and _u.papel == PAPEL_LOYALL),
+        # Âncora do "?" no header → /manual#<slug-da-tela> (só loyall vê o link).
+        "manual_slug": _slug_da_tab(tab),
         "escopo_aceito": escopo_aceito,
         "escopo_chip": escopo_chip,
         "locais": locais,

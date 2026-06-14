@@ -11,6 +11,14 @@
    O container #explorar-header SEMPRE existe (mesmo escopo vazio ⇒ form some,
    mas o container vazio re-renderiza via OOB e limpa o header anterior). #}
 <div id="explorar-header"{% if header_oob %} hx-swap-oob="true"{% endif %}>
+{# "?" → abre o Manual na seção desta tela (nova aba). Só loyall (igual o Manual). #}
+{% if eh_loyall and manual_slug %}
+<div class="flex justify-end mb-1">
+  <a href="{{ url_for('ui.manual') }}#{{ manual_slug }}" target="_blank" rel="noopener"
+     class="text-xs text-loyall-400 hover:text-loyall-700 hover:underline"
+     title="O que é esta tela? Abre o Manual na seção desta tela (nova aba)">? Ajuda</a>
+</div>
+{% endif %}
 {% if escopo_aceito %}
 <form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-4 flex flex-wrap items-end gap-3 text-sm">
   <input type="hidden" name="tab" value="{{ tab }}">
