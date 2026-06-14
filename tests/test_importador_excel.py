@@ -143,6 +143,62 @@ def test_so_rating_sem_texto(client_loyall, db_session, tmp_path):
     assert {v.rating for v in vs} == {5, 3}
 
 
+def test_sem_texto_recebe_valencia_e_pa1(client_loyall, db_session, tmp_path):
+    """Sem-texto com nota 1-5 → heurística de rating no ingest (igual ao coletor):
+    tipo=valência, subpilar=Pa1 provisório, prompt_versao=rating-heuristica-v1."""
+    e = _empresa(client_loyall, "valencia")
+    p = _csv(
+        tmp_path,
+        [
+            {"comentario": "", "csat": "5", "id": "R5"},
+            {"comentario": "", "csat": "3", "id": "R3"},
+            {"comentario": "", "csat": "1", "id": "R1"},
+        ],
+    )
+    importar_arquivo(p, e["id"], disparar_pos=False)
+    db_session.expire_all()
+    vs = {v.review_id_externo: v for v in db_session.query(Verbatim).filter_by(empresa_id=e["id"])}
+    assert vs["R5"].tipo == "promotor" and vs["R5"].subpilar == "Pa1"
+    assert vs["R3"].tipo == "conversivel" and vs["R3"].subpilar == "Pa1"
+    assert vs["R1"].tipo == "detrator" and vs["R1"].subpilar == "Pa1"
+    assert all(
+        v.tem_texto is False and v.prompt_versao == "rating-heuristica-v1" for v in vs.values()
+    )
+
+
+def test_sem_texto_rating_fora_de_1_5_fica_null(client_loyall, db_session, tmp_path):
+    """Sem-texto com nota fora de 1-5 (ex.: NPS 8) → heurística NÃO aplica → NULL."""
+    e = _empresa(client_loyall, "ratinv")
+    p = _csv(tmp_path, [{"comentario": "", "csat": "8", "id": "X1"}])
+    importar_arquivo(p, e["id"], disparar_pos=False)
+    db_session.expire_all()
+    v = db_session.query(Verbatim).filter_by(empresa_id=e["id"]).one()
+    assert v.tem_texto is False and v.rating == 8
+    assert v.subpilar is None and v.tipo is None  # sem valência válida → fica pendente
+
+
+def test_tem_texto_threshold_min_chars(client_loyall, db_session, tmp_path):
+    """tem_texto = len(texto) >= 3 (igual ao coletor): 2 chars é tratado como
+    sem-texto (heurística aplica se houver nota); 3+ chars vira texto (sem heurística)."""
+    e = _empresa(client_loyall, "thr")
+    p = _csv(
+        tmp_path,
+        [
+            {"comentario": "ok", "csat": "5", "id": "T2"},  # 2 chars → sem-texto
+            {"comentario": "ótimo serviço", "csat": "5", "id": "T13"},  # texto real
+        ],
+    )
+    importar_arquivo(p, e["id"], disparar_pos=False)
+    db_session.expire_all()
+    vs = {v.review_id_externo: v for v in db_session.query(Verbatim).filter_by(empresa_id=e["id"])}
+    # 2 chars: sem-texto → heurística (Pa1, promotor)
+    assert vs["T2"].tem_texto is False
+    assert vs["T2"].subpilar == "Pa1" and vs["T2"].tipo == "promotor"
+    # texto real: tem_texto, SEM heurística (fica pendente p/ o Haiku no pós-coleta)
+    assert vs["T13"].tem_texto is True
+    assert vs["T13"].subpilar is None and vs["T13"].tipo is None
+
+
 def test_dispara_pos_coleta(client_loyall, db_session, tmp_path, monkeypatch):
     import src.coletor.orquestrador as orq
 

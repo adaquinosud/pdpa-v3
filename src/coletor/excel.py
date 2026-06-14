@@ -296,6 +296,10 @@ def importar_arquivo(
     if not caminho.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
 
+    # MESMA regra do coletor (fonte única): threshold de tem_texto + heurística de
+    # rating dos sem-texto. Espelha src/coletor/pipeline.processar_verbatim_coletado.
+    from src.coletor.pipeline import MIN_CHARS_PARA_PROCESSAR, RATING_PARA_CLASSIFICACAO
+
     df = _ler_dataframe(caminho)
     colunas = _detectar_colunas(list(df.columns))
     erros_validacao = _validar(colunas)
@@ -363,6 +367,17 @@ def importar_arquivo(
                     stats["ignorados"] += 1  # linha sem texto e sem nota → nada a importar
                     continue
 
+                # tem_texto pelo MESMO threshold do coletor (MIN_CHARS_PARA_PROCESSAR=3).
+                tem_texto = len(texto) >= MIN_CHARS_PARA_PROCESSAR
+                # Heurística de rating no ingest (espelha pipeline.py): sem-texto + nota
+                # 1-5 → tipo (valência) + Pa1 PROVISÓRIO; o pós-coleta (redistribuir_
+                # simbolos) move o subpilar pela proporção. Sem isso, fica preso NULL
+                # (tipo NULL → redistribuir_simbolos pula). Sem rating válido → NULL.
+                sub_h = tipo_h = conf_h = just_h = pv_h = None
+                if not tem_texto and rating in RATING_PARA_CLASSIFICACAO:
+                    sub_h, tipo_h, conf_h, just_h = RATING_PARA_CLASSIFICACAO[rating]
+                    pv_h = "rating-heuristica-v1"
+
                 autor = _norm_nome(row[c_autor]) if c_autor else None
                 data_orig = _parse_data(row[c_data]) if c_data else None
                 review_id = _norm_nome(row[c_rid]) if c_rid else None
@@ -416,12 +431,17 @@ def importar_arquivo(
                         local_id=row_local_id,
                         fonte_id=row_fonte_id,
                         texto=texto,  # NOT NULL: rating-only entra com ""
-                        tem_texto=bool(texto),
+                        tem_texto=tem_texto,
                         autor=autor,
                         data_criacao_original=data_orig,
                         rating=rating,
                         review_id_externo=review_id,
                         hash_dedup=hash_d,
+                        subpilar=sub_h,  # heurística de rating (sem-texto); senão NULL
+                        tipo=tipo_h,
+                        confianca=conf_h,
+                        justificativa=just_h,
+                        prompt_versao=pv_h,
                     )
                 )
                 if review_id:
