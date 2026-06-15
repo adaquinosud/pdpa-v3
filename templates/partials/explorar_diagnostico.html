@@ -147,6 +147,17 @@
           {% if c.leitura %}
           <div>{{ c.leitura }}</div>
           {% if c.acao %}<div class="mt-1 border-l-2 border-sky-300 pl-2 text-loyall-700"><span class="text-[10px] uppercase font-semibold text-sky-700">Ação</span> {{ c.acao }}</div>{% endif %}
+          {% if c.stale %}
+          {# Selo de staleness: o hash do payload atual ≠ dados_hash salvo → os números
+             citados no texto podem divergir da tabela ao vivo. Botão regenera só este subpilar. #}
+          <div class="mt-1.5 flex items-center gap-2 text-[11px] text-amber-700">
+            <span title="O texto foi gerado a partir de números anteriores; a tabela ao lado está ao vivo.">⚠️ Leitura gerada em {{ c.gerado_em.strftime('%d/%m %H:%M') if c.gerado_em else '—' }} — dados atualizados</span>
+            <button hx-post="{{ url_for('ui.explorar_regenerar_subpilar', empresa_id=empresa.id) }}?subpilar={{ c.subpilar }}&agrupamento_id={{ filtros.agrupamento_id }}&local_id={{ filtros.local_id }}"
+                    hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-indicator="#regen-sp-{{ c.subpilar }}"
+                    class="px-1.5 py-0.5 rounded border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100">regenerar</button>
+            <span id="regen-sp-{{ c.subpilar }}" class="htmx-indicator text-amber-400">gerando…</span>
+          </div>
+          {% endif %}
           {% else %}
           <em class="text-loyall-300">— leitura não gerada</em>
           {% endif %}

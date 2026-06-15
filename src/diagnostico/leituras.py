@@ -219,7 +219,10 @@ def montar_payload_subpilar(
         eq = eq.filter(Verbatim.local_id == local_id)
     elif ag_id is not None:
         eq = eq.filter(Verbatim.local_id.in_(_locais_do_agrupamento(s, empresa_id, ag_id)))
-    exemplos = [t[:200] for (t,) in eq.limit(3).all() if t]
+    # ORDER BY estável: sem ordenação a ordem dos 3 exemplos é não-determinística
+    # (depende do plano do SGBD) → o dados_hash oscilaria entre renders, disparando
+    # regenerações espúrias. Verbatim.id é monotônico e único.
+    exemplos = [t[:200] for (t,) in eq.order_by(Verbatim.id).limit(3).all() if t]
 
     return {
         "subpilar": subpilar,
@@ -256,12 +259,14 @@ def gerar_e_persistir_diagnostico(
     gerar_fn: Optional[Callable] = None,
     skip_unchanged: bool = False,
     local_id: Optional[int] = None,
+    subpilares: Optional[set] = None,
 ) -> Dict[str, Any]:
     """Gera a leitura+ação de cada subpilar (Sonnet) e persiste em
     ``leituras_diagnostico`` (upsert por subpilar no escopo). ``local_id`` set ⟹
     escopo loja (agrupamento_id armazenado como NULL). ``gerar_fn`` injetável p/
     testes. ``skip_unchanged``: pula o subpilar cujo ``dados_hash`` não mudou.
-    Retorna métricas (gerados/pulados/falhas/tokens/erros)."""
+    ``subpilares``: se passado, processa só esse subconjunto (regen pontual de um
+    subpilar pelo selo de staleness). Retorna métricas (gerados/pulados/falhas/tokens/erros)."""
     from src.anomalias.editorial import _chamar_sonnet
     from src.api.painel import SUBPILARES_ORDEM
     from src.models.diagnostico import LeituraDiagnostico
@@ -286,6 +291,8 @@ def gerar_e_persistir_diagnostico(
         alvos = []
         for sub in SUBPILARES_ORDEM:
             if sub not in agg:
+                continue
+            if subpilares is not None and sub not in subpilares:
                 continue
             # Floor por subpilar no escopo loja (CP-A5.1): subpilar ralo (<30) não
             # gera leitura própria — herda do agrupamento/empresa na exibição.

@@ -3291,10 +3291,12 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         _gargalo,
         _scope_cond,
         agregar_subpilares,
+        montar_payload_subpilar,
         resolver_escopo,
     )
     from src.models.diagnostico import LeituraDiagnostico
     from src.models.local import Local
+    from src.utils.hashing import hash_payload
 
     def _leituras(ag, loc):
         return {
@@ -3366,6 +3368,18 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
             continue
         lt = leituras.get(sub)
         px = prox_sub.get(sub, {"valor": None, "faixa": None})
+        # Hardening de exibição: recomputa o hash do payload atual e compara ao
+        # dados_hash salvo — se diferir, a leitura está obsoleta (números do texto
+        # divergem da tabela ao vivo). Só p/ leituras PRÓPRIAS com hash (herdadas
+        # pertencem ao pai → regen no escopo dele; o escopo de geração casa: empresa
+        # /agrupamento usa ag_id; loja usa agrupamento_id=None, igual ao pós-coleta).
+        stale = False
+        if lt is not None and lt.dados_hash and sub not in herdado_sub:
+            ag_payload = None if local_id is not None else ag_id
+            payload_now = montar_payload_subpilar(
+                s, empresa_id, ag_payload, sub, d, gargalo, local_id=local_id
+            )
+            stale = hash_payload(payload_now) != lt.dados_hash
         confronto.append(
             SimpleNamespace(
                 subpilar=sub,
@@ -3381,6 +3395,8 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                 leitura=(lt.leitura if lt else None),
                 acao=(lt.acao if lt else None),
                 herdado=herdado_sub.get(sub),  # None = próprio; str = origem do pai
+                stale=stale,
+                gerado_em=(lt.gerado_em if lt else None),
             )
         )
 
@@ -4149,6 +4165,55 @@ def explorar_regenerar(empresa_id: int, tipo: str):
     if ctx is None:
         return render_template("404.html"), 404
     alvo = ctx.get("planos") if tipo == "sugestoes" else ctx.get("diagnostico")
+    if alvo is not None:
+        alvo.regen_msg = msg
+    return render_template("partials/explorar_conteudo.html", **ctx)
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/diagnostico/regenerar-subpilar", methods=["POST"])
+def explorar_regenerar_subpilar(empresa_id: int):
+    """Regenera a leitura de UM subpilar (acionado pelo selo de staleness). Sem
+    rate-limit de 1h: é ação pontual e deliberada (~1 chamada Sonnet) — força a
+    regeneração só daquele subpilar no escopo atual. Devolve a aba atualizada."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    from src.api.painel import SUBPILARES_ORDEM
+
+    subpilar = request.args.get("subpilar", "")
+    if subpilar not in SUBPILARES_ORDEM:
+        return render_template("404.html"), 404
+
+    filtros, ag_id, _ = _explorar_filtros()
+    local_id = int(filtros["local_id"]) if filtros["local_id"].isdigit() else None
+    # Escopo de geração espelha o pós-coleta: loja usa agrupamento_id=None (e o hash
+    # casa com o salvo); empresa/agrupamento usa o ag_id corrente.
+    ag_param = None if local_id is not None else ag_id
+
+    from src.diagnostico.leituras import gerar_e_persistir_diagnostico
+
+    m = gerar_e_persistir_diagnostico(
+        empresa_id,
+        ag_param,
+        skip_unchanged=False,
+        local_id=local_id,
+        subpilares={subpilar},
+    )
+    if m["gerados"]:
+        msg = f"✓ Leitura de {subpilar} regenerada."
+    elif m["falhas"]:
+        msg = f"Falha ao regenerar {subpilar}: {m['erros'][0]['erro'] if m['erros'] else 'erro'}"
+    else:
+        msg = f"Nada a regenerar para {subpilar} (sem volume neste escopo)."
+
+    ctx = _explorar_contexto(empresa_id, "diagnostico")
+    if ctx is None:
+        return render_template("404.html"), 404
+    alvo = ctx.get("diagnostico")
     if alvo is not None:
         alvo.regen_msg = msg
     return render_template("partials/explorar_conteudo.html", **ctx)

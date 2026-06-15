@@ -100,3 +100,81 @@ def test_gerar_e_persistir_e_upsert(client_loyall, db_session):
         db_session.query(LeituraDiagnostico).filter_by(empresa_id=e["id"], subpilar="D2").count()
         == 1
     )
+
+
+def test_subpilares_filtra_geracao(client_loyall, db_session):
+    """``subpilares={X}`` processa só esse subpilar (regen pontual pelo selo)."""
+    e, a, loc, f = _ctx(client_loyall, "spf")
+    _verb(db_session, e, loc, f, "D2", "detrator", 8)
+    _verb(db_session, e, loc, f, "P1", "promotor", 6)
+    _verb(db_session, e, loc, f, "P1", "detrator", 1)
+    db_session.commit()
+
+    m = gerar_e_persistir_diagnostico(e["id"], None, gerar_fn=_fake, subpilares={"D2"})
+    assert m["gerados"] == 1
+    rows = {
+        r.subpilar for r in db_session.query(LeituraDiagnostico).filter_by(empresa_id=e["id"]).all()
+    }
+    assert rows == {"D2"}  # P1 não foi gerado
+
+
+def test_exemplos_ordem_estavel_hash_deterministico(client_loyall, db_session):
+    """ORDER BY nos exemplos ⟹ mesmo payload ⟹ mesmo hash entre chamadas."""
+    from src.utils.hashing import hash_payload
+
+    e, a, loc, f = _ctx(client_loyall, "ord")
+    _verb(db_session, e, loc, f, "D2", "detrator", 10)
+    db_session.commit()
+    agg = agregar_subpilares(db_session, e["id"], None)
+    p1 = montar_payload_subpilar(db_session, e["id"], None, "D2", agg["D2"], _gargalo(agg))
+    p2 = montar_payload_subpilar(db_session, e["id"], None, "D2", agg["D2"], _gargalo(agg))
+    assert p1["exemplos"] == p2["exemplos"]
+    assert hash_payload(p1) == hash_payload(p2)
+
+
+def test_selo_staleness_aparece_quando_dados_mudam(client_loyall, db_session):
+    """Hardening de exibição: gera leitura, depois cresce o volume → ao renderizar,
+    o hash recomputado diverge do salvo → selo '⚠️ ... dados atualizados' + botão."""
+    e, a, loc, f = _ctx(client_loyall, "stale")
+    _verb(db_session, e, loc, f, "D2", "detrator", 8)
+    _verb(db_session, e, loc, f, "P1", "promotor", 6)
+    db_session.commit()
+    gerar_e_persistir_diagnostico(e["id"], None, gerar_fn=_fake)
+
+    # Antes de mexer: leitura em dia, sem selo.
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=diagnostico").get_data(as_text=True)
+    assert "dados atualizados" not in html
+
+    # Cresce o volume de D2 → muda o payload daquele subpilar.
+    _verb(db_session, e, loc, f, "D2", "detrator", 5)
+    db_session.commit()
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=diagnostico").get_data(as_text=True)
+    assert "dados atualizados" in html
+    assert "regenerar-subpilar" in html  # botão de regen pontual
+
+
+def test_regenerar_subpilar_rota(client_loyall, db_session, monkeypatch):
+    """Rota de regen pontual força a regeneração só do subpilar pedido (Sonnet mockado)."""
+    import src.anomalias.editorial as editorial
+
+    monkeypatch.setattr(
+        editorial, "_chamar_sonnet", lambda payload, prompt_path=None: _fake(payload)
+    )
+
+    e, a, loc, f = _ctx(client_loyall, "regsp")
+    _verb(db_session, e, loc, f, "D2", "detrator", 8)
+    _verb(db_session, e, loc, f, "P1", "promotor", 6)
+    db_session.commit()
+    gerar_e_persistir_diagnostico(e["id"], None, gerar_fn=_fake)
+
+    r = client_loyall.post(
+        f"/empresas/{e['id']}/explorar/diagnostico/regenerar-subpilar?subpilar=D2"
+    )
+    assert r.status_code == 200
+    assert "regenerada" in r.get_data(as_text=True)
+
+    # subpilar inválido → 404
+    r = client_loyall.post(
+        f"/empresas/{e['id']}/explorar/diagnostico/regenerar-subpilar?subpilar=ZZ"
+    )
+    assert r.status_code == 404
