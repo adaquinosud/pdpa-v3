@@ -57,6 +57,29 @@ def empresas_elegiveis() -> List[Tuple[int, str, int]]:
     return out
 
 
+def _guard_simbolos_residuais(dry_run: bool) -> None:
+    """Guard auto-curável de símbolos residuais (CP-guard-simbolos): varre TODAS as
+    empresas (não só as ligadas) e re-roda a redistribuição nas que têm símbolo
+    preso no marcador provisório — pós-coleta que pulou (``novos < limiar``) ou
+    morreu (daemon-thread). $0, determinístico, idempotente. Roda sempre, mesmo
+    sem empresa coletando e no dry-run (que só lista)."""
+    from src.coletor.distribuicao_simbolos import curar_simbolos_residuais
+
+    print("\n" + "═" * 72)
+    print("[guard-simbolos] varrendo resíduo (tem_texto=False, rating-heuristica-v1)…")
+    g = curar_simbolos_residuais(dry_run=dry_run)
+    if not g["curadas"]:
+        print("[guard-simbolos] nenhum resíduo — nada a curar.")
+    else:
+        marca = " [DRY-RUN, não gravou]" if dry_run else ""
+        for c in g["curadas"]:
+            print(
+                f"  • empresa {c['empresa_id']}: {c['total_simbolos']} símbolos redistribuídos "
+                f"({c['saem_de_pa1']} saem de Pa1){marca}"
+            )
+    print("═" * 72)
+
+
 def main(dry_run: bool) -> int:
     elegiveis = empresas_elegiveis()
     print("═" * 72)
@@ -69,17 +92,21 @@ def main(dry_run: bool) -> int:
         print(
             "[noturna-todas] DRY-RUN — nada coletado. Estas seriam coletadas (loop run_noturna.sh)."
         )
-        return 0
-    if not elegiveis:
-        print("[noturna-todas] nenhuma empresa ligada com fonte — nada a fazer.")
-        return 0
+    elif not elegiveis:
+        print("[noturna-todas] nenhuma empresa ligada com fonte — nada a coletar.")
+    else:
+        for eid, nome, _ in elegiveis:
+            print(f"\n[noturna-todas] ▶ empresa {eid} ({nome}) — run_noturna.sh {eid}")
+            # Reusa o pipeline por-empresa (coleta → pós-coleta → relatório), que já é
+            # "não-para-por-nada"; uma empresa falhar não derruba as outras.
+            subprocess.run(
+                ["bash", str(ROOT / "scripts" / "run_noturna.sh"), str(eid)], cwd=str(ROOT)
+            )
+        print("\n[noturna-todas] FIM — todas as empresas ligadas processadas.")
 
-    for eid, nome, _ in elegiveis:
-        print(f"\n[noturna-todas] ▶ empresa {eid} ({nome}) — run_noturna.sh {eid}")
-        # Reusa o pipeline por-empresa (coleta → pós-coleta → relatório), que já é
-        # "não-para-por-nada"; uma empresa falhar não derruba as outras.
-        subprocess.run(["bash", str(ROOT / "scripts" / "run_noturna.sh"), str(eid)], cwd=str(ROOT))
-    print("\n[noturna-todas] FIM — todas as empresas ligadas processadas.")
+    # Guard de símbolos residuais: roda DEPOIS da coleta (cura o que cada pós-coleta
+    # deixou pra trás) e independe de haver empresa elegível.
+    _guard_simbolos_residuais(dry_run)
     return 0
 
 

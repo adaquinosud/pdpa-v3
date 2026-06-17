@@ -802,6 +802,30 @@ def _register_cli_commands(app: Flask) -> None:
         for v in ("promotor", "conversivel", "detrator"):
             click.echo(f"[simbolos]   {v:11s} → {r['destino_por_valencia'][v]}")
 
+    # ── CP guard-simbolos: flask simbolos-guard (auto-cura resíduo, $0) ──
+    @app.cli.command("simbolos-guard")
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Lista as empresas com resíduo SEM gravar.",
+    )
+    def simbolos_guard(dry_run):
+        """Guard auto-curável: varre TODAS as empresas e redistribui o símbolo
+        residual (tem_texto=False ainda no marcador provisório — pós-coleta que
+        pulou por limiar ou morreu). Idempotente, $0. Roda também 1×/noite no
+        cron (coleta_noturna_todas); este comando é p/ rodar avulso."""
+        from src.coletor.distribuicao_simbolos import curar_simbolos_residuais
+
+        g = curar_simbolos_residuais(dry_run=dry_run)
+        modo = "DRY-RUN (não gravou)" if dry_run else "APLICADO"
+        click.echo(f"[guard-simbolos] {modo} — empresas com resíduo: {len(g['curadas'])}")
+        for c in g["curadas"]:
+            click.echo(
+                f"[guard-simbolos]   empresa {c['empresa_id']}: "
+                f"{c['total_simbolos']} símbolos ({c['saem_de_pa1']} saem de Pa1)"
+            )
+
     # ── CP local-no-prompt: flask reclassificar-tenant-rejection ──────
     @app.cli.command("reclassificar-tenant-rejection")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")

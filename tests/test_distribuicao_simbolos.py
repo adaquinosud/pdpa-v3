@@ -7,6 +7,9 @@ from datetime import datetime
 
 from src.coletor.distribuicao_simbolos import (
     MARCADOR_DISTRIBUIDO,
+    MARCADOR_HEURISTICA,
+    curar_simbolos_residuais,
+    empresas_com_residuo_simbolos,
     redistribuir_simbolos,
 )
 from src.diagnostico.leituras import agregar_subpilares
@@ -82,10 +85,29 @@ def _simbolos(db_session, e, f, loc, rating, n):
     return [v.id for v in ids]
 
 
+def _simbolos_residuo(db_session, e, f, loc, rating, n):
+    """Símbolos provisórios como saem do pipeline/excel: Pa1 + marcador da
+    heurística (= resíduo de pós-coleta que nunca redistribuiu)."""
+    ids = _simbolos(db_session, e, f, loc, rating, n)
+    db_session.query(Verbatim).filter(Verbatim.id.in_(ids)).update(
+        {Verbatim.prompt_versao: MARCADOR_HEURISTICA}, synchronize_session=False
+    )
+    db_session.commit()
+    return ids
+
+
 def _subpilar_de(db_session, ids):
     db_session.expire_all()
     return {
         vid: db_session.query(Verbatim.subpilar).filter(Verbatim.id == vid).scalar() for vid in ids
+    }
+
+
+def _prompt_versao_de(db_session, ids):
+    db_session.expire_all()
+    return {
+        vid: db_session.query(Verbatim.prompt_versao).filter(Verbatim.id == vid).scalar()
+        for vid in ids
     }
 
 
@@ -240,3 +262,61 @@ def test_idempotencia_e_migracao_quando_chega_texto(client_loyall, db_session):
     _textos(db_session, e, f, loc, "promotor", "D1", 25)
     redistribuir_simbolos(e["id"])
     assert all(sp == "D1" for sp in _subpilar_de(db_session, ids).values())
+
+
+# ── Guard auto-curável de símbolos residuais (CP-guard-simbolos) ──────────
+
+
+def test_guard_cura_residuo_e_marca_dist(client_loyall, db_session):
+    """Símbolo preso no marcador da heurística é detectado e redistribuído."""
+    e = _ctx(client_loyall, "guard")
+    loc, f = _loja(client_loyall, e, "G")
+    _textos(db_session, e, f, loc, "promotor", "P1", 30)  # proporção 100% Precisão
+    ids = _simbolos_residuo(db_session, e, f, loc, 5, 6)  # 6 símbolos presos em Pa1/heuristica
+
+    assert e["id"] in empresas_com_residuo_simbolos(db_session)
+
+    g = curar_simbolos_residuais()
+    assert g["aplicado"] is True
+    assert any(c["empresa_id"] == e["id"] and c["total_simbolos"] == 6 for c in g["curadas"])
+    # foram redistribuídos (Pa1→P1) e remarcados
+    assert all(sp == "P1" for sp in _subpilar_de(db_session, ids).values())
+    assert all(pv == MARCADOR_DISTRIBUIDO for pv in _prompt_versao_de(db_session, ids).values())
+
+
+def test_guard_idempotente(client_loyall, db_session):
+    """Após curar, a varredura não acha mais resíduo (não re-trabalha)."""
+    e = _ctx(client_loyall, "gidem")
+    loc, f = _loja(client_loyall, e, "GI")
+    _textos(db_session, e, f, loc, "promotor", "P1", 30)
+    _simbolos_residuo(db_session, e, f, loc, 5, 4)
+    curar_simbolos_residuais()
+    assert e["id"] not in empresas_com_residuo_simbolos(db_session)
+    g2 = curar_simbolos_residuais()
+    assert all(c["empresa_id"] != e["id"] for c in g2["curadas"])
+
+
+def test_guard_dry_run_nao_grava(client_loyall, db_session):
+    """dry_run lista a empresa com resíduo mas não toca o marcador."""
+    e = _ctx(client_loyall, "gdry")
+    loc, f = _loja(client_loyall, e, "GD")
+    _textos(db_session, e, f, loc, "promotor", "P1", 30)
+    ids = _simbolos_residuo(db_session, e, f, loc, 5, 5)
+    g = curar_simbolos_residuais(dry_run=True)
+    assert g["aplicado"] is False
+    assert any(c["empresa_id"] == e["id"] for c in g["curadas"])
+    # nada gravado: símbolos seguem no marcador da heurística
+    assert all(pv == MARCADOR_HEURISTICA for pv in _prompt_versao_de(db_session, ids).values())
+    assert e["id"] in empresas_com_residuo_simbolos(db_session)
+
+
+def test_guard_ignora_empresa_sem_residuo(client_loyall, db_session):
+    """Empresa cujos símbolos já foram redistribuídos não entra na cura."""
+    e = _ctx(client_loyall, "gsem")
+    loc, f = _loja(client_loyall, e, "GS")
+    _textos(db_session, e, f, loc, "promotor", "P1", 30)
+    _simbolos(db_session, e, f, loc, 5, 4)  # sem marcador da heurística
+    redistribuir_simbolos(e["id"])  # já viram rating-dist-v1
+    assert e["id"] not in empresas_com_residuo_simbolos(db_session)
+    g = curar_simbolos_residuais()
+    assert all(c["empresa_id"] != e["id"] for c in g["curadas"])

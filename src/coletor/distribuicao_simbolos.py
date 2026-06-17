@@ -36,6 +36,10 @@ from src.api.painel import NOME_PILAR, PILAR_DE_SUBPILAR, SUBPILARES_ORDEM
 
 PISO_TEXTOS = 30  # mesmo piso do selo de engajamento; testado no TOTAL do escopo
 MARCADOR_DISTRIBUIDO = "rating-dist-v1"
+# Marcador provisório (símbolo→Pa1) gravado por pipeline.py/excel.py antes do
+# pós-coleta redistribuir. Símbolo AINDA neste marcador = resíduo (pós-coleta não
+# rodou). Mantido em sincronia com os literais de pipeline.py:232 e excel.py:379.
+MARCADOR_HEURISTICA = "rating-heuristica-v1"
 PILARES = ["P", "D", "Pa", "A"]
 PRIMEIRO_SUBPILAR = {"P": "P1", "D": "D1", "Pa": "Pa1", "A": "A1"}
 VALENCIAS = ("promotor", "conversivel", "detrator")
@@ -236,3 +240,49 @@ def redistribuir_simbolos(empresa_id: int, *, dry_run: bool = False) -> Dict[str
     resumo["destino_pilar"] = dict(resumo["destino_pilar"])
     resumo["destino_por_valencia"] = {v: dict(d) for v, d in resumo["destino_por_valencia"].items()}
     return resumo
+
+
+def empresas_com_residuo_simbolos(s) -> List[int]:
+    """IDs das empresas com símbolo residual: ``tem_texto=False`` ainda no marcador
+    provisório da heurística (Pa1 não redistribuído). É o sinal de um pós-coleta que
+    não rodou/morreu — o ``redistribuir_simbolos`` teria movido esses símbolos pra
+    ``rating-dist-v1``. Idempotente: após a cura, a query não acha mais nada."""
+    from src.models.verbatim import Verbatim
+
+    rows = (
+        s.query(Verbatim.empresa_id)
+        .filter(
+            Verbatim.tem_texto.is_(False),
+            Verbatim.prompt_versao == MARCADOR_HEURISTICA,
+        )
+        .distinct()
+        .all()
+    )
+    return [eid for (eid,) in rows]
+
+
+def curar_simbolos_residuais(*, dry_run: bool = False) -> Dict[str, Any]:
+    """Guard auto-curável (espelha o reaper de coletas órfãs): varre TODAS as
+    empresas, acha as que têm símbolo residual e re-roda ``redistribuir_simbolos``
+    em cada uma. $0 (sem LLM), determinístico e idempotente — após curar, os
+    símbolos viram ``rating-dist-v1`` e a próxima varredura não acha nada.
+
+    Independente de coleta/limiar: fecha os dois furos do pós-coleta (skip por
+    ``novos < limiar`` e empresas fora da varredura noturna). ``dry_run`` só lista.
+    Pensado p/ rodar 1×/noite na cron que já varre as empresas."""
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        empresas = empresas_com_residuo_simbolos(s)
+
+    curadas: List[Dict[str, Any]] = []
+    for eid in empresas:
+        r = redistribuir_simbolos(eid, dry_run=dry_run)
+        curadas.append(
+            {
+                "empresa_id": eid,
+                "total_simbolos": r["total_simbolos"],
+                "saem_de_pa1": r["saem_de_pa1"],
+            }
+        )
+    return {"empresas_com_residuo": empresas, "curadas": curadas, "aplicado": not dry_run}
