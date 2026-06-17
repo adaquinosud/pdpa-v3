@@ -369,6 +369,100 @@ def test_ratio_em_palavras_decimal_virgula_ptbr():
     assert ratio_em_palavras(0.9) == "1 promotor para cada 1,1 detratores"
 
 
+# ── Histórico de ratio por quarter (CP-ratio-historico) ──────────────────
+
+
+def _empresa_loja(client_loyall, sfx):
+    e = client_loyall.post("/api/empresas/", json={"nome": f"EHist-{sfx}"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L", "agrupamento_id": a["id"]}
+    ).get_json()
+    return e["id"], loc["id"], a["id"]
+
+
+def _rm(db_session, empresa_id, local_id, ag_id, subpilar, periodo, prom, det):
+    from src.api.painel import calcular_ratio
+    from src.models.anomalia import RatioMensal
+
+    db_session.add(
+        RatioMensal(
+            empresa_id=empresa_id,
+            local_id=local_id,
+            agrupamento_id=ag_id,
+            subpilar=subpilar,
+            periodo=periodo,
+            promotor=prom,
+            conversivel=0,
+            detrator=det,
+            total=prom + det,
+            ratio=calcular_ratio(prom, det),
+        )
+    )
+
+
+def test_historico_quarters_pondera_por_volume_e_agrega_pilar(client_loyall, db_session):
+    from src.api.painel import historico_quarters_pilares
+
+    eid, lid, agid = _empresa_loja(client_loyall, "pond")
+    # Pilar P (P1+P2), Q1/2026 = jan+fev+mar; Q2/2026 = abr
+    _rm(db_session, eid, lid, agid, "P1", "2026-01", 2, 8)
+    _rm(db_session, eid, lid, agid, "P1", "2026-02", 1, 2)
+    _rm(db_session, eid, lid, agid, "P2", "2026-03", 1, 0)
+    _rm(db_session, eid, lid, agid, "P1", "2026-04", 6, 2)
+    db_session.commit()
+
+    h = historico_quarters_pilares(db_session, eid)
+    # Q1: Σprom=4, Σdet=10 → 0.4 (ponderado, não média dos ratios mensais); Q2: 6/2=3.0
+    assert [x["q"] for x in h["P"]] == ["Q1", "Q2"]
+    assert h["P"][0]["ratio"] == 0.4 and h["P"][1]["ratio"] == 3.0
+
+
+def test_historico_quarters_menos_de_2_omitido(client_loyall, db_session):
+    from src.api.painel import historico_quarters_pilares
+
+    eid, lid, agid = _empresa_loja(client_loyall, "um")
+    _rm(db_session, eid, lid, agid, "P1", "2026-01", 5, 5)  # só 1 quarter
+    db_session.commit()
+    assert "P" not in historico_quarters_pilares(db_session, eid)
+
+
+def test_historico_quarters_respeita_escopo_loja(client_loyall, db_session):
+    from src.api.painel import historico_quarters_pilares
+
+    eid, lid1, agid = _empresa_loja(client_loyall, "esc")
+    loc2 = client_loyall.post(
+        f"/api/empresas/{eid}/locais", json={"nome": "L2", "agrupamento_id": agid}
+    ).get_json()
+    lid2 = loc2["id"]
+    # loja1 só pilar P; loja2 só pilar D — ambos com 2 quarters
+    _rm(db_session, eid, lid1, agid, "P1", "2026-01", 3, 1)
+    _rm(db_session, eid, lid1, agid, "P1", "2026-04", 4, 1)
+    _rm(db_session, eid, lid2, agid, "D1", "2026-01", 2, 2)
+    _rm(db_session, eid, lid2, agid, "D1", "2026-04", 1, 3)
+    db_session.commit()
+
+    h_emp = historico_quarters_pilares(db_session, eid)  # empresa-wide: agrega as 2 lojas
+    assert "P" in h_emp and "D" in h_emp
+    h_l1 = historico_quarters_pilares(db_session, eid, local_id=lid1)
+    assert "P" in h_l1 and "D" not in h_l1  # escopo loja1 não vê D da loja2
+
+
+def test_historico_quarters_ultimos_4_e_ordem(client_loyall, db_session):
+    from src.api.painel import historico_quarters_pilares
+
+    eid, lid, agid = _empresa_loja(client_loyall, "u4")
+    # 5 quarters consecutivos de P1 → mantém só os 4 mais recentes, do mais antigo
+    _rm(db_session, eid, lid, agid, "P1", "2025-01", 1, 1)  # Q1/25 (cai fora)
+    _rm(db_session, eid, lid, agid, "P1", "2025-04", 2, 1)  # Q2/25
+    _rm(db_session, eid, lid, agid, "P1", "2025-07", 3, 1)  # Q3/25
+    _rm(db_session, eid, lid, agid, "P1", "2025-10", 4, 1)  # Q4/25
+    _rm(db_session, eid, lid, agid, "P1", "2026-01", 5, 1)  # Q1/26
+    db_session.commit()
+    qs = [x["q"] for x in historico_quarters_pilares(db_session, eid)["P"]]
+    assert qs == ["Q2", "Q3", "Q4", "Q1"]  # 4 últimos, antigo→recente
+
+
 def test_faixa_ratio_5_niveis():
     from src.api.painel import faixa_ratio
 

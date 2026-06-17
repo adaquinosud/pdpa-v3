@@ -149,6 +149,65 @@ def ratio_em_palavras(ratio: float) -> str:
     return f"1 promotor para cada {_fmt_ratio_num(inv)} {detr}"
 
 
+def _quarter_de(periodo: str):
+    """``'YYYY-MM'`` → ``(ano, quarter 1..4)``. Q1=jan-mar … Q4=out-dez."""
+    ano, mes = periodo.split("-")
+    return int(ano), (int(mes) - 1) // 3 + 1
+
+
+def historico_quarters_pilares(s, empresa_id, ag_id=None, local_id=None, n=4):
+    """Histórico de ratio P/D por PILAR nos últimos ``n`` quarters COM dado, no
+    escopo dado. Lê ``RatioMensal`` (série mensal por loja×subpilar) — $0, sem IA.
+
+    - Ratio do quarter = ponderado por volume: ``Σ promotor ÷ Σ detrator`` dos 3
+      meses, agregando os subpilares do pilar E as lojas do escopo (``calcular_ratio``).
+    - Escopo: ``local_id`` (loja) tem precedência; senão ``ag_id`` (agrupamento);
+      senão empresa inteira (agrega todas as lojas).
+    - Retorna ``{pilar: [{"q": "Q3", "ratio": 0.28}, ...]}`` do mais antigo p/ o
+      mais recente. Pilar com < 2 quarters é omitido (sem tendência)."""
+    from collections import defaultdict
+
+    from src.models.anomalia import RatioMensal
+
+    q = s.query(
+        RatioMensal.subpilar,
+        RatioMensal.periodo,
+        RatioMensal.promotor,
+        RatioMensal.detrator,
+    ).filter(RatioMensal.empresa_id == empresa_id)
+    if local_id is not None:
+        q = q.filter(RatioMensal.local_id == local_id)
+    elif ag_id is not None:
+        q = q.filter(RatioMensal.agrupamento_id == ag_id)
+
+    # (pilar, ano, quarter) -> [Σ promotor, Σ detrator]
+    acc: Dict[Any, List[int]] = defaultdict(lambda: [0, 0])
+    for sub, periodo, prom, det in q.all():
+        pilar = PILAR_DE_SUBPILAR.get(sub)
+        if pilar is None or not periodo:
+            continue
+        ano, quarter = _quarter_de(periodo)
+        chave = (pilar, ano, quarter)
+        acc[chave][0] += prom or 0
+        acc[chave][1] += det or 0
+
+    por_pilar: Dict[str, List] = defaultdict(list)
+    for (pilar, ano, quarter), (prom, det) in acc.items():
+        por_pilar[pilar].append((ano, quarter, prom, det))
+
+    out: Dict[str, List[Dict[str, Any]]] = {}
+    for pilar, linhas in por_pilar.items():
+        linhas.sort()  # (ano, quarter) crescente → mais antigo primeiro
+        ultimos = linhas[-n:]
+        if len(ultimos) < 2:
+            continue  # sem tendência
+        out[pilar] = [
+            {"q": f"Q{quarter}", "ratio": calcular_ratio(prom, det)}
+            for (_ano, quarter, prom, det) in ultimos
+        ]
+    return out
+
+
 # Faixas operacionais do ratio — verdade única (ver docs/PROJETO_PDPA.md).
 # Lista ordenada de (limite_superior_exclusivo, label); o último (inf) é o teto.
 # Centralizado no CP-LG-0 para reuso pela Lente de Governança. NÃO alterar os

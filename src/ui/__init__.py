@@ -758,6 +758,17 @@ def _aba_painel(empresa_id, empresa_w):
         locais = [SimpleNamespace(id=loc.id, nome=loc.nome) for loc in locs]
         fontes_ = _fontes_para_filtro(s, empresa_id)
         anomalias_resumo = _resumo_anomalias(s, empresa_id)
+        # Histórico de ratio P/D por pilar (últimos 4 quarters) no escopo ativo.
+        from src.api.painel import historico_quarters_pilares
+
+        hist_q = historico_quarters_pilares(
+            s,
+            empresa_id,
+            ag_id=(escopo_id if escopo_tipo == "agrupamento" else None),
+            local_id=(escopo_id if escopo_tipo == "loja" else None),
+        )
+        for _p in n1.get("pilares", []):
+            _p["historico_quarters"] = hist_q.get(_p["pilar"], [])
 
     # B6.6 CP-5: a seção "Temas transversais" saiu do painel — vive na aba Temas.
     return {
@@ -3400,6 +3411,11 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
             )
         )
 
+    # Histórico de ratio P/D por pilar (últimos 4 quarters) no mesmo escopo do card.
+    from src.api.painel import historico_quarters_pilares
+
+    hist_q = historico_quarters_pilares(s, empresa_id, ag_id=ag_id, local_id=local_id)
+
     pilares = []
     for p in PILARES_ORDEM:
         subs = [x for x in SUBPILARES_ORDEM if PILAR_DE_SUBPILAR.get(x) == p and x in agg]
@@ -3420,6 +3436,7 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                 conv=conv,
                 det=det,
                 gargalo=(p == gargalo),
+                historico_quarters=hist_q.get(p, []),
                 subpilares=[
                     SimpleNamespace(
                         subpilar=x,
