@@ -62,6 +62,10 @@
       <span class="font-bold text-loyall-800">{{ '%.2f'|format(p.ratio) }}</span>
       <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ p.faixa }}</span>
     </div>
+    {% if p.total %}
+    {# Tradução do ratio em linguagem simples (CP-ratio-palavras), discreta sob o número. #}
+    <div class="text-xs text-loyall-400">{{ ratio_em_palavras(p.ratio) }}</div>
+    {% endif %}
     <div class="text-xs text-loyall-400"><span title="Confiança por volume" class="cursor-help">{{ selo_emoji(p.total) }}</span> {{ p.total }} verbatins</div>
     <div class="mt-2 pt-2 border-t border-loyall-100 space-y-0.5">
       {% for sp in p.subpilares %}

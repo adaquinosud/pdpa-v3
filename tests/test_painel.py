@@ -346,6 +346,29 @@ def test_calcular_ratio_cap_em_caso_muito_alto():
     assert calcular_ratio(1000, 1) == 9.99
 
 
+def test_ratio_em_palavras_casos_do_spec():
+    from src.api.painel import ratio_em_palavras
+
+    # cap superior → sem detratores; cap inferior/zero → nenhum promotor
+    assert ratio_em_palavras(9.99) == "sem detratores"
+    assert ratio_em_palavras(0.0) == "nenhum promotor"
+    # ratio ≥ 1: "X promotores para cada detrator" (singular quando X=1)
+    assert ratio_em_palavras(6.0) == "6 promotores para cada detrator"
+    assert ratio_em_palavras(2.0) == "2 promotores para cada detrator"
+    assert ratio_em_palavras(1.0) == "1 promotor para cada detrator"
+    # ratio < 1: "1 promotor para cada X detratores"
+    assert ratio_em_palavras(0.5) == "1 promotor para cada 2 detratores"
+    assert ratio_em_palavras(0.125) == "1 promotor para cada 8 detratores"
+
+
+def test_ratio_em_palavras_decimal_virgula_ptbr():
+    from src.api.painel import ratio_em_palavras
+
+    assert ratio_em_palavras(1.5) == "1,5 promotores para cada detrator"
+    assert ratio_em_palavras(3.33) == "3,3 promotores para cada detrator"  # 1 casa
+    assert ratio_em_palavras(0.9) == "1 promotor para cada 1,1 detratores"
+
+
 def test_faixa_ratio_5_niveis():
     from src.api.painel import faixa_ratio
 

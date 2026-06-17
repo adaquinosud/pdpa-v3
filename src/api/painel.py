@@ -120,6 +120,35 @@ def calcular_ratio(promotor: int, detrator: int) -> float:
     return min(RATIO_CAP_SUPERIOR, round(promotor / detrator, 2))
 
 
+def _fmt_ratio_num(v: float) -> str:
+    """1 casa decimal, vírgula pt-BR; inteiro quando exato (6.0→'6', 1.5→'1,5')."""
+    r = round(v, 1)
+    if r == int(r):
+        return str(int(r))
+    return f"{r:.1f}".replace(".", ",")
+
+
+def ratio_em_palavras(ratio: float) -> str:
+    """Tradução do ratio P/D em linguagem simples (CP-ratio-palavras).
+
+    - ratio ≥ cap (9.99) → "sem detratores" (saturação positiva)
+    - ratio ≤ 0          → "nenhum promotor"
+    - ratio ≥ 1          → "X promotores para cada detrator"
+    - ratio < 1          → "1 promotor para cada X detratores"
+    X com 1 casa (vírgula pt-BR), inteiro quando exato; singular quando X=1.
+    """
+    if ratio >= RATIO_CAP_SUPERIOR:
+        return "sem detratores"
+    if ratio <= RATIO_CAP_INFERIOR:
+        return "nenhum promotor"
+    if ratio >= 1:
+        promo = "promotor" if round(ratio, 1) == 1 else "promotores"
+        return f"{_fmt_ratio_num(ratio)} {promo} para cada detrator"
+    inv = 1 / ratio
+    detr = "detrator" if round(inv, 1) == 1 else "detratores"
+    return f"1 promotor para cada {_fmt_ratio_num(inv)} {detr}"
+
+
 # Faixas operacionais do ratio — verdade única (ver docs/PROJETO_PDPA.md).
 # Lista ordenada de (limite_superior_exclusivo, label); o último (inf) é o teto.
 # Centralizado no CP-LG-0 para reuso pela Lente de Governança. NÃO alterar os

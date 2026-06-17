@@ -63,6 +63,14 @@ def create_app() -> Flask:
     def _selo_emoji(volume) -> str:
         return selo_confianca(int(volume or 0))[1]
 
+    # Tradução do ratio P/D em linguagem simples (CP-ratio-palavras): texto
+    # discreto sob o número do ratio nos cards de pilar do Painel.
+    from src.api.painel import ratio_em_palavras as _ratio_em_palavras
+
+    @app.template_global("ratio_em_palavras")
+    def ratio_em_palavras(ratio) -> str:  # noqa: ANN001
+        return _ratio_em_palavras(float(ratio or 0))
+
     # Markdown leve nas respostas do IA Chat (CP-B4): bold + listas + quebras.
     from src.utils.markdown_leve import render_md_leve
 
