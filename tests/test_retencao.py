@@ -131,46 +131,49 @@ def test_retencao_zero_afetados(app, db_session, client_loyall):
     assert eventos[0].qtd_afetada == 0
 
 
-# ── MEC 1: janela de coleta via env ─────────────────────────────────────
+# ── calcular_data_inicio_coleta (CP-backfill-inicial) ───────────────────
 
 
-def test_janela_meses_default_15(monkeypatch):
-    """Sem env, fallback é 15 meses."""
-    from src.coletor.incremental import _janela_meses
-
-    monkeypatch.delenv("PDPA_COLETA_JANELA_MESES", raising=False)
-    assert _janela_meses() == 15
-
-
-def test_janela_meses_via_env(monkeypatch):
-    """Env PDPA_COLETA_JANELA_MESES é respeitada."""
-    from src.coletor.incremental import _janela_meses
-
-    monkeypatch.setenv("PDPA_COLETA_JANELA_MESES", "24")
-    assert _janela_meses() == 24
-
-
-def test_janela_meses_env_invalida_fallback(monkeypatch):
-    """Env não-numérica cai no fallback 15."""
-    from src.coletor.incremental import _janela_meses
-
-    monkeypatch.setenv("PDPA_COLETA_JANELA_MESES", "abc")
-    assert _janela_meses() == 15
-
-
-def test_calcular_data_inicio_usa_janela_env(monkeypatch, db_session, client_loyall):
-    """``calcular_data_inicio_coleta`` usa a janela do env quando não há
-    verbatim anterior nem PDPA_COLETA_DESDE."""
-    from datetime import date, timedelta
-
+def test_calcular_data_inicio_sem_historico_retorna_none(monkeypatch, db_session, client_loyall):
+    """Fonte sem histórico → None (coletor omite o filtro → backfill completo na
+    1ª coleta). Antes caía em hoje−15m/PDPA_COLETA_DESDE (limitava o histórico)."""
     from src.coletor.incremental import calcular_data_inicio_coleta
 
     monkeypatch.delenv("PDPA_COLETA_DESDE_OVERRIDE", raising=False)
     monkeypatch.delenv("PDPA_COLETA_DESDE", raising=False)
-    monkeypatch.setenv("PDPA_COLETA_JANELA_MESES", "6")
-
     _emp_id, fonte_id = _setup_fonte(client_loyall)
-    # Fonte sem verbatins ainda → cai no fallback
-    resultado = calcular_data_inicio_coleta(fonte_id)
-    esperado = (date.today() - timedelta(days=6 * 30)).isoformat()
-    assert resultado == esperado
+    assert calcular_data_inicio_coleta(fonte_id) is None
+
+
+def test_calcular_data_inicio_override_forca_data(monkeypatch, db_session, client_loyall):
+    """PDPA_COLETA_DESDE_OVERRIDE força a data mesmo sem histórico (recoleta)."""
+    from src.coletor.incremental import calcular_data_inicio_coleta
+
+    monkeypatch.setenv("PDPA_COLETA_DESDE_OVERRIDE", "2015-01-01")
+    _emp_id, fonte_id = _setup_fonte(client_loyall)
+    assert calcular_data_inicio_coleta(fonte_id) == "2015-01-01"
+
+
+def test_calcular_data_inicio_incremental_max_menos_buffer(monkeypatch, db_session, client_loyall):
+    """Com histórico → MAX(data_criacao_original) − INCREMENTAL_BUFFER_DAYS."""
+    from datetime import datetime, timedelta
+
+    from src.coletor.incremental import INCREMENTAL_BUFFER_DAYS, calcular_data_inicio_coleta
+    from src.models.verbatim import Verbatim
+
+    monkeypatch.delenv("PDPA_COLETA_DESDE_OVERRIDE", raising=False)
+    emp_id, fonte_id = _setup_fonte(client_loyall)
+    d = datetime(2026, 5, 1)
+    db_session.add(
+        Verbatim(
+            empresa_id=emp_id,
+            fonte_id=fonte_id,
+            texto="x",
+            tem_texto=True,
+            data_criacao_original=d,
+            hash_dedup="bk-incr-1",
+        )
+    )
+    db_session.commit()
+    esperado = (d.date() - timedelta(days=INCREMENTAL_BUFFER_DAYS)).isoformat()
+    assert calcular_data_inicio_coleta(fonte_id) == esperado

@@ -166,12 +166,13 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "resultsType": "posts",
         "resultsLimit": MAX_POSTS_DEFAULT,
         "addParentData": False,
-        "onlyPostsNewerThan": data_inicio,
         # CP-E2 Grupo C: o schema do ator apify/instagram-scraper tem
         # default searchType="hashtag". Sem este override, "bhairport" é
         # interpretado como #bhairport (vazio). Precisa user para perfil.
         "searchType": "user",
     }
+    if data_inicio:  # None = fonte sem histórico → omite o filtro = backfill total
+        run_input["onlyPostsNewerThan"] = data_inicio
     print(
         f"[instagram] fonte {fonte_id} (@{username}) onlyPostsNewerThan={data_inicio}, "
         f"max_posts={MAX_POSTS_DEFAULT}, max_comments_per_post={MAX_COMMENTS_PER_POST}"

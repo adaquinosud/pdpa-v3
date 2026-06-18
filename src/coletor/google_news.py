@@ -79,12 +79,15 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         return stats
 
     data_inicio_iso = calcular_data_inicio_coleta(fonte_id)
-    try:
-        data_inicio_dt = datetime.fromisoformat(data_inicio_iso[:10])
-        tbs = f"cdr:1,cd_min:{_formatar_data_google(data_inicio_dt)}"
-    except ValueError:
-        tbs = None
-        data_inicio_dt = None
+    tbs = None
+    data_inicio_dt = None
+    if data_inicio_iso:  # None = fonte sem histórico → sem filtro de data (backfill total)
+        try:
+            data_inicio_dt = datetime.fromisoformat(data_inicio_iso[:10])
+            tbs = f"cdr:1,cd_min:{_formatar_data_google(data_inicio_dt)}"
+        except ValueError:
+            tbs = None
+            data_inicio_dt = None
 
     run_input: Dict[str, Any] = {
         "queries": query,

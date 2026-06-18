@@ -167,8 +167,9 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "language": LANGUAGE,
         "reviewsSort": "newest",
         "personalData": False,
-        "reviewsStartDate": reviews_start_date,
     }
+    if reviews_start_date:  # None = fonte sem histórico → omite o filtro = backfill total
+        run_input["reviewsStartDate"] = reviews_start_date
     print(
         f"[google] fonte {fonte_id} ({place_id}) reviewsStartDate={reviews_start_date}, "
         f"cap={MAX_REVIEWS_PER_PLACE}"

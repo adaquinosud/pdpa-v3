@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime, timedelta
+from typing import Optional
 
 from sqlalchemy import func
 
@@ -27,21 +28,7 @@ from src.utils.db import db_session
 INCREMENTAL_BUFFER_DAYS = 7  # sobreposição para pegar reviews editados/republicados
 
 
-def _janela_meses() -> int:
-    """Janela padrão de coleta em meses, lida de env (fallback 15)."""
-    try:
-        return int(os.environ.get("PDPA_COLETA_JANELA_MESES", "15"))
-    except (TypeError, ValueError):
-        return 15
-
-
-# Alias compatível com código que importava DEFAULT_DESDE_MESES como constante.
-# Avaliação preguiçosa via property em módulo não é trivial; mantemos o
-# fallback de 15 acessível para imports legacy.
-DEFAULT_DESDE_MESES = 15
-
-
-def calcular_data_inicio_coleta(fonte_id: int) -> str:
+def calcular_data_inicio_coleta(fonte_id: int) -> Optional[str]:
     """Resolve a data inicial de coleta para uma Fonte (3 níveis de precedência).
 
     Precedência:
@@ -51,14 +38,16 @@ def calcular_data_inicio_coleta(fonte_id: int) -> str:
     2. ``MAX(Verbatim.data_criacao_original) WHERE fonte_id=?`` −
        ``INCREMENTAL_BUFFER_DAYS`` — incremental por fonte usando o
        schema v3 (sem JOIN, mais simples que o v2).
-    3. ``PDPA_COLETA_DESDE`` em env, ou fallback ``hoje − 15 meses``.
+    3. Sem histórico → ``None`` (o coletor OMITE o filtro de data e faz
+       backfill COMPLETO na 1ª coleta, até o cap ``maxItems`` do ator).
 
     Args:
         fonte_id: ID da Fonte para query incremental.
 
     Returns:
-        Data ISO (``YYYY-MM-DD``) compatível com parâmetros Apify
-        (``reviewsStartDate``, ``onlyPostsNewerThan``, etc.).
+        Data ISO (``YYYY-MM-DD``) para parâmetros Apify (``reviewsStartDate``,
+        ``onlyPostsNewerThan``, ``since``...), ou ``None`` quando a fonte não tem
+        histórico (backfill completo na primeira coleta).
     """
     override = os.environ.get("PDPA_COLETA_DESDE_OVERRIDE")
     if override:
@@ -82,7 +71,9 @@ def calcular_data_inicio_coleta(fonte_id: int) -> str:
         except (ValueError, TypeError):
             pass
 
-    default_env = os.environ.get("PDPA_COLETA_DESDE")
-    if default_env:
-        return default_env
-    return (date.today() - timedelta(days=_janela_meses() * 30)).isoformat()
+    # Sem histórico → None: o coletor OMITE o filtro de data e faz backfill
+    # COMPLETO na 1ª coleta (até o cap maxItems do ator). Antes caía em
+    # PDPA_COLETA_DESDE / hoje−15m — que limitava a profundidade histórica e, se
+    # um desses env estivesse setado, furava o backfill (bug fonte 317: env →
+    # 2026-06-10, só 8 dias). Override explícito p/ recoleta = PDPA_COLETA_DESDE_OVERRIDE.
+    return None
