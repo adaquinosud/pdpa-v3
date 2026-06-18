@@ -834,6 +834,28 @@ def _register_cli_commands(app: Flask) -> None:
                 f"{c['total_simbolos']} símbolos ({c['saem_de_pa1']} saem de Pa1)"
             )
 
+    # ── CP coletas-reaper: flask coletas-reaper (libera locks de coleta órfã) ──
+    from src.coletor.orquestrador import REAPER_LIMITE_SEGUNDOS
+
+    @app.cli.command("coletas-reaper")
+    @click.option(
+        "--limite-segundos",
+        type=int,
+        default=REAPER_LIMITE_SEGUNDOS,
+        show_default=True,
+        help="Idade mínima (s) p/ considerar órfã. 0 = reapa TODAS as 'rodando' já.",
+    )
+    def coletas_reaper(limite_segundos):
+        """Marca como 'erro' as ColetaExecucao presas em 'rodando' há mais que
+        --limite-segundos (libera o lock pra a fonte voltar a ser coletável).
+        Útil quando um deploy/restart mata a daemon-thread no meio da coleta e
+        deixa órfãs presas. Idempotente. ``--limite-segundos 0`` reapa todas na
+        hora (use só quando souber que não há coleta legítima em andamento)."""
+        from src.coletor.orquestrador import re_marca_orfas
+
+        n = re_marca_orfas(limite_segundos=limite_segundos)
+        click.echo(f"[coletas-reaper] limite={limite_segundos}s — {n} órfã(s) marcada(s) 'erro'")
+
     # ── CP local-no-prompt: flask reclassificar-tenant-rejection ──────
     @app.cli.command("reclassificar-tenant-rejection")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
