@@ -1,0 +1,95 @@
+{# Drawer lateral HTMX — detalhe de um quarter de um pilar (CP-quarter-detalhe). #}
+{# Inserido via hx-swap=beforeend; auto-remove no backdrop, no X ou em ESC. $0. #}
+<div id="quarter-drawer" class="fixed inset-0 z-50 flex justify-end" onclick="if(event.target===this) this.remove();">
+  <div class="absolute inset-0 bg-loyall-900/40"></div>
+  <aside class="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col"
+         role="dialog" aria-modal="true" aria-labelledby="quarter-drawer-titulo">
+    <header class="px-4 py-3 border-b border-loyall-200 flex items-center justify-between gap-3">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-loyall-400">{{ d.ano }} · {{ d.quarter_label }}</div>
+        <h2 id="quarter-drawer-titulo" class="text-lg font-semibold text-loyall-800">
+          {{ d.pilar_nome }} <span class="text-loyall-400">·</span> Ratio {{ '%.2f'|format(d.ratio) }}
+        </h2>
+      </div>
+      <button type="button" onclick="document.getElementById('quarter-drawer').remove()"
+              class="text-loyall-400 hover:text-loyall-700 text-2xl leading-none px-2"
+              aria-label="Fechar">×</button>
+    </header>
+
+    <div class="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+      {# 1. Variação vs quarter anterior #}
+      {% if d.variacao %}
+      <section>
+        <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Variação</div>
+        {% set delta = d.variacao.delta %}
+        <div class="text-sm {% if delta < 0 %}text-rose-700{% elif delta > 0 %}text-emerald-700{% else %}text-loyall-600{% endif %}">
+          {% if delta < 0 %}↓{% elif delta > 0 %}↑{% else %}→{% endif %}
+          {{ '%.2f'|format(delta|abs) }} <span class="text-loyall-500">vs {{ d.variacao.quarter_anterior }}</span>
+        </div>
+      </section>
+      {% endif %}
+
+      {# 2. Loja que mais impactou #}
+      {% if d.loja %}
+      <section>
+        <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Loja que mais impactou</div>
+        {% set lv = d.loja.variacao %}
+        <div class="text-sm text-loyall-800 font-medium">{{ d.loja.nome }}</div>
+        <div class="text-xs text-loyall-500">
+          ratio {{ '%.2f'|format(d.loja.ratio) }} ·
+          <span class="{% if lv < 0 %}text-rose-700{% elif lv > 0 %}text-emerald-700{% endif %}">
+            {% if lv < 0 %}↓{% elif lv > 0 %}↑{% else %}→{% endif %} {{ '%.2f'|format(lv|abs) }}
+          </span>
+        </div>
+      </section>
+      {% endif %}
+
+      {# 3. Tema dominante (detratores do pilar no período) #}
+      {% if d.tema %}
+      <section>
+        <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Tema dominante {{ glossario_i('tema') }}</div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm text-loyall-800 truncate">{{ d.tema.nome }}</span>
+          <span class="shrink-0 inline-block px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700"
+                title="{{ d.tema.volume }} verbatins detratores">{{ d.tema.volume }}</span>
+        </div>
+      </section>
+      {% endif %}
+
+      {# 4. Anomalia (severidade ≥ atenção) — omitida se não houver #}
+      {% if d.anomalia %}
+      <section>
+        <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Anomalia</div>
+        {% set sev = d.anomalia.severidade %}
+        <div class="flex items-center gap-2">
+          <span class="shrink-0 inline-block px-1.5 py-0.5 rounded text-[10px] uppercase font-bold
+                {% if sev == 'critico' %}bg-rose-100 text-rose-700{% else %}bg-amber-100 text-amber-800{% endif %}">{{ sev }}</span>
+          <span class="text-sm text-loyall-700 truncate">{{ d.anomalia.titulo }}</span>
+        </div>
+      </section>
+      {% endif %}
+
+      {% if not d.variacao and not d.loja and not d.tema and not d.anomalia %}
+      <div class="text-center text-loyall-400 italic text-sm py-8">
+        Sem detalhes adicionais para este período.
+      </div>
+      {% endif %}
+    </div>
+
+    <footer class="px-4 py-2 border-t border-loyall-200 text-xs text-loyall-500 flex items-center justify-end">
+      <button type="button" onclick="document.getElementById('quarter-drawer').remove()"
+              class="px-3 py-1 border border-loyall-200 hover:bg-loyall-100 rounded">Fechar</button>
+    </footer>
+  </aside>
+</div>
+<script>
+  (function() {
+    const onEsc = (e) => {
+      if (e.key === 'Escape') {
+        const el = document.getElementById('quarter-drawer');
+        if (el) { el.remove(); document.removeEventListener('keydown', onEsc); }
+      }
+    };
+    document.addEventListener('keydown', onEsc);
+  })();
+</script>

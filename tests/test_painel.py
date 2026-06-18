@@ -463,6 +463,157 @@ def test_historico_quarters_ultimos_4_e_ordem(client_loyall, db_session):
     assert qs == ["Q2", "Q3", "Q4", "Q1"]  # 4 últimos, antigo→recente
 
 
+# ── Drawer de detalhe de quarter (CP-quarter-detalhe) ────────────────────
+
+_QD_SEQ = [0]
+
+
+def _qd_seq():
+    _QD_SEQ[0] += 1
+    return str(_QD_SEQ[0])
+
+
+def _emp_2lojas(client_loyall):
+    e = client_loyall.post("/api/empresas/", json={"nome": f"EQD-{_qd_seq()}"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    locs = []
+    for nm in ("L1", "L2"):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais", json={"nome": nm, "agrupamento_id": a["id"]}
+        ).get_json()
+        f = client_loyall.post(
+            f"/api/locais/{loc['id']}/fontes",
+            json={"conector_tipo": "google", "url": f"ChIJ_{nm}_{_qd_seq()}"},
+        ).get_json()
+        locs.append((loc, f))
+    return e["id"], a["id"], locs
+
+
+def _anom(db_session, eid, lid, agid, subpilar, periodo, severidade):
+    from src.models.anomalia import AnomaliaDetectada
+
+    db_session.add(
+        AnomaliaDetectada(
+            empresa_id=eid,
+            local_id=lid,
+            agrupamento_id=agid,
+            subpilar=subpilar,
+            periodo=periodo,
+            severidade=severidade,
+            tipo="indicador",
+        )
+    )
+
+
+def _verb_tema(db_session, eid, lid, fid, subpilar, periodo_ym, tema_nome, n):
+    from datetime import datetime
+
+    from src.models.temas import Tema, VerbatimTema
+    from src.models.verbatim import Verbatim
+
+    slug = tema_nome.lower().replace(" ", "-")
+    tema = db_session.query(Tema).filter_by(empresa_id=eid, slug=slug).first()
+    if tema is None:
+        tema = Tema(empresa_id=eid, nome=tema_nome, slug=slug)
+        db_session.add(tema)
+        db_session.flush()
+    y, m = periodo_ym.split("-")
+    for _ in range(n):
+        v = Verbatim(
+            empresa_id=eid,
+            fonte_id=fid,
+            local_id=lid,
+            texto="x",
+            subpilar=subpilar,
+            tipo="detrator",
+            tem_texto=True,
+            data_criacao_original=datetime(int(y), int(m), 15),
+            hash_dedup=f"qd{_qd_seq()}",
+        )
+        db_session.add(v)
+        db_session.flush()
+        db_session.add(VerbatimTema(verbatim_id=v.id, tema_id=tema.id, confianca=0.9, origem="llm"))
+
+
+def test_quarter_detalhe_variacao_e_loja_mais_impactou(client_loyall, db_session):
+    from src.api.painel import quarter_detalhe_pilar
+
+    eid, agid, locs = _emp_2lojas(client_loyall)
+    (l1, _f1), (l2, _f2) = locs
+    # prev Q4/2025: ambas 1.0 (5/5)
+    _rm(db_session, eid, l1["id"], agid, "P1", "2025-11", 5, 5)
+    _rm(db_session, eid, l2["id"], agid, "P1", "2025-11", 5, 5)
+    # sel Q1/2026: L1 despenca (0.25, vol 10 → contrib -7.5); L2 sobe (1.5, contrib +5.0)
+    _rm(db_session, eid, l1["id"], agid, "P1", "2026-02", 2, 8)
+    _rm(db_session, eid, l2["id"], agid, "P1", "2026-02", 6, 4)
+    db_session.commit()
+
+    d = quarter_detalhe_pilar(db_session, eid, "P", 2026, 1)
+    # pilar P: sel 8/12=0.67, prev 10/10=1.0 → -0.33 vs Q4
+    assert d["variacao"]["quarter_anterior"] == "Q4"
+    assert d["variacao"]["delta"] == -0.33
+    # L1 impacta mais (|−7.5| > |+5.0|): ratio 0.25, variação −0.75
+    assert d["loja"]["nome"] == "L1"
+    assert d["loja"]["ratio"] == 0.25 and d["loja"]["variacao"] == -0.75
+
+
+def test_quarter_detalhe_primeiro_quarter_sem_variacao(client_loyall, db_session):
+    from src.api.painel import quarter_detalhe_pilar
+
+    eid, agid, locs = _emp_2lojas(client_loyall)
+    (l1, _f1), _ = locs
+    _rm(db_session, eid, l1["id"], agid, "P1", "2026-02", 3, 1)  # único quarter
+    db_session.commit()
+    d = quarter_detalhe_pilar(db_session, eid, "P", 2026, 1)
+    assert d["variacao"] is None and d["loja"] is None  # 1º quarter: omite ambos
+
+
+def test_quarter_detalhe_anomalia_presente_e_ausente(client_loyall, db_session):
+    from src.api.painel import quarter_detalhe_pilar
+
+    eid, agid, locs = _emp_2lojas(client_loyall)
+    (l1, _f1), _ = locs
+    _rm(db_session, eid, l1["id"], agid, "P1", "2025-11", 5, 5)
+    _rm(db_session, eid, l1["id"], agid, "P1", "2026-02", 2, 8)
+    db_session.commit()
+
+    assert quarter_detalhe_pilar(db_session, eid, "P", 2026, 1)["anomalia"] is None
+    _anom(db_session, eid, l1["id"], agid, "P1", "2026-02", "critico")
+    db_session.commit()
+    a = quarter_detalhe_pilar(db_session, eid, "P", 2026, 1)["anomalia"]
+    assert a["severidade"] == "critico" and "Calibração da Promessa" in a["titulo"]
+
+
+def test_quarter_detalhe_tema_dominante(client_loyall, db_session):
+    from src.api.painel import quarter_detalhe_pilar
+
+    eid, agid, locs = _emp_2lojas(client_loyall)
+    (l1, f1), _ = locs
+    _rm(db_session, eid, l1["id"], agid, "P1", "2025-11", 5, 5)
+    _rm(db_session, eid, l1["id"], agid, "P1", "2026-02", 2, 8)
+    _verb_tema(db_session, eid, l1["id"], f1["id"], "P1", "2026-02", "Atendimento lento", 4)
+    _verb_tema(db_session, eid, l1["id"], f1["id"], "P1", "2026-02", "Fila grande", 2)
+    db_session.commit()
+    d = quarter_detalhe_pilar(db_session, eid, "P", 2026, 1)
+    assert d["tema"]["nome"] == "Atendimento lento" and d["tema"]["volume"] == 4
+
+
+def test_quarter_detalhe_rota_200_e_404(client_loyall, db_session):
+    eid, agid, locs = _emp_2lojas(client_loyall)
+    (l1, _f1), _ = locs
+    _rm(db_session, eid, l1["id"], agid, "P1", "2025-11", 5, 5)
+    _rm(db_session, eid, l1["id"], agid, "P1", "2026-02", 2, 8)
+    db_session.commit()
+    base = f"/empresas/{eid}/explorar/painel/quarter-detalhe"
+    rv = client_loyall.get(f"{base}?pilar=P&quarter=2026Q1")
+    assert rv.status_code == 200
+    html = rv.get_data(as_text=True)
+    assert "quarter-drawer" in html and "vs Q4" in html
+    # quarter malformado e pilar inválido → 404
+    assert client_loyall.get(f"{base}?pilar=P&quarter=xx").status_code == 404
+    assert client_loyall.get(f"{base}?pilar=Z&quarter=2026Q1").status_code == 404
+
+
 def test_faixa_ratio_5_niveis():
     from src.api.painel import faixa_ratio
 

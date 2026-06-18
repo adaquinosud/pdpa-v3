@@ -202,10 +202,203 @@ def historico_quarters_pilares(s, empresa_id, ag_id=None, local_id=None, n=4):
         if len(ultimos) < 2:
             continue  # sem tendência
         out[pilar] = [
-            {"q": f"Q{quarter}", "ratio": calcular_ratio(prom, det)}
-            for (_ano, quarter, prom, det) in ultimos
+            {
+                "q": f"Q{quarter}",
+                "ano": ano,
+                "chave": f"{ano}Q{quarter}",  # p/ o hx-get do drawer de detalhe
+                "ratio": calcular_ratio(prom, det),
+            }
+            for (ano, quarter, prom, det) in ultimos
         ]
     return out
+
+
+def _subpilares_do_pilar(pilar: str) -> List[str]:
+    return [sp for sp in SUBPILARES_ORDEM if PILAR_DE_SUBPILAR.get(sp) == pilar]
+
+
+def _meses_do_quarter(ano: int, quarter: int) -> List[str]:
+    """['YYYY-MM', x3] dos meses do quarter (Q1=jan-mar … Q4=out-dez)."""
+    m0 = (quarter - 1) * 3 + 1
+    return [f"{ano}-{m:02d}" for m in (m0, m0 + 1, m0 + 2)]
+
+
+def _intervalo_quarter(ano: int, quarter: int):
+    """(date_inicio, date_fim_exclusivo) do quarter — p/ filtrar datetime."""
+    from datetime import date
+
+    m0 = (quarter - 1) * 3 + 1
+    ini = date(ano, m0, 1)
+    fim = date(ano + 1, 1, 1) if quarter == 4 else date(ano, m0 + 3, 1)
+    return ini, fim
+
+
+def _serie_quarters_pilar(s, empresa_id, pilar, ag_id, local_id):
+    """[(ano, quarter, Σprom, Σdet)] do pilar no escopo, ordenado crescente."""
+    from collections import defaultdict
+
+    from src.models.anomalia import RatioMensal
+
+    subs = _subpilares_do_pilar(pilar)
+    q = s.query(RatioMensal.periodo, RatioMensal.promotor, RatioMensal.detrator).filter(
+        RatioMensal.empresa_id == empresa_id, RatioMensal.subpilar.in_(subs)
+    )
+    if local_id is not None:
+        q = q.filter(RatioMensal.local_id == local_id)
+    elif ag_id is not None:
+        q = q.filter(RatioMensal.agrupamento_id == ag_id)
+    acc: Dict[Any, List[int]] = defaultdict(lambda: [0, 0])
+    for periodo, prom, det in q.all():
+        if not periodo:
+            continue
+        ano, quarter = _quarter_de(periodo)
+        acc[(ano, quarter)][0] += prom or 0
+        acc[(ano, quarter)][1] += det or 0
+    return sorted((ano, qu, pd[0], pd[1]) for (ano, qu), pd in acc.items())
+
+
+def _loja_mais_impactou(s, empresa_id, pilar, sel, prev, ag_id, local_id):
+    """Loja de maior contribuição (volume × variação de ratio) à variação do pilar
+    entre o quarter ``prev`` e ``sel`` (cada um ``(ano, quarter)``). Só lojas com
+    dado nos dois quarters. Retorna {nome, ratio, variacao} ou None."""
+    from collections import defaultdict
+
+    from src.models.anomalia import RatioMensal
+    from src.models.local import Local
+
+    subs = _subpilares_do_pilar(pilar)
+    meses_sel = set(_meses_do_quarter(*sel))
+    meses_prev = set(_meses_do_quarter(*prev))
+    q = s.query(
+        RatioMensal.local_id,
+        RatioMensal.periodo,
+        RatioMensal.promotor,
+        RatioMensal.detrator,
+    ).filter(
+        RatioMensal.empresa_id == empresa_id,
+        RatioMensal.subpilar.in_(subs),
+        RatioMensal.local_id.isnot(None),
+        RatioMensal.periodo.in_(meses_sel | meses_prev),
+    )
+    if local_id is not None:
+        q = q.filter(RatioMensal.local_id == local_id)
+    elif ag_id is not None:
+        q = q.filter(RatioMensal.agrupamento_id == ag_id)
+
+    sel_acc: Dict[int, List[int]] = defaultdict(lambda: [0, 0])
+    prev_acc: Dict[int, List[int]] = defaultdict(lambda: [0, 0])
+    for lid, periodo, prom, det in q.all():
+        alvo = sel_acc if periodo in meses_sel else prev_acc
+        alvo[lid][0] += prom or 0
+        alvo[lid][1] += det or 0
+
+    melhor = None  # (|contrib|, lid, ratio_sel, variacao)
+    for lid, (prom, det) in sel_acc.items():
+        if lid not in prev_acc:
+            continue  # precisa dos 2 quarters p/ ter variação
+        r_sel = calcular_ratio(prom, det)
+        r_prev = calcular_ratio(prev_acc[lid][0], prev_acc[lid][1])
+        contrib = (prom + det) * (r_sel - r_prev)  # volume × variação
+        if melhor is None or abs(contrib) > melhor[0]:
+            melhor = (abs(contrib), lid, r_sel, round(r_sel - r_prev, 2))
+    if melhor is None:
+        return None
+    _, lid, r_sel, var = melhor
+    loc = s.get(Local, lid)
+    return {"nome": loc.nome if loc else f"loja {lid}", "ratio": r_sel, "variacao": var}
+
+
+def _tema_dominante_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id):
+    """Tema mais frequente nos detratores do pilar no quarter (Verbatim×VerbatimTema
+    ×Tema por data). Retorna {nome, volume} ou None."""
+    from sqlalchemy import func as _func
+
+    from src.models.local import Local
+    from src.models.temas import Tema, VerbatimTema
+    from src.models.verbatim import Verbatim
+
+    subs = _subpilares_do_pilar(pilar)
+    ini, fim = _intervalo_quarter(ano, quarter)
+    q = (
+        s.query(Tema.nome, _func.count(Verbatim.id))
+        .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+        .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.subpilar.in_(subs),
+            Verbatim.tipo == "detrator",
+            Verbatim.data_criacao_original >= ini,
+            Verbatim.data_criacao_original < fim,
+        )
+    )
+    if local_id is not None:
+        q = q.filter(Verbatim.local_id == local_id)
+    elif ag_id is not None:
+        q = q.filter(Verbatim.local_id.in_(s.query(Local.id).filter(Local.agrupamento_id == ag_id)))
+    linha = q.group_by(Tema.nome).order_by(_func.count(Verbatim.id).desc()).first()
+    return {"nome": linha[0], "volume": int(linha[1])} if linha else None
+
+
+def _anomalia_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id):
+    """AnomaliaDetectada (severidade ≥ atenção) do pilar no quarter. crítico antes
+    de atenção. Retorna {titulo, severidade} ou None."""
+    from src.models.anomalia import AnomaliaDetectada
+    from src.models.local import Local
+
+    subs = _subpilares_do_pilar(pilar)
+    q = s.query(AnomaliaDetectada).filter(
+        AnomaliaDetectada.empresa_id == empresa_id,
+        AnomaliaDetectada.subpilar.in_(subs),
+        AnomaliaDetectada.periodo.in_(_meses_do_quarter(ano, quarter)),
+        AnomaliaDetectada.severidade.in_(("atencao", "critico")),
+    )
+    if local_id is not None:
+        q = q.filter(AnomaliaDetectada.local_id == local_id)
+    elif ag_id is not None:
+        q = q.filter(AnomaliaDetectada.agrupamento_id == ag_id)
+    rows = q.all()
+    if not rows:
+        return None
+    ordem = {"critico": 0, "atencao": 1}
+    a = min(rows, key=lambda x: (ordem.get(x.severidade, 9), x.periodo or ""))
+    nome_sub = NOME_SUBPILAR.get(a.subpilar, a.subpilar)
+    loc = s.get(Local, a.local_id) if a.local_id else None
+    titulo = f"{loc.nome} · {nome_sub}" if loc else nome_sub
+    return {"titulo": titulo, "severidade": a.severidade}
+
+
+def quarter_detalhe_pilar(s, empresa_id, pilar, ano, quarter, ag_id=None, local_id=None):
+    """Detalhe de um quarter de um pilar p/ o drawer (CP-quarter-detalhe), $0:
+    variação vs quarter anterior, loja que mais impactou, tema dominante e anomalia.
+    Retorna ``None`` se o quarter não tem dado no escopo."""
+    serie = _serie_quarters_pilar(s, empresa_id, pilar, ag_id, local_id)
+    idx = next((i for i, (a, qu, _, _) in enumerate(serie) if a == ano and qu == quarter), None)
+    if idx is None:
+        return None
+    _a, _qu, prom, det = serie[idx]
+    ratio = calcular_ratio(prom, det)
+
+    variacao = None
+    loja = None
+    if idx > 0:
+        pa, pqu, pprom, pdet = serie[idx - 1]
+        variacao = {
+            "delta": round(ratio - calcular_ratio(pprom, pdet), 2),
+            "quarter_anterior": f"Q{pqu}",
+        }
+        loja = _loja_mais_impactou(s, empresa_id, pilar, (ano, quarter), (pa, pqu), ag_id, local_id)
+
+    return {
+        "pilar": pilar,
+        "pilar_nome": NOME_PILAR.get(pilar, pilar),
+        "quarter_label": f"Q{quarter}",
+        "ano": ano,
+        "ratio": ratio,
+        "variacao": variacao,
+        "loja": loja,
+        "tema": _tema_dominante_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id),
+        "anomalia": _anomalia_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id),
+    }
 
 
 # Faixas operacionais do ratio — verdade única (ver docs/PROJETO_PDPA.md).

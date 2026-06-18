@@ -1514,6 +1514,43 @@ def painel_temas_modal(empresa_id: int):
     )
 
 
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/painel/quarter-detalhe", methods=["GET"])
+def painel_quarter_detalhe(empresa_id: int):
+    """Drawer HTMX (CP-quarter-detalhe): o que causou a variação do ratio de um
+    PILAR num quarter — variação vs anterior, loja que mais impactou, tema
+    dominante e anomalia. $0 (RatioMensal + Verbatim + AnomaliaDetectada). Mesma
+    rota/partial p/ Painel e Diagnóstico."""
+    import re as _re
+
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+
+    from src.api.painel import PILARES_ORDEM, quarter_detalhe_pilar
+
+    pilar = request.args.get("pilar", "")
+    if pilar not in PILARES_ORDEM:
+        return render_template("404.html"), 404
+    mq = _re.fullmatch(r"(\d{4})Q([1-4])", request.args.get("quarter", ""))
+    if not mq:
+        return render_template("404.html"), 404
+    ano, quarter = int(mq.group(1)), int(mq.group(2))
+
+    filtros, ag_id, _ = _explorar_filtros()
+    local_id = int(filtros["local_id"]) if filtros["local_id"].isdigit() else None
+
+    with db_session() as s:
+        d = quarter_detalhe_pilar(
+            s, empresa_id, pilar, ano, quarter, ag_id=ag_id, local_id=local_id
+        )
+    if d is None:
+        return render_template("404.html"), 404
+    return render_template("partials/painel_quarter_detalhe.html", d=d, empresa_id=empresa_id)
+
+
 @ui_bp.route("/admin/temas/<int:empresa_id>", methods=["GET"])
 @loyall_required_ui
 def admin_temas(empresa_id: int):
