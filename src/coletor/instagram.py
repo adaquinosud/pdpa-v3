@@ -17,9 +17,10 @@ Reaproveitado de ``pdpa-v2/coletor/instagram.py``. Adaptações vs v2:
   já filtra <3 chars, e a Cirurgia 4 (``sem_lastro``) trata textos sem
   ancoragem. Não duplica filtros.
 - Sem ThreadPoolExecutor, sem CLI standalone.
-- Caps default: ``MAX_POSTS_DEFAULT=50``, ``MAX_COMMENTS_PER_POST=30``
-  (~1500 comentários/perfil). Registrado em
-  ``docs/PENDENCIAS_TECNICAS.md`` como config futura por Fonte/Empresa.
+- Caps default: ``MAX_POSTS_DEFAULT=500``, ``MAX_COMMENTS_PER_POST=200``
+  (este último ~no-op hoje — o ator só devolve uma prévia de comentários por
+  post). Sized p/ completar dentro do timeout de fonte (45min). Config futura
+  por Fonte/Empresa registrada em ``docs/PENDENCIAS_TECNICAS.md``.
 - ``stats`` no padrão estabelecido em ``google.py``:
   ``{coletados, novos, duplicados, erros, falhou_apify}``.
 """
@@ -38,9 +39,15 @@ from src.models.fonte import Fonte
 # ── Constantes ───────────────────────────────────────────────────────────
 
 ATOR_APIFY = "apify/instagram-scraper"
-MAX_POSTS_DEFAULT = 50
-MAX_COMMENTS_PER_POST = 30
-APIFY_TIMEOUT_SECONDS = 900  # 15 min — IG scraping pode ser longo
+MAX_POSTS_DEFAULT = 500  # backfill: sized p/ COMPLETAR na janela de fonte (45min);
+# 1000+ arrisca não terminar → _wait_for_run aborta e devolve 0. Incremental
+# (onlyPostsNewerThan) preenche o resto nas coletas seguintes.
+MAX_COMMENTS_PER_POST = 200  # corta o array latestComments do ator; HOJE ~no-op
+# (o ator devolve só uma prévia ~12-24/post; sem param de profundidade no input).
+# Mantido alto à prova de futuro p/ quando ligarmos comment-depth / actor dedicado.
+# Teto p/ 2400 (40min) < TIMEOUT_FONTE_SEGUNDOS (2700/45min) de propósito: run longo
+# demais falha LIMPO (falhou_apify, run abortado) em vez de virar órfã marcada 'erro'.
+APIFY_TIMEOUT_SECONDS = 2400
 
 
 # ── Parsing de timestamps ────────────────────────────────────────────────
