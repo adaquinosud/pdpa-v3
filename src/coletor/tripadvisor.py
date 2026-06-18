@@ -28,7 +28,8 @@ from src.models.fonte import Fonte
 
 ATOR_APIFY = "agents/tripadvisor-reviews"
 MAX_REVIEWS_DEFAULT = 10_000
-APIFY_TIMEOUT_SECONDS = 900
+APIFY_TIMEOUT_SECONDS = 2400  # < TIMEOUT_FONTE_SEGUNDOS (2700): backfill grande (até
+# 10k reviews, sem since) falha LIMPO se estourar, em vez de virar órfã marcada 'erro'.
 
 
 def _parse_data(value: Any) -> Optional[datetime]:
