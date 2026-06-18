@@ -258,6 +258,11 @@
   </div>
   {% endfor %}
 </div>
+{# Aviso: o histórico por quarter ignora período/fonte (série temporal). Só quando
+   um desses filtros está ativo E há histórico em algum pilar. #}
+{% if (filtros.periodo or filtros.fonte_id) and (n1.pilares | selectattr('historico_quarters') | list) %}
+<div class="text-xs text-loyall-400 -mt-4 mb-6">↑ histórico exibe todos os quarters (ignora filtro de período/fonte)</div>
+{% endif %}
 
 {% set qs_outros = ['origem=painel'] %}
 {% if filtros.periodo %}{% set _ = qs_outros.append('periodo=' ~ filtros.periodo) %}{% endif %}

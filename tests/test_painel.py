@@ -614,6 +614,25 @@ def test_quarter_detalhe_rota_200_e_404(client_loyall, db_session):
     assert client_loyall.get(f"{base}?pilar=Z&quarter=2026Q1").status_code == 404
 
 
+def test_painel_aviso_historico_ignora_periodo_e_fonte(client_loyall, db_session):
+    eid, agid, locs = _emp_2lojas(client_loyall)
+    (l1, f1), _ = locs
+    # histórico (2 quarters) + verbatins recentes p/ o card P existir mesmo sob período
+    _rm(db_session, eid, l1["id"], agid, "P1", "2025-11", 5, 5)
+    _rm(db_session, eid, l1["id"], agid, "P1", "2026-06", 2, 8)
+    _verb_tema(db_session, eid, l1["id"], f1["id"], "P1", "2026-06", "T", 3)
+    db_session.commit()
+
+    aviso = "ignora filtro de período/fonte"
+    base = f"/empresas/{eid}/explorar?tab=painel"
+    # sem filtros → sem aviso
+    assert aviso not in client_loyall.get(base).get_data(as_text=True)
+    # período ativo → aviso
+    assert aviso in client_loyall.get(f"{base}&periodo=30d").get_data(as_text=True)
+    # fonte ativa → aviso
+    assert aviso in client_loyall.get(f"{base}&fonte_id={f1['id']}").get_data(as_text=True)
+
+
 def test_faixa_ratio_5_niveis():
     from src.api.painel import faixa_ratio
 
