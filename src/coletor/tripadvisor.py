@@ -106,8 +106,11 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     data_inicio = _parse_data(data_inicio_iso)
     # CP-C hotfix: agents/tripadvisor-reviews usa `maxItems` (não `maxReviews`),
     # `languages` array (não `language`), e `since` para filtro temporal.
+    # CP-fix-starturls: este ator espera startUrls = array de STRINGS (não a
+    # convenção padrão Apify [{"url": ...}]). Com o formato-objeto ele IGNORA a
+    # entrada e roda o exemplo prefixado do schema (hotéis em Nova York) → 0 verbatins.
     run_input: Dict[str, Any] = {
-        "startUrls": [{"url": url}],
+        "startUrls": [url],
         "maxItems": MAX_REVIEWS_DEFAULT,
         "languages": ["pt"],
     }
