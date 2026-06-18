@@ -27,7 +27,7 @@ from src.models.fonte import Fonte
 
 
 ATOR_APIFY = "agents/tripadvisor-reviews"
-MAX_REVIEWS_DEFAULT = 500
+MAX_REVIEWS_DEFAULT = 10_000
 APIFY_TIMEOUT_SECONDS = 900
 
 
