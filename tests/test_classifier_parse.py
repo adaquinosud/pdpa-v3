@@ -86,3 +86,19 @@ def test_parse_subpilar_invalido_levanta():
     raw = '{"subpilar": "INVALIDO", "tipo": "promotor", "confianca": 0.5}'
     with pytest.raises(ValueError, match="subpilar inválido"):
         _parse_response(raw)
+
+
+def test_parse_resposta_array_levanta_valueerror():
+    """Modelo às vezes devolve um array JSON em vez de objeto. Deve levantar
+    ValueError (capturável pelo reroll), não AttributeError de '.get' em list."""
+    raw = '[{"subpilar": "Pa1", "tipo": "promotor", "confianca": 0.9}]'
+    with pytest.raises(ValueError, match="não é um objeto JSON"):
+        _parse_response(raw)
+
+
+def test_parse_resposta_array_com_markdown_fence_levanta_valueerror():
+    """Array embrulhado em ```json — fence é removido, mas o conteúdo segue
+    sendo list → ValueError de formato (não AttributeError)."""
+    raw = '```json\n[{"subpilar": "Pa1", "tipo": "promotor", "confianca": 0.9}]\n```'
+    with pytest.raises(ValueError, match="não é um objeto JSON"):
+        _parse_response(raw)

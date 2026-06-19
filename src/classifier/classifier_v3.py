@@ -549,6 +549,16 @@ def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificac
         else:
             raise ValueError(f"Resposta do classificador não é JSON válido: {raw[:200]!r}") from exc
 
+    # Type-guard: o modelo às vezes devolve um array JSON (``[{...}]``) ou outro
+    # tipo não-objeto — ``json.loads`` aceita, mas ``.get`` abaixo estouraria
+    # AttributeError, que escapa do reroll (que só captura ValueError). Levanta
+    # ValueError aqui para que o reroll/escalada Sonnet tratem como erro de formato.
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Resposta do classificador não é um objeto JSON "
+            f"(tipo {type(data).__name__}): {raw[:200]!r}"
+        )
+
     subpilar = data.get("subpilar")
     if subpilar not in SUBPILARES_VALIDOS:
         raise ValueError(
