@@ -378,7 +378,7 @@ def _registrar_metrica(
         pass
 
 
-def _calcular_custo(usage, modelo: str) -> float:
+def _calcular_custo(usage, modelo: str, batch: bool = False) -> float:
     """Calcula custo USD da chamada a partir do ``usage`` do SDK.
 
     Args:
@@ -386,6 +386,8 @@ def _calcular_custo(usage, modelo: str) -> float:
             ``input_tokens``, ``output_tokens``,
             ``cache_creation_input_tokens``, ``cache_read_input_tokens``.
         modelo: ID do modelo, para consulta em ``PRICING_USD_PER_MTOK``.
+        batch: Se ``True``, aplica o desconto de 50% da Message Batches API
+            (Anthropic cobra metade do preço normal por item de batch).
 
     Returns:
         Custo total da chamada em USD. ``0.0`` se o modelo não está na
@@ -398,7 +400,8 @@ def _calcular_custo(usage, modelo: str) -> float:
     out = (getattr(usage, "output_tokens", 0) or 0) * p["output"] / 1_000_000
     cc = (getattr(usage, "cache_creation_input_tokens", 0) or 0) * p["cache_creation"] / 1_000_000
     cr = (getattr(usage, "cache_read_input_tokens", 0) or 0) * p["cache_read"] / 1_000_000
-    return inp + out + cc + cr
+    total = inp + out + cc + cr
+    return total * 0.5 if batch else total
 
 
 # ── Chamada Claude com retry exponencial ─────────────────────────────────
@@ -608,6 +611,47 @@ def _classificar_com_modelo(
     resultado = _parse_response(raw, modelo=modelo)
     custo = _calcular_custo(getattr(resp, "usage", None), modelo)
     return resultado, custo, latencia_ms
+
+
+def montar_params_classificacao(
+    texto: str,
+    modelo: str,
+    empresa_nome: Optional[str] = None,
+    empresa_setor: Optional[str] = None,
+    fonte_tipo: Optional[str] = None,
+    local_nome: Optional[str] = None,
+    local_tipo: Optional[str] = None,
+) -> dict:
+    """Monta os ``params`` de UMA request de classificação (Messages/Batches).
+
+    Reusa exatamente os builders do caminho serial (``_build_system_blocks`` +
+    ``_build_user_prompt``) e o mesmo truncamento (``MAX_TEXTO_CHARS``) — o batch
+    NÃO reescreve prompt. O ``system`` carrega o ``cache_control: ephemeral``,
+    então itens do mesmo setor compartilham o prefixo cacheado.
+
+    Returns:
+        Dict pronto para ``{"custom_id": ..., "params": <este dict>}`` no batch,
+        ou para ``client.messages.create(**<este dict>)`` no serial.
+    """
+    texto_truncado = texto[:MAX_TEXTO_CHARS] if len(texto) > MAX_TEXTO_CHARS else texto
+    return {
+        "model": modelo,
+        "max_tokens": MAX_TOKENS,
+        "system": _build_system_blocks(empresa_setor),
+        "messages": [
+            {
+                "role": "user",
+                "content": _build_user_prompt(
+                    texto=texto_truncado,
+                    empresa_nome=empresa_nome,
+                    empresa_setor=empresa_setor,
+                    fonte_tipo=fonte_tipo,
+                    local_nome=local_nome,
+                    local_tipo=local_tipo,
+                ),
+            }
+        ],
+    }
 
 
 # ── API pública ──────────────────────────────────────────────────────────

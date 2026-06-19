@@ -101,7 +101,27 @@ def contar_novos(empresa_id: int) -> int:
 def classificar_pendentes(
     empresa_id: int, limite: Optional[int] = None, chunk: int = 200
 ) -> Dict[str, int]:
-    """Classifica os verbatins pendentes (subpilar NULL) via classifier_v3.
+    """Classifica os verbatins pendentes (``subpilar NULL``) — dispatcher.
+
+    Por padrão usa o **Anthropic Message Batches API** (assíncrono, ~50% mais
+    barato, sem rate-limit por minuto). Com ``ANTHROPIC_BATCH_ENABLED=false``
+    cai no caminho **serial** atual (``_classificar_pendentes_serial``), idêntico
+    byte-a-byte — rollback sem deploy.
+
+    Assinatura e retorno (``{"classificados", "falhas"}``) inalterados — o
+    ``ResumoPosColeta`` e o ``flask pipeline-pos-coleta`` continuam funcionando.
+    """
+    import os
+
+    if os.getenv("ANTHROPIC_BATCH_ENABLED", "true").lower() == "true":
+        return _classificar_pendentes_batch(empresa_id, limite=limite, chunk=chunk)
+    return _classificar_pendentes_serial(empresa_id, limite=limite, chunk=chunk)
+
+
+def _classificar_pendentes_serial(
+    empresa_id: int, limite: Optional[int] = None, chunk: int = 200
+) -> Dict[str, int]:
+    """Caminho SERIAL (1 chamada ``classificar()`` por verbatim).
 
     Persiste ``subpilar/tipo/confianca/justificativa/prompt_versao``. Falha
     individual não aborta o lote (loga e segue).
@@ -188,6 +208,438 @@ def classificar_pendentes(
             # Commit a cada ``chunk`` → progresso parcial durável e retomável.
             if i % chunk == 0:
                 s.commit()
+    return stats
+
+
+# ── Caminho BATCH (Anthropic Message Batches API) ─────────────────────────
+
+
+def _batch_knobs() -> Dict[str, int]:
+    """Lê os knobs do batch de env (no momento da chamada → testável)."""
+    import os
+
+    return {
+        "poll_s": int(os.getenv("ANTHROPIC_BATCH_POLL_SECONDS", "30")),
+        "timeout_s": int(os.getenv("ANTHROPIC_BATCH_TIMEOUT_MIN", "120")) * 60,
+        "max_requests": int(os.getenv("ANTHROPIC_BATCH_MAX_REQUESTS", "10000")),
+        "pass2_serial_max": int(os.getenv("ANTHROPIC_BATCH_PASS2_SERIAL_MAX", "50")),
+    }
+
+
+def _carregar_contexto(s, empresa_id: int) -> Dict[str, Any]:
+    """Contexto de classificação (nome/setor + mapas fonte→tipo e local→nome)."""
+    from src.models.empresa import Empresa
+    from src.models.fonte import Fonte
+    from src.models.local import Local
+
+    emp = s.get(Empresa, empresa_id)
+    return {
+        "nome": emp.nome if emp else None,
+        "setor": emp.setor if emp else None,
+        "fontes": {f.id: f.conector_tipo for f in s.query(Fonte).filter_by(empresa_id=empresa_id)},
+        "locais": {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id)},
+    }
+
+
+def _aplicar_resultado(v, r) -> None:
+    """Grava um ``ResultadoClassificacao`` no verbatim."""
+    v.subpilar = r.subpilar
+    v.tipo = r.tipo
+    v.confianca = r.confianca
+    v.justificativa = r.justificativa
+    v.prompt_versao = r.prompt_versao
+
+
+def _marcar_terminal(v) -> None:
+    """Marca o verbatim como falha terminal (mesmo padrão do caminho serial)."""
+    v.subpilar = "sem_lastro"
+    v.tipo = "inativo"
+    v.confianca = 0.0
+    v.prompt_versao = MARCADOR_FALHA_CLASSIFICACAO
+
+
+def _texto_hash(texto: str) -> str:
+    import hashlib
+
+    from src.classifier.classifier_v3 import MAX_TEXTO_CHARS
+
+    return hashlib.sha1(texto[:MAX_TEXTO_CHARS].encode("utf-8")).hexdigest()[:16]
+
+
+def _marcar_batch_status(empresa_id: int, batch_id: str, status: str) -> None:
+    from src.models.classificacao_batch import ClassificacaoBatch
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        row = (
+            s.query(ClassificacaoBatch).filter_by(empresa_id=empresa_id, batch_id=batch_id).first()
+        )
+        if row is not None:
+            row.status = status
+
+
+def _submeter_batch(client, items, modelo: str, empresa_id: int, passe: int, ctx) -> str:
+    """Monta+submete um batch e PERSISTE o batch_id (status=submitted) antes de esperar.
+
+    ``items``: lista de ``(vid, texto, fonte_id, local_id)``.
+    """
+    from src.classifier.classifier_v3 import montar_params_classificacao
+    from src.models.classificacao_batch import ClassificacaoBatch
+    from src.utils.db import db_session
+
+    requests = [
+        {
+            "custom_id": str(vid),
+            "params": montar_params_classificacao(
+                texto,
+                modelo,
+                empresa_nome=ctx["nome"],
+                empresa_setor=ctx["setor"],
+                fonte_tipo=ctx["fontes"].get(fonte_id),
+                local_nome=ctx["locais"].get(local_id),
+            ),
+        }
+        for (vid, texto, fonte_id, local_id) in items
+    ]
+    batch = client.messages.batches.create(requests=requests)
+    with db_session() as s:
+        s.add(
+            ClassificacaoBatch(empresa_id=empresa_id, batch_id=batch.id, modelo=modelo, passe=passe)
+        )
+    return batch.id
+
+
+def _poll_batch(client, batch_id: str, knobs) -> bool:
+    """Faz polling até ``processing_status='ended'``. ``True``=ended, ``False``=timeout."""
+    import time
+
+    waited = 0
+    while True:
+        b = client.messages.batches.retrieve(batch_id)
+        if getattr(b, "processing_status", None) == "ended":
+            return True
+        if waited >= knobs["timeout_s"]:
+            return False
+        time.sleep(knobs["poll_s"])
+        waited += knobs["poll_s"]
+
+
+def _split(seq, n):
+    passo = max(1, n)
+    for i in range(0, len(seq), passo):
+        fim = i + passo
+        yield seq[i:fim]
+
+
+def _consumir_passe1(client, batch_id, empresa_id, stats, passe2, ctx, chunk) -> None:
+    """Lê os resultados do batch Haiku e aplica a classificação.
+
+    succeeded+parseável+confiança ok → salva. succeeded+baixa-confiança →
+    Passe 2 (escalada, retém o resultado Haiku). succeeded-mas-inválido →
+    Passe 2 (reroll). errored → Passe 2 (retry). expired/canceled/ausente →
+    deixa NULL (re-run reprocessa).
+    """
+    from src.classifier.classifier_v3 import (
+        HAIKU_MODEL,
+        _calcular_custo,
+        _obter_gasto_mensal_sonnet,
+        _parse_response,
+        _registrar_metrica,
+    )
+    from src.config import get_config
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    config = get_config()
+    threshold = float(getattr(config, "CLASSIFIER_ESCALATION_THRESHOLD", 0.6))
+    escalada_on = bool(getattr(config, "CLASSIFIER_ESCALATION_ENABLED", True))
+    budget = float(getattr(config, "CLASSIFIER_MONTHLY_BUDGET_USD", 50.0))
+    sem_orcamento = _obter_gasto_mensal_sonnet() >= budget  # passe 1 não gasta Sonnet → 1x
+
+    with db_session() as s:
+        n = 0
+        for entry in client.messages.batches.results(batch_id):
+            try:
+                vid = int(entry.custom_id)
+            except (TypeError, ValueError):
+                continue
+            v = s.get(Verbatim, vid)
+            if v is None or v.subpilar is not None:
+                continue  # idempotente: já classificado / sumiu
+            rtype = entry.result.type
+            base = {"vid": vid, "texto": v.texto, "fonte_id": v.fonte_id, "local_id": v.local_id}
+            if rtype == "succeeded":
+                msg = entry.result.message
+                custo = _calcular_custo(getattr(msg, "usage", None), HAIKU_MODEL, batch=True)
+                try:
+                    r = _parse_response(msg.content[0].text.strip(), modelo=HAIKU_MODEL)
+                except ValueError:
+                    passe2.append({**base, "motivo": "reroll", "haiku": None})
+                    continue
+                _registrar_metrica(
+                    HAIKU_MODEL, r.prompt_versao, r, False, None, custo, 0, _texto_hash(v.texto)
+                )
+                if (not escalada_on) or r.confianca >= threshold or sem_orcamento:
+                    _aplicar_resultado(v, r)
+                    stats["classificados"] += 1
+                else:
+                    passe2.append({**base, "motivo": "escalation", "haiku": r})
+            elif rtype == "errored":
+                passe2.append({**base, "motivo": "errored", "haiku": None})
+            else:
+                continue  # expired / canceled → NULL p/ retry
+            n += 1
+            if n % chunk == 0:
+                s.commit()
+
+
+def _processar_passe2(client, empresa_id, passe2, stats, knobs, ctx, chunk) -> None:
+    """Roteia o Passe 2: serial via ``classificar()`` (fila pequena) ou batch Sonnet."""
+    if len(passe2) <= knobs["pass2_serial_max"]:
+        _passe2_serial(empresa_id, passe2, stats, ctx, chunk)
+    else:
+        _passe2_batch_sonnet(client, empresa_id, passe2, stats, knobs, ctx, chunk)
+
+
+def _passe2_serial(empresa_id, passe2, stats, ctx, chunk) -> None:
+    """Fila pequena → ``classificar()`` por item (reusa reroll+escalada+orçamento+métrica)."""
+    from src.classifier.classifier_v3 import classificar
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        for i, it in enumerate(passe2, 1):
+            v = s.get(Verbatim, it["vid"])
+            if v is None or v.subpilar is not None:
+                continue
+            try:
+                r = classificar(
+                    texto=it["texto"],
+                    empresa_nome=ctx["nome"],
+                    empresa_setor=ctx["setor"],
+                    fonte_tipo=ctx["fontes"].get(it["fonte_id"]),
+                    local_nome=ctx["locais"].get(it["local_id"]),
+                )
+                _aplicar_resultado(v, r)
+                stats["classificados"] += 1
+            except ValueError as exc:
+                _marcar_terminal(v)
+                stats["falhas"] += 1
+                print(f"[pos-coleta] verbatim={v.id} MARCADO {MARCADOR_FALHA_CLASSIFICACAO}: {exc}")
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"[pos-coleta] verbatim={v.id} falha NÃO-terminal "
+                    f"(mantido na fila): {type(exc).__name__}: {exc}"
+                )
+                stats["falhas"] += 1
+            if i % chunk == 0:
+                s.commit()
+
+
+def _passe2_batch_sonnet(client, empresa_id, passe2, stats, knobs, ctx, chunk) -> None:
+    """Fila grande → batch Sonnet (orçamento-gated). Sem orçamento → sem Sonnet."""
+    from src.classifier.classifier_v3 import _obter_gasto_mensal_sonnet
+    from src.config import get_config
+
+    config = get_config()
+    budget = float(getattr(config, "CLASSIFIER_MONTHLY_BUDGET_USD", 50.0))
+    escalada_on = bool(getattr(config, "CLASSIFIER_ESCALATION_ENABLED", True))
+    sonnet = getattr(config, "CLASSIFIER_SONNET_MODEL", "claude-sonnet-4-5-20250929")
+
+    if (not escalada_on) or _obter_gasto_mensal_sonnet() >= budget:
+        _passe2_sem_sonnet(empresa_id, passe2, stats, chunk)
+        return
+
+    retidos = {it["vid"]: it for it in passe2}
+    for grupo in _split(passe2, knobs["max_requests"]):
+        items = [(it["vid"], it["texto"], it["fonte_id"], it["local_id"]) for it in grupo]
+        batch_id = _submeter_batch(client, items, sonnet, empresa_id, 2, ctx)
+        if not _poll_batch(client, batch_id, knobs):
+            _marcar_batch_status(empresa_id, batch_id, "timeout")
+            print(f"[pos-coleta] batch Sonnet {batch_id} timeout — NULL p/ retry")
+            return
+        _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos, sonnet)
+        _marcar_batch_status(empresa_id, batch_id, "processed")
+
+
+def _passe2_sem_sonnet(empresa_id, passe2, stats, chunk) -> None:
+    """Sem orçamento Sonnet: escalada mantém Haiku retido; reroll/errored vira terminal."""
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        for i, it in enumerate(passe2, 1):
+            v = s.get(Verbatim, it["vid"])
+            if v is None or v.subpilar is not None:
+                continue
+            if it.get("haiku") is not None:
+                _aplicar_resultado(v, it["haiku"])  # baixa-conf, orçamento estourado → fica Haiku
+                stats["classificados"] += 1
+            else:
+                _marcar_terminal(v)
+                stats["falhas"] += 1
+            if i % chunk == 0:
+                s.commit()
+
+
+def _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos, modelo) -> None:
+    """Lê resultados do batch Sonnet. succeeded+parse→salva(escalado); parse-fail→terminal;
+    errored→mantém Haiku retido se houver, senão NULL."""
+    from src.classifier.classifier_v3 import (
+        _calcular_custo,
+        _parse_response,
+        _registrar_metrica,
+    )
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        n = 0
+        for entry in client.messages.batches.results(batch_id):
+            try:
+                vid = int(entry.custom_id)
+            except (TypeError, ValueError):
+                continue
+            v = s.get(Verbatim, vid)
+            if v is None or v.subpilar is not None:
+                continue
+            rtype = entry.result.type
+            if rtype == "succeeded":
+                msg = entry.result.message
+                custo = _calcular_custo(getattr(msg, "usage", None), modelo, batch=True)
+                try:
+                    r = _parse_response(msg.content[0].text.strip(), modelo=modelo)
+                except ValueError:
+                    _marcar_terminal(v)
+                    stats["falhas"] += 1
+                    n += 1
+                    if n % chunk == 0:
+                        s.commit()
+                    continue
+                r.escalado = True
+                _registrar_metrica(
+                    modelo,
+                    r.prompt_versao,
+                    r,
+                    True,
+                    "confianca_baixa",
+                    custo,
+                    0,
+                    _texto_hash(v.texto),
+                )
+                _aplicar_resultado(v, r)
+                stats["classificados"] += 1
+            else:
+                # errored/expired/canceled: se era escalada (temos Haiku retido), fica Haiku;
+                # senão deixa NULL p/ retry.
+                ret = retidos.get(vid)
+                haiku = ret.get("haiku") if ret else None
+                if haiku is not None:
+                    _aplicar_resultado(v, haiku)
+                    stats["classificados"] += 1
+                else:
+                    continue
+            n += 1
+            if n % chunk == 0:
+                s.commit()
+
+
+def _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk) -> None:
+    """Reata batches ``submitted`` em aberto ANTES de submeter novos — evita
+    resubmissão (custo dobrado) quando o processo morreu durante o polling.
+
+    Só consome os que já estão ``ended``; os ainda em processamento ficam para
+    um próximo re-run (não bloqueia). Passe 1 reatado roda seu próprio Passe 2.
+    """
+    from src.models.classificacao_batch import ClassificacaoBatch
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        abertos = [
+            (r.batch_id, r.passe, r.modelo)
+            for r in s.query(ClassificacaoBatch).filter_by(
+                empresa_id=empresa_id, status="submitted"
+            )
+        ]
+    for batch_id, passe, modelo in abertos:
+        try:
+            b = client.messages.batches.retrieve(batch_id)
+            if getattr(b, "processing_status", None) != "ended":
+                continue
+            if passe == 1:
+                passe2: list = []
+                _consumir_passe1(client, batch_id, empresa_id, stats, passe2, ctx, chunk)
+                if passe2:
+                    _processar_passe2(client, empresa_id, passe2, stats, knobs, ctx, chunk)
+            else:
+                _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, {}, modelo)
+            _marcar_batch_status(empresa_id, batch_id, "processed")
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"[pos-coleta] reatamento do batch {batch_id} falhou: {type(exc).__name__}: {exc}"
+            )
+
+
+def _classificar_pendentes_batch(
+    empresa_id: int, limite: Optional[int] = None, chunk: int = 200
+) -> Dict[str, int]:
+    """Classifica os pendentes via Anthropic Message Batches API (2 passes).
+
+    Passe 1 = batch Haiku sobre todos os pendentes. Passe 2 (errored +
+    não-parseáveis + baixa-confiança) = serial via ``classificar()`` (fila
+    pequena) ou batch Sonnet (fila grande). Reata batches em aberto antes de
+    submeter. Timeout persiste o batch_id e sai deixando NULL p/ retry.
+    """
+    from src.classifier.classifier_v3 import HAIKU_MODEL, _get_client
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    stats = {"classificados": 0, "falhas": 0}
+    knobs = _batch_knobs()
+    client = _get_client()
+
+    with db_session() as s:
+        ctx = _carregar_contexto(s, empresa_id)
+
+    # 1. Reata batches em aberto (morte de processo anterior) antes de submeter.
+    _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk)
+
+    # 2. Carrega pendentes (após o reatamento, que pode ter classificado parte).
+    with db_session() as s:
+        q = s.query(Verbatim).filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.tem_texto.is_(True),
+            Verbatim.subpilar.is_(None),
+        )
+        if limite:
+            q = q.limit(limite)
+        pend = [(v.id, v.texto, v.fonte_id, v.local_id) for v in q.all()]
+
+    if not pend:
+        return stats
+
+    # 3. Passe 1 — batch Haiku (split por ANTHROPIC_BATCH_MAX_REQUESTS).
+    passe2: list = []
+    for grupo in _split(pend, knobs["max_requests"]):
+        try:
+            batch_id = _submeter_batch(client, grupo, HAIKU_MODEL, empresa_id, 1, ctx)
+            if not _poll_batch(client, batch_id, knobs):
+                _marcar_batch_status(empresa_id, batch_id, "timeout")
+                print(
+                    f"[pos-coleta] batch Haiku {batch_id} timeout "
+                    f"({knobs['timeout_s']}s) — batch_id persistido, NULL p/ retry"
+                )
+                return stats
+            _consumir_passe1(client, batch_id, empresa_id, stats, passe2, ctx, chunk)
+            _marcar_batch_status(empresa_id, batch_id, "processed")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[pos-coleta] batch Haiku falhou: {type(exc).__name__}: {exc} — NULL p/ retry")
+            return stats
+
+    # 4. Passe 2 — escalada/reroll.
+    if passe2:
+        _processar_passe2(client, empresa_id, passe2, stats, knobs, ctx, chunk)
+
     return stats
 
 

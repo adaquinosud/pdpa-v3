@@ -83,6 +83,7 @@ PLANO: list[tuple[str, str, str]] = [
     ("governança: previsibilidade", "previsibilidade_calculations", _DIRETO),
     ("governança: gini", "gini_concentracao", _DIRETO),
     ("execuções de coleta", "coletas_execucoes", _DIRETO),
+    ("batches de classificação", "classificacao_batches", _DIRETO),
     ("verbatins", "verbatins", _DIRETO),
 ]
 

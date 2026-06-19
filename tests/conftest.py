@@ -31,6 +31,13 @@ import src.models  # noqa: F401  registra Base.metadata
 import src.utils.db  # noqa: F401  registra PRAGMA foreign_keys listener
 from src.models.base import Base
 
+# Por padrão, a suíte exercita o caminho SERIAL de classificar_pendentes (que os
+# testes mockam via `classificar`). O caminho batch (Anthropic Message Batches API,
+# default em prod) é testado explicitamente em test_batch_classificar.py, que faz
+# monkeypatch.setenv("ANTHROPIC_BATCH_ENABLED", "true") + mocka o client. `setdefault`
+# respeita a env se já estiver setada no ambiente.
+os.environ.setdefault("ANTHROPIC_BATCH_ENABLED", "false")
+
 
 @pytest.fixture(scope="session")
 def _pg_engine() -> Iterator[Optional[Engine]]:
