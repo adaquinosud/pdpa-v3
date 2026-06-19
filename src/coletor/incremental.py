@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime, timedelta
-from typing import Optional
 
 from sqlalchemy import func
 
@@ -26,9 +25,10 @@ from src.utils.db import db_session
 
 
 INCREMENTAL_BUFFER_DAYS = 7  # sobreposição para pegar reviews editados/republicados
+COLETA_JANELA_MESES = 15  # janela padrão de backfill p/ fonte sem histórico
 
 
-def calcular_data_inicio_coleta(fonte_id: int) -> Optional[str]:
+def calcular_data_inicio_coleta(fonte_id: int) -> str:
     """Resolve a data inicial de coleta para uma Fonte (3 níveis de precedência).
 
     Precedência:
@@ -38,16 +38,16 @@ def calcular_data_inicio_coleta(fonte_id: int) -> Optional[str]:
     2. ``MAX(Verbatim.data_criacao_original) WHERE fonte_id=?`` −
        ``INCREMENTAL_BUFFER_DAYS`` — incremental por fonte usando o
        schema v3 (sem JOIN, mais simples que o v2).
-    3. Sem histórico → ``None`` (o coletor OMITE o filtro de data e faz
-       backfill COMPLETO na 1ª coleta, até o cap ``maxItems`` do ator).
+    3. Sem histórico → ``hoje − COLETA_JANELA_MESES`` (janela padrão do
+       sistema, 15 meses).
 
     Args:
         fonte_id: ID da Fonte para query incremental.
 
     Returns:
         Data ISO (``YYYY-MM-DD``) para parâmetros Apify (``reviewsStartDate``,
-        ``onlyPostsNewerThan``, ``since``...), ou ``None`` quando a fonte não tem
-        histórico (backfill completo na primeira coleta).
+        ``onlyPostsNewerThan``, ``since``...). Sempre uma string — fonte sem
+        histórico cai na janela padrão (``hoje − 15 meses``).
     """
     override = os.environ.get("PDPA_COLETA_DESDE_OVERRIDE")
     if override:
@@ -71,9 +71,6 @@ def calcular_data_inicio_coleta(fonte_id: int) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
-    # Sem histórico → None: o coletor OMITE o filtro de data e faz backfill
-    # COMPLETO na 1ª coleta (até o cap maxItems do ator). Antes caía em
-    # PDPA_COLETA_DESDE / hoje−15m — que limitava a profundidade histórica e, se
-    # um desses env estivesse setado, furava o backfill (bug fonte 317: env →
-    # 2026-06-10, só 8 dias). Override explícito p/ recoleta = PDPA_COLETA_DESDE_OVERRIDE.
-    return None
+    # Sem histórico → hoje − 15 meses (janela padrão do sistema). Override
+    # explícito p/ recoleta = PDPA_COLETA_DESDE_OVERRIDE.
+    return (date.today() - timedelta(days=COLETA_JANELA_MESES * 30)).isoformat()

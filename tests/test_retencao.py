@@ -134,15 +134,16 @@ def test_retencao_zero_afetados(app, db_session, client_loyall):
 # ── calcular_data_inicio_coleta (CP-backfill-inicial) ───────────────────
 
 
-def test_calcular_data_inicio_sem_historico_retorna_none(monkeypatch, db_session, client_loyall):
-    """Fonte sem histórico → None (coletor omite o filtro → backfill completo na
-    1ª coleta). Antes caía em hoje−15m/PDPA_COLETA_DESDE (limitava o histórico)."""
-    from src.coletor.incremental import calcular_data_inicio_coleta
+def test_calcular_data_inicio_sem_historico_janela_padrao(monkeypatch, db_session, client_loyall):
+    """Fonte sem histórico → hoje − 15 meses (janela padrão do sistema)."""
+    from datetime import date, timedelta
+
+    from src.coletor.incremental import COLETA_JANELA_MESES, calcular_data_inicio_coleta
 
     monkeypatch.delenv("PDPA_COLETA_DESDE_OVERRIDE", raising=False)
-    monkeypatch.delenv("PDPA_COLETA_DESDE", raising=False)
     _emp_id, fonte_id = _setup_fonte(client_loyall)
-    assert calcular_data_inicio_coleta(fonte_id) is None
+    esperado = (date.today() - timedelta(days=COLETA_JANELA_MESES * 30)).isoformat()
+    assert calcular_data_inicio_coleta(fonte_id) == esperado
 
 
 def test_calcular_data_inicio_override_forca_data(monkeypatch, db_session, client_loyall):

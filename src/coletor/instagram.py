@@ -171,7 +171,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         # interpretado como #bhairport (vazio). Precisa user para perfil.
         "searchType": "user",
     }
-    if data_inicio:  # None = fonte sem histórico → omite o filtro = backfill total
+    if data_inicio:  # guard defensivo: calcular_data_inicio_coleta sempre devolve data
         run_input["onlyPostsNewerThan"] = data_inicio
     print(
         f"[instagram] fonte {fonte_id} (@{username}) onlyPostsNewerThan={data_inicio}, "

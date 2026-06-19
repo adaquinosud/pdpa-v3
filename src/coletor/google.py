@@ -19,7 +19,7 @@ Reaproveitado de ``pdpa-v2/coletor/google.py``. Adaptações vs v2:
   1. env ``PDPA_COLETA_DESDE_OVERRIDE`` (teste/diagnóstico).
   2. ``MAX(verbatins.data_criacao_original) WHERE fonte_id=?`` − 7 dias
      (incremental por fonte, query do schema v3).
-  3. env ``PDPA_COLETA_DESDE`` ou fallback ``hoje − 15 meses``.
+  3. fallback ``hoje − 15 meses`` (janela padrão do sistema).
 
 - Para cada review do Apify, delega ao
   ``src.coletor.pipeline.processar_verbatim_coletado``: pipeline
@@ -168,7 +168,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "reviewsSort": "newest",
         "personalData": False,
     }
-    if reviews_start_date:  # None = fonte sem histórico → omite o filtro = backfill total
+    if reviews_start_date:  # guard defensivo: calcular_data_inicio_coleta sempre devolve data
         run_input["reviewsStartDate"] = reviews_start_date
     print(
         f"[google] fonte {fonte_id} ({place_id}) reviewsStartDate={reviews_start_date}, "
