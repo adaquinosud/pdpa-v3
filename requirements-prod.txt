@@ -13,7 +13,7 @@ alembic==1.13.1
 psycopg[binary]==3.3.4  # driver Postgres (prod); embute a libpq
 
 # LLM
-anthropic==0.18.0
+anthropic>=0.39,<1.0  # >=0.39: Message Batches API (client.messages.batches) + prompt-caching GA
 openai==1.12.0  # apenas para embeddings
 
 # Coleta
