@@ -107,17 +107,12 @@ def fonte_t(client_loyall, db_session):
     return _carregar_fonte(db_session, fonte_id)
 
 
-def test_ratings_only_persiste_sem_chamar_classifier(fonte_t, db_session, monkeypatch):
-    """Review sem texto + rating=5 → persiste sem chamar Anthropic."""
-    # Mock para garantir que classifier NÃO é chamado em ratings-only.
-    chamadas = []
+def test_ratings_only_persiste_sem_chamar_classifier(fonte_t, db_session):
+    """Review sem texto + rating=5 → persiste via heurística (sem LLM).
 
-    def fake_classify(**kwargs):  # pragma: no cover
-        chamadas.append(kwargs)
-        raise AssertionError("classifier não deveria ser chamado em ratings-only")
-
-    monkeypatch.setattr("src.coletor.pipeline.classificar", fake_classify)
-
+    A coleta não classifica via LLM inline (nem ratings-only nem texto):
+    o caminho ratings-only usa só a heurística determinística por nota.
+    """
     v = processar_verbatim_coletado(
         texto="",
         fonte=fonte_t,
@@ -132,7 +127,6 @@ def test_ratings_only_persiste_sem_chamar_classifier(fonte_t, db_session, monkey
     assert v.confianca == 0.4
     assert v.justificativa == "Avaliação 5 estrelas sem texto"
     assert v.prompt_versao == "rating-heuristica-v1"
-    assert chamadas == []  # classifier nunca foi chamado
 
 
 @pytest.mark.parametrize(
@@ -146,11 +140,7 @@ def test_ratings_only_persiste_sem_chamar_classifier(fonte_t, db_session, monkey
         (1, "Pa1", "detrator"),
     ],
 )
-def test_ratings_only_classificacao_por_rating(rating, sp, tp, fonte_t, db_session, monkeypatch):
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: (_ for _ in ()).throw(AssertionError("nao chamar")),
-    )
+def test_ratings_only_classificacao_por_rating(rating, sp, tp, fonte_t, db_session):
     v = processar_verbatim_coletado(
         texto="",
         fonte=fonte_t,
@@ -177,21 +167,7 @@ def test_sem_texto_rating_invalido_descartado(fonte_t):
 # ── pipeline: dedup por review_id_externo ───────────────────────────────
 
 
-def test_dedup_por_review_id_externo(fonte_t, db_session, monkeypatch):
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: type(
-            "R",
-            (),
-            {
-                "subpilar": "Pa1",
-                "tipo": "promotor",
-                "confianca": 0.9,
-                "justificativa": "ok",
-                "prompt_versao": "v3.0",
-            },
-        )(),
-    )
+def test_dedup_por_review_id_externo(fonte_t, db_session):
     v1 = processar_verbatim_coletado(
         texto="Texto 1",
         fonte=fonte_t,
@@ -211,37 +187,19 @@ def test_dedup_por_review_id_externo(fonte_t, db_session, monkeypatch):
     assert db_session.query(Verbatim).filter_by(review_id_externo="rev_dup_1").count() == 1
 
 
-def test_dedup_legacy_hash_quando_sem_review_id(fonte_t, db_session, monkeypatch):
+def test_dedup_legacy_hash_quando_sem_review_id(fonte_t, db_session):
     """Sem review_id_externo, dedup cai no hash legacy (texto[:200] + autor)."""
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: type(
-            "R",
-            (),
-            {
-                "subpilar": "Pa1",
-                "tipo": "promotor",
-                "confianca": 0.9,
-                "justificativa": "ok",
-                "prompt_versao": "v3.0",
-            },
-        )(),
-    )
     v1 = processar_verbatim_coletado(texto="MESMO TEXTO", fonte=fonte_t, autor=None)
     assert v1 is not None
     v2 = processar_verbatim_coletado(texto="MESMO TEXTO", fonte=fonte_t, autor=None)
     assert v2 is None  # dedup por hash
 
 
-def test_ratings_only_multiplos_autores_none_nao_colide_hash(fonte_t, db_session, monkeypatch):
+def test_ratings_only_multiplos_autores_none_nao_colide_hash(fonte_t, db_session):
     """REGRESSÃO: 2 ratings-only com autor=None mas review_id diferente devem
     persistir (não colidir na UNIQUE constraint empresa_id+hash_dedup).
 
     Era o bug que rejeitava 1097 dos 1099 sem-texto do Confins."""
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: (_ for _ in ()).throw(AssertionError("nao chamar")),
-    )
     v1 = processar_verbatim_coletado(
         texto="",
         fonte=fonte_t,
@@ -261,12 +219,8 @@ def test_ratings_only_multiplos_autores_none_nao_colide_hash(fonte_t, db_session
     assert v1.hash_dedup != v2.hash_dedup  # hashes únicos
 
 
-def test_ratings_only_dedup_por_review_id_quando_repetido(fonte_t, db_session, monkeypatch):
+def test_ratings_only_dedup_por_review_id_quando_repetido(fonte_t, db_session):
     """Ratings-only com mesmo review_id_externo → dedup."""
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: (_ for _ in ()).throw(AssertionError("nao chamar")),
-    )
     v1 = processar_verbatim_coletado(
         texto="", fonte=fonte_t, rating=5, review_id_externo="rev_ro_dup"
     )
@@ -280,24 +234,10 @@ def test_ratings_only_dedup_por_review_id_quando_repetido(fonte_t, db_session, m
 # ── CP-E2: dedup com texto curto + autor None + reviewIds distintos ─────
 
 
-def test_texto_curto_anonimo_com_review_ids_distintos_nao_colide(fonte_t, db_session, monkeypatch):
+def test_texto_curto_anonimo_com_review_ids_distintos_nao_colide(fonte_t, db_session):
     """REGRESSÃO CP-E2: 'Excelente atendimento' aparece 6× no Apify com autor=None
     e reviewIds distintos. Antes do fix, todos colidiam no hash legacy
     SHA-256(fonte|None|'Excelente atendimento') e só o primeiro persistia."""
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: type(
-            "R",
-            (),
-            {
-                "subpilar": "Pa1",
-                "tipo": "promotor",
-                "confianca": 0.9,
-                "justificativa": "ok",
-                "prompt_versao": "v3.0",
-            },
-        )(),
-    )
     verbatins = []
     for i, rid in enumerate(["rid_A", "rid_B", "rid_C", "rid_D", "rid_E", "rid_F"]):
         v = processar_verbatim_coletado(
@@ -314,27 +254,13 @@ def test_texto_curto_anonimo_com_review_ids_distintos_nao_colide(fonte_t, db_ses
     assert len(hashes) == 6, f"Esperado 6 hashes únicos, obtido {len(hashes)}"
 
 
-def test_cleanup_retroativo_remove_legacy_correspondente(fonte_t, db_session, monkeypatch):
+def test_cleanup_retroativo_remove_legacy_correspondente(fonte_t, db_session):
     """CP-E2: ao persistir verbatim novo com reviewId, varre e remove UM
     verbatim legacy (sem reviewId) com mesmo texto+autor da mesma fonte.
 
     Cenário: carga inicial trouxe 'Top' autor=None SEM reviewId; recoleta
     posterior traz 'Top' autor=None reviewId=X. O legacy é removido em
     favor do novo (que é o mesmo review no mundo real, agora autoritativo)."""
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: type(
-            "R",
-            (),
-            {
-                "subpilar": "Pa1",
-                "tipo": "promotor",
-                "confianca": 0.9,
-                "justificativa": "ok",
-                "prompt_versao": "v3.0",
-            },
-        )(),
-    )
     legacy = processar_verbatim_coletado(texto="Top", fonte=fonte_t, autor=None)
     assert legacy is not None
     assert legacy.review_id_externo is None
@@ -353,24 +279,8 @@ def test_cleanup_retroativo_remove_legacy_correspondente(fonte_t, db_session, mo
     assert db_session.query(Verbatim).filter_by(id=legacy_id).first() is None
 
 
-def test_cleanup_retroativo_nao_remove_legacy_quando_texto_diverge(
-    fonte_t, db_session, monkeypatch
-):
+def test_cleanup_retroativo_nao_remove_legacy_quando_texto_diverge(fonte_t, db_session):
     """Se o legacy tem texto diferente, NÃO é removido pelo cleanup."""
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: type(
-            "R",
-            (),
-            {
-                "subpilar": "Pa1",
-                "tipo": "promotor",
-                "confianca": 0.9,
-                "justificativa": "ok",
-                "prompt_versao": "v3.0",
-            },
-        )(),
-    )
     legacy = processar_verbatim_coletado(texto="Outro texto qualquer", fonte=fonte_t, autor=None)
     novo = processar_verbatim_coletado(
         texto="Top",
@@ -385,24 +295,10 @@ def test_cleanup_retroativo_nao_remove_legacy_quando_texto_diverge(
     assert db_session.query(Verbatim).filter_by(id=novo.id).first() is not None
 
 
-def test_cleanup_retroativo_so_remove_um_legacy_por_chamada(fonte_t, db_session, monkeypatch):
+def test_cleanup_retroativo_so_remove_um_legacy_por_chamada(fonte_t, db_session):
     """Se houver vários legacy com mesmo texto+autor (não deveria, mas defensivo),
     o cleanup remove apenas UM por chamada — os outros permanecem para serem
     removidos por chamadas subsequentes."""
-    monkeypatch.setattr(
-        "src.coletor.pipeline.classificar",
-        lambda **k: type(
-            "R",
-            (),
-            {
-                "subpilar": "Pa1",
-                "tipo": "promotor",
-                "confianca": 0.9,
-                "justificativa": "ok",
-                "prompt_versao": "v3.0",
-            },
-        )(),
-    )
     # Cria 2 legacy diretamente no banco (bypassando o pipeline normal,
     # já que com o dedup atual não daria 2 com mesmo hash)
     from src.coletor.pipeline import computar_hash_dedup

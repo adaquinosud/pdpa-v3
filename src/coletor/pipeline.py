@@ -1,7 +1,11 @@
 """Pipeline determinístico de coleta — PDPA v3.
 
-Princípio: a coleta é determinística e o classificador é o último passo
-da pipeline.
+Princípio: a coleta é determinística e instantânea. A classificação
+(Haiku/Sonnet) NÃO roda inline aqui — fica para o pós-coleta
+(``classificar_pendentes``), que varre os verbatins com texto e
+``subpilar IS NULL``. Espelha o importador Excel (``src/coletor/excel.py``):
+tirar o LLM do caminho da coleta deixa a coleta barata e idempotente, e um
+deploy que mata a thread em andamento não perde classificações já gastas.
 
 Etapas de ``processar_verbatim_coletado``:
 
@@ -13,16 +17,13 @@ Etapas de ``processar_verbatim_coletado``:
 3. Calcula hash de deduplicação no escopo da empresa
    (``SHA-256(fonte_id|autor|texto[:200])``).
 4. Se já existir verbatim com mesmo hash na empresa → retorna ``None``.
-5. Classifica via ``classificar()`` propagando hints contextuais
-   (``empresa_nome``, ``empresa_setor``, ``fonte_tipo``).
-   - Truncamento defesa-em-profundidade: pipeline trunca em 4000 chars
-     antes de chamar classificar(), e classificar() trunca de novo por
-     garantia.
-6. Se classificar() falhar (qualquer exceção) → persiste o ``Verbatim``
-   sem classificação (``subpilar=None``, ``tipo=None``) e segue.
-7. Persiste o ``Verbatim`` com o **texto íntegro** (sem truncar). O
-   truncamento só vale para a chamada de classificação.
-8. Retorna o ``Verbatim`` persistido (detached do session via
+5. Classificação:
+   - Verbatim COM texto: persiste com ``subpilar=None`` — o pós-coleta
+     (``classificar_pendentes``) classifica via LLM.
+   - Verbatim ratings-only (sem texto + nota): heurística inline por
+     rating (``RATING_PARA_CLASSIFICACAO``), sem token gasto, instantânea.
+6. Persiste o ``Verbatim`` com o **texto íntegro** (sem truncar).
+7. Retorna o ``Verbatim`` persistido (detached do session via
    ``expunge``, com atributos primitivos acessíveis).
 
 Note:
@@ -38,15 +39,12 @@ import hashlib
 from datetime import datetime
 from typing import Optional
 
-from src.classifier.classifier_v3 import classificar
-from src.models.empresa import Empresa
 from src.models.fonte import Fonte
 from src.models.verbatim import Verbatim
 from src.utils.db import db_session
 
 
 MIN_CHARS_PARA_PROCESSAR = 3
-MAX_TEXTO_CHARS_CLASSIFIER = 4000  # defesa em profundidade; classifier trunca igual
 
 
 # CP-D3: classificação automática de reviews ratings-only (sem texto).
@@ -89,7 +87,10 @@ def processar_verbatim_coletado(
     rating: Optional[int] = None,
     review_id_externo: Optional[str] = None,
 ) -> Optional[Verbatim]:
-    """Processa um verbatim recém-coletado: dedup, classifica e persiste.
+    """Processa um verbatim recém-coletado: dedup e persiste (sem LLM).
+
+    Verbatim COM texto entra com ``subpilar=None`` — a classificação LLM
+    fica para o pós-coleta (``classificar_pendentes``).
 
     CP-D3: aceita reviews ratings-only (texto vazio + rating). Quando
     o texto está vazio E há rating, classifica via heurística de rating
@@ -131,7 +132,6 @@ def processar_verbatim_coletado(
     # Cache de atributos da fonte ANTES de abrir nova sessão.
     fonte_id = fonte.id
     empresa_id = fonte.empresa_id
-    fonte_conector_tipo = fonte.conector_tipo
     fonte_entidade_tipo = fonte.entidade_tipo
     fonte_entidade_id = fonte.entidade_id
 
@@ -177,52 +177,17 @@ def processar_verbatim_coletado(
             if ja_hash is not None:
                 return None
 
-        # 4. Resolve empresa para hints contextuais
-        empresa = session.get(Empresa, empresa_id)
-        empresa_nome = empresa.nome if empresa is not None else None
-        empresa_setor = empresa.setor if empresa is not None else None
-        # CP local-no-prompt: nome do local (loja-tenant) p/ o classificador não
-        # descartar review de loja como sem_lastro em empresa multi-tenant.
-        local_nome = None
-        if local_id is not None:
-            from src.models.local import Local
-
-            _loc = session.get(Local, local_id)
-            local_nome = _loc.nome if _loc is not None else None
-
-        # 5. Classifica
+        # 4. Classificação (sem LLM inline; espelha o importador Excel):
+        #    - COM texto: subpilar fica NULL; o pós-coleta (classificar_pendentes)
+        #      classifica via LLM. Tira o Haiku do caminho da coleta.
+        #    - ratings-only (sem texto + nota): heurística por rating, instantânea.
         subpilar: Optional[str] = None
         tipo: Optional[str] = None
         confianca: Optional[float] = None
         justificativa: Optional[str] = None
         prompt_versao: Optional[str] = None
 
-        if tem_texto:
-            # Caminho normal: chama Anthropic com texto truncado
-            texto_para_classificar = (
-                texto_normalizado[:MAX_TEXTO_CHARS_CLASSIFIER]
-                if len(texto_normalizado) > MAX_TEXTO_CHARS_CLASSIFIER
-                else texto_normalizado
-            )
-            try:
-                resultado = classificar(
-                    texto=texto_para_classificar,
-                    empresa_nome=empresa_nome,
-                    empresa_setor=empresa_setor,
-                    fonte_tipo=fonte_conector_tipo,
-                    local_nome=local_nome,
-                )
-                subpilar = resultado.subpilar
-                tipo = resultado.tipo
-                confianca = resultado.confianca
-                justificativa = resultado.justificativa
-                prompt_versao = resultado.prompt_versao
-            except Exception as exc:
-                print(
-                    f"[pipeline] erro ao classificar (persistindo sem classificação): "
-                    f"{type(exc).__name__}: {exc}"
-                )
-        elif rating is not None and rating in RATING_PARA_CLASSIFICACAO:
+        if not tem_texto and rating is not None and rating in RATING_PARA_CLASSIFICACAO:
             # Caminho ratings-only: heurística por rating, sem token gasto. O
             # subpilar Pa1 aqui é PROVISÓRIO — o pós-coleta (redistribuir_simbolos)
             # sobrescreve o pilar pela proporção dos textos da mesma valência. A
@@ -231,7 +196,7 @@ def processar_verbatim_coletado(
             subpilar, tipo, confianca, justificativa = sp, tp, cf, jf
             prompt_versao = "rating-heuristica-v1"
 
-        # 6. Persistência
+        # 5. Persistência
         verbatim = Verbatim(
             empresa_id=empresa_id,
             local_id=local_id,
@@ -252,7 +217,7 @@ def processar_verbatim_coletado(
         session.add(verbatim)
         session.flush()
 
-        # 7. Cleanup retroativo (CP-E2): para reviews novos com
+        # 6. Cleanup retroativo (CP-E2): para reviews novos com
         #    review_id_externo, varre na mesma fonte se há UM verbatim
         #    "legacy" (sem review_id_externo) com mesmo texto normalizado
         #    + mesmo autor. Se sim, deleta o legacy — ele era o mesmo
