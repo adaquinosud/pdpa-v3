@@ -11,13 +11,14 @@
 #                          incorretamente (string ou lista)
 #   tipo_correto: (opcional, só para sem_lastro/inativo)
 #
-# Distribuição (12 casos):
+# Distribuição (13 casos):
 # - 3× D2 → Pa2  (Cirurgia 2 Passo 2: resolução vs compensação)
 # - 2× D2 → P1   (Cirurgia 2 Passo 1: promessa antes da venda)
 # - 1× D2 → P2   (defeito intrínseco)
 # - 4× A1 → outros (P2 / A2 / A3 / D1) — Cirurgia 1
 # - 1× celebridade → sem_lastro (Cirurgia 4)
 # - 1× D3 vs D1 (infra antecipatória)
+# - 1× funcionário nomeado + elogio → Pa1/promotor (fronteira Pa1×A2×conversível)
 
 casos_limite:
   # Padrão D2→Pa2 (3 casos)
@@ -68,6 +69,11 @@ casos_limite:
   - padrao: "Comentário direcionado a celebridade nomeada (Gilberto Gil, Bela Gil, etc.) sem menção à empresa"
     subpilar_correto: "sem_lastro"
     tipo_correto: "inativo"
+
+  # Padrão funcionário nomeado → Pa1/promotor (fronteira Pa1×A2×conversível)
+  - padrao: "Funcionário/profissional DA EMPRESA citado pelo nome com elogio a ele ou a uma atividade/serviço que ele conduz (ex.: 'aula de funcional e cross training do Pedro é maravilhosa') — objeto identificável inequívoco; nome de funcionário + atividade => Pa1/promotor, NÃO A2, NÃO conversivel, NÃO sem_lastro (mesmo com o resto do texto exclamativo/genérico)"
+    subpilar_correto: "Pa1"
+    tipo_correto: "promotor"
 
   # Padrão D3 vs D1 (golden set CR-D3-01 + reauditoria 2026-05-23)
   # D3 cobre 3 tipos de antecipação operacional:

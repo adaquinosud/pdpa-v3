@@ -136,7 +136,7 @@ def test_batch_succeeded_invalido_vai_passe2(client_loyall, db_session, monkeypa
             tipo="conversivel",
             confianca=0.7,
             justificativa="p2",
-            prompt_versao="v3.1",
+            prompt_versao="v3.2",
         )
 
     monkeypatch.setattr("src.classifier.classifier_v3.classificar", fake_cls)
@@ -158,7 +158,7 @@ def test_batch_errored_vai_passe2(client_loyall, db_session, monkeypatch):
     def fake_cls(**kw):
         chamadas["n"] += 1
         return SimpleNamespace(
-            subpilar="P1", tipo="promotor", confianca=0.8, justificativa="ok", prompt_versao="v3.1"
+            subpilar="P1", tipo="promotor", confianca=0.8, justificativa="ok", prompt_versao="v3.2"
         )
 
     monkeypatch.setattr("src.classifier.classifier_v3.classificar", fake_cls)
@@ -186,7 +186,7 @@ def test_batch_baixa_confianca_vai_passe2(client_loyall, db_session, monkeypatch
             tipo="detrator",
             confianca=0.9,
             justificativa="sonnet",
-            prompt_versao="v3.1",
+            prompt_versao="v3.2",
         )
 
     monkeypatch.setattr("src.classifier.classifier_v3.classificar", fake_cls)
@@ -250,7 +250,7 @@ def test_fallback_serial_quando_desabilitado(client_loyall, db_session, monkeypa
 
     monkeypatch.setattr("src.classifier.classifier_v3._get_client", _boom)
     fake = SimpleNamespace(
-        subpilar="D2", tipo="detrator", confianca=0.9, justificativa="serial", prompt_versao="v3.1"
+        subpilar="D2", tipo="detrator", confianca=0.9, justificativa="serial", prompt_versao="v3.2"
     )
     monkeypatch.setattr("src.classifier.classifier_v3.classificar", lambda **kw: fake)
     stats = classificar_pendentes(e["id"])

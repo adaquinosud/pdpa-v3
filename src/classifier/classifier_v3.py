@@ -69,7 +69,7 @@ from src.config import get_config
 # ── Constantes ───────────────────────────────────────────────────────────
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "classifier_v3_prompt.md"
-PROMPT_VERSAO = "v3.1"  # v3.1: prompt passa o LOCAL (fix tenant-rejection multi-tenant)
+PROMPT_VERSAO = "v3.2"  # v3.2: menção nominal a funcionário -> Pa1/promotor (fronteira Pa1xA2)
 
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MODEL = HAIKU_MODEL  # alias mantido para compatibilidade com imports antigos

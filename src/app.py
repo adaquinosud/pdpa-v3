@@ -869,7 +869,7 @@ def _register_cli_commands(app: Flask) -> None:
         """Reclassifica os verbatins que o classificador (sem o local no prompt)
         descartou como sem_lastro com justificativa de tenant-rejection ('refere-se
         a [loja], não ao aeroporto'), MAS que são reviews de loja física (rating).
-        Reusa classificar() já com o local (prompt v3.1). Social (sem rating) fica
+        Reusa classificar() já com o local (prompt v3.2). Social (sem rating) fica
         FORA — listado à parte. ``--dry-run`` não grava."""
         from sqlalchemy import or_  # noqa: F401  (mantém paridade de imports do módulo)
 

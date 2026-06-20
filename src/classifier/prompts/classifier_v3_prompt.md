@@ -62,8 +62,8 @@ O verbatim **não** se encaixa em nenhum dos 12 subpilares por falta de ancorage
 Esta regra vale para todos os 12 subpilares — é o filtro mais importante depois das 4 cirurgias.
 
 - **Promotor** exige sinal positivo CLARO **+** ancoragem específica ao subpilar:
-  - Objeto identificável: produto/serviço nomeado, momento descrito, atendente caracterizado, comportamento específico observado.
-  - Exemplos: "O capuccino estava cremoso e quente" (P2 promotor); "A Marcela foi paciente e me ajudou a escolher" (Pa1 promotor).
+  - Objeto identificável: produto/serviço nomeado, momento descrito, atendente caracterizado, comportamento específico observado. **Promotor NÃO exige narrativa de comportamento** — um substantivo concreto (ou o nome próprio de um funcionário) com adjetivo positivo já basta.
+  - Exemplos: "O capuccino estava cremoso e quente" (P2 promotor); "A Marcela foi paciente e me ajudou a escolher" (Pa1 promotor); "Aula do Pedro é maravilhosa" (Pa1 promotor — nome + adjetivo, sem narrativa).
 
 - **Conversivel** é o destino de:
   - Elogios genéricos sem objeto ("ótimo", "amei", "recomendo", "top").
@@ -71,7 +71,7 @@ Esta regra vale para todos os 12 subpilares — é o filtro mais importante depo
   - Comentários neutros que tocam algum subpilar mas sem carga.
   - Mistos com prós e contras no mesmo verbatim.
 
-**Quando em dúvida entre promotor e conversivel, prefira conversivel** — o PDPA trata conversíveis como capital em formação, não como descarte.
+**Quando em dúvida entre promotor e conversivel, prefira conversivel — SOMENTE quando NÃO há objeto identificável** (pessoa, produto ou atividade nomeada). Havendo objeto presente, não há dúvida: é **promotor**. O PDPA trata conversíveis como capital em formação, não como descarte.
 
 Para distinguir promotor de conversivel:
 
@@ -79,6 +79,8 @@ Para distinguir promotor de conversivel:
 - **Conversivel:** elogio **sem objeto** ou apenas adjetivo solto. Exemplos: "ótimo!", "amei", "recomendo", "top", "sensacional" (sem dizer do quê).
 
 A presença de um substantivo concreto (`comida`, `atendente`, `drinks`, `profissionais`, `prato`, `equipe`, `instalações`, `app`, `processo`, ...) com adjetivo positivo qualifica como **promotor**. A ausência de objeto identificável é o que caracteriza **conversivel**.
+
+**Menção nominal a funcionário/profissional DA EMPRESA.** Um funcionário, atendente ou profissional **da empresa** citado pelo **nome próprio** com elogio — a ele ou a uma atividade/serviço específico que ele conduz — é objeto identificável **inequívoco** → **Pa1/promotor**. **Nunca `conversivel`**, mesmo que o restante do texto seja exclamativo ou genérico (ex.: "Hotel incrível, serviço maravilhoso!! Aula de funcional e Cross training do Pedro é maravilhosa!!" → **Pa1/promotor** pela menção nominal ao Pedro). **Ressalva:** nome próprio nem sempre é da empresa — se for celebridade, influenciador ou terceiro sem vínculo com a marca, vale a **Cirurgia 4** (sem_lastro), não esta regra.
 
 O subpilar é sempre um dos 12 (mais sem_lastro). **`conversivel` vai apenas no campo `tipo`** — nunca no campo `subpilar`.
 
@@ -252,7 +254,7 @@ Quando dois subpilares parecem encaixar, use estas distinções:
 - **D1 vs D2** — D1 = problema em **chegar** ao canal. D2 = problema **depois** de chegar (resolução).
 - **D2 vs Pa2** — D2 = falha **pontual** de resolução operacional. Pa2 = **assimetria estrutural** da política/compensação.
 - **D3 vs A3** — D3 = proatividade **operacional** (entrega, acesso, comunicação). A3 = proatividade de **aconselhamento** (orientar, recomendar).
-- **Pa1 vs A2** — Pa1 = empatia e escuta no atendimento. A2 = precisão técnica da orientação.
+- **Pa1 vs A2** — Pa1 = empatia e escuta no atendimento. A2 = precisão técnica da orientação. Regra de nome: **nome próprio de funcionário + atividade** (ex.: "aula do Pedro") → **Pa1**. **Sem nome, o conteúdo decide**: atendente que **orienta, explica ou dá dicas em resposta a uma dúvida/dificuldade** do cliente = **A2** (orientação técnica), mesmo que prestativo ou rápido — ser prestativo **não** o torna Pa1; já o elogio à **postura humana** (paciência, empatia, escuta, simpatia) sem orientação = **Pa1**.
 - **A2 vs A3** — A2 = orientação **quando solicitada** pelo cliente. A3 = recomendação **sem ser solicitada**.
 - **A1 vs Pa2** — A1 = coerência institucional (autoridade). Pa2 = assimetria em uma relação específica.
 
