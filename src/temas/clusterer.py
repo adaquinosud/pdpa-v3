@@ -94,6 +94,10 @@ def _reduzir_dimensao_umap(
         min_dist=0.0,
         metric="cosine",
         random_state=random_state,
+        # CP-oom: low_memory tira o pico de RAM do pynndescent (mantém menos
+        # estrutura intermediária em memória). Para reduzir a 15-d e clusterizar,
+        # o impacto de qualidade é desprezível; troca um pouco de velocidade.
+        low_memory=True,
         # silencia warning de spectral init em buckets pequenos
         init="random" if n < 50 else "spectral",
     )

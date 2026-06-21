@@ -444,16 +444,18 @@ def processar_empresa(
         ]
         return resumo
 
-    # Pré-carrega TODOS os embeddings necessários (1 query única, 6kb por vetor)
-    todos_ids = [v["id"] for v in verbatins]
-    embeddings = carregar_embeddings(todos_ids, modelo=MODELO_PADRAO)
-
+    # CP-oom: carrega embeddings POR BUCKET (não todos de uma vez). Buckets em
+    # ordem decrescente de tamanho → o maior é processado e liberado primeiro,
+    # então o pico de RAM fica preso a UM bucket, não à empresa inteira (>5k
+    # verbatins × 6kb estourava 2GB). Cada vetor pesa ~6kb (1536 float32).
     for chave, membros in sorted(buckets_elegiveis.items(), key=lambda kv: -len(kv[1])):
         if max_usd is not None and resumo.custo_usd_acumulado >= max_usd:
             resumo.abortado_kill_switch = True
             break
+        membro_ids = [m["id"] for m in membros]
+        embeddings = carregar_embeddings(membro_ids, modelo=MODELO_PADRAO)
         # Conta buckets sem embedding (operador esqueceu de rodar temas-embed)
-        ids_sem_emb = [m["id"] for m in membros if m["id"] not in embeddings]
+        ids_sem_emb = [mid for mid in membro_ids if mid not in embeddings]
         if not embeddings or len(ids_sem_emb) == len(membros):
             resumo.buckets_sem_embeddings += 1
             continue
@@ -479,5 +481,8 @@ def processar_empresa(
         except Exception as exc:  # noqa: BLE001
             print(f"[temas/pipeline] bucket {chave}: {type(exc).__name__}: {exc}")
             resumo.erros += 1
+        finally:
+            # Libera o pico do bucket antes do próximo (não acumula entre buckets).
+            del embeddings
 
     return resumo
