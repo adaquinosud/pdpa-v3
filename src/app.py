@@ -1103,9 +1103,72 @@ def _register_cli_commands(app: Flask) -> None:
             f"[reclassif] resultado: classificados={stats['classificados']} "
             f"falhas={stats['falhas']}"
         )
+
+        # Poda de vínculos órfãos: verbatim_temas é aditivo, então um alvo que
+        # mudou de bucket mantinha o vínculo ao tema antigo. Sweep AGORA — depois
+        # do classificar_pendentes — quando o subpilar/tipo novo já foi gravado
+        # (verbatins ainda NULL por timeout do batch são pulados pelo primitivo).
+        from src.temas.persistencia import reconciliar_vinculos
+
+        rec = reconciliar_vinculos(empresa_id, verbatim_ids=alvo_ids)
         click.echo(
-            "[reclassif] OBS: agregados (ratios/temas/anomalias/Painel) NÃO recalculados — "
-            "rode 'flask pipeline-pos-coleta --empresa N --force' depois p/ refletir."
+            f"[reclassif] poda de vínculos órfãos: removidos={rec['vinculos_removidos']} "
+            f"(avaliados={rec['verbatins_avaliados']})"
+        )
+        click.echo(
+            "[reclassif] OBS: agregados (ratios/temas/anomalias/Painel) NÃO "
+            "recalculados.\n"
+            "[reclassif] Fluxo de equalização completo:\n"
+            "[reclassif]   1. (feito) reclassificar-prompt-versao --apply "
+            "(reclassifica + poda alvos)\n"
+            "[reclassif]   2. flask reconciliar-vinculos --empresa N "
+            "(retroativo, se reclassificou antes desta poda)\n"
+            "[reclassif]   3. flask pipeline-pos-coleta --empresa N --force "
+            "(recalcula cache/Painel + re-tematiza)"
+        )
+
+    # ── flask reconciliar-vinculos (poda retroativa de vínculos órfãos) ──
+    @app.cli.command("reconciliar-vinculos")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    def reconciliar_vinculos_cmd(empresa_arg):
+        """Poda vínculos verbatim_temas órfãos de uma empresa JÁ reclassificada.
+
+        Remove os links LLM cujo bucket (subpilar:tipo gravado no bucket_chave do
+        vínculo) não bate mais com o subpilar/tipo ATUAL do verbatim. Preserva
+        origem manual/merge, bucket_chave NULL e verbatins com subpilar atual NULL.
+        Idempotente. NÃO recalcula agregados.
+
+        Use no caso retroativo: empresas reclassificadas ANTES desta poda existir
+        (ex.: empresa 16/Club Med). O apply de reclassificar-prompt-versao já poda
+        os alvos automaticamente; este comando cobre o que ficou para trás.
+
+        Fluxo de equalização completo:
+          1. reclassificar-prompt-versao --apply  (reclassifica + poda os alvos)
+          2. flask reconciliar-vinculos --empresa N   (retroativo, este comando)
+          3. flask pipeline-pos-coleta --empresa N --force  (recalcula cache/Painel)
+        """
+        from src.models.empresa import Empresa
+        from src.temas.persistencia import reconciliar_vinculos
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, nome = emp.id, emp.nome
+
+        rec = reconciliar_vinculos(empresa_id)
+        click.echo(
+            f"[reconciliar] empresa={nome!r} (id={empresa_id}): "
+            f"avaliados={rec['verbatins_avaliados']} vínculos_removidos={rec['vinculos_removidos']}"
+        )
+        click.echo(
+            "[reconciliar] OBS: rode 'flask pipeline-pos-coleta --empresa N --force' "
+            "depois p/ recalcular cache/Painel + re-tematizar."
         )
 
     # ── CP purge-linkedin-dup: flask purgar-verbatins-fonte ───────────

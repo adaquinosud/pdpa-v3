@@ -150,3 +150,89 @@ def merge_temas(
         "tema_origem_id": tema_origem_id,
         "tema_destino_id": tema_destino_id,
     }
+
+
+# Limite conservador de variáveis por IN(...) no SQLite (default 999).
+_RECONCILIAR_CHUNK = 500
+
+
+def reconciliar_vinculos(
+    empresa_id: int, verbatim_ids: Optional[List[int]] = None
+) -> Dict[str, int]:
+    """Poda vínculos ``verbatim_temas`` órfãos após uma reclassificação.
+
+    ``verbatim_temas`` é **aditivo** (``_upsert_tema_e_link`` nunca remove) e
+    nenhum caminho do pós-coleta poda vínculo. Quando um verbatim muda de
+    ``subpilar``/``tipo`` na reclassificação, ele sai do bucket do tema antigo
+    mas **mantém** o vínculo — um órfão que polui as superfícies que leem o
+    vínculo ao vivo (``count(VerbatimTema)`` no catálogo, temas-de-verbatim,
+    cruzamentos/anomalias que leem ``bucket_chave``). Esta função remove esses
+    órfãos: links cujo bucket (``subpilar:tipo`` gravado no ``bucket_chave`` do
+    LINK) não bate mais com o ``subpilar``/``tipo`` ATUAL do verbatim.
+
+    **Primitivo único** — chamado em dois lugares com comportamento idêntico:
+    o sweep pós-apply (``verbatim_ids`` = alvos reclassificados) e o CLI
+    retroativo ``reconciliar-vinculos`` (``verbatim_ids=None`` = empresa toda).
+
+    Carve-outs (NUNCA poda):
+
+    - ``origem IN ('manual','merge')`` — tematização curada à mão / merges.
+    - ``bucket_chave IS NULL`` — sem bucket conhecido, não dá pra avaliar.
+    - verbatim com ``subpilar`` atual ``NULL`` — pendente/falha (o apply zera
+      antes do batch reclassificar; ``NULL`` não bate com bucket nenhum e
+      podaria tudo). Só poda quando o subpilar atual EXISTE e diverge.
+
+    Idempotente: removido o órfão, a 2ª passada é no-op. NÃO clusteriza nem
+    recria vínculos — a re-tematização no bucket novo segue no pós-coleta
+    (aditivo). O caveat de cluster encolher abaixo do mínimo HDBSCAN é do
+    pós-coleta, não daqui.
+
+    Args:
+        empresa_id: empresa-alvo.
+        verbatim_ids: restringe o sweep a esses verbatins (uso pós-apply).
+            ``None`` = empresa inteira (uso retroativo).
+
+    Returns:
+        ``{"verbatins_avaliados": int, "vinculos_removidos": int}``.
+    """
+    from src.models.verbatim import Verbatim
+    from src.temas.cruzamento import _subpilar_tipo
+    from src.utils.db import db_session
+
+    removidos = 0
+    avaliados: set[int] = set()
+
+    def _sweep(session, id_chunk: Optional[List[int]]) -> None:
+        nonlocal removidos
+        q = (
+            session.query(VerbatimTema, Verbatim.subpilar, Verbatim.tipo)
+            .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+            .filter(
+                Verbatim.empresa_id == empresa_id,
+                VerbatimTema.origem == "llm",
+                VerbatimTema.bucket_chave.isnot(None),
+                Verbatim.subpilar.isnot(None),
+                Verbatim.tipo.isnot(None),
+            )
+        )
+        if id_chunk is not None:
+            q = q.filter(VerbatimTema.verbatim_id.in_(id_chunk))
+        for vt, sub_atual, tipo_atual in q.all():
+            avaliados.add(vt.verbatim_id)
+            bucket_st = _subpilar_tipo(vt.bucket_chave or "")
+            if bucket_st is None:
+                continue  # bucket_chave malformado → conservador, não poda
+            if bucket_st != f"{sub_atual}:{tipo_atual}":
+                session.delete(vt)
+                removidos += 1
+
+    with db_session() as s:
+        if verbatim_ids is None:
+            _sweep(s, None)
+        else:
+            ids = list(verbatim_ids)
+            for i in range(0, len(ids), _RECONCILIAR_CHUNK):
+                fim = i + _RECONCILIAR_CHUNK
+                _sweep(s, ids[i:fim])
+
+    return {"verbatins_avaliados": len(avaliados), "vinculos_removidos": removidos}
