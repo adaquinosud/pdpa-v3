@@ -495,8 +495,13 @@ def _passe2_batch_sonnet(client, empresa_id, passe2, stats, knobs, ctx, chunk) -
     escalada_on = bool(getattr(config, "CLASSIFIER_ESCALATION_ENABLED", True))
     sonnet = getattr(config, "CLASSIFIER_SONNET_MODEL", "claude-sonnet-4-5-20250929")
 
-    if (not escalada_on) or _obter_gasto_mensal_sonnet() >= budget:
-        _passe2_sem_sonnet(empresa_id, passe2, stats, chunk)
+    sem_orcamento = _obter_gasto_mensal_sonnet() >= budget
+    if (not escalada_on) or sem_orcamento:
+        # por_teto: escalada LIGADA mas o teto de custo mensal estourou (≠ kill-switch
+        # off). Só esse caso registra "parse_fallback_budget_estourado" no reroll-item —
+        # espelha o dry-run (_fallback_parse_sonnet), onde kill-switch off não gera
+        # métrica de parse_fallback (apenas levanta "escalada desligada").
+        _passe2_sem_sonnet(empresa_id, passe2, stats, chunk, por_teto=escalada_on and sem_orcamento)
         return
 
     retidos = {it["vid"]: it for it in passe2}
@@ -511,8 +516,19 @@ def _passe2_batch_sonnet(client, empresa_id, passe2, stats, knobs, ctx, chunk) -
         _marcar_batch_status(empresa_id, batch_id, "processed")
 
 
-def _passe2_sem_sonnet(empresa_id, passe2, stats, chunk) -> None:
-    """Sem orçamento Sonnet: escalada mantém Haiku retido; reroll/errored vira terminal."""
+def _passe2_sem_sonnet(empresa_id, passe2, stats, chunk, por_teto: bool = False) -> None:
+    """Sem orçamento Sonnet: escalada mantém Haiku retido; reroll/errored vira terminal.
+
+    ``por_teto``: True quando a escalada está ligada mas o teto de custo mensal
+    estourou (≠ kill-switch off). Só nesse caso o reroll-item que vira terminal
+    registra ``parse_fallback_budget_estourado`` — espelhando o dry-run, onde o
+    kill-switch off não gera métrica de parse_fallback.
+    """
+    from src.classifier.classifier_v3 import (
+        HAIKU_MODEL,
+        PROMPT_VERSAO,
+        _registrar_metrica,
+    )
     from src.models.verbatim import Verbatim
     from src.utils.db import db_session
 
@@ -525,6 +541,19 @@ def _passe2_sem_sonnet(empresa_id, passe2, stats, chunk) -> None:
                 _aplicar_resultado(v, it["haiku"])  # baixa-conf, orçamento estourado → fica Haiku
                 stats["classificados"] += 1
             else:
+                # reroll-item (subpilar inválido no passe 1) que não escalou por teto:
+                # registra o motivo distinto antes do terminal (fidelidade de métrica).
+                if por_teto and it.get("motivo") == "reroll":
+                    _registrar_metrica(
+                        HAIKU_MODEL,
+                        PROMPT_VERSAO,
+                        None,
+                        False,
+                        "parse_fallback_budget_estourado",
+                        0.0,
+                        0,
+                        _texto_hash(it["texto"]),
+                    )
                 _marcar_terminal(v)
                 stats["falhas"] += 1
             if i % chunk == 0:
@@ -535,6 +564,7 @@ def _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos,
     """Lê resultados do batch Sonnet. succeeded+parse→salva(escalado); parse-fail→terminal;
     errored→mantém Haiku retido se houver, senão NULL."""
     from src.classifier.classifier_v3 import (
+        PROMPT_VERSAO,
         _calcular_custo,
         _parse_response,
         _registrar_metrica,
@@ -552,6 +582,11 @@ def _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos,
             v = s.get(Verbatim, vid)
             if v is None or v.subpilar is not None:
                 continue
+            # motivo do item no passe 2: "reroll" (subpilar inválido no passe 1) vs
+            # "escalation" (baixa confiança). Distingue a métrica da escalada Sonnet —
+            # senão um reroll polui o sinal de "confianca_baixa".
+            ret = retidos.get(vid)
+            eh_reroll = bool(ret) and ret.get("motivo") == "reroll"
             rtype = entry.result.type
             if rtype == "succeeded":
                 msg = entry.result.message
@@ -559,6 +594,19 @@ def _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos,
                 try:
                     r = _parse_response(msg.content[0].text.strip(), modelo=modelo)
                 except ValueError:
+                    # Sonnet também devolveu inválido. Para reroll-item, espelha o
+                    # dry-run: registra o motivo distinto antes de marcar terminal.
+                    if eh_reroll:
+                        _registrar_metrica(
+                            modelo,
+                            PROMPT_VERSAO,
+                            None,
+                            True,
+                            "parse_fallback_sonnet_invalido",
+                            0.0,
+                            0,
+                            _texto_hash(v.texto),
+                        )
                     _marcar_terminal(v)
                     stats["falhas"] += 1
                     n += 1
@@ -571,7 +619,7 @@ def _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos,
                     r.prompt_versao,
                     r,
                     True,
-                    "confianca_baixa",
+                    "parse_fallback" if eh_reroll else "confianca_baixa",
                     custo,
                     0,
                     _texto_hash(v.texto),
