@@ -42,8 +42,17 @@ Refatorado de ``pdpa-v2/classifier.py``. Adaptações principais:
    permitem auditoria post-hoc: taxa de escalada, custo agregado,
    latência por modelo, hash do texto para dedup.
 
+**Fallback de parse Haiku→Sonnet** — além da escalada-por-confiança acima,
+quando o loop de parse/validação do Haiku esgota ``HAIKU_PARSE_RETRIES`` com
+``ValueError`` (modo sistemático, ex.: o Haiku põe um TIPO no campo
+``subpilar``, que rerolar não corrige), ``_fallback_parse_sonnet`` escala pro
+Sonnet UMA vez, sob os MESMOS guard-rails (kill-switch + teto de custo). As
+duas causas de falha terminal são distinguíveis em log e em
+``classifier_metrics``: ``parse_fallback_budget_estourado`` (teto estourado,
+não escalou) e ``parse_fallback_sonnet_invalido`` (Sonnet também inválido).
+
 Kill switch global: ``CLASSIFIER_ESCALATION_ENABLED=false`` desliga a
-escalada inteiramente (fica só Haiku).
+escalada inteiramente (fica só Haiku) — inclusive o fallback de parse.
 
 Versão do prompt: v3.0.
 """
@@ -692,6 +701,130 @@ def montar_params_classificacao(
     }
 
 
+# ── Fallback de parse: Haiku esgotou → Sonnet 1× ─────────────────────────
+
+
+def _fallback_parse_sonnet(
+    *,
+    system_blocks: list[dict],
+    user_msg: str,
+    custo_haiku: float,
+    lat_haiku: int,
+    texto_hash: str,
+    ultimo_parse_err: Optional[Exception],
+) -> ResultadoClassificacao:
+    """Escala pro Sonnet quando o loop de parse/validação do Haiku esgotou.
+
+    Acionado **só** quando o Haiku falhou ``HAIKU_PARSE_RETRIES`` vezes com erro
+    de parse/validação (``ValueError``) — modo de falha sistemático, ex.: o Haiku
+    devolve um TIPO (``conversivel``) no campo ``subpilar``, que rerolar não
+    corrige. Diferente da escalada-por-confiança (essa parte de um resultado
+    Haiku VÁLIDO porém de baixa confiança); aqui não há resultado nenhum.
+
+    Mesmos guard-rails da escalada-por-confiança:
+
+    - **Kill-switch** (``CLASSIFIER_ESCALATION_ENABLED=false``): não escala —
+      levanta como antes (semântica "Haiku-only" literal).
+    - **Teto de custo** (``CLASSIFIER_MONTHLY_BUDGET_USD``): se o gasto Sonnet do
+      mês já estourou, não escala — registra e levanta.
+
+    Distingue explicitamente as duas causas de ``raise`` (custo vs. modelo errando)
+    no texto da exceção E em ``classifier_metrics`` (``motivo_escalada``), para
+    serem rastreáveis nos logs:
+
+    - ``parse_fallback_budget_estourado`` — não escalou por teto de custo.
+    - ``parse_fallback_sonnet_invalido`` — Sonnet também produziu inválido.
+
+    Returns:
+        ``ResultadoClassificacao`` do Sonnet (``escalado=True``, métrica
+        ``motivo_escalada="parse_fallback"``).
+
+    Raises:
+        ValueError: Se a escalada está desligada, o orçamento estourou, ou o
+            próprio Sonnet devolveu classificação inválida.
+    """
+    config = get_config()
+    escalada_ligada = bool(getattr(config, "CLASSIFIER_ESCALATION_ENABLED", True))
+    budget = float(getattr(config, "CLASSIFIER_MONTHLY_BUDGET_USD", 50.0))
+    sonnet_model = getattr(config, "CLASSIFIER_SONNET_MODEL", "claude-sonnet-4-5-20250929")
+
+    base = (
+        f"Haiku não produziu classificação válida em {HAIKU_PARSE_RETRIES} "
+        f"tentativas. Último erro Haiku: {ultimo_parse_err}"
+    )
+
+    # Kill-switch: mantém o comportamento anterior (não escala, levanta).
+    if not escalada_ligada:
+        raise ValueError(f"{base} (escalada desligada).")
+
+    # Teto de custo: idem escalada-por-confiança — não escala se o mês estourou.
+    gasto_mes = _obter_gasto_mensal_sonnet()
+    if gasto_mes >= budget:
+        _registrar_metrica(
+            modelo=HAIKU_MODEL,
+            prompt_versao=PROMPT_VERSAO,
+            resultado=None,
+            escalado=False,
+            motivo_escalada="parse_fallback_budget_estourado",
+            custo_usd=custo_haiku,
+            latencia_ms=lat_haiku,
+            texto_hash=texto_hash,
+        )
+        raise ValueError(
+            f"parse_fallback_budget_estourado: {base}; orçamento Sonnet do mês "
+            f"esgotado ({gasto_mes:.2f} >= {budget:.2f}), não escalado."
+        )
+
+    # Escala pro Sonnet 1×. ValueError = Sonnet também inválido (parse/validação);
+    # erros de transporte (429/5xx esgotado, 4xx) propagam como antes.
+    try:
+        resultado_sonnet, custo_sonnet, lat_sonnet = _classificar_com_modelo(
+            system_blocks, user_msg, sonnet_model
+        )
+    except ValueError as exc:
+        _registrar_metrica(
+            modelo=sonnet_model,
+            prompt_versao=PROMPT_VERSAO,
+            resultado=None,
+            escalado=True,
+            motivo_escalada="parse_fallback_sonnet_invalido",
+            custo_usd=0.0,
+            latencia_ms=0,
+            texto_hash=texto_hash,
+        )
+        raise ValueError(
+            f"parse_fallback_sonnet_invalido: fallback Sonnet também produziu "
+            f"classificação inválida. {base} | Erro Sonnet: {exc}"
+        ) from exc
+
+    resultado_sonnet.escalado = True
+    print(
+        f"[classifier] parse_fallback → {sonnet_model} resgatou verbatim que o Haiku "
+        f"invalidou em {HAIKU_PARSE_RETRIES} tentativas (sub={resultado_sonnet.subpilar})"
+    )
+    _registrar_metrica(
+        modelo=HAIKU_MODEL,
+        prompt_versao=PROMPT_VERSAO,
+        resultado=None,
+        escalado=False,
+        motivo_escalada="parse_fallback",
+        custo_usd=custo_haiku,
+        latencia_ms=lat_haiku,
+        texto_hash=texto_hash,
+    )
+    _registrar_metrica(
+        modelo=sonnet_model,
+        prompt_versao=PROMPT_VERSAO,
+        resultado=resultado_sonnet,
+        escalado=True,
+        motivo_escalada="parse_fallback",
+        custo_usd=custo_sonnet,
+        latencia_ms=lat_sonnet,
+        texto_hash=texto_hash,
+    )
+    return resultado_sonnet
+
+
 # ── API pública ──────────────────────────────────────────────────────────
 
 
@@ -707,7 +840,12 @@ def classificar(
 
     Fluxo:
 
-    1. Chama Haiku.
+    1. Chama Haiku (com reroll ``HAIKU_PARSE_RETRIES`` em falha de parse).
+    1a. Se o Haiku esgotar os rerolls com erro de parse/validação (modo
+       sistemático, ex.: TIPO no campo ``subpilar``), escala pro Sonnet
+       UMA vez como fallback (``_fallback_parse_sonnet``), respeitando
+       kill-switch + teto de custo. Se o fallback não rodar ou também
+       falhar, levanta ``ValueError``.
     2. Se ``confianca < CLASSIFIER_ESCALATION_THRESHOLD`` **e** o
        orçamento mensal de Sonnet ainda não estourou, chama Sonnet e
        devolve a resposta dele (marca ``escalado=True``).
@@ -770,10 +908,21 @@ def classificar(
                 f"({tentativa + 1}/{HAIKU_PARSE_RETRIES}): {str(exc)[:120]}"
             )
     if resultado is None:
-        raise ValueError(
-            f"Haiku não produziu classificação válida em {HAIKU_PARSE_RETRIES} "
-            f"tentativas. Último erro: {ultimo_parse_err}"
+        # Modo de falha SISTEMÁTICO (não transiente): o Haiku põe um TIPO no campo
+        # subpilar (ex.: "conversivel", que só aceita A1..Pa3/sem_lastro) e rerolar
+        # o Haiku falha igual — o reroll só conserta JSON truncado/aspas internas.
+        # Fallback: escalar pro Sonnet UMA vez, respeitando os mesmos guard-rails da
+        # escalada-por-confiança (kill-switch + teto de custo mensal). NÃO normalizamos
+        # subpilar inválido aqui: o subpilar real se perderia, seria chute.
+        resultado_final = _fallback_parse_sonnet(
+            system_blocks=system_blocks,
+            user_msg=user_msg,
+            custo_haiku=custo_haiku,
+            lat_haiku=lat_haiku,
+            texto_hash=texto_hash,
+            ultimo_parse_err=ultimo_parse_err,
         )
+        return resultado_final
 
     # 2) Decisão de escalada
     config = get_config()
