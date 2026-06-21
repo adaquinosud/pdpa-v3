@@ -75,7 +75,7 @@ def test_classificar_pendentes_propaga_local(client_loyall, db_session, monkeypa
     def fake(**kw):
         captured.update(kw)
         return SimpleNamespace(
-            subpilar="P1", tipo="promotor", confianca=0.8, justificativa="ok", prompt_versao="v3.2"
+            subpilar="P1", tipo="promotor", confianca=0.8, justificativa="ok", prompt_versao="v3.3"
         )
 
     monkeypatch.setattr("src.classifier.classifier_v3.classificar", fake)
@@ -136,7 +136,7 @@ def test_comando_mira_so_loja_fisica(app, client_loyall, db_session, monkeypatch
             tipo="promotor",
             confianca=0.85,
             justificativa="ancorado",
-            prompt_versao="v3.2",
+            prompt_versao="v3.3",
         ),
     )
     res = app.test_cli_runner().invoke(
@@ -153,7 +153,7 @@ def test_comando_mira_so_loja_fisica(app, client_loyall, db_session, monkeypatch
         .filter(Verbatim.id == vid)
         .first()
     )
-    assert get(vA.id) == ("P1", "v3.2")  # A reancorado
+    assert get(vA.id) == ("P1", "v3.3")  # A reancorado
     assert get(vB.id) == ("sem_lastro", "v3.0")  # B intacto (vago-genérico)
     assert get(vC.id) == ("sem_lastro", "v3.0")  # C intacto (social)
 

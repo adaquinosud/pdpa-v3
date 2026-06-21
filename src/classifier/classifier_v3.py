@@ -69,7 +69,7 @@ from src.config import get_config
 # ── Constantes ───────────────────────────────────────────────────────────
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "classifier_v3_prompt.md"
-PROMPT_VERSAO = "v3.2"  # v3.2: menção nominal a funcionário -> Pa1/promotor (fronteira Pa1xA2)
+PROMPT_VERSAO = "v3.3"  # v3.3: reduz over-conversivel (estrutura/atendimento como objeto)
 
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MODEL = HAIKU_MODEL  # alias mantido para compatibilidade com imports antigos
