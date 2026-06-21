@@ -69,11 +69,11 @@ Esta regra vale para todos os 12 subpilares — é o filtro mais importante depo
   - Elogios genéricos sem objeto ("ótimo", "amei", "recomendo", "top").
   - Sinais positivos que não indicam qual subpilar endossam ("gostei da experiência").
   - Comentários neutros que tocam algum subpilar mas sem carga.
-  - Mistos com prós e contras **de peso comparável sobre a experiência** no mesmo verbatim (se o tom é claramente positivo e a ressalva é periférica, ver a regra de ressalva periférica abaixo).
+  - Verbatins com prós e contras **de peso comparável sobre a experiência** no mesmo verbatim (se o tom é claramente positivo e a ressalva é periférica, ver a regra de ressalva periférica abaixo).
 
 **Quando em dúvida entre promotor e conversivel, prefira conversivel — SOMENTE quando NÃO há objeto identificável** (pessoa, produto ou atividade nomeada). Havendo objeto presente, não há dúvida: é **promotor**. O PDPA trata conversíveis como capital em formação, não como descarte.
 
-**Ressalva periférica não torna um elogio em misto.** Tom **dominante positivo** + ressalva sobre um atributo **fixo/estrutural que o estabelecimento NÃO controla diretamente** (localização, distância, estacionamento externo) → classifique pelo tom dominante: **promotor**. Atenção à fronteira: **preço e tempo de espera SÃO experiência-core** (o estabelecimento controla) — uma ressalva sobre eles **pode** ser misto real (→ conversivel). "Misto → conversivel" vale quando o negativo pesa de forma **comparável** sobre a experiência-core (ex.: "ótimo hotel MAS a cama é péssima" = misto real). Ex.: "Um dos melhores aeroportos do Brasil, só o estacionamento poderia ser mais barato" → **promotor** (estacionamento externo, periférico); "Tudo muito bom, mas muito caro" → **conversivel** (preço é core, ressalva de peso comparável).
+**Ressalva periférica não torna um elogio em conversível.** Tom **dominante positivo** + ressalva sobre um atributo **fixo/estrutural que o estabelecimento NÃO controla diretamente** (localização, distância, estacionamento externo) → classifique pelo tom dominante: **promotor**. Atenção à fronteira: **preço e tempo de espera SÃO experiência-core** (o estabelecimento controla) — uma ressalva sobre eles **pode** rebaixar para **conversivel** quando o negativo pesa de forma **comparável** sobre a experiência-core (ex.: "ótimo hotel MAS a cama é péssima" = conversível-misto real). Ex.: "Um dos melhores aeroportos do Brasil, só o estacionamento poderia ser mais barato" → **promotor** (estacionamento externo, periférico); "Tudo muito bom, mas muito caro" → **conversivel** (preço é core, ressalva de peso comparável).
 
 Para distinguir promotor de conversivel:
 
@@ -347,7 +347,7 @@ Retorne **EXATAMENTE** este formato, **sem markdown e sem texto adicional antes 
   "subpilar": "P1|P2|P3|D1|D2|D3|Pa1|Pa2|Pa3|A1|A2|A3|sem_lastro",
   "tipo": "promotor|conversivel|detrator|inativo",
   "confianca": 0.85,
-  "justificativa_curta": "máximo 1 frase explicando a escolha"
+  "justificativa_curta": "máx. 20 palavras, sem aspas duplas"
 }
 ```
 
@@ -356,6 +356,7 @@ Retorne **EXATAMENTE** este formato, **sem markdown e sem texto adicional antes 
 - `subpilar` aceita SOMENTE: `P1`, `P2`, `P3`, `D1`, `D2`, `D3`, `Pa1`, `Pa2`, `Pa3`, `A1`, `A2`, `A3`, `sem_lastro`.
 - `tipo` aceita SOMENTE: `promotor`, `conversivel`, `detrator`, `inativo`.
 - **`conversivel` é valor de TIPO, NUNCA de subpilar.**
+- **`misto` NÃO é um valor de `tipo`.** Verbatim com prós e contras de peso comparável = `tipo = conversivel`.
 - Para elogio genérico: escolha o subpilar com ancoragem mais provável (geralmente `P2`, `Pa1` ou `A1`) **e** coloque `tipo = conversivel`.
 
 Restrições:
@@ -364,4 +365,4 @@ Restrições:
 - Quando `subpilar = sem_lastro`, obrigatoriamente `tipo = inativo`.
 - `inativo` só vale com `sem_lastro` (em qualquer outro subpilar, use `promotor`, `conversivel` ou `detrator`).
 - Não inclua chaves além das 4 listadas.
-- `justificativa_curta` em português, no máximo 1 frase, sem citações longas do texto.
+- `justificativa_curta` em português, **no máximo 20 palavras**, **sem aspas duplas** (use aspas simples ou nenhuma) e sem citações do texto — aspas duplas quebram o JSON.

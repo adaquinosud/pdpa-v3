@@ -538,6 +538,39 @@ def _reparar_json_truncado(s: str) -> Optional[dict]:
     return None
 
 
+# Extração por regex como último fallback. Os campos de DECISÃO (subpilar/tipo/
+# confianca) são enum/número — não contêm aspas, então a regex os recupera mesmo
+# quando o ``json.loads`` quebra por aspas duplas internas na ``justificativa_curta``
+# (o modelo cita o review com ``"``) — caso que ``_reparar_json_truncado`` não cobre
+# (sua heurística de última vírgula cai DENTRO da prosa rica em vírgula).
+_RE_SUBPILAR = re.compile(r'"subpilar"\s*:\s*"([^"]+)"')
+_RE_TIPO = re.compile(r'"tipo"\s*:\s*"([^"]+)"')
+_RE_CONFIANCA = re.compile(r'"confianca"\s*:\s*([0-9]*\.?[0-9]+)')
+_RE_JUSTIFICATIVA = re.compile(r'"justificativa_curta"\s*:\s*"(.*)', re.DOTALL)
+
+
+def _extrair_campos_regex(s: str) -> Optional[dict]:
+    """Extrai os campos por regex quando o JSON é irrecuperável.
+
+    Recupera ``subpilar``/``tipo``/``confianca`` (enum/número, à prova de aspas)
+    e trata ``justificativa_curta`` como best-effort (a prosa pode estar truncada
+    ou conter aspas internas). Devolve ``None`` se nem subpilar nem tipo aparecem.
+    """
+    msub, mtipo = _RE_SUBPILAR.search(s), _RE_TIPO.search(s)
+    if not msub or not mtipo:
+        return None
+    out: dict = {"subpilar": msub.group(1), "tipo": mtipo.group(1)}
+    mconf = _RE_CONFIANCA.search(s)
+    if mconf:
+        out["confianca"] = mconf.group(1)
+    mjust = _RE_JUSTIFICATIVA.search(s)
+    if mjust:
+        # best-effort: tira fence/chave de fechamento e aspas órfãs do fim.
+        txt = mjust.group(1).strip().rstrip("`").strip().rstrip("}").strip().rstrip('"').strip()
+        out["justificativa_curta"] = txt
+    return out
+
+
 def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificacao:
     """Faz parse, valida e clampa a resposta do Claude."""
     cleaned = _FENCE_OPEN.sub("", raw)
@@ -546,10 +579,10 @@ def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificac
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError as exc:
-        reparado = _reparar_json_truncado(cleaned)
-        if reparado is not None:
-            data = reparado
-        else:
+        data = _reparar_json_truncado(cleaned)
+        if data is None:  # repair falhou (ex.: aspas internas) → tenta regex
+            data = _extrair_campos_regex(cleaned)
+        if data is None:
             raise ValueError(f"Resposta do classificador não é JSON válido: {raw[:200]!r}") from exc
 
     # Type-guard: o modelo às vezes devolve um array JSON (``[{...}]``) ou outro
@@ -569,6 +602,11 @@ def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificac
         )
 
     tipo = data.get("tipo")
+    # O modelo às vezes emite 'misto'/'misto_conversivel'/'misto_com_destaque...'
+    # como rótulo de tipo (a palavra 'misto' aparece no prompt). Na semântica PDPA
+    # misto ≡ conversível → normaliza antes de validar (rede de segurança 1-linha).
+    if isinstance(tipo, str) and tipo.startswith("misto"):
+        tipo = "conversivel"
     if tipo not in TIPOS_VALIDOS:
         raise ValueError(f"tipo inválido: {tipo!r}. Esperado um de {sorted(TIPOS_VALIDOS)}")
 

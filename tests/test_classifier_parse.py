@@ -102,3 +102,65 @@ def test_parse_resposta_array_com_markdown_fence_levanta_valueerror():
     raw = '```json\n[{"subpilar": "Pa1", "tipo": "promotor", "confianca": 0.9}]\n```'
     with pytest.raises(ValueError, match="não é um objeto JSON"):
         _parse_response(raw)
+
+
+# ── Problema 1: tipo='misto' (e variantes) → normaliza para conversivel ──────
+@pytest.mark.parametrize("tipo_raw", ["misto", "misto_conversivel", "misto_com_destaque_positivo"])
+def test_parse_tipo_misto_normaliza_para_conversivel(tipo_raw):
+    """O modelo emite 'misto*' como rótulo (a palavra aparece no prompt). Na
+    semântica PDPA misto ≡ conversível → normaliza antes de validar (não erra)."""
+    raw = (
+        f'{{"subpilar": "Pa1", "tipo": "{tipo_raw}", "confianca": 0.72, '
+        '"justificativa_curta": "pros e contras"}'
+    )
+    r = _parse_response(raw)
+    assert r.subpilar == "Pa1"
+    assert r.tipo == "conversivel"
+
+
+def test_parse_tipo_invalido_nao_misto_segue_rejeitando():
+    """Garante que a normalização é só de 'misto*' — outros tipos inválidos
+    continuam levantando (não viram conversível por acidente)."""
+    raw = '{"subpilar": "Pa1", "tipo": "neutro", "confianca": 0.5, "justificativa_curta": "x"}'
+    with pytest.raises(ValueError, match="tipo inválido"):
+        _parse_response(raw)
+
+
+# ── Problema 2: aspas duplas internas na justificativa → regex fallback ──────
+def test_parse_aspas_duplas_internas_regex_salva():
+    """justificativa com aspas duplas (modelo cita o review) quebra json.loads;
+    o fallback regex recupera os campos de decisão (enum/número, à prova de aspas)."""
+    raw = (
+        '```json\n{"subpilar": "D1", "tipo": "conversivel", "confianca": 0.7, '
+        '"justificativa_curta": "reclama da fila ("40 min"), mas elogia a limpeza"}\n```'
+    )
+    r = _parse_response(raw)
+    assert r.subpilar == "D1"
+    assert r.tipo == "conversivel"
+    assert r.confianca == 0.7
+
+
+def test_parse_truncado_com_aspas_internas_regex_salva():
+    """Aspas internas + truncado no fim: repair falha (vírgula dentro da prosa),
+    regex recupera subpilar/tipo e ainda normaliza o 'misto' do campo tipo."""
+    raw = (
+        '```json\n{"subpilar": "Pa1", "tipo": "misto", "confianca": 0.72, '
+        '"justificativa_curta": "Elogio à atendente ("muito atenciosa"), '
+        "mas crítica ao ambiente de des"
+    )
+    r = _parse_response(raw)
+    assert r.subpilar == "Pa1"
+    assert r.tipo == "conversivel"  # 'misto' normalizado
+
+
+def test_parse_truncado_sem_aspas_nao_regride():
+    """Truncamento puro (sem aspas internas) continua recuperado pelo repair —
+    a justificativa parcial é preservada (best-effort), não regride."""
+    raw = (
+        '```json\n{"subpilar": "D1", "tipo": "conversivel", "confianca": 0.72, '
+        '"justificativa_curta": "Cliente relata fila, espera longa, mas elogia o atend'
+    )
+    r = _parse_response(raw)
+    assert r.subpilar == "D1"
+    assert r.tipo == "conversivel"
+    assert "Cliente relata fila" in r.justificativa
