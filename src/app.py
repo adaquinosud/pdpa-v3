@@ -957,6 +957,157 @@ def _register_cli_commands(app: Flask) -> None:
                     src = f"{fontes.get(v.fonte_id)}/{locais.get(v.local_id, '?')[:18]}"
                     click.echo(f"[tenant]   v{v.id} [{src}] {v.texto[:44]!r}")
 
+    # ── flask reclassificar-prompt-versao (migração de prompt v3.1→v3.2) ──
+    @app.cli.command("reclassificar-prompt-versao")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--de",
+        "de_versao",
+        default="v3.1",
+        show_default=True,
+        help="prompt_versao de ORIGEM (só verbatins de texto com este valor).",
+    )
+    @click.option(
+        "--so-candidatos",
+        is_flag=True,
+        default=False,
+        help="Restringe aos que a nova versão tende a mudar: tipo='conversivel' OU subpilar='A2'.",
+    )
+    @click.option(
+        "--limite",
+        type=int,
+        default=None,
+        help="Máx. de verbatins-alvo (amostra p/ --dry-run; cap do zeramento no apply).",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Mede antes→depois SEM gravar (serial, custa LLM). Sem a flag: ZERA o alvo "
+        "e reclassifica via Batch API (classificar_pendentes, ~50% mais barato).",
+    )
+    def reclassificar_prompt_versao(empresa_arg, de_versao, so_candidatos, limite, dry_run):
+        """Reclassifica com o prompt ATUAL os verbatins classificados por um prompt
+        antigo (``--de``). NÃO recoleta nada — reusa o texto já no banco.
+
+        Fluxo recomendado (custo-consciente): ``--dry-run --limite 200`` numa
+        amostra pra medir o flip real; se valer, aplique (sem ``--dry-run``).
+
+        ``--so-candidatos`` mira só ``tipo='conversivel'`` OU ``subpilar='A2'`` —
+        os que a v3.2 tende a mudar (o resto é estável). O apply ZERA o subpilar do
+        alvo (vira pendente) e chama ``classificar_pendentes`` (Batch API), que
+        reclassifica TODOS os pendentes da empresa (alvo + eventuais já-pendentes).
+        Agregados (ratios/temas/anomalias/Painel) NÃO são recalculados aqui — rode
+        ``pipeline-pos-coleta`` depois p/ refletir.
+        """
+        from collections import Counter
+
+        from sqlalchemy import or_
+
+        from src.classifier.classifier_v3 import classificar
+        from src.models.empresa import Empresa
+        from src.models.fonte import Fonte
+        from src.models.local import Local
+        from src.models.verbatim import Verbatim
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, nome, setor = emp.id, emp.nome, emp.setor
+            fontes = {
+                f.id: f.conector_tipo for f in s.query(Fonte).filter_by(empresa_id=empresa_id)
+            }
+            locais = {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id)}
+
+            q = s.query(Verbatim).filter(
+                Verbatim.empresa_id == empresa_id,
+                Verbatim.tem_texto.is_(True),
+                Verbatim.prompt_versao == de_versao,
+            )
+            if so_candidatos:
+                q = q.filter(or_(Verbatim.tipo == "conversivel", Verbatim.subpilar == "A2"))
+            q = q.order_by(Verbatim.id)
+            if limite:
+                q = q.limit(limite)
+            # Valores planos: não segura a sessão durante as chamadas LLM do dry-run.
+            alvos = [(v.id, v.subpilar, v.tipo, v.texto, v.fonte_id, v.local_id) for v in q.all()]
+
+        escopo = "candidatos (conversivel|A2)" if so_candidatos else "todos"
+        modo = "DRY-RUN (serial, não grava)" if dry_run else "APLICAR (Batch API)"
+        click.echo(
+            f"[reclassif] empresa={nome!r} (id={empresa_id}) de={de_versao} escopo={escopo} "
+            f"limite={limite if limite is not None else 'todos'} alvos={len(alvos)} · {modo}"
+        )
+        if not alvos:
+            click.echo("[reclassif] nada a reclassificar.")
+            return
+
+        if dry_run:
+            mudaram = 0
+            transicoes: Counter = Counter()
+            exemplos = []
+            for vid, sub, tipo, texto, fonte_id, local_id in alvos:
+                antes = f"{sub}/{tipo}"
+                try:
+                    r = classificar(
+                        texto=texto,
+                        empresa_nome=nome,
+                        empresa_setor=setor,
+                        fonte_tipo=fontes.get(fonte_id),
+                        local_nome=locais.get(local_id),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    click.echo(f"[reclassif]   v{vid} ERRO: {type(exc).__name__}: {exc}", err=True)
+                    continue
+                depois = f"{r.subpilar}/{r.tipo}"
+                if depois != antes:
+                    mudaram += 1
+                    transicoes[f"{antes} → {depois}"] += 1
+                    if len(exemplos) < 10:
+                        exemplos.append((vid, antes, depois, (texto or "")[:60]))
+            pct = (100 * mudaram / len(alvos)) if alvos else 0
+            click.echo(f"[reclassif] MUDARIAM: {mudaram}/{len(alvos)} ({pct:.0f}%)")
+            for trans, n in transicoes.most_common():
+                click.echo(f"[reclassif]   {n:>5}  {trans}")
+            for vid, a, d, txt in exemplos:
+                click.echo(f"[reclassif]   ex v{vid}: {a} → {d} · {txt!r}")
+            click.echo("[reclassif] DRY-RUN — nada gravado.")
+            return
+
+        # APLICAR: zera o alvo (vira pendente) e reclassifica via Batch API.
+        alvo_ids = [a[0] for a in alvos]
+        with _db_session() as s2:
+            s2.query(Verbatim).filter(Verbatim.id.in_(alvo_ids)).update(
+                {
+                    Verbatim.subpilar: None,
+                    Verbatim.tipo: None,
+                    Verbatim.confianca: None,
+                    Verbatim.justificativa: None,
+                    Verbatim.prompt_versao: None,
+                },
+                synchronize_session=False,
+            )
+        click.echo(
+            f"[reclassif] zerados {len(alvo_ids)} verbatins → classificar_pendentes (Batch)..."
+        )
+        from src.temas.pos_coleta import classificar_pendentes
+
+        stats = classificar_pendentes(empresa_id)
+        click.echo(
+            f"[reclassif] resultado: classificados={stats['classificados']} "
+            f"falhas={stats['falhas']}"
+        )
+        click.echo(
+            "[reclassif] OBS: agregados (ratios/temas/anomalias/Painel) NÃO recalculados — "
+            "rode 'flask pipeline-pos-coleta --empresa N --force' depois p/ refletir."
+        )
+
     # ── CP purge-linkedin-dup: flask purgar-verbatins-fonte ───────────
     @app.cli.command("purgar-verbatins-fonte")
     @click.option(
