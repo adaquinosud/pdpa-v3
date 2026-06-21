@@ -16,6 +16,7 @@ verbatim-a-verbatim foi expurgado no Bloco 6).
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -224,6 +225,54 @@ def _batch_knobs() -> Dict[str, int]:
         "max_requests": int(os.getenv("ANTHROPIC_BATCH_MAX_REQUESTS", "10000")),
         "pass2_serial_max": int(os.getenv("ANTHROPIC_BATCH_PASS2_SERIAL_MAX", "50")),
     }
+
+
+# Namespace fixo dos advisory locks de pós-coleta (evita colisão com outros locks).
+_LOCK_NS = 0x504F  # 'PO' — Pós-cOleta
+
+
+@contextmanager
+def _lock_empresa(empresa_id: int):
+    """Lock por-empresa pra serializar a classificação em batch entre PROCESSOS
+    (anti-duplo-submit concorrente — duas execuções simultâneas da mesma empresa).
+
+    Postgres: ``pg_try_advisory_lock`` (não-bloqueante) numa conexão dedicada,
+    liberado no fim do bloco (ou na morte do processo → conexão fecha). Outros
+    dialetos (SQLite/testes): no-op, sempre adquire.
+
+    Yields:
+        ``True`` se adquiriu o lock (pode prosseguir); ``False`` se outro processo
+        já está classificando esta empresa (o caller deve pular).
+    """
+    from sqlalchemy import text
+
+    from src.utils.db import get_engine
+
+    engine = get_engine()
+    if engine.dialect.name != "postgresql":
+        yield True
+        return
+    conn = engine.connect()
+    got = False
+    try:
+        got = bool(
+            conn.execute(
+                text("SELECT pg_try_advisory_lock(:ns, :eid)"),
+                {"ns": _LOCK_NS, "eid": int(empresa_id)},
+            ).scalar()
+        )
+        conn.commit()
+        yield got
+    finally:
+        try:
+            if got:
+                conn.execute(
+                    text("SELECT pg_advisory_unlock(:ns, :eid)"),
+                    {"ns": _LOCK_NS, "eid": int(empresa_id)},
+                )
+                conn.commit()
+        finally:
+            conn.close()
 
 
 def _carregar_contexto(s, empresa_id: int) -> Dict[str, Any]:
@@ -544,12 +593,20 @@ def _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos,
                 s.commit()
 
 
-def _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk) -> None:
-    """Reata batches ``submitted`` em aberto ANTES de submeter novos — evita
-    resubmissão (custo dobrado) quando o processo morreu durante o polling.
+def _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk) -> bool:
+    """Reata batches abertos (status ``submitted``/``timeout``) ANTES de submeter
+    novos — guard anti-duplo-submit.
 
-    Só consome os que já estão ``ended``; os ainda em processamento ficam para
-    um próximo re-run (não bloqueia). Passe 1 reatado roda seu próprio Passe 2.
+    Se há batch aberto, **AGUARDA** ele terminar (poll até ``ended``) e consome —
+    em vez de pular e ressubmeter os mesmos verbatins (que seguem ``subpilar NULL``
+    até o consumo, então reentrariam na fila e gerariam um batch duplicado, pago
+    em dobro). Cobre também o batch que deu ``timeout`` na submissão original
+    (status reentrante). Passe 1 reatado roda seu próprio Passe 2.
+
+    Returns:
+        ``True`` se TODOS os abertos foram drenados (consumidos) → seguro submeter
+        novos. ``False`` se algum não terminou (poll-timeout) ou falhou ao reatar
+        → o caller **NÃO** deve submeter novos.
     """
     from src.models.classificacao_batch import ClassificacaoBatch
     from src.utils.db import db_session
@@ -557,15 +614,22 @@ def _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk) -> Non
     with db_session() as s:
         abertos = [
             (r.batch_id, r.passe, r.modelo)
-            for r in s.query(ClassificacaoBatch).filter_by(
-                empresa_id=empresa_id, status="submitted"
+            for r in s.query(ClassificacaoBatch).filter(
+                ClassificacaoBatch.empresa_id == empresa_id,
+                ClassificacaoBatch.status.in_(("submitted", "timeout")),
             )
         ]
     for batch_id, passe, modelo in abertos:
         try:
             b = client.messages.batches.retrieve(batch_id)
             if getattr(b, "processing_status", None) != "ended":
-                continue
+                # AGUARDA terminar (anti-duplo-submit) — não pula nem ressubmete.
+                if not _poll_batch(client, batch_id, knobs):
+                    print(
+                        f"[pos-coleta] batch aberto {batch_id} ainda processando "
+                        f"(poll-timeout) — NÃO submete novos (anti-duplo-submit)"
+                    )
+                    return False
             if passe == 1:
                 passe2: list = []
                 _consumir_passe1(client, batch_id, empresa_id, stats, passe2, ctx, chunk)
@@ -576,8 +640,11 @@ def _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk) -> Non
             _marcar_batch_status(empresa_id, batch_id, "processed")
         except Exception as exc:  # noqa: BLE001
             print(
-                f"[pos-coleta] reatamento do batch {batch_id} falhou: {type(exc).__name__}: {exc}"
+                f"[pos-coleta] reatamento do batch {batch_id} falhou: "
+                f"{type(exc).__name__}: {exc} — NÃO submete novos"
             )
+            return False
+    return True
 
 
 def _classificar_pendentes_batch(
@@ -598,49 +665,64 @@ def _classificar_pendentes_batch(
     knobs = _batch_knobs()
     client = _get_client()
 
-    with db_session() as s:
-        ctx = _carregar_contexto(s, empresa_id)
-
-    # 1. Reata batches em aberto (morte de processo anterior) antes de submeter.
-    _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk)
-
-    # 2. Carrega pendentes (após o reatamento, que pode ter classificado parte).
-    with db_session() as s:
-        q = s.query(Verbatim).filter(
-            Verbatim.empresa_id == empresa_id,
-            Verbatim.tem_texto.is_(True),
-            Verbatim.subpilar.is_(None),
-        )
-        if limite:
-            q = q.limit(limite)
-        pend = [(v.id, v.texto, v.fonte_id, v.local_id) for v in q.all()]
-
-    if not pend:
-        return stats
-
-    # 3. Passe 1 — batch Haiku (split por ANTHROPIC_BATCH_MAX_REQUESTS).
-    passe2: list = []
-    for grupo in _split(pend, knobs["max_requests"]):
-        try:
-            batch_id = _submeter_batch(client, grupo, HAIKU_MODEL, empresa_id, 1, ctx)
-            if not _poll_batch(client, batch_id, knobs):
-                _marcar_batch_status(empresa_id, batch_id, "timeout")
-                print(
-                    f"[pos-coleta] batch Haiku {batch_id} timeout "
-                    f"({knobs['timeout_s']}s) — batch_id persistido, NULL p/ retry"
-                )
-                return stats
-            _consumir_passe1(client, batch_id, empresa_id, stats, passe2, ctx, chunk)
-            _marcar_batch_status(empresa_id, batch_id, "processed")
-        except Exception as exc:  # noqa: BLE001
-            print(f"[pos-coleta] batch Haiku falhou: {type(exc).__name__}: {exc} — NULL p/ retry")
+    # Lock por-empresa: serializa execuções concorrentes (anti-duplo-submit). Se
+    # outro processo já está classificando esta empresa, pula sem submeter nada.
+    with _lock_empresa(empresa_id) as got_lock:
+        if not got_lock:
+            print(
+                f"[pos-coleta] empresa {empresa_id}: outra execução já está "
+                f"classificando (lock) — pulando (anti-duplo-submit concorrente)"
+            )
             return stats
 
-    # 4. Passe 2 — escalada/reroll.
-    if passe2:
-        _processar_passe2(client, empresa_id, passe2, stats, knobs, ctx, chunk)
+        with db_session() as s:
+            ctx = _carregar_contexto(s, empresa_id)
 
-    return stats
+        # 1. Reata/aguarda batches abertos (morte de processo anterior). Se NÃO
+        #    drenou tudo (poll-timeout/erro), NÃO submete novos — os verbatins do
+        #    batch aberto seguem NULL e seriam ressubmetidos = duplo-submit.
+        if not _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk):
+            return stats
+
+        # 2. Carrega pendentes (após o reatamento, que pode ter classificado parte).
+        with db_session() as s:
+            q = s.query(Verbatim).filter(
+                Verbatim.empresa_id == empresa_id,
+                Verbatim.tem_texto.is_(True),
+                Verbatim.subpilar.is_(None),
+            )
+            if limite:
+                q = q.limit(limite)
+            pend = [(v.id, v.texto, v.fonte_id, v.local_id) for v in q.all()]
+
+        if not pend:
+            return stats
+
+        # 3. Passe 1 — batch Haiku (split por ANTHROPIC_BATCH_MAX_REQUESTS).
+        passe2: list = []
+        for grupo in _split(pend, knobs["max_requests"]):
+            try:
+                batch_id = _submeter_batch(client, grupo, HAIKU_MODEL, empresa_id, 1, ctx)
+                if not _poll_batch(client, batch_id, knobs):
+                    _marcar_batch_status(empresa_id, batch_id, "timeout")
+                    print(
+                        f"[pos-coleta] batch Haiku {batch_id} timeout "
+                        f"({knobs['timeout_s']}s) — batch_id persistido, NULL p/ retry"
+                    )
+                    return stats
+                _consumir_passe1(client, batch_id, empresa_id, stats, passe2, ctx, chunk)
+                _marcar_batch_status(empresa_id, batch_id, "processed")
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"[pos-coleta] batch Haiku falhou: {type(exc).__name__}: {exc} — NULL p/ retry"
+                )
+                return stats
+
+        # 4. Passe 2 — escalada/reroll.
+        if passe2:
+            _processar_passe2(client, empresa_id, passe2, stats, knobs, ctx, chunk)
+
+        return stats
 
 
 def executar_pos_coleta(

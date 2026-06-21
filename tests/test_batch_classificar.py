@@ -313,3 +313,116 @@ def test_batch_registra_metrica_custo_50pct(client_loyall, db_session, monkeypat
     esperado_full = _calcular_custo(_USAGE, HAIKU_MODEL, batch=False)
     assert custo == pytest.approx(esperado_batch) and custo == pytest.approx(esperado_full * 0.5)
     assert custo > 0
+
+
+# ── Guard anti-duplo-submit (COMMIT 3) ────────────────────────────────────
+
+
+def test_guard_aguarda_in_progress_e_nao_ressubmete(client_loyall, db_session, monkeypatch):
+    """Batch aberto in_progress → AGUARDA terminar e consome; NÃO submete novo
+    pros mesmos verbatins (anti-duplo-submit)."""
+    monkeypatch.setenv("ANTHROPIC_BATCH_ENABLED", "true")
+    monkeypatch.setenv("ANTHROPIC_BATCH_POLL_SECONDS", "0")  # sem sleep real
+    from src.classifier.classifier_v3 import HAIKU_MODEL
+    from src.models.classificacao_batch import ClassificacaoBatch
+
+    e, loc, f = _ctx(client_loyall, "wait")
+    v = _verb(db_session, e["id"], f["id"], loc["id"], "texto pendente")
+    db_session.add(
+        ClassificacaoBatch(
+            empresa_id=e["id"],
+            batch_id="batch_open",
+            modelo=HAIKU_MODEL,
+            passe=1,
+            status="submitted",
+        )
+    )
+    db_session.commit()
+    fb = FakeBatches(
+        entries_by_id={"batch_open": [_entry(v.id, "succeeded", _ok("Pa1", "promotor", 0.9))]},
+        status_by_id={"batch_open": ["in_progress", "ended"]},  # vira ended no poll
+    )
+    monkeypatch.setattr("src.classifier.classifier_v3._get_client", lambda: _client(fb))
+    classificar_pendentes(e["id"])
+    assert len(fb.created) == 0  # aguardou o aberto; NÃO submeteu novo
+    db_session.expire_all()
+    assert db_session.get(Verbatim, v.id).subpilar == "Pa1"
+    row = db_session.query(ClassificacaoBatch).filter_by(batch_id="batch_open").first()
+    assert row.status == "processed"
+
+
+def test_guard_poll_timeout_nao_submete(client_loyall, db_session, monkeypatch):
+    """Batch aberto que não termina (poll-timeout) → NÃO submete novo; fica p/ retry."""
+    monkeypatch.setenv("ANTHROPIC_BATCH_ENABLED", "true")
+    monkeypatch.setenv("ANTHROPIC_BATCH_TIMEOUT_MIN", "0")  # timeout imediato
+    from src.classifier.classifier_v3 import HAIKU_MODEL
+    from src.models.classificacao_batch import ClassificacaoBatch
+
+    e, loc, f = _ctx(client_loyall, "potout")
+    v = _verb(db_session, e["id"], f["id"], loc["id"], "texto")
+    db_session.add(
+        ClassificacaoBatch(
+            empresa_id=e["id"],
+            batch_id="batch_open",
+            modelo=HAIKU_MODEL,
+            passe=1,
+            status="submitted",
+        )
+    )
+    db_session.commit()
+    fb = FakeBatches(status_by_id={"batch_open": "in_progress"})  # nunca termina
+    monkeypatch.setattr("src.classifier.classifier_v3._get_client", lambda: _client(fb))
+    stats = classificar_pendentes(e["id"])
+    assert stats == {"classificados": 0, "falhas": 0}
+    assert len(fb.created) == 0  # NÃO submeteu novo (aberto não drenou)
+    db_session.expire_all()
+    assert db_session.get(Verbatim, v.id).subpilar is None  # segue pendente
+    row = db_session.query(ClassificacaoBatch).filter_by(batch_id="batch_open").first()
+    assert row.status == "submitted"  # segue aberto p/ próxima rodada
+
+
+def test_guard_lock_concorrente_pula(client_loyall, db_session, monkeypatch):
+    """Lock por-empresa ocupado (outra execução) → pula sem submeter nada."""
+    monkeypatch.setenv("ANTHROPIC_BATCH_ENABLED", "true")
+    e, loc, f = _ctx(client_loyall, "lock")
+    v = _verb(db_session, e["id"], f["id"], loc["id"], "texto")
+    fb = FakeBatches()
+    monkeypatch.setattr("src.classifier.classifier_v3._get_client", lambda: _client(fb))
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _lock_ocupado(empresa_id):
+        yield False  # simula outro processo segurando o lock
+
+    monkeypatch.setattr("src.temas.pos_coleta._lock_empresa", _lock_ocupado)
+    stats = classificar_pendentes(e["id"])
+    assert stats == {"classificados": 0, "falhas": 0}
+    assert len(fb.created) == 0  # não submeteu (lock ocupado)
+    db_session.expire_all()
+    assert db_session.get(Verbatim, v.id).subpilar is None
+
+
+def test_guard_reata_batch_status_timeout(client_loyall, db_session, monkeypatch):
+    """Batch que ficou 'timeout' na submissão é reentrante: ended → consome."""
+    monkeypatch.setenv("ANTHROPIC_BATCH_ENABLED", "true")
+    from src.classifier.classifier_v3 import HAIKU_MODEL
+    from src.models.classificacao_batch import ClassificacaoBatch
+
+    e, loc, f = _ctx(client_loyall, "tout")
+    v = _verb(db_session, e["id"], f["id"], loc["id"], "texto")
+    db_session.add(
+        ClassificacaoBatch(
+            empresa_id=e["id"], batch_id="batch_to", modelo=HAIKU_MODEL, passe=1, status="timeout"
+        )
+    )
+    db_session.commit()
+    fb = FakeBatches(
+        entries_by_id={"batch_to": [_entry(v.id, "succeeded", _ok("D2", "detrator", 0.9))]},
+        status_by_id={"batch_to": "ended"},
+    )
+    monkeypatch.setattr("src.classifier.classifier_v3._get_client", lambda: _client(fb))
+    classificar_pendentes(e["id"])
+    assert len(fb.created) == 0
+    db_session.expire_all()
+    assert db_session.get(Verbatim, v.id).subpilar == "D2"  # batch 'timeout' foi reatado
