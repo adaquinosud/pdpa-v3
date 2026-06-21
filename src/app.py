@@ -719,7 +719,13 @@ def _register_cli_commands(app: Flask) -> None:
         default=False,
         help="Roda mesmo abaixo do limiar.",
     )
-    def pipeline_pos_coleta(empresa_arg, limiar, force):
+    @click.option(
+        "--limite",
+        type=int,
+        default=None,
+        help="Máx. de verbatins pendentes a classificar nesta execução (default: todos).",
+    )
+    def pipeline_pos_coleta(empresa_arg, limiar, force, limite):
         """Pós-coleta: classifica novos → embeddings → temas → cruzamentos → ações.
 
         Roda só se houver novos verbatins ≥ limiar (--force ignora). Substitui o
@@ -746,9 +752,12 @@ def _register_cli_commands(app: Flask) -> None:
             click.echo(f"[pos-coleta]   {chave:28s} → {label!r} (vol={vol})")
 
         click.echo(
-            f"[pos-coleta] empresa={empresa_nome!r} (id={empresa_id}) limiar={lim} force={force}"
+            f"[pos-coleta] empresa={empresa_nome!r} (id={empresa_id}) limiar={lim} "
+            f"force={force} limite={limite if limite is not None else 'todos'}"
         )
-        r = executar_pos_coleta(empresa_id, limiar=lim, force=force, callback_progresso=_prog)
+        r = executar_pos_coleta(
+            empresa_id, limiar=lim, force=force, limite=limite, callback_progresso=_prog
+        )
         if not r.executou:
             click.echo(f"[pos-coleta] {r.motivo_skip}")
             return

@@ -144,7 +144,7 @@ def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypat
     chamadas = []
     monkeypatch.setattr(
         "src.temas.pos_coleta.classificar_pendentes",
-        lambda eid: chamadas.append("classif") or {"classificados": 1, "falhas": 0},
+        lambda eid, limite=None: chamadas.append("classif") or {"classificados": 1, "falhas": 0},
     )
     monkeypatch.setattr(
         "src.temas.pos_coleta.embed_verbatins_pendentes",
@@ -178,6 +178,41 @@ def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypat
     assert r.cruz_literais == 2 and r.cruz_semanticos == 1
     assert r.acoes == 3
     assert r.custo_estimado_usd > 0
+
+
+def test_executar_passa_limite_para_classificar(client_loyall, db_session, monkeypatch):
+    """--limite chega em classificar_pendentes (cap de classificação por execução)."""
+    e, a, loc, f = _ctx(client_loyall, "lim")
+    _verb(db_session, e["id"], f["id"], loc["id"], "novo")
+
+    capturado = {}
+    monkeypatch.setattr(
+        "src.temas.pos_coleta.classificar_pendentes",
+        lambda eid, limite=None: capturado.update(limite=limite)
+        or {"classificados": 0, "falhas": 0},
+    )
+    monkeypatch.setattr(
+        "src.temas.pos_coleta.embed_verbatins_pendentes", lambda eid: {"gerados": 0}
+    )
+    monkeypatch.setattr(
+        "src.temas.pos_coleta.processar_empresa",
+        lambda eid, **k: SimpleNamespace(clusters_rotulados=0, custo_usd_acumulado=0.0),
+    )
+    monkeypatch.setattr(
+        "src.temas.pos_coleta.detectar_e_persistir_literais",
+        lambda eid: SimpleNamespace(cruzamentos_criados=0),
+    )
+    monkeypatch.setattr(
+        "src.temas.pos_coleta.detectar_e_persistir_semanticos",
+        lambda eid: SimpleNamespace(cruzamentos_criados=0, input_tokens=0, output_tokens=0),
+    )
+    monkeypatch.setattr(
+        "src.temas.pos_coleta.gerar_e_persistir_acoes",
+        lambda eid: SimpleNamespace(acoes_geradas=0, input_tokens=0, output_tokens=0),
+    )
+
+    executar_pos_coleta(e["id"], force=True, limite=2000)
+    assert capturado["limite"] == 2000
 
 
 # ── CP-fix-classificador: marcador terminal de falha (opção ii) ───────────

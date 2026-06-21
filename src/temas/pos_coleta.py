@@ -730,9 +730,16 @@ def executar_pos_coleta(
     *,
     limiar: int = LIMIAR_NOVOS_DEFAULT,
     force: bool = False,
+    limite: Optional[int] = None,
     callback_progresso: Optional[Any] = None,
 ) -> ResumoPosColeta:
-    """Orquestra o pós-coleta. Pula se ``novos < limiar`` e não ``force``."""
+    """Orquestra o pós-coleta. Pula se ``novos < limiar`` e não ``force``.
+
+    ``limite`` (opcional) cap o número de verbatins pendentes **classificados**
+    nesta execução (repassado a ``classificar_pendentes``). As etapas seguintes
+    (embeddings, temas, cruzamentos…) seguem operando sobre a empresa inteira —
+    o cap vale só para a classificação.
+    """
     r = ResumoPosColeta(empresa_id=empresa_id, limiar=limiar)
     r.novos = contar_novos(empresa_id)
     if r.novos < limiar and not force:
@@ -740,7 +747,7 @@ def executar_pos_coleta(
         return r
 
     r.executou = True
-    cs = classificar_pendentes(empresa_id)
+    cs = classificar_pendentes(empresa_id, limite=limite)
     r.classificados = cs["classificados"]
     r.classif_falhas = cs["falhas"]
 
