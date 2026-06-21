@@ -27,9 +27,9 @@ numpy==1.26.3
 scikit-learn==1.8.0  # paridade com o dev (testado); umap-learn 0.5.12 exige >=1.6
 hdbscan==0.8.43      # paridade com o dev (testado)
 umap-learn==0.5.12   # redução de dimensão antes do HDBSCAN (Bloco 6 temas/clusterer)
-
-# Anomalias
-salesforce-merlion==2.0.4
+# Anomalias: o motor v3 usa IsolationForest do sklearn (já acima). O salesforce-merlion
+# do v2 foi REMOVIDO — era dependência morta (nunca importada) que puxava prophet/
+# cmdstanpy/Stan/lightgbm/statsmodels e inflava o build do Docker à toa.
 
 # Geração de documentos
 python-docx==1.1.0
@@ -46,8 +46,7 @@ pydantic==2.5.3
 pyyaml==6.0.3  # paridade com o dev (patch)
 mistune==3.2.1  # render do docs/DESCRITIVO_EXPLORAR.md → HTML na tela Manual do Explorar
 
-# Pins de transitivas p/ paridade EXATA com o que está VALIDADO e no ar (freeze
-# de prod em 2026-06-03). O resolver livre puxa patch/minor mais novo (filelock
-# 3.29.1, plotly 6.8.0); prod roda estes. Travados aqui p/ o .lock refletir prod.
-filelock==3.29.0  # via huggingface-hub (merlion); prod tem .0, não .1
-plotly==6.7.0     # via salesforce-merlion; prod tem 6.7, não 6.8
+# Pin de transitiva p/ paridade EXATA com o que está VALIDADO e no ar (freeze de
+# prod em 2026-06-03). O resolver livre puxa o patch mais novo (filelock 3.29.1);
+# prod roda este. Travado aqui p/ o .lock refletir prod.
+filelock==3.29.0  # prod tem .0, não .1
