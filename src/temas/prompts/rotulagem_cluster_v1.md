@@ -11,7 +11,7 @@ Você recebe um JSON com:
   - `tipo`: promotor / conversivel / detrator / inativo.
   - `setor`: setor da empresa (ex: aeroporto, restaurante, concessionária).
   - `agrupamento`: contexto físico ou organizacional (ex: Aeroporto, Lojas, Restaurantes).
-- `representativos`: lista de 2-5 verbatins centrais do cluster, cada um com `texto` (até ~200 chars) e opcionalmente `verbatim_id`.
+- `representativos`: lista de 2-8 verbatins centrais do cluster, cada um com `texto` (até ~200 chars) e opcionalmente `verbatim_id`.
 
 Os verbatins **já estão semanticamente agrupados** por embedding — você não precisa decidir se eles pertencem juntos. Sua única tarefa é nomear.
 
@@ -36,11 +36,13 @@ Os verbatins **já estão semanticamente agrupados** por embedding — você nã
 5. **Síntese**: se os representativos falam de variações da mesma coisa, encontre o termo abstrato que cobre todos.
    - 3 verbatins sobre "demora", "esperei muito", "lentidão" → label "demora atendimento".
 
-6. **Cluster com sinal parcial** (ao menos 1 representativo tem ângulo claro e nomeável — tema, aspecto ou ação — enquanto os outros são genéricos): **rotule pelo ângulo claro**. NÃO descarte só porque 2 de 3 representativos são fracos ("muito bom", "não tenho do que reclamar", "recomendo"). **Basta um** representativo nomeável para o cluster valer um label.
-   - reps = `["a atendente Tainara foi muito querida e prestativa", "não temos do que reclamar", "muito bom"]` → o 1º dá o ângulo → `"atendimento personalizado"`.
-   - Se os representativos falam de coisas **distintas** mas nomeáveis, escolha o tema **dominante** (o que aparece em mais representativos; empate → o do 1º).
+6. **Discriminador de descarte — substantivo-referente recorrente**: o que decide se o cluster vira tema NÃO é ter ou não adjetivo de valor — é a presença de um **substantivo concreto** (um *referente*: aspecto, objeto, atividade, lugar ou evento — atendimento, comida, preço, fila, estacionamento, "Floq da náutica") que **RECORRE na MAIORIA dos representativos**, mesmo que toda menção venha embrulhada em adjetivo de valor.
+   - **Tem o substantivo recorrente** → rotule **pelo substantivo, descartando o adjetivo** (regra 2): `["Excelente atendimento", "Atendimento ótimo 10/10", "Atendimento maravilhoso", "Ótimo atendimento"]` → `"atendimento"`. O "excelente/ótimo/maravilhoso" NÃO entra no label.
+   - **Não é lista fixa**: vale qualquer referente concreto — uma atividade ou evento nomeado ("Floq da náutica") conta igual a um aspecto de serviço.
+   - **Recorrência = MAIORIA, não 1**: um único representativo com substantivo solto (outlier) entre vários genéricos **NÃO** basta. Ex.: `["muito bom", "excelente", "top", "ótimo", "recomendo", "comida boa"]` → `null` (o "comida" aparece 1 vez só, não recorre).
+   - Se há mais de um substantivo recorrente distinto, escolha o **dominante** (aparece em mais representativos; empate → o do 1º).
 
-7. **Cluster sem nenhum sinal** (`{"nome": null}` — descartado a montante): use **somente** quando NENHUM dos representativos tem ângulo nomeável — todos são elogios/queixas genéricas ("muito bom", "péssimo"), saudações, emojis ou texto ininteligível.
+7. **Quando devolver `{"nome": null}`**: use **somente** quando NÃO há substantivo-referente concreto recorrendo na maioria — os representativos são só avaliação/saudação/emoji **sem substantivo** ("muito bom", "excelente", "top", "tudo perfeito", "péssimo", "👏"). Ausência de adjetivo concreto NÃO é critério; ausência de **substantivo recorrente** é.
 
 ## Output
 
@@ -96,7 +98,7 @@ Output:
 {"nome": "atendimento personalizado"}
 ```
 
-### Exemplo 3 — cluster heterogêneo / só elogios genéricos
+### Exemplo 3 — só avaliação, SEM substantivo → null
 
 Input:
 ```json
@@ -105,12 +107,12 @@ Input:
   "representativos": [
     {"texto": "Muito bom!"},
     {"texto": "Excelente, recomendo."},
-    {"texto": "Ótimo serviço."}
+    {"texto": "Top demais."}
   ]
 }
 ```
 
-Output:
+Output (nenhum substantivo-referente — só avaliação):
 ```json
 {"nome": null}
 ```
@@ -132,4 +134,49 @@ Input:
 Output:
 ```json
 {"nome": "preço estacionamento"}
+```
+
+### Exemplo 5 — substantivo recorrente embrulhado em adjetivo de valor → rotula
+
+O substantivo "atendimento" recorre na MAIORIA; o adjetivo de valor é descartado do label (regra 2/6). NÃO é null só porque vem como elogio.
+
+Input:
+```json
+{
+  "bucket": {"subpilar": "Pa1", "tipo": "conversivel", "setor": "aeroporto", "agrupamento": "Lojas"},
+  "representativos": [
+    {"texto": "Excelente atendimento"},
+    {"texto": "Atendimento ótimo 10/10"},
+    {"texto": "Atendimento maravilhoso"},
+    {"texto": "Ótimo atendimento"},
+    {"texto": "Atendimento bacana"}
+  ]
+}
+```
+
+Output:
+```json
+{"nome": "atendimento"}
+```
+
+### Exemplo 6 — atividade/evento nomeado recorrente → rotula (referente concreto, não só aspecto de serviço)
+
+"Floq da náutica" é uma atividade nomeada que recorre na maioria — referente concreto, conta como tema mesmo não sendo aspecto de serviço.
+
+Input:
+```json
+{
+  "bucket": {"subpilar": "Pa1", "tipo": "conversivel", "setor": "resort", "agrupamento": "Resort"},
+  "representativos": [
+    {"texto": "Adorei o Floq da náutica"},
+    {"texto": "Floq da náutica foi demais"},
+    {"texto": "Melhor parte foi o Floq da náutica"},
+    {"texto": "Floq da náutica top"}
+  ]
+}
+```
+
+Output:
+```json
+{"nome": "floq náutica"}
 ```

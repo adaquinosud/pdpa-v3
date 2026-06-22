@@ -33,7 +33,7 @@ from src.temas.clusterer import (
     pick_representativos,
 )
 from src.temas.embeddings import MODELO_PADRAO, carregar_embeddings
-from src.temas.rotulador import rotular_cluster
+from src.temas.rotulador import REPS_PARA_ROTULAGEM, rotular_cluster
 from src.temas.slug import slugify
 
 # Custo Haiku por rotulagem (1 chamada por cluster): system+payload pequeno,
@@ -326,7 +326,7 @@ def _processar_bucket(
 
     rotulados: List[Dict[str, Any]] = []
     for cluster_id in sorted(set(res.labels) - {-1}):
-        rep_pos = pick_representativos(vetores, res.labels, cluster_id, k=3)
+        rep_pos = pick_representativos(vetores, res.labels, cluster_id, k=REPS_PARA_ROTULAGEM)
         membros_pos = np.where(res.labels == cluster_id)[0]
         membros_ids = [membros_com_emb[i]["id"] for i in membros_pos]
         rep_ids = [membros_com_emb[i]["id"] for i in rep_pos]

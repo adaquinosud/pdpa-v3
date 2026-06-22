@@ -35,7 +35,7 @@ from src.classifier.classifier_v3 import _get_client
 from src.temas.clusterer import clusterizar_bucket, pick_representativos
 from src.temas.embeddings import carregar_embeddings
 from src.temas.pipeline import _carregar_verbatins_empresa
-from src.temas.rotulador import HAIKU_MODEL, rotular_cluster
+from src.temas.rotulador import HAIKU_MODEL, REPS_PARA_ROTULAGEM, rotular_cluster
 
 _JUIZ_SYS = (
     "Você recebe um conjunto de verbatins que foram agrupados por similaridade "
@@ -139,7 +139,7 @@ def main() -> int:
     rotulados, descartados = [], []
     for cid in sorted(set(int(x) for x in res.labels) - {-1}):
         pos = np.where(res.labels == cid)[0]
-        rep_pos = pick_representativos(vetores, res.labels, cid, k=3)
+        rep_pos = pick_representativos(vetores, res.labels, cid, k=REPS_PARA_ROTULAGEM)
         reps = [{"texto": membros[i]["texto"], "verbatim_id": membros[i]["id"]} for i in rep_pos]
         label = rotular_cluster(bucket_ctx, reps)  # LLM, read-only
         if label is None:

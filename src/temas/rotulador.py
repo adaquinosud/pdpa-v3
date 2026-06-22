@@ -1,6 +1,6 @@
 """Rotulagem de clusters de verbatins (Bloco 6 Caminho A CP-9).
 
-Recebe um cluster já formado (3-5 representativos) + contexto do bucket,
+Recebe um cluster já formado (até REPS_PARA_ROTULAGEM representativos) + contexto do bucket,
 devolve UMA label canônica 2-3 palavras via Claude Haiku.
 
 Função pública:
@@ -22,6 +22,12 @@ HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 100
 PROMPT_PATH = Path(__file__).parent / "prompts" / "rotulagem_cluster_v1.md"
 REP_TEXTO_MAX = 220  # truncamento defensivo por representativo
+# Quantos representativos o LLM vê por cluster. Subido de 5→8 (fix referente-
+# concreto): o discriminador de descarte agora exige que o substantivo-aspecto
+# RECORRA na maioria dos reps, então o LLM precisa de mais amostras pra medir
+# recorrência (1 substantivo solto não basta). Usado no cap interno e no k de
+# pick_representativos (pipeline + scripts/medir_rotulagem).
+REPS_PARA_ROTULAGEM = 8
 
 _prompt_cache: Dict[str, str] = {}
 
@@ -108,7 +114,7 @@ def rotular_cluster(
             bucket_payload[k] = v
 
     reps_payload: List[Dict[str, Any]] = []
-    for r in representativos[:5]:  # cap 5 representativos no prompt
+    for r in representativos[:REPS_PARA_ROTULAGEM]:  # cap de reps enviados ao LLM
         txt = (r.get("texto") or "").strip()[:REP_TEXTO_MAX]
         if not txt:
             continue
