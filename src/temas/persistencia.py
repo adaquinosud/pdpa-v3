@@ -236,3 +236,51 @@ def reconciliar_vinculos(
                 _sweep(s, ids[i:fim])
 
     return {"verbatins_avaliados": len(avaliados), "vinculos_removidos": removidos}
+
+
+def empresas_com_vinculos_orfaos() -> List[Dict[str, int]]:
+    """Empresas que têm ≥1 vínculo órfão — candidatas ao ciclo retroativo.
+
+    Usa **exatamente o mesmo predicado** de ``reconciliar_vinculos`` (mesmo
+    `_subpilar_tipo`, mesmos carve-outs origem='llm'/bucket não-nulo/subpilar
+    atual não-nulo) — assim a lista de candidatas casa com o que a poda de fato
+    removeria. Dialeto-agnóstico (faz o parse do ``bucket_chave`` em Python, não
+    em SQL), então roda igual em SQLite e Postgres.
+
+    Returns:
+        Lista ``[{"empresa_id": int, "orfaos": int}, ...]`` ordenada por
+        ``orfaos`` desc. Vazia se nenhuma empresa tem órfão (estado de quem só
+        coletou, nunca reclassificou).
+    """
+    from collections import Counter
+
+    from src.models.verbatim import Verbatim
+    from src.temas.cruzamento import _subpilar_tipo
+    from src.utils.db import db_session
+
+    contador: Counter = Counter()
+    with db_session() as s:
+        rows = (
+            s.query(
+                Verbatim.empresa_id,
+                VerbatimTema.bucket_chave,
+                Verbatim.subpilar,
+                Verbatim.tipo,
+            )
+            .select_from(VerbatimTema)
+            .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+            .filter(
+                VerbatimTema.origem == "llm",
+                VerbatimTema.bucket_chave.isnot(None),
+                Verbatim.subpilar.isnot(None),
+                Verbatim.tipo.isnot(None),
+            )
+        )
+        for empresa_id, bucket_chave, sub, tipo in rows:
+            st = _subpilar_tipo(bucket_chave or "")
+            if st is None:
+                continue
+            if st != f"{sub}:{tipo}":
+                contador[empresa_id] += 1
+
+    return [{"empresa_id": e, "orfaos": n} for e, n in contador.most_common()]

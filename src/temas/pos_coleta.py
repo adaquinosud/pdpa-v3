@@ -780,6 +780,7 @@ def executar_pos_coleta(
     force: bool = False,
     limite: Optional[int] = None,
     callback_progresso: Optional[Any] = None,
+    aplicar_janela: bool = True,
 ) -> ResumoPosColeta:
     """Orquestra o pós-coleta. Pula se ``novos < limiar`` e não ``force``.
 
@@ -787,6 +788,12 @@ def executar_pos_coleta(
     nesta execução (repassado a ``classificar_pendentes``). As etapas seguintes
     (embeddings, temas, cruzamentos…) seguem operando sobre a empresa inteira —
     o cap vale só para a classificação.
+
+    ``aplicar_janela`` (default ``True``) repassa a janela temporal ao
+    ``processar_empresa``: na coleta normal só re-clusteriza buckets recentes
+    (barato). Para um reprocesso **retroativo** (reconciliação pós-reclassificação
+    de dados antigos), passe ``False`` — só assim o cache de TODOS os buckets é
+    regenerado; senão buckets fora da janela ficam com volume defasado.
     """
     r = ResumoPosColeta(empresa_id=empresa_id, limiar=limiar)
     r.novos = contar_novos(empresa_id)
@@ -802,7 +809,9 @@ def executar_pos_coleta(
     emb = embed_verbatins_pendentes(empresa_id)
     r.embeddings_gerados = int(emb.get("gerados", 0))
 
-    rp = processar_empresa(empresa_id, callback_progresso=callback_progresso)
+    rp = processar_empresa(
+        empresa_id, callback_progresso=callback_progresso, aplicar_janela=aplicar_janela
+    )
     r.clusters_rotulados = rp.clusters_rotulados
 
     rl = detectar_e_persistir_literais(empresa_id)

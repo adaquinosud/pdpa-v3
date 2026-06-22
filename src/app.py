@@ -1171,6 +1171,133 @@ def _register_cli_commands(app: Flask) -> None:
             "depois p/ recalcular cache/Painel + re-tematizar."
         )
 
+    # ── flask reconciliar-reclassificados (ciclo retroativo em lote) ──
+    @app.cli.command("reconciliar-reclassificados")
+    @click.option(
+        "--empresa",
+        "empresa_arg",
+        default=None,
+        help="ID ou nome de UMA empresa. Omita e use --todas p/ auto-detectar.",
+    )
+    @click.option(
+        "--todas",
+        is_flag=True,
+        default=False,
+        help="Todas as empresas com vínculos órfãos (auto-detecta pelo mesmo predicado da poda).",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Só LISTA as empresas afetadas + nº de órfãos. NÃO roda o ciclo.",
+    )
+    def reconciliar_reclassificados(empresa_arg, todas, dry_run):
+        """Aplica o ciclo de reconciliação retroativa nas empresas reclassificadas.
+
+        Por empresa, na ordem: ``reconciliar_vinculos`` (poda vínculos órfãos) →
+        ``executar_pos_coleta(force=True, aplicar_janela=False)`` (regenera o cache
+        de TODOS os buckets + re-tematiza). Idempotente — rodar 2x converge (a 2ª
+        poda remove ~0; o pós-coleta nunca recria órfão, pois clusteriza pelo
+        subpilar/tipo ATUAL).
+
+        Seleção: ``--empresa N`` (uma, explícita) OU ``--todas`` (auto-detecta as
+        que têm vínculo órfão). ``--dry-run`` só lista. Gate de concorrência: pula
+        empresa com classificação em andamento. Carve-outs (manual/merge, bucket
+        NULL) preservados pelo ``reconciliar_vinculos``.
+        """
+        from sqlalchemy import func
+
+        from src.models.empresa import Empresa
+        from src.models.temas import TemaCache
+        from src.temas.persistencia import (
+            empresas_com_vinculos_orfaos,
+            reconciliar_vinculos,
+        )
+        from src.temas.pos_coleta import _lock_empresa, executar_pos_coleta
+        from src.utils.db import db_session as _db_session
+
+        if not empresa_arg and not todas:
+            click.echo("informe --empresa N ou --todas", err=True)
+            raise SystemExit(1)
+
+        # 1) Monta a lista de alvos (id → nº de órfãos quando conhecido).
+        if empresa_arg:
+            with _db_session() as s:
+                try:
+                    emp = s.get(Empresa, int(empresa_arg))
+                except ValueError:
+                    emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+                if emp is None:
+                    click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                    raise SystemExit(1)
+                alvos = [{"empresa_id": emp.id, "orfaos": None}]
+        else:
+            alvos = empresas_com_vinculos_orfaos()
+
+        if not alvos:
+            click.echo("[recl-em-lote] nenhuma empresa com vínculos órfãos — nada a fazer.")
+            return
+
+        # Resolve nomes p/ log.
+        with _db_session() as s:
+            nomes = {
+                e.id: e.nome
+                for e in s.query(Empresa).filter(Empresa.id.in_([a["empresa_id"] for a in alvos]))
+            }
+
+        click.echo(f"[recl-em-lote] {len(alvos)} empresa(s) afetada(s):")
+        for a in alvos:
+            eid = a["empresa_id"]
+            orf = a["orfaos"]
+            sufixo = f" órfãos≈{orf}" if orf is not None else ""
+            click.echo(f"[recl-em-lote]   - id={eid} {nomes.get(eid, '?')!r}{sufixo}")
+
+        if dry_run:
+            click.echo("[recl-em-lote] DRY-RUN — nada executado.")
+            return
+
+        def _volume_cache(empresa_id: int) -> int:
+            with _db_session() as s:
+                v = s.query(func.coalesce(func.sum(TemaCache.volume), 0)).filter(
+                    TemaCache.empresa_id == empresa_id
+                )
+                return int(v.scalar() or 0)
+
+        # 2) Executa o ciclo por empresa.
+        total_removidos = 0
+        processadas = 0
+        puladas = 0
+        for a in alvos:
+            eid = a["empresa_id"]
+            nome = nomes.get(eid, "?")
+
+            # Gate de concorrência: se há classificação em andamento, pula.
+            with _lock_empresa(eid) as got_lock:
+                livre = got_lock
+            if not livre:
+                puladas += 1
+                click.echo(f"[recl-em-lote] id={eid} {nome!r}: job em andamento — PULADA.")
+                continue
+
+            vol_antes = _volume_cache(eid)
+            rec = reconciliar_vinculos(eid)
+            r = executar_pos_coleta(eid, force=True, aplicar_janela=False)
+            vol_depois = _volume_cache(eid)
+
+            total_removidos += rec["vinculos_removidos"]
+            processadas += 1
+            click.echo(
+                f"[recl-em-lote] id={eid} {nome!r}: "
+                f"órfãos_removidos={rec['vinculos_removidos']} "
+                f"volume_cache {vol_antes}→{vol_depois} "
+                f"clusters={r.clusters_rotulados}"
+            )
+
+        click.echo(
+            f"[recl-em-lote] RESUMO: processadas={processadas} puladas={puladas} "
+            f"vínculos_removidos={total_removidos}"
+        )
+
     # ── CP purge-linkedin-dup: flask purgar-verbatins-fonte ───────────
     @app.cli.command("purgar-verbatins-fonte")
     @click.option(
