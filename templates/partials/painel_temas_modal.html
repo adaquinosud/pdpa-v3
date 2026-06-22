@@ -21,9 +21,39 @@
     </header>
 
     <div class="flex-1 overflow-y-auto px-4 py-3">
+      {% if tripleto %}
+      {# Tripleto reconciliado (régua LIVE): total do bucket = em temas + sem tema. #}
+      <div class="mb-3 border border-loyall-200 rounded p-2.5 bg-loyall-50/60">
+        <div class="flex items-center justify-between text-sm">
+          <span class="text-loyall-500">Verbatins com texto</span>
+          <span class="font-semibold text-loyall-800">{{ tripleto.total }}</span>
+        </div>
+        {% if tripleto.total %}
+        <div class="flex h-2 rounded overflow-hidden bg-loyall-100 my-1.5"
+             title="em temas {{ tripleto.em_temas }} · sem tema {{ tripleto.sem_tema }}">
+          <div class="bg-loyall-500" style="width: {{ (tripleto.em_temas / tripleto.total * 100) | round(0,'floor') }}%"></div>
+        </div>
+        {% endif %}
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-loyall-600">em temas</span>
+          <span class="font-medium text-loyall-700">{{ tripleto.em_temas }}</span>
+        </div>
+        <div class="flex items-center justify-between text-xs mt-0.5">
+          <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa_id) }}?subpilar={{ subpilar }}{% if tipo %}&tipo={{ tipo }}{% endif %}&sem_tema=1&origem=painel"
+             class="text-loyall-500 hover:underline">sem tema <span class="text-loyall-400">(ruído + descartados + não-cobertos)</span></a>
+          <span class="font-medium text-loyall-500">{{ tripleto.sem_tema }}</span>
+        </div>
+        {% if tripleto.stale %}
+        <div class="mt-1.5 text-[11px] text-amber-600 flex items-start gap-1">
+          <span aria-hidden="true">⚠️</span>
+          <span>Cache de tema defasado (snapshot {{ tripleto.cache_snapshot }} ≠ {{ tripleto.em_temas }} ao vivo) — rode o pós-coleta p/ alinhar.</span>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="text-[11px] text-loyall-400 italic mb-2 flex items-start gap-1">
         <span aria-hidden="true">ℹ️</span>
-        <span>Temas agregados no nível <span class="font-medium">agrupamento</span>. Filtros de local e período não se aplicam a esta visão.</span>
+        <span>Contagem <span class="font-medium">ao vivo</span> (= lista de verbatins do tema). Agregado por agrupamento; filtros de local/período não se aplicam.</span>
       </div>
       {% if not temas %}
         <div class="text-center text-loyall-400 italic text-sm py-8">
@@ -43,7 +73,9 @@
                 <div class="text-xs text-loyall-400 truncate"><code>{{ t.slug }}</code></div>
               </div>
               <span class="shrink-0 inline-block px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700"
-                    title="{{ t.volume }} verbatins">{{ t.volume }}</span>
+                    title="{{ t.volume }} verbatins (ao vivo){% if t.stale %} · snapshot do cache: {{ t.volume_snapshot }}{% endif %}">
+                {{ t.volume }}{% if t.stale %}<span class="ml-1 text-loyall-400 font-normal" title="snapshot {{ t.volume_snapshot }}">⚠</span>{% endif %}
+              </span>
             </div>
             {% if t.volume %}
             {% set tot = t.volume %}

@@ -26,8 +26,10 @@ from src.auth import (
     loyall_required,
     verificar_acesso_empresa,
 )
+from src.models.local import Local
 from src.models.temas import Tema, TemaCache, TemaCruzamento, VerbatimTema
 from src.models.verbatim import Verbatim
+from src.temas.cobertura import tripleto_bucket
 from src.temas.extrator import extrair_temas
 from src.temas.persistencia import merge_temas, persistir_temas_de_verbatim
 from src.temas.slug import slugify
@@ -227,37 +229,36 @@ def painel_temas(empresa_id: int):
             return jsonify({"erro": "agrupamento_id deve ser inteiro"}), 400
 
     with db_session() as s:
-        # Agrega por (tema, tipo) p/ obter o split. Se `tipo` é dado, restringe;
-        # senão pega todos os tipos do subpilar (drill do Mapa de Lastro).
-        q = (
+        # Régua LIVE: conta verbatins DISTINTOS do bucket (com texto) vinculados a
+        # cada tema ATIVO — exatamente o que a lista "ver verbatins deste tema"
+        # mostra. Substitui temas_cache.volume como número PRIMÁRIO (era snapshot e
+        # divergia da lista sempre que houve reprocessamento). O split por tipo sai
+        # do Verbatim.tipo vivo.
+        ql = (
             s.query(
                 Tema.id.label("tema_id"),
                 Tema.nome.label("nome"),
                 Tema.slug.label("slug"),
-                TemaCache.tipo.label("tipo"),
-                func.sum(TemaCache.volume).label("volume"),
-                group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
+                Verbatim.tipo.label("tipo"),
+                func.count(func.distinct(Verbatim.id)).label("n"),
             )
-            .join(
-                Tema,
-                and_(
-                    Tema.empresa_id == TemaCache.empresa_id,
-                    Tema.nome == TemaCache.tema_label,
-                    Tema.ativo.is_(True),
-                ),
-            )
+            .select_from(VerbatimTema)
+            .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+            .join(Tema, and_(Tema.id == VerbatimTema.tema_id, Tema.ativo.is_(True)))
             .filter(
-                TemaCache.empresa_id == empresa_id,
-                TemaCache.subpilar == subpilar,
+                Verbatim.empresa_id == empresa_id,
+                Verbatim.tem_texto.is_(True),
+                Verbatim.subpilar == subpilar,
             )
         )
         if tipo:
-            q = q.filter(TemaCache.tipo == tipo)
+            ql = ql.filter(Verbatim.tipo == tipo)
         if agrupamento_id is not None:
-            q = q.filter(TemaCache.agrupamento_id == agrupamento_id)
-        rows = q.group_by(Tema.id, Tema.nome, Tema.slug, TemaCache.tipo).all()
+            ql = ql.join(Local, Local.id == Verbatim.local_id).filter(
+                Local.agrupamento_id == agrupamento_id
+            )
+        rows = ql.group_by(Tema.id, Tema.nome, Tema.slug, Verbatim.tipo).all()
 
-        # Agrega por tema (soma tipos), guarda o split e coleta exemplos.
         por_tema: Dict[int, Dict[str, Any]] = {}
         for r in rows:
             e = por_tema.get(r.tema_id)
@@ -270,31 +271,59 @@ def painel_temas(empresa_id: int):
                     "promotor": 0,
                     "conversivel": 0,
                     "detrator": 0,
-                    "ex_ids": [],
                 }
                 por_tema[r.tema_id] = e
-            vol = int(r.volume or 0)
-            e["volume"] += vol
+            n = int(r.n or 0)
+            e["volume"] += n
             if r.tipo in ("promotor", "conversivel", "detrator"):
-                e[r.tipo] += vol
-            for blob in (r.ex_blobs or "").split("|"):
+                e[r.tipo] += n
+
+        parciais = sorted(por_tema.values(), key=lambda x: -x["volume"])[:limite]
+
+        # Snapshot do cache (número antigo) + exemplos, por tema. Exibido só como
+        # referência; a diferença vs o volume live vira o badge de "defasado".
+        snap_q = (
+            s.query(
+                Tema.id.label("tema_id"),
+                func.sum(TemaCache.volume).label("snap"),
+                group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
+            )
+            .join(
+                Tema,
+                and_(
+                    Tema.empresa_id == TemaCache.empresa_id,
+                    Tema.nome == TemaCache.tema_label,
+                    Tema.ativo.is_(True),
+                ),
+            )
+            .filter(TemaCache.empresa_id == empresa_id, TemaCache.subpilar == subpilar)
+        )
+        if tipo:
+            snap_q = snap_q.filter(TemaCache.tipo == tipo)
+        if agrupamento_id is not None:
+            snap_q = snap_q.filter(TemaCache.agrupamento_id == agrupamento_id)
+        snap_map: Dict[int, Dict[str, Any]] = {
+            sr.tema_id: {"snap": int(sr.snap or 0), "ex_blobs": sr.ex_blobs or ""}
+            for sr in snap_q.group_by(Tema.id).all()
+        }
+
+        todos_ids: Set[int] = set()
+        ex_por_tema: Dict[int, List[int]] = {}
+        for p in parciais:
+            ids: List[int] = []
+            for blob in snap_map.get(p["tema_id"], {}).get("ex_blobs", "").split("|"):
                 blob = blob.strip()
                 if not blob:
                     continue
                 try:
                     for vid in json.loads(blob):
-                        if vid not in e["ex_ids"]:
-                            e["ex_ids"].append(vid)
+                        if vid not in ids:
+                            ids.append(vid)
                 except (ValueError, TypeError):
                     continue
+            ex_por_tema[p["tema_id"]] = ids[:3]
+            todos_ids.update(ids[:3])
 
-        parciais = sorted(por_tema.values(), key=lambda x: -x["volume"])[:limite]
-        todos_ids: Set[int] = set()
-        for p in parciais:
-            p["ex_ids"] = p["ex_ids"][:3]
-            todos_ids.update(p["ex_ids"])
-
-        # SELECT batched: textos dos exemplos (não N+1).
         textos: Dict[int, str] = {}
         if todos_ids:
             for vid, texto in (
@@ -302,26 +331,32 @@ def painel_temas(empresa_id: int):
             ):
                 textos[vid] = texto or ""
 
-    temas: List[Dict[str, Any]] = [
-        {
-            "tema_id": p["tema_id"],
-            "nome": p["nome"],
-            "slug": p["slug"],
-            "volume": p["volume"],
-            "promotor": p["promotor"],
-            "conversivel": p["conversivel"],
-            "detrator": p["detrator"],
-            "exemplos": [
-                {
-                    "verbatim_id": vid,
-                    "texto_curto": textos.get(vid, "")[:160],
-                    "evidencia": None,
-                }
-                for vid in p["ex_ids"]
-            ],
-        }
-        for p in parciais
-    ]
+    temas: List[Dict[str, Any]] = []
+    for p in parciais:
+        snap = snap_map.get(p["tema_id"], {}).get("snap", 0)
+        temas.append(
+            {
+                "tema_id": p["tema_id"],
+                "nome": p["nome"],
+                "slug": p["slug"],
+                "volume": p["volume"],  # LIVE (= lista de verbatins)
+                "volume_snapshot": snap,  # cache (referência)
+                "stale": snap != p["volume"],
+                "promotor": p["promotor"],
+                "conversivel": p["conversivel"],
+                "detrator": p["detrator"],
+                "exemplos": [
+                    {
+                        "verbatim_id": vid,
+                        "texto_curto": textos.get(vid, "")[:160],
+                        "evidencia": None,
+                    }
+                    for vid in ex_por_tema.get(p["tema_id"], [])
+                ],
+            }
+        )
+
+    tripleto = tripleto_bucket(empresa_id, subpilar, tipo or None, agrupamento_id)
 
     return jsonify(
         {
@@ -329,6 +364,7 @@ def painel_temas(empresa_id: int):
             "subpilar": subpilar,
             "tipo": tipo or None,
             "agrupamento_id": agrupamento_id,
+            "tripleto": tripleto,
             "temas": temas,
         }
     )

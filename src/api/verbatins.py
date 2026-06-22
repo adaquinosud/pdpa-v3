@@ -132,6 +132,15 @@ def _aplicar_filtros_listagem(q, empresa_id: int, s):
         sub_ids = s.query(_VT.verbatim_id).filter(_VT.tema_id == tema_id).distinct()
         q = q.filter(Verbatim.id.in_(sub_ids))
 
+    # Tripleto de cobertura: "sem tema" = verbatins do bucket SEM nenhum vínculo a
+    # tema (ruído + descartados + não-cobertos). Combina com os filtros subpilar/
+    # tipo já aplicados → lista os não-cobertos daquele bucket. Régua live.
+    if request.args.get("sem_tema") in ("1", "true", "True"):
+        from src.models.temas import VerbatimTema as _VT
+
+        com_tema = s.query(_VT.verbatim_id).distinct()
+        q = q.filter(Verbatim.tem_texto.is_(True), ~Verbatim.id.in_(com_tema))
+
     tipos = [t for t in request.args.getlist("tipo") if t]
     if tipos:
         q = q.filter(Verbatim.tipo.in_(tipos))

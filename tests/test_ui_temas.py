@@ -57,6 +57,11 @@ def _criar_verbatim(db_session, empresa_id, fonte_id, local_id, texto, sub="Pa1"
     return v
 
 
+def _link(db_session, vid, tema_id):
+    db_session.add(VerbatimTema(verbatim_id=vid, tema_id=tema_id, confianca=0.8, origem="llm"))
+    db_session.commit()
+
+
 # ── /ui/empresas/<id>/painel/temas-modal ─────────────────────────────
 
 
@@ -66,6 +71,7 @@ def test_temas_modal_loyall_renderiza_drawer(client_loyall, db_session):
     t = Tema(empresa_id=e["id"], nome="fila check-in", slug="fila-check-in")
     db_session.add(t)
     db_session.commit()
+    _link(db_session, v.id, t.id)  # régua live
     db_session.add(_cache(e["id"], "Pa1", "promotor", "fila check-in", 1, [v.id], a["id"]))
     db_session.commit()
 
@@ -77,8 +83,8 @@ def test_temas_modal_loyall_renderiza_drawer(client_loyall, db_session):
     assert "promotor" in html
     assert "fila check-in" in html
     assert "txt" in html  # texto do exemplo veio do SELECT batched
-    # nota de nível agrupamento + "Todos os agrupamentos" (sem filtro)
-    assert "nível" in html and "agrupamento" in html
+    # nota "ao vivo" + nível agrupamento + "Todos os agrupamentos" (sem filtro)
+    assert "ao vivo" in html and "agrupamento" in html
     assert "Todos os agrupamentos" in html
 
 
@@ -88,20 +94,17 @@ def test_temas_modal_filtra_e_mostra_agrupamento(client_loyall, db_session):
     a2 = client_loyall.post(
         f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Lojas"}
     ).get_json()
-    db_session.add_all(
-        [
-            Tema(empresa_id=e["id"], nome="sinalização", slug="sinalizacao"),
-            Tema(empresa_id=e["id"], nome="falta produtos lojas", slug="falta-produtos-lojas"),
-        ]
-    )
+    loc2 = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L2", "agrupamento_id": a2["id"]}
+    ).get_json()
+    t_sin = Tema(empresa_id=e["id"], nome="sinalização", slug="sinalizacao")
+    t_prod = Tema(empresa_id=e["id"], nome="falta produtos lojas", slug="falta-produtos-lojas")
+    db_session.add_all([t_sin, t_prod])
     db_session.commit()
-    db_session.add_all(
-        [
-            _cache(e["id"], "D1", "detrator", "sinalização", 8, [], a["id"]),
-            _cache(e["id"], "D1", "detrator", "falta produtos lojas", 59, [], a2["id"]),
-        ]
-    )
-    db_session.commit()
+    v_a = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "sin", "D1", "detrator")
+    v_b = _criar_verbatim(db_session, e["id"], f["id"], loc2["id"], "prod", "D1", "detrator")
+    _link(db_session, v_a.id, t_sin.id)
+    _link(db_session, v_b.id, t_prod.id)
 
     r = client_loyall.get(
         f"/ui/empresas/{e['id']}/painel/temas-modal?subpilar=D1&tipo=detrator"
@@ -415,16 +418,14 @@ def test_temas_tela_top_subpilar_mostra_exemplos(client_loyall, db_session):
 
 def test_temas_modal_drill_subpilar_todos_tipos(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "drill")
-    v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "demorou")
-    db_session.add(Tema(empresa_id=e["id"], nome="demora", slug="demora"))
+    t = Tema(empresa_id=e["id"], nome="demora", slug="demora")
+    db_session.add(t)
     db_session.commit()
-    db_session.add_all(
-        [
-            _cache(e["id"], "D2", "detrator", "demora", 3, [v.id], a["id"]),
-            _cache(e["id"], "D2", "promotor", "demora", 1, [v.id], a["id"]),
-        ]
-    )
-    db_session.commit()
+    # D2 em dois tipos, ambos vinculados a "demora" (régua live)
+    vd = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "demorou", "D2", "detrator")
+    vp = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "rapido", "D2", "promotor")
+    _link(db_session, vd.id, t.id)
+    _link(db_session, vp.id, t.id)
     r = client_loyall.get(f"/ui/empresas/{e['id']}/painel/temas-modal?subpilar=D2")
     assert r.status_code == 200
     html = r.get_data(as_text=True)

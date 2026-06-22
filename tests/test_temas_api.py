@@ -259,44 +259,50 @@ def test_temas_de_verbatim_404(client_loyall):
 # ── GET /api/empresas/<id>/painel/temas ──────────────────────────────
 
 
+def _link(db_session, vid, tema_id):
+    db_session.add(VerbatimTema(verbatim_id=vid, tema_id=tema_id, confianca=0.8, origem="llm"))
+    db_session.commit()
+
+
 def test_painel_temas_drill_down(client_loyall, db_session):
-    """CP-13: painel lê de temas_cache. Volume = SUM(cache), agregado por label
-    across agrupamentos; exemplos resolvidos pelos ids guardados no cache."""
+    """Régua LIVE: volume do tema = verbatins DISTINTOS do bucket vinculados (= a
+    lista). Tripleto total/em_temas/sem_tema reconcilia. Cache vira só snapshot."""
     e, a, loc, f = _ctx(client_loyall, "pt1")
-    # 3 verbatins D2 detrator (servem de exemplo p/ os ids do cache)
-    vs = [
-        _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"v{i}", "D2", "detrator")
-        for i in range(3)
+    # 3 D2/detrator vinculados + 1 D2/detrator SEM tema (vira "sem tema") +
+    # 1 D2/promotor vinculado (bucket diferente, não entra no drill detrator).
+    vd = [
+        _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"vd{i}", "D2", "detrator")
+        for i in range(4)
     ]
+    vp = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "vp", "D2", "promotor")
     t_demora = Tema(empresa_id=e["id"], nome="demora bagagem", slug="demora-bagagem")
     t_fila = Tema(empresa_id=e["id"], nome="fila check-in", slug="fila-check-in")
     db_session.add_all([t_demora, t_fila])
     db_session.commit()
-    # Cache: "demora bagagem" em 2 agrupamentos (vol 2 + 1 = 3, exemplos 3 ids);
-    # "fila check-in" vol 1. Comprova agregação por label e leitura do cache.
-    db_session.add_all(
-        [
-            _cache(e["id"], "D2", "detrator", "demora bagagem", 2, [vs[0].id, vs[1].id], a["id"]),
-            _cache(e["id"], "D2", "detrator", "demora bagagem", 1, [vs[2].id], None),
-            _cache(e["id"], "D2", "detrator", "fila check-in", 1, [vs[0].id], a["id"]),
-            # Bucket de outro tipo: não deve aparecer
-            _cache(e["id"], "D2", "promotor", "demora bagagem", 9, [vs[0].id], a["id"]),
-        ]
+    for v in vd[:3]:
+        _link(db_session, v.id, t_demora.id)  # demora: vd0,vd1,vd2 → live 3
+    _link(db_session, vd[0].id, t_fila.id)  # fila: vd0 → live 1
+    _link(db_session, vp.id, t_demora.id)  # promotor (excluído do drill detrator)
+    # Cache só p/ exemplos + snapshot (volume 2 ≠ live 3 → stale).
+    db_session.add(
+        _cache(e["id"], "D2", "detrator", "demora bagagem", 2, [v.id for v in vd[:3]], a["id"])
     )
     db_session.commit()
 
     body = client_loyall.get(
         f"/api/empresas/{e['id']}/painel/temas?subpilar=D2&tipo=detrator"
     ).get_json()
-    assert body["subpilar"] == "D2"
-    assert body["tipo"] == "detrator"
-    assert len(body["temas"]) == 2
-    assert body["temas"][0]["nome"] == "demora bagagem"
-    assert body["temas"][0]["volume"] == 3  # 2 + 1 agregados; promotor (9) excluído
-    assert body["temas"][0]["slug"] == "demora-bagagem"
-    assert len(body["temas"][0]["exemplos"]) == 3
-    assert body["temas"][1]["nome"] == "fila check-in"
-    assert body["temas"][1]["volume"] == 1
+    assert {t["nome"]: t["volume"] for t in body["temas"]} == {
+        "demora bagagem": 3,  # LIVE (vd0,1,2); promotor vp excluído
+        "fila check-in": 1,
+    }
+    demora = next(t for t in body["temas"] if t["nome"] == "demora bagagem")
+    assert demora["volume_snapshot"] == 2 and demora["stale"] is True
+    assert len(demora["exemplos"]) == 3
+    # Tripleto reconcilia: total=4 (vd0..3) = em_temas 3 + sem_tema 1 (vd3 sem link).
+    assert body["tripleto"]["total"] == 4
+    assert body["tripleto"]["em_temas"] == 3
+    assert body["tripleto"]["sem_tema"] == 1
 
 
 def test_painel_temas_sem_subpilar_tipo_400(client_loyall):
@@ -306,40 +312,36 @@ def test_painel_temas_sem_subpilar_tipo_400(client_loyall):
 
 
 def test_painel_temas_oculta_inativos(client_loyall, db_session):
-    """Tema inativo: o INNER JOIN (ativo=True) descarta a row de cache dele."""
+    """Tema inativo: o INNER JOIN (ativo=True) na query live descarta o vínculo."""
     e, a, loc, f = _ctx(client_loyall, "pt_inat")
     v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "x", "D2", "detrator")
     t = Tema(empresa_id=e["id"], nome="t", slug="t-inat", ativo=False)
     db_session.add(t)
     db_session.commit()
-    db_session.add(_cache(e["id"], "D2", "detrator", "t", 1, [v.id], a["id"]))
-    db_session.commit()
+    _link(db_session, v.id, t.id)  # vínculo a tema INATIVO
     body = client_loyall.get(
         f"/api/empresas/{e['id']}/painel/temas?subpilar=D2&tipo=detrator"
     ).get_json()
-    assert body["temas"] == []
+    assert body["temas"] == []  # tema inativo não aparece
 
 
 def test_painel_temas_filtra_por_agrupamento(client_loyall, db_session):
-    """Bug fix: ?agrupamento_id=X restringe ao agrupamento (cache é indexado por ele)."""
-    e, a_aero, loc, f = _ctx(client_loyall, "pt_ag")
+    """?agrupamento_id=X restringe ao agrupamento (via Local, na query live)."""
+    e, a_aero, loc_aero, f = _ctx(client_loyall, "pt_ag")
     a_lojas = client_loyall.post(
         f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "Lojas"}
     ).get_json()
-    db_session.add_all(
-        [
-            Tema(empresa_id=e["id"], nome="sinalização", slug="sinalizacao"),
-            Tema(empresa_id=e["id"], nome="falta produtos lojas", slug="falta-produtos-lojas"),
-        ]
-    )
+    loc_lojas = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L2", "agrupamento_id": a_lojas["id"]}
+    ).get_json()
+    t_sin = Tema(empresa_id=e["id"], nome="sinalização", slug="sinalizacao")
+    t_prod = Tema(empresa_id=e["id"], nome="falta produtos lojas", slug="falta-produtos-lojas")
+    db_session.add_all([t_sin, t_prod])
     db_session.commit()
-    db_session.add_all(
-        [
-            _cache(e["id"], "D1", "detrator", "sinalização", 8, [], a_aero["id"]),
-            _cache(e["id"], "D1", "detrator", "falta produtos lojas", 59, [], a_lojas["id"]),
-        ]
-    )
-    db_session.commit()
+    v_aero = _criar_verbatim(db_session, e["id"], f["id"], loc_aero["id"], "sa", "D1", "detrator")
+    v_lojas = _criar_verbatim(db_session, e["id"], f["id"], loc_lojas["id"], "lj", "D1", "detrator")
+    _link(db_session, v_aero.id, t_sin.id)
+    _link(db_session, v_lojas.id, t_prod.id)
 
     # sem filtro: consolidado da empresa (os dois)
     body = client_loyall.get(
@@ -516,21 +518,23 @@ def test_persistir_temas_idempotente(client_loyall, db_session, monkeypatch):
 
 
 def test_painel_temas_tipo_opcional_agrega_tipos(client_loyall, db_session):
-    """Sem tipo: agrega todos os tipos do subpilar + devolve split (drill do Mapa)."""
+    """Sem tipo: agrega todos os tipos do subpilar + devolve split (drill do Mapa).
+    Régua live: split vem do Verbatim.tipo dos vinculados."""
     e, a, loc, f = _ctx(client_loyall, "pt_all")
-    db_session.add(Tema(empresa_id=e["id"], nome="demora", slug="demora"))
+    t = Tema(empresa_id=e["id"], nome="demora", slug="demora")
+    db_session.add(t)
     db_session.commit()
-    db_session.add_all(
-        [
-            _cache(e["id"], "D2", "detrator", "demora", 3, [], a["id"]),
-            _cache(e["id"], "D2", "promotor", "demora", 1, [], a["id"]),
-        ]
-    )
-    db_session.commit()
+    # 3 D2/detrator + 1 D2/promotor, todos vinculados a "demora"
+    for i in range(3):
+        v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"d{i}", "D2", "detrator")
+        _link(db_session, v.id, t.id)
+    vp = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "p0", "D2", "promotor")
+    _link(db_session, vp.id, t.id)
+
     body = client_loyall.get(f"/api/empresas/{e['id']}/painel/temas?subpilar=D2").get_json()
     assert body["tipo"] is None
     assert len(body["temas"]) == 1
-    t = body["temas"][0]
-    assert t["nome"] == "demora"
-    assert t["volume"] == 4  # 3 detrator + 1 promotor
-    assert t["detrator"] == 3 and t["promotor"] == 1
+    tm = body["temas"][0]
+    assert tm["nome"] == "demora"
+    assert tm["volume"] == 4  # 3 detrator + 1 promotor (live)
+    assert tm["detrator"] == 3 and tm["promotor"] == 1

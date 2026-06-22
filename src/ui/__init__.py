@@ -1510,6 +1510,7 @@ def painel_temas_modal(empresa_id: int):
         subpilar=body.get("subpilar"),
         tipo=body.get("tipo"),
         agrupamento_nome=agrupamento_nome,
+        tripleto=body.get("tripleto"),
         temas=body.get("temas", []),
     )
 
