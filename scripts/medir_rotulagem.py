@@ -81,6 +81,25 @@ def _amostra_textos(membros, pos, k):
     return [" ".join((membros[i]["texto"] or "").split()) for i in list(pos[::step])[:k]]
 
 
+def _dump_cluster_completo(membros, vetores, labels, cid):
+    """Imprime TODOS os textos de um cluster, INTEIROS (sem truncar, sem amostrar),
+    ordenados por centralidade (mais central primeiro). Read-only, sem LLM."""
+    import numpy as _np
+
+    pos = _np.where(labels == cid)[0]
+    if len(pos) == 0:
+        existentes = sorted(set(int(x) for x in labels) - {-1})
+        print(f"# cluster {cid} não existe neste bucket. clusters: {existentes}")
+        return
+    centroide = vetores[pos].mean(axis=0)
+    dist = _np.linalg.norm(vetores[pos] - centroide, axis=1)
+    ordem = pos[_np.argsort(dist)]  # ascendente = mais central primeiro
+    print(f"\n# CLUSTER {cid} — {len(pos)} membros, texto INTEIRO, ordenado por centralidade:")
+    for rank, i in enumerate(ordem, 1):
+        t = " ".join((membros[i]["texto"] or "").split())
+        print(f"\n[{rank}] vid={membros[i]['id']}\n{t}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Medição read-only da rotulagem de um bucket.")
     ap.add_argument("--empresa", type=int, required=True)
@@ -88,6 +107,18 @@ def main() -> int:
     ap.add_argument("--tipo", required=True)
     ap.add_argument("--agrupamento", type=int, default=None)
     ap.add_argument("--amostra", type=int, default=10)
+    ap.add_argument(
+        "--cluster",
+        type=int,
+        default=None,
+        help="Só dumpa este cluster (read-only, sem LLM). Use com --textos-completos.",
+    )
+    ap.add_argument(
+        "--textos-completos",
+        dest="textos_completos",
+        action="store_true",
+        help="Com --cluster: textos INTEIROS (sem truncar) de TODOS os membros, por centralidade.",
+    )
     args = ap.parse_args()
 
     setor, nome = _setor_empresa(args.empresa)
@@ -127,6 +158,12 @@ def main() -> int:
         f"# clusterização: algoritmo={res.algoritmo} clusters={res.n_clusters} "
         f"noise={int(res.n_noise)}"
     )
+
+    # Modo dump: textos inteiros de UM cluster, sem chamar o LLM (read-only).
+    if args.cluster is not None:
+        _dump_cluster_completo(membros, vetores, res.labels, args.cluster)
+        print("\n# Nada foi gravado. Dump puramente de leitura.")
+        return 0
 
     ag_nome = next((m.get("agrupamento_nome") for m in membros if m.get("agrupamento_nome")), None)
     bucket_ctx = {

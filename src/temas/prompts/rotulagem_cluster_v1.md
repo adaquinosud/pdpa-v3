@@ -25,9 +25,9 @@ Os verbatins **já estão semanticamente agrupados** por embedding — você nã
    - ✓ "qualidade comida", "preço estacionamento"
    - ✗ "comida boa", "preço alto" (use "preço elevado" só se for queixa explícita recorrente)
 
-3. **Considere o subpilar pra escolher o foco**:
+3. **O subpilar é DADO pela classificação — dica de foco, NUNCA motivo de descarte.** O cluster já está no balde certo; você só nomeia o referente dominante que recorre, **mesmo que ele não "combine" com o aspecto típico do pilar**. NUNCA devolva `null` por achar que o conteúdo "não bate com o pilar" — o pilar não é pra reavaliar. As cues abaixo só ajudam a escolher o ângulo quando há ambiguidade:
    - **P\*** (Precisão): promessa, comunicação prévia, expectativa.
-   - **D\*** (Disponibilidade): operacional — demora, falha, indisponibilidade, processo.
+   - **D\*** (Disponibilidade): operacional (demora, falha, processo) **e físico/instalações (ambiente, estrutura, espaço, limpeza)**.
    - **Pa\*** (Parceria): relacional — pessoa, empatia, cuidado.
    - **A\*** (Aconselhamento): consultivo — orientação, esclarecimento.
 
@@ -39,6 +39,7 @@ Os verbatins **já estão semanticamente agrupados** por embedding — você nã
 6. **Discriminador de descarte — substantivo-referente recorrente**: o que decide se o cluster vira tema NÃO é ter ou não adjetivo de valor — é a presença de um **substantivo concreto** (um *referente*: aspecto, objeto, atividade, lugar ou evento — atendimento, comida, preço, fila, estacionamento, "Floq da náutica") que **RECORRE na MAIORIA dos representativos**, mesmo que toda menção venha embrulhada em adjetivo de valor.
    - **Tem o substantivo recorrente** → rotule **pelo substantivo, descartando o adjetivo** (regra 2): `["Excelente atendimento", "Atendimento ótimo 10/10", "Atendimento maravilhoso", "Ótimo atendimento"]` → `"atendimento"`. O "excelente/ótimo/maravilhoso" NÃO entra no label.
    - **Não é lista fixa**: vale qualquer referente concreto — uma atividade ou evento nomeado ("Floq da náutica") conta igual a um aspecto de serviço.
+   - **Ambiente/lugar físico É referente**: substantivos de ambiente físico recorrendo — lugar, local, espaço, ambiente, estrutura, instalações, vista, decoração — são o aspecto **"ambiente"/"estrutura"**. Rotule `"ambiente"` mesmo quando vêm como "lugar lindo"/"local incrível"/"estrutura ótima". NÃO trate "lugar/local" como elogio nu (o substantivo está lá; o adjetivo é descartado pela regra 2). **Exceção**: "tudo", "aqui", "tudo isso" NÃO contam — não são substantivo de ambiente, são placeholder genérico → `null`.
    - **Recorrência = MAIORIA, não 1**: um único representativo com substantivo solto (outlier) entre vários genéricos **NÃO** basta. Ex.: `["muito bom", "excelente", "top", "ótimo", "recomendo", "comida boa"]` → `null` (o "comida" aparece 1 vez só, não recorre).
    - Se há mais de um substantivo recorrente distinto, escolha o **dominante** (aparece em mais representativos; empate → o do 1º).
 
@@ -179,4 +180,28 @@ Input:
 Output:
 ```json
 {"nome": "floq náutica"}
+```
+
+### Exemplo 7 — ambiente/lugar físico recorrente → rotula "ambiente" (não é elogio nu)
+
+Substantivos de ambiente físico (lugar, local, ambiente, estrutura) recorrem na maioria. O pilar (D1) é dado pela classificação — não reavalie; só nomeie. NÃO é null só porque vem como "lugar lindo".
+
+Input:
+```json
+{
+  "bucket": {"subpilar": "D1", "tipo": "conversivel", "setor": "resort", "agrupamento": "Resort"},
+  "representativos": [
+    {"texto": "Lugar lindo"},
+    {"texto": "Local incrível"},
+    {"texto": "Ambiente maravilhoso"},
+    {"texto": "Estrutura ótima"},
+    {"texto": "Lugar muito bonito"},
+    {"texto": "Local lindo demais"}
+  ]
+}
+```
+
+Output:
+```json
+{"nome": "ambiente"}
 ```
