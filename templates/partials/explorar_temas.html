@@ -160,6 +160,18 @@
   {% for bloco in top_subpilar %}
   <div class="border border-loyall-200 rounded-lg p-3">
     <div class="text-sm font-semibold text-loyall-700 mb-2">{{ bloco.subpilar }} <span class="text-loyall-400 font-normal">· {{ bloco.nome }}</span></div>
+    {% if bloco.tripleto and bloco.tripleto.total %}
+    {# Tripleto de cobertura do subpilar (régua live): total = em temas + sem tema. #}
+    <div class="flex items-center gap-2 text-[11px] text-loyall-500 mb-2">
+      <span>{{ bloco.tripleto.total }} c/ texto</span>
+      <div class="flex-1 h-1.5 rounded overflow-hidden bg-loyall-100"
+           title="em temas {{ bloco.tripleto.em_temas }} · sem tema {{ bloco.tripleto.sem_tema }}">
+        <div class="bg-loyall-500 h-full" style="width: {{ (bloco.tripleto.em_temas / bloco.tripleto.total * 100) | round(0,'floor') }}%"></div>
+      </div>
+      <span>{{ bloco.tripleto.em_temas }} em temas</span>
+      <span class="text-loyall-400">· {{ bloco.tripleto.sem_tema }} sem tema</span>
+    </div>
+    {% endif %}
     <ul class="space-y-2">
       {% for tm in bloco.temas %}
       {% set tot = tm.total if tm.total else 1 %}

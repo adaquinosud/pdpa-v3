@@ -302,8 +302,14 @@ def test_transversais_filtra_por_agrupamento(client_loyall, db_session):
     t = Tema(empresa_id=e["id"], nome="preço lojas", slug="preco-lojas")
     db_session.add(t)
     db_session.commit()
-    # vínculo do tema só no agrupamento Lojas
-    v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "caro demais")
+    # vínculo do tema só no agrupamento Lojas (verbatim FISICAMENTE nas Lojas, p/ a
+    # régua live do top-temas refletir o agrupamento real, não só o bucket_chave).
+    loc_lojas = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L-lojas", "agrupamento_id": a_lojas["id"]}
+    ).get_json()
+    v = _criar_verbatim(
+        db_session, e["id"], f["id"], loc_lojas["id"], "caro demais", "P1", "detrator"
+    )
     db_session.add(
         VerbatimTema(
             verbatim_id=v.id,
@@ -364,12 +370,16 @@ def test_detalhe_sem_coleta_mostra_placeholder(client_loyall):
 def test_temas_tela_renderiza_mapa_e_top_subpilar(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "tela")
     # verbatins p/ o Mapa de Lastro (n1/n2 calculam ratios)
-    _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "ruim1", sub="D1", tipo="detrator")
+    vd = _criar_verbatim(
+        db_session, e["id"], f["id"], loc["id"], "ruim1", sub="D1", tipo="detrator"
+    )
     _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "ruim2", sub="D1", tipo="detrator")
     _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "bom1", sub="Pa1", tipo="promotor")
-    # tema + cache p/ "top temas por subpilar"
-    db_session.add(Tema(empresa_id=e["id"], nome="demora atendimento", slug="demora-atendimento"))
+    # tema vinculado (régua live) p/ "top temas por subpilar"
+    t_demora = Tema(empresa_id=e["id"], nome="demora atendimento", slug="demora-atendimento")
+    db_session.add(t_demora)
     db_session.commit()
+    _link(db_session, vd.id, t_demora.id)
     db_session.add(_cache(e["id"], "D1", "detrator", "demora atendimento", 7, [], a["id"]))
     db_session.commit()
 
@@ -406,14 +416,41 @@ def test_painel_tem_link_temas_na_sidebar(client_loyall, db_session):
 
 def test_temas_tela_top_subpilar_mostra_exemplos(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "ex")
-    v = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "preços absurdos no aeroporto")
-    db_session.add(Tema(empresa_id=e["id"], nome="preço alto", slug="preco-alto"))
+    v = _criar_verbatim(
+        db_session, e["id"], f["id"], loc["id"], "preços absurdos no aeroporto", "P1", "detrator"
+    )
+    t_preco = Tema(empresa_id=e["id"], nome="preço alto", slug="preco-alto")
+    db_session.add(t_preco)
     db_session.commit()
-    db_session.add(_cache(e["id"], "P1", "detrator", "preço alto", 5, [v.id], a["id"]))
+    _link(db_session, v.id, t_preco.id)  # régua live
+    db_session.add(_cache(e["id"], "P1", "detrator", "preço alto", 5, [v.id], a["id"]))  # exemplo
     db_session.commit()
     html = client_loyall.get(f"/empresas/{e['id']}/temas").get_data(as_text=True)
     assert "preço alto" in html
     assert "preços absurdos no aeroporto" in html  # exemplo de verbatim na lista
+
+
+def test_temas_tela_top_subpilar_regua_live_e_tripleto(client_loyall, db_session):
+    """Aba Temas do Explorar: contagem LIVE (não o snapshot do cache) + tripleto."""
+    e, a, loc, f = _ctx(client_loyall, "livetri")
+    vs = [
+        _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"c{i}", "D1", "conversivel")
+        for i in range(3)
+    ]
+    t = Tema(empresa_id=e["id"], nome="ambiente", slug="ambiente")
+    db_session.add(t)
+    db_session.commit()
+    _link(db_session, vs[0].id, t.id)
+    _link(db_session, vs[1].id, t.id)  # 2 vinculados; vs[2] sem tema
+    # cache DEFASADO diz 99 — não pode vazar pra tela (régua é live = 2).
+    db_session.add(_cache(e["id"], "D1", "conversivel", "ambiente", 99, [vs[0].id], a["id"]))
+    db_session.commit()
+
+    html = client_loyall.get(f"/empresas/{e['id']}/temas").get_data(as_text=True)
+    assert "ambiente" in html
+    assert "99" not in html  # snapshot do cache NÃO aparece (régua live)
+    # tripleto do subpilar D1: 3 com texto = 2 em temas + 1 sem tema
+    assert "3 c/ texto" in html and "2 em temas" in html and "1 sem tema" in html
 
 
 def test_temas_modal_drill_subpilar_todos_tipos(client_loyall, db_session):

@@ -264,7 +264,7 @@ def montar_dados(
                 Tema.slug,
                 Tema.descricao,
                 Verbatim.tipo,
-                func.count(VerbatimTema.id).label("n"),
+                func.count(func.distinct(Verbatim.id)).label("n"),  # régua live (distinct)
             )
             .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
             .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
@@ -274,7 +274,7 @@ def montar_dados(
                 Verbatim.tipo.in_(("detrator", "conversivel", "promotor")),
             )
             .group_by(Tema.id, Verbatim.tipo)
-            .order_by(func.count(VerbatimTema.id).desc())
+            .order_by(func.count(func.distinct(Verbatim.id)).desc())
             .all()
         )
         # Reduz a um dict {tipo: [(tema, n, exemplo)]} pegando até 5 por tipo

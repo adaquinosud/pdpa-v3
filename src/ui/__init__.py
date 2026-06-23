@@ -637,12 +637,13 @@ def _aba_verbatins(empresa_id, empresa_w):
 
         from src.models.temas import Tema, VerbatimTema
 
+        _vol = _func.count(_func.distinct(VerbatimTema.verbatim_id))  # régua live (distinct)
         temas_rows = (
-            s.query(Tema, _func.count(VerbatimTema.id).label("vol"))
+            s.query(Tema, _vol.label("vol"))
             .outerjoin(VerbatimTema, VerbatimTema.tema_id == Tema.id)
             .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
             .group_by(Tema.id)
-            .order_by(_func.count(VerbatimTema.id).desc(), Tema.nome.asc())
+            .order_by(_vol.desc(), Tema.nome.asc())
             .all()
         )
         temas_filtro = [
@@ -931,27 +932,74 @@ def _montar_mapa_lastro(n1, n2):
 
 
 def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
-    """Top N temas de cada subpilar (de temas_cache), com split por tipo e
-    2-3 exemplos de verbatim (2 queries batched — sem N+1).
+    """Top N temas de cada subpilar (régua LIVE), com split por tipo, 2-3 exemplos
+    e o tripleto de cobertura por subpilar (total com texto / em temas / sem tema).
+
+    O ``total`` por tema = verbatins DISTINTOS do bucket vinculados ao tema ativo
+    (= a lista de verbatins), igual ao modal do painel. Substitui o snapshot de
+    ``temas_cache.volume`` (que defasava entre rodadas). Exemplos vêm do cache
+    (best-effort, ilustrativos).
 
     Returns lista por subpilar (ordem canônica) com
-    ``{subpilar, nome, temas:[{label, tema_id, total, promotor, conversivel,
-    detrator, exemplos:[texto_curto, ...]}]}``.
+    ``{subpilar, nome, tripleto, temas:[{label, tema_id, total, promotor,
+    conversivel, detrator, exemplos:[texto_curto, ...]}]}``.
     """
     from sqlalchemy import and_, func
 
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
-    from src.models.temas import Tema, TemaCache
+    from src.models.local import Local
+    from src.models.temas import Tema, TemaCache, VerbatimTema
+    from src.temas.cobertura import tripleto_bucket
     from src.utils.sql import group_concat
 
-    q = (
+    # LIVE: verbatins distintos do bucket vinculados a cada tema ATIVO; split vivo.
+    ql = (
+        s.query(
+            Verbatim.subpilar.label("sub"),
+            Tema.id.label("tema_id"),
+            Tema.nome.label("label"),
+            Verbatim.tipo.label("tipo"),
+            func.count(func.distinct(Verbatim.id)).label("n"),
+        )
+        .select_from(VerbatimTema)
+        .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+        .join(Tema, and_(Tema.id == VerbatimTema.tema_id, Tema.ativo.is_(True)))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.tem_texto.is_(True),
+            Verbatim.subpilar.isnot(None),
+        )
+    )
+    if agrupamento_id is not None:
+        ql = ql.join(Local, Local.id == Verbatim.local_id).filter(
+            Local.agrupamento_id == agrupamento_id
+        )
+    rows = ql.group_by(Verbatim.subpilar, Tema.id, Tema.nome, Verbatim.tipo).all()
+
+    agg = {}
+    for sub, tema_id, label, tipo, n in rows:
+        e = agg.setdefault(
+            (sub, tema_id),
+            {
+                "label": label,
+                "tema_id": tema_id,
+                "total": 0,
+                "promotor": 0,
+                "conversivel": 0,
+                "detrator": 0,
+                "ex_ids": [],
+            },
+        )
+        e["total"] += int(n or 0)
+        if tipo in ("promotor", "conversivel", "detrator"):
+            e[tipo] += int(n or 0)
+
+    # Exemplos (best-effort, do snapshot do cache) por (subpilar, tema).
+    sq = (
         s.query(
             TemaCache.subpilar,
-            TemaCache.tema_label,
-            TemaCache.tipo,
-            func.sum(TemaCache.volume).label("vol"),
-            group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
             Tema.id.label("tema_id"),
+            group_concat(TemaCache.exemplos_verbatim_ids, "|").label("ex_blobs"),
         )
         .join(
             Tema,
@@ -964,28 +1012,11 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
         .filter(TemaCache.empresa_id == empresa_id)
     )
     if agrupamento_id is not None:
-        q = q.filter(TemaCache.agrupamento_id == agrupamento_id)
-    q = q.group_by(TemaCache.subpilar, TemaCache.tema_label, TemaCache.tipo, Tema.id)
-
-    # Agrega por (subpilar, label): total + split por tipo + ids de exemplo.
-    agg = {}
-    for sub, label, tipo, vol, ex_blobs, tema_id in q.all():
-        key = (sub, label)
-        e = agg.setdefault(
-            key,
-            {
-                "label": label,
-                "tema_id": tema_id,
-                "total": 0,
-                "promotor": 0,
-                "conversivel": 0,
-                "detrator": 0,
-                "ex_ids": [],
-            },
-        )
-        e["total"] += int(vol or 0)
-        if tipo in ("promotor", "conversivel", "detrator"):
-            e[tipo] += int(vol or 0)
+        sq = sq.filter(TemaCache.agrupamento_id == agrupamento_id)
+    for sub, tema_id, ex_blobs in sq.group_by(TemaCache.subpilar, Tema.id).all():
+        e = agg.get((sub, tema_id))
+        if e is None:
+            continue
         for blob in (ex_blobs or "").split("|"):
             blob = blob.strip()
             if not blob:
@@ -998,7 +1029,7 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
                 continue
 
     por_sub = {}
-    for (sub, _label), e in agg.items():
+    for (sub, _tid), e in agg.items():
         por_sub.setdefault(sub, []).append(e)
 
     out = []
@@ -1009,7 +1040,14 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
             t["ex_ids"] = t["ex_ids"][:3]
             todos_ids.update(t["ex_ids"])
         if temas:
-            out.append({"subpilar": sp, "nome": NOME_SUBPILAR[sp], "temas": temas})
+            out.append(
+                {
+                    "subpilar": sp,
+                    "nome": NOME_SUBPILAR[sp],
+                    "tripleto": tripleto_bucket(empresa_id, sp, None, agrupamento_id),
+                    "temas": temas,
+                }
+            )
 
     # Batched: textos dos exemplos.
     textos = {}

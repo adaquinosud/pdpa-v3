@@ -60,8 +60,11 @@ def listar_temas_da_empresa(empresa_id: int):
     busca = (request.args.get("q") or "").strip().lower()
 
     with db_session() as s:
+        # Régua live: verbatins DISTINTOS por tema (= count(VerbatimTema.id) via
+        # UNIQUE(verbatim_id, tema_id), mas explícito p/ não duplicar ao agregar).
+        _vol = func.count(func.distinct(VerbatimTema.verbatim_id))
         q = (
-            s.query(Tema, func.count(VerbatimTema.id).label("volume"))
+            s.query(Tema, _vol.label("volume"))
             .outerjoin(VerbatimTema, VerbatimTema.tema_id == Tema.id)
             .filter(Tema.empresa_id == empresa_id)
         )
@@ -70,7 +73,7 @@ def listar_temas_da_empresa(empresa_id: int):
         if busca:
             like = f"%{busca}%"
             q = q.filter((Tema.nome.ilike(like)) | (Tema.slug.ilike(like)))
-        q = q.group_by(Tema.id).order_by(func.count(VerbatimTema.id).desc(), Tema.nome.asc())
+        q = q.group_by(Tema.id).order_by(_vol.desc(), Tema.nome.asc())
         payload = [
             {
                 "id": t.id,
