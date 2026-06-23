@@ -72,7 +72,8 @@
       {% for h in p.historico_quarters %}<button type="button"
         hx-get="{{ url_for('ui.painel_quarter_detalhe', empresa_id=empresa.id) }}?pilar={{ p.pilar }}&quarter={{ h.chave }}&agrupamento_id={{ filtros.agrupamento_id }}&local_id={{ filtros.local_id }}"
         hx-target="body" hx-swap="beforeend"
-        class="hover:text-loyall-700 hover:underline cursor-pointer">{{ h.q }}·{{ '%.2f'|format(h.ratio) }}</button>{% endfor %}
+        title="{{ h.total }} verbatins no {{ h.q }} (todos os tipos)"
+        class="inline-flex flex-col items-center leading-tight hover:text-loyall-700 hover:underline cursor-pointer"><span>{{ h.q }}·{{ '%.2f'|format(h.ratio) }}</span><span class="text-loyall-300 tabular-nums">{{ h.total }}</span></button>{% endfor %}
     </div>
     {% endif %}
     <div class="text-xs text-loyall-400"><span title="Confiança por volume" class="cursor-help">{{ selo_emoji(p.total) }}</span> {{ p.total }} verbatins</div>

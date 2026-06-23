@@ -174,15 +174,18 @@ def historico_quarters_pilares(s, empresa_id, ag_id=None, local_id=None, n=4):
         RatioMensal.periodo,
         RatioMensal.promotor,
         RatioMensal.detrator,
+        RatioMensal.total,
     ).filter(RatioMensal.empresa_id == empresa_id)
     if local_id is not None:
         q = q.filter(RatioMensal.local_id == local_id)
     elif ag_id is not None:
         q = q.filter(RatioMensal.agrupamento_id == ag_id)
 
-    # (pilar, ano, quarter) -> [Σ promotor, Σ detrator]
-    acc: Dict[Any, List[int]] = defaultdict(lambda: [0, 0])
-    for sub, periodo, prom, det in q.all():
+    # (pilar, ano, quarter) -> [Σ promotor, Σ detrator, Σ total (todos os tipos)].
+    # ``total`` é a coluna já existente de RatioMensal (mesmas linhas do ratio) —
+    # nenhuma query/filtro novo, só uma soma a mais.
+    acc: Dict[Any, List[int]] = defaultdict(lambda: [0, 0, 0])
+    for sub, periodo, prom, det, tot in q.all():
         pilar = PILAR_DE_SUBPILAR.get(sub)
         if pilar is None or not periodo:
             continue
@@ -190,10 +193,11 @@ def historico_quarters_pilares(s, empresa_id, ag_id=None, local_id=None, n=4):
         chave = (pilar, ano, quarter)
         acc[chave][0] += prom or 0
         acc[chave][1] += det or 0
+        acc[chave][2] += tot or 0
 
     por_pilar: Dict[str, List] = defaultdict(list)
-    for (pilar, ano, quarter), (prom, det) in acc.items():
-        por_pilar[pilar].append((ano, quarter, prom, det))
+    for (pilar, ano, quarter), (prom, det, tot) in acc.items():
+        por_pilar[pilar].append((ano, quarter, prom, det, tot))
 
     out: Dict[str, List[Dict[str, Any]]] = {}
     for pilar, linhas in por_pilar.items():
@@ -207,8 +211,9 @@ def historico_quarters_pilares(s, empresa_id, ag_id=None, local_id=None, n=4):
                 "ano": ano,
                 "chave": f"{ano}Q{quarter}",  # p/ o hx-get do drawer de detalhe
                 "ratio": calcular_ratio(prom, det),
+                "total": tot,  # N de verbatins do quarter (todos os tipos)
             }
-            for (ano, quarter, prom, det) in ultimos
+            for (ano, quarter, prom, det, tot) in ultimos
         ]
     return out
 

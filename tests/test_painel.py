@@ -381,7 +381,7 @@ def _empresa_loja(client_loyall, sfx):
     return e["id"], loc["id"], a["id"]
 
 
-def _rm(db_session, empresa_id, local_id, ag_id, subpilar, periodo, prom, det):
+def _rm(db_session, empresa_id, local_id, ag_id, subpilar, periodo, prom, det, conv=0):
     from src.api.painel import calcular_ratio
     from src.models.anomalia import RatioMensal
 
@@ -393,9 +393,9 @@ def _rm(db_session, empresa_id, local_id, ag_id, subpilar, periodo, prom, det):
             subpilar=subpilar,
             periodo=periodo,
             promotor=prom,
-            conversivel=0,
+            conversivel=conv,
             detrator=det,
-            total=prom + det,
+            total=prom + conv + det,
             ratio=calcular_ratio(prom, det),
         )
     )
@@ -405,8 +405,8 @@ def test_historico_quarters_pondera_por_volume_e_agrega_pilar(client_loyall, db_
     from src.api.painel import historico_quarters_pilares
 
     eid, lid, agid = _empresa_loja(client_loyall, "pond")
-    # Pilar P (P1+P2), Q1/2026 = jan+fev+mar; Q2/2026 = abr
-    _rm(db_session, eid, lid, agid, "P1", "2026-01", 2, 8)
+    # Pilar P (P1+P2), Q1/2026 = jan+fev+mar; Q2/2026 = abr. conv entra só no total.
+    _rm(db_session, eid, lid, agid, "P1", "2026-01", 2, 8, conv=3)
     _rm(db_session, eid, lid, agid, "P1", "2026-02", 1, 2)
     _rm(db_session, eid, lid, agid, "P2", "2026-03", 1, 0)
     _rm(db_session, eid, lid, agid, "P1", "2026-04", 6, 2)
@@ -416,6 +416,9 @@ def test_historico_quarters_pondera_por_volume_e_agrega_pilar(client_loyall, db_
     # Q1: Σprom=4, Σdet=10 → 0.4 (ponderado, não média dos ratios mensais); Q2: 6/2=3.0
     assert [x["q"] for x in h["P"]] == ["Q1", "Q2"]
     assert h["P"][0]["ratio"] == 0.4 and h["P"][1]["ratio"] == 3.0
+    # total = N de verbatins do quarter (todos os tipos, inclui conversíveis):
+    # Q1 = (2+8+3)+(1+2)+(1+0) = 17; Q2 = 6+2 = 8
+    assert h["P"][0]["total"] == 17 and h["P"][1]["total"] == 8
 
 
 def test_historico_quarters_menos_de_2_omitido(client_loyall, db_session):
