@@ -1683,6 +1683,10 @@ def htmx_salvar_reclassificacao(verbatim_id: int):
         if user.papel != PAPEL_LOYALL and user.empresa_id != v_db.empresa_id:
             return ("<div class='text-red-600 text-xs'>Acesso negado.</div>", 403)
 
+        # Só marca a empresa como "suja" se a classificação realmente mudou —
+        # edição no-op não dispara reprocesso.
+        mudou = v_db.subpilar != sub_novo or v_db.tipo != tipo_novo
+
         recl = VerbatimReclassificacao(
             verbatim_id=v_db.id,
             subpilar_anterior=v_db.subpilar,
@@ -1699,6 +1703,13 @@ def htmx_salvar_reclassificacao(verbatim_id: int):
         v_db.tipo = tipo_novo
         v_db.reclassificado_em = _dt.utcnow()
         v_db.reclassificado_por = user.id
+        if mudou:
+            # Marca a empresa como "suja": a noturna reprocessa temas/cache/anomalias
+            # (a classificação manual fica preservada — classificar_pendentes só toca
+            # subpilar NULL). Flag por-empresa; várias edições → 1 reprocesso batched.
+            emp = s.get(Empresa, v_db.empresa_id)
+            if emp is not None:
+                emp.reprocessar_em = _dt.utcnow()
         s.flush()
 
     # Devolve o item renderizado novamente

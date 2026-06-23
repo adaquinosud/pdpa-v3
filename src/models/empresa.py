@@ -42,6 +42,13 @@ class Empresa(Base):
     coleta_noturna_ativa: Mapped[bool] = mapped_column(
         Boolean, server_default="false", default=False, nullable=False
     )
+    # CP-reprocessar-sujos: flag "suja" setado pela reclassificação manual da UI.
+    # A noturna varre empresas com reprocessar_em != NULL, roda reconciliar_vinculos
+    # + pós-coleta (recalcula temas/cache/anomalias do resto — a classificação manual
+    # é intocável) e limpa o flag. NULL = nada pendente.
+    reprocessar_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, default=None
+    )
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -507,6 +507,9 @@ def reclassificar_verbatim(verbatim_id: int):
         if erro:
             return erro
 
+        # Só marca a empresa como "suja" se a classificação realmente mudou.
+        mudou = v.subpilar != sub_novo or v.tipo != tipo_novo
+
         # Insere histórico
         recl = VerbatimReclassificacao(
             verbatim_id=v.id,
@@ -526,6 +529,14 @@ def reclassificar_verbatim(verbatim_id: int):
         v.tipo = tipo_novo
         v.reclassificado_em = datetime.utcnow()
         v.reclassificado_por = user.id if user else None
+        if mudou:
+            # Flag "suja": a noturna reprocessa temas/cache/anomalias (classificação
+            # manual preservada). Mesmo comportamento do caminho htmx da UI.
+            from src.models.empresa import Empresa
+
+            emp = s.get(Empresa, v.empresa_id)
+            if emp is not None:
+                emp.reprocessar_em = datetime.utcnow()
         s.flush()
 
         return jsonify(
