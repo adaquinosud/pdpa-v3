@@ -72,18 +72,20 @@ def _item(
 def _itens_n5(s, empresa_id) -> List[SimpleNamespace]:
     from sqlalchemy import func
 
-    from src.models.temas import AcaoVenda, TemaCache, TemaCruzamento
+    from src.models.temas import AcaoVenda, TemaCruzamento
+    from src.temas.cobertura import temas_volume_live_subq
 
+    _tc = temas_volume_live_subq(s)  # régua live (= telas)
     out = []
     for a in s.query(AcaoVenda).filter_by(empresa_id=empresa_id).all():
         origem = "N5 cruzamento" if a.cruzamento_id else "N5 tema"
         subpilar, volume = None, None
         if a.tema_label:
             rows = (
-                s.query(TemaCache.subpilar, func.sum(TemaCache.volume))
-                .filter(TemaCache.empresa_id == empresa_id, TemaCache.tema_label == a.tema_label)
-                .group_by(TemaCache.subpilar)
-                .order_by(func.sum(TemaCache.volume).desc())
+                s.query(_tc.c.subpilar, func.sum(_tc.c.volume))
+                .filter(_tc.c.empresa_id == empresa_id, _tc.c.tema_label == a.tema_label)
+                .group_by(_tc.c.subpilar)
+                .order_by(func.sum(_tc.c.volume).desc())
                 .all()
             )
             if rows:

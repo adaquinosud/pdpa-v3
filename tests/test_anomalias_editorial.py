@@ -71,37 +71,26 @@ def test_montar_payload_e_gerar_leitura(client_loyall, db_session):
             ratio=0.12,
         )
     )
-    # detratores recentes (recência <30d) + exemplos
+    # tema detrator dominante (régua live = telas) + ação N5
+    t = Tema(empresa_id=e["id"], nome="demora retirada", slug="demora-retirada")
+    db_session.add(t)
+    db_session.commit()
+    # detratores recentes (recência <30d) + exemplos + vínculo ao tema dominante
     for i in range(2):
-        db_session.add(
-            Verbatim(
-                empresa_id=e["id"],
-                fonte_id=f["id"],
-                local_id=loc["id"],
-                texto=f"esperei 1h pra retirar o carro {i}",
-                data_criacao_original=base - timedelta(days=5),
-                hash_dedup=f"hd{i}-{datetime.utcnow().timestamp()}",
-                subpilar="D2",
-                tipo="detrator",
-                tem_texto=True,
-            )
-        )
-    # tema detrator dominante + ação N5
-    db_session.add(Tema(empresa_id=e["id"], nome="demora retirada", slug="demora-retirada"))
-    db_session.add(
-        TemaCache(
+        v = Verbatim(
             empresa_id=e["id"],
-            agrupamento_id=a["id"],
+            fonte_id=f["id"],
+            local_id=loc["id"],
+            texto=f"esperei 1h pra retirar o carro {i}",
+            data_criacao_original=base - timedelta(days=5),
+            hash_dedup=f"hd{i}-{datetime.utcnow().timestamp()}",
             subpilar="D2",
             tipo="detrator",
-            tema_label="demora retirada",
-            volume=8,
-            percentual=0.0,
-            periodo_inicio=base.date(),
-            periodo_fim=base.date(),
-            hash_escopo="h1",
+            tem_texto=True,
         )
-    )
+        db_session.add(v)
+        db_session.flush()
+        db_session.add(VerbatimTema(verbatim_id=v.id, tema_id=t.id, confianca=0.9, origem="llm"))
     db_session.commit()
     db_session.add(
         AcaoVenda(
@@ -213,20 +202,30 @@ def test_payload_tema_usa_serie_e_cruzamento(client_loyall, db_session):
 
 def test_payload_cruzamento_transversal(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "crz")
-    db_session.add(
-        TemaCache(
-            empresa_id=e["id"],
-            agrupamento_id=a["id"],
-            subpilar="D2",
-            tipo="detrator",
-            tema_label="demora geral",
-            volume=12,
-            percentual=0.0,
-            periodo_inicio=datetime(2026, 1, 1).date(),
-            periodo_fim=datetime(2026, 3, 31).date(),
-            hash_escopo="hcz",
-        )
-    )
+    # régua live (= telas): 12 verbatins vinculados ao tema "demora geral"
+    # (7 D2/detrator + 5 Pa1/detrator), atravessando os 2 subpilares do cruzamento.
+    t = Tema(empresa_id=e["id"], nome="demora geral", slug="demora-geral")
+    db_session.add(t)
+    db_session.commit()
+    for sub, qtd in (("D2", 7), ("Pa1", 5)):
+        for i in range(qtd):
+            v = Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f["id"],
+                local_id=loc["id"],
+                texto=f"demora geral {sub}-{i}",
+                data_criacao_original=datetime(2026, 2, 1),
+                hash_dedup=f"hcz{sub}{i}-{datetime.utcnow().timestamp()}",
+                subpilar=sub,
+                tipo="detrator",
+                tem_texto=True,
+            )
+            db_session.add(v)
+            db_session.flush()
+            db_session.add(
+                VerbatimTema(verbatim_id=v.id, tema_id=t.id, confianca=0.9, origem="llm")
+            )
+    db_session.commit()
     cr = TemaCruzamento(
         empresa_id=e["id"],
         tema_label="demora geral",

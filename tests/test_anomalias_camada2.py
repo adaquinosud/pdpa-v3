@@ -13,7 +13,7 @@ from src.anomalias.camada2 import (
     snapshot_temas,
 )
 from src.models.anomalia import TemaSnapshot
-from src.models.temas import Tema, TemaCache, VerbatimTema
+from src.models.temas import Tema, VerbatimTema
 from src.models.verbatim import Verbatim
 
 
@@ -87,22 +87,25 @@ def test_trend_tema_detrator_em_alta(client_loyall, db_session):
 
 def test_snapshot_temas_grava_company_e_agrupamento(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "sn")
-    db_session.add(Tema(empresa_id=e["id"], nome="fila", slug="fila"))
+    t = Tema(empresa_id=e["id"], nome="fila", slug="fila")
+    db_session.add(t)
     db_session.commit()
-    db_session.add(
-        TemaCache(
+    # régua live (= telas): 7 verbatins D1/detrator vinculados ao tema "fila".
+    for i in range(7):
+        v = Verbatim(
             empresa_id=e["id"],
-            agrupamento_id=a["id"],
+            fonte_id=f["id"],
+            local_id=loc["id"],
+            texto=f"fila-{i}",
+            data_criacao_original=datetime(2026, 1, 15),
+            hash_dedup=f"hfila{i}-{datetime.utcnow().timestamp()}",
             subpilar="D1",
             tipo="detrator",
-            tema_label="fila",
-            volume=7,
-            percentual=0.0,
-            periodo_inicio=datetime(2026, 1, 1).date(),
-            periodo_fim=datetime(2026, 1, 31).date(),
-            hash_escopo="h",
+            tem_texto=True,
         )
-    )
+        db_session.add(v)
+        db_session.flush()
+        db_session.add(VerbatimTema(verbatim_id=v.id, tema_id=t.id, confianca=0.9, origem="llm"))
     db_session.commit()
     snapshot_temas(e["id"], periodo="2026-05")
     rows = (

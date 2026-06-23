@@ -55,8 +55,9 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
     from src.models.anomalia import RatioMensal
     from src.models.empresa import Empresa
     from src.models.local import Local
-    from src.models.temas import AcaoVenda, TemaCache, TemaCruzamento
+    from src.models.temas import AcaoVenda, TemaCruzamento
     from src.models.verbatim import Verbatim
+    from src.temas.cobertura import temas_volume_live_subq
 
     local_id = anomalia.get("local_id")
     ag_id = anomalia.get("agrupamento_id")
@@ -152,15 +153,16 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
     # tema detrator dominante do bucket (agrupamento:subpilar:detrator)
     tema_relacionado = None
     acao_n5 = None
+    _tc = temas_volume_live_subq(s)  # régua live (= telas)
     tcache = (
-        s.query(TemaCache.tema_label, func.sum(TemaCache.volume))
+        s.query(_tc.c.tema_label, func.sum(_tc.c.volume))
         .filter(
-            TemaCache.empresa_id == empresa_id,
-            TemaCache.subpilar == sub,
-            TemaCache.tipo == "detrator",
+            _tc.c.empresa_id == empresa_id,
+            _tc.c.subpilar == sub,
+            _tc.c.tipo == "detrator",
         )
-        .group_by(TemaCache.tema_label)
-        .order_by(func.sum(TemaCache.volume).desc())
+        .group_by(_tc.c.tema_label)
+        .order_by(func.sum(_tc.c.volume).desc())
         .first()
     )
     if tcache:
@@ -295,8 +297,9 @@ def montar_payload_tema(s, empresa_id: int, anomalia: Dict[str, Any]) -> Dict[st
 
     from src.api.painel import NOME_SUBPILAR
     from src.models.empresa import Empresa
-    from src.models.temas import Tema, TemaCache, VerbatimTema
+    from src.models.temas import Tema, VerbatimTema
     from src.models.verbatim import Verbatim
+    from src.temas.cobertura import temas_volume_live_subq
 
     emp = s.get(Empresa, empresa_id)
     setor = emp.setor if emp else None
@@ -306,10 +309,11 @@ def montar_payload_tema(s, empresa_id: int, anomalia: Dict[str, Any]) -> Dict[st
     chave = anomalia.get("chave") or ""
 
     # mix por tipo + subpilares onde o tema aparece
+    _tc = temas_volume_live_subq(s)  # régua live (= telas)
     rows = (
-        s.query(TemaCache.tipo, TemaCache.subpilar, func.sum(TemaCache.volume))
-        .filter(TemaCache.empresa_id == empresa_id, TemaCache.tema_label == nome)
-        .group_by(TemaCache.tipo, TemaCache.subpilar)
+        s.query(_tc.c.tipo, _tc.c.subpilar, func.sum(_tc.c.volume))
+        .filter(_tc.c.empresa_id == empresa_id, _tc.c.tema_label == nome)
+        .group_by(_tc.c.tipo, _tc.c.subpilar)
         .all()
     )
     mix = {"promotor": 0, "conversivel": 0, "detrator": 0}
@@ -394,7 +398,8 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
 
     from src.api.painel import NOME_SUBPILAR
     from src.models.empresa import Empresa
-    from src.models.temas import TemaCache, TemaCruzamento
+    from src.models.temas import TemaCruzamento
+    from src.temas.cobertura import temas_volume_live_subq
 
     emp = s.get(Empresa, empresa_id)
     setor = emp.setor if emp else None
@@ -431,9 +436,10 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
     buckets = json.loads(cr.buckets_envolvidos_json or "[]")
     pilares = sorted({b.split(":")[0] for b in buckets})
     nomes_sub = sorted({NOME_SUBPILAR.get(p, p) for p in pilares})
+    _tc = temas_volume_live_subq(s)  # régua live (= telas)
     volume = int(
-        s.query(func.coalesce(func.sum(TemaCache.volume), 0))
-        .filter(TemaCache.empresa_id == empresa_id, TemaCache.tema_label == cr.tema_label)
+        s.query(func.coalesce(func.sum(_tc.c.volume), 0))
+        .filter(_tc.c.empresa_id == empresa_id, _tc.c.tema_label == cr.tema_label)
         .scalar()
         or 0
     )

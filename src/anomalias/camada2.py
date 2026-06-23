@@ -79,22 +79,20 @@ def _slug_agregado(empresa_id: int, s) -> Dict[str, Dict[str, Any]]:
     """Estado atual por slug: label, volume total, split por tipo, por agrupamento."""
     from sqlalchemy import func
 
-    from src.models.temas import Tema, TemaCache
+    from src.temas.cobertura import temas_volume_live_subq
     from src.temas.slug import slugify
 
+    # Régua live (= telas): a subquery já filtra tema ATIVO e dá tema_label.
+    _tc = temas_volume_live_subq(s)
     rows = (
         s.query(
-            Tema.nome,
-            TemaCache.agrupamento_id,
-            TemaCache.tipo,
-            func.sum(TemaCache.volume),
+            _tc.c.tema_label,
+            _tc.c.agrupamento_id,
+            _tc.c.tipo,
+            func.sum(_tc.c.volume),
         )
-        .join(
-            Tema,
-            (Tema.empresa_id == TemaCache.empresa_id) & (Tema.nome == TemaCache.tema_label),
-        )
-        .filter(TemaCache.empresa_id == empresa_id, Tema.ativo.is_(True))
-        .group_by(Tema.nome, TemaCache.agrupamento_id, TemaCache.tipo)
+        .filter(_tc.c.empresa_id == empresa_id)
+        .group_by(_tc.c.tema_label, _tc.c.agrupamento_id, _tc.c.tipo)
         .all()
     )
     out: Dict[str, Dict[str, Any]] = {}

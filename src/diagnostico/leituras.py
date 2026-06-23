@@ -190,23 +190,25 @@ def montar_payload_subpilar(
 
     from src.api.painel import NOME_PILAR, NOME_SUBPILAR, PILARES_ORDEM
     from src.models.empresa import Empresa
-    from src.models.temas import TemaCache
     from src.models.verbatim import Verbatim
 
     emp = s.get(Empresa, empresa_id)
     pilar = _pilar_de(subpilar)
     lastro_sequencia = " → ".join(NOME_PILAR.get(p, p) for p in PILARES_ORDEM)
 
-    # Tema dominante: por loja não há TemaCache (é empresa/agrupamento) — cai pro
-    # agrupamento da loja quando em escopo loja; senão pelo ag/empresa.
-    tq = s.query(TemaCache.tema_label, func.sum(TemaCache.volume)).filter(
-        TemaCache.empresa_id == empresa_id,
-        TemaCache.subpilar == subpilar,
-        TemaCache.tipo == "detrator",
+    # Tema dominante: régua live (= telas), filtrando por agrupamento quando em
+    # escopo de ag; em escopo empresa agrega todos os agrupamentos.
+    from src.temas.cobertura import temas_volume_live_subq
+
+    _tc = temas_volume_live_subq(s)  # régua live (= telas)
+    tq = s.query(_tc.c.tema_label, func.sum(_tc.c.volume)).filter(
+        _tc.c.empresa_id == empresa_id,
+        _tc.c.subpilar == subpilar,
+        _tc.c.tipo == "detrator",
     )
     if ag_id is not None:
-        tq = tq.filter(TemaCache.agrupamento_id == ag_id)
-    tq = tq.group_by(TemaCache.tema_label).order_by(func.sum(TemaCache.volume).desc()).first()
+        tq = tq.filter(_tc.c.agrupamento_id == ag_id)
+    tq = tq.group_by(_tc.c.tema_label).order_by(func.sum(_tc.c.volume).desc()).first()
     tema_dom = tq[0] if tq else None
 
     eq = s.query(Verbatim.texto).filter(

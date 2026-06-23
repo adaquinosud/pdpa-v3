@@ -20,8 +20,9 @@ def montar_contexto(s, empresa_id: int, ag_id: Optional[int] = None, corte=None)
     from src.models.anomalia import AnomaliaDetectada
     from src.models.diagnostico import LeituraDiagnostico
     from src.models.empresa import Empresa
-    from src.models.temas import TemaCache, TemaCruzamento
+    from src.models.temas import TemaCruzamento
     from src.models.verbatim import Verbatim
+    from src.temas.cobertura import temas_volume_live_subq
     from src.ui import _explorar_leaderboard
 
     emp = s.get(Empresa, empresa_id)
@@ -90,22 +91,23 @@ def montar_contexto(s, empresa_id: int, ag_id: Optional[int] = None, corte=None)
         for x in lb["ranked"][:10]
     ]
 
-    # 4. Top 15 temas (TemaCache agregado por label)
+    # 4. Top 15 temas (régua live = telas, agregado por label)
     from sqlalchemy import func
 
+    _tc = temas_volume_live_subq(s)
     tq = s.query(
-        TemaCache.tema_label,
-        func.sum(TemaCache.volume),
-        TemaCache.tipo,
+        _tc.c.tema_label,
+        func.sum(_tc.c.volume),
+        _tc.c.tipo,
         # subpilar não está no GROUP BY → func.min pega um representativo
         # determinístico (Postgres é estrito; SQLite pegava arbitrário).
-        func.min(TemaCache.subpilar),
-    ).filter(TemaCache.empresa_id == empresa_id)
+        func.min(_tc.c.subpilar),
+    ).filter(_tc.c.empresa_id == empresa_id)
     if ag_id is not None:
-        tq = tq.filter(TemaCache.agrupamento_id == ag_id)
+        tq = tq.filter(_tc.c.agrupamento_id == ag_id)
     tq = (
-        tq.group_by(TemaCache.tema_label, TemaCache.tipo)
-        .order_by(func.sum(TemaCache.volume).desc())
+        tq.group_by(_tc.c.tema_label, _tc.c.tipo)
+        .order_by(func.sum(_tc.c.volume).desc())
         .limit(15)
         .all()
     )

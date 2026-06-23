@@ -89,3 +89,43 @@ def tripleto_bucket(
         "cache_snapshot": cache_snapshot,
         "stale": cache_snapshot != em_temas,
     }
+
+
+def temas_volume_live_subq(s):
+    """Subquery LIVE espelhando as colunas-chave de ``temas_cache`` —
+    ``(empresa_id, agrupamento_id, subpilar, tipo, tema_label, volume)`` — onde
+    ``volume`` = verbatins DISTINTOS do bucket vinculados a um tema ATIVO.
+
+    Drop-in para trocar ``TemaCache`` nos consumidores que só usam
+    label/subpilar/tipo/agrupamento/volume (diagnóstico-narrativa, planos,
+    anomalias, ia-chat): alinha-os à régua live das telas, sem depender da
+    frescura do snapshot. NÃO traz ``percentual``/``exemplos``/``periodo`` (quem
+    precisa desses fica no ``TemaCache``).
+    """
+    return (
+        s.query(
+            Verbatim.empresa_id.label("empresa_id"),
+            Local.agrupamento_id.label("agrupamento_id"),
+            Verbatim.subpilar.label("subpilar"),
+            Verbatim.tipo.label("tipo"),
+            Tema.nome.label("tema_label"),
+            func.count(func.distinct(Verbatim.id)).label("volume"),
+        )
+        .select_from(VerbatimTema)
+        .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+        .join(Tema, and_(Tema.id == VerbatimTema.tema_id, Tema.ativo.is_(True)))
+        .outerjoin(Local, Local.id == Verbatim.local_id)
+        .filter(
+            Verbatim.tem_texto.is_(True),
+            Verbatim.subpilar.isnot(None),
+            Verbatim.tipo.isnot(None),
+        )
+        .group_by(
+            Verbatim.empresa_id,
+            Local.agrupamento_id,
+            Verbatim.subpilar,
+            Verbatim.tipo,
+            Tema.nome,
+        )
+        .subquery()
+    )
