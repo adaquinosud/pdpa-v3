@@ -1298,6 +1298,53 @@ def _register_cli_commands(app: Flask) -> None:
             f"vínculos_removidos={total_removidos}"
         )
 
+    # ── flask limpar-acumulo-temas (poda one-off do acúmulo entre rodadas) ──
+    @app.cli.command("limpar-acumulo-temas")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Mede e reporta SEM gravar (poda + temas a desativar; não regenera cache).",
+    )
+    def limpar_acumulo_temas_cmd(empresa_arg, dry_run):
+        """Poda o acúmulo de vínculos de tema entre rodadas (operação única).
+
+        Por verbatim mantém só o vínculo LLM da rodada MAIS RECENTE e remove os
+        anteriores (preserva origem manual/merge); desativa Tema que ficou sem
+        vínculo vivo; regenera temas_cache a partir do resultado (link-based, sem
+        re-clusterizar). Com --dry-run, só reporta os números.
+
+        Contraparte one-off da correção de raiz no pipeline (tornar
+        _upsert_tema_e_link não-aditivo). NÃO recoleta nem reclassifica.
+        """
+        from src.models.empresa import Empresa
+        from src.temas.limpeza import limpar_acumulo_temas
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, nome = emp.id, emp.nome
+
+        modo = "DRY-RUN (não grava)" if dry_run else "APLICAR"
+        click.echo(f"[limpar-acumulo] empresa={nome!r} (id={empresa_id}) · {modo}")
+        r = limpar_acumulo_temas(empresa_id, dry_run=dry_run)
+        click.echo(
+            f"[limpar-acumulo] verbatins_com_acumulo={r['verbatins_com_acumulo']} "
+            f"vinculos_removidos={r['vinculos_removidos']} "
+            f"temas_desativados={r['temas_desativados']}"
+        )
+        if dry_run:
+            click.echo("[limpar-acumulo] DRY-RUN — nada gravado (cache não regenerado).")
+        else:
+            click.echo(f"[limpar-acumulo] cache regenerado: {r['cache_rows']} rows. Concluído.")
+
     # ── CP purge-linkedin-dup: flask purgar-verbatins-fonte ───────────
     @app.cli.command("purgar-verbatins-fonte")
     @click.option(
