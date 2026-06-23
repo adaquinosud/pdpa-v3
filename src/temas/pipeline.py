@@ -139,6 +139,34 @@ def _zerar_cache_bucket(empresa_id: int, ag_id: Optional[int], sub: str, tipo: s
         q.delete(synchronize_session=False)
 
 
+def _zerar_vinculos_llm(membro_ids: List[int]) -> None:
+    """Remove os vínculos ``verbatim_temas`` ``origem='llm'`` destes verbatins.
+
+    Chamado em ``_processar_bucket`` ANTES de re-criar os vínculos da rodada
+    atual (e só DEPOIS do gate de elegibilidade — bucket que vai mesmo
+    clusterizar). Torna o pipeline "zera+reconstrói" os vínculos LLM, simétrico
+    ao ``_zerar_cache_bucket``: cada rodada passa a possuir os vínculos dos
+    verbatins que reprocessa, em vez de acumular entre rodadas. Preserva
+    ``origem IN ('manual','merge')`` (curadoria humana / merges).
+
+    Como apaga TODOS os vínculos LLM destes verbatins (não só os do bucket
+    atual), também remove vínculo órfão de quem mudou de bucket e está sendo
+    reprocessado aqui — subsume a poda de órfãos para os reprocessados.
+    """
+    from src.models.temas import VerbatimTema
+    from src.utils.db import db_session
+
+    if not membro_ids:
+        return
+    with db_session() as s:
+        for i in range(0, len(membro_ids), 500):
+            fim = i + 500
+            s.query(VerbatimTema).filter(
+                VerbatimTema.verbatim_id.in_(membro_ids[i:fim]),
+                VerbatimTema.origem == "llm",
+            ).delete(synchronize_session=False)
+
+
 def _upsert_tema_e_link(
     empresa_id: int,
     label: str,
@@ -323,6 +351,12 @@ def _processar_bucket(
 
     # Zera cache do bucket pra escrita idempotente
     _zerar_cache_bucket(empresa_id, ag_id, sub, tipo)
+    # Zera os vínculos LLM destes verbatins ANTES de re-criar os da rodada atual
+    # (não-aditivo): cada rodada possui os vínculos que reprocessa, sem acumular
+    # entre rodadas. Já passamos o gate de elegibilidade (bucket vai clusterizar);
+    # ruído/descartados ficarão sem vínculo (corretamente "sem tema"). Preserva
+    # manual/merge.
+    _zerar_vinculos_llm([m["id"] for m in membros_com_emb])
 
     rotulados: List[Dict[str, Any]] = []
     for cluster_id in sorted(set(res.labels) - {-1}):
