@@ -15,24 +15,30 @@ polimento/robustez (R1-R5), conectores e decisões de método com o Dener — na
 bloqueia o piloto. **+ Impacto em R$ NO AR** (estoque + fluxo, R4 ✅).
 
 ## Estado atual
-- **Branch:** `main` · HEAD `faa9fc6` · **em `origin/main` e EM PRODUÇÃO (Render)**.
-- **Testes:** 840 verdes em **SQLite** (+ Postgres via `pgserver`, CP-1.1/1.2).
-- **Schema:** runner = **Alembic** (head `b7e3f9a2c1d8` = impacto-rs; baseline
+- **Branch:** `main` · HEAD `5344eeb` · **em `origin/main` e EM PRODUÇÃO (Render)**.
+- **Testes:** 1022 verdes em **SQLite** (+ Postgres via `pgserver`, CP-1.1/1.2).
+- **Schema:** runner = **Alembic** (head `e5f6a7b8c9d0` = reprocessar-sujos; baseline
   `8295ca9dc780`, fonte = models); `migrations/*.sql` em `migrations/legacy/`.
 - **Progresso do roadmap:** **PRODUÇÃO NO AR + PILOTO DESTRAVADO.** Pré-deploy ✅ ·
   Deploy #5–#9 ✅ · **#10 Cron ✅** (dispara sozinho) · **O1 usuários ✅** · **O2
   personas ✅** · **R4 Impacto R$ ✅** · **UX2 abas→HTMX ✅** · **#5b coleta
   on-demand ✅** (rotas `htmx_disparar_*` no ar). **+ lockfile dev==prod**
-  (`962749d`). **Resta (não bloqueia piloto):** **#9b domínio `pdpa.com.br`** (DNS)
-  + robustez R1-R3/R5 + conectores + decisões-c/-Dener — ver `PENDENCIAS_TECNICAS.md`
-  (seção "Curadoria de pendências").
+  (`962749d`). **+ Consistência de temas na régua LIVE ✅** (Fases 1-2 `53b58f6`/`b2938d7`
+  + pipeline não-aditivo `12be899` + `limpar-acumulo` `d2eda0e` + reprocessar-sujos
+  noturna `674476f`) — a divergência de contagem de tema entre telas caiu e a
+  reclassificação manual reflete na hora. **Resta (não bloqueia piloto):** **#9b
+  domínio `pdpa.com.br`** (DNS) + robustez R1-R3/R5 + conectores + decisões-c/-Dener —
+  ver `PENDENCIAS_TECNICAS.md` (seção "Curadoria de pendências").
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 - **Feito até aqui (resumo):** núcleo do método (Lastro/ratio/5 faixas), Lente de
   Governança completa, anomalias (ML), temas/cruzamentos, plano de ação, Hub
   Explorar (15 abas), IA Chat, 5 relatórios PDF (WeasyPrint), Escopo Loja,
   cadastros + import Excel, auth (admin_loyall/cliente_total), timeout-por-fonte,
   e **glossário completo** (cadastro 77 termos + mecanismo `glossario_i` + ⓘ em
-  todas as telas, séries 2a→2f).
+  todas as telas, séries 2a→2f). **+ recente:** temas na **régua LIVE** (toda a
+  pilha lê count distinct vivo, não snapshot) + rotulador mais fiel
+  (atendimento+ambiente) + classificador via **Batch API** + histórico de 4
+  quarters com **N de verbatins** por quarter.
 - **Detalhe de cobertura/pendências:** ver `docs/ESTADO_ATUAL.md` e
   `docs/PENDENCIAS_TECNICAS.md`.
 

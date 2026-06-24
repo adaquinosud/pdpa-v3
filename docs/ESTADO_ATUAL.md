@@ -1,28 +1,78 @@
 # PDPA v3 — Estado Atual
 
 ## Última atualização
-2026-06-04 (PROD NO AR + lockfile dev==prod + CP-A filtros do Explorar)
+2026-06-24 (temas na régua live Fases 1-2 + reprocessar-sujos noturna + rotulagem + N-por-quarter)
 
 ## Branch / HEAD
-- **`main`** (atual): HEAD `4ec1eec`. **Em `origin/main` e EM PRODUÇÃO** (Render).
+- **`main`** (atual): HEAD `5344eeb`. **Em `origin/main` e EM PRODUÇÃO** (Render; `/healthz` expõe o SHA do build — `26c8157`).
 - Contrato de trabalho: **1 branch por CP**; o agente reporta `git branch --show-current` na 1ª linha de todo CP e PARA se não for a esperada.
-- **Testes: 786 verdes.** Schema via **Alembic** (baseline `8295ca9dc780`).
+- **Testes: 1022 verdes** (SQLite; Postgres via `pgserver`). Schema via **Alembic** (head `e5f6a7b8c9d0`; baseline `8295ca9dc780`).
 - **Empresa de validação:** BH Airport (#4) — ~10k verbatins, 47 lojas, 12 canais.
 
 ## Últimos commits (main)
 ```
-4ec1eec feat(explorar): header de escopo condicional + chip + dedupe + bugs 1/2 (CP-A)
-962749d build(deps): trava dev==prod via lockfile com hashes (anti-drift)
-08c0823 fix(prod): reconcilia sklearn/hdbscan/pyyaml com o dev — destrava o umap
-1b19571 fix(prod): umap-learn faltava na imagem → motor de temas (Bloco 6)
-a1f37ae CP reaper-orfas: auto-cura ColetaExecucao órfã presa em 'rodando'
-9951d63 CP usuarios-ui: tela de gestão de usuários (loyall-only, CRUD soft)
-8bd683c fix(noturna): mkdir data/ antes do tee no run_noturna.sh
+5344eeb feat(painel): N de verbatins do quarter sob cada Q·ratio (painel + diagnóstico)
+b2938d7 feat(temas): consumidores de tema na régua live (= telas) — Fase 2
+53b58f6 feat(temas): aba Temas do Explorar + catálogo/dropdown/PDF na régua live (Fase 1)
+674476f feat(noturna): reprocessa empresas reclassificadas manualmente (C)
+d2eda0e feat(cli): limpar-acumulo-temas — poda one-off do acúmulo entre rodadas (A)
+12be899 fix(temas): pipeline não-aditivo — zera+reconstrói vínculos LLM por rodada (B)
+81fcd33 feat(temas): tripleto reconciliado no painel (régua live) + "sem tema"
+9034dd3 fix(temas): rotulador captura ambiente/estrutura + subpilar não descarta
 ```
 
 ---
 
 ## FEITO (em main)
+
+### Consistência de temas (régua LIVE) + reprocessamento + rotulagem (2026-06)
+**Problema-raiz:** o painel mostrava números de tema divergentes entre telas (abrir
+um tema dizia X, abrir os verbatins dizia Y) e a reclassificação manual não refletia
+até a noturna seguinte. Causa: o pipeline de temas era **aditivo** (re-rodadas
+acumulavam vínculos por verbatim) e os consumidores liam o **snapshot** (`temas_cache`)
+em vez dos vínculos vivos. Resolvido em ondas A/B/C + Fases 1-2:
+
+- **Rotulador mais fiel** (`dc46844`, `9034dd3`): rotulagem por referente-concreto
+  recorrente (recupera falso-negativo) + captura de **ambiente/estrutura** além de
+  atendimento; subpilar deixa de descartar o cluster. Ferramenta read-only de
+  diagnóstico: `tools/medir_rotulagem` (`f8b24a6`).
+- **(B) Pipeline não-aditivo** (`12be899`): cada rodada **zera+reconstrói** os
+  vínculos `origem='llm'` do bucket antes de religar (preserva `manual`/`merge`).
+  Mata a fragmentação/duplicação na origem.
+- **(A) `limpar-acumulo-temas`** (`d2eda0e`): poda one-off do acúmulo herdado de
+  rodadas antigas (mantém o vínculo llm mais recente por verbatim, desativa temas
+  vazios, regenera cache link-based). Rodado em prod nas empresas afetadas.
+- **(C) Reprocessar-sujos na noturna** (`674476f` + `6ecab93`/`0557fea`): reclassificação
+  manual marca `empresas.reprocessar_em`; a cron noturna varre os "sujos" e roda
+  `reconciliar_vinculos` + pós-coleta (sem re-rotular à força), limpando o flag só no
+  sucesso. CLI de apoio: `reconciliar-reclassificados` (lote retroativo).
+- **Tripleto reconciliado no painel** (`81fcd33`): cada bucket exibe
+  **total / em_temas / sem_tema** pela régua LIVE (count distinct verbatim com tema
+  ativo), reconciliando exato e nunca negativo. `src/temas/cobertura.py`.
+- **Telas na régua live — Fase 1** (`53b58f6`): aba **Temas do Explorar** + catálogo +
+  dropdown + PDF passam a contar distinct verbatim vivo (não o snapshot).
+- **Telas na régua live — Fase 2** (`b2938d7`): os **4 consumidores** restantes
+  (diagnóstico-narrativa, planos N5, anomalias editorial/camada2, IA-chat) migrados
+  via helper `temas_volume_live_subq`. **Regeneração zero** confirmada (snapshot==live
+  pós-cleanup). → **a divergência de contagem de tema entre telas está RESOLVIDA;
+  reclassificação manual reflete na hora.**
+
+### Custo do classificador + robustez de parse (2026-06)
+- **Batch API da Anthropic** em `classificar_pendentes` (`1e90971`; upgrade
+  `anthropic 0.111.0` `61bf83e`/`14c282d`) + guard anti-duplo-submit (`01394f9`).
+- **Cache do classificador** (opt A — `5fc77af`/`8863ba8`): dicionário+casos no system
+  cacheado + `lru_cache` em `_build_referencia`. *(Opts B métricas / C batch-extra:
+  pendentes — ver `project_custo_classificador`.)*
+- **Robustez de parse** (`545fbb0`, `5969428`, `f8fd6f1`): misto→conversível + regex
+  fallback + **fallback Sonnet** quando o Haiku esgota parse/validação; prompt **v3.3**
+  reduz over-conversível (`c671454`). CLI `reclassificar-prompt-versao` (`20f7194`).
+
+### Histórico de quarters nos cards de pilar (2026-06)
+- Histórico de **ratio P/D dos últimos 4 quarters** nos cards (`f7caad7`) + drawer de
+  detalhe ao clicar (`42db0fb`) + aviso de que ignora período/fonte (`1c11166`).
+- **N de verbatins por quarter** (`5344eeb`): sob cada `Q·ratio`, empilhado, o total
+  do quarter (todos os tipos) — reusa `RatioMensal.total` das mesmas linhas do ratio,
+  sem query nova. Painel **e** Diagnóstico.
 
 ### Marco: PRODUÇÃO NO AR (2026-06)
 - **Deploy concluído (Render)** — imagem Docker buildando e o app servindo em prod (Bloco Deploy #5–#9 do `ROADMAP_PRODUCAO.md`). Validado com `pip freeze` real do Render nesta sessão. **Resta:** apontar domínio `pdpa.com.br` (#9) + agendar a noturna via Cron Job (#10).
