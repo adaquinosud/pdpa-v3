@@ -124,14 +124,22 @@ para essas faixas). Confirmar a régua concreta junto da "régua de neutralidade
   exatamente como as fontes de coleta hoje.
 - Todo `Verbatim` emitido carrega `fonte_id` dessa fonte (dedup e atribuição corretas).
 
-⚠️ **Ponto que precisa da tua decisão (o motor de ratio é ancorado em loja):** `RatioMensal`
-e o pós-coleta **exigem `local_id` não-nulo** (`ratios.py` filtra `Verbatim.local_id.isnot(None)`).
-Logo, uma resposta de pesquisa **precisa resolver uma loja**. Duas saídas (recomendo a 1ª):
-1. **Pesquisa escopada a um `local`** → todo verbatim herda aquele `local_id` (simples, cobre
-   "pesquisa da loja X").
-2. **Pesquisa de agrupamento/empresa** → exige uma **pergunta-âncora "qual loja"** que mapeia
-   `local_id` por resposta; sem ela, a resposta entra só em agregados que não dependem de loja
-   (fora do ratio P/D).
+**Resolução do `local_id` (DECIDIDO — o motor de ratio é ancorado em loja).** `RatioMensal`
+e o pós-coleta **exigem `local_id` não-nulo** (`ratios.py` filtra `Verbatim.local_id.isnot(None)`),
+então toda resposta externa **precisa resolver uma loja**. O sistema **suporta os dois modos**,
+com **escopo-por-local como PADRÃO** — a escolha acontece na criação da pesquisa:
+
+1. **Unidade/local específico (padrão)** → o usuário escolhe a unidade na criação; todo verbatim
+   da pesquisa **herda aquele `local_id`** (cobre "pesquisa da loja X", sem pergunta extra).
+2. **"Geral / várias unidades"** → o sistema **injeta automaticamente** a **pergunta-âncora
+   "qual unidade?"** (fechada, opções = locais do escopo) como primeira pergunta; a resposta dela
+   **define o `local_id` por respondente** (gravado em `Respondente.local_id`), e os demais
+   verbatins daquele respondente herdam esse local. Sem âncora respondida, a resposta fica fora
+   do ratio P/D (entra só em agregados que não dependem de loja).
+
+Implicações de modelo: `Pesquisa.escopo_local_modo ∈ {'local','geral'}`; no modo `geral` a
+pergunta-âncora é **gerada pelo sistema** (não conta como pergunta de conteúdo) e marcada para o
+parser/coleta como a fonte do `local_id`.
 
 ### (b) Segregação interno × cliente
 
@@ -153,7 +161,9 @@ e simples:
 Pesquisa
   id, empresa_id, natureza('externa'|'interna'),
   titulo, objetivo (justificativa diagnóstica âncora),
-  escopo: entidade_tipo/entidade_id (local|agrupamento|empresa) → resolve local_id,
+  escopo: entidade_tipo/entidade_id (local|agrupamento|empresa),
+  escopo_local_modo('local'|'geral'):
+     'local' → herda o local escolhido; 'geral' → injeta pergunta-âncora "qual unidade?",
   canal('web'|'whatsapp'), anonima(bool),
   fonte_id (a Fonte dedicada; NULL p/ interna, que não emite verbatim),
   versao(int), status('rascunho'|'pronta'|'ativa'|'encerrada'),
