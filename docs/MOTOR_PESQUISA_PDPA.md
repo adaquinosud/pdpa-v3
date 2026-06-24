@@ -92,3 +92,124 @@ Resposta vira verbatim
 - Mapeamento duplo (interna): como marcar cada pergunta com pilar/subpilar **e** camada ORIGEM — estrutura de dados e como a análise lê os dois níveis.
 - Painel de confronto: layout do "cliente pensa X / time pensa Y / gap Z / ação recomendada", por pilar, + a leitura ORIGEM.
 - Parser de WhatsApp: formato esperado do arquivo único e regras de separação por respondente.
+
+## 8. Integração e dados (decisões de método fechadas)
+
+> Esta seção fecha o *como* a pesquisa encaixa no que já existe. Decisões de método
+> ratificadas; nomes de tabela/coluna são **proposta** de implementação (a confirmar no CP).
+
+### (a) Ponte resposta → verbatim
+
+A pesquisa **reusa o `Verbatim`** como ponto de entrada do pipeline — não cria um
+caminho de análise paralelo para a natureza **externa**. A conversão depende do
+**formato de cada pergunta** (escolha do usuário, por pergunta; uma pesquisa mistura
+tipos). Três casos, que **coexistem na mesma pergunta**:
+
+| Caso | O que chega | Como vira sinal | Classificador? | Marcador |
+|------|-------------|-----------------|----------------|----------|
+| **TEXTO** (descritivo) | só texto livre | 1 `Verbatim` com `texto`, `tem_texto=True` → **pipeline normal** (classificador acha pilar+valência). A marcação de pilar na pergunta é **só intenção**, não força nada. | sim | `prompt_versao='pesquisa-texto-v1'` |
+| **NOTA pura** (escala/múltipla) | só nota | 1 `Verbatim` "símbolo" (`tem_texto=False`) no **subpilar JÁ DEFINIDO na pergunta**; a nota vira **tipo (valência) por régua**, sem LLM. Análogo ao `rating-dist-v1`. | **não** | `prompt_versao='pesquisa-nota-v1'` |
+| **NOTA+TEXTO** (caso comum) | nota + texto | **Os dois coexistem:** a nota dá a valência do **pilar pré-definido** (sinal-símbolo, como NOTA pura) **e** o texto vai ao classificador (sinal-texto, como TEXTO). Pode emitir **até 2 contribuições** por resposta. | só no texto | nota: `pesquisa-nota-v1` · texto: `pesquisa-texto-v1` |
+
+**Régua nota→valência** (default, herdável por pergunta): 5★→`promotor` · 4–3★→`conversivel`
+· 2–1★→`detrator` (mesma valência do `rating-dist`/símbolos; escalas não-5 normalizam
+para essas faixas). Confirmar a régua concreta junto da "régua de neutralidade" (seção 7).
+
+**Fonte e escopo (`fonte_id` / `local_id` / `agrupamento_id`).** Cada **Pesquisa cria uma
+`Fonte`** dedicada — precedente direto: a importação manual já usa `conector_tipo="excel_manual"`
+(fonte não-raspada). Proposta:
+- `conector_tipo='pesquisa_web'` ou `'pesquisa_whatsapp'`; `autenticacao_tipo='publica'`;
+  `url` = link do formulário hospedado (web) ou placeholder (whatsapp).
+- `entidade_tipo/entidade_id` da `Fonte` = **escopo da pesquisa** (local, agrupamento ou empresa),
+  exatamente como as fontes de coleta hoje.
+- Todo `Verbatim` emitido carrega `fonte_id` dessa fonte (dedup e atribuição corretas).
+
+⚠️ **Ponto que precisa da tua decisão (o motor de ratio é ancorado em loja):** `RatioMensal`
+e o pós-coleta **exigem `local_id` não-nulo** (`ratios.py` filtra `Verbatim.local_id.isnot(None)`).
+Logo, uma resposta de pesquisa **precisa resolver uma loja**. Duas saídas (recomendo a 1ª):
+1. **Pesquisa escopada a um `local`** → todo verbatim herda aquele `local_id` (simples, cobre
+   "pesquisa da loja X").
+2. **Pesquisa de agrupamento/empresa** → exige uma **pergunta-âncora "qual loja"** que mapeia
+   `local_id` por resposta; sem ela, a resposta entra só em agregados que não dependem de loja
+   (fora do ratio P/D).
+
+### (b) Segregação interno × cliente
+
+**Invariante que sustenta a credibilidade do número:** *o ratio P/D e o diagnóstico do
+cliente são construídos exclusivamente a partir de `Verbatim`.* Portanto a regra é mecânica
+e simples:
+
+- **Resposta de pesquisa INTERNA nunca emite `Verbatim`.** Fica apenas em base separada
+  (`pesquisa_resposta`, marcada `natureza='interna'`), de onde derivam **só** (1) a leitura
+  por pilar/subpilar para o **mapa de confronto** e (2) o diagnóstico ORIGEM (Fase 4).
+- Como nada interno vira `Verbatim`, **nada interno toca** `RatioMensal`, temas, Capital
+  Relacional ou qualquer tela do cliente — sem necessidade de filtro defensivo espalhado:
+  a segregação é por **ausência de ponte**, não por exclusão posterior.
+- A natureza (`externa|interna`) é gravada **na `Pesquisa`** e herdada por toda resposta.
+
+### (c) Esboço do modelo de dados (proposta)
+
+```
+Pesquisa
+  id, empresa_id, natureza('externa'|'interna'),
+  titulo, objetivo (justificativa diagnóstica âncora),
+  escopo: entidade_tipo/entidade_id (local|agrupamento|empresa) → resolve local_id,
+  canal('web'|'whatsapp'), anonima(bool),
+  fonte_id (a Fonte dedicada; NULL p/ interna, que não emite verbatim),
+  versao(int), status('rascunho'|'pronta'|'ativa'|'encerrada'),
+  criada_por, criada_em
+
+Pergunta
+  id, pesquisa_id, ordem, enunciado,
+  porque (justificativa diagnóstica da pergunta — o "porquê" da seção 3),
+  formato('aberta'|'fechada'|'mista'),
+  escala_tipo (p/ fechada: 'nota_1_5'|'multipla'|…), opcoes_json,
+  subpilar_alvo (OBRIGATÓRIO p/ nota/fechada; intenção p/ texto),
+  regua_valencia_json (override da régua nota→valência; default herdado),
+  camada_origem (INTERNA, latente — Fase 4, design-incompleto)
+
+Respondente
+  id, pesquisa_id,
+  identificacao: anônimo → token de dedup (sem PII) | identificado → nome/contato,
+  local_id (quando a pesquisa exige a âncora "qual loja"), criado_em
+
+Resposta            # fonte da verdade; 1 por (respondente, pergunta)
+  id, pesquisa_id, pergunta_id, respondente_id,
+  valor_texto, valor_nota, valor_opcao, criada_em
+  # EXTERNA: deriva 0..2 Verbatim (ver caso a); INTERNA: não deriva nada.
+
+RespostaVerbatim    # ponte da derivação externa (rastreabilidade resposta→verbatim)
+  resposta_id, verbatim_id, origem('texto'|'nota')
+
+Convite / Link      # distribuição (PDPA entrega o instrumento, não gerencia contatos)
+  id, pesquisa_id, token (slug público do formulário web),
+  ativo, expira_em
+```
+
+Notas de modelagem:
+- **`Pergunta.subpilar_alvo`** é o que resolve o caso NOTA sem classificador.
+- **`camada_origem`** existe na coluna desde já, mas **fica sem regra de preenchimento até a
+  Fase 4** (ver abaixo) — não bloqueia externa.
+- **WhatsApp** reusa o importador existente: o arquivo único cai no parser, que casa
+  resposta↔pergunta pelo gabarito (as perguntas que o PDPA gerou) e popula `Respondente`/`Resposta`.
+
+### (d) Critério de aceite — Fase 1 (Geração assistida)
+
+A Fase 1 entrega **só geração + aprovação** (não coleta, não distribui). Aceite:
+
+1. Usuário pede pesquisa para uma empresa/escopo e **natureza** (externa|interna); o sistema
+   **propõe N perguntas**, cada uma com: enunciado, **formato** sugerido (aberta/fechada/mista),
+   **"porquê" ancorado no diagnóstico real** daquela empresa (não genérico), e — quando
+   fechada/nota — **`subpilar_alvo` + régua de valência**.
+2. Usuário **edita** (adiciona/remove/reordena/troca formato/ajusta texto) e **aprova**;
+   persiste `Pesquisa` + `Pergunta`s como **versão 1**, `status` `rascunho`→`pronta`.
+3. A **natureza** fica gravada na `Pesquisa` (a segregação da seção (b) já vale desde a criação).
+4. **Nenhuma coleta/fonte/verbatim** é criada nesta fase (web hospedado é Fase 2).
+5. A geração é **assistida** (LLM propõe, humano aprova) e a chamada do LLM é **mockável** em teste.
+6. **Testes:** proposta determinística (mock), persistência, ciclo de edição, versão, e o
+   guard de que externa×interna não se misturam no modelo.
+
+> **ORIGEM (Fase 4) — design-incompleto.** O mapeamento duplo pilar↔camada ORIGEM, a definição
+> das camadas (Semente→Raiz→Solo→Caminho→Fruto), o scoring e o layout do confronto **continuam
+> em aberto** (seção 7) e **não entram** nas Fases 1–3. A coluna `Pergunta.camada_origem` fica
+> reservada, sem regra, até essa rodada de design.
