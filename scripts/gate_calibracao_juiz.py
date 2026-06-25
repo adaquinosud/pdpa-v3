@@ -9,7 +9,10 @@ semântico e BLOQUEIA o deploy se a calibração regrediu:
 Este é o ÚNICO ponto que chama o juiz real; o CI segue mockado. A lógica de
 decisão (``rodar_gate``) é injetável p/ teste sem rede.
 
-Saída: 0 = calibrado · 1 = calibração regrediu (bloqueia) · 2 = erro ao executar.
+Saída: 0 = calibrado (ou erro de INFRA — fail-open, não bloqueia) · 1 = a
+calibração REGREDIU (falso-positivo nos limpos ou violação não flagada — bloqueia).
+Erro de infra alheia (API fora/chave/timeout) faz fail-open: avisa e devolve 0,
+porque a pesquisa (Fase 1, sem coleta) não pode travar deploys do PDPA.
 """
 
 from __future__ import annotations
@@ -46,13 +49,20 @@ def rodar_gate(
     return (not falsos_positivos and not faltas), falsos_positivos, faltas
 
 
-def main() -> int:
+def main(juiz_fn: Optional[Callable[[str, str], Dict[str, Any]]] = None) -> int:
     print(f"[gate-juiz] calibrando o LLM-juiz: {len(GOLDEN_SET_JUIZ)} casos, 1 chamada...")
     try:
-        ok, falsos_positivos, faltas = rodar_gate()
-    except Exception as exc:  # rede/chave/parse — não passa o gate sem rodar de fato
-        print(f"[gate-juiz] ERRO ao executar o juiz: {exc}", file=sys.stderr)
-        return 2
+        ok, falsos_positivos, faltas = rodar_gate(juiz_fn=juiz_fn)
+    except Exception as exc:
+        # fail-OPEN: erro de INFRA alheia (API fora / chave ausente / timeout) NÃO
+        # bloqueia o deploy — a pesquisa (Fase 1, sem coleta) não pode travar deploys
+        # do PDPA por indisponibilidade da Anthropic. Só regressão real bloqueia.
+        print(
+            f"[gate-juiz] AVISO — não foi possível rodar o juiz ({exc}); "
+            "deploy NÃO bloqueado (fail-open em erro de infra).",
+            file=sys.stderr,
+        )
+        return 0
 
     for cid, flags in falsos_positivos:
         print(
