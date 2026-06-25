@@ -87,7 +87,7 @@ def test_blocklist_curadoria_bloqueia():
     assert "Concentração de detratores" in termos_proibidos("Há concentração de detratores aqui?")
     # tokens de sistema
     assert "anomalia" in termos_proibidos("Houve alguma anomalia?")
-    assert "cruzamento" in termos_proibidos("Qual o cruzamento de temas?")
+    assert "cruzamento de temas" in termos_proibidos("Qual o cruzamento de temas?")
     assert "bucket" in termos_proibidos("Em qual bucket caiu?")
     assert "agrupamento" in termos_proibidos("A loja virou um agrupamento?")
     # A) código isolado (case-sensitive), nunca o nome embutido
@@ -111,6 +111,7 @@ def test_blocklist_guard_palavras_comuns():
         "Ganhou algum selo?",  # 'selo' isolado é livre (só as frases bloqueiam)
         "Qual o índice de satisfação?",  # 'índice' isolado livre (só 'Índice Geral')
         "O serviço foi bom?",  # rótulo de faixa é C
+        "A loja fica perto do cruzamento da avenida?",  # 'cruzamento' (rua) é livre
     ]
     for q in comuns:
         assert termos_proibidos(q) == [], f"falso-bloqueio em: {q}"

@@ -67,11 +67,11 @@ BLOCKLIST_CURADORIA: List[str] = [
     "Origem do tema",
     "Selo de confiança",
     "Dimensão da ação",
+    "cruzamento de temas",  # frase (não 'cruzamento' solto = cruzamento de ruas)
     # tokens distintivos de sistema (regra C / jargão puro)
     "Proximity",
     "Gini",
     "anomalia",
-    "cruzamento",
     "bucket",
     "agrupamento",
 ]
