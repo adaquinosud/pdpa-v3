@@ -1,0 +1,163 @@
+"""Tests do Motor de Pesquisa CP-F1.2: geração assistida (módulo isolado).
+
+LLM sempre mockado (gerar_fn injetável). Cobre: saída estruturada, contexto
+saneado (sem direção), âncora do modo geral, passagem pelo validador (SEAM).
+"""
+
+from __future__ import annotations
+
+import json
+
+from src.pesquisa.contexto import render_contexto, topicos_saneados
+from src.pesquisa.geracao import gerar_pesquisa
+from src.pesquisa.validador import tem_bloqueio
+
+
+def _empresa(client_loyall, nome):
+    return client_loyall.post("/api/empresas/", json={"nome": nome}).get_json()["id"]
+
+
+def _fake_llm(captura=None):
+    """gerar_fn fake. Se ``captura`` (lista) for dada, guarda (system, user)."""
+
+    def _fn(system, user):
+        if captura is not None:
+            captura.append((system, user))
+        return {
+            "perguntas": [
+                {
+                    "enunciado": "Como foi sua experiência na retirada do veículo?",
+                    "formato": "aberta",
+                    "subpilar_alvo": "D2",
+                    "porque": "D2 é foco do diagnóstico desta empresa",
+                    "opcoes": None,
+                },
+                {
+                    "enunciado": "Como você avalia a rapidez do atendimento?",
+                    "formato": "fechada",
+                    "subpilar_alvo": "D1",
+                    "porque": "D1 é foco do diagnóstico",
+                    "opcoes": {
+                        "tipo": "nota",
+                        "pontos": 5,
+                        "rotulos": ["Muito ruim", "Ruim", "Neutro", "Bom", "Muito bom"],
+                        "ponto_medio_idx": 2,
+                        "polaridade": "ascendente",
+                    },
+                },
+            ]
+        }
+
+    return _fn
+
+
+def test_gera_saida_estruturada(client_loyall, db_session):
+    e = _empresa(client_loyall, "EGerSaida")
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2", "D1"],
+        n_perguntas=2,
+        titulo="Retirada",
+        gerar_fn=_fake_llm(),
+    )
+    assert out["pesquisa"]["natureza"] == "externa"
+    assert out["pesquisa"]["status"] == "rascunho" and out["pesquisa"]["versao"] == 1
+    qs = out["perguntas"]
+    assert [q["ordem"] for q in qs] == [1, 2]
+    assert qs[0]["subpilar_alvo"] == "D2" and qs[0]["porque"]
+    # opcoes serializadas em opcoes_json (fechada) / None (aberta)
+    assert qs[0]["opcoes_json"] is None
+    assert json.loads(qs[1]["opcoes_json"])["pontos"] == 5
+    assert all(q["gerada_por_ancora"] is False for q in qs)
+
+
+def test_passa_pelo_validador(client_loyall, db_session):
+    """Toda geração devolve um veredito (SEAM); F1.2 = sem violações."""
+    e = _empresa(client_loyall, "EGerVal")
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=_fake_llm(),
+    )
+    v = out["validacao"]
+    assert [p["ordem"] for p in v["perguntas"]] == [q["ordem"] for q in out["perguntas"]]
+    assert all(p["regras"] == [] for p in v["perguntas"])
+    assert tem_bloqueio(v) is False
+
+
+def test_contexto_saneado_sem_direcao(client_loyall, db_session, monkeypatch):
+    """topicos_saneados lê o diagnóstico mas descarta ratio/faixa/direção."""
+    e = _empresa(client_loyall, "ESaneado")
+    # diagnóstico COM direção — deve ser descartada na sanitização
+    monkeypatch.setattr(
+        "src.diagnostico.leituras.agregar_subpilares",
+        lambda s, eid, *a, **k: {"D2": {"ratio": 0.12, "faixa": "critico", "total": 50}},
+    )
+    topicos = topicos_saneados(db_session, e, ["D2"])
+    assert topicos[0]["subpilar"] == "D2"
+    assert topicos[0]["nome"] == "Eficácia Operacional"
+    assert topicos[0]["tem_dado"] is True
+    assert "faixa" not in topicos[0] and "ratio" not in topicos[0]
+    render = render_contexto(topicos)
+    for proibido in ("critico", "ratio", "faixa", "0.12", "detrator"):
+        assert proibido not in render.lower()
+    assert "Eficácia Operacional" in render
+
+
+def test_user_prompt_nao_vaza_direcao(client_loyall, db_session, monkeypatch):
+    e = _empresa(client_loyall, "EPrompt")
+    monkeypatch.setattr(
+        "src.diagnostico.leituras.agregar_subpilares",
+        lambda s, eid, *a, **k: {"D1": {"ratio": 8.5, "faixa": "excelente", "total": 9}},
+    )
+    captura: list = []
+    gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D1"],
+        n_perguntas=1,
+        gerar_fn=_fake_llm(captura),
+    )
+    _system, user = captura[0]
+    assert "Acessibilidade" in user  # tópico presente
+    for proibido in ("excelente", "ratio", "faixa", "8.5"):
+        assert proibido not in user.lower()
+
+
+def test_modo_geral_injeta_ancora(client_loyall, db_session):
+    e = _empresa(client_loyall, "EAncora")
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        escopo_local_modo="geral",
+        gerar_fn=_fake_llm(),
+    )
+    qs = out["perguntas"]
+    # âncora ocupa a ordem 1; conteúdo vem depois
+    assert qs[0]["gerada_por_ancora"] is True and qs[0]["ordem"] == 1
+    assert qs[0]["formato"] == "fechada" and qs[0]["subpilar_alvo"] is None
+    assert qs[1]["gerada_por_ancora"] is False and qs[1]["subpilar_alvo"] == "D2"
+
+
+def test_natureza_interna_no_publico(client_loyall, db_session):
+    e = _empresa(client_loyall, "EInterna")
+    captura: list = []
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="interna",
+        subpilares_alvo=["Pa1"],
+        n_perguntas=1,
+        gerar_fn=_fake_llm(captura),
+    )
+    assert out["pesquisa"]["natureza"] == "interna"
+    assert "colaboradores" in captura[0][1]  # user prompt fala em time, não cliente
