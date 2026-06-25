@@ -56,6 +56,7 @@ _FILHO_TEMAS_MERGE = (
     "tema_origem_id IN (SELECT id FROM temas WHERE empresa_id = :eid) "
     "OR tema_destino_id IN (SELECT id FROM temas WHERE empresa_id = :eid)"
 )
+_FILHO_PESQUISAS = "pesquisa_id IN (SELECT id FROM pesquisas WHERE empresa_id = :eid)"
 
 # Ordem FK-safe: filhos sem empresa_id (via subquery) ANTES dos pais; verbatins e
 # temas por último (depois que seus filhos caíram). Em Postgres o ON DELETE CASCADE
@@ -84,6 +85,9 @@ PLANO: list[tuple[str, str, str]] = [
     ("governança: gini", "gini_concentracao", _DIRETO),
     ("execuções de coleta", "coletas_execucoes", _DIRETO),
     ("batches de classificação", "classificacao_batches", _DIRETO),
+    # Motor de Pesquisa (Fase 1): filha antes da mãe. Isoladas do pipeline.
+    ("perguntas de pesquisa", "pesquisa_perguntas", _FILHO_PESQUISAS),
+    ("pesquisas", "pesquisas", _DIRETO),
     ("verbatins", "verbatins", _DIRETO),
 ]
 
