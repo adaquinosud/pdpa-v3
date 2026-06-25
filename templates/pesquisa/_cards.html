@@ -1,0 +1,49 @@
+<div id="cards" class="space-y-3 max-w-3xl">
+  {% if validou and tem_bloqueio %}
+  <div class="flash flash-erro text-sm">Há perguntas que bloqueiam (🔴). Corrija antes de aprovar.</div>
+  {% elif validou %}
+  <div class="flash flash-ok text-sm">Validado — nenhum bloqueio.</div>
+  {% endif %}
+
+  {% for q in perguntas %}
+  <div class="border rounded p-3 text-sm{% if q.gerada_por_ancora %} bg-loyall-50{% endif %}">
+    <div class="flex items-start justify-between">
+      <div class="font-medium">{{ q.ordem }}. {{ q.enunciado }}</div>
+      <span class="text-xs text-loyall-400 ml-2">{{ q.formato }}{% if q.subpilar_alvo %} · {{ q.subpilar_alvo }}{% endif %}</span>
+    </div>
+    {% if q.gerada_por_ancora %}
+    <div class="text-xs text-loyall-500 mt-1">Pergunta-âncora (gerada pelo sistema).</div>
+    {% endif %}
+    {% if q.porque %}
+    <div class="text-xs text-loyall-500 mt-1"><span class="uppercase tracking-wider">Porquê (interno):</span> {{ q.porque }}</div>
+    {% endif %}
+
+    {% for r in q.regras %}
+    <div class="mt-2 text-xs rounded px-2 py-1
+         {% if r.severidade == 'bloqueia' %}bg-red-50 text-red-700{% else %}bg-amber-50 text-amber-700{% endif %}">
+      {% if r.severidade == 'bloqueia' %}🔴{% else %}🟡{% endif %}
+      regra {{ r.regra }} — {{ r.motivo }}
+      {% if r.reescrita %}
+      <form class="inline" hx-post="{{ url_for('ui.pesquisa_editar_pergunta', pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
+            hx-target="#cards" hx-swap="outerHTML">
+        {% if r.regra == 4 %}
+        <input type="hidden" name="opcoes_json" value="{{ r.reescrita }}">
+        {% else %}
+        <input type="hidden" name="enunciado" value="{{ r.reescrita }}">
+        {% endif %}
+        <button class="underline ml-1">aplicar reescrita</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {# edição manual do enunciado #}
+    <form class="mt-2 flex gap-1"
+          hx-post="{{ url_for('ui.pesquisa_editar_pergunta', pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
+          hx-target="#cards" hx-swap="outerHTML">
+      <input name="enunciado" value="{{ q.enunciado }}" class="flex-1 border rounded px-2 py-1 text-xs">
+      <button class="border px-2 rounded text-xs hover:bg-loyall-50">Salvar</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>

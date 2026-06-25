@@ -4760,3 +4760,8 @@ def htmx_usuarios_editar_nome(user_id: int):
 @ui_bp.app_errorhandler(BadRequest)
 def _bad_request_html(e):
     return render_template("400.html", erro=str(e)), 400
+
+
+# Rotas do Motor de Pesquisa (CP-Pesquisa-F1.5) — registradas no fim para o
+# ui_bp/decorators já existirem. O import tem o efeito de anexar as rotas.
+from src.ui import pesquisa as _pesquisa_routes  # noqa: E402,F401

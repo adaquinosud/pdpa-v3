@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Revisar pesquisa{% endblock %}
+{% block conteudo %}
+<div class="flex items-center justify-between mb-3 max-w-3xl">
+  <div>
+    <h1 class="text-xl font-semibold">{{ titulo or "(sem título)" }}</h1>
+    <p class="text-sm text-loyall-500">{{ natureza }} · status:
+      <span class="font-medium">{{ status }}</span></p>
+  </div>
+  <div class="flex gap-2">
+    <button hx-post="{{ url_for('ui.pesquisa_validar', pesquisa_id=pesquisa_id) }}"
+            hx-target="#cards" hx-swap="outerHTML"
+            class="border px-3 py-1.5 rounded text-sm hover:bg-loyall-50">Validar</button>
+    <form method="post" action="{{ url_for('ui.pesquisa_aprovar', pesquisa_id=pesquisa_id) }}">
+      <button class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm">Aprovar</button>
+    </form>
+  </div>
+</div>
+
+{% include "pesquisa/_cards.html" %}
+{% endblock %}

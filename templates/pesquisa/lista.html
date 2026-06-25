@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titulo %}Pesquisas — {{ empresa_nome }}{% endblock %}
+{% block conteudo %}
+<h1 class="text-xl font-semibold mb-1">Pesquisas — {{ empresa_nome }}</h1>
+<p class="text-sm text-loyall-500 mb-4">Geração assistida (Fase 1). A coleta vem depois.</p>
+
+<form method="post" action="{{ url_for('ui.pesquisa_gerar', empresa_id=empresa_id) }}"
+      class="border rounded p-4 mb-6 max-w-2xl">
+  <h2 class="font-medium mb-3">Nova pesquisa</h2>
+  <div class="grid grid-cols-2 gap-3 mb-3">
+    <label class="text-sm">Título
+      <input name="titulo" class="w-full border rounded px-2 py-1" placeholder="ex. Retirada — Confins">
+    </label>
+    <label class="text-sm">Natureza
+      <select name="natureza" class="w-full border rounded px-2 py-1">
+        <option value="externa">Externa (cliente)</option>
+        <option value="interna">Interna (colaborador)</option>
+      </select>
+    </label>
+    <label class="text-sm">Nº de perguntas
+      <input type="number" name="n_perguntas" value="5" min="1" max="20"
+             class="w-full border rounded px-2 py-1">
+    </label>
+    <label class="text-sm">Escopo
+      <select name="escopo_local_modo" class="w-full border rounded px-2 py-1">
+        <option value="local">Unidade específica</option>
+        <option value="geral">Geral / várias unidades</option>
+      </select>
+    </label>
+  </div>
+  <fieldset class="mb-3">
+    <legend class="text-sm font-medium mb-1">Subpilares-alvo</legend>
+    <div class="grid grid-cols-3 gap-1 text-sm">
+      {% for code, nome in subpilares %}
+      <label class="flex items-center gap-1">
+        <input type="checkbox" name="subpilares_alvo" value="{{ code }}"> {{ code }} · {{ nome }}
+      </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <button class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm">Gerar pesquisa</button>
+</form>
+
+<h2 class="font-medium mb-2">Existentes</h2>
+{% if pesquisas %}
+<ul class="divide-y border rounded max-w-2xl">
+  {% for p in pesquisas %}
+  <li class="px-3 py-2 flex items-center justify-between text-sm">
+    <a href="{{ url_for('ui.pesquisa_revisar', pesquisa_id=p.id) }}"
+       class="text-loyall-700 hover:underline">{{ p.titulo or "(sem título)" }}</a>
+    <span class="text-loyall-400">{{ p.natureza }} · {{ p.status }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="text-sm text-loyall-400">Nenhuma pesquisa ainda.</p>
+{% endif %}
+{% endblock %}
