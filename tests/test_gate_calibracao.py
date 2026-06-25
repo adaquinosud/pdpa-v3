@@ -59,13 +59,14 @@ def test_gate_bloqueia_falso_positivo_em_limpo():
     assert ok is False and len(fps) == 1 and faltas == []
 
 
-def test_gate_bloqueia_falta_de_flag():
+def test_gate_falta_de_flag_NAO_bloqueia():
+    """Assimetria: violação esperada não flagada vira AVISO (faltas) — não bloqueia.
+    Sub-flag semântico é o lado menos perigoso; só FP-nos-limpos bloqueia."""
     gab = _gabarito()
-    # acha o 1º caso com violação e remove o flag esperado
     idx_viol = next(i for i, c in enumerate(GOLDEN_SET_JUIZ, 1) if c[5] is not None)
     gab[idx_viol] = []  # juiz não pegou a violação
     ok, fps, faltas = rodar_gate(juiz_fn=_juiz_de(gab))
-    assert ok is False and faltas and fps == []
+    assert ok is True and faltas and fps == []  # registra a falta, mas não bloqueia
 
 
 # ── main(): exit codes dos 3 caminhos ──────────────────────────────────────
@@ -91,3 +92,12 @@ def test_main_erro_infra_fail_open_retorna_0(capsys):
 
     assert main(juiz_fn=_juiz_explode) == 0
     assert "fail-open" in capsys.readouterr().err
+
+
+def test_main_falta_flag_avisa_retorna_0(capsys):
+    """Assimetria no main(): violação não flagada → AVISO + exit 0 (não bloqueia)."""
+    gab = _gabarito()
+    idx_viol = next(i for i, c in enumerate(GOLDEN_SET_JUIZ, 1) if c[5] is not None)
+    gab[idx_viol] = []
+    assert main(juiz_fn=_juiz_de(gab)) == 0
+    assert "AVISO" in capsys.readouterr().err

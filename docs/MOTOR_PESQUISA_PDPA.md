@@ -300,3 +300,23 @@ Implementável como está; o que falta é concretude, não viabilidade:
 
 > Com a régua fechada (guia + validador, 5+1+1, severidade e pendências mapeadas), a **Fase 1 está
 > pronta pra virar CP**.
+
+### 9.7 Gate de calibração no deploy (assimetria de risco)
+O LLM-juiz roda contra um golden set semântico no **preDeploy** (rede + chave disponíveis), 1 chamada
+batelada — único ponto que chama o juiz real; o CI segue mockado. A política de bloqueio é
+**assimétrica**, pela natureza do risco:
+
+- **Falso-positivo nos limpos** (juiz acusa uma pergunta BOA) → **BLOQUEIA o deploy**. É o perigo real:
+  um juiz que barra pergunta boa frustra o usuário e mina a confiança na régua.
+- **Violação esperada não flagada** (sub-flag de R1/R2/R7) → **AVISA, não bloqueia**. A detecção
+  semântica é probabilística; o lado "deixou passar um limítrofe" é menos perigoso (a pergunta só
+  vira advisory, nunca é barrada indevidamente).
+- **Erro de infra** (API fora/chave/timeout) → **fail-open** (avisa, não bloqueia): a pesquisa (sem
+  coleta na Fase 1) não pode travar deploys do PDPA por indisponibilidade da Anthropic.
+
+Casos de golden ambíguos (ex.: "preço" vs subpilar Acessibilidade — preço se liga a *affordability*)
+são evitados em favor de mismatches inequívocos (ex.: "música ambiente" vs Eficácia Operacional —
+atmosfera ≠ eficácia), para que o aviso de sub-flag seja sinal, não ruído.
+
+> Nota de implementação: o `preDeployCommand` do Render NÃO roda num shell (tokeniza por espaço e dá
+> exec direto), então encadear com `&&` falha — usa-se um **script único** (`scripts/deploy_pre.sh`).

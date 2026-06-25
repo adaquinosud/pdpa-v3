@@ -46,8 +46,10 @@ GOLDEN_SET_JUIZ = [
     ("j-r1-02", "O quanto a entrega deixou a desejar?", "aberta", "P2", None, 1),
     # R2 pressuposto
     ("j-r2-01", "Por que houve atraso na entrega?", "aberta", "P2", None, 2),
-    # R7 mede outro subpilar (pergunta sobre preço, alvo é acessibilidade)
-    ("j-r7-01", "Como você avalia o preço dos produtos?", "aberta", "D1", None, 7),
+    # R7 mede outro subpilar: pergunta sobre ATMOSFERA (música ambiente) com alvo
+    # D2 (Eficácia Operacional) — atmosfera ≠ eficácia, mismatch inequívoco.
+    # (Antes era preço/alvo D1, ambíguo: preço se liga a acessibilidade/afford.)
+    ("j-r7-01", "A música ambiente da loja é agradável?", "aberta", "D2", None, 7),
     # R4 simetria de rótulo
     ("j-r4-01", "Como avalia o atendimento?", "fechada", "D2", _ESCALA_ASSIMETRICA, 4),
 ]

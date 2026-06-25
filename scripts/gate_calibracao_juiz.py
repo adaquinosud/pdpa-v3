@@ -32,7 +32,13 @@ def rodar_gate(
     juiz_fn: Optional[Callable[[str, str], Dict[str, Any]]] = None,
 ) -> Tuple[bool, List, List]:
     """Avalia o golden set (1 chamada batelada) e devolve ``(ok, falsos_positivos,
-    faltas)``. ``juiz_fn`` injetável p/ teste; default = juiz real."""
+    faltas)``.
+
+    ASSIMETRIA DE RISCO (decisão de método): ``ok`` depende SÓ dos falsos-positivos
+    nos limpos — barrar pergunta boa é o perigo real e BLOQUEIA. ``faltas`` (violação
+    esperada não flagada) são detecção semântica probabilística, lado menos perigoso
+    (a pergunta limítrofe só vira advisory) → são AVISO, não bloqueiam.
+    ``juiz_fn`` injetável p/ teste; default = juiz real."""
     veredito = avaliar_perguntas(perguntas_calibracao(), juiz_fn=juiz_fn)
     por_ordem = {p["ordem"]: {r["regra"] for r in p["regras"]} for p in veredito["perguntas"]}
 
@@ -46,7 +52,7 @@ def rodar_gate(
         elif regra not in flags:
             faltas.append((cid, regra, sorted(flags)))
 
-    return (not falsos_positivos and not faltas), falsos_positivos, faltas
+    return (not falsos_positivos), falsos_positivos, faltas  # só FP-nos-limpos bloqueia
 
 
 def main(juiz_fn: Optional[Callable[[str, str], Dict[str, Any]]] = None) -> int:
@@ -64,17 +70,26 @@ def main(juiz_fn: Optional[Callable[[str, str], Dict[str, Any]]] = None) -> int:
         )
         return 0
 
+    # faltas = AVISO (não bloqueiam): sub-flag semântico é tolerado.
+    for cid, regra, flags in faltas:
+        print(
+            f"[gate-juiz] AVISO — regra {regra} não flagada em '{cid}' (veio {flags}); "
+            "não bloqueia (sub-flag semântico tolerado).",
+            file=sys.stderr,
+        )
+    # falso-positivo nos limpos = BLOQUEIA (barrar pergunta boa é o perigo real).
     for cid, flags in falsos_positivos:
         print(
             f"[gate-juiz] FALSO-POSITIVO em '{cid}' (limpo) — juiz acusou {flags}", file=sys.stderr
         )
-    for cid, regra, flags in faltas:
-        print(f"[gate-juiz] FALTOU a regra {regra} em '{cid}' — veio {flags}", file=sys.stderr)
 
     if ok:
-        print("[gate-juiz] OK — 0 falso-positivo nos limpos e violações flagadas.")
+        print("[gate-juiz] OK — 0 falso-positivo nos limpos (faltas, se houver, são aviso).")
         return 0
-    print("[gate-juiz] BLOQUEADO — a calibração do juiz regrediu (ver acima).", file=sys.stderr)
+    print(
+        "[gate-juiz] BLOQUEADO — juiz acusou pergunta boa (falso-positivo nos limpos).",
+        file=sys.stderr,
+    )
     return 1
 
 

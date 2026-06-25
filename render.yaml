@@ -54,9 +54,12 @@ services:
     # --worker-class gthread). Repetir aqui só duplicaria a fonte da verdade.
     # #7 migration 1x por deploy + gate de calibração do LLM-juiz da pesquisa
     # (CP-Pesquisa-F1.4): roda o juiz REAL contra o golden set (1 chamada Haiku);
-    # BLOQUEIA o deploy se houver falso-positivo nos limpos ou faltar flag. Tem
+    # BLOQUEIA o deploy só se houver FALSO-POSITIVO nos limpos (faltas = aviso). Tem
     # rede + ANTHROPIC_API_KEY (env group) aqui. CI segue mockado.
-    preDeployCommand: alembic upgrade head && python scripts/gate_calibracao_juiz.py
+    # IMPORTANTE: o Render NÃO roda isto num shell — tokeniza por espaço e dá exec
+    # direto. '&&' não funciona (vira argumento do alembic → exit 2). Por isso um
+    # script único (2 tokens), onde o shell de verdade encadeia os passos.
+    preDeployCommand: bash scripts/deploy_pre.sh
     envVars:
       - fromGroup: pdpa-config
       - key: DATABASE_URL
