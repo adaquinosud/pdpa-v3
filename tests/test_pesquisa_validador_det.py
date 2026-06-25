@@ -77,6 +77,47 @@ def test_blocklist_origem_case_sensitive():
     assert termos_proibidos("Qual a origem da sua visita?") == []
 
 
+def test_blocklist_curadoria_bloqueia():
+    """Termos J da curadoria (regra A/B/C) bloqueiam pela raiz correta."""
+    # C) frase-jargão / token distintivo
+    assert "Proximity" in termos_proibidos("Qual o Proximity Index da loja?")
+    assert "Gini" in termos_proibidos("Como está o Gini?")
+    assert "Índice Geral" in termos_proibidos("Avalie o Índice Geral.")
+    assert "Selo Ouro" in termos_proibidos("Você conhece o Selo Ouro?")
+    assert "Concentração de detratores" in termos_proibidos("Há concentração de detratores aqui?")
+    # tokens de sistema
+    assert "anomalia" in termos_proibidos("Houve alguma anomalia?")
+    assert "cruzamento" in termos_proibidos("Qual o cruzamento de temas?")
+    assert "bucket" in termos_proibidos("Em qual bucket caiu?")
+    assert "agrupamento" in termos_proibidos("A loja virou um agrupamento?")
+    # A) código isolado (case-sensitive), nunca o nome embutido
+    assert "D2" in termos_proibidos("Como avalia o D2 da unidade?")
+    assert "N5" in termos_proibidos("Isso é uma ação N5?")
+    assert "Pa1" in termos_proibidos("Qual o Pa1 da loja?")
+
+
+def test_blocklist_guard_palavras_comuns():
+    """GUARD: palavras-líder comuns dos compostos curados NUNCA bloqueiam
+    (senão volta o falso-bloqueio que a poda eliminou)."""
+    comuns = [
+        "Como você avalia a precisão da entrega?",
+        "A acessibilidade da loja foi boa?",
+        "Sentiu empatia no atendimento?",
+        "Como foi a calibração da promessa feita?",
+        "A orientação recebida ajudou?",
+        "Houve consistência no atendimento?",
+        "A disponibilidade de produtos foi boa?",
+        "Qual tema você prefere?",  # 'tema' é C
+        "Ganhou algum selo?",  # 'selo' isolado é livre (só as frases bloqueiam)
+        "Qual o índice de satisfação?",  # 'índice' isolado livre (só 'Índice Geral')
+        "O serviço foi bom?",  # rótulo de faixa é C
+    ]
+    for q in comuns:
+        assert termos_proibidos(q) == [], f"falso-bloqueio em: {q}"
+    # código minúsculo natural não bloqueia (CS): 'a2', 'd1' soltos
+    assert termos_proibidos("vou de a2 ate a 1 no formulario") == []
+
+
 def test_pergunta_dupla():
     assert pergunta_dupla("O atendimento foi rápido e cordial?") is True
     assert pergunta_dupla("Gostou? Recomendaria?") is True  # 2 '?'

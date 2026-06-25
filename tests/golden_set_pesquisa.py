@@ -1,4 +1,5 @@
-"""Golden set do validador determinístico (CP-Pesquisa-F1.3) — 18 casos.
+"""Golden set do validador determinístico (CP-Pesquisa-F1.3) — 24 casos
+(18 originais + curadoria da blocklist: 3 limpos-guard + 3 J novos).
 
 Cada tupla:
     (caso_id, enunciado, formato, opcoes, regra_violada, severidade_esp)
@@ -6,9 +7,11 @@ Cada tupla:
 - ``regra_violada``: int (3/4/5) ou None p/ os "limpos".
 - ``severidade_esp``: "bloqueia" | None.
 
-Meta: **0 falso-bloqueio nos limpos** — os 8 casos limpos não podem produzir
+Meta: **0 falso-bloqueio nos limpos** — os casos limpos não podem produzir
 nenhuma violação determinística. Os casos limpos também são neutros em valência/
-pressuposto (R1/R2), p/ permanecerem limpos quando o juiz entrar (F1.4).
+pressuposto (R1/R2), p/ permanecerem limpos quando o juiz entrar (F1.4). Inclui
+limpos que EMBUTEM palavras-líder comuns dos compostos curados (precisão,
+acessibilidade, empatia) — guard contra regressão de falso-bloqueio.
 """
 
 from __future__ import annotations
@@ -80,10 +83,18 @@ GOLDEN_SET = [
         None,
         None,
     ),
+    # ── limpos-guard: embutem palavra-líder comum de composto curado (devem passar)
+    ("clean-09", "Como você avalia a precisão da entrega?", "aberta", None, None, None),
+    ("clean-10", "A acessibilidade da loja foi adequada para você?", "aberta", None, None, None),
+    ("clean-11", "Você sentiu empatia da equipe no atendimento?", "aberta", None, None, None),
     # ── R5 jargão (bloqueia) ───────────────────────────────────────────────
     ("r5-01", "O quanto o seu Lastro com a marca aumentou?", "aberta", None, 5, "bloqueia"),
     ("r5-02", "Como você descreveria o ratio do atendimento?", "aberta", None, 5, "bloqueia"),
     ("r5-03", "Você se sentiu um promotor da nossa marca?", "aberta", None, 5, "bloqueia"),
+    # ── R5 jargão da curadoria (bloqueia) ──────────────────────────────────
+    ("r5-04", "Qual o Proximity Index da sua loja?", "aberta", None, 5, "bloqueia"),
+    ("r5-05", "Como você avalia o D2 da unidade?", "aberta", None, 5, "bloqueia"),
+    ("r5-06", "A loja virou um agrupamento novo?", "aberta", None, 5, "bloqueia"),
     # ── R3 pergunta-dupla (bloqueia) ───────────────────────────────────────
     ("r3-01", "O atendimento foi rápido e cordial?", "aberta", None, 3, "bloqueia"),
     ("r3-02", "Você recomendaria e voltaria a comprar conosco?", "aberta", None, 3, "bloqueia"),
