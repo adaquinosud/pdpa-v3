@@ -52,7 +52,11 @@ services:
     # startCommand OMITIDO de propósito → herda o CMD do Dockerfile (gunicorn
     # wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
     # --worker-class gthread). Repetir aqui só duplicaria a fonte da verdade.
-    preDeployCommand: alembic upgrade head   # #7 — migration 1x por deploy, ANTES do tráfego
+    # #7 migration 1x por deploy + gate de calibração do LLM-juiz da pesquisa
+    # (CP-Pesquisa-F1.4): roda o juiz REAL contra o golden set (1 chamada Haiku);
+    # BLOQUEIA o deploy se houver falso-positivo nos limpos ou faltar flag. Tem
+    # rede + ANTHROPIC_API_KEY (env group) aqui. CI segue mockado.
+    preDeployCommand: alembic upgrade head && python scripts/gate_calibracao_juiz.py
     envVars:
       - fromGroup: pdpa-config
       - key: DATABASE_URL

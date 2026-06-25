@@ -95,40 +95,7 @@ GOLDEN_SET = [
     ("r4-04", "Como avalia a localização?", "fechada", None, 4, "bloqueia"),
 ]
 
-# Casos LIMPOS reusados (enunciados) — devem passar TAMBÉM pelo juiz sem flag.
-LIMPOS = [c for c in GOLDEN_SET if c[4] is None]
-
-_ESCALA_ASSIMETRICA = {
-    "tipo": "nota",
-    "pontos": 5,
-    "rotulos": ["Péssimo", "Ruim", "Bom", "Ótimo", "Excelente"],  # polos desequilibrados
-    "ponto_medio_idx": 2,
-    "polaridade": "ascendente",
-}
-
-# Golden set do JUIZ (regras semânticas). Tupla:
-#   (caso_id, enunciado, formato, subpilar_alvo, opcoes, regra_violada|None)
-# Usado pelo teste LIVE (opcional, fora do CI) p/ calibrar 0 falso-positivo nos
-# limpos + flag em cada violação semântica.
-GOLDEN_SET_JUIZ = [
-    # limpos — juiz NÃO pode sinalizar
-    ("jclean-01", "Como foi sua experiência na retirada do veículo?", "aberta", "D2", None, None),
-    ("jclean-02", "O que você achou do tempo de espera?", "aberta", "D2", None, None),
-    (
-        "jclean-03",
-        "Como você classifica a rapidez do atendimento?",
-        "fechada",
-        "D2",
-        _ESCALA_OK,
-        None,
-    ),
-    # R1 valência (induz)
-    ("j-r1-01", "O quanto o atendimento foi excelente?", "aberta", "Pa1", None, 1),
-    ("j-r1-02", "O quanto a entrega deixou a desejar?", "aberta", "P2", None, 1),
-    # R2 pressuposto
-    ("j-r2-01", "Por que houve atraso na entrega?", "aberta", "P2", None, 2),
-    # R7 mede outro subpilar (pergunta sobre preço, alvo é acessibilidade)
-    ("j-r7-01", "Como você avalia o preço dos produtos?", "aberta", "D1", None, 7),
-    # R4 simetria de rótulo
-    ("j-r4-01", "Como avalia o atendimento?", "fechada", "D2", _ESCALA_ASSIMETRICA, 4),
-]
+# Golden set semântico do JUIZ mora em PRODUÇÃO (src/), pois o gate de deploy
+# precisa dele dentro da imagem (tests/ é dockerignore). Re-exportado aqui para
+# os testes manterem o import estável.
+from src.pesquisa.calibracao import GOLDEN_SET_JUIZ  # noqa: E402,F401
