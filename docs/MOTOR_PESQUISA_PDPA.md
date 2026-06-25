@@ -223,3 +223,80 @@ A Fase 1 entrega **só geração + aprovação** (não coleta, não distribui). 
 > das camadas (Semente→Raiz→Solo→Caminho→Fruto), o scoring e o layout do confronto **continuam
 > em aberto** (seção 7) e **não entram** nas Fases 1–3. A coluna `Pergunta.camada_origem` fica
 > reservada, sem regra, até essa rodada de design.
+
+## 9. Régua de neutralidade (guia + validador)
+
+> Decisão de método fechada. A régua é **GUIA** (o LLM gera seguindo-a) **e VALIDADOR**
+> (o sistema valida cada pergunta — gerada OU editada pelo usuário — contra a régua,
+> sinalizando violação e **sempre sugerindo a reescrita corrigida**; o usuário aceita/edita).
+> Nomes de campo são proposta de implementação (a confirmar no CP).
+
+### 9.1 Régua-guia (entra na geração)
+As regras vão como **bloco de instrução no system prompt** do gerador, com few-shot bom/ruim
+por regra. Dois invariantes de prompt:
+- **Contexto diagnóstico saneado:** o gerador recebe o **tópico** ("perguntar sobre o subpilar X"),
+  **nunca a direção/valência** ("X está fraco" não pode virar pergunta negativa) — a regra 1 nasce
+  no input.
+- **Saída estruturada:** cada pergunta sai como objeto (`enunciado, formato, subpilar_alvo, porque,
+  escala{pontos, rotulos, ponto_medio}`), reusando o parser JSON já endurecido do classificador.
+
+### 9.2 As 5 regras de CONTEÚDO da pergunta (escopo do validador)
+
+| # | Regra | O que exige |
+|---|-------|-------------|
+| 1 | **Neutralidade de valência** | Não embute juízo (nem "o quanto é excelente?" nem "o quanto deixa a desejar?"). O diagnóstico diz **sobre o que** perguntar, nunca a **direção**. |
+| 2 | **Sem pressuposto embutido** | Não assume fato não confirmado ("por que atrasou?" pressupõe atraso). |
+| 3 | **Uma pergunta, um conceito** | Nada de pergunta dupla (double-barreled). |
+| 4 | **Escala equilibrada** *(condicional: só `formato` fechada/mista)* | Polos simétricos, âncoras neutras, ponto médio real. |
+| 7 | **Mede o `subpilar_alvo`** | A pergunta de fato mede o subpilar declarado — **integridade do caminho NOTA→valência**: se a fechada não mede o subpilar pré-definido, a nota entra no pilar errado sem ninguém ver. |
+
+### 9.3 A regra 6 é CONTRATO DE SERIALIZAÇÃO (não é check de juiz)
+**6. "Porquê" interno nunca é exposto ao respondente.** Não é uma regra de conteúdo da pergunta —
+é invariante de exposição do dado: `Pergunta.porque` **nunca** entra no payload do formulário web
+nem no gabarito exportado pro WhatsApp. **Garantido por teste do serializador** (o campo não
+aparece na saída pública), não pelo LLM-juiz.
+
+### 9.4 Arquitetura do validador
+Roda **sempre** (gerada ou editada — não confia que a geração seguiu a régua), em **2 camadas**:
+
+- **Camada determinística** (barata, $0, instantânea, alta precisão):
+  - **Regra 5 (jargão)** → **blocklist** de termos PDPA no `enunciado`.
+  - **Regra 3 (pergunta-dupla)** → **pré-filtro** (nº de "?", conjunções que ligam predicados) → marca candidatos pro juiz confirmar.
+  - **Regra 4 (escala)** → **checagem de schema** sobre `opcoes_json` (nº de pontos ímpar = ponto médio real; polos simétricos; rótulos não-carregados).
+- **Camada LLM-juiz** (semântica), reusando a **infra do classificador** (Haiku, **Sonnet no fallback**, parse JSON robusto):
+  - **Regras 1, 2, 7** (e a simetria de rótulos da 4).
+  - **Uma chamada batelada** com as **N perguntas** da pesquisa.
+  - **Retorno por pergunta/por regra:** `{passou, motivo, reescrita, severidade}`.
+
+A regra 5 e a 3 (parte determinística) podem barrar antes do juiz; o juiz cobre o que é semântico.
+**O validador sempre devolve `reescrita`** (versão corrigida sugerida), coerente com a geração assistida.
+
+### 9.5 Severidade (bloqueia vs avisa)
+
+| Regra | Severidade | Comportamento |
+|-------|-----------|---------------|
+| 5 — jargão PDPA | 🔴 **BLOQUEIA** | não distribui enquanto houver jargão no texto do respondente |
+| 3 — pergunta-dupla | 🔴 **BLOQUEIA** | não distribui enquanto a pergunta misturar conceitos |
+| 1 — valência | 🟡 **AVISA** | alerta + reescrita sugerida; usuário pode aceitar ou **override** |
+| 2 — pressuposto | 🟡 **AVISA** | alerta + reescrita sugerida; usuário pode aceitar ou **override** |
+| 4 — escala | 🔴 **BLOQUEIA** (estrutural) / 🟡 **AVISA** (simetria de rótulo) | forma da escala trava; nuance de rótulo avisa |
+| 7 — mede o subpilar | 🟡 **AVISA** | alerta + reescrita; afeta integridade da nota, mas é juízo semântico |
+
+### 9.6 Pendências de concretude (resolver no CP da Fase 1)
+Implementável como está; o que falta é concretude, não viabilidade:
+
+1. **Blocklist (regra 5)** — definir a lista concreta de termos proibidos. **Semente:** os **4 nomes
+   de pilar** (Precisão/Disponibilidade/Parceria/Aconselhamento) + os **77 termos do
+   `glossario_termo`**; decidir quais entram.
+2. **Schema da escala (regra 4)** — padronizar `opcoes_json`: nº de pontos, rótulos por ponto, flag
+   de ponto-médio, polaridade. Sem isso a 4 não é determinística.
+3. **Golden set 15–20** — perguntas boas/ruins rotuladas por regra, pra calibrar o juiz e **controlar
+   falso-positivo** (juiz que acusa pergunta boa de "indutora" mata a confiança). Mesmo padrão do
+   golden set do classificador.
+4. **UX do validador** — **sob demanda** (botão "validar") e **em lote** (1 chamada pras N perguntas),
+   não a cada tecla.
+5. *(Decorrente)* **Contrato de saída do juiz** — formato `{pergunta_id, regra, passou, motivo,
+   reescrita, severidade}` + como a UI apresenta bloqueio vs aviso.
+
+> Com a régua fechada (guia + validador, 5+1+1, severidade e pendências mapeadas), a **Fase 1 está
+> pronta pra virar CP**.
