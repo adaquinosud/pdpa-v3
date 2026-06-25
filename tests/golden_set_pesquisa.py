@@ -81,7 +81,7 @@ GOLDEN_SET = [
         None,
     ),
     # ── R5 jargão (bloqueia) ───────────────────────────────────────────────
-    ("r5-01", "O quanto a Disponibilidade da loja atendeu você?", "aberta", None, 5, "bloqueia"),
+    ("r5-01", "O quanto o seu Lastro com a marca aumentou?", "aberta", None, 5, "bloqueia"),
     ("r5-02", "Como você descreveria o ratio do atendimento?", "aberta", None, 5, "bloqueia"),
     ("r5-03", "Você se sentiu um promotor da nossa marca?", "aberta", None, 5, "bloqueia"),
     # ── R3 pergunta-dupla (bloqueia) ───────────────────────────────────────

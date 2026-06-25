@@ -56,11 +56,25 @@ def test_zero_falso_bloqueio_nos_limpos():
 
 def test_blocklist_jargao():
     assert "ratio" in termos_proibidos("Como avalia o ratio?")
-    assert "Precisão" in termos_proibidos("A precisao foi boa?")  # accent-insensitive
+    assert "conversível" in termos_proibidos("Você é um cliente conversivel?")  # accent-insens.
     assert "Capital Relacional" in termos_proibidos("Mede o Capital Relacional.")
     assert termos_proibidos("Como foi o atendimento na loja?") == []  # limpo
     # fronteira de palavra: 'pilar' não casa dentro de 'pilares'... mas casa isolado
     assert "pilar" in termos_proibidos("Qual pilar você valoriza?")
+
+
+def test_blocklist_podada_nao_bloqueia_comuns():
+    """Prune da R5: nomes de pilar / palavras comuns NÃO bloqueiam mais."""
+    assert termos_proibidos("Como você avalia a precisão da entrega?") == []
+    assert termos_proibidos("A disponibilidade de produtos foi boa?") == []
+    assert termos_proibidos("Como foi o caminho até a loja?") == []
+    assert termos_proibidos("Qual a origem do produto?") == []  # 'origem' minúsculo é livre
+
+
+def test_blocklist_origem_case_sensitive():
+    """'ORIGEM' (modelo, maiúsculo) bloqueia; 'origem' (comum) não."""
+    assert "ORIGEM" in termos_proibidos("Avalie o modelo ORIGEM no atendimento.")
+    assert termos_proibidos("Qual a origem da sua visita?") == []
 
 
 def test_pergunta_dupla():
