@@ -17,16 +17,11 @@ A **pesquisa** é a camada de dado **provocado** que completa as fontes reativas
 Aprofundamento dirigido. O diagnóstico revelou um pilar fraco ou ambíguo → a pesquisa pergunta ao cliente sobre aquele aspecto. A resposta volta como verbatim e entra no **pipeline atual** (classificação nos 4 pilares, tematização). Reaproveita toda a infraestrutura existente. Lógica: **fechar lacuna** do diagnóstico, alimentando ainda mais o Capital Relacional.
 
 ### Interna (colaborador)
-Mede a **autopercepção do time**. Produz **duas leituras** das mesmas respostas:
+Mede a **autopercepção do time** sobre os mesmos pilares/subpilares do diagnóstico do cliente — perguntas concretas sobre os pilares operacionais (Precisão, Disponibilidade, Parceria, Aconselhamento), **sem ORIGEM embutido** na formulação.
 
-1. **Leitura por pilares/subpilares** — alimenta o **confronto interno × externo** (mesmo eixo do diagnóstico do cliente, comparação direta).
-2. **Diagnóstico ORIGEM** — leitura própria da maturidade/propósito do time (Semente → Raiz → Solo → Caminho → Fruto).
+O artefato final é o **confronto interno × externo**: um painel que compara, por pilar, o que o cliente percebe vs. o que o time pensa, e produz um plano de ação sobre os gaps. É funcionalidade nova no app.
 
-**Superfície de pilar, estrutura ORIGEM latente:** o colaborador responde perguntas que parecem ser sobre os pilares operacionais (Precisão, Disponibilidade, Parceria, Aconselhamento) — não sobre propósito ou espiritualidade, o que afastaria um cético. O Modelo ORIGEM percorre a arquitetura das perguntas **por baixo**, sem ser nomeado. O ORIGEM emerge na interpretação, não na superfície.
-
-Isso exige **mapeamento duplo por pergunta**: cada pergunta marca (a) o pilar/subpilar que mede e (b) a camada ORIGEM que toca. A análise lê nos dois níveis e produz as duas saídas.
-
-O **confronto interno × externo** (painel comparando o que o cliente percebe vs o que o time pensa, por pilar, + diagnóstico ORIGEM do time + plano de ação de correção sobre os gaps) é o artefato final desta natureza. É funcionalidade nova no app.
+**Onde o ORIGEM entra (Fase 4):** não na pergunta, mas na **análise do confronto**. Quando o cliente reporta X e o time vê Y, o ORIGEM é a **régua de profundidade do gap** — classifica **em que nível mora a desconexão**: **Essência → Significado → Propósito → Caminho → Resultado**. É leitura interpretativa sobre os gaps já medidos, não uma marcação por pergunta. O ORIGEM **nunca é nomeado ao colaborador** — não por estar disfarçado na pergunta, mas porque **não está na pergunta de jeito nenhum** (nem visível, nem latente); ele vive na análise posterior. (Design da Fase 4 segue incompleto — ver §8.)
 
 ## 3. Decisões fechadas
 
@@ -61,7 +56,7 @@ Usuário pede pesquisa
    │
    ▼
 Geração assistida ── diagnóstico PDPA propõe perguntas + "porquê" + régua de neutralidade
-   │                  (externa: alvo = pilar a fechar; interna: superfície pilar + ORIGEM latente)
+   │                  (externa: alvo = pilar a fechar; interna: mesmos pilares, sem ORIGEM na pergunta)
    ▼
 Usuário revisa e ajusta ── aprova
    │
@@ -73,7 +68,7 @@ Escolha de canal ──┬── Formulário web hospedado → coleta nativa
 Resposta vira verbatim
    │
    ├── Externa → pipeline atual (classificação 4 pilares → tematização → Capital Relacional)
-   └── Interna → duas leituras (pilares → confronto; ORIGEM → diagnóstico de propósito)
+   └── Interna → confronto por pilar (cliente × time); ORIGEM entra na ANÁLISE do gap (Fase 4)
                   → painel de confronto interno × externo + plano de ação (funcionalidade nova)
 ```
 
@@ -82,15 +77,15 @@ Resposta vira verbatim
 1. **Geração assistida** — comum a tudo. O diagnóstico propõe perguntas + porquê; usuário revisa. Núcleo do método.
 2. **Canal formulário web hospedado** — ciclo completo de menor atrito (gera → link → coleta nativa → pipeline). Prova o motor de ponta a ponta.
 3. **Canal WhatsApp** — geração + exportação + importação + parser (reaproveita o importador existente).
-4. **Pesquisa interna + confronto** — mapeamento duplo pilar/ORIGEM, painel interno × externo, diagnóstico ORIGEM, plano de ação de correção.
+4. **Pesquisa interna + confronto** — painel interno × externo por pilar; ORIGEM como régua de profundidade do gap aplicada na **análise** (não na pergunta); plano de ação de correção.
 
 > Ordem sugerida pela dependência: a geração é base de tudo; o web hospedado fecha o ciclo mais rápido; o WhatsApp acrescenta canal; o confronto interno é o artefato mais novo e mais rico, construído por último sobre o motor já provado.
 
 ## 7. Pontos em aberto para próxima rodada
 
 - Régua de neutralidade: definir a régua concreta que o LLM segue ao formular (escalas, fraseado neutro, o que é proibido).
-- Mapeamento duplo (interna): como marcar cada pergunta com pilar/subpilar **e** camada ORIGEM — estrutura de dados e como a análise lê os dois níveis.
-- Painel de confronto: layout do "cliente pensa X / time pensa Y / gap Z / ação recomendada", por pilar, + a leitura ORIGEM.
+- ORIGEM na análise (interna): como a análise do confronto aplica a régua de profundidade (Essência → Significado → Propósito → Caminho → Resultado) sobre cada gap — scoring e estrutura de dados. **Não** é marcação por pergunta: a pergunta mede só o pilar/subpilar.
+- Painel de confronto: layout do "cliente pensa X / time pensa Y / gap Z / ação recomendada", por pilar, + a leitura ORIGEM do gap.
 - Parser de WhatsApp: formato esperado do arquivo único e regras de separação por respondente.
 
 ## 8. Integração e dados (decisões de método fechadas)
@@ -149,7 +144,8 @@ e simples:
 
 - **Resposta de pesquisa INTERNA nunca emite `Verbatim`.** Fica apenas em base separada
   (`pesquisa_resposta`, marcada `natureza='interna'`), de onde derivam **só** (1) a leitura
-  por pilar/subpilar para o **mapa de confronto** e (2) o diagnóstico ORIGEM (Fase 4).
+  por pilar/subpilar para o **mapa de confronto** e (2) a régua de profundidade do gap (ORIGEM),
+  aplicada na **análise** do confronto (Fase 4) — nunca uma marcação na pergunta.
 - Como nada interno vira `Verbatim`, **nada interno toca** `RatioMensal`, temas, Capital
   Relacional ou qualquer tela do cliente — sem necessidade de filtro defensivo espalhado:
   a segregação é por **ausência de ponte**, não por exclusão posterior.
@@ -175,12 +171,12 @@ Pergunta
   formato('aberta'|'fechada'|'mista'),
   escala_tipo (p/ fechada: 'nota_1_5'|'multipla'|…), opcoes_json,
   subpilar_alvo (OBRIGATÓRIO p/ nota/fechada; intenção p/ texto),
-  regua_valencia_json (override da régua nota→valência; default herdado),
-  camada_origem (INTERNA, latente — Fase 4, design-incompleto)
+  regua_valencia_json (override da régua nota→valência; default herdado)
 
 Respondente
   id, pesquisa_id,
-  identificacao: anônimo → token de dedup (sem PII) | identificado → nome/contato,
+  pessoa_id (FK → Pessoa; a identidade vive na entidade Pessoa, NUNCA inline aqui):
+    anônimo → sem Pessoa, ou Pessoa tokenizada (sem PII); identificado → Pessoa real,
   local_id (quando a pesquisa exige a âncora "qual loja"), criado_em
 
 Resposta            # fonte da verdade; 1 por (respondente, pergunta)
@@ -198,8 +194,9 @@ Convite / Link      # distribuição (PDPA entrega o instrumento, não gerencia 
 
 Notas de modelagem:
 - **`Pergunta.subpilar_alvo`** é o que resolve o caso NOTA sem classificador.
-- **`camada_origem`** existe na coluna desde já, mas **fica sem regra de preenchimento até a
-  Fase 4** (ver abaixo) — não bloqueia externa.
+- **`Respondente.pessoa_id`** referencia a entidade **Pessoa** (frente própria, pré-requisito
+  da coleta da Fase 2) — a identidade nunca nasce inline no Respondente. Aqui só se fixa o
+  desenho para não herdar o modelo velho; a entidade Pessoa é construída em frente separada.
 - **WhatsApp** reusa o importador existente: o arquivo único cai no parser, que casa
   resposta↔pergunta pelo gabarito (as perguntas que o PDPA gerou) e popula `Respondente`/`Resposta`.
 
@@ -219,10 +216,13 @@ A Fase 1 entrega **só geração + aprovação** (não coleta, não distribui). 
 6. **Testes:** proposta determinística (mock), persistência, ciclo de edição, versão, e o
    guard de que externa×interna não se misturam no modelo.
 
-> **ORIGEM (Fase 4) — design-incompleto.** O mapeamento duplo pilar↔camada ORIGEM, a definição
-> das camadas (Semente→Raiz→Solo→Caminho→Fruto), o scoring e o layout do confronto **continuam
-> em aberto** (seção 7) e **não entram** nas Fases 1–3. A coluna `Pergunta.camada_origem` fica
-> reservada, sem regra, até essa rodada de design.
+> **ORIGEM (Fase 4) — design-incompleto.** O ORIGEM **não é camada da pergunta** — não há
+> "marcação dupla pilar↔ORIGEM" nem camada latente sondada por pergunta. É a **régua de
+> profundidade do gap**, aplicada na **análise do confronto** cliente×colaborador (Fase 4):
+> quando o cliente reporta X e o colaborador vê Y, o ORIGEM classifica **em que nível mora a
+> desconexão** — **Essência → Significado → Propósito → Caminho → Resultado**. As perguntas
+> (interna e externa) são sobre temas/pilares concretos, **sem ORIGEM embutido**. O scoring e o
+> layout do confronto **continuam em aberto** (seção 7) e **não entram** nas Fases 1–3.
 
 ## 9. Régua de neutralidade (guia + validador)
 

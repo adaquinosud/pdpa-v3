@@ -57,7 +57,7 @@ Lista completa dos blocos:
 Conceito mais amplo do qual o PDPA é instrumento. Sete camadas concêntricas + destino:
 1. **Capital Relacional** (tese)
 2. **Lastro** (4 pilares — diagnóstico externo)
-3. **Modelo ORIGEM** (Semente, Raiz, Solo, Caminho, Fruto — leitura interna)
+3. **Modelo ORIGEM** (Essência, Significado, Propósito, Caminho, Resultado — régua de profundidade do gap)
 4. **Leitura 360°** (Cliente, Colaborador, Fornecedor, Influenciador)
 5. **Indicadores Auditáveis** (Engajamento, Previsibilidade, Concentração, Proximity, Gini)
 6. **Funções Alimentadas** (CEO, CFO, CRO, CMO, COO, CHRO recebem leituras calibradas)

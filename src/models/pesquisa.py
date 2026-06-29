@@ -98,7 +98,6 @@ class PesquisaPergunta(Base):
     subpilar_alvo: Mapped[Optional[str]] = mapped_column(String)
     opcoes_json: Mapped[Optional[str]] = mapped_column(Text)  # schema da escala
     regua_valencia_json: Mapped[Optional[str]] = mapped_column(Text)  # override; default herdado
-    camada_origem: Mapped[Optional[str]] = mapped_column(String)  # reservada — Fase 4
     gerada_por_ancora: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     validacao_json: Mapped[Optional[str]] = mapped_column(Text)  # cache do veredito (advisory)
     validado_em: Mapped[Optional[datetime]] = mapped_column(DateTime)

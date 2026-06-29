@@ -62,18 +62,19 @@ do denominador (não se mede tese/narrativa como % de software).
 
 ## CAMADA 3 · Modelo ORIGEM (Camada da Realização)
 
-> ❓ **DÚVIDA-CHAVE:** ORIGEM é leitura **interna/cultural** (de dentro pra fora). O
-> app hoje é diagnóstico **externo** (Lastro). É feature de app a construir, ou
-> camada de **método/consultoria** (não-software)? A resposta muda o % final
+> ❓ **DÚVIDA-CHAVE:** ORIGEM é a **régua de profundidade do gap** — na análise do confronto
+> cliente×colaborador (Fase 4), classifica **em que nível mora a desconexão**
+> (Essência→Significado→Propósito→Caminho→Resultado). **Não é camada da pergunta.** É feature de
+> app a construir, ou camada de **método/consultoria** (não-software)? A resposta muda o % final
 > (ver cálculo). Marcado ❌ + ❓ até Alexandre + Dener decidirem.
 
 | Elemento | Estado | Evidência / o que falta |
 |---|---|---|
-| **Semente** (essência) | ❌ ❓ | Não implementado; leitura interna. |
-| **Identidade** (essência na função) | ❌ ❓ | Idem. |
-| **Propósito** (essência na ação) | ❌ ❓ | Idem. |
-| **Caminho** (Integridade/Presença/Conexão/Contribuição) | ❌ ❓ | Idem. |
-| **Fruto** (essência manifestada externamente) | ❌ ❓ | Idem. |
+| **Essência** | ❌ ❓ | Não implementado; nível do gap na análise do confronto (Fase 4). |
+| **Significado** | ❌ ❓ | Idem. |
+| **Propósito** | ❌ ❓ | Idem. |
+| **Caminho** | ❌ ❓ | Idem. |
+| **Resultado** | ❌ ❓ | Idem. |
 
 ## CAMADA 4 · Indicadores (Camada da Medição)
 
@@ -116,7 +117,7 @@ Pesos: ✅ = 1 · 🟡 = 0,5 · ❌ = 0. Denominador = elementos ✅/🟡/❌ (e
 **Contagem dos implementáveis:**
 - ✅ (12): Instrumentos, Vocabulário, Precisão, Disponibilidade, Parceria, Aconselhamento, Lastro, Clientes, Índice Geral, Previsibilidade, Conversíveis, Engajamento.
 - 🟡 (3 → 1,5): Proximidade, Funções Alimentadas, Melhoria do Relacionamento.
-- ❌ (8): Colaboradores, Fornecedores, Influenciadores + ORIGEM (Semente, Identidade, Propósito, Caminho, Fruto).
+- ❌ (8): Colaboradores, Fornecedores, Influenciadores + ORIGEM (Essência, Significado, Propósito, Caminho, Resultado).
 
 **Soma ponderada = 12 + 1,5 = 13,5.**
 
@@ -130,7 +131,7 @@ O número depende **só** de como classificar a Camada 3 (ORIGEM) — a dúvida-
 **Leitura honesta:** o app cobre **bem o eixo externo** (4 Pilares + Lastro +
 Indicadores + vocabulário) — esse núcleo está ~100% feito. Os **gaps reais** são:
 1. **Leitura 360°** além do cliente (Colaboradores/Fornecedores/Influenciadores) — falta coletor/dimensão.
-2. **Modelo ORIGEM** (leitura interna) — não existe no app (dúvida se deve existir).
+2. **Modelo ORIGEM** (régua de profundidade do gap) — não existe no app (dúvida se deve existir).
 3. **Funções Alimentadas por C-Level** — só um painel genérico.
 
 Os elementos ⚪ (tese, CCRO, Resultados, narrativa) **não entram no %** de propósito
