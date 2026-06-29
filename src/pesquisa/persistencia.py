@@ -133,7 +133,19 @@ def _opcoes_publicas(opcoes_json: Optional[str]) -> Optional[Dict[str, Any]]:
         o = json.loads(opcoes_json)
     except (ValueError, TypeError):
         return None
-    # só o que o respondente vê: tipo + rótulos (sem metadados internos de análise)
+    # Âncora de unidade (shape novo, P2.C): opcoes:[{local_id,rotulo}]. O público
+    # vê os rótulos E carrega o local_id (a Fase 2 resolve a resposta ao local).
+    if o.get("tipo") == "unidade" and isinstance(o.get("opcoes"), list):
+        opcoes = [
+            {"local_id": op.get("local_id"), "rotulo": op.get("rotulo")} for op in o["opcoes"]
+        ]
+        return {
+            "tipo": "unidade",
+            "opcoes": opcoes,
+            "rotulos": [op["rotulo"] for op in opcoes],  # compat de quem só lê rótulos
+        }
+    # Shape antigo (nota/multipla, ou âncora pré-P2.C com rotulos): só tipo + rótulos
+    # (sem metadados internos de análise). Tolerância na transição.
     return {"tipo": o.get("tipo"), "rotulos": o.get("rotulos") or []}
 
 

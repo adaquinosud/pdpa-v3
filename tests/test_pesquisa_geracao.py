@@ -161,3 +161,86 @@ def test_natureza_interna_no_publico(client_loyall, db_session):
     )
     assert out["pesquisa"]["natureza"] == "interna"
     assert "colaboradores" in captura[0][1]  # user prompt fala em time, não cliente
+
+
+def test_prompt_reforca_regra3_e_formato_misto(client_loyall, db_session):
+    """B.1/B.2: o system prompt (régua-guia) reforça quebrar pergunta dupla em
+    DUAS perguntas e instrui o formato misto como padrão."""
+    e = _empresa(client_loyall, "EPromptReforco")
+    captura: list = []
+    gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=_fake_llm(captura),
+    )
+    system, _user = captura[0]
+    low = system.lower()
+    # B.1 — regra 3: dois aspectos viram duas perguntas separadas
+    assert "duas perguntas" in low
+    # B.2 — formato misto é o padrão (não defaultar tudo para aberta)
+    assert "padrão = mista" in low
+
+
+def test_ancora_carrega_local_id(client_loyall, db_session):
+    """C.1: a âncora 'qual unidade?' carrega opcoes:[{local_id,rotulo}] do escopo,
+    ordenadas por nome — a Fase 2 precisa do FK, não só do rótulo."""
+    from src.models.local import Local
+
+    e = _empresa(client_loyall, "EAncoraLocal")
+    db_session.add_all([Local(empresa_id=e, nome="Loja B"), Local(empresa_id=e, nome="Loja A")])
+    db_session.flush()
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        escopo_local_modo="geral",
+        gerar_fn=_fake_llm(),
+    )
+    ancora = out["perguntas"][0]
+    assert ancora["gerada_por_ancora"] is True and ancora["ordem"] == 1
+    opc = json.loads(ancora["opcoes_json"])
+    assert opc["tipo"] == "unidade"
+    assert [o["rotulo"] for o in opc["opcoes"]] == ["Loja A", "Loja B"]  # order_by nome
+    assert all(isinstance(o["local_id"], int) for o in opc["opcoes"])
+
+
+def test_formato_misto_preservado(client_loyall, db_session):
+    """B.2 (estrutural): formato 'mista' devolvido pelo LLM sobrevive à
+    normalização, com opcoes_json preenchido."""
+    e = _empresa(client_loyall, "EMisto")
+
+    def _fake(system, user):
+        return {
+            "perguntas": [
+                {
+                    "enunciado": "Como você avalia o atendimento?",
+                    "formato": "mista",
+                    "subpilar_alvo": "D1",
+                    "porque": "D1 é foco",
+                    "opcoes": {
+                        "tipo": "nota",
+                        "pontos": 5,
+                        "rotulos": ["Muito ruim", "Ruim", "Neutro", "Bom", "Muito bom"],
+                        "ponto_medio_idx": 2,
+                        "polaridade": "ascendente",
+                    },
+                }
+            ]
+        }
+
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D1"],
+        n_perguntas=1,
+        gerar_fn=_fake,
+    )
+    q = out["perguntas"][0]
+    assert q["formato"] == "mista"
+    assert json.loads(q["opcoes_json"])["tipo"] == "nota"

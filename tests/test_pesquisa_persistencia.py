@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 from src.pesquisa.persistencia import (
+    _opcoes_publicas,
     aprovar,
     atualizar_pergunta,
     criar_rascunho,
@@ -132,3 +133,36 @@ def test_payload_publico_sem_porque(client_loyall, db_session):
     # mas o respondente vê o enunciado e os rótulos
     assert payload["perguntas"][0]["enunciado"] == "Como foi a retirada?"
     assert payload["perguntas"][0]["opcoes"]["rotulos"] == ["a", "b", "c", "d", "e"]
+
+
+def test_opcoes_publicas_tolerante_aos_dois_shapes():
+    """C.2: _opcoes_publicas aceita o shape novo (unidade com local_id) e o
+    antigo (só rotulos) — transição sem quebrar o consumidor."""
+    # shape novo (P2.C): carrega local_id E expõe rótulos no público
+    novo = _opcoes_publicas(
+        json.dumps(
+            {
+                "tipo": "unidade",
+                "opcoes": [
+                    {"local_id": 7, "rotulo": "Loja A"},
+                    {"local_id": 9, "rotulo": "Loja B"},
+                ],
+            }
+        )
+    )
+    assert novo["tipo"] == "unidade"
+    assert novo["opcoes"] == [
+        {"local_id": 7, "rotulo": "Loja A"},
+        {"local_id": 9, "rotulo": "Loja B"},
+    ]
+    assert novo["rotulos"] == ["Loja A", "Loja B"]
+    # shape antigo (âncora pré-P2.C): só rotulos, segue funcionando
+    assert _opcoes_publicas(json.dumps({"tipo": "unidade", "rotulos": []})) == {
+        "tipo": "unidade",
+        "rotulos": [],
+    }
+    # nota/multipla inalterado
+    assert _opcoes_publicas(json.dumps({"tipo": "nota", "rotulos": ["a", "b", "c", "d", "e"]})) == {
+        "tipo": "nota",
+        "rotulos": ["a", "b", "c", "d", "e"],
+    }

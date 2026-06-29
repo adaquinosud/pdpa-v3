@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional
 
+from src.models.local import Local
 from src.pesquisa.contexto import render_contexto, topicos_saneados
 from src.pesquisa.regua import FORMATO_SAIDA, REGUA_GUIA
 from src.pesquisa.validador import validar_perguntas
@@ -18,19 +19,33 @@ from src.pesquisa.validador import validar_perguntas
 _FORMATOS = ("aberta", "fechada", "mista")
 
 
-def _ancora_unidade() -> Dict[str, Any]:
+def _locais_do_escopo(
+    s, empresa_id: int, entidade_tipo: Optional[str], entidade_id: Optional[int]
+) -> List[Any]:
+    """Locais que entram na âncora "qual unidade?" (modo 'geral'): todos os da
+    empresa, ou só os do agrupamento quando o escopo é um agrupamento."""
+    q = s.query(Local).filter(Local.empresa_id == empresa_id)
+    if entidade_tipo == "agrupamento" and entidade_id is not None:
+        q = q.filter(Local.agrupamento_id == entidade_id)
+    return q.order_by(Local.nome).all()
+
+
+def _ancora_unidade(locais: Optional[List[Any]] = None) -> Dict[str, Any]:
     """Pergunta-âncora "qual unidade?" do modo 'geral'.
 
-    Gerada pelo sistema (não é pergunta de conteúdo). As opções (locais do
-    escopo) são preenchidas na persistência/UI (F1.5) — aqui fica o esqueleto.
+    Gerada pelo sistema (não é pergunta de conteúdo). Carrega as opções já com o
+    ``local_id`` de cada unidade do escopo — a Fase 2 precisa do FK para resolver
+    a resposta ao local, não só o rótulo. Sem locais (escopo vazio) → opções
+    vazias (a UI/Fase 2 cuida do caso degenerado).
     """
+    opcoes = [{"local_id": loc.id, "rotulo": loc.nome} for loc in (locais or [])]
     return {
         "ordem": 1,
         "enunciado": "Qual unidade você está avaliando?",
         "porque": "Resolve o local_id por respondente (modo de escopo 'geral').",
         "formato": "fechada",
         "subpilar_alvo": None,
-        "opcoes_json": json.dumps({"tipo": "unidade", "rotulos": []}),
+        "opcoes_json": json.dumps({"tipo": "unidade", "opcoes": opcoes}),
         "gerada_por_ancora": True,
     }
 
@@ -49,12 +64,16 @@ def _montar_user_prompt(topicos, natureza: str, n_perguntas: int, escopo_local_m
     )
 
 
-def _normalizar(bruto: Dict[str, Any], escopo_local_modo: str) -> List[Dict[str, Any]]:
+def _normalizar(
+    bruto: Dict[str, Any],
+    escopo_local_modo: str,
+    locais: Optional[List[Any]] = None,
+) -> List[Dict[str, Any]]:
     """Converte a saída do LLM em perguntas internas (ordem, opcoes_json, âncora)."""
     perguntas: List[Dict[str, Any]] = []
     # âncora primeiro (modo geral) — ocupa a ordem 1.
     if escopo_local_modo == "geral":
-        perguntas.append(_ancora_unidade())
+        perguntas.append(_ancora_unidade(locais))
     base = len(perguntas)
     for i, p in enumerate(bruto.get("perguntas", []), start=1):
         formato = p.get("formato")
@@ -110,8 +129,14 @@ def gerar_pesquisa(
     system = REGUA_GUIA
     user = _montar_user_prompt(topicos, natureza, n_perguntas, escopo_local_modo)
 
+    locais = (
+        _locais_do_escopo(s, empresa_id, entidade_tipo, entidade_id)
+        if escopo_local_modo == "geral"
+        else None
+    )
+
     bruto = gerar_fn(system, user)
-    perguntas = _normalizar(bruto, escopo_local_modo)
+    perguntas = _normalizar(bruto, escopo_local_modo, locais)
     veredito = validar_perguntas(perguntas)  # SEAM — sempre passa pelo validador
 
     return {

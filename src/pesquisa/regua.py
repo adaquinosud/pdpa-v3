@@ -24,8 +24,12 @@ REGRA 2 — Sem pressuposto embutido. Não assuma um fato não confirmado.
   ✗ "Por que houve atraso na entrega?"         (pressupõe que atrasou)
   ✓ "Como foi o tempo de entrega para você?"
 
-REGRA 3 — Uma pergunta, um conceito. Nada de pergunta dupla.
-  ✗ "O atendimento foi rápido e cordial?"      (dois conceitos)
+REGRA 3 — Uma pergunta, um conceito. NUNCA ligue dois aspectos com "e"/"ou"
+coordenando predicados. Se o tópico tem dois aspectos, gere DUAS perguntas
+separadas (uma por aspecto), nunca uma pergunta dupla.
+  ✗ "Como você avalia o atendimento e o preço?"   (dois conceitos numa pergunta)
+  ✓ duas perguntas: "Como você avalia o atendimento?" / "Como você avalia o preço?"
+  ✗ "O atendimento foi rápido e cordial?"          (dois conceitos)
   ✓ "Como você avalia a rapidez do atendimento?"
 
 REGRA 4 — Escala equilibrada (só perguntas fechadas/mistas). Polos simétricos,
@@ -38,6 +42,16 @@ O respondente não vê a estrutura analítica — ela fica só no campo interno.
 
 REGRA 7 — Mede o tópico declarado. A pergunta deve, de fato, medir o tópico
 (subpilar) que ela se propõe a medir — não derivar para outro assunto.
+
+FORMATO (padrão = mista). Por padrão, gere cada pergunta como "mista": uma nota
+numérica (escala equilibrada, regra 4) MAIS um campo de comentário aberto. A nota
+dá a valência; o comentário alimenta a análise de tema. NÃO uniformize tudo como
+aberta. Use exceções por bom senso, que são MINORIA:
+  - "fechada" (só nota) quando a pergunta é puramente escalar
+    — ex.: "De 0 a 10, quão fácil foi resolver o seu problema?";
+  - "aberta" (só texto) quando é puramente exploratória
+    — ex.: "O que mais marcou a sua experiência?".
+A maioria das perguntas deve ser "mista".
 
 Para cada pergunta, gere também um campo "porque": a justificativa diagnóstica
 INTERNA (vista só por quem revisa, nunca pelo respondente) explicando por que
