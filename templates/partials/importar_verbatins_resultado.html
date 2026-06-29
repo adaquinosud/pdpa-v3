@@ -16,7 +16,8 @@
       · {{ preview.total }} linha(s)
     </p>
     <ul class="text-sm space-y-1">
-      {% for campo, rot in rotulos %}
+      {% set rotulos_id = [('email', 'Email'), ('id_cliente', 'ID cliente')] if preview.interno else [] %}
+      {% for campo, rot in rotulos + rotulos_id %}
       {% set col = preview.colunas_detectadas.get(campo) %}
       <li class="flex items-center gap-2">
         {% if col %}
@@ -28,6 +29,9 @@
       </li>
       {% endfor %}
     </ul>
+    {% if preview.interno %}
+      <p class="text-[11px] text-loyall-500 mt-2">Modo interno identificado — criará pessoas consentidas por email/id_cliente.</p>
+    {% endif %}
     {% if preview.erros_validacao %}
       <div class="mt-3 bg-rose-50 border border-rose-200 text-rose-700 rounded p-2 text-xs">
         {% for e in preview.erros_validacao %}{{ e }}<br>{% endfor %}
@@ -58,6 +62,9 @@
       <li>{{ stats.ignorados }} ignorados (sem texto nem nota)</li>
       {% if stats.erros %}<li class="text-rose-600">{{ stats.erros }} com erro de linha</li>{% endif %}
       <li>{{ stats.agrupamentos_criados }} agrupamentos + {{ stats.locais_criados }} locais criados</li>
+      {% if stats.pessoas_criadas or stats.sem_identidade %}
+      <li>{{ stats.pessoas_criadas }} pessoas (interno consentido){% if stats.sem_identidade %} · {{ stats.sem_identidade }} linha(s) sem identidade{% endif %}</li>
+      {% endif %}
     </ul>
     {% if stats.pos_coleta_disparado %}
     <p class="text-[11px] text-loyall-400 mt-2">

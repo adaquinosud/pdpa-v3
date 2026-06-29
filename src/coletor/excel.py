@@ -15,6 +15,8 @@ não traz coluna local/fonte. ``computar_hash_dedup`` (fórmula de texto) mantid
 from __future__ import annotations
 
 import hashlib
+import io
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +28,7 @@ from sqlalchemy import func
 from src.models.agrupamento import Agrupamento
 from src.models.fonte import Fonte
 from src.models.local import Local
+from src.models.pessoa import Pessoa, PessoaIdentificador
 from src.models.verbatim import Verbatim
 from src.utils.db import db_session
 
@@ -59,6 +62,34 @@ _ALIASES: Dict[str, set[str]] = {
     "fonte": {"fonte", "source"},
 }
 
+# Colunas de IDENTIDADE — só relevantes no modo "interno identificado" (cria
+# Pessoa). Aliases de FRASE INTEIRA de propósito: ``id_cliente`` NÃO usa o token
+# solto "id" (que o ``review_id`` já reivindica — bare "id" engoliria "id chamado"
+# /ticket). No modo interno entram ANTES dos campos-base (capturam a coluna de
+# identidade); no modo normal NÃO entram (detecção idêntica à de hoje).
+_ALIASES_IDENTIDADE: Dict[str, set[str]] = {
+    "email": {"email", "e-mail", "mail"},
+    "id_cliente": {
+        "id_cliente",
+        "id cliente",
+        "codigo cliente",
+        "código cliente",
+        "cod cliente",
+        "cod_cliente",
+        "customer_id",
+        "customer id",
+    },
+}
+
+
+def _aliases_efetivos(interno: bool) -> Dict[str, set[str]]:
+    """Mapa de aliases usado na detecção. Interno = identidade primeiro + base;
+    normal = base intacta (byte-a-byte como hoje)."""
+    if interno:
+        return {**_ALIASES_IDENTIDADE, **_ALIASES}
+    return _ALIASES
+
+
 # Vocabulário PT de rating qualitativo → escala 1–5 (best-effort; só usado quando
 # a célula é palavra pura, sem número). Número embutido ("5 - Ótimo") tem prioridade.
 _RATING_PALAVRAS: Dict[str, int] = {
@@ -79,33 +110,41 @@ _RATING_PALAVRAS: Dict[str, int] = {
 }
 
 
-def _detectar_colunas(columns: List[str]) -> Dict[str, Optional[str]]:
+def _detectar_colunas(columns: List[str], interno: bool = False) -> Dict[str, Optional[str]]:
     """Mapeia campo lógico → nome real da coluna (ou None se ausente).
 
     Casa por nome inteiro normalizado OU por TOKEN — qualquer palavra do header
     que seja alias casa o campo (ex.: 'Nota CSAT' → rating, 'ID Chamado' →
-    review_id). Cada coluna é atribuída a no máximo 1 campo (1ª na ordem de
-    ``_ALIASES``); headers ambíguos podem ser corrigidos no preview (Fase 2)."""
-    mapping: Dict[str, Optional[str]] = {k: None for k in _ALIASES}
+    review_id). Cada coluna é atribuída a no máximo 1 campo (1ª na ordem do mapa);
+    headers ambíguos podem ser corrigidos no preview (Fase 2).
+
+    ``interno=True`` adiciona os campos de identidade (email/id_cliente), com
+    prioridade sobre os campos-base; ``interno=False`` usa só os campos de hoje."""
+    aliases = _aliases_efetivos(interno)
+    mapping: Dict[str, Optional[str]] = {k: None for k in aliases}
     usados: set[int] = set()
-    for campo, aliases in _ALIASES.items():
+    for campo, campo_aliases in aliases.items():
         for idx, col in enumerate(columns):
             if idx in usados:
                 continue
             norm = str(col).strip().lower()
             tokens = {t for t in re.split(r"[^a-z0-9]+", norm) if t}
-            if norm in aliases or (tokens & aliases):
+            if norm in campo_aliases or (tokens & campo_aliases):
                 mapping[campo] = col
                 usados.add(idx)
                 break
     return mapping
 
 
-def _validar(colunas: Dict[str, Optional[str]]) -> List[str]:
-    """Exige ao menos uma coluna de SINAL: texto OU rating."""
+def _validar(colunas: Dict[str, Optional[str]], interno_identificado: bool = False) -> List[str]:
+    """Exige ao menos uma coluna de SINAL (texto OU rating). No modo interno
+    identificado, exige TAMBÉM uma coluna de identidade (email OU id_cliente)."""
+    erros: List[str] = []
     if colunas.get("texto") is None and colunas.get("rating") is None:
-        return ["Nenhuma coluna de texto nem de rating encontrada (precisa de ao menos uma)."]
-    return []
+        erros.append("Nenhuma coluna de texto nem de rating encontrada (precisa de ao menos uma).")
+    if interno_identificado and colunas.get("email") is None and colunas.get("id_cliente") is None:
+        erros.append("Import interno identificado exige uma coluna de email ou id_cliente.")
+    return erros
 
 
 def computar_hash_dedup(texto: str, fonte_id: int, autor: Optional[str]) -> str:
@@ -134,20 +173,54 @@ def _hash_dedup(
     return hashlib.sha256(base.encode()).hexdigest()
 
 
-def prever_arquivo(caminho: Union[str, Path]) -> Dict[str, Any]:
+def prever_arquivo(caminho: Union[str, Path], interno_identificado: bool = False) -> Dict[str, Any]:
     """Preview (read-only, sem DB): lê a 1ª aba, detecta as colunas e valida —
-    para a tela mostrar o mapa de campos antes de confirmar o import."""
+    para a tela mostrar o mapa de campos antes de confirmar o import.
+
+    ``interno_identificado=True`` detecta as colunas de identidade e valida que
+    exista email OU id_cliente."""
     caminho = Path(caminho)
     if not caminho.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
     df = _ler_dataframe(caminho)
-    colunas = _detectar_colunas(list(df.columns))
+    colunas = _detectar_colunas(list(df.columns), interno=interno_identificado)
     return {
         "colunas_detectadas": colunas,
-        "erros_validacao": _validar(colunas),
+        "erros_validacao": _validar(colunas, interno_identificado),
         "total": len(df),
         "headers": [str(c) for c in df.columns],
+        "interno": interno_identificado,
     }
+
+
+def gerar_modelo_xlsx(interno_identificado: bool = False) -> io.BytesIO:
+    """Gera um .xlsx de exemplo (contrato visual das colunas) para download.
+
+    Normal: texto, rating, autor, data. Interno: + email, id_cliente. Duas linhas
+    de exemplo. As colunas batem com os aliases que ``_detectar_colunas`` casa."""
+    cols = ["texto", "rating", "autor", "data"]
+    rows = [
+        {
+            "texto": "Atendimento rápido e cordial",
+            "rating": 5,
+            "autor": "Maria Souza",
+            "data": "2026-06-01",
+        },
+        {
+            "texto": "Demorou para resolver meu problema",
+            "rating": 2,
+            "autor": "João Lima",
+            "data": "2026-06-02",
+        },
+    ]
+    if interno_identificado:
+        cols = ["texto", "rating", "autor", "data", "email", "id_cliente"]
+        rows[0].update({"email": "maria.souza@empresa.com", "id_cliente": "CRM-1001"})
+        rows[1].update({"email": "joao.lima@empresa.com", "id_cliente": "CRM-1002"})
+    bio = io.BytesIO()
+    pd.DataFrame(rows, columns=cols).to_excel(bio, index=False)
+    bio.seek(0)
+    return bio
 
 
 def _ler_dataframe(caminho: Path) -> pd.DataFrame:
@@ -213,6 +286,14 @@ def _norm_nome(valor: Any) -> Optional[str]:
     return s or None
 
 
+def _norm_email(valor: Any) -> Optional[str]:
+    """Email normalizado (lower+trim) — chave estável da Pessoa interna."""
+    if valor is None or pd.isna(valor):
+        return None
+    s = str(valor).strip().lower()
+    return s or None
+
+
 def _find_or_create_agrupamento(session, empresa_id: int, nome: str, cache: Dict[str, int]) -> int:
     key = nome.lower()
     if key in cache:
@@ -249,7 +330,17 @@ def _find_or_create_local(
     return cache[key]
 
 
-def _find_or_create_fonte(session, empresa_id: int, nome: str, cache: Dict[str, int]) -> int:
+def _find_or_create_fonte(
+    session,
+    empresa_id: int,
+    nome: str,
+    cache: Dict[str, int],
+    conector_tipo: str = "excel_manual",
+    autenticacao_tipo: str = "publica",
+) -> int:
+    """Find-or-create da fonte do import. ``conector_tipo``/``autenticacao_tipo``
+    separam o regime: 'excel_manual'/'publica' (import normal de hoje) vs.
+    'excel_interno'/'autenticada' (base interna consentida)."""
     key = nome.lower()
     if key in cache:
         return cache[key]
@@ -257,7 +348,7 @@ def _find_or_create_fonte(session, empresa_id: int, nome: str, cache: Dict[str, 
         session.query(Fonte)
         .filter(
             Fonte.empresa_id == empresa_id,
-            Fonte.conector_tipo == "excel_manual",
+            Fonte.conector_tipo == conector_tipo,
             func.lower(Fonte.url) == key,
         )
         .first()
@@ -267,15 +358,55 @@ def _find_or_create_fonte(session, empresa_id: int, nome: str, cache: Dict[str, 
             empresa_id=empresa_id,
             entidade_tipo="empresa",
             entidade_id=empresa_id,
-            conector_tipo="excel_manual",
+            conector_tipo=conector_tipo,
             url=nome,
-            autenticacao_tipo="publica",
+            autenticacao_tipo=autenticacao_tipo,
             status="ativa",
         )
         session.add(f)
         session.flush()
     cache[key] = f.id
     return cache[key]
+
+
+def _find_or_create_pessoa(
+    session, external_id: str, nome: Optional[str], cache: Dict[str, int]
+) -> int:
+    """Get-or-create da Pessoa interna por chave declarada (email|id_cliente).
+
+    INTRA-import por chave declarada — NÃO é merge entre fontes. O
+    ``UNIQUE(tipo,fonte,external_id)`` da PessoaIdentificador garante idempotência
+    (re-import → mesma Pessoa). Registra o opt-in em ``atributos_json`` (marcador
+    do regime LGPD)."""
+    if external_id in cache:
+        return cache[external_id]
+    ident = (
+        session.query(PessoaIdentificador)
+        .filter_by(tipo="interno_consentido", fonte="excel", external_id=external_id)
+        .first()
+    )
+    if ident is not None:
+        cache[external_id] = ident.pessoa_id
+        return ident.pessoa_id
+    p = Pessoa(tipo="interno_consentido", nome_display=nome)
+    p.identificadores = [
+        PessoaIdentificador(
+            tipo="interno_consentido",
+            fonte="excel",
+            external_id=external_id,
+            atributos_json=json.dumps(
+                {
+                    "opt_in": True,
+                    "origem": "import_excel_interno",
+                    "data": datetime.utcnow().isoformat(),
+                }
+            ),
+        )
+    ]
+    session.add(p)
+    session.flush()
+    cache[external_id] = p.id
+    return p.id
 
 
 def importar_arquivo(
@@ -285,24 +416,42 @@ def importar_arquivo(
     fonte_id: Optional[int] = None,
     *,
     disparar_pos: bool = False,
+    interno_identificado: bool = False,
+    consentimento: bool = False,
 ) -> Dict[str, Any]:
     """Importa Excel/CSV para Verbatim crus (sem classificação). ``local_id``/
     ``fonte_id`` são fallback file-level (a coluna da linha tem prioridade).
 
     ``disparar_pos=True`` (a rota passa isso, dentro do app context) dispara o
     pós-coleta ao fim → classificação→temas→detecção→…→leitura. Default False:
-    chamadas diretas (scripts/testes) ficam puras, sem precisar de app context."""
+    chamadas diretas (scripts/testes) ficam puras, sem precisar de app context.
+
+    ``interno_identificado=True`` (exige ``consentimento=True``): base interna
+    consentida — cria ``Pessoa(interno_consentido)`` por email|id_cliente, fonte
+    'excel_interno'. Default (desligado): import idêntico ao de hoje, sem Pessoa."""
     caminho = Path(caminho)
     if not caminho.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
+
+    # Gate de consentimento: não importa base identificada sem o opt-in do lote.
+    if interno_identificado and not consentimento:
+        return {
+            "importados": 0,
+            "duplicados": 0,
+            "erros": 0,
+            "ignorados": 0,
+            "total": 0,
+            "colunas_detectadas": {},
+            "erros_validacao": ["Consentimento obrigatório para o import interno identificado."],
+        }
 
     # MESMA regra do coletor (fonte única): threshold de tem_texto + heurística de
     # rating dos sem-texto. Espelha src/coletor/pipeline.processar_verbatim_coletado.
     from src.coletor.pipeline import MIN_CHARS_PARA_PROCESSAR, RATING_PARA_CLASSIFICACAO
 
     df = _ler_dataframe(caminho)
-    colunas = _detectar_colunas(list(df.columns))
-    erros_validacao = _validar(colunas)
+    colunas = _detectar_colunas(list(df.columns), interno=interno_identificado)
+    erros_validacao = _validar(colunas, interno_identificado)
     if erros_validacao:
         return {
             "importados": 0,
@@ -317,6 +466,10 @@ def importar_arquivo(
     c_texto, c_autor, c_data = colunas["texto"], colunas["autor"], colunas["data"]
     c_rating, c_rid = colunas["rating"], colunas["review_id"]
     c_agr, c_local, c_fonte = colunas["agrupamento"], colunas["local"], colunas["fonte"]
+    c_email, c_id_cliente = colunas.get("email"), colunas.get("id_cliente")
+    # Regime da fonte: interno consentido vs. import normal de hoje.
+    conector_f = "excel_interno" if interno_identificado else "excel_manual"
+    auth_f = "autenticada" if interno_identificado else "publica"
 
     stats: Dict[str, Any] = {
         "importados": 0,
@@ -327,12 +480,15 @@ def importar_arquivo(
         "colunas_detectadas": colunas,
         "agrupamentos_criados": 0,
         "locais_criados": 0,
+        "pessoas_criadas": 0,
+        "sem_identidade": 0,
     }
 
     with db_session() as session:
         cache_agr: Dict[str, int] = {}
         cache_loc: Dict[str, int] = {}
         cache_fonte: Dict[str, int] = {}
+        cache_pessoa: Dict[str, int] = {}
 
         # Fonte padrão do arquivo (find-or-create por nome → dedup idempotente no
         # reimport). Se a rota passou um fonte_id explícito, ele é o default.
@@ -341,7 +497,7 @@ def importar_arquivo(
         else:
             nome_fonte_padrao = f"Excel Import — {caminho.name}"
             fonte_default_id = _find_or_create_fonte(
-                session, empresa_id, nome_fonte_padrao, cache_fonte
+                session, empresa_id, nome_fonte_padrao, cache_fonte, conector_f, auth_f
             )
         stats["fonte_id"] = fonte_default_id
 
@@ -408,8 +564,25 @@ def importar_arquivo(
                     nome_fonte = _norm_nome(row[c_fonte])
                     if nome_fonte:
                         row_fonte_id = _find_or_create_fonte(
-                            session, empresa_id, nome_fonte, cache_fonte
+                            session, empresa_id, nome_fonte, cache_fonte, conector_f, auth_f
                         )
+
+                # Pessoa (só modo interno consentido): chave = email; fallback
+                # id_cliente. Sem nenhum dos dois → verbatim sem Pessoa (não quebra).
+                pessoa_id_row = None
+                if interno_identificado:
+                    email_v = _norm_email(row[c_email]) if c_email else None
+                    idc_v = _norm_nome(row[c_id_cliente]) if c_id_cliente else None
+                    external_id = email_v or idc_v
+                    if external_id:
+                        antes = len(cache_pessoa)
+                        pessoa_id_row = _find_or_create_pessoa(
+                            session, external_id, autor, cache_pessoa
+                        )
+                        if len(cache_pessoa) > antes:
+                            stats["pessoas_criadas"] += 1
+                    else:
+                        stats["sem_identidade"] += 1
 
                 data_iso = data_orig.isoformat() if data_orig else None
                 hash_d = _hash_dedup(row_fonte_id, texto, autor, rating, data_iso, review_id)
@@ -430,9 +603,10 @@ def importar_arquivo(
                         empresa_id=empresa_id,
                         local_id=row_local_id,
                         fonte_id=row_fonte_id,
+                        pessoa_id=pessoa_id_row,  # aditivo; None fora do modo interno
                         texto=texto,  # NOT NULL: rating-only entra com ""
                         tem_texto=tem_texto,
-                        autor=autor,
+                        autor=autor,  # PERMANECE — load-bearing no dedup
                         data_criacao_original=data_orig,
                         rating=rating,
                         review_id_externo=review_id,

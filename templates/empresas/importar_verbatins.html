@@ -30,11 +30,40 @@
     <label class="block text-xs font-medium text-loyall-600 mb-1">Arquivo (.xlsx / .xls / .csv)*</label>
     <input type="file" name="arquivo" accept=".xlsx,.xls,.csv" required class="block w-full text-sm">
   </div>
+
+  {# Modo interno identificado: cria Pessoa(interno_consentido) por email/id_cliente.
+     Desligado = import normal, idêntico. O consentimento é gate do lote (server-side). #}
+  <div class="border-t border-loyall-100 pt-3">
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" name="interno_identificado" value="on"
+             onchange="document.getElementById('bloco-interno').classList.toggle('hidden', !this.checked);
+                       document.getElementById('btn-modelo').href='{{ url_for('ui.modelo_import_verbatins') }}' + (this.checked ? '?interno=1' : '')">
+      <span class="font-medium">Base interna identificada</span>
+    </label>
+    <p class="text-xs text-loyall-500 mt-1">
+      Cria pessoas consentidas a partir de uma coluna de <strong>email</strong> ou
+      <strong>id_cliente</strong>. Desligado = import normal, sem pessoas.
+    </p>
+    <div id="bloco-interno" class="hidden mt-2 pl-6 space-y-2">
+      <label class="flex items-start gap-2 text-xs text-loyall-600">
+        <input type="checkbox" name="consentimento" value="on" class="mt-0.5">
+        <span>Declaro ter o consentimento dos titulares para tratar estes dados
+          identificados (LGPD).</span>
+      </label>
+      <p class="text-[11px] text-loyall-400">
+        O Excel precisa de uma coluna de email (ou id_cliente). Sem o consentimento,
+        o import interno é bloqueado.
+      </p>
+    </div>
+  </div>
+
   <div class="flex items-center gap-3">
     <button type="submit" name="acao" value="preview"
             class="px-4 py-1.5 rounded border border-loyall-300 hover:bg-loyall-100 text-sm">
       Detectar colunas
     </button>
+    <a id="btn-modelo" href="{{ url_for('ui.modelo_import_verbatins') }}"
+       class="text-sm text-loyall-500 hover:underline">Baixar modelo</a>
     <span class="htmx-indicator text-xs text-loyall-400">processando…</span>
   </div>
 

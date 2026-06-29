@@ -411,6 +411,9 @@ def importar_verbatins():
     if arquivo is None or not arquivo.filename:
         return render_template(part, erro="Selecione um arquivo (.xlsx/.xls/.csv).")
 
+    interno = request.form.get("interno_identificado") in ("on", "1", "true")
+    consentimento = request.form.get("consentimento") in ("on", "1", "true")
+
     suffix = Path(arquivo.filename).suffix
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp_path = Path(tmp.name)
@@ -419,11 +422,17 @@ def importar_verbatins():
         if acao == "confirmar":
             from src.coletor.excel import importar_arquivo
 
-            stats = importar_arquivo(tmp_path, empresa_id=empresa_id, disparar_pos=True)
+            stats = importar_arquivo(
+                tmp_path,
+                empresa_id=empresa_id,
+                disparar_pos=True,
+                interno_identificado=interno,
+                consentimento=consentimento,
+            )
             return render_template(part, stats=stats, empresa_id=empresa_id)
         from src.coletor.excel import prever_arquivo
 
-        preview = prever_arquivo(tmp_path)
+        preview = prever_arquivo(tmp_path, interno_identificado=interno)
         return render_template(
             part, preview=preview, empresa_id=empresa_id, arquivo_nome=arquivo.filename
         )
@@ -431,6 +440,28 @@ def importar_verbatins():
         return render_template(part, erro=str(exc))
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+@ui_bp.route("/importar-verbatins/modelo")
+@loyall_required_ui
+def modelo_import_verbatins():
+    """Baixa um .xlsx de exemplo. ``?interno=1`` inclui as colunas email/id_cliente."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from flask import send_file
+
+    from src.coletor.excel import gerar_modelo_xlsx
+
+    interno = request.args.get("interno") in ("1", "on", "true")
+    bio = gerar_modelo_xlsx(interno_identificado=interno)
+    nome = "modelo_import_interno.xlsx" if interno else "modelo_import.xlsx"
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name=nome,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 def _carregar_detalhe_empresa(empresa_id: int):
