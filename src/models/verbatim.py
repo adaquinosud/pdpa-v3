@@ -59,6 +59,7 @@ class Verbatim(Base):
         Index("idx_verbatins_local", "local_id"),
         Index("idx_verbatins_data", "data_criacao_original"),
         Index("idx_verbatins_classif", "subpilar", "tipo"),
+        Index("idx_verbatins_pessoa", "pessoa_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -69,6 +70,11 @@ class Verbatim(Base):
     fonte_id: Mapped[int] = mapped_column(
         ForeignKey("fontes.id", ondelete="CASCADE"), nullable=False
     )
+    # Eixo individual (frente Pessoa): ADITIVO, nasce NULL em todo verbatim
+    # existente. Coexiste com `autor` (que PERMANECE — load-bearing no dedup do
+    # pipeline); pessoa_id NUNCA substitui autor. SET NULL: apagar a Pessoa não
+    # apaga o verbatim.
+    pessoa_id: Mapped[Optional[int]] = mapped_column(ForeignKey("pessoa.id", ondelete="SET NULL"))
     texto: Mapped[str] = mapped_column(Text, nullable=False)
     autor: Mapped[Optional[str]] = mapped_column(String)
     data_criacao_original: Mapped[Optional[datetime]] = mapped_column(DateTime)

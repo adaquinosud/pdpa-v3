@@ -98,7 +98,17 @@ MANTIDAS = ["empresas", "locais", "locais_metadados", "agrupamentos", "fontes", 
 # Lista EXPLÍCITA para o teste de cobertura: PLANO ∪ MANTIDAS ∪ GLOBAIS_IGNORADAS deve
 # cobrir TODAS as tabelas. Se uma derivada nova surgir e ninguém classificá-la, o teste
 # falha — em vez de o wipe deixar dados órfãos achando que limpou tudo.
-GLOBAIS_IGNORADAS = ["glossario_termo", "classifier_metrics", "eventos_manutencao"]
+# `pessoa`/`pessoa_identificador`: eixo individual, sem empresa_id (acima da linha
+# por-empresa). O wipe apaga os `verbatins` da empresa (PLANO), mas as Pessoas em si
+# são globais e não derivam de uma empresa — limpeza de Pessoa órfã é lifecycle do
+# eixo individual (futuro), não do wipe por cliente.
+GLOBAIS_IGNORADAS = [
+    "glossario_termo",
+    "classifier_metrics",
+    "eventos_manutencao",
+    "pessoa",
+    "pessoa_identificador",
+]
 
 # Pós-check da estrutura: (tabela, where). ``empresas`` filtra por ``id`` (não tem
 # empresa_id); ``locais_metadados`` fica de fora (sem empresa_id — liga via local).

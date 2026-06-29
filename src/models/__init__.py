@@ -29,6 +29,7 @@ from src.models.governanca import (
 )
 from src.models.local import Local, LocalMetadado
 from src.models.pesquisa import Pesquisa, PesquisaPergunta
+from src.models.pessoa import Pessoa, PessoaIdentificador
 from src.models.plano_acao import AcaoStatus
 from src.models.relatorio_cache import RelatorioCache
 from src.models.sugestao_estrutural import SugestaoEstrutural
@@ -70,6 +71,8 @@ __all__ = [
     "LocalMetadado",
     "Pesquisa",
     "PesquisaPergunta",
+    "Pessoa",
+    "PessoaIdentificador",
     "RelatorioCache",
     "SugestaoEstrutural",
     "Tema",
