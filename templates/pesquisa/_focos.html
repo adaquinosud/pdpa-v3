@@ -1,0 +1,40 @@
+{# Focos sugeridos do diagnóstico no escopo atual (P2.D/P2.E). Recalculado por
+   htmx ao trocar o escopo. Card mostra faixa + ratio + mix (prom/conv/det). #}
+{% if focos.fracos %}
+<fieldset class="bg-loyall-50 border border-loyall-100 rounded p-3 mb-2">
+  <legend class="text-sm font-medium px-1">Subpilares fracos (sugeridos)</legend>
+  <div class="space-y-1 text-sm">
+    {% for f in focos.fracos %}
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="subpilares_alvo" value="{{ f.subpilar_alvo }}" checked>
+      <span><strong>{{ f.subpilar_alvo }}</strong> · {{ f.nome }}</span>
+      <span class="text-loyall-400 text-xs">
+        faixa {{ f.faixa }} · ratio {{ "%.2f"|format(f.ratio) }} ·
+        <span class="text-emerald-600">{{ f.prom }}</span>/<span class="text-amber-600">{{ f.conv }}</span>/<span class="text-rose-600">{{ f.det }}</span>
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+</fieldset>
+{% else %}
+<p class="text-xs text-loyall-400 mb-2">Sem subpilares fracos neste escopo — use "Outros subpilares".</p>
+{% endif %}
+
+{% if focos.temas %}
+<fieldset class="bg-loyall-50 border border-loyall-100 rounded p-3">
+  <legend class="text-sm font-medium px-1">Temas sugeridos (do diagnóstico)</legend>
+  <div class="space-y-1 text-sm">
+    {% for t in focos.temas %}
+    <label class="flex items-start gap-2 {% if t.disperso %}text-loyall-400{% endif %}">
+      <input type="checkbox" name="focos_tema" value="{{ t.tema_label }}" class="mt-0.5"
+             {% if not t.disperso %}checked{% endif %}
+             {% if t.disperso %}disabled title="tema espalhado — escolha o subpilar manualmente"{% endif %}>
+      <span><strong>{{ t.tema_label }}</strong>
+        <span class="text-loyall-400 text-xs">· {{ t.justificativa }}</span></span>
+    </label>
+    {% endfor %}
+  </div>
+</fieldset>
+{% elif escopo_tipo == 'local' %}
+<p class="text-xs text-loyall-400">Temas não são quebrados por loja — selecione Agrupamentos ou Empresa para ver temas.</p>
+{% endif %}

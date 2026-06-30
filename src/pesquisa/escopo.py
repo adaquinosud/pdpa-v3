@@ -29,10 +29,10 @@ def _nome_sub(sub: str) -> str:
     return NOME_SUBPILAR.get(sub, sub)
 
 
-def _focos_subpilar(s, empresa_id: int, ag_id, local_id) -> List[Dict[str, Any]]:
+def _focos_subpilar(s, empresa_id: int, local_ids) -> List[Dict[str, Any]]:
     from src.diagnostico.leituras import agregar_subpilares
 
-    agg = agregar_subpilares(s, empresa_id, ag_id=ag_id, local_id=local_id)
+    agg = agregar_subpilares(s, empresa_id, local_ids=local_ids)
     fracos = [
         {
             "tipo": "subpilar",
@@ -40,7 +40,10 @@ def _focos_subpilar(s, empresa_id: int, ag_id, local_id) -> List[Dict[str, Any]]
             "nome": _nome_sub(sub),
             "faixa": d["faixa"],
             "ratio": d["ratio"],
+            "prom": d["prom"],
+            "conv": d["conv"],
             "det": d["det"],
+            "total": d["total"],
             "justificativa": f"ratio {d['ratio']:.2f} ({d['faixa']}), {d['det']} detratores",
         }
         for sub, d in agg.items()
@@ -50,12 +53,14 @@ def _focos_subpilar(s, empresa_id: int, ag_id, local_id) -> List[Dict[str, Any]]
     return fracos
 
 
-def _focos_tema(s, empresa_id: int, ag_id) -> List[Dict[str, Any]]:
-    """Temas principais com subpilar dominante por concentração de detratores."""
+def _focos_tema(s, empresa_id: int, ag_ids) -> List[Dict[str, Any]]:
+    """Temas principais com subpilar dominante por concentração de detratores.
+    ``ag_ids`` (modo agrupamento): TemaCache dos N agrupamentos (mesmo tema_label
+    soma volume). None: nível empresa (agrupamento_id NULL)."""
     q = s.query(TemaCache).filter(TemaCache.empresa_id == empresa_id, TemaCache.tipo == "detrator")
     q = (
-        q.filter(TemaCache.agrupamento_id == ag_id)
-        if ag_id
+        q.filter(TemaCache.agrupamento_id.in_(ag_ids))
+        if ag_ids
         else q.filter(TemaCache.agrupamento_id.is_(None))
     )
     # tema_label → {subpilar: volume detrator}
@@ -95,10 +100,18 @@ def _focos_tema(s, empresa_id: int, ag_id) -> List[Dict[str, Any]]:
 
 
 def sugerir_focos(
-    s, empresa_id: int, *, ag_id: Optional[int] = None, local_id: Optional[int] = None
+    s,
+    empresa_id: int,
+    *,
+    local_ids: Optional[List[int]] = None,
+    ag_ids: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
-    """Devolve ``{fracos, temas, tem_temas}``. ``temas`` vazio (fallback) quando
-    a empresa não tem ``TemaCache`` no escopo (pós-coleta de temas não rodou)."""
-    fracos = _focos_subpilar(s, empresa_id, ag_id, local_id)
-    temas = _focos_tema(s, empresa_id, ag_id)
+    """Devolve ``{fracos, temas, tem_temas}`` no escopo dado (P2.E).
+
+    ``local_ids`` (união de locais do escopo) → fracos via ``agregar_subpilares``
+    (lojas E agrupamentos). ``ag_ids`` → temas via ``TemaCache`` dos agrupamentos
+    (modo agrupamento; lojas passam ``ag_ids=None`` → só fracos, pois o TemaCache
+    não tem grão de loja). Ambos None = empresa toda (comportamento de hoje)."""
+    fracos = _focos_subpilar(s, empresa_id, local_ids)
+    temas = _focos_tema(s, empresa_id, ag_ids)
     return {"fracos": fracos, "temas": temas, "tem_temas": bool(temas)}

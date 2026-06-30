@@ -21,14 +21,21 @@ _FORMATOS = ("aberta", "fechada", "mista")
 
 
 def _opcoes_escopo(
-    s, empresa_id: int, entidade_tipo: Optional[str], entidade_id: Optional[int]
+    s,
+    empresa_id: int,
+    entidade_tipo: Optional[str],
+    entidade_id: Optional[int],
+    local_ids: Optional[List[int]] = None,
 ) -> List[Dict[str, Any]]:
     """Opções de escopo da âncora "qual unidade?" (modo 'geral'). Cada opção
     carrega ``(entidade_tipo, entidade_id)`` — mesmo vocabulário do `Respondente`
-    (P6) — para o submit gravar o escopo direto. Lista os `Local` do escopo; se o
-    escopo é um agrupamento SEM locais, oferece o próprio agrupamento."""
+    (P6) — para o submit gravar o escopo direto. Lista os `Local` do escopo;
+    ``local_ids`` (P2.E) restringe à união de locais do escopo; se o escopo é um
+    agrupamento SEM locais, oferece o próprio agrupamento."""
     q = s.query(Local).filter(Local.empresa_id == empresa_id)
-    if entidade_tipo == "agrupamento" and entidade_id is not None:
+    if local_ids is not None:
+        q = q.filter(Local.id.in_(local_ids))
+    elif entidade_tipo == "agrupamento" and entidade_id is not None:
         q = q.filter(Local.agrupamento_id == entidade_id)
     locais = q.order_by(Local.nome).all()
     if locais:
@@ -124,6 +131,7 @@ def gerar_pesquisa(
     canal: Optional[str] = None,
     anonima: bool = False,
     focos: Optional[List[Dict[str, Any]]] = None,
+    local_ids: Optional[List[int]] = None,
     gerar_fn: Optional[Callable[[str, str], Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Gera uma proposta de pesquisa (não persistida) já validada.
@@ -141,12 +149,12 @@ def gerar_pesquisa(
 
         gerar_fn = gerar_via_llm
 
-    topicos = topicos_saneados(s, empresa_id, subpilares_alvo)
+    topicos = topicos_saneados(s, empresa_id, subpilares_alvo, local_ids)
     system = REGUA_GUIA
     user = _montar_user_prompt(topicos, natureza, n_perguntas, escopo_local_modo, focos)
 
     opcoes_escopo = (
-        _opcoes_escopo(s, empresa_id, entidade_tipo, entidade_id)
+        _opcoes_escopo(s, empresa_id, entidade_tipo, entidade_id, local_ids)
         if escopo_local_modo == "geral"
         else None
     )

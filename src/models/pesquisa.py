@@ -20,6 +20,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -78,6 +79,9 @@ class Pesquisa(Base):
         cascade="all, delete-orphan",
         order_by="PesquisaPergunta.ordem",
     )
+    escopos: Mapped[List["PesquisaEscopo"]] = relationship(
+        "PesquisaEscopo", back_populates="pesquisa", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Pesquisa {self.id} {self.natureza} {self.titulo!r}>"
@@ -114,3 +118,29 @@ class PesquisaPergunta(Base):
 
     def __repr__(self) -> str:
         return f"<PesquisaPergunta {self.id} p{self.pesquisa_id} #{self.ordem}>"
+
+
+class PesquisaEscopo(Base):
+    """Alvo do escopo de uma pesquisa (P2.E) — N por pesquisa, todos do MESMO tipo.
+
+    O TIPO mora em ``Pesquisa.entidade_tipo`` (local|agrupamento); aqui ficam só
+    os ``entidade_id``. Sem coluna de tipo nesta tabela = impossível misturar
+    loja+agrupamento numa mesma pesquisa (garantia estrutural, sem trigger).
+    """
+
+    __tablename__ = "pesquisa_escopos"
+    __table_args__ = (
+        UniqueConstraint("pesquisa_id", "entidade_id", name="uq_pesquisa_escopo"),
+        Index("idx_pesquisa_escopos_pesquisa", "pesquisa_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pesquisa_id: Mapped[int] = mapped_column(
+        ForeignKey("pesquisas.id", ondelete="CASCADE"), nullable=False
+    )
+    entidade_id: Mapped[int] = mapped_column(Integer, nullable=False)  # local OU agrupamento
+
+    pesquisa: Mapped["Pesquisa"] = relationship("Pesquisa", back_populates="escopos")
+
+    def __repr__(self) -> str:
+        return f"<PesquisaEscopo p{self.pesquisa_id} ent={self.entidade_id}>"

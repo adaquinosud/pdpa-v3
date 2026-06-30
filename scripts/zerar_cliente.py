@@ -94,6 +94,7 @@ PLANO: list[tuple[str, str, str]] = [
     ("respostas de pesquisa", "resposta", _FILHO_RESPONDENTE),
     ("respondentes", "respondente", _FILHO_PESQUISAS),
     ("perguntas de pesquisa", "pesquisa_perguntas", _FILHO_PESQUISAS),
+    ("escopos de pesquisa", "pesquisa_escopos", _FILHO_PESQUISAS),
     ("pesquisas", "pesquisas", _DIRETO),
     ("verbatins", "verbatins", _DIRETO),
 ]

@@ -37,12 +37,36 @@ def _int(v):
         return None
 
 
+def _resolver_escopo(s, empresa_id, escopo_tipo, escopo_ids):
+    """(escopo_tipo, [ids]) → (local_ids, ag_ids) p/ a agregação multi-alvo (P2.E).
+
+    lojas → local_ids = os ids, sem temas. agrupamentos → ag_ids = os ids +
+    local_ids = união dos locais deles (fracos). empresa/sem seleção → (None, None)."""
+    from src.models.local import Local
+
+    if escopo_tipo == "local" and escopo_ids:
+        return list(escopo_ids), None
+    if escopo_tipo == "agrupamento" and escopo_ids:
+        local_ids = [
+            row[0]
+            for row in s.query(Local.id).filter(
+                Local.empresa_id == empresa_id, Local.agrupamento_id.in_(escopo_ids)
+            )
+        ]
+        return local_ids, list(escopo_ids)
+    return None, None  # empresa toda
+
+
 @ui_bp.route("/empresas/<int:empresa_id>/pesquisas")
 @loyall_required_ui
 def pesquisas_lista(empresa_id):
     r = _require_loyall_html()
     if r:
         return r
+    from src.models.agrupamento import Agrupamento
+    from src.models.local import Local
+    from src.pesquisa.escopo import sugerir_focos
+
     with db_session() as s:
         empresa = s.get(Empresa, empresa_id)
         if empresa is None:
@@ -52,12 +76,19 @@ def pesquisas_lista(empresa_id):
             for p in listar(s, empresa_id)
         ]
         nome = empresa.nome
-        from src.pesquisa.escopo import sugerir_focos
-
-        focos = sugerir_focos(s, empresa_id)  # P2.D — assistente de escopo
+        focos = sugerir_focos(s, empresa_id)  # inicial: empresa toda; htmx recalcula
+        agrupamentos = [
+            (a.id, a.nome)
+            for a in s.query(Agrupamento)
+            .filter_by(empresa_id=empresa_id)
+            .order_by(Agrupamento.nome)
+        ]
+        locais = [
+            (loc.id, loc.nome)
+            for loc in s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome)
+        ]
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
 
-    fracos = {f["subpilar_alvo"]: f["justificativa"] for f in focos["fracos"]}
     subpilares = [(sp, NOME_SUBPILAR.get(sp, sp)) for sp in SUBPILARES_ORDEM]
     return render_template(
         "pesquisa/lista.html",
@@ -65,10 +96,28 @@ def pesquisas_lista(empresa_id):
         empresa_nome=nome,
         pesquisas=pesquisas,
         subpilares=subpilares,
-        fracos=fracos,
-        temas_sugeridos=focos["temas"],
-        tem_temas=focos["tem_temas"],
+        focos=focos,
+        agrupamentos=agrupamentos,
+        locais=locais,
     )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/focos")
+@loyall_required_ui
+def pesquisa_focos(empresa_id):
+    """Partial htmx (P2.E): recalcula os focos para o escopo selecionado, sem
+    recarregar. Lojas → só fracos; agrupamentos → fracos + temas; empresa → tudo."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.pesquisa.escopo import sugerir_focos
+
+    escopo_tipo = (request.args.get("escopo_tipo") or "empresa").strip()
+    escopo_ids = [int(x) for x in request.args.getlist(f"escopo_ids_{escopo_tipo}") if x.isdigit()]
+    with db_session() as s:
+        local_ids, ag_ids = _resolver_escopo(s, empresa_id, escopo_tipo, escopo_ids)
+        focos = sugerir_focos(s, empresa_id, local_ids=local_ids, ag_ids=ag_ids)
+    return render_template("pesquisa/_focos.html", focos=focos, escopo_tipo=escopo_tipo)
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/pesquisas/gerar", methods=["POST"])
@@ -79,10 +128,13 @@ def pesquisa_gerar(empresa_id):
         return r
     natureza = (request.form.get("natureza") or "externa").strip()
     titulo = (request.form.get("titulo") or "").strip()
-    escopo_local_modo = (request.form.get("escopo_local_modo") or "local").strip()
     n_perguntas = _int(request.form.get("n_perguntas")) or 5
-    subpilares = [s for s in request.form.getlist("subpilares_alvo") if s]
+    # dedup: o mesmo subpilar pode vir do card de foco E da lista manual.
+    subpilares = list(dict.fromkeys(s for s in request.form.getlist("subpilares_alvo") if s))
     temas_sel = [t for t in request.form.getlist("focos_tema") if t]  # tema_labels marcados
+    # P2.E: escopo = empresa | agrupamento | local (um tipo, N ids).
+    escopo_tipo = (request.form.get("escopo_tipo") or "empresa").strip()
+    escopo_ids = [int(x) for x in request.form.getlist(f"escopo_ids_{escopo_tipo}") if x.isdigit()]
 
     user = get_current_user()
     # A geração chama o LLM (rede). Qualquer falha (modelo/credencial/quota/parse)
@@ -90,13 +142,21 @@ def pesquisa_gerar(empresa_id):
     # pro log (current_app.logger) — diagnosticável no painel do Render.
     try:
         with db_session() as s:
-            # P2.D: resolve os focos-tema marcados → contexto (dominante + secundários);
-            # o subpilar dominante de cada tema entra em subpilares_alvo (união limpa).
+            from src.models.pesquisa import PesquisaEscopo
+            from src.pesquisa.escopo import sugerir_focos
+
+            local_ids, ag_ids = _resolver_escopo(s, empresa_id, escopo_tipo, escopo_ids)
+            ent_tipo = escopo_tipo if (escopo_tipo != "empresa" and escopo_ids) else "empresa"
+            # âncora "qual unidade?" só faz sentido se o escopo tem >1 unidade.
+            escopo_local_modo = (
+                "local" if (ent_tipo == "local" and len(escopo_ids) == 1) else "geral"
+            )
+
+            # Focos-tema marcados → contexto (dominante + secundários), no MESMO escopo.
             focos = []
             if temas_sel:
-                from src.pesquisa.escopo import sugerir_focos
-
-                por_label = {f["tema_label"]: f for f in sugerir_focos(s, empresa_id)["temas"]}
+                temas = sugerir_focos(s, empresa_id, local_ids=local_ids, ag_ids=ag_ids)["temas"]
+                por_label = {f["tema_label"]: f for f in temas}
                 for label in temas_sel:
                     f = por_label.get(label)
                     if f and f.get("subpilar_alvo"):  # disperso (sem dominante) não entra
@@ -113,10 +173,16 @@ def pesquisa_gerar(empresa_id):
                 subpilares_alvo=subpilares,
                 n_perguntas=n_perguntas,
                 titulo=titulo,
+                entidade_tipo=ent_tipo,
                 escopo_local_modo=escopo_local_modo,
                 focos=focos,
+                local_ids=local_ids,
             )
             pesquisa_id = criar_rascunho(s, proposta, criada_por=getattr(user, "id", None))
+            # Junção: N alvos do MESMO tipo (o tipo vive em Pesquisa.entidade_tipo).
+            if ent_tipo != "empresa":
+                for eid in escopo_ids:
+                    s.add(PesquisaEscopo(pesquisa_id=pesquisa_id, entidade_id=eid))
     except Exception:  # noqa: BLE001 — falha de LLM/infra não pode virar 500 cru
         current_app.logger.exception("falha ao gerar pesquisa (empresa=%s)", empresa_id)
         flash(

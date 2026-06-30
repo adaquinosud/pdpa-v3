@@ -8,21 +8,23 @@ sanitização é explícita e testável.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
-def topicos_saneados(s, empresa_id: int, subpilares_alvo: List[str]) -> List[Dict[str, Any]]:
+def topicos_saneados(
+    s, empresa_id: int, subpilares_alvo: List[str], local_ids: Optional[List[int]] = None
+) -> List[Dict[str, Any]]:
     """Lista de tópicos neutros para os ``subpilares_alvo`` pedidos.
 
     Cada item: ``{"subpilar", "nome", "pilar"}`` — **sem** ratio/faixa/direção.
     Lê ``agregar_subpilares`` apenas para registrar quais têm dado no escopo
     (``tem_dado``), descartando todo o resto. Subpilar pedido sem dado ainda
-    entra como tópico (a escolha é do usuário).
-    """
+    entra como tópico (a escolha é do usuário). ``local_ids`` (P2.E) restringe o
+    ``tem_dado`` ao escopo selecionado; None = empresa toda."""
     from src.api.painel import NOME_SUBPILAR, PILAR_DE_SUBPILAR
     from src.diagnostico.leituras import agregar_subpilares
 
-    agg = agregar_subpilares(s, empresa_id)  # tem ratio/faixa — DESCARTADOS aqui
+    agg = agregar_subpilares(s, empresa_id, local_ids=local_ids)  # ratio/faixa DESCARTADOS
     topicos: List[Dict[str, Any]] = []
     for sub in subpilares_alvo:
         topicos.append(

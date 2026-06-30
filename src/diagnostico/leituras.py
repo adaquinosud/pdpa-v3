@@ -41,6 +41,7 @@ def agregar_subpilares(
     local_id: Optional[int] = None,
     *,
     so_texto: bool = False,
+    local_ids: Optional[List[int]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Mix prom/conv/det + ratio + faixa por subpilar, no escopo (empresa,
     agrupamento ou loja). ``local_id`` set ⟹ escopo loja (tem precedência).
@@ -62,7 +63,11 @@ def agregar_subpilares(
     )
     if so_texto:
         q = q.filter(Verbatim.tem_texto.is_(True))
-    if local_id is not None:
+    # P2.E: escopo multi-alvo = união de locais (1 query IN; o ratio é recomputado
+    # dos counts somados, NUNCA somando ratios). Precedência sobre local_id/ag_id.
+    if local_ids is not None:
+        q = q.filter(Verbatim.local_id.in_(local_ids))
+    elif local_id is not None:
         q = q.filter(Verbatim.local_id == local_id)
     elif ag_id is not None:
         q = q.filter(Verbatim.local_id.in_(_locais_do_agrupamento(s, empresa_id, ag_id)))
