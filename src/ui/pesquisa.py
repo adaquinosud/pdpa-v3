@@ -52,8 +52,12 @@ def pesquisas_lista(empresa_id):
             for p in listar(s, empresa_id)
         ]
         nome = empresa.nome
+        from src.pesquisa.escopo import sugerir_focos
+
+        focos = sugerir_focos(s, empresa_id)  # P2.D — assistente de escopo
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
 
+    fracos = {f["subpilar_alvo"]: f["justificativa"] for f in focos["fracos"]}
     subpilares = [(sp, NOME_SUBPILAR.get(sp, sp)) for sp in SUBPILARES_ORDEM]
     return render_template(
         "pesquisa/lista.html",
@@ -61,6 +65,9 @@ def pesquisas_lista(empresa_id):
         empresa_nome=nome,
         pesquisas=pesquisas,
         subpilares=subpilares,
+        fracos=fracos,
+        temas_sugeridos=focos["temas"],
+        tem_temas=focos["tem_temas"],
     )
 
 
@@ -75,12 +82,26 @@ def pesquisa_gerar(empresa_id):
     escopo_local_modo = (request.form.get("escopo_local_modo") or "local").strip()
     n_perguntas = _int(request.form.get("n_perguntas")) or 5
     subpilares = [s for s in request.form.getlist("subpilares_alvo") if s]
-    if not subpilares:
-        flash("Escolha ao menos um subpilar-alvo.", "erro")
-        return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
+    temas_sel = [t for t in request.form.getlist("focos_tema") if t]  # tema_labels marcados
 
     user = get_current_user()
     with db_session() as s:
+        # P2.D: resolve os focos-tema marcados → contexto (dominante + secundários);
+        # o subpilar dominante de cada tema entra em subpilares_alvo (união limpa).
+        focos = []
+        if temas_sel:
+            from src.pesquisa.escopo import sugerir_focos
+
+            por_label = {f["tema_label"]: f for f in sugerir_focos(s, empresa_id)["temas"]}
+            for label in temas_sel:
+                f = por_label.get(label)
+                if f and f.get("subpilar_alvo"):  # disperso (sem dominante) não entra
+                    focos.append(f)
+                    if f["subpilar_alvo"] not in subpilares:
+                        subpilares.append(f["subpilar_alvo"])
+        if not subpilares:
+            flash("Escolha ao menos um subpilar-alvo ou um tema com foco.", "erro")
+            return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
         proposta = gerar_pesquisa(
             s,
             empresa_id,
@@ -89,6 +110,7 @@ def pesquisa_gerar(empresa_id):
             n_perguntas=n_perguntas,
             titulo=titulo,
             escopo_local_modo=escopo_local_modo,
+            focos=focos,
         )
         pesquisa_id = criar_rascunho(s, proposta, criada_por=getattr(user, "id", None))
     return redirect(url_for("ui.pesquisa_revisar", pesquisa_id=pesquisa_id))

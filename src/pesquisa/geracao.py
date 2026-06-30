@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from src.models.agrupamento import Agrupamento
 from src.models.local import Local
-from src.pesquisa.contexto import render_contexto, topicos_saneados
+from src.pesquisa.contexto import render_contexto, render_focos, topicos_saneados
 from src.pesquisa.regua import FORMATO_SAIDA, REGUA_GUIA
 from src.pesquisa.validador import validar_perguntas
 
@@ -61,17 +61,21 @@ def _ancora_unidade(opcoes_escopo: Optional[List[Dict[str, Any]]] = None) -> Dic
     }
 
 
-def _montar_user_prompt(topicos, natureza: str, n_perguntas: int, escopo_local_modo: str) -> str:
+def _montar_user_prompt(
+    topicos, natureza: str, n_perguntas: int, escopo_local_modo: str, focos=None
+) -> str:
     publico = "colaboradores (autopercepção do time)" if natureza == "interna" else "clientes"
     nota_ancora = ""
     if escopo_local_modo == "geral":
         nota_ancora = (
             "\nO sistema adicionará automaticamente uma pergunta-âncora de unidade; " "não a gere."
         )
+    bloco_focos = render_focos(focos)
+    bloco_focos = f"\n{bloco_focos}\n" if bloco_focos else ""
     return (
         f"Gere {n_perguntas} pergunta(s) de pesquisa para {publico}.\n"
         f"Tópicos (subpilares) a cobrir:\n{render_contexto(topicos)}\n"
-        f"{nota_ancora}\n\n{FORMATO_SAIDA}"
+        f"{bloco_focos}{nota_ancora}\n\n{FORMATO_SAIDA}"
     )
 
 
@@ -119,6 +123,7 @@ def gerar_pesquisa(
     escopo_local_modo: str = "local",
     canal: Optional[str] = None,
     anonima: bool = False,
+    focos: Optional[List[Dict[str, Any]]] = None,
     gerar_fn: Optional[Callable[[str, str], Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Gera uma proposta de pesquisa (não persistida) já validada.
@@ -138,7 +143,7 @@ def gerar_pesquisa(
 
     topicos = topicos_saneados(s, empresa_id, subpilares_alvo)
     system = REGUA_GUIA
-    user = _montar_user_prompt(topicos, natureza, n_perguntas, escopo_local_modo)
+    user = _montar_user_prompt(topicos, natureza, n_perguntas, escopo_local_modo, focos)
 
     opcoes_escopo = (
         _opcoes_escopo(s, empresa_id, entidade_tipo, entidade_id)
