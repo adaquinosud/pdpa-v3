@@ -11,6 +11,17 @@
     {{ "anônima" if ret.pesquisa.anonima else "identificada" }}
   </p>
 
+  {# 5a — classificar os comentários do confronto (lote, sob demanda). Não cria
+     Verbatim; classifica na própria Resposta. #}
+  {% if ret.pesquisa.proposito == 'confronto' %}
+  <form method="post" action="{{ url_for('ui.pesquisa_classificar_respostas', pesquisa_id=ret.pesquisa.id) }}"
+        class="mt-2">
+    <button class="text-xs px-3 py-1 rounded border border-loyall-300 hover:bg-loyall-100">
+      Classificar comentários (confronto)
+    </button>
+  </form>
+  {% endif %}
+
   {# Filtro de escopo — só se houver mais de um escopo presente #}
   {% if ret.escopos|length > 1 %}
   <form method="get" class="mt-3 flex items-center gap-2 text-sm">

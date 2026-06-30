@@ -233,3 +233,25 @@ def pesquisa_respostas(pesquisa_id):
         if ret is None:
             return render_template("404.html"), 404
     return render_template("pesquisa/respostas.html", ret=ret, escopo_sel=(et, eid))
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/classificar-respostas", methods=["POST"])
+@loyall_required_ui
+def pesquisa_classificar_respostas(pesquisa_id):
+    """Dispara a classificação EM LOTE das Respostas de confronto (Fase 2 · 5a).
+    Classifica na própria Resposta — NUNCA cria Verbatim, base do cliente intocada."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.pesquisa.confronto import classificar_respostas_confronto
+
+    with db_session() as s:
+        if obter(s, pesquisa_id) is None:
+            return render_template("404.html"), 404
+        stats = classificar_respostas_confronto(s, pesquisa_id=pesquisa_id)
+    flash(
+        f"Classificadas {stats['classificadas']} resposta(s) "
+        f"({stats['erros']} erro(s), {stats['puladas']} puladas).",
+        "ok",
+    )
+    return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))

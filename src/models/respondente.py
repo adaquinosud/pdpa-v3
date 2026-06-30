@@ -19,6 +19,7 @@ from typing import List, Optional
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -76,6 +77,12 @@ class Resposta(Base):
     __tablename__ = "resposta"
     __table_args__ = (
         UniqueConstraint("respondente_id", "pergunta_id", name="uq_resposta_respondente_pergunta"),
+        # Valência classificada (Fase 2 · 5a) — mesmo vocabulário do Verbatim.
+        CheckConstraint(
+            "valencia_classificada IS NULL OR valencia_classificada IN "
+            "('promotor','conversivel','detrator','inativo')",
+            name="ck_resposta_valencia",
+        ),
         Index("idx_resposta_respondente", "respondente_id"),
         Index("idx_resposta_pergunta", "pergunta_id"),
     )
@@ -91,6 +98,14 @@ class Resposta(Base):
     valor_nota: Mapped[Optional[int]] = mapped_column(Integer)
     valor_opcao: Mapped[Optional[str]] = mapped_column(String)
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Classificação do comentário (Fase 2 · 5a) — MESMO crivo dos verbatins, mas
+    # MANTIDA aqui (espaço de Resposta); NUNCA vira Verbatim, NUNCA toca o ratio do
+    # cliente (fronteira por ausência de ponte). `classificar()` é função pura.
+    subpilar_classificado: Mapped[Optional[str]] = mapped_column(String)
+    valencia_classificada: Mapped[Optional[str]] = mapped_column(String)
+    confianca_classificacao: Mapped[Optional[float]] = mapped_column(Float)
+    classificado_em: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    prompt_versao: Mapped[Optional[str]] = mapped_column(String)
 
     respondente: Mapped["Respondente"] = relationship("Respondente", back_populates="respostas")
 
