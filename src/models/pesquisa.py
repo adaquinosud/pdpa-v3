@@ -33,6 +33,7 @@ class Pesquisa(Base):
     __tablename__ = "pesquisas"
     __table_args__ = (
         CheckConstraint("natureza IN ('externa','interna')", name="ck_pesquisas_natureza"),
+        CheckConstraint("proposito IN ('coleta','confronto')", name="ck_pesquisas_proposito"),
         CheckConstraint(
             "escopo_local_modo IN ('local','geral')",
             name="ck_pesquisas_escopo_local_modo",
@@ -47,6 +48,10 @@ class Pesquisa(Base):
         ForeignKey("empresas.id", ondelete="CASCADE"), nullable=False
     )
     natureza: Mapped[str] = mapped_column(String, nullable=False)  # externa|interna
+    # Propósito decide o DESTINO da resposta (Fase 2): 'coleta' → Verbatim (balaio);
+    # 'confronto' → Resposta estruturada (resposta↔pergunta). Livre vs natureza (a UI
+    # orienta o caso comum confronto↔interna; o banco não amarra).
+    proposito: Mapped[str] = mapped_column(String, nullable=False, default="coleta")
     titulo: Mapped[str] = mapped_column(String, nullable=False)
     objetivo: Mapped[Optional[str]] = mapped_column(Text)  # justificativa âncora
     # Escopo da pesquisa (resolve o local_id dos verbatins na Fase 2). Modo 'local'

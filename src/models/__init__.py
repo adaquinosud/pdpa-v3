@@ -31,6 +31,7 @@ from src.models.local import Local, LocalMetadado
 from src.models.pesquisa import Pesquisa, PesquisaPergunta
 from src.models.pessoa import Pessoa, PessoaIdentificador
 from src.models.plano_acao import AcaoStatus
+from src.models.respondente import Respondente, Resposta
 from src.models.relatorio_cache import RelatorioCache
 from src.models.sugestao_estrutural import SugestaoEstrutural
 from src.models.temas import (
@@ -74,6 +75,8 @@ __all__ = [
     "Pessoa",
     "PessoaIdentificador",
     "RelatorioCache",
+    "Respondente",
+    "Resposta",
     "SugestaoEstrutural",
     "Tema",
     "TemaCache",

@@ -177,7 +177,8 @@ Respondente
   id, pesquisa_id,
   pessoa_id (FK → Pessoa; a identidade vive na entidade Pessoa, NUNCA inline aqui):
     anônimo → sem Pessoa, ou Pessoa tokenizada (sem PII); identificado → Pessoa real,
-  local_id (quando a pesquisa exige a âncora "qual loja"), criado_em
+  entidade_tipo/entidade_id (escopo do respondente — mesmo vocabulário da Pesquisa:
+    local|agrupamento|empresa; a âncora "qual unidade?" resolve por respondente), criado_em
 
 Resposta            # fonte da verdade; 1 por (respondente, pergunta)
   id, pesquisa_id, pergunta_id, respondente_id,
