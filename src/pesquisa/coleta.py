@@ -28,6 +28,7 @@ def registrar_respostas(
     escopo: Tuple[str, Optional[int]],
     pessoa_id: Optional[int],
     respostas: List[Dict[str, Any]],
+    conector: str = "pesquisa_web",
 ) -> Respondente:
     """Cria o Respondente + grava as respostas pelo propósito da pesquisa.
 
@@ -37,6 +38,8 @@ def registrar_respostas(
         pessoa_id: Pessoa identificada (opt-in) ou ``None`` (anônimo).
         respostas: lista de ``{pergunta_id, texto?, nota?, opcao?}`` — só as
             perguntas de conteúdo (a âncora de unidade já foi consumida no escopo).
+        conector: conector da fonte no destino coleta (``pesquisa_web`` p/ o canal
+            web; ``pesquisa_excel`` p/ o import de respostas). Separa o regime na origem.
     """
     entidade_tipo, entidade_id = escopo
     respondente = Respondente(
@@ -60,7 +63,7 @@ def registrar_respostas(
                 )
             )
     else:  # 'coleta' → Verbatim (alimenta o diagnóstico)
-        _gravar_verbatins(s, pesquisa, respondente, pessoa_id, respostas)
+        _gravar_verbatins(s, pesquisa, respondente, pessoa_id, respostas, conector)
 
     s.flush()
     return respondente
@@ -72,6 +75,7 @@ def _gravar_verbatins(
     respondente: Respondente,
     pessoa_id: Optional[int],
     respostas: List[Dict[str, Any]],
+    conector: str,
 ) -> None:
     """Cada resposta com texto e/ou nota vira um Verbatim (reusa fonte + hash do
     importador). Fonte 'pesquisa_web' separa o regime na origem; pessoa_id é
@@ -90,7 +94,7 @@ def _gravar_verbatins(
         pesquisa.empresa_id,
         f"Pesquisa — {pesquisa.titulo}",
         cache_fonte,
-        conector_tipo="pesquisa_web",
+        conector_tipo=conector,
         autenticacao_tipo="autenticada",
     )
 

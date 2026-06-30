@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block titulo %}Importar respostas{% endblock %}
+{% block conteudo %}
+<div class="mb-4 max-w-2xl">
+  <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
+  <h1 class="text-2xl font-semibold mt-1">Importar respostas de pesquisa</h1>
+  <p class="text-sm text-loyall-500 mt-1">
+    Para uma pesquisa que saiu por WhatsApp/outro meio e voltou em planilha (1 linha por
+    respondente, 1 coluna por pergunta). Escolha a pesquisa, baixe o modelo e suba as respostas.
+    Diferente do import de verbatins.
+  </p>
+</div>
+
+<form id="form-resp"
+      class="max-w-2xl bg-white border border-loyall-200 rounded p-4 space-y-4"
+      hx-post="{{ url_for('ui.importar_respostas') }}"
+      hx-target="#resultado" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+  <div>
+    <label class="block text-xs font-medium text-loyall-600 mb-1">Pesquisa*</label>
+    <select name="pesquisa_id" required id="sel-pesquisa"
+            onchange="document.getElementById('btn-modelo-resp').href='{{ url_for('ui.modelo_importar_respostas') }}?pesquisa_id='+this.value"
+            class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+      <option value="">Selecione…</option>
+      {% for p in pesquisas %}<option value="{{ p.id }}">{{ p.rotulo }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-loyall-600 mb-1">Arquivo (.xlsx / .xls / .csv)*</label>
+    <input type="file" name="arquivo" accept=".xlsx,.xls,.csv" required class="block w-full text-sm">
+  </div>
+  <div>
+    <label class="flex items-start gap-2 text-xs text-loyall-600">
+      <input type="checkbox" name="consentimento" value="on" class="mt-0.5">
+      <span>Declaro ter o consentimento dos titulares (obrigatório se a pesquisa for identificada).</span>
+    </label>
+  </div>
+  <div class="flex items-center gap-3">
+    <button type="submit" name="acao" value="confirmar"
+            class="px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
+      Importar respostas
+    </button>
+    <a id="btn-modelo-resp" href="#"
+       class="text-sm text-loyall-500 hover:underline">Baixar modelo</a>
+    <span class="htmx-indicator text-xs text-loyall-400">processando…</span>
+  </div>
+
+  <div id="resultado" class="pt-1"></div>
+</form>
+{% endblock %}

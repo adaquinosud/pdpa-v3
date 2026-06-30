@@ -1,0 +1,21 @@
+{# Resultado do import de respostas: erro | stats. Renderizado em #resultado. #}
+{% if erro %}
+  <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 text-sm">{{ erro }}</div>
+
+{% elif stats is defined and stats %}
+  {% if stats.erros_validacao %}
+    <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 text-sm">
+      {% for e in stats.erros_validacao %}{{ e }}<br>{% endfor %}
+    </div>
+  {% else %}
+  <div class="bg-white border border-loyall-200 rounded p-4 text-sm">
+    <p class="font-medium text-emerald-700 mb-2">Respostas importadas.</p>
+    <ul class="space-y-1 text-loyall-700">
+      <li><strong>{{ stats.respondentes }}</strong> respondentes · {{ stats.respostas }} respostas</li>
+      <li>{{ stats.ignorados }} linha(s) ignorada(s) (sem resposta)</li>
+      {% if stats.sem_identidade %}<li>{{ stats.sem_identidade }} sem identidade</li>{% endif %}
+      {% if stats.erros %}<li class="text-rose-600">{{ stats.erros }} com erro de linha</li>{% endif %}
+    </ul>
+  </div>
+  {% endif %}
+{% endif %}

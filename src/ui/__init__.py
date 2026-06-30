@@ -525,6 +525,94 @@ def pesquisa_publica(token):
     return render_template(tmpl, obrigado=True)
 
 
+def _pesquisas_prontas_opcoes(s):
+    """Pesquisas publicadas (com perguntas) p/ o dropdown do import de respostas."""
+    from src.models.pesquisa import Pesquisa
+
+    out = []
+    rows = (
+        s.query(Pesquisa, Empresa.nome)
+        .join(Empresa, Empresa.id == Pesquisa.empresa_id)
+        .filter(Pesquisa.status == "pronta")
+        .order_by(Empresa.nome, Pesquisa.titulo)
+        .all()
+    )
+    for p, emp_nome in rows:
+        if p.perguntas:
+            out.append(SimpleNamespace(id=p.id, rotulo=f"{emp_nome} — {p.titulo}"))
+    return out
+
+
+@ui_bp.route("/importar-respostas", methods=["GET", "POST"])
+@loyall_required_ui
+def importar_respostas():
+    """Import WIDE de respostas de pesquisa (Fase 2 · Passo 3a) — keyed à pesquisa.
+    Fluxo separado do import de verbatins."""
+    r = _require_loyall_html()
+    if r:
+        return r
+
+    import tempfile
+    from pathlib import Path
+
+    with db_session() as s:
+        pesquisas = _pesquisas_prontas_opcoes(s)
+    if request.method == "GET":
+        return render_template("empresas/importar_respostas.html", pesquisas=pesquisas)
+
+    part = "partials/importar_respostas_resultado.html"
+    pesquisa_id_raw = request.form.get("pesquisa_id", "")
+    if not pesquisa_id_raw.isdigit():
+        return render_template(part, erro="Selecione a pesquisa.")
+    pesquisa_id = int(pesquisa_id_raw)
+    arquivo = request.files.get("arquivo")
+    if arquivo is None or not arquivo.filename:
+        return render_template(part, erro="Selecione um arquivo (.xlsx/.xls/.csv).")
+    consentimento = request.form.get("consentimento") in ("on", "1", "true")
+
+    suffix = Path(arquivo.filename).suffix
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        arquivo.save(str(tmp_path))
+        from src.pesquisa.coleta_excel import importar_respostas as _importar
+
+        stats = _importar(tmp_path, pesquisa_id, consentimento=consentimento)
+        return render_template(part, stats=stats)
+    except (FileNotFoundError, ValueError) as exc:
+        return render_template(part, erro=str(exc))
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@ui_bp.route("/importar-respostas/modelo")
+@loyall_required_ui
+def modelo_importar_respostas():
+    """Baixa o modelo .xlsx das colunas (perguntas) da pesquisa escolhida."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from flask import send_file
+
+    from src.models.pesquisa import Pesquisa
+    from src.pesquisa.coleta_excel import gerar_modelo_respostas_xlsx
+
+    pid = request.args.get("pesquisa_id", "")
+    if not pid.isdigit():
+        return render_template("404.html"), 404
+    with db_session() as s:
+        pesq = s.get(Pesquisa, int(pid))
+        if pesq is None:
+            return render_template("404.html"), 404
+        bio = gerar_modelo_respostas_xlsx(pesq)
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name=f"modelo_respostas_{pid}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 def _carregar_detalhe_empresa(empresa_id: int):
     """Carrega empresa + estrutura hierárquica + stats para o detalhe.
 
