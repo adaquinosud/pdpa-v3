@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block titulo %}Confronto — {{ titulo }}{% endblock %}
+
+{# Badge de valência (paleta de faixa/valência reusada). #}
+{% macro val_badge(v) %}
+  {% set cor = {'promotor':'bg-emerald-100 text-emerald-700',
+                'conversivel':'bg-amber-100 text-amber-700',
+                'detrator':'bg-rose-100 text-rose-700'} %}
+  {% if v %}<span class="px-2 py-0.5 rounded text-xs {{ cor.get(v,'bg-loyall-100 text-loyall-600') }}">{{ v }}</span>
+  {% else %}<span class="text-loyall-300 text-xs">—</span>{% endif %}
+{% endmacro %}
+
+{% block conteudo %}
+<div class="max-w-3xl">
+  <a href="{{ url_for('ui.pesquisa_respostas', pesquisa_id=pesquisa_id) }}"
+     class="text-sm text-loyall-400 hover:underline">← Respostas</a>
+  <h1 class="text-2xl font-semibold mt-1">Confronto — {{ titulo }}</h1>
+  <p class="text-sm text-loyall-500 mt-1">Cliente × colaborador, por subpilar.</p>
+
+  {% if pendentes %}
+  {# T3 — não mostrar gap falso: há comentários por classificar. #}
+  <div class="mt-4 bg-amber-50 border border-amber-200 text-amber-800 rounded p-4 text-sm">
+    <p><strong>{{ pendentes }}</strong> comentário(s) ainda não classificado(s).
+       Classifique antes de ver o confronto (senão o lado do colaborador fica vazio).</p>
+    <form method="post" class="mt-2"
+          action="{{ url_for('ui.pesquisa_classificar_respostas', pesquisa_id=pesquisa_id) }}">
+      <button class="text-xs px-3 py-1 rounded bg-loyall-700 text-loyall-50 hover:bg-loyall-600">
+        Classificar comentários agora
+      </button>
+    </form>
+  </div>
+
+  {% else %}
+  {% if escopos|length > 1 %}
+  <div class="mt-3 flex flex-wrap gap-2 text-xs">
+    <span class="text-loyall-500">Escopo:</span>
+    <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
+       class="hover:underline {% if not escopo_sel[0] %}font-semibold text-loyall-700{% else %}text-loyall-500{% endif %}">Todos</a>
+    {% for e in escopos %}
+    <a href="?entidade_tipo={{ e.entidade_tipo }}&entidade_id={{ e.entidade_id if e.entidade_id is not none else '' }}"
+       class="hover:underline {% if escopo_sel[0] == e.entidade_tipo and escopo_sel[1] == e.entidade_id %}font-semibold text-loyall-700{% else %}text-loyall-500{% endif %}">
+      {{ e.rotulo }} ({{ e.n }})</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% set descompassos = gap | selectattr('gap') | selectattr('gap.direcao', 'in', ['superestima','subestima']) | list %}
+  <p class="text-sm text-loyall-500 mt-3">{{ descompassos|length }} subpilar(es) com descompasso.</p>
+
+  <table class="mt-2 w-full text-sm border border-loyall-200 rounded">
+    <thead class="text-xs text-loyall-500 bg-loyall-50">
+      <tr>
+        <th class="text-left px-3 py-2">Subpilar</th>
+        <th class="text-left px-3 py-2">Cliente</th>
+        <th class="text-left px-3 py-2">Colaborador</th>
+        <th class="text-left px-3 py-2">Gap</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in gap %}
+      {% set descompasso = r.gap and r.gap.direcao in ['superestima','subestima'] %}
+      <tr class="border-t border-loyall-100 {% if descompasso %}bg-rose-50{% elif r.estado != 'gap' %}text-loyall-400{% endif %}">
+        <td class="px-3 py-2">{{ r.subpilar }} · {{ r.nome }}</td>
+        <td class="px-3 py-2">
+          {{ val_badge(r.cliente.valencia_dominante) if r.cliente else val_badge(None) }}
+          {% if r.cliente %}<span class="text-loyall-400 text-xs ml-1">{{ r.cliente.faixa }}</span>{% endif %}
+        </td>
+        <td class="px-3 py-2">
+          {{ val_badge(r.colaborador.valencia_dominante) if r.colaborador else val_badge(None) }}
+          {% if r.colaborador and r.colaborador.nota_media is not none %}
+            <span class="text-loyall-400 text-xs ml-1">nota {{ r.colaborador.nota_media }}</span>
+          {% endif %}
+        </td>
+        <td class="px-3 py-2">
+          {% if r.gap %}
+            <span class="text-xs font-medium
+              {% if r.gap.direcao == 'alinhado' %}text-loyall-500{% else %}text-rose-600{% endif %}">
+              {{ r.gap.direcao }}</span>
+          {% elif r.estado == 'so_cliente' %}<span class="text-xs text-loyall-300">só cliente</span>
+          {% else %}<span class="text-xs text-loyall-300">só colaborador</span>{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="px-3 py-3 text-loyall-400">Sem dado para confrontar.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

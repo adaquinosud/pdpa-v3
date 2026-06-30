@@ -255,3 +255,57 @@ def pesquisa_classificar_respostas(pesquisa_id):
         "ok",
     )
     return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/confronto")
+@loyall_required_ui
+def pesquisa_confronto(pesquisa_id):
+    """Tela do GAP (Fase 2 · 5b.2): cliente × colaborador por subpilar. Só p/
+    proposito='confronto'. Sinaliza comentários não-classificados (não mostra gap
+    falso). Leitura pura sobre gap_confronto."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from sqlalchemy import func
+
+    from src.models.respondente import Respondente, Resposta
+    from src.pesquisa.confronto import gap_confronto
+    from src.pesquisa.retorno import retorno_pesquisa
+
+    et = (request.args.get("entidade_tipo") or "").strip() or None
+    eid = _int(request.args.get("entidade_id"))
+    escopo = (et, eid) if et else None
+    with db_session() as s:
+        pesq = obter(s, pesquisa_id)
+        if pesq is None:
+            return render_template("404.html"), 404
+        if pesq.proposito != "confronto":
+            flash("O confronto é só para pesquisas de propósito 'confronto'.", "erro")
+            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+        # Pendentes: comentários ainda não classificados (5a) → gap seria falso.
+        pendentes = (
+            s.query(func.count(Resposta.id))
+            .join(Respondente, Respondente.id == Resposta.respondente_id)
+            .filter(
+                Respondente.pesquisa_id == pesquisa_id,
+                Resposta.valor_texto.isnot(None),
+                Resposta.classificado_em.is_(None),
+            )
+            .scalar()
+        )
+        ret = retorno_pesquisa(s, pesquisa_id)  # reusa só os escopos (filtro)
+        escopos = ret["escopos"] if ret else []
+        gap = None if pendentes else gap_confronto(s, pesquisa_id, escopo)
+        ctx = {
+            "pesquisa_id": pesquisa_id,
+            "empresa_id": pesq.empresa_id,
+            "titulo": pesq.titulo,
+        }
+    return render_template(
+        "pesquisa/confronto.html",
+        gap=gap,
+        pendentes=pendentes,
+        escopos=escopos,
+        escopo_sel=(et, eid),
+        **ctx,
+    )
