@@ -455,7 +455,9 @@ def _build_system_blocks(empresa_setor: Optional[str] = None) -> list[dict]:
     return blocks
 
 
-def _call_claude_with_retry(system_blocks: list[dict], user_msg: str, modelo: str):
+def _call_claude_with_retry(
+    system_blocks: list[dict], user_msg: str, modelo: str, max_tokens: int = MAX_TOKENS
+):
     """Chama o Claude com retry exponencial para 429 e 5xx.
 
     Backoff: 2, 4, 8, 16, 32 segundos (5 tentativas no total). Erros
@@ -466,6 +468,9 @@ def _call_claude_with_retry(system_blocks: list[dict], user_msg: str, modelo: st
         system_blocks: Blocos de ``system`` já montados (``_build_system_blocks``).
         user_msg: Mensagem já construída para o role ``user``.
         modelo: ID do modelo (``HAIKU_MODEL`` ou ID do Sonnet).
+        max_tokens: Teto de saída. Default ``MAX_TOKENS`` (2048) p/ a classificação
+            (saída minúscula); a GERAÇÃO de pesquisa passa um valor maior, pois N
+            perguntas (enunciado+porque+opcoes) estouram 2048 e truncam o JSON.
 
     Returns:
         Objeto ``Message`` do SDK (com ``.content`` e ``.usage``).
@@ -481,7 +486,7 @@ def _call_claude_with_retry(system_blocks: list[dict], user_msg: str, modelo: st
         try:
             resp = client.messages.create(
                 model=modelo,
-                max_tokens=MAX_TOKENS,
+                max_tokens=max_tokens,
                 system=system_blocks,
                 messages=[{"role": "user", "content": user_msg}],
             )

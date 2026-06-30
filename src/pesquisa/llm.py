@@ -14,6 +14,11 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
+# Teto de saída da GERAÇÃO: N perguntas (enunciado+porque+opcoes) não cabem nos
+# 2048 do classificador → JSON trunca (Unterminated string). 8192 dá folga p/ as
+# até 20 perguntas do form (~250 tok/pergunta). O classificador segue em 2048.
+_MAX_TOKENS_GERACAO = 8192
+
 
 def _parse_json(raw: str) -> Dict[str, Any]:
     """Limpa fence de markdown e tenta json.loads; cai no reparo do classificador."""
@@ -48,10 +53,10 @@ def gerar_via_llm(system: str, user: str) -> Dict[str, Any]:
     from src.config import get_config
 
     system_blocks = [{"type": "text", "text": system}]
-    resp = _call_claude_with_retry(system_blocks, user, HAIKU_MODEL)
+    resp = _call_claude_with_retry(system_blocks, user, HAIKU_MODEL, _MAX_TOKENS_GERACAO)
     try:
         return _parse_json(_texto_da_resposta(resp))
     except (ValueError, TypeError):
         sonnet = getattr(get_config(), "CLASSIFIER_SONNET_MODEL", "claude-sonnet-4-5-20250929")
-        resp = _call_claude_with_retry(system_blocks, user, sonnet)
+        resp = _call_claude_with_retry(system_blocks, user, sonnet, _MAX_TOKENS_GERACAO)
         return _parse_json(_texto_da_resposta(resp))
