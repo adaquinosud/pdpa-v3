@@ -11,11 +11,15 @@ Em LOTE (não por submissão) — disparável pela noturna ou sob demanda.
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from src.models.pesquisa import Pesquisa
+from src.models.pesquisa import Pesquisa, PesquisaPergunta
 from src.models.respondente import Respondente, Resposta
+
+# Polaridade da valência → direção do gap (promotor + / conversivel 0 / detrator -).
+_POLARIDADE = {"promotor": 1, "conversivel": 0, "detrator": -1}
 
 
 def classificar_respostas_confronto(
@@ -63,3 +67,118 @@ def classificar_respostas_confronto(
         stats["classificadas"] += 1
     s.flush()
     return stats
+
+
+# ── 5b.1 — lógica do gap (cliente × colaborador por subpilar) ────────────────
+
+
+def _dominante(counts: Dict[str, int]) -> Optional[str]:
+    """Valência dominante (maioria relativa) de um mix, ou None se vazio."""
+    pos = {k: v for k, v in counts.items() if v}
+    if not pos:
+        return None
+    return Counter(pos).most_common(1)[0][0]
+
+
+def _direcao(cliente_val: str, colaborador_val: str) -> str:
+    """Direção do gap pela polaridade: o time vê MELHOR (superestima), PIOR
+    (subestima) ou IGUAL (alinhado) que o cliente."""
+    d = _POLARIDADE.get(colaborador_val, 0) - _POLARIDADE.get(cliente_val, 0)
+    return "superestima" if d > 0 else "subestima" if d < 0 else "alinhado"
+
+
+def _escopo_para_agg(escopo: Optional[Tuple[str, Optional[int]]]):
+    """(entidade_tipo, entidade_id) → (ag_id, local_id) p/ agregar_subpilares."""
+    if not escopo or escopo[0] in (None, "empresa"):
+        return None, None
+    et, eid = escopo
+    return (eid, None) if et == "agrupamento" else (None, eid)
+
+
+def _lado_colaborador(s, pesquisa_id: int, escopo) -> Tuple[Dict[str, str], Dict[str, float]]:
+    """Por subpilar: valência dominante (por subpilar_classificado, eixo) + nota
+    média (por subpilar_alvo, cor). Ambíguos (inativo/sem_lastro) ficam fora."""
+    q = (
+        s.query(Resposta, PesquisaPergunta.subpilar_alvo)
+        .join(Respondente, Respondente.id == Resposta.respondente_id)
+        .join(PesquisaPergunta, PesquisaPergunta.id == Resposta.pergunta_id)
+        .filter(Respondente.pesquisa_id == pesquisa_id)
+    )
+    if escopo and escopo[0] not in (None, "empresa"):
+        q = q.filter(Respondente.entidade_tipo == escopo[0], Respondente.entidade_id == escopo[1])
+
+    val_mix: Dict[str, Counter] = defaultdict(Counter)  # subpilar_classificado → mix
+    notas: Dict[str, List[int]] = defaultdict(list)  # subpilar_alvo → notas
+    for resp, sub_alvo in q.all():
+        # valência (eixo): só sinal claro
+        if (
+            resp.subpilar_classificado
+            and resp.subpilar_classificado != "sem_lastro"
+            and resp.valencia_classificada in _POLARIDADE
+        ):
+            val_mix[resp.subpilar_classificado][resp.valencia_classificada] += 1
+        # nota (cor): por subpilar_alvo da pergunta
+        if resp.valor_nota is not None and sub_alvo:
+            notas[sub_alvo].append(resp.valor_nota)
+
+    valencia = {sub: _dominante(dict(mix)) for sub, mix in val_mix.items()}
+    valencia = {sub: v for sub, v in valencia.items() if v}
+    nota_media = {sub: round(sum(v) / len(v), 2) for sub, v in notas.items() if v}
+    return valencia, nota_media
+
+
+def gap_confronto(
+    s, pesquisa_id: int, escopo: Optional[Tuple[str, Optional[int]]] = None
+) -> Optional[List[Dict[str, Any]]]:
+    """Gap de valência por subpilar (cliente × colaborador). Leitura PURA — não
+    toca a base do cliente. Devolve None se a pesquisa não existe.
+
+    Por subpilar: valência dominante de cada lado + direção do gap; estado
+    ``gap``/``so_cliente``/``so_colaborador`` (lado ausente nunca inventado).
+    Nota (colaborador) e faixa/ratio (cliente) acompanham como cor secundária."""
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+    from src.diagnostico.leituras import agregar_subpilares
+
+    pesq = s.get(Pesquisa, pesquisa_id)
+    if pesq is None:
+        return None
+
+    ag_id, local_id = _escopo_para_agg(escopo)
+    cliente_agg = agregar_subpilares(s, pesq.empresa_id, ag_id=ag_id, local_id=local_id)
+    colab_val, colab_nota = _lado_colaborador(s, pesquisa_id, escopo)
+
+    subpilares = [sp for sp in SUBPILARES_ORDEM if sp in cliente_agg or sp in colab_val]
+    out: List[Dict[str, Any]] = []
+    for sub in subpilares:
+        c = cliente_agg.get(sub)
+        cli_val = (
+            _dominante({"promotor": c["prom"], "conversivel": c["conv"], "detrator": c["det"]})
+            if c
+            else None
+        )
+        col_val = colab_val.get(sub)
+        if cli_val and col_val:
+            estado = "gap"
+        elif cli_val:
+            estado = "so_cliente"
+        else:
+            estado = "so_colaborador"
+        out.append(
+            {
+                "subpilar": sub,
+                "nome": NOME_SUBPILAR.get(sub, sub),
+                "estado": estado,
+                "cliente": (
+                    {"valencia_dominante": cli_val, "ratio": c["ratio"], "faixa": c["faixa"]}
+                    if c
+                    else None
+                ),
+                "colaborador": (
+                    {"valencia_dominante": col_val, "nota_media": colab_nota.get(sub)}
+                    if (col_val or sub in colab_nota)
+                    else None
+                ),
+                "gap": {"direcao": _direcao(cli_val, col_val)} if estado == "gap" else None,
+            }
+        )
+    return out
