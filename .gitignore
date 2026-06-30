@@ -25,6 +25,10 @@ dist/
 .env.local
 *.key
 
+# Backups / dumps de produção — dado de cliente, NUNCA no repo
+backups/
+*.dump
+
 # IDE
 .vscode/
 .idea/
