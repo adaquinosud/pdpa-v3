@@ -68,6 +68,25 @@ def test_gerar_persiste_e_redireciona(client_loyall, db_session, monkeypatch):
     assert resp.status_code == 302 and "/revisar" in resp.headers["Location"]
 
 
+def test_gerar_falha_llm_nao_da_500(client_loyall, db_session, monkeypatch):
+    """Hardening: falha do LLM na geração → flash + redirect, NUNCA 500 cru."""
+    e = _empresa(client_loyall, "EUIfalha")
+
+    def _boom(s, empresa_id, **kw):
+        raise RuntimeError("LLM indisponível (simulado)")
+
+    monkeypatch.setattr(ui_pesq, "gerar_pesquisa", _boom)
+    resp = client_loyall.post(
+        f"/empresas/{e}/pesquisas/gerar",
+        data={"natureza": "externa", "n_perguntas": "1", "subpilares_alvo": "D2"},
+    )
+    assert resp.status_code == 302  # não 500
+    assert f"/empresas/{e}/pesquisas" in resp.headers["Location"]
+    # a página de destino mostra o flash amigável
+    body = client_loyall.get(resp.headers["Location"]).get_data(as_text=True)
+    assert "serviço de IA indisponível" in body
+
+
 def test_revisar_mostra_cards(client_loyall, db_session):
     e = _empresa(client_loyall, "EUIrev")
     pid = _seed(db_session, e, [_q(1, "Como foi a retirada?", porque="interno")])

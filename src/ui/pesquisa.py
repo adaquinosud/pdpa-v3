@@ -12,7 +12,7 @@ não tocar a rede.
 
 from __future__ import annotations
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import current_app, flash, redirect, render_template, request, url_for
 
 from src.auth import get_current_user
 from src.models.empresa import Empresa
@@ -85,34 +85,46 @@ def pesquisa_gerar(empresa_id):
     temas_sel = [t for t in request.form.getlist("focos_tema") if t]  # tema_labels marcados
 
     user = get_current_user()
-    with db_session() as s:
-        # P2.D: resolve os focos-tema marcados → contexto (dominante + secundários);
-        # o subpilar dominante de cada tema entra em subpilares_alvo (união limpa).
-        focos = []
-        if temas_sel:
-            from src.pesquisa.escopo import sugerir_focos
+    # A geração chama o LLM (rede). Qualquer falha (modelo/credencial/quota/parse)
+    # vira um flash amigável + redirect, NUNCA um 500 cru. O traceback completo vai
+    # pro log (current_app.logger) — diagnosticável no painel do Render.
+    try:
+        with db_session() as s:
+            # P2.D: resolve os focos-tema marcados → contexto (dominante + secundários);
+            # o subpilar dominante de cada tema entra em subpilares_alvo (união limpa).
+            focos = []
+            if temas_sel:
+                from src.pesquisa.escopo import sugerir_focos
 
-            por_label = {f["tema_label"]: f for f in sugerir_focos(s, empresa_id)["temas"]}
-            for label in temas_sel:
-                f = por_label.get(label)
-                if f and f.get("subpilar_alvo"):  # disperso (sem dominante) não entra
-                    focos.append(f)
-                    if f["subpilar_alvo"] not in subpilares:
-                        subpilares.append(f["subpilar_alvo"])
-        if not subpilares:
-            flash("Escolha ao menos um subpilar-alvo ou um tema com foco.", "erro")
-            return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
-        proposta = gerar_pesquisa(
-            s,
-            empresa_id,
-            natureza=natureza,
-            subpilares_alvo=subpilares,
-            n_perguntas=n_perguntas,
-            titulo=titulo,
-            escopo_local_modo=escopo_local_modo,
-            focos=focos,
+                por_label = {f["tema_label"]: f for f in sugerir_focos(s, empresa_id)["temas"]}
+                for label in temas_sel:
+                    f = por_label.get(label)
+                    if f and f.get("subpilar_alvo"):  # disperso (sem dominante) não entra
+                        focos.append(f)
+                        if f["subpilar_alvo"] not in subpilares:
+                            subpilares.append(f["subpilar_alvo"])
+            if not subpilares:
+                flash("Escolha ao menos um subpilar-alvo ou um tema com foco.", "erro")
+                return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
+            proposta = gerar_pesquisa(
+                s,
+                empresa_id,
+                natureza=natureza,
+                subpilares_alvo=subpilares,
+                n_perguntas=n_perguntas,
+                titulo=titulo,
+                escopo_local_modo=escopo_local_modo,
+                focos=focos,
+            )
+            pesquisa_id = criar_rascunho(s, proposta, criada_por=getattr(user, "id", None))
+    except Exception:  # noqa: BLE001 — falha de LLM/infra não pode virar 500 cru
+        current_app.logger.exception("falha ao gerar pesquisa (empresa=%s)", empresa_id)
+        flash(
+            "Não consegui gerar a pesquisa agora (serviço de IA indisponível). "
+            "Tente novamente em instantes.",
+            "erro",
         )
-        pesquisa_id = criar_rascunho(s, proposta, criada_por=getattr(user, "id", None))
+        return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
     return redirect(url_for("ui.pesquisa_revisar", pesquisa_id=pesquisa_id))
 
 
