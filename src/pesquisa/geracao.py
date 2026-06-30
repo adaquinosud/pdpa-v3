@@ -81,7 +81,10 @@ def _montar_user_prompt(
     bloco_focos = f"\n{bloco_focos}\n" if bloco_focos else ""
     return (
         f"Gere {n_perguntas} pergunta(s) de pesquisa para {publico}.\n"
-        f"Tópicos (subpilares) a cobrir:\n{render_contexto(topicos)}\n"
+        f"Gere as perguntas APENAS nestes subpilares. O subpilar_alvo de TODA "
+        f"pergunta deve ser um dos listados abaixo; NÃO use outros subpilares. "
+        f"Divida as {n_perguntas} pergunta(s) entre os subpilares-alvo listados:\n"
+        f"{render_contexto(topicos)}\n"
         f"{bloco_focos}{nota_ancora}\n\n{FORMATO_SAIDA}"
     )
 
@@ -161,7 +164,9 @@ def gerar_pesquisa(
 
     bruto = gerar_fn(system, user)
     perguntas = _normalizar(bruto, escopo_local_modo, opcoes_escopo)
-    veredito = validar_perguntas(perguntas)  # SEAM — sempre passa pelo validador
+    # SEAM — sempre passa pelo validador. subpilares_alvo arma o guard de
+    # pertinência (foco amarra): pergunta fora do escopo pedido BLOQUEIA.
+    veredito = validar_perguntas(perguntas, subpilares_alvo)
 
     return {
         "pesquisa": {

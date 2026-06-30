@@ -74,14 +74,16 @@ def test_gera_saida_estruturada(client_loyall, db_session):
 
 
 def test_passa_pelo_validador(client_loyall, db_session):
-    """Toda geração devolve um veredito (SEAM); F1.2 = sem violações."""
+    """Toda geração devolve um veredito (SEAM); F1.2 = sem violações.
+    Pede {D2,D1} — o conjunto que o fake devolve — para o guard de pertinência
+    (foco amarra) não acusar escopo."""
     e = _empresa(client_loyall, "EGerVal")
     out = gerar_pesquisa(
         db_session,
         e,
         natureza="externa",
-        subpilares_alvo=["D2"],
-        n_perguntas=1,
+        subpilares_alvo=["D2", "D1"],
+        n_perguntas=2,
         gerar_fn=_fake_llm(),
     )
     v = out["validacao"]

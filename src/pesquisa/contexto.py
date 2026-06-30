@@ -49,17 +49,14 @@ def render_contexto(topicos: List[Dict[str, Any]]) -> str:
 
 def render_focos(focos: List[Dict[str, Any]]) -> str:
     """Bloco de FOCOS prioritários para o user prompt (P2.D). No foco-tema, dá ao
-    LLM o assunto concreto (``tema_label``) + os subpilares secundários — perguntas
-    tema-aware, mas ancoradas no subpilar dominante. SEM direção/valência (régua 1):
-    o tema é o assunto, não o juízo."""
+    LLM o assunto concreto (``tema_label``) ancorado SÓ no subpilar dominante. NÃO
+    injeta os subpilares secundários ("também toca …") — isso espalhava a geração
+    quando o usuário queria estreitar; outro subpilar entra só se ele o selecionar
+    explicitamente. SEM direção/valência (régua 1): o tema é o assunto, não o juízo."""
     linhas = []
     for f in focos or []:
         if f.get("tipo") == "tema" and f.get("tema_label"):
-            secundarios = [c["subpilar"] for c in f.get("tema_contexto", [])][1:4]
-            extra = f" (também toca {', '.join(secundarios)})" if secundarios else ""
-            linhas.append(
-                f'- Tema "{f["tema_label"]}" → foco no subpilar {f.get("subpilar_alvo")}{extra}'
-            )
+            linhas.append(f'- Tema "{f["tema_label"]}" → foco no subpilar {f.get("subpilar_alvo")}')
     if not linhas:
         return ""
     return "Focos prioritários (faça perguntas sobre estes assuntos concretos):\n" + "\n".join(

@@ -84,9 +84,30 @@ def _opcoes_da_pergunta(p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _checar_deterministico(p: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _checar_deterministico(
+    p: Dict[str, Any], subpilares_alvo: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
     regras: List[Dict[str, Any]] = []
     enun = p.get("enunciado") or ""
+
+    # Pertinência de escopo (foco amarra): o subpilar_alvo da pergunta DEVE estar
+    # no conjunto pedido. Bloqueia mesmo que o LLM teime — é a rede forte do foco,
+    # independente da obediência do modelo. Só roda quando o conjunto é informado.
+    if subpilares_alvo:
+        alvo = p.get("subpilar_alvo")
+        if alvo not in subpilares_alvo:
+            regras.append(
+                {
+                    "regra": "escopo",
+                    "passou": False,
+                    "severidade": "bloqueia",
+                    "motivo": (
+                        f"subpilar '{alvo}' fora do escopo pedido "
+                        f"({', '.join(subpilares_alvo)})"
+                    ),
+                    "reescrita": None,
+                }
+            )
 
     termos = termos_proibidos(enun)
     if termos:
@@ -127,13 +148,19 @@ def _checar_deterministico(p: Dict[str, Any]) -> List[Dict[str, Any]]:
     return regras
 
 
-def validar_perguntas(perguntas: List[Dict[str, Any]]) -> Dict[str, Any]:
+def validar_perguntas(
+    perguntas: List[Dict[str, Any]], subpilares_alvo: Optional[List[str]] = None
+) -> Dict[str, Any]:
     """Valida a lista (gerada OU editada) contra a régua. F1.3: camada
-    determinística (R5/R3/R4). R1/R2/R7 entram no F1.4 sem mudar a assinatura.
-    Perguntas-âncora são isentas (geradas pelo sistema)."""
+    determinística (R5/R3/R4 + pertinência de escopo). R1/R2/R7 entram no F1.4.
+    Perguntas-âncora são isentas (geradas pelo sistema).
+
+    ``subpilares_alvo`` (opcional): conjunto pedido na geração. Quando informado,
+    arma o guard de pertinência — pergunta com ``subpilar_alvo`` fora do conjunto
+    BLOQUEIA. Omitido (revalidação de edição/juiz) → guard inativo."""
     out = []
     for p in perguntas:
-        regras = [] if p.get("gerada_por_ancora") else _checar_deterministico(p)
+        regras = [] if p.get("gerada_por_ancora") else _checar_deterministico(p, subpilares_alvo)
         out.append({"ordem": p.get("ordem"), "regras": regras})
     return {"perguntas": out}
 
