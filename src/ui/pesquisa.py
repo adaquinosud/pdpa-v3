@@ -191,3 +191,23 @@ def pesquisa_aprovar(pesquisa_id):
         return render_template("pesquisa/revisar.html", **ctx), 409
     flash("Pesquisa aprovada (pronta).", "ok")
     return render_template("pesquisa/revisar.html", **ctx)
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/respostas")
+@loyall_required_ui
+def pesquisa_respostas(pesquisa_id):
+    """Tela de RETORNO (Fase 2 · Passo 4): respostas por pergunta, com filtro de
+    escopo. Leitura/agregação (retorno.py), sem escrita."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.pesquisa.retorno import retorno_pesquisa
+
+    et = (request.args.get("entidade_tipo") or "").strip() or None
+    eid = _int(request.args.get("entidade_id"))
+    escopo = (et, eid) if et else None
+    with db_session() as s:
+        ret = retorno_pesquisa(s, pesquisa_id, escopo)
+        if ret is None:
+            return render_template("404.html"), 404
+    return render_template("pesquisa/respostas.html", ret=ret, escopo_sel=(et, eid))

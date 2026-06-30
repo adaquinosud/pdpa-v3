@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block titulo %}Respostas — {{ ret.pesquisa.titulo }}{% endblock %}
+{% block conteudo %}
+<div class="max-w-3xl">
+  <a href="{{ url_for('ui.pesquisas_lista', empresa_id=ret.pesquisa.empresa_id) }}"
+     class="text-sm text-loyall-400 hover:underline">← Pesquisas</a>
+  <h1 class="text-2xl font-semibold mt-1">{{ ret.pesquisa.titulo }}</h1>
+  <p class="text-sm text-loyall-500 mt-1">
+    <strong>{{ ret.total_respondentes }}</strong> respondente(s) ·
+    propósito {{ ret.pesquisa.proposito }} ·
+    {{ "anônima" if ret.pesquisa.anonima else "identificada" }}
+  </p>
+
+  {# Filtro de escopo — só se houver mais de um escopo presente #}
+  {% if ret.escopos|length > 1 %}
+  <form method="get" class="mt-3 flex items-center gap-2 text-sm">
+    <label class="text-loyall-600">Escopo:</label>
+    <select name="entidade_tipo" onchange="this.form.submit()"
+            class="px-2 py-1 border border-loyall-200 rounded">
+      <option value="">Todos</option>
+      {% for e in ret.escopos %}
+      <option value="{{ e.entidade_tipo }}"
+              data-id="{{ e.entidade_id }}"
+              {% if escopo_sel[0] == e.entidade_tipo and escopo_sel[1] == e.entidade_id %}selected{% endif %}>
+        {{ e.rotulo }} ({{ e.n }})
+      </option>
+      {% endfor %}
+    </select>
+    {# entidade_id acompanha o tipo selecionado via hidden, setado por JS #}
+    <input type="hidden" name="entidade_id"
+           value="{{ escopo_sel[1] if escopo_sel[1] is not none else '' }}">
+  </form>
+  {% endif %}
+
+  {# Por pergunta #}
+  <div class="mt-5 space-y-5">
+    {% for q in ret.perguntas %}
+    <div class="bg-white border border-loyall-200 rounded p-4">
+      <p class="text-sm font-medium text-loyall-700">
+        {{ q.ordem }}. {{ q.enunciado }}
+        <span class="text-loyall-400 font-normal">· {{ q.n_respostas }} resposta(s)</span>
+      </p>
+
+      {% if q.nota %}
+      <div class="mt-2">
+        <p class="text-sm">Média:
+          <strong>{{ q.nota.media if q.nota.media is not none else "—" }}</strong>
+          <span class="text-loyall-400 text-xs">({{ q.nota.n }} nota(s))</span>
+        </p>
+        <div class="mt-1 space-y-1">
+          {% set maxn = (q.nota.distribuicao | map(attribute='n') | max) or 1 %}
+          {% for b in q.nota.distribuicao %}
+          <div class="flex items-center gap-2 text-xs">
+            <span class="w-28 text-right text-loyall-500 truncate">{{ b.rotulo }}</span>
+            <span class="inline-block h-3 bg-loyall-400 rounded"
+                  style="width: {{ (b.n / maxn * 160) | round }}px"></span>
+            <span class="text-loyall-500">{{ b.n }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if q.opcoes %}
+      <ul class="mt-2 text-sm space-y-1">
+        {% for o in q.opcoes %}
+        <li class="flex justify-between"><span>{{ o.rotulo }}</span><span class="text-loyall-500">{{ o.n }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      {% if q.comentarios %}
+      <details class="mt-2 text-sm">
+        <summary class="cursor-pointer text-loyall-500">{{ q.comentarios|length }} comentário(s)</summary>
+        <ul class="mt-1 space-y-1 pl-4 list-disc text-loyall-700">
+          {% for c in q.comentarios %}<li>{{ c }}</li>{% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+
+      {% if q.n_respostas == 0 %}<p class="text-xs text-loyall-300 mt-1">Sem respostas.</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {# Lista de respondentes — só pesquisa identificada (anonimato por linha) #}
+  {% if ret.respondentes is not none %}
+  <div class="mt-6 bg-white border border-loyall-200 rounded p-4">
+    <p class="text-sm font-medium text-loyall-700 mb-2">Respondentes</p>
+    <ul class="text-sm space-y-1">
+      {% for r in ret.respondentes %}
+      <li class="flex justify-between">
+        <span>{{ r.nome }}</span><span class="text-loyall-400 text-xs">{{ r.escopo }}</span>
+      </li>
+      {% else %}
+      <li class="text-loyall-400">Nenhum respondente ainda.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

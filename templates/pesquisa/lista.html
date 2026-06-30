@@ -48,7 +48,13 @@
   <li class="px-3 py-2 flex items-center justify-between text-sm">
     <a href="{{ url_for('ui.pesquisa_revisar', pesquisa_id=p.id) }}"
        class="text-loyall-700 hover:underline">{{ p.titulo or "(sem título)" }}</a>
-    <span class="text-loyall-400">{{ p.natureza }} · {{ p.status }}</span>
+    <span class="flex items-center gap-3">
+      {% if p.status == 'pronta' %}
+      <a href="{{ url_for('ui.pesquisa_respostas', pesquisa_id=p.id) }}"
+         class="text-loyall-500 hover:underline text-xs">respostas →</a>
+      {% endif %}
+      <span class="text-loyall-400">{{ p.natureza }} · {{ p.status }}</span>
+    </span>
   </li>
   {% endfor %}
 </ul>
