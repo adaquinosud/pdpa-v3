@@ -370,19 +370,26 @@ def _find_or_create_fonte(
 
 
 def _find_or_create_pessoa(
-    session, external_id: str, nome: Optional[str], cache: Dict[str, int]
+    session,
+    external_id: str,
+    nome: Optional[str],
+    cache: Dict[str, int],
+    *,
+    fonte: str = "excel",
+    origem: str = "import_excel_interno",
 ) -> int:
-    """Get-or-create da Pessoa interna por chave declarada (email|id_cliente).
+    """Get-or-create da Pessoa interna por chave declarada (email|id_cliente|contato).
 
-    INTRA-import por chave declarada — NÃO é merge entre fontes. O
+    INTRA-fonte por chave declarada — NÃO é merge entre fontes. O
     ``UNIQUE(tipo,fonte,external_id)`` da PessoaIdentificador garante idempotência
-    (re-import → mesma Pessoa). Registra o opt-in em ``atributos_json`` (marcador
-    do regime LGPD)."""
+    (mesma chave → mesma Pessoa). Registra o opt-in em ``atributos_json`` (marcador
+    do regime LGPD). ``fonte``/``origem`` parametrizados → reuso pelo canal web
+    (fonte='pesquisa')."""
     if external_id in cache:
         return cache[external_id]
     ident = (
         session.query(PessoaIdentificador)
-        .filter_by(tipo="interno_consentido", fonte="excel", external_id=external_id)
+        .filter_by(tipo="interno_consentido", fonte=fonte, external_id=external_id)
         .first()
     )
     if ident is not None:
@@ -392,12 +399,12 @@ def _find_or_create_pessoa(
     p.identificadores = [
         PessoaIdentificador(
             tipo="interno_consentido",
-            fonte="excel",
+            fonte=fonte,
             external_id=external_id,
             atributos_json=json.dumps(
                 {
                     "opt_in": True,
-                    "origem": "import_excel_interno",
+                    "origem": origem,
                     "data": datetime.utcnow().isoformat(),
                 }
             ),

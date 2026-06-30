@@ -11,6 +11,7 @@ Sem Flask aqui — funções puras sobre a sessão, testáveis isoladamente.
 from __future__ import annotations
 
 import json
+import secrets
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.models.pesquisa import Pesquisa, PesquisaPergunta
@@ -122,6 +123,8 @@ def aprovar(s, pesquisa_id: int) -> Tuple[bool, Dict[str, Any]]:
         return False, veredito
     pesq.status = "pronta"
     pesq.versao = pesq.versao or 1
+    if not pesq.token_publico:  # âncora estável da URL pública /p/<token>
+        pesq.token_publico = secrets.token_urlsafe(12)
     s.flush()
     return True, veredito
 
@@ -133,12 +136,19 @@ def _opcoes_publicas(opcoes_json: Optional[str]) -> Optional[Dict[str, Any]]:
         o = json.loads(opcoes_json)
     except (ValueError, TypeError):
         return None
-    # Âncora de unidade (shape novo, P2.C): opcoes:[{local_id,rotulo}]. O público
-    # vê os rótulos E carrega o local_id (a Fase 2 resolve a resposta ao local).
+    # Âncora de unidade: cada opção carrega o escopo (entidade_tipo/entidade_id) +
+    # rótulo → o submit grava o escopo do Respondente. Tolerante ao shape antigo
+    # (P2.C: {local_id,rotulo}), normalizado p/ entidade_tipo='local'.
     if o.get("tipo") == "unidade" and isinstance(o.get("opcoes"), list):
-        opcoes = [
-            {"local_id": op.get("local_id"), "rotulo": op.get("rotulo")} for op in o["opcoes"]
-        ]
+        opcoes = []
+        for op in o["opcoes"]:
+            if "entidade_tipo" in op:  # shape novo (P2.2a)
+                ent_tipo, ent_id = op.get("entidade_tipo"), op.get("entidade_id")
+            else:  # shape antigo (P2.C): local_id → entidade local
+                ent_tipo, ent_id = "local", op.get("local_id")
+            opcoes.append(
+                {"entidade_tipo": ent_tipo, "entidade_id": ent_id, "rotulo": op.get("rotulo")}
+            )
         return {
             "tipo": "unidade",
             "opcoes": opcoes,
@@ -161,6 +171,7 @@ def payload_publico(pesquisa: Pesquisa) -> Dict[str, Any]:
         "anonima": pesquisa.anonima,
         "perguntas": [
             {
+                "id": p.id,  # o submit precisa do pergunta_id p/ gravar Resposta
                 "ordem": p.ordem,
                 "enunciado": p.enunciado,
                 "formato": p.formato,

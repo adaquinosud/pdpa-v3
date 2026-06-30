@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block titulo %}Pesquisa{% endblock %}
+{% block conteudo %}
+<div class="max-w-xl mx-auto py-6">
+{% if erro %}
+  <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-4 text-sm">{{ erro }}</div>
+
+{% elif obrigado %}
+  <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded p-6 text-center">
+    <p class="text-lg font-semibold">Obrigado pela sua resposta!</p>
+    <p class="text-sm mt-1">Já registramos. Pode fechar esta página.</p>
+  </div>
+
+{% else %}
+  <h1 class="text-2xl font-semibold mb-1">{{ payload.titulo }}</h1>
+  <p class="text-sm text-loyall-500 mb-4">Suas respostas ajudam a melhorar o atendimento.</p>
+
+  <form method="post" action="{{ url_for('ui.pesquisa_publica', token=token) }}"
+        class="bg-white border border-loyall-200 rounded p-4 space-y-5">
+    {% for p in payload.perguntas %}
+      {% set opc = p.opcoes %}
+      <div>
+        {% if opc and opc.tipo == 'unidade' %}
+          <label class="block text-sm font-medium text-loyall-700 mb-1">{{ p.enunciado }}*</label>
+          <select name="ancora_{{ p.id }}" required
+                  class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+            <option value="">Selecione…</option>
+            {% for o in opc.opcoes %}
+              <option value="{{ o.entidade_tipo }}:{{ o.entidade_id }}">{{ o.rotulo }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <label class="block text-sm font-medium text-loyall-700 mb-1">{{ p.enunciado }}</label>
+          {% if opc and opc.tipo == 'nota' %}
+            <div class="flex flex-wrap gap-3">
+              {% for rot in opc.rotulos %}
+                <label class="flex items-center gap-1 text-sm">
+                  <input type="radio" name="q_{{ p.id }}_nota" value="{{ loop.index }}"> {{ rot }}
+                </label>
+              {% endfor %}
+            </div>
+          {% elif opc and opc.tipo == 'multipla' %}
+            <select name="q_{{ p.id }}_opcao"
+                    class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+              <option value="">Selecione…</option>
+              {% for rot in opc.rotulos %}<option>{{ rot }}</option>{% endfor %}
+            </select>
+          {% endif %}
+          {% if p.formato in ('aberta', 'mista') %}
+            <textarea name="q_{{ p.id }}_texto" rows="3"
+                      class="w-full mt-2 px-3 py-2 border border-loyall-200 rounded text-sm"
+                      placeholder="Seu comentário (opcional)"></textarea>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    {% if not anonima %}
+      <div class="border-t border-loyall-100 pt-4 space-y-2">
+        <p class="text-xs text-loyall-500">Identificação (opcional — ajuda a acompanhar seu caso):</p>
+        <input type="text" name="nome" placeholder="Nome"
+               class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+        <input type="email" name="email" placeholder="E-mail"
+               class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+        <label class="flex items-start gap-2 text-xs text-loyall-600">
+          <input type="checkbox" name="consentimento" value="on" class="mt-0.5">
+          <span>Autorizo o uso dos meus dados para acompanhamento do meu atendimento (LGPD).</span>
+        </label>
+      </div>
+    {% endif %}
+
+    <button type="submit"
+            class="px-5 py-2 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
+      Enviar respostas
+    </button>
+  </form>
+{% endif %}
+</div>
+{% endblock %}

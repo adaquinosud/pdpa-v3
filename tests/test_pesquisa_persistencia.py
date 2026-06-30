@@ -136,31 +136,30 @@ def test_payload_publico_sem_porque(client_loyall, db_session):
 
 
 def test_opcoes_publicas_tolerante_aos_dois_shapes():
-    """C.2: _opcoes_publicas aceita o shape novo (unidade com local_id) e o
-    antigo (só rotulos) — transição sem quebrar o consumidor."""
-    # shape novo (P2.C): carrega local_id E expõe rótulos no público
+    """C.2/P6: _opcoes_publicas normaliza a âncora para (entidade_tipo,entidade_id),
+    aceitando o shape novo (P2.2a) E o antigo (P2.C: local_id → entidade local)."""
+    # shape novo (P2.2a): opcoes carregam entidade_tipo/entidade_id
     novo = _opcoes_publicas(
         json.dumps(
             {
                 "tipo": "unidade",
                 "opcoes": [
-                    {"local_id": 7, "rotulo": "Loja A"},
-                    {"local_id": 9, "rotulo": "Loja B"},
+                    {"entidade_tipo": "local", "entidade_id": 7, "rotulo": "Loja A"},
+                    {"entidade_tipo": "agrupamento", "entidade_id": 3, "rotulo": "Banco X"},
                 ],
             }
         )
     )
-    assert novo["tipo"] == "unidade"
     assert novo["opcoes"] == [
-        {"local_id": 7, "rotulo": "Loja A"},
-        {"local_id": 9, "rotulo": "Loja B"},
+        {"entidade_tipo": "local", "entidade_id": 7, "rotulo": "Loja A"},
+        {"entidade_tipo": "agrupamento", "entidade_id": 3, "rotulo": "Banco X"},
     ]
-    assert novo["rotulos"] == ["Loja A", "Loja B"]
-    # shape antigo (âncora pré-P2.C): só rotulos, segue funcionando
-    assert _opcoes_publicas(json.dumps({"tipo": "unidade", "rotulos": []})) == {
-        "tipo": "unidade",
-        "rotulos": [],
-    }
+    assert novo["rotulos"] == ["Loja A", "Banco X"]
+    # shape antigo (P2.C): local_id → normalizado p/ entidade_tipo='local'
+    antigo = _opcoes_publicas(
+        json.dumps({"tipo": "unidade", "opcoes": [{"local_id": 9, "rotulo": "Loja B"}]})
+    )
+    assert antigo["opcoes"] == [{"entidade_tipo": "local", "entidade_id": 9, "rotulo": "Loja B"}]
     # nota/multipla inalterado
     assert _opcoes_publicas(json.dumps({"tipo": "nota", "rotulos": ["a", "b", "c", "d", "e"]})) == {
         "tipo": "nota",

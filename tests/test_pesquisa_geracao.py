@@ -184,9 +184,9 @@ def test_prompt_reforca_regra3_e_formato_misto(client_loyall, db_session):
     assert "padrão = mista" in low
 
 
-def test_ancora_carrega_local_id(client_loyall, db_session):
-    """C.1: a âncora 'qual unidade?' carrega opcoes:[{local_id,rotulo}] do escopo,
-    ordenadas por nome — a Fase 2 precisa do FK, não só do rótulo."""
+def test_ancora_carrega_escopo(client_loyall, db_session):
+    """P6: a âncora 'qual unidade?' carrega opcoes:[{entidade_tipo,entidade_id,rotulo}]
+    do escopo, ordenadas por nome — o submit grava o escopo do Respondente direto."""
     from src.models.local import Local
 
     e = _empresa(client_loyall, "EAncoraLocal")
@@ -206,7 +206,33 @@ def test_ancora_carrega_local_id(client_loyall, db_session):
     opc = json.loads(ancora["opcoes_json"])
     assert opc["tipo"] == "unidade"
     assert [o["rotulo"] for o in opc["opcoes"]] == ["Loja A", "Loja B"]  # order_by nome
-    assert all(isinstance(o["local_id"], int) for o in opc["opcoes"])
+    assert all(o["entidade_tipo"] == "local" for o in opc["opcoes"])
+    assert all(isinstance(o["entidade_id"], int) for o in opc["opcoes"])
+
+
+def test_ancora_agrupamento_sem_locais(client_loyall, db_session):
+    """P6: agrupamento sem Locais → a âncora oferece o próprio agrupamento."""
+    from src.models.agrupamento import Agrupamento
+
+    e = _empresa(client_loyall, "EAgrSemLoc")
+    ag = Agrupamento(empresa_id=e, nome="Banco X", tipo="criterio")
+    db_session.add(ag)
+    db_session.flush()
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        escopo_local_modo="geral",
+        entidade_tipo="agrupamento",
+        entidade_id=ag.id,
+        gerar_fn=_fake_llm(),
+    )
+    opc = json.loads(out["perguntas"][0]["opcoes_json"])
+    assert opc["opcoes"] == [
+        {"entidade_tipo": "agrupamento", "entidade_id": ag.id, "rotulo": "Banco X"}
+    ]
 
 
 def test_formato_misto_preservado(client_loyall, db_session):

@@ -63,6 +63,9 @@ class Pesquisa(Base):
     anonima: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     versao: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String, nullable=False, default="rascunho")
+    # Slug público do formulário web (Fase 2 · Passo 2a). Gerado ao publicar
+    # (status→'pronta'); NULL enquanto rascunho. UNIQUE = âncora estável da URL /p/<token>.
+    token_publico: Mapped[Optional[str]] = mapped_column(String, unique=True)
     criada_por: Mapped[Optional[int]] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL")
     )

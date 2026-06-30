@@ -464,6 +464,67 @@ def modelo_import_verbatins():
     )
 
 
+@ui_bp.route("/p/<token>", methods=["GET", "POST"])
+def pesquisa_publica(token):
+    """Formulário PÚBLICO de resposta (Fase 2 · Passo 2a) — sem auth. Carrega a
+    pesquisa pelo ``token_publico`` (status 'pronta'); GET renderiza o form, POST
+    grava via ``registrar_respostas``. Token inválido/não-pronta → erro amigável."""
+    from src.coletor.excel import _find_or_create_pessoa
+    from src.models.pesquisa import Pesquisa
+    from src.pesquisa.coleta import registrar_respostas
+    from src.pesquisa.persistencia import payload_publico
+
+    tmpl = "pesquisa/publico.html"
+    with db_session() as s:
+        pesq = s.query(Pesquisa).filter_by(token_publico=token).first()
+        if pesq is None or pesq.status != "pronta":
+            return render_template(tmpl, erro="Pesquisa não encontrada ou indisponível."), 404
+
+        if request.method == "GET":
+            return render_template(
+                tmpl, payload=payload_publico(pesq), token=token, anonima=pesq.anonima
+            )
+
+        # POST — separa a âncora (escopo) das respostas de conteúdo.
+        payload = payload_publico(pesq)
+        escopo = None
+        respostas = []
+        for p in payload["perguntas"]:
+            pid = p["id"]
+            opc = p["opcoes"]
+            if opc and opc.get("tipo") == "unidade":
+                raw = request.form.get(f"ancora_{pid}", "")
+                if ":" in raw:
+                    et, eid = raw.split(":", 1)
+                    escopo = (et, int(eid) if eid.isdigit() else None)
+                continue
+            texto = (request.form.get(f"q_{pid}_texto") or "").strip() or None
+            nraw = (request.form.get(f"q_{pid}_nota") or "").strip()
+            nota = int(nraw) if nraw.isdigit() else None
+            opcao = (request.form.get(f"q_{pid}_opcao") or "").strip() or None
+            if texto or nota is not None or opcao:
+                respostas.append({"pergunta_id": pid, "texto": texto, "nota": nota, "opcao": opcao})
+        if escopo is None:  # escopo fixo da pesquisa (modo 'local')
+            escopo = (pesq.entidade_tipo or "empresa", pesq.entidade_id)
+
+        pessoa_id = None
+        if not pesq.anonima:
+            email = (request.form.get("email") or "").strip().lower()
+            consent = request.form.get("consentimento") in ("on", "1", "true")
+            if email and consent:
+                pessoa_id = _find_or_create_pessoa(
+                    s,
+                    email,
+                    (request.form.get("nome") or "").strip() or None,
+                    {},
+                    fonte="pesquisa",
+                    origem="pesquisa_web",
+                )
+
+        registrar_respostas(s, pesq, escopo=escopo, pessoa_id=pessoa_id, respostas=respostas)
+    return render_template(tmpl, obrigado=True)
+
+
 def _carregar_detalhe_empresa(empresa_id: int):
     """Carrega empresa + estrutura hierárquica + stats para o detalhe.
 
