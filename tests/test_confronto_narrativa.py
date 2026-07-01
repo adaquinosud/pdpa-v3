@@ -217,3 +217,151 @@ def test_rotulos_claros_sem_jargao(client_loyall, db_session):
     assert "os dois reconhecem o problema" in body
     # o jargão cru não aparece mais no texto visível
     assert "time mais crítico" not in body
+
+
+# ── Frente B: temas do cliente por subpilar (5b.4) ───────────────────────────
+
+from datetime import date  # noqa: E402
+
+from src.models.agrupamento import Agrupamento  # noqa: E402
+from src.models.pesquisa import PesquisaEscopo  # noqa: E402
+from src.models.temas import TemaCache  # noqa: E402
+
+
+def _agrupamento(db_session, e_id, nome="Ag"):
+    a = Agrupamento(empresa_id=e_id, nome=f"{nome}{_k[0]}")
+    _k[0] += 1
+    db_session.add(a)
+    db_session.flush()
+    return a
+
+
+def _tema(db_session, e_id, ag_id, sub, tipo, label, volume):
+    db_session.add(
+        TemaCache(
+            empresa_id=e_id,
+            agrupamento_id=ag_id,
+            subpilar=sub,
+            tipo=tipo,
+            tema_label=label,
+            volume=volume,
+            percentual=0.1,
+            periodo_inicio=date(2026, 1, 1),
+            periodo_fim=date(2026, 6, 1),
+            hash_escopo="h",
+        )
+    )
+
+
+def test_temas_valencia_dominante(db_session):
+    """Ponto cego detrator → temas de detrator (reclamações); força promotor →
+    temas de promotor (elogios). Nunca a valência errada."""
+    e_id, f_id, p = _pesquisa(db_session)
+    a = _agrupamento(db_session, e_id)
+    p.entidade_tipo = "agrupamento"
+    db_session.add(PesquisaEscopo(pesquisa_id=p.id, entidade_id=a.id))
+    db_session.flush()
+    # ponto cego P1: cliente detrator, time inativo
+    q_p1 = _pergunta(db_session, p, "P1")
+    _verb(db_session, e_id, f_id, "P1", "detrator")
+    _resp(db_session, p, q_p1, sub_class="sem_lastro", val="inativo")
+    _tema(db_session, e_id, a.id, "P1", "detrator", "demora no atendimento", 10)
+    _tema(db_session, e_id, a.id, "P1", "promotor", "NÃO deve aparecer", 99)  # valência errada
+    # força Pa3: cliente promotor, time promotor (gap alinhado)
+    q_pa3 = _pergunta(db_session, p, "Pa3")
+    _verb(db_session, e_id, f_id, "Pa3", "promotor")
+    _resp(db_session, p, q_pa3, sub_class="Pa3", val="promotor")
+    _tema(db_session, e_id, a.id, "Pa3", "promotor", "equipe atenciosa", 8)
+    db_session.commit()
+
+    g = _por_sub(gap_confronto(db_session, p.id, escopo=None))
+    p1_temas = [t["tema_label"] for t in g["P1"]["temas_cliente"]]
+    assert p1_temas == ["demora no atendimento"]  # só detrator (a valência dominante)
+    assert "NÃO deve aparecer" not in p1_temas
+    pa3_temas = [t["tema_label"] for t in g["Pa3"]["temas_cliente"]]
+    assert pa3_temas == ["equipe atenciosa"]  # promotor = elogios
+
+
+def test_temas_multi_agrupamento_soma(db_session):
+    """Multi-agrupamento: mesmo tema_label soma volume via agrupamento_id IN."""
+    e_id, f_id, p = _pesquisa(db_session)
+    a1 = _agrupamento(db_session, e_id, "A1x")
+    a2 = _agrupamento(db_session, e_id, "A2x")
+    p.entidade_tipo = "agrupamento"
+    db_session.add(PesquisaEscopo(pesquisa_id=p.id, entidade_id=a1.id))
+    db_session.add(PesquisaEscopo(pesquisa_id=p.id, entidade_id=a2.id))
+    db_session.flush()
+    q = _pergunta(db_session, p, "D2")
+    _verb(db_session, e_id, f_id, "D2", "detrator")
+    _resp(db_session, p, q, sub_class="sem_lastro", val="inativo")
+    _tema(db_session, e_id, a1.id, "D2", "detrator", "fila grande", 4)
+    _tema(db_session, e_id, a2.id, "D2", "detrator", "fila grande", 6)  # mesmo tema
+    db_session.commit()
+    g = _por_sub(gap_confronto(db_session, p.id, escopo=None))
+    temas = g["D2"]["temas_cliente"]
+    assert temas == [{"tema_label": "fila grande", "volume": 10}]  # 4+6 somados
+
+
+def test_gate_loja_sem_vazamento(db_session):
+    """Escopo loja → temas_indisponiveis, temas vazios, SEM fallback empresa."""
+    e_id, f_id, p = _pesquisa(db_session)
+    a = _agrupamento(db_session, e_id)
+    p.entidade_tipo = "local"  # pesquisa de loja
+    db_session.flush()
+    q_p1 = _pergunta(db_session, p, "P1")
+    _verb(db_session, e_id, f_id, "P1", "detrator")
+    _resp(db_session, p, q_p1, sub_class="sem_lastro", val="inativo")
+    # tema existe no agrupamento — NÃO pode vazar numa pesquisa de loja
+    _tema(db_session, e_id, a.id, "P1", "detrator", "vazamento proibido", 50)
+    _tema(db_session, e_id, None, "P1", "detrator", "empresa proibido", 50)  # nível empresa
+    db_session.commit()
+    g = _por_sub(gap_confronto(db_session, p.id, escopo=None))
+    assert g["P1"]["temas_indisponiveis"] is True
+    assert g["P1"]["temas_cliente"] == []  # nada vazou
+
+
+def test_top_n_temas(db_session):
+    """Limita a 3 temas por subpilar, os de maior volume."""
+    e_id, f_id, p = _pesquisa(db_session)
+    a = _agrupamento(db_session, e_id)
+    p.entidade_tipo = "agrupamento"
+    db_session.add(PesquisaEscopo(pesquisa_id=p.id, entidade_id=a.id))
+    db_session.flush()
+    q_p1 = _pergunta(db_session, p, "P1")
+    _verb(db_session, e_id, f_id, "P1", "detrator")
+    _resp(db_session, p, q_p1, sub_class="sem_lastro", val="inativo")
+    for i, vol in enumerate([1, 5, 3, 9, 7]):
+        _tema(db_session, e_id, a.id, "P1", "detrator", f"tema{i}", vol)
+    db_session.commit()
+    g = _por_sub(gap_confronto(db_session, p.id, escopo=None))
+    temas = g["P1"]["temas_cliente"]
+    assert len(temas) == 3
+    assert [t["volume"] for t in temas] == [9, 7, 5]  # top-3 por volume desc
+
+
+def test_tela_mostra_temas_e_aviso(client_loyall, db_session):
+    """A tela lista 'Cliente reclama de:' (agrupamento) e o aviso na loja."""
+    # agrupamento → mostra temas
+    e_id, f_id, p = _pesquisa(db_session)
+    a = _agrupamento(db_session, e_id)
+    p.entidade_tipo = "agrupamento"
+    db_session.add(PesquisaEscopo(pesquisa_id=p.id, entidade_id=a.id))
+    db_session.flush()
+    q_p1 = _pergunta(db_session, p, "P1")
+    _verb(db_session, e_id, f_id, "P1", "detrator")
+    _resp(db_session, p, q_p1, sub_class="sem_lastro", val="inativo")
+    _tema(db_session, e_id, a.id, "P1", "detrator", "demora", 10)
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    assert "Cliente reclama de:" in body and "demora" in body
+
+    # loja → aviso, sem temas
+    e2, f2, p2 = _pesquisa(db_session)
+    p2.entidade_tipo = "local"
+    db_session.flush()
+    q2 = _pergunta(db_session, p2, "P1")
+    _verb(db_session, e2, f2, "P1", "detrator")
+    _resp(db_session, p2, q2, sub_class="sem_lastro", val="inativo")
+    db_session.commit()
+    body2 = client_loyall.get(f"/pesquisas/{p2.id}/confronto").get_data(as_text=True)
+    assert "apenas para pesquisas por agrupamento" in body2

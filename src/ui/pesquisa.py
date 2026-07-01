@@ -439,7 +439,7 @@ def pesquisa_confronto(pesquisa_id):
     from sqlalchemy import func
 
     from src.models.respondente import Respondente, Resposta
-    from src.pesquisa.confronto import gap_confronto
+    from src.pesquisa.confronto import gap_confronto, temas_escopo
     from src.pesquisa.retorno import retorno_pesquisa
 
     et = (request.args.get("entidade_tipo") or "").strip() or None
@@ -466,10 +466,12 @@ def pesquisa_confronto(pesquisa_id):
         ret = retorno_pesquisa(s, pesquisa_id)  # reusa só os escopos (filtro)
         escopos = ret["escopos"] if ret else []
         gap = None if pendentes else gap_confronto(s, pesquisa_id, escopo)
+        temas_indisponiveis = temas_escopo(pesq, escopo)[1]  # loja → aviso, sem tema
         ctx = {
             "pesquisa_id": pesquisa_id,
             "empresa_id": pesq.empresa_id,
             "titulo": pesq.titulo,
+            "temas_indisponiveis": temas_indisponiveis,
         }
     return render_template(
         "pesquisa/confronto.html",

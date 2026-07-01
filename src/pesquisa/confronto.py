@@ -151,6 +151,47 @@ def _lado_colaborador(s, pesquisa_id: int, escopo) -> Tuple[Dict[str, str], Dict
     return valencia, nota_media
 
 
+def temas_escopo(pesq, escopo):
+    """``(ag_ids, indisponivel)`` para os temas do cliente (5b.4).
+
+    Loja → ``indisponivel=True`` e NUNCA cai em fallback empresa (TemaCache não
+    tem grão de loja). Filtro de agrupamento na tela restringe a ele; sem filtro
+    ('Todos') usa os agrupamentos DA PESQUISA (``pesquisa_escopos``). Empresa →
+    ``ag_ids=None`` (lê TemaCache com ``agrupamento_id IS NULL``)."""
+    if escopo and escopo[0] == "local":
+        return None, True
+    if escopo and escopo[0] == "agrupamento" and escopo[1] is not None:
+        return [escopo[1]], False
+    if pesq.entidade_tipo == "local":
+        return None, True
+    if pesq.entidade_tipo == "agrupamento":
+        return [e.entidade_id for e in pesq.escopos], False
+    return None, False  # empresa
+
+
+def _temas_subpilar(s, empresa_id, sub, tipo, ag_ids, n=3):
+    """Top-N temas do cliente (``tema_label`` + volume somado) no subpilar +
+    valência ``tipo``, no escopo. Multi-agrupamento SOMA via ``agrupamento_id IN``
+    (mesmo padrão do P2.E); ``ag_ids=None`` → nível empresa (``IS NULL``)."""
+    from sqlalchemy import func
+
+    from src.models.temas import TemaCache
+
+    vol = func.sum(TemaCache.volume)
+    q = s.query(TemaCache.tema_label, vol.label("v")).filter(
+        TemaCache.empresa_id == empresa_id,
+        TemaCache.subpilar == sub,
+        TemaCache.tipo == tipo,
+    )
+    q = (
+        q.filter(TemaCache.agrupamento_id.in_(ag_ids))
+        if ag_ids
+        else q.filter(TemaCache.agrupamento_id.is_(None))
+    )
+    rows = q.group_by(TemaCache.tema_label).order_by(vol.desc()).limit(n).all()
+    return [{"tema_label": label, "volume": int(v)} for label, v in rows]
+
+
 def gap_confronto(
     s, pesquisa_id: int, escopo: Optional[Tuple[str, Optional[int]]] = None
 ) -> Optional[List[Dict[str, Any]]]:
@@ -189,6 +230,10 @@ def gap_confronto(
     presentes = set(cliente_agg) | set(colab_val) | set(colab_nota) | escopo_subpilares
     subpilares = [sp for sp in SUBPILARES_ORDEM if sp in presentes]
 
+    # Temas do cliente (5b.4): assimétrico — só o lado cliente tem tema. Escopo =
+    # agrupamentos da pesquisa; loja não tem tema (indisponível, sem fallback).
+    ag_ids_temas, temas_indisp = temas_escopo(pesq, escopo)
+
     out: List[Dict[str, Any]] = []
     for sub in subpilares:
         c = cliente_agg.get(sub)
@@ -208,6 +253,13 @@ def gap_confronto(
             estado = "sem_sinal"  # nem cliente nem time — só existe por estar no escopo
         cobertura = "perguntado" if sub in escopo_subpilares else "nao_perguntado"
         direcao = _direcao(cli_val, col_val) if estado == "gap" else None
+        # Temas do cliente da VALÊNCIA DOMINANTE (detrator→reclamações,
+        # promotor→elogios). Sem valência clara ou loja → sem tema.
+        temas_cliente = (
+            _temas_subpilar(s, pesq.empresa_id, sub, cli_val, ag_ids_temas)
+            if (cli_val and not temas_indisp)
+            else []
+        )
         out.append(
             {
                 "subpilar": sub,
@@ -215,6 +267,8 @@ def gap_confronto(
                 "estado": estado,
                 "cobertura": cobertura,
                 "categoria": _categoria(estado, cobertura, cli_val, col_val, direcao),
+                "temas_cliente": temas_cliente,
+                "temas_indisponiveis": temas_indisp,
                 "cliente": (
                     {"valencia_dominante": cli_val, "ratio": c["ratio"], "faixa": c["faixa"]}
                     if c

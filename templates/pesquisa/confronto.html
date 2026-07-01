@@ -13,9 +13,22 @@
 {# Linha de um subpilar: cliente | time | gap. O lado do time vazio vira "time não
    consegue avaliar" SÓ no ponto cego (perguntado, silêncio total). #}
 {% macro linha(r) %}
-<div class="flex items-center justify-between border-t border-loyall-100 px-3 py-2 text-sm">
-  <div class="font-medium">{{ r.subpilar }} · {{ r.nome }}</div>
-  <div class="flex items-center gap-4 text-xs">
+<div class="flex items-start justify-between border-t border-loyall-100 px-3 py-2 text-sm">
+  <div>
+    <div class="font-medium">{{ r.subpilar }} · {{ r.nome }}</div>
+    {% if r.temas_cliente %}
+    {# Conteúdo do gap: sobre o quê o cliente fala neste subpilar (assimétrico —
+       só o lado cliente tem tema). Rótulo pela valência dominante do cliente. #}
+    {% set val = r.cliente.valencia_dominante if r.cliente else None %}
+    <div class="text-xs text-loyall-500 mt-0.5">
+      {% if val == 'promotor' %}Cliente elogia:
+      {% elif val == 'detrator' %}Cliente reclama de:
+      {% else %}Cliente comenta:{% endif %}
+      {{ r.temas_cliente | map(attribute='tema_label') | join(', ') }}
+    </div>
+    {% endif %}
+  </div>
+  <div class="flex items-center gap-4 text-xs whitespace-nowrap">
     <span>Cliente: {{ val_badge(r.cliente.valencia_dominante) if r.cliente else val_badge(None) }}
       {% if r.cliente %}<span class="text-loyall-400">{{ r.cliente.faixa }}</span>{% endif %}</span>
     <span>Time:
@@ -65,6 +78,10 @@
       {{ e.rotulo }} ({{ e.n }})</a>
     {% endfor %}
   </div>
+  {% endif %}
+
+  {% if temas_indisponiveis %}
+  <p class="text-xs text-loyall-400 mt-3 italic">Temas disponíveis apenas para pesquisas por agrupamento.</p>
   {% endif %}
 
   {# Categorias na ordem da história: ponto cego → descompasso → consciência →
