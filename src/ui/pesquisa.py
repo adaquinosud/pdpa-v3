@@ -427,6 +427,25 @@ def pesquisa_classificar_respostas(pesquisa_id):
     return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
 
 
+def _pendentes_nao_classificados(s, pesquisa_id):
+    """Comentários com texto mas ainda sem classificação (5a) → o gap seria falso.
+    Gate compartilhado por confronto e ORIGEM."""
+    from sqlalchemy import func
+
+    from src.models.respondente import Respondente, Resposta
+
+    return (
+        s.query(func.count(Resposta.id))
+        .join(Respondente, Respondente.id == Resposta.respondente_id)
+        .filter(
+            Respondente.pesquisa_id == pesquisa_id,
+            Resposta.valor_texto.isnot(None),
+            Resposta.classificado_em.is_(None),
+        )
+        .scalar()
+    )
+
+
 @ui_bp.route("/pesquisas/<int:pesquisa_id>/confronto")
 @loyall_required_ui
 def pesquisa_confronto(pesquisa_id):
@@ -436,9 +455,6 @@ def pesquisa_confronto(pesquisa_id):
     r = _require_loyall_html()
     if r:
         return r
-    from sqlalchemy import func
-
-    from src.models.respondente import Respondente, Resposta
     from src.pesquisa.confronto import gap_confronto, temas_escopo
     from src.pesquisa.retorno import retorno_pesquisa
 
@@ -453,16 +469,7 @@ def pesquisa_confronto(pesquisa_id):
             flash("O confronto é só para pesquisas de propósito 'confronto'.", "erro")
             return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
         # Pendentes: comentários ainda não classificados (5a) → gap seria falso.
-        pendentes = (
-            s.query(func.count(Resposta.id))
-            .join(Respondente, Respondente.id == Resposta.respondente_id)
-            .filter(
-                Respondente.pesquisa_id == pesquisa_id,
-                Resposta.valor_texto.isnot(None),
-                Resposta.classificado_em.is_(None),
-            )
-            .scalar()
-        )
+        pendentes = _pendentes_nao_classificados(s, pesquisa_id)
         ret = retorno_pesquisa(s, pesquisa_id)  # reusa só os escopos (filtro)
         escopos = ret["escopos"] if ret else []
         gap = None if pendentes else gap_confronto(s, pesquisa_id, escopo)
@@ -481,3 +488,89 @@ def pesquisa_confronto(pesquisa_id):
         escopo_sel=(et, eid),
         **ctx,
     )
+
+
+# ── ORIGEM (fatia 3): régua de profundidade — tela irmã do confronto ─────────
+# Ordem de profundidade: Essência (mais fundo) → Resultado (mais raso).
+_ORIGEM_ORDEM = {"essencia": 0, "significado": 1, "proposito": 2, "caminho": 3, "resultado": 4}
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/origem")
+@loyall_required_ui
+def pesquisa_origem(pesquisa_id):
+    """Tela do ORIGEM (fatia 3): a que elo da cadeia generativa mora cada gap,
+    medido contra a essência declarada. Só proposito='confronto'. Leitura pura
+    sobre origem_analise/origem_sintese; o botão dispara gerar_origem."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.api.painel import NOME_SUBPILAR
+    from src.models.empresa import Empresa
+    from src.models.origem import OrigemAnalise, OrigemSintese
+    from src.pesquisa.origem import _essencia_vazia
+
+    with db_session() as s:
+        pesq = obter(s, pesquisa_id)
+        if pesq is None:
+            return render_template("404.html"), 404
+        if pesq.proposito != "confronto":
+            flash("O ORIGEM é só para pesquisas de propósito 'confronto'.", "erro")
+            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+        emp = s.get(Empresa, pesq.empresa_id)
+        essencia_vazia = emp is None or _essencia_vazia(emp)
+        pendentes = _pendentes_nao_classificados(s, pesquisa_id)
+        linhas = s.query(OrigemAnalise).filter_by(pesquisa_id=pesquisa_id).all()
+        analises = sorted(
+            (
+                {
+                    "subpilar": a.subpilar,
+                    "nome": NOME_SUBPILAR.get(a.subpilar, a.subpilar),
+                    "nivel": a.nivel,
+                    "lado": a.lado,
+                    "justificativa": a.justificativa,
+                }
+                for a in linhas
+            ),
+            key=lambda a: (_ORIGEM_ORDEM.get(a["nivel"], 9), a["subpilar"]),
+        )
+        sint = s.get(OrigemSintese, pesquisa_id)
+        ctx = {
+            "pesquisa_id": pesquisa_id,
+            "empresa_id": pesq.empresa_id,
+            "titulo": pesq.titulo,
+            "essencia_vazia": essencia_vazia,
+            "pendentes": pendentes,
+            "analises": analises,
+            "sintese": sint.texto if sint else None,
+        }
+    return render_template("pesquisa/origem.html", **ctx)
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/origem/gerar", methods=["POST"])
+@loyall_required_ui
+def pesquisa_origem_gerar(pesquisa_id):
+    """Dispara gerar_origem (1 chamada LLM, sob demanda). Falha de IA → flash, não
+    500 cru. Re-rodar sobrescreve. Molde do 'Classificar comentários'."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.pesquisa.origem import gerar_origem
+
+    try:
+        with db_session() as s:
+            if obter(s, pesquisa_id) is None:
+                return render_template("404.html"), 404
+            out = gerar_origem(s, pesquisa_id)
+    except Exception:  # noqa: BLE001 — falha de LLM/infra não vira 500 cru
+        current_app.logger.exception("falha ao rodar ORIGEM (pesquisa=%s)", pesquisa_id)
+        flash("Não consegui rodar o ORIGEM agora (serviço de IA indisponível).", "erro")
+        return redirect(url_for("ui.pesquisa_origem", pesquisa_id=pesquisa_id))
+
+    status = out.get("status")
+    if status == "ok":
+        flash(f"ORIGEM: {out['analisados']} gap(s) analisado(s).", "ok")
+    elif status == "essencia_indisponivel":
+        flash("Cadastre missão, visão e valores da empresa primeiro.", "erro")
+    elif status == "sem_gaps":
+        flash("Nenhum gap para o ORIGEM ler (sem pontos cegos, descompassos ou forças).", "ok")
+    return redirect(url_for("ui.pesquisa_origem", pesquisa_id=pesquisa_id))

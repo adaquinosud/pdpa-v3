@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titulo %}ORIGEM — {{ titulo }}{% endblock %}
+
+{% set NIVEL_LABEL = {
+  'essencia': 'Essência', 'significado': 'Significado', 'proposito': 'Propósito',
+  'caminho': 'Caminho', 'resultado': 'Resultado'} %}
+{% set FUNDO = ['essencia', 'significado'] %}
+
+{# Selo de nível: profundo pesa mais. Problema fundo = alarme (rose); força funda
+   = solidez (emerald). Raso = neutro. #}
+{% macro nivel_badge(nivel, lado) %}
+  {% if lado == 'solidez' %}
+    {% set cor = 'bg-emerald-100 text-emerald-800' if nivel in FUNDO else 'bg-emerald-50 text-emerald-600' %}
+  {% else %}
+    {% set cor = 'bg-rose-100 text-rose-800' if nivel in FUNDO else ('bg-amber-100 text-amber-700' if nivel == 'proposito' else 'bg-loyall-100 text-loyall-600') %}
+  {% endif %}
+  <span class="px-2 py-0.5 rounded text-xs font-medium {{ cor }}">{{ NIVEL_LABEL.get(nivel, nivel) }}</span>
+{% endmacro %}
+
+{% block conteudo %}
+<div class="max-w-3xl">
+  <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
+     class="text-sm text-loyall-400 hover:underline">← Confronto</a>
+  <h1 class="text-2xl font-semibold mt-1">ORIGEM — {{ titulo }}</h1>
+  <p class="text-sm text-loyall-500 mt-1">
+    A que elo da cadeia <strong>Essência → Significado → Propósito → Caminho → Resultado</strong>
+    mora cada gap, medido contra o que a empresa declara ser.</p>
+
+  {% if essencia_vazia %}
+  {# GATE O6 — sem essência declarada, não há contra o quê medir. #}
+  <div class="mt-4 bg-amber-50 border border-amber-200 text-amber-800 rounded p-4 text-sm">
+    <p><strong>Cadastre missão, visão e valores da empresa primeiro.</strong>
+       O ORIGEM lê a profundidade dos gaps contra a essência declarada — sem ela, não roda.</p>
+    <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa_id) }}"
+       class="inline-block mt-2 text-xs px-3 py-1 rounded bg-loyall-700 text-loyall-50 hover:bg-loyall-600">
+      Editar empresa →</a>
+  </div>
+
+  {% elif pendentes %}
+  {# GATE pendentes — gap falso → ORIGEM falso. #}
+  <div class="mt-4 bg-amber-50 border border-amber-200 text-amber-800 rounded p-4 text-sm">
+    <p><strong>{{ pendentes }}</strong> comentário(s) ainda não classificado(s).
+       Classifique antes de ler a profundidade — senão o ORIGEM roda sobre um gap incompleto.</p>
+    <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
+       class="inline-block mt-2 text-xs px-3 py-1 rounded bg-loyall-700 text-loyall-50 hover:bg-loyall-600">
+      Ir ao confronto classificar →</a>
+  </div>
+
+  {% else %}
+  {% if sintese %}
+  {# SÍNTESE — a manchete: onde a maioria rompe + o recado central. #}
+  <div class="mt-4 rounded-lg border border-loyall-300 bg-loyall-50 p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-500 mb-1">Síntese</div>
+    <p class="text-base text-loyall-800 leading-relaxed">{{ sintese }}</p>
+  </div>
+  {% endif %}
+
+  {# Botão de rodar/re-rodar — chamada LLM (rede) → spinner no submit. #}
+  <form id="origem-form" method="post" class="mt-4"
+        action="{{ url_for('ui.pesquisa_origem_gerar', pesquisa_id=pesquisa_id) }}">
+    <button id="origem-btn"
+            class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-wait">
+      <span id="origem-spinner" aria-hidden="true"
+            class="hidden h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin"></span>
+      <span id="origem-label">{{ "Reler a profundidade" if analises else "Ler a profundidade (ORIGEM)" }}</span>
+    </button>
+  </form>
+
+  {% if analises %}
+  <div class="mt-4 border border-loyall-200 rounded divide-y divide-loyall-100">
+    {% for a in analises %}
+    <div class="px-3 py-2 text-sm {% if a.lado == 'gravidade' and a.nivel in FUNDO %}bg-rose-50{% elif a.lado == 'solidez' and a.nivel in FUNDO %}bg-emerald-50{% endif %}">
+      <div class="flex items-center gap-2">
+        <span class="font-medium">{{ a.subpilar }} · {{ a.nome }}</span>
+        {{ nivel_badge(a.nivel, a.lado) }}
+        <span class="text-xs">{% if a.lado == 'solidez' %}🟢 solidez{% else %}🔴 gravidade{% endif %}</span>
+      </div>
+      {% if a.justificativa %}
+      <p class="text-xs text-loyall-600 mt-1">{{ a.justificativa }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  {# Sem análise ainda — explica o que o ORIGEM faz. #}
+  <div class="mt-4 text-sm text-loyall-600 bg-loyall-50 border border-loyall-100 rounded p-4">
+    <p>O ORIGEM lê a <strong>profundidade</strong> de cada gap do confronto: se a ruptura mora
+       só no resultado (correção rasa) ou lá na essência (correção profunda, que trai o que a
+       empresa declara ser). Nas forças, inverte — quanto mais fundo, mais sólida a força.
+       Clique acima para ler.</p>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+<script>
+  var f = document.getElementById('origem-form');
+  if (f) {
+    f.addEventListener('submit', function () {
+      document.getElementById('origem-btn').disabled = true;
+      document.getElementById('origem-label').textContent = 'Lendo a profundidade…';
+      document.getElementById('origem-spinner').classList.remove('hidden');
+    });
+  }
+</script>
+{% endblock %}
