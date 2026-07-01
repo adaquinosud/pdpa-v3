@@ -1,7 +1,5 @@
 # PDPA v3 — Documento de Contexto
 
-> **Roteamento — qual `.md` usar.** Este é o contexto de **engenharia** do PDPA: a mecânica completa do produto (subpilares com código, ratios, faixas, indicadores, coleta, ML, Mandala/ORIGEM). Use para **construir e manter o software**. Para qualquer material que circula (deck, folha, editorial, e-mails), mande no `PDPA-Loyall-Contexto-Mestre.md` — e **nada do cofre descrito aqui entra em peça Nível A**.
-
 ## O que é o PDPA
 Metodologia de diagnóstico relacional criada por Alexandre D'Aquino e Dener Pereira. Avalia a qualidade da relação entre empresa e cliente em 4 dimensões sequenciais (Precisão, Disponibilidade, Parceria, Aconselhamento) divididas em 12 subpilares.
 
