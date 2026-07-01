@@ -2534,6 +2534,10 @@ def htmx_salvar_empresa(empresa_id: int):
     setor = (request.form.get("setor") or "").strip() or None
     site = (request.form.get("site") or "").strip() or None
     observacao = (request.form.get("observacao") or "").strip() or None
+    # ORIGEM (fatia 1): essência declarada, texto livre. Vazio → NULL.
+    missao = (request.form.get("missao") or "").strip() or None
+    visao = (request.form.get("visao") or "").strip() or None
+    valores = (request.form.get("valores") or "").strip() or None
 
     def _taxa(campo, default):  # 0–1; fora da faixa/ inválida → mantém default
         raw = (request.form.get(campo) or "").strip().replace(",", ".")
@@ -2560,6 +2564,9 @@ def htmx_salvar_empresa(empresa_id: int):
         empresa.setor = setor
         empresa.site = site
         empresa.observacao = observacao
+        empresa.missao = missao
+        empresa.visao = visao
+        empresa.valores = valores
         empresa.taxa_alto = _taxa("taxa_alto", empresa.taxa_alto)
         empresa.taxa_medio = _taxa("taxa_medio", empresa.taxa_medio)
         empresa.taxa_baixo = _taxa("taxa_baixo", empresa.taxa_baixo)

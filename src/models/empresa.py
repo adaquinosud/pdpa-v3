@@ -29,6 +29,12 @@ class Empresa(Base):
     site: Mapped[Optional[str]] = mapped_column(String)
     observacao: Mapped[Optional[str]] = mapped_column(Text)
     branding_json: Mapped[Optional[str]] = mapped_column(Text)
+    # ORIGEM (fatia 1): essência DECLARADA da empresa, texto livre. A régua de
+    # profundidade do confronto (fatia 2) mede os gaps contra isto. NULL até
+    # cadastrar — nada lê ainda.
+    missao: Mapped[Optional[str]] = mapped_column(Text)
+    visao: Mapped[Optional[str]] = mapped_column(Text)
+    valores: Mapped[Optional[str]] = mapped_column(Text)
     # Impacto em R$ (CP-impacto-rs): taxa de sucesso por prioridade da ação, editável
     # por empresa. Lida por taxas_empresa(); o fluxo R$ = recuperados × LTV, com
     # recuperados = detratores × taxa[prioridade]. server_default pré-popula as

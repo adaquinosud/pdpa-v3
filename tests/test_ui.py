@@ -363,6 +363,31 @@ def test_ui_salvar_empresa_via_put(client_loyall):
     assert body["observacao"] == "nova obs"
 
 
+def test_ui_salvar_empresa_missao_visao_valores(client_loyall, db_session):
+    """ORIGEM fatia 1: o modal salva missão/visão/valores; nascem NULL e persistem."""
+    from src.models.empresa import Empresa
+
+    e = client_loyall.post("/api/empresas/", json={"nome": "EorigemMVV"}).get_json()
+    db_session.expire_all()
+    emp = db_session.get(Empresa, e["id"])
+    assert emp.missao is None and emp.visao is None and emp.valores is None  # nascem NULL
+    r = client_loyall.put(
+        f"/ui/empresas/{e['id']}",
+        data={
+            "nome": "EorigemMVV",
+            "missao": "Servir bem quem confia na gente",
+            "visao": "Ser a referência da região",
+            "valores": "Ética, cuidado, transparência",
+        },
+    )
+    assert r.status_code == 200
+    db_session.expire_all()
+    emp = db_session.get(Empresa, e["id"])
+    assert emp.missao == "Servir bem quem confia na gente"
+    assert emp.visao == "Ser a referência da região"
+    assert emp.valores == "Ética, cuidado, transparência"
+
+
 def test_ui_salvar_empresa_conflito_nome(client_loyall):
     client_loyall.post("/api/empresas/", json={"nome": "Ja-existe"})
     e2 = client_loyall.post("/api/empresas/", json={"nome": "Outra"}).get_json()
