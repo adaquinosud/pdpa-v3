@@ -4,7 +4,7 @@
 <h1 class="text-xl font-semibold mb-1">Pesquisas — {{ empresa_nome }}</h1>
 <p class="text-sm text-loyall-500 mb-4">Geração assistida (Fase 1). A coleta vem depois.</p>
 
-<form method="post" action="{{ url_for('ui.pesquisa_gerar', empresa_id=empresa_id) }}"
+<form id="form-gerar" method="post" action="{{ url_for('ui.pesquisa_gerar', empresa_id=empresa_id) }}"
       class="border rounded p-4 mb-6 max-w-2xl">
   <h2 class="font-medium mb-3">Nova pesquisa</h2>
   <div class="grid grid-cols-3 gap-3 mb-3">
@@ -58,13 +58,29 @@
     </div>
   </details>
 
-  <button class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm">Gerar pesquisa</button>
+  {# Spinner INDETERMINADO (a geração é 1 chamada LLM, sem progresso real → nada de
+     barra de %). Ao submeter: botão desabilita (anti-duplo-clique = sem rascunho
+     duplicado) + rótulo "Gerando perguntas…" + spinner. A página fica com o spinner
+     até o redirect da rota (que não muda); ao navegar, some sozinho. #}
+  <button id="btn-gerar"
+          class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-wait">
+    <span id="btn-gerar-spinner" aria-hidden="true"
+          class="hidden h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin"></span>
+    <span id="btn-gerar-label">Gerar pesquisa</span>
+  </button>
 </form>
 <script>
   function escopoSel(tipo) {
     document.getElementById('sel-agrupamento').classList.toggle('hidden', tipo !== 'agrupamento');
     document.getElementById('sel-local').classList.toggle('hidden', tipo !== 'local');
   }
+  // Feedback honesto de "gerando": desabilita o botão (evita rascunho duplicado) e
+  // mostra o spinner. O submit já está em voo — desabilitar não o cancela.
+  document.getElementById('form-gerar').addEventListener('submit', function () {
+    document.getElementById('btn-gerar').disabled = true;
+    document.getElementById('btn-gerar-label').textContent = 'Gerando perguntas…';
+    document.getElementById('btn-gerar-spinner').classList.remove('hidden');
+  });
 </script>
 
 <h2 class="font-medium mb-2">Existentes</h2>

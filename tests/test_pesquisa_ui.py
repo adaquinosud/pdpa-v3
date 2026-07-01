@@ -54,6 +54,21 @@ def test_gate_loyall(client_cliente_factory, client_loyall):
     assert resp.status_code == 403
 
 
+def test_form_gerar_tem_spinner(client_loyall):
+    """Feedback de 'gerando': o form carrega o markup do spinner indeterminado +
+    o listener que desabilita o botão e troca o rótulo. (Comportamento é JS; aqui
+    o smoke garante que os ganchos/atributos estão presentes.)"""
+    e = _empresa(client_loyall, "EUIspin")
+    html = client_loyall.get(f"/empresas/{e}/pesquisas").get_data(as_text=True)
+    assert 'id="form-gerar"' in html
+    assert 'id="btn-gerar"' in html
+    assert 'id="btn-gerar-spinner"' in html and "animate-spin" in html
+    # listener: desabilita o botão + rótulo "Gerando perguntas…" + revela o spinner
+    assert "addEventListener('submit'" in html
+    assert "Gerando perguntas" in html
+    assert ".disabled = true" in html
+
+
 def test_gerar_persiste_e_redireciona(client_loyall, db_session, monkeypatch):
     e = _empresa(client_loyall, "EUIger")
 
