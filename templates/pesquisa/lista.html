@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block titulo %}Pesquisas — {{ empresa_nome }}{% endblock %}
 {% block conteudo %}
-<h1 class="text-xl font-semibold mb-1">Pesquisas — {{ empresa_nome }}</h1>
+<a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa_id) }}"
+   class="text-sm text-loyall-400 hover:underline">← Empresa</a>
+<h1 class="text-xl font-semibold mb-1 mt-1">Pesquisas — {{ empresa_nome }}</h1>
 <p class="text-sm text-loyall-500 mb-4">Geração assistida (Fase 1). A coleta vem depois.</p>
 
 <form id="form-gerar" method="post" action="{{ url_for('ui.pesquisa_gerar', empresa_id=empresa_id) }}"

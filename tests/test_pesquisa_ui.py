@@ -330,3 +330,37 @@ def test_cards_controles_so_em_rascunho(client_loyall, db_session):
     client_loyall.post(f"/pesquisas/{pid}/aprovar")
     pronta = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "Adicionar pergunta" not in pronta and 'name="subpilar_alvo"' not in pronta
+
+
+# ── Costura de UI: navegação (voltar) + feedback do Validar ──────────────────
+
+
+def test_revisar_tem_voltar_e_validar_com_spinner(client_loyall, db_session):
+    """FRENTE 1/2: revisar tem '← Pesquisas'; Validar tem spinner + rótulo do papel."""
+    e = _empresa(client_loyall, "EUInavR")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    assert "← Pesquisas" in html and f"/empresas/{e}/pesquisas" in html
+    assert "Validar (checar régua)" in html  # papel claro vs Aprovar
+    assert 'id="validar-loading"' in html and 'hx-indicator="#validar-loading"' in html
+
+
+def test_gerar_lista_tem_voltar_empresa(client_loyall, db_session):
+    """FRENTE 1: a tela de gerar tem '← Empresa' → detalhe da empresa."""
+    e = _empresa(client_loyall, "EUInavG")
+    html = client_loyall.get(f"/empresas/{e}/pesquisas").get_data(as_text=True)
+    assert "← Empresa" in html
+    assert f'href="/empresas/{e}"' in html  # detalhe_empresa
+
+
+def test_validar_banner_sucesso_visivel(client_loyall, db_session, monkeypatch):
+    """FRENTE 2b: caso limpo → banner de sucesso destacado (não passa batido)."""
+    e = _empresa(client_loyall, "EUIvalok")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    monkeypatch.setattr(
+        ui_pesq,
+        "validar_completo",
+        lambda perguntas, *a, **k: {"perguntas": [{"ordem": 1, "regras": []}]},
+    )
+    html = client_loyall.post(f"/pesquisas/{pid}/validar").get_data(as_text=True)
+    assert "✓ Validado — nenhum problema encontrado" in html

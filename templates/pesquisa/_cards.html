@@ -1,8 +1,10 @@
 <div id="cards" class="space-y-3 max-w-3xl">
   {% if validou and tem_bloqueio %}
-  <div class="flash flash-erro text-sm">Há perguntas que bloqueiam (🔴). Corrija antes de aprovar.</div>
+  <div class="rounded border border-rose-300 bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium">
+    🔴 Há perguntas que bloqueiam. Corrija antes de aprovar.</div>
   {% elif validou %}
-  <div class="flash flash-ok text-sm">Validado — nenhum bloqueio.</div>
+  <div class="rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-3 py-2 text-sm font-medium">
+    ✓ Validado — nenhum problema encontrado.</div>
   {% endif %}
 
   {% for q in perguntas %}

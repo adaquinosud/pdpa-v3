@@ -1,16 +1,21 @@
 {% extends "base.html" %}
 {% block titulo %}Revisar pesquisa{% endblock %}
 {% block conteudo %}
-<div class="flex items-center justify-between mb-3 max-w-3xl">
+<a href="{{ url_for('ui.pesquisas_lista', empresa_id=empresa_id) }}"
+   class="text-sm text-loyall-400 hover:underline">← Pesquisas</a>
+<div class="flex items-center justify-between mt-1 mb-3 max-w-3xl">
   <div>
     <h1 class="text-xl font-semibold">{{ titulo or "(sem título)" }}</h1>
     <p class="text-sm text-loyall-500">{{ natureza }} · status:
       <span class="font-medium">{{ status }}</span></p>
   </div>
-  <div class="flex gap-2">
+  <div class="flex items-center gap-2">
+    {# Validar = conferência da régua (mostra avisos semânticos do juiz); roda o
+       juiz LLM → spinner enquanto checa. Distinto do Aprovar (publica). #}
+    <span id="validar-loading" class="htmx-indicator text-xs text-loyall-400">Validando…</span>
     <button hx-post="{{ url_for('ui.pesquisa_validar', pesquisa_id=pesquisa_id) }}"
-            hx-target="#cards" hx-swap="outerHTML"
-            class="border px-3 py-1.5 rounded text-sm hover:bg-loyall-50">Validar</button>
+            hx-target="#cards" hx-swap="outerHTML" hx-indicator="#validar-loading"
+            class="border px-3 py-1.5 rounded text-sm hover:bg-loyall-50">Validar (checar régua)</button>
     <form method="post" action="{{ url_for('ui.pesquisa_aprovar', pesquisa_id=pesquisa_id) }}">
       <button class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm">Aprovar</button>
     </form>
