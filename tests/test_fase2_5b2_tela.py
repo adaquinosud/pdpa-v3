@@ -90,7 +90,8 @@ def test_gap_renderiza(client_loyall, db_session):
     r = client_loyall.get(f"/pesquisas/{p.id}/confronto")
     body = r.get_data(as_text=True)
     assert r.status_code == 200
-    assert "superestima" in body and "D2" in body
+    # rótulo claro (sem jargão): superestima → "o time acha melhor…"
+    assert "o time acha melhor do que o cliente sente" in body and "D2" in body
 
 
 def test_pendentes_avisa(client_loyall, db_session):

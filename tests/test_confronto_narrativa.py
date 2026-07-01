@@ -196,3 +196,24 @@ def test_secoes_na_ordem(client_loyall, db_session):
     ]
     assert pos == sorted(pos)  # seções na ordem da história
     assert "time não consegue avaliar" in body  # ponto cego com colaborador vazio
+
+
+def test_rotulos_claros_sem_jargao(client_loyall, db_session):
+    """Frente A: as direções e subtítulos usam linguagem clara, não jargão."""
+    e_id, f_id, p = _pesquisa(db_session)
+    q_d2 = _pergunta(db_session, p, "D2")
+    _verb(db_session, e_id, f_id, "D2", "detrator")
+    _resp(db_session, p, q_d2, sub_class="D2", val="promotor")  # superestima
+    q_d1 = _pergunta(db_session, p, "D1")
+    _verb(db_session, e_id, f_id, "D1", "promotor")
+    _resp(db_session, p, q_d1, sub_class="D1", val="detrator")  # subestima
+    q_pa2 = _pergunta(db_session, p, "Pa2")
+    _verb(db_session, e_id, f_id, "Pa2", "detrator")
+    _resp(db_session, p, q_pa2, sub_class="Pa2", val="detrator")  # consciência
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    assert "o time acha melhor do que o cliente sente" in body
+    assert "o time se cobra mais do que o cliente" in body
+    assert "os dois reconhecem o problema" in body
+    # o jargão cru não aparece mais no texto visível
+    assert "time mais crítico" not in body

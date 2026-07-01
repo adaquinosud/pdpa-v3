@@ -26,7 +26,8 @@
     {% if r.gap %}
       <span class="font-medium
         {% if r.gap.direcao == 'superestima' %}text-rose-600{% elif r.gap.direcao == 'subestima' %}text-sky-600{% else %}text-loyall-500{% endif %}">
-        {{ r.gap.direcao }}{% if r.gap.direcao == 'subestima' %} · time mais crítico{% endif %}</span>
+        {% if r.gap.direcao == 'superestima' %}o time acha melhor do que o cliente sente
+        {% elif r.gap.direcao == 'subestima' %}o time se cobra mais do que o cliente{% endif %}</span>
     {% endif %}
   </div>
 </div>
@@ -70,8 +71,8 @@
      força → não perguntado → outros. Cada uma só aparece se tiver subpilar. #}
   {% set secoes = [
     ('ponto_cego', '🔴', 'Pontos cegos', 'o cliente sofre e o time não vê', 'text-rose-700'),
-    ('descompasso', '🟠', 'Descompassos', 'time e cliente enxergam diferente (superestima = alerta; subestima = informativo)', 'text-orange-700'),
-    ('consciencia_compartilhada', '🟡', 'Consciência compartilhada', 'ambos veem o problema', 'text-amber-700'),
+    ('descompasso', '🟠', 'Descompassos', 'time e cliente enxergam diferente', 'text-orange-700'),
+    ('consciencia_compartilhada', '🟡', 'Consciência compartilhada', 'os dois reconhecem o problema', 'text-amber-700'),
     ('forca', '🟢', 'Forças confirmadas', 'o que proteger', 'text-emerald-700'),
     ('nao_perguntado', '⚪', 'Não perguntado', 'a pesquisa não cobriu — considere na próxima', 'text-loyall-500'),
     ('outros', '·', 'Outros', '', 'text-loyall-500'),
