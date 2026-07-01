@@ -20,6 +20,30 @@ from src.models.respondente import Respondente, Resposta
 
 # Polaridade da valência → direção do gap (promotor + / conversivel 0 / detrator -).
 _POLARIDADE = {"promotor": 1, "conversivel": 0, "detrator": -1}
+_NEGATIVAS = {"detrator", "conversivel"}
+
+
+def _categoria(estado, cobertura, cli_val, col_val, direcao):
+    """Categoria NARRATIVA por subpilar (5b.3), a partir de estado + cobertura +
+    valências. Ordena a história da tela: ponto cego (cliente sofre, time não vê)
+    > descompasso (veem diferente) > consciência (ambos veem) > força (ambos ok)
+    > não perguntado (lacuna) > outros (residual)."""
+    if estado == "gap":
+        if direcao in ("superestima", "subestima"):
+            return "descompasso"
+        if cli_val == "promotor" and col_val == "promotor":
+            return "forca"
+        if cli_val in _NEGATIVAS and col_val in _NEGATIVAS:
+            return "consciencia_compartilhada"
+        return "outros"
+    if estado == "so_colaborador":  # time sinaliza, cliente não — residual
+        return "outros"
+    # so_cliente ou sem_sinal (time sem sinal claro):
+    if cobertura == "nao_perguntado":
+        return "nao_perguntado"  # lacuna: a pesquisa não cobriu o subpilar
+    if estado == "so_cliente" and cli_val == "detrator":
+        return "ponto_cego"  # cliente detrator + time perguntado e sem sinal claro
+    return "outros"
 
 
 def classificar_respostas_confronto(
@@ -147,7 +171,24 @@ def gap_confronto(
     cliente_agg = agregar_subpilares(s, pesq.empresa_id, ag_id=ag_id, local_id=local_id)
     colab_val, colab_nota = _lado_colaborador(s, pesquisa_id, escopo)
 
-    subpilares = [sp for sp in SUBPILARES_ORDEM if sp in cliente_agg or sp in colab_val]
+    # Escopo da pesquisa: subpilares que o time FOI perguntado (subpilar_alvo != None,
+    # âncora tem None). Distingue "ponto cego" (perguntado, sem sinal) de "lacuna".
+    escopo_subpilares = {
+        row[0]
+        for row in s.query(PesquisaPergunta.subpilar_alvo)
+        .filter(
+            PesquisaPergunta.pesquisa_id == pesquisa_id,
+            PesquisaPergunta.subpilar_alvo.isnot(None),
+        )
+        .distinct()
+    }
+
+    # Inclui TODOS os do escopo — inclusive os que antes sumiam (perguntado, sem
+    # valência clara e sem cliente = "silêncio total") — além dos com dado de
+    # qualquer lado. Sem isso o ponto cego total ficava invisível.
+    presentes = set(cliente_agg) | set(colab_val) | set(colab_nota) | escopo_subpilares
+    subpilares = [sp for sp in SUBPILARES_ORDEM if sp in presentes]
+
     out: List[Dict[str, Any]] = []
     for sub in subpilares:
         c = cliente_agg.get(sub)
@@ -161,13 +202,19 @@ def gap_confronto(
             estado = "gap"
         elif cli_val:
             estado = "so_cliente"
-        else:
+        elif col_val:
             estado = "so_colaborador"
+        else:
+            estado = "sem_sinal"  # nem cliente nem time — só existe por estar no escopo
+        cobertura = "perguntado" if sub in escopo_subpilares else "nao_perguntado"
+        direcao = _direcao(cli_val, col_val) if estado == "gap" else None
         out.append(
             {
                 "subpilar": sub,
                 "nome": NOME_SUBPILAR.get(sub, sub),
                 "estado": estado,
+                "cobertura": cobertura,
+                "categoria": _categoria(estado, cobertura, cli_val, col_val, direcao),
                 "cliente": (
                     {"valencia_dominante": cli_val, "ratio": c["ratio"], "faixa": c["faixa"]}
                     if c
@@ -178,7 +225,7 @@ def gap_confronto(
                     if (col_val or sub in colab_nota)
                     else None
                 ),
-                "gap": {"direcao": _direcao(cli_val, col_val)} if estado == "gap" else None,
+                "gap": {"direcao": direcao} if estado == "gap" else None,
             }
         )
     return out

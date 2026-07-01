@@ -104,10 +104,10 @@ def test_pendentes_avisa(client_loyall, db_session):
 
 def test_assimetria_muda(client_loyall, db_session):
     e_id, f_id, p = _pesquisa(db_session)
-    _verb(db_session, e_id, f_id, "A1", "detrator")  # só cliente
-    db_session.commit()
+    _verb(db_session, e_id, f_id, "A1", "detrator")  # cliente tem A1, mas a pesquisa
+    db_session.commit()  # não tem pergunta de A1 → lacuna (não perguntado)
     body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
-    assert r"só cliente" in body
+    assert "Não perguntado" in body and "A1" in body
 
 
 def test_nao_confronto_redireciona(client_loyall, db_session):
