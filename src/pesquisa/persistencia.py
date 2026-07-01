@@ -110,6 +110,47 @@ def atualizar_pergunta(s, pergunta_id: int, **campos) -> Optional[PesquisaPergun
     return p
 
 
+def adicionar_pergunta(
+    s,
+    pesquisa_id: int,
+    *,
+    enunciado: str,
+    formato: str = "aberta",
+    subpilar_alvo: Optional[str] = None,
+) -> Optional[PesquisaPergunta]:
+    """Cria uma pergunta MANUAL no fim da lista (ordem = max+1, sem re-sequenciar).
+    ``gerada_por_ancora=False``. Sem veredito em cache (revalida sob demanda)."""
+    pesq = s.get(Pesquisa, pesquisa_id)
+    if pesq is None:
+        return None
+    proxima = max((p.ordem for p in pesq.perguntas), default=0) + 1
+    nova = PesquisaPergunta(
+        ordem=proxima,
+        enunciado=enunciado,
+        formato=formato if formato in ("aberta", "fechada", "mista") else "aberta",
+        subpilar_alvo=subpilar_alvo,
+        gerada_por_ancora=False,
+    )
+    pesq.perguntas.append(nova)  # via relationship → sincroniza a coleção + seta o FK
+    s.flush()
+    return nova
+
+
+def deletar_pergunta(s, pergunta_id: int) -> bool:
+    """Apaga uma pergunta. DEIXA o buraco na ordem (não re-sequencia — decisão do
+    brief). Returns False se a pergunta não existe."""
+    p = s.get(PesquisaPergunta, pergunta_id)
+    if p is None:
+        return False
+    pesq = s.get(Pesquisa, p.pesquisa_id)
+    if pesq is not None and p in pesq.perguntas:
+        pesq.perguntas.remove(p)  # delete-orphan → apaga a linha e sai da coleção carregada
+    else:
+        s.delete(p)
+    s.flush()
+    return True
+
+
 def aprovar(s, pesquisa_id: int) -> Tuple[bool, Dict[str, Any]]:
     """Re-valida server-side (camada determinística = a que BLOQUEIA) e aprova.
 

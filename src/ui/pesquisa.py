@@ -19,9 +19,11 @@ from src.models.empresa import Empresa
 from src.pesquisa.geracao import gerar_pesquisa
 from src.pesquisa.juiz import validar_completo
 from src.pesquisa.persistencia import (
+    adicionar_pergunta,
     aprovar,
     atualizar_pergunta,
     criar_rascunho,
+    deletar_pergunta,
     listar,
     obter,
 )
@@ -228,9 +230,36 @@ def _ctx_revisar(s, pesquisa_id, veredito=None):
         "status": pesq.status,
         "token_publico": pesq.token_publico,  # link /p/<token> exibido quando 'pronta'
         "perguntas": perguntas,
+        "subpilares": _subpilares_opcoes(),  # dropdown p/ (re)atribuir subpilar manual
         "validou": veredito is not None,
         "tem_bloqueio": tem_bloqueio(veredito) if veredito else False,
     }
+
+
+def _subpilares_opcoes():
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+
+    return [(sp, NOME_SUBPILAR.get(sp, sp)) for sp in SUBPILARES_ORDEM]
+
+
+def _sugerir_subpilar(s, empresa_id, enunciado):
+    """Sugere ``subpilar_alvo`` p/ uma pergunta manual classificando o texto digitado
+    (reusa ``classificar``). Falha de LLM/infra NUNCA trava o adicionar — devolve
+    None e o usuário escolhe no dropdown."""
+    try:
+        from src.classifier.classifier_v3 import classificar
+        from src.models.empresa import Empresa
+
+        emp = s.get(Empresa, empresa_id)
+        res = classificar(
+            enunciado,
+            empresa_nome=getattr(emp, "nome", None),
+            empresa_setor=getattr(emp, "setor", None),
+        )
+        return getattr(res, "subpilar", None)
+    except Exception:  # noqa: BLE001 — sugestão é best-effort, jamais bloqueia
+        current_app.logger.exception("falha ao sugerir subpilar (empresa=%s)", empresa_id)
+        return None
 
 
 @ui_bp.route("/pesquisas/<int:pesquisa_id>/revisar")
@@ -276,8 +305,64 @@ def pesquisa_editar_pergunta(pesquisa_id, pergunta_id):
         "subpilar_alvo": (request.form.get("subpilar_alvo") or "").strip() or None,
     }
     with db_session() as s:
+        bloqueio = _guard_rascunho(s, pesquisa_id)
+        if bloqueio is not None:
+            return bloqueio
         if atualizar_pergunta(s, pergunta_id, **campos) is None:
             return render_template("404.html"), 404
+        ctx = _ctx_revisar(s, pesquisa_id)
+    return render_template("pesquisa/_cards.html", **ctx)
+
+
+def _guard_rascunho(s, pesquisa_id):
+    """Guard de mutação: só edita/apaga/cria pergunta em 'rascunho'. Depois de
+    'pronta', mexer mudaria o que o respondente vê. Devolve uma Response (404/409)
+    quando não pode mutar, ou None quando está liberado."""
+    pesq = obter(s, pesquisa_id)
+    if pesq is None:
+        return render_template("404.html"), 404
+    if pesq.status != "rascunho":
+        ctx = _ctx_revisar(s, pesquisa_id)
+        return render_template("pesquisa/_cards.html", **ctx), 409
+    return None
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/perguntas/<int:pergunta_id>/apagar", methods=["POST"])
+@loyall_required_ui
+def pesquisa_apagar_pergunta(pesquisa_id, pergunta_id):
+    """Apaga uma pergunta (só rascunho). Deixa buraco na ordem. htmx → re-render #cards."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    with db_session() as s:
+        bloqueio = _guard_rascunho(s, pesquisa_id)
+        if bloqueio is not None:
+            return bloqueio
+        deletar_pergunta(s, pergunta_id)
+        ctx = _ctx_revisar(s, pesquisa_id)
+    return render_template("pesquisa/_cards.html", **ctx)
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/perguntas", methods=["POST"])
+@loyall_required_ui
+def pesquisa_adicionar_pergunta(pesquisa_id):
+    """Cria uma pergunta manual (só rascunho). O subpilar vem SUGERIDO pelo
+    classificador (best-effort) e é editável no dropdown. htmx → re-render #cards."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    enunciado = (request.form.get("enunciado") or "").strip()
+    formato = (request.form.get("formato") or "aberta").strip()
+    with db_session() as s:
+        bloqueio = _guard_rascunho(s, pesquisa_id)
+        if bloqueio is not None:
+            return bloqueio
+        if enunciado:
+            pesq = obter(s, pesquisa_id)
+            sug = _sugerir_subpilar(s, pesq.empresa_id, enunciado)
+            adicionar_pergunta(
+                s, pesquisa_id, enunciado=enunciado, formato=formato, subpilar_alvo=sug
+            )
         ctx = _ctx_revisar(s, pesquisa_id)
     return render_template("pesquisa/_cards.html", **ctx)
 

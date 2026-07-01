@@ -234,3 +234,99 @@ def test_aprovar_bloqueado_recusa_server_side(client_loyall, db_session):
     assert resp.status_code == 409
     db_session.expire_all()
     assert obter(db_session, pid).status == "rascunho"  # não aprovou
+
+
+# ── FURO 3: apagar + criar pergunta manual (só rascunho) ─────────────────────
+
+
+def _ids(db_session, pid):
+    db_session.expire_all()
+    return [p.id for p in obter(db_session, pid).perguntas]
+
+
+def test_apagar_pergunta_rascunho(client_loyall, db_session):
+    """Apaga por card (htmx → #cards). Deixa buraco na ordem (não re-sequencia)."""
+    e = _empresa(client_loyall, "EUIdel")
+    pid = _seed(db_session, e, [_q(1, "P um"), _q(2, "P dois")])
+    qid = _ids(db_session, pid)[0]
+    html = client_loyall.post(f"/pesquisas/{pid}/perguntas/{qid}/apagar").get_data(as_text=True)
+    assert "P um" not in html and "P dois" in html
+    db_session.expire_all()
+    restantes = obter(db_session, pid).perguntas
+    assert [p.ordem for p in restantes] == [2]  # buraco preservado
+
+
+def test_adicionar_pergunta_com_subpilar_sugerido(client_loyall, db_session, monkeypatch):
+    """Cria manual; o subpilar vem sugerido pelo classificador (mock) e é gravado."""
+    e = _empresa(client_loyall, "EUIadd")
+    pid = _seed(db_session, e, [_q(1, "P um")])
+    monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: "D2")
+    html = client_loyall.post(
+        f"/pesquisas/{pid}/perguntas",
+        data={"enunciado": "Como foi o check-in?", "formato": "aberta"},
+    ).get_data(as_text=True)
+    assert "Como foi o check-in?" in html
+    db_session.expire_all()
+    nova = [p for p in obter(db_session, pid).perguntas if p.ordem == 2][0]
+    assert nova.subpilar_alvo == "D2" and nova.gerada_por_ancora is False
+
+
+def test_adicionar_sugestao_falha_nao_trava(client_loyall, db_session, monkeypatch):
+    """Falha do classificador → subpilar None, mas a pergunta É criada."""
+    e = _empresa(client_loyall, "EUIaddF")
+    pid = _seed(db_session, e, [_q(1, "P um")])
+    monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: None)
+    client_loyall.post(
+        f"/pesquisas/{pid}/perguntas",
+        data={"enunciado": "Pergunta sem subpilar?", "formato": "aberta"},
+    )
+    db_session.expire_all()
+    nova = [p for p in obter(db_session, pid).perguntas if p.ordem == 2][0]
+    assert nova.subpilar_alvo is None
+
+
+def test_mutacao_bloqueada_se_pronta(client_loyall, db_session, monkeypatch):
+    """Depois de 'pronta', editar/apagar/criar → 409 e nada muda (fecha a brecha)."""
+    e = _empresa(client_loyall, "EUIlock")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    db_session.expire_all()
+    assert obter(db_session, pid).status == "pronta"
+    qid = _ids(db_session, pid)[0]
+    monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: "D2")
+    r_del = client_loyall.post(f"/pesquisas/{pid}/perguntas/{qid}/apagar")
+    r_add = client_loyall.post(
+        f"/pesquisas/{pid}/perguntas", data={"enunciado": "nova?", "formato": "aberta"}
+    )
+    r_edit = client_loyall.post(f"/pesquisas/{pid}/perguntas/{qid}", data={"enunciado": "mudou?"})
+    assert r_del.status_code == 409 and r_add.status_code == 409 and r_edit.status_code == 409
+    db_session.expire_all()
+    pesq = obter(db_session, pid)
+    assert [p.ordem for p in pesq.perguntas] == [1]  # nada apagado nem criado
+    assert pesq.perguntas[0].enunciado == "Como foi o atendimento?"  # nada editado
+
+
+def test_pergunta_manual_dupla_barrada_na_regua(client_loyall, db_session):
+    """Manual passa pela MESMA régua: uma pergunta-dupla adicionada bloqueia o aprovar."""
+    e = _empresa(client_loyall, "EUImanReg")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    client_loyall.post(
+        f"/pesquisas/{pid}/perguntas",
+        data={"enunciado": "O atendimento foi rápido e cordial?", "formato": "aberta"},
+    )
+    resp = client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    assert resp.status_code == 409  # R3 (dupla) barra a manual
+    db_session.expire_all()
+    assert obter(db_session, pid).status == "rascunho"
+
+
+def test_cards_controles_so_em_rascunho(client_loyall, db_session):
+    """Rascunho mostra adicionar/apagar/subpilar; pronta esconde (read-only)."""
+    e = _empresa(client_loyall, "EUIctrl")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    rasc = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    assert "Adicionar pergunta" in rasc and "apagar" in rasc
+    assert 'name="subpilar_alvo"' in rasc
+    client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    pronta = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    assert "Adicionar pergunta" not in pronta and 'name="subpilar_alvo"' not in pronta

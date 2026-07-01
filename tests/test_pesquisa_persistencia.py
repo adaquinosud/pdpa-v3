@@ -10,9 +10,11 @@ import json
 
 from src.pesquisa.persistencia import (
     _opcoes_publicas,
+    adicionar_pergunta,
     aprovar,
     atualizar_pergunta,
     criar_rascunho,
+    deletar_pergunta,
     obter,
     payload_publico,
 )
@@ -165,3 +167,29 @@ def test_opcoes_publicas_tolerante_aos_dois_shapes():
         "tipo": "nota",
         "rotulos": ["a", "b", "c", "d", "e"],
     }
+
+
+def test_adicionar_pergunta_ordem_max_mais_um(client_loyall, db_session):
+    """Manual entra no fim (max+1), gerada_por_ancora=False."""
+    e = _empresa(client_loyall, "EAdd")
+    pid = criar_rascunho(db_session, _proposta(e, [_q(1, "P1"), _q(2, "P2")]))
+    db_session.flush()
+    nova = adicionar_pergunta(
+        db_session, pid, enunciado="Manual nova?", formato="aberta", subpilar_alvo="D2"
+    )
+    assert nova.ordem == 3 and nova.gerada_por_ancora is False
+    assert nova.subpilar_alvo == "D2"
+
+
+def test_deletar_pergunta_deixa_buraco(client_loyall, db_session):
+    """Apagar a ordem 1 NÃO re-sequencia — a ordem 2 permanece 2 (buraco)."""
+    e = _empresa(client_loyall, "EDel")
+    pid = criar_rascunho(db_session, _proposta(e, [_q(1, "P1"), _q(2, "P2")]))
+    db_session.flush()
+    pesq = obter(db_session, pid)
+    id_ordem1 = next(p.id for p in pesq.perguntas if p.ordem == 1)
+    assert deletar_pergunta(db_session, id_ordem1) is True
+    db_session.flush()
+    restantes = obter(db_session, pid).perguntas
+    assert [p.ordem for p in restantes] == [2]  # buraco: não virou [1]
+    assert deletar_pergunta(db_session, 999999) is False  # inexistente
