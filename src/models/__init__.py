@@ -28,6 +28,7 @@ from src.models.governanca import (
     ProximityCalculation,
 )
 from src.models.local import Local, LocalMetadado
+from src.models.origem import OrigemAnalise, OrigemSintese
 from src.models.pesquisa import Pesquisa, PesquisaEscopo, PesquisaPergunta
 from src.models.pessoa import Pessoa, PessoaIdentificador
 from src.models.plano_acao import AcaoStatus
@@ -72,6 +73,8 @@ __all__ = [
     "LocalMetadado",
     "Pesquisa",
     "PesquisaEscopo",
+    "OrigemAnalise",
+    "OrigemSintese",
     "PesquisaPergunta",
     "Pessoa",
     "PessoaIdentificador",
