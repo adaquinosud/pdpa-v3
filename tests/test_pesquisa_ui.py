@@ -83,6 +83,86 @@ def test_gerar_persiste_e_redireciona(client_loyall, db_session, monkeypatch):
     assert resp.status_code == 302 and "/revisar" in resp.headers["Location"]
 
 
+def test_form_criar_tem_seletor_proposito(client_loyall):
+    """FURO 1: o form de criação oferece Propósito (coleta|confronto)."""
+    e = _empresa(client_loyall, "EUIprop0")
+    html = client_loyall.get(f"/empresas/{e}/pesquisas").get_data(as_text=True)
+    assert 'name="proposito"' in html
+    assert 'value="coleta"' in html and 'value="confronto"' in html
+
+
+def _fake_gerar_com_proposito(s, empresa_id, **kw):
+    prop = _proposta(empresa_id, [_q(1, "Como foi?", porque="x")])
+    prop["pesquisa"]["proposito"] = kw.get("proposito")  # fia o que a rota passou
+    return prop
+
+
+def test_gerar_confronto_persiste_proposito(client_loyall, db_session, monkeypatch):
+    """FURO 1: proposito=confronto chega da tela ao modelo (explícito, não inferido)."""
+    e = _empresa(client_loyall, "EUIpropC")
+    monkeypatch.setattr(ui_pesq, "gerar_pesquisa", _fake_gerar_com_proposito)
+    resp = client_loyall.post(
+        f"/empresas/{e}/pesquisas/gerar",
+        data={
+            "natureza": "interna",
+            "n_perguntas": "1",
+            "subpilares_alvo": "D2",
+            "proposito": "confronto",
+        },
+    )
+    pid = int(resp.headers["Location"].split("/")[2])
+    assert obter(db_session, pid).proposito == "confronto"
+
+
+def test_gerar_default_coleta(client_loyall, db_session, monkeypatch):
+    """FURO 1: sem propósito escolhido → coleta (default)."""
+    e = _empresa(client_loyall, "EUIpropD")
+    monkeypatch.setattr(ui_pesq, "gerar_pesquisa", _fake_gerar_com_proposito)
+    resp = client_loyall.post(
+        f"/empresas/{e}/pesquisas/gerar",
+        data={"natureza": "externa", "n_perguntas": "1", "subpilares_alvo": "D2"},
+    )
+    pid = int(resp.headers["Location"].split("/")[2])
+    assert obter(db_session, pid).proposito == "coleta"
+
+
+def test_gerar_proposito_invalido_vira_coleta(client_loyall, db_session, monkeypatch):
+    """FURO 1: valor fora do domínio não passa (defesa) → coleta."""
+    e = _empresa(client_loyall, "EUIpropX")
+    monkeypatch.setattr(ui_pesq, "gerar_pesquisa", _fake_gerar_com_proposito)
+    resp = client_loyall.post(
+        f"/empresas/{e}/pesquisas/gerar",
+        data={
+            "natureza": "externa",
+            "n_perguntas": "1",
+            "subpilares_alvo": "D2",
+            "proposito": "xyz",
+        },
+    )
+    pid = int(resp.headers["Location"].split("/")[2])
+    assert obter(db_session, pid).proposito == "coleta"
+
+
+def test_link_publico_aparece_quando_pronta(client_loyall, db_session):
+    """FURO 2: após aprovar, a tela mostra a URL /p/<token> + botão copiar."""
+    e = _empresa(client_loyall, "EUIlink")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    db_session.expire_all()
+    token = obter(db_session, pid).token_publico
+    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    assert token and f"/p/{token}" in html
+    assert "copiar link" in html
+
+
+def test_link_publico_ausente_em_rascunho(client_loyall, db_session):
+    """FURO 2: rascunho (ainda não pronta) não expõe link público."""
+    e = _empresa(client_loyall, "EUIlink0")
+    pid = _seed(db_session, e, [_q(1, "Como foi?")])
+    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    assert "copiar link" not in html
+
+
 def test_gerar_falha_llm_nao_da_500(client_loyall, db_session, monkeypatch):
     """Hardening: falha do LLM na geração → flash + redirect, NUNCA 500 cru."""
     e = _empresa(client_loyall, "EUIfalha")

@@ -45,6 +45,7 @@ def criar_rascunho(s, proposta: Dict[str, Any], criada_por: Optional[int] = None
     pesq = Pesquisa(
         empresa_id=meta["empresa_id"],
         natureza=meta["natureza"],
+        proposito=meta.get("proposito", "coleta"),
         titulo=meta.get("titulo") or "",
         objetivo=meta.get("objetivo"),
         entidade_tipo=meta.get("entidade_tipo"),

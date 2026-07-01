@@ -21,6 +21,14 @@
       <input type="number" name="n_perguntas" value="5" min="1" max="20"
              class="w-full border rounded px-2 py-1">
     </label>
+    {# Propósito é escolha explícita (não inferido da natureza). Confronto habilita
+       a classificação dos comentários + a tela de gap cliente × colaborador. #}
+    <label class="text-sm">Propósito
+      <select name="proposito" class="w-full border rounded px-2 py-1">
+        <option value="coleta">Coleta (alimenta o diagnóstico)</option>
+        <option value="confronto">Confronto (cliente × colaborador)</option>
+      </select>
+    </label>
   </div>
 
   {# P2.E — escopo do diagnóstico: empresa | agrupamentos | lojas (um tipo, N ids).

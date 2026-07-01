@@ -127,6 +127,11 @@ def pesquisa_gerar(empresa_id):
     if r:
         return r
     natureza = (request.form.get("natureza") or "externa").strip()
+    # Propósito é escolha EXPLÍCITA (não inferida da natureza): interna pode ser
+    # coleta OU confronto. Default coleta. Fora do domínio → coleta (defesa).
+    proposito = (request.form.get("proposito") or "coleta").strip()
+    if proposito not in ("coleta", "confronto"):
+        proposito = "coleta"
     titulo = (request.form.get("titulo") or "").strip()
     n_perguntas = _int(request.form.get("n_perguntas")) or 5
     # dedup: o mesmo subpilar pode vir do card de foco E da lista manual.
@@ -170,6 +175,7 @@ def pesquisa_gerar(empresa_id):
                 s,
                 empresa_id,
                 natureza=natureza,
+                proposito=proposito,
                 subpilares_alvo=subpilares,
                 n_perguntas=n_perguntas,
                 titulo=titulo,
@@ -220,6 +226,7 @@ def _ctx_revisar(s, pesquisa_id, veredito=None):
         "titulo": pesq.titulo,
         "natureza": pesq.natureza,
         "status": pesq.status,
+        "token_publico": pesq.token_publico,  # link /p/<token> exibido quando 'pronta'
         "perguntas": perguntas,
         "validou": veredito is not None,
         "tem_bloqueio": tem_bloqueio(veredito) if veredito else False,

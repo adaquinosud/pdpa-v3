@@ -92,6 +92,30 @@ def test_passa_pelo_validador(client_loyall, db_session):
     assert tem_bloqueio(v) is False
 
 
+def test_gerar_inclui_proposito(client_loyall, db_session):
+    """FURO 1: proposito entra na proposta (default coleta; explícito sobrepõe)."""
+    e = _empresa(client_loyall, "EProp")
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="interna",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        proposito="confronto",
+        gerar_fn=_fake_llm(),
+    )
+    assert out["pesquisa"]["proposito"] == "confronto"
+    padrao = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=_fake_llm(),
+    )
+    assert padrao["pesquisa"]["proposito"] == "coleta"
+
+
 def test_contexto_saneado_sem_direcao(client_loyall, db_session, monkeypatch):
     """topicos_saneados lê o diagnóstico mas descarta ratio/faixa/direção."""
     e = _empresa(client_loyall, "ESaneado")

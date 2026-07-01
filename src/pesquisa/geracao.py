@@ -128,6 +128,7 @@ def gerar_pesquisa(
     n_perguntas: int,
     titulo: str = "",
     objetivo: Optional[str] = None,
+    proposito: str = "coleta",
     entidade_tipo: Optional[str] = None,
     entidade_id: Optional[int] = None,
     escopo_local_modo: str = "local",
@@ -172,6 +173,7 @@ def gerar_pesquisa(
         "pesquisa": {
             "empresa_id": empresa_id,
             "natureza": natureza,
+            "proposito": proposito,
             "titulo": titulo,
             "objetivo": objetivo,
             "entidade_tipo": entidade_tipo,

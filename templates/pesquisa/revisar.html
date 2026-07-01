@@ -17,5 +17,29 @@
   </div>
 </div>
 
+{% if status == 'pronta' and token_publico %}
+{# Link público — é o que se manda ao respondente. URL absoluta (host da requisição). #}
+<div class="border rounded p-3 mb-3 max-w-3xl bg-loyall-50 text-sm">
+  <div class="font-medium mb-1">Link público para responder</div>
+  <div class="flex gap-2 items-center">
+    <input id="link-publico" readonly
+           value="{{ url_for('ui.pesquisa_publica', token=token_publico, _external=True) }}"
+           class="flex-1 border rounded px-2 py-1 text-xs bg-white">
+    <button type="button" onclick="copiarLinkPublico(this)"
+            class="border px-3 py-1 rounded text-xs hover:bg-loyall-100 whitespace-nowrap">copiar link</button>
+  </div>
+  <p class="text-xs text-loyall-500 mt-1">Envie este link aos respondentes. As respostas aparecem em “respostas”.</p>
+</div>
+<script>
+  function copiarLinkPublico(btn) {
+    var el = document.getElementById('link-publico');
+    navigator.clipboard.writeText(el.value).then(function () {
+      var txt = btn.textContent; btn.textContent = 'copiado ✓';
+      setTimeout(function () { btn.textContent = txt; }, 1500);
+    });
+  }
+</script>
+{% endif %}
+
 {% include "pesquisa/_cards.html" %}
 {% endblock %}
