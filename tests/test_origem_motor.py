@@ -267,3 +267,37 @@ def test_temas_loja_sobem_pro_agrupamento_pai(db_session):
     gerar_origem(db_session, p.id, gerar_fn=_fake_llm(captura))
     _sys, user = captura[0]
     assert "tema-do-pai" in user  # subiu pro agrupamento-pai da loja
+
+
+# ── v2: natureza (sistêmico/individual) + prática do Caminho, determinísticas ──
+
+
+def test_natureza_e_pratica_por_pilar():
+    from src.pesquisa.origem import natureza_de, pratica_de
+
+    # P/D = sistêmico; Pa/A = individual. Prática: P→Integridade, D→Presença,
+    # Pa→Conexão, A→Contribuição.
+    assert natureza_de("P1") == "sistemico" and pratica_de("P2") == "integridade"
+    assert natureza_de("D2") == "sistemico" and pratica_de("D3") == "presenca"
+    assert natureza_de("Pa3") == "individual" and pratica_de("Pa1") == "conexao"
+    assert natureza_de("A1") == "individual" and pratica_de("A2") == "contribuicao"
+    # fora dos 4 pilares → None (não quebra)
+    assert natureza_de("sem_lastro") is None and pratica_de("sem_lastro") is None
+
+
+def test_prompt_recebe_natureza_e_pratica(db_session):
+    """O input por gap carrega pilar + natureza + prática; o system explica as 2."""
+    e, f = _empresa(db_session)
+    p, a = _pesquisa_agrup(db_session, e)
+    _cenario_ponto_cego_e_forca(db_session, e, f, p, a)  # P1 sistêmico + Pa3 individual
+    db_session.commit()
+    captura: list = []
+    gerar_origem(db_session, p.id, gerar_fn=_fake_llm(captura))
+    system, user = captura[0]
+    # natureza (tipo de remédio) por gap
+    assert "sistêmico" in user and "individual" in user
+    # prática interna do Caminho por gap
+    assert "Integridade" in user and "Conexão" in user
+    assert "Precisão" in user and "Parceria" in user
+    # o system prompt ensina as 2 camadas
+    assert "TIPO DE REMÉDIO" in system and "PRÁTICA INTERNA do Caminho" in system

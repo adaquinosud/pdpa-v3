@@ -22,6 +22,36 @@ from src.models.pesquisa import Pesquisa
 # profundidade). Alinhados neutros, não-perguntado e outros ficam de fora.
 _CATEGORIAS_ORIGEM = ("ponto_cego", "descompasso", "forca")
 
+# Duas leituras DETERMINÍSTICAS pelo pilar do subpilar (v2) — não confia no LLM:
+# NATUREZA (tipo de remédio) e PRÁTICA do Caminho (disciplina interna por trás).
+_NATUREZA_PILAR = {"P": "sistemico", "D": "sistemico", "Pa": "individual", "A": "individual"}
+_PRATICA_PILAR = {"P": "integridade", "D": "presenca", "Pa": "conexao", "A": "contribuicao"}
+_PRATICA_LABEL = {
+    "integridade": "Integridade",
+    "presenca": "Presença",
+    "conexao": "Conexão",
+    "contribuicao": "Contribuição",
+}
+
+
+def _pilar(subpilar):
+    from src.api.painel import PILAR_DE_SUBPILAR
+
+    return PILAR_DE_SUBPILAR.get(subpilar)
+
+
+def natureza_de(subpilar):
+    """sistemico (P/D — resolve-se no processo, todos se beneficiam) | individual
+    (Pa/A — cultiva-se na relação, não se sistematiza) | None. Determinístico."""
+    return _NATUREZA_PILAR.get(_pilar(subpilar))
+
+
+def pratica_de(subpilar):
+    """Prática interna do Caminho que sustenta o pilar: integridade→P, presenca→D,
+    conexao→Pa, contribuicao→A | None. Determinístico."""
+    return _PRATICA_PILAR.get(_pilar(subpilar))
+
+
 _SYSTEM = """\
 Você é o ORIGEM — a última leitura do método PDPA. Lê em que ELO da cadeia
 generativa mora a origem de cada gap entre o que a empresa DECLARA ser e o que o
@@ -54,18 +84,38 @@ Para FORÇAS: INVERTA a leitura — quanto mais FUNDO o nível, mais a força es
 enraizada na essência (sólida, sustentável); quanto mais RASO, mais a força é
 circunstancial e frágil.
 
-Por gap, devolva: nivel + uma justificativa de UMA frase ancorada na essência
-declarada — cite o que a missão/visão/valores prometem e como o gap se relaciona.
-Síntese: identifique o PADRÃO dominante (em que nível a maioria rompe) + o recado
-central (onde agir para sustentar), citando a essência declarada.
+DUAS LEITURAS ADICIONAIS por gap (já informadas no input de cada um):
+
+1. NATUREZA do pilar — o TIPO DE REMÉDIO:
+   - SISTÊMICO (pilares Precisão e Disponibilidade): a base agregada. Resolve-se
+     UMA vez — no processo, na tecnologia, na consistência — e TODOS os clientes
+     se beneficiam. Remédio: "conserta-se no processo, uma vez, e todos se
+     beneficiam".
+   - INDIVIDUAL (pilares Parceria e Aconselhamento): o topo, conta a conta, em
+     tempo real entre uma pessoa e aquele cliente. NÃO se sistematiza. Remédio:
+     "cultiva-se na relação, pessoa a pessoa; não há atalho de processo".
+
+2. PRÁTICA INTERNA do Caminho — a disciplina por trás do gap. Cada prática
+   sustenta um pilar externo: Integridade→Precisão, Presença→Disponibilidade,
+   Conexão→Parceria, Contribuição→Aconselhamento. Nomeie a prática interna que
+   FALHA (nos problemas) ou que SUSTENTA (nas forças): ex. gap em Parceria → "a
+   prática interna é a Conexão; sem vínculo genuíno interno, a parceria externa
+   não se materializa".
+
+Por gap, devolva: nivel + uma justificativa de 1–2 frases que INCORPORE as duas
+leituras — o tipo de remédio (pela natureza) + a prática interna do Caminho —
+ancorada na essência declarada (cite o que missão/visão/valores prometem).
+Síntese: o PADRÃO dominante (em que nível a maioria rompe) + o recado central,
+citando a essência. Se os problemas se concentram em pilares SISTÊMICOS, aponte a
+alavanca de processo; se no INDIVIDUAL, aponte o cultivo relacional.
 
 Responda APENAS com JSON válido, no formato:
 {"gaps": [
    {"subpilar": "<código>",
     "nivel": "resultado|caminho|proposito|significado|essencia",
-    "justificativa": "<1 frase ancorada na essência declarada>"}
+    "justificativa": "<1–2 frases: remédio pela natureza + prática do Caminho, na essência>"}
  ],
- "sintese": "<padrão dominante + recado central, citando a essência>"}
+ "sintese": "<padrão dominante + recado central + padrão de natureza, citando a essência>"}
 """
 
 
@@ -125,6 +175,8 @@ def _gaps_relevantes(s, pesquisa_id, empresa_id, pesq) -> List[Dict[str, Any]]:
 
 
 def _montar_user(emp, gaps: List[Dict[str, Any]]) -> str:
+    from src.api.painel import NOME_PILAR
+
     ess = (
         f"MISSÃO: {_norm(emp.missao) or '—'}\n"
         f"VISÃO: {_norm(emp.visao) or '—'}\n"
@@ -134,8 +186,21 @@ def _montar_user(emp, gaps: List[Dict[str, Any]]) -> str:
     for g in gaps:
         tipo = "FORÇA" if g["categoria"] == "forca" else "PROBLEMA"
         temas = f" — cliente cita: {', '.join(g['temas'])}" if g["temas"] else ""
+        # v2: pilar + natureza (tipo de remédio) + prática interna do Caminho.
+        sub = g["subpilar"]
+        nat = natureza_de(sub)
+        prat = pratica_de(sub)
+        ctx = []
+        pilar = _pilar(sub)
+        if pilar:
+            ctx.append(f"pilar {NOME_PILAR.get(pilar, pilar)}")
+        if nat:
+            ctx.append("sistêmico" if nat == "sistemico" else "individual")
+        if prat:
+            ctx.append(f"prática interna: {_PRATICA_LABEL.get(prat, prat)}")
+        ctx_str = f" ({' · '.join(ctx)})" if ctx else ""
         linhas.append(
-            f"- [{tipo}] {g['subpilar']} · {g['nome']} " f"(cliente {g['valencia_cliente']}){temas}"
+            f"- [{tipo}] {sub} · {g['nome']}{ctx_str} (cliente {g['valencia_cliente']}){temas}"
         )
     return (
         f"ESSÊNCIA DECLARADA DA EMPRESA:\n{ess}\n\n"
@@ -211,4 +276,4 @@ def gerar_origem(
 
 
 # Domínios re-exportados para conveniência de quem lê o resultado.
-__all__ = ["gerar_origem", "NIVEIS", "LADOS"]
+__all__ = ["gerar_origem", "natureza_de", "pratica_de", "NIVEIS", "LADOS"]
