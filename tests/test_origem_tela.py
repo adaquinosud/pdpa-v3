@@ -167,3 +167,36 @@ def test_disparo_essencia_indisponivel_avisa(client_loyall, db_session, monkeypa
 
 
 assert ui_pesq  # usado indiretamente (rotas registradas no blueprint)
+
+
+def test_cadeia_de_elos_e_gerado_em(client_loyall, db_session):
+    """A cadeia mostra os 5 elos (Essência→Resultado), a cascata do elo mais fundo
+    que rompe, e o gerado_em (defasagem visível)."""
+    e = _empresa(db_session)
+    p = _pesquisa(db_session, e)
+    _analise(db_session, p, "P1", "essencia", "gravidade")  # rompe fundo
+    _analise(db_session, p, "D2", "resultado", "gravidade")
+    _analise(db_session, p, "Pa1", "caminho", "solidez")  # força
+    db_session.add(OrigemSintese(pesquisa_id=p.id, texto="Rompe na essência."))
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    # cabeçalho + os 5 elos (inclusive os vazios: Significado, Propósito)
+    assert "Cadeia generativa" in body
+    for elo in ("Essência", "Significado", "Propósito", "Caminho", "Resultado"):
+        assert elo in body
+    # cascata: o elo mais fundo com gravidade é Essência (P1)
+    assert "a corrente rompe aqui" in body
+    # síntese vira caption; gerado_em aparece
+    assert "Síntese ·" in body and "Rompe na essência." in body
+    assert "Análise gerada em" in body
+
+
+def test_cadeia_sem_gravidade_nao_marca_ruptura(client_loyall, db_session):
+    """Só forças (solidez) → nenhum elo 'rompe' → sem marca de cascata."""
+    e = _empresa(db_session)
+    p = _pesquisa(db_session, e)
+    _analise(db_session, p, "Pa3", "essencia", "solidez")  # força funda, sem gravidade
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    assert "Cadeia generativa" in body
+    assert "a corrente rompe aqui" not in body  # nada rompe

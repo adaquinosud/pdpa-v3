@@ -534,6 +534,13 @@ def pesquisa_origem(pesquisa_id):
             key=lambda a: (_ORIGEM_ORDEM.get(a["nivel"], 9), a["subpilar"]),
         )
         sint = s.get(OrigemSintese, pesquisa_id)
+        # gerado_em: a análise mais recente (achado da defasagem invisível).
+        gerado_em = max((a.gerado_em for a in linhas if a.gerado_em), default=None)
+        # Cascata conceitual: o elo MAIS FUNDO que rompe (primeiro na ordem com
+        # gravidade). Índice 0..4 (essencia..resultado); None se nenhum problema.
+        grav = {a["nivel"] for a in analises if a["lado"] == "gravidade"}
+        _ordem_elos = ["essencia", "significado", "proposito", "caminho", "resultado"]
+        ruptura_ordem = next((i for i, n in enumerate(_ordem_elos) if n in grav), None)
         ctx = {
             "pesquisa_id": pesquisa_id,
             "empresa_id": pesq.empresa_id,
@@ -542,6 +549,8 @@ def pesquisa_origem(pesquisa_id):
             "pendentes": pendentes,
             "analises": analises,
             "sintese": sint.texto if sint else None,
+            "gerado_em": gerado_em,
+            "ruptura_ordem": ruptura_ordem,
         }
     return render_template("pesquisa/origem.html", **ctx)
 

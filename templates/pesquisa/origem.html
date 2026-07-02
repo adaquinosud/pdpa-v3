@@ -47,16 +47,21 @@
   </div>
 
   {% else %}
+  {% if gerado_em %}
+  {# Defasagem visível: quando a análise foi gerada (achado do 'Reler'). #}
+  <p class="mt-3 text-xs text-loyall-400">Análise gerada em {{ gerado_em.strftime('%d/%m/%Y %H:%M') }} (UTC).</p>
+  {% endif %}
+
   {% if sintese %}
-  {# SÍNTESE — a manchete: onde a maioria rompe + o recado central. #}
-  <div class="mt-4 rounded-lg border border-loyall-300 bg-loyall-50 p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-500 mb-1">Síntese</div>
-    <p class="text-base text-loyall-800 leading-relaxed">{{ sintese }}</p>
+  {# Síntese como CAPTION curto acima da cadeia (o recado, não o bloco denso). #}
+  <div class="mt-2 rounded border-l-4 border-loyall-400 bg-loyall-50 px-3 py-2">
+    <span class="text-xs uppercase tracking-wider text-loyall-500">Síntese · </span>
+    <span class="text-sm text-loyall-800">{{ sintese }}</span>
   </div>
   {% endif %}
 
   {# Botão de rodar/re-rodar — chamada LLM (rede) → spinner no submit. #}
-  <form id="origem-form" method="post" class="mt-4"
+  <form id="origem-form" method="post" class="mt-3"
         action="{{ url_for('ui.pesquisa_origem_gerar', pesquisa_id=pesquisa_id) }}">
     <button id="origem-btn"
             class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-wait">
@@ -67,19 +72,70 @@
   </form>
 
   {% if analises %}
-  <div class="mt-4 border border-loyall-200 rounded divide-y divide-loyall-100">
-    {% for a in analises %}
-    <div class="px-3 py-2 text-sm {% if a.lado == 'gravidade' and a.nivel in FUNDO %}bg-rose-50{% elif a.lado == 'solidez' and a.nivel in FUNDO %}bg-emerald-50{% endif %}">
-      <div class="flex items-center gap-2">
-        <span class="font-medium">{{ a.subpilar }} · {{ a.nome }}</span>
-        {{ nivel_badge(a.nivel, a.lado) }}
-        <span class="text-xs">{% if a.lado == 'solidez' %}🟢 solidez{% else %}🔴 gravidade{% endif %}</span>
+  {# ─── A CADEIA DE ELOS ─── Essência (topo) → Resultado (base). Cada elo mostra o
+     que gera impacto nele: 🔴 gravidade (rompe) e 🟢 solidez (sustenta). Elo vazio
+     fica apagado; a cascata conceitual (LEITURA DO MÉTODO, não dado) marca o elo
+     mais fundo que rompe e tinge os de baixo — "herdam". #}
+  {% set ELOS = [
+    ('essencia', 'Essência', 'o que a empresa declara ser — a identidade'),
+    ('significado', 'Significado', 'o sentido interno daquilo'),
+    ('proposito', 'Propósito', 'para quê e para quem — o alvo'),
+    ('caminho', 'Caminho', 'o método — as 4 práticas internas'),
+    ('resultado', 'Resultado', 'o que o cliente recebe — a entrega'),
+  ] %}
+  <div class="mt-5">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">
+      Cadeia generativa · 🔴 onde rompe · 🟢 onde sustenta</div>
+    {% for code, label, glosa in ELOS %}
+    {% set achados = analises | selectattr('nivel', 'equalto', code) | list %}
+    {% set herda = ruptura_ordem is not none and loop.index0 > ruptura_ordem %}
+    <div class="flex items-stretch gap-3">
+      {# spine da corrente #}
+      <div class="flex flex-col items-center pt-1">
+        <div class="w-2.5 h-2.5 rounded-full {% if achados %}bg-loyall-500{% else %}bg-loyall-200{% endif %}"></div>
+        {% if not loop.last %}<div class="w-px flex-1 bg-loyall-200"></div>{% endif %}
       </div>
-      {% if a.justificativa %}
-      <p class="text-xs text-loyall-600 mt-1">{{ a.justificativa }}</p>
-      {% endif %}
+      {# faixa do elo #}
+      <div class="flex-1 pb-4 {% if not achados %}opacity-50{% endif %} {% if herda %}border-l-2 border-rose-100 pl-2{% endif %}">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <span class="font-semibold text-sm">{{ label }}</span>
+            <span class="text-xs text-loyall-400">· {{ glosa }}</span>
+          </div>
+          <div class="flex flex-wrap gap-1 justify-end">
+            {% for a in achados %}
+            <span class="px-2 py-0.5 rounded text-xs {% if a.lado == 'solidez' %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %}">
+              {% if a.lado == 'solidez' %}🟢{% else %}🔴{% endif %} {{ a.subpilar }}</span>
+            {% else %}
+            <span class="text-xs text-loyall-300">—</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% if ruptura_ordem is not none and loop.index0 == ruptura_ordem %}
+        <div class="text-xs text-rose-500 mt-0.5">◀ a corrente rompe aqui — pela régua do método, os elos abaixo herdam</div>
+        {% endif %}
+      </div>
     </div>
     {% endfor %}
+  </div>
+
+  {# Detalhe por gap — as justificativas (o porquê de cada selo), abaixo da cadeia. #}
+  <div class="mt-6">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Detalhe por gap</div>
+    <div class="border border-loyall-200 rounded divide-y divide-loyall-100">
+      {% for a in analises %}
+      <div class="px-3 py-2 text-sm {% if a.lado == 'gravidade' and a.nivel in FUNDO %}bg-rose-50{% elif a.lado == 'solidez' and a.nivel in FUNDO %}bg-emerald-50{% endif %}">
+        <div class="flex items-center gap-2">
+          <span class="font-medium">{{ a.subpilar }} · {{ a.nome }}</span>
+          {{ nivel_badge(a.nivel, a.lado) }}
+          <span class="text-xs">{% if a.lado == 'solidez' %}🟢 solidez{% else %}🔴 gravidade{% endif %}</span>
+        </div>
+        {% if a.justificativa %}
+        <p class="text-xs text-loyall-600 mt-1">{{ a.justificativa }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
   </div>
   {% else %}
   {# Sem análise ainda — explica o que o ORIGEM faz. #}
