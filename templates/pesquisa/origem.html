@@ -19,8 +19,12 @@
 
 {% block conteudo %}
 <div class="max-w-3xl">
-  <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
-     class="text-sm text-loyall-400 hover:underline">← Confronto</a>
+  <div class="flex items-center justify-between">
+    <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
+       class="text-sm text-loyall-400 hover:underline">← Confronto</a>
+    <a href="{{ url_for('ui.pesquisa_quadro', pesquisa_id=pesquisa_id) }}"
+       class="text-sm text-loyall-600 hover:underline">Quadro dos pilares →</a>
+  </div>
   <h1 class="text-2xl font-semibold mt-1">ORIGEM — {{ titulo }}</h1>
   <p class="text-sm text-loyall-500 mt-1">
     A que elo da cadeia <strong>Essência → Significado → Propósito → Caminho → Resultado</strong>

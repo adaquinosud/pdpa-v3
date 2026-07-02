@@ -583,3 +583,117 @@ def pesquisa_origem_gerar(pesquisa_id):
     elif status == "sem_gaps":
         flash("Nenhum gap para o ORIGEM ler (sem pontos cegos, descompassos ou forças).", "ok")
     return redirect(url_for("ui.pesquisa_origem", pesquisa_id=pesquisa_id))
+
+
+# ── Quadro dos pilares (Leitura 2): topo individual × base sistêmica ─────────
+# Estado do confronto por subpilar → ponto no mapa dos pilares.
+_QUADRO_ESTADO = {
+    "ponto_cego": ("🔴", "ponto cego"),
+    "descompasso": ("🟠", "descompasso"),
+    "consciencia_compartilhada": ("🟡", "consciência"),
+    "forca": ("🟢", "força"),
+    "nao_perguntado": ("⚪", "não perguntado"),
+}
+
+
+def _quadro_time(g):
+    """Resumo do lado TIME (mesma leitura da coluna Time do confronto)."""
+    col = (g or {}).get("colaborador")
+    if col:
+        v, n = col.get("valencia_dominante"), col.get("nota_media")
+        if v and n is not None:
+            return f"{v} · nota {n}"
+        if v:
+            return f"{v} · sem nota específica"
+        if n is not None:
+            return f"nota {n} · não apontou o problema"
+        return "—"
+    if g and g.get("categoria") == "ponto_cego":
+        return "não consegue avaliar"
+    return "—"
+
+
+def _quadro_cell(sub, por_sub, nome_subpilar):
+    g = por_sub.get(sub)
+    emoji, label = _QUADRO_ESTADO.get((g or {}).get("categoria"), ("⚪", "sem dado"))
+    cli = (g or {}).get("cliente") or {}
+    return {
+        "subpilar": sub,
+        "nome": nome_subpilar.get(sub, sub),
+        "estado_emoji": emoji,
+        "estado_label": label,
+        "time": _quadro_time(g),
+        "cliente": cli.get("valencia_dominante") or "—",
+        "faixa": cli.get("faixa"),
+        "temas": [t["tema_label"] for t in ((g or {}).get("temas_cliente") or [])][:3],
+    }
+
+
+def _quadro_grao(s, pesq):
+    """Rótulo do grão da leitura (o escopo da pesquisa) — a moldura da 'escada'."""
+    et = pesq.entidade_tipo or "empresa"
+    if et == "empresa":
+        return "Empresa toda"
+    ids = [e.entidade_id for e in pesq.escopos]
+    if et == "agrupamento":
+        from src.models.agrupamento import Agrupamento
+
+        nomes = [a.nome for a in s.query(Agrupamento).filter(Agrupamento.id.in_(ids))]
+        return "Agrupamento" + ("s: " if len(nomes) > 1 else ": ") + ", ".join(nomes or ["—"])
+    from src.models.local import Local
+
+    nomes = [loc.nome for loc in s.query(Local).filter(Local.id.in_(ids))]
+    return "Loja" + ("s: " if len(nomes) > 1 else ": ") + ", ".join(nomes or ["—"])
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/quadro")
+@loyall_required_ui
+def pesquisa_quadro(pesquisa_id):
+    """Quadro dos pilares (Leitura 2): base sistêmica (P, D) × topo individual
+    (Pa, A), com o estado do confronto de cada subpilar. Leitura pura sobre
+    gap_confronto. Só proposito='confronto'."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.api.painel import NOME_PILAR, NOME_SUBPILAR, PILAR_DE_SUBPILAR, SUBPILARES_ORDEM
+    from src.pesquisa.confronto import gap_confronto
+    from src.pesquisa.retorno import retorno_pesquisa
+
+    with db_session() as s:
+        pesq = obter(s, pesquisa_id)
+        if pesq is None:
+            return render_template("404.html"), 404
+        if pesq.proposito != "confronto":
+            flash("O quadro dos pilares é só para pesquisas de propósito 'confronto'.", "erro")
+            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+        por_sub = {g["subpilar"]: g for g in (gap_confronto(s, pesquisa_id) or [])}
+        ret = retorno_pesquisa(s, pesquisa_id)
+
+        def _bloco(code):
+            subs = [sp for sp in SUBPILARES_ORDEM if PILAR_DE_SUBPILAR.get(sp) == code]
+            return {
+                "code": code,
+                "nome": NOME_PILAR.get(code, code),
+                "subpilares": [_quadro_cell(sp, por_sub, NOME_SUBPILAR) for sp in subs],
+            }
+
+        faixas = [
+            {
+                "eyebrow": "TOPO · INDIVIDUAL",
+                "frase": "conta a conta, pessoa a pessoa; não se sistematiza.",
+                "pilares": [_bloco("Pa"), _bloco("A")],
+            },
+            {
+                "eyebrow": "BASE · SISTÊMICA",
+                "frase": "resolve-se uma vez, no processo, e todos se beneficiam.",
+                "pilares": [_bloco("P"), _bloco("D")],
+            },
+        ]
+        ctx = {
+            "pesquisa_id": pesquisa_id,
+            "titulo": pesq.titulo,
+            "faixas": faixas,
+            "grao": _quadro_grao(s, pesq),
+            "n_resp": ret["total_respondentes"] if ret else 0,
+        }
+    return render_template("pesquisa/quadro.html", **ctx)
