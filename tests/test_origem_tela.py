@@ -227,3 +227,24 @@ def test_cadeia_v2_chip_nome_frase_e_detalhe_agrupado(client_loyall, db_session)
     assert "A ruptura mora na essência" in body
     # detalhe agrupado por elo, problemas e forças separados (mesmo elo: Essência)
     assert "🔴 Problemas" in body and "🟢 Forças" in body
+
+
+def test_cadeia_svg_diagrama(client_loyall, db_session):
+    """A cadeia agora é diagrama SVG: <svg>, chips-pílula coloridos (fill-emerald/
+    fill-rose), spine + cascata vermelha nos elos herdeiros, marca da ruptura."""
+    e = _empresa(db_session)
+    p = _pesquisa(db_session, e)
+    _analise(db_session, p, "P1", "essencia", "gravidade")  # rompe no topo → cascata p/ baixo
+    _analise(db_session, p, "Pa1", "caminho", "solidez")  # força
+    _analise(db_session, p, "D2", "resultado", "gravidade")
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    assert "<svg" in body and 'aria-label="Cadeia generativa' in body
+    # chips-pílula por lado
+    assert "fill-rose-100" in body and "fill-emerald-100" in body
+    # chip traz sigla · nome
+    assert "P1 · Calibração da Promessa" in body
+    # cascata: barra lateral + spine vermelhos nos elos herdeiros
+    assert "fill-rose-300" in body and "stroke-rose-400" in body
+    # marca da ruptura
+    assert "◀ a corrente rompe aqui" in body
