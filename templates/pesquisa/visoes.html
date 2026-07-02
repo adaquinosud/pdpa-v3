@@ -30,18 +30,22 @@
 
   {# Cabeçalho das 3 colunas #}
   <div class="grid grid-cols-3 gap-4 mt-5 text-xs uppercase tracking-wider text-loyall-400">
-    <div>O que a empresa pensa <span class="normal-case tracking-normal">(time)</span></div>
+    <div>Como o time se avalia <span class="normal-case tracking-normal">(valência + nota)</span></div>
     <div class="text-center">O modelo</div>
-    <div class="text-right">O que o cliente pensa <span class="normal-case tracking-normal">(cliente)</span></div>
+    <div class="text-right">Temas do cliente <span class="normal-case tracking-normal">(valência + assuntos)</span></div>
   </div>
 
   <div class="mt-1 border border-loyall-200 rounded divide-y divide-loyall-100">
     {% for p in pilares %}
     <div class="grid grid-cols-3 gap-4 px-3 py-3 items-center {% if p.diverge %}bg-rose-50/60{% endif %}">
-      {# ESQUERDA — visão do time #}
+      {# ESQUERDA — como o time se avalia (valência + nota). Sem dado → não mudo. #}
       <div class="text-sm">
+        {% if p.time_val %}
         {{ val_badge(p.time_val) }}
         {% if p.time_nota is not none %}<span class="text-loyall-400 text-xs">· nota {{ p.time_nota }}</span>{% endif %}
+        {% else %}
+        <span class="text-loyall-400 text-xs italic">time não avaliou este pilar</span>
+        {% endif %}
       </div>
       {# CENTRO — o modelo (pilar + subpilares) #}
       <div class="text-center">
@@ -52,12 +56,16 @@
         <div class="text-xs text-loyall-400 mt-0.5">{{ p.subpilares | join(' · ') }}</div>
         {% if p.diverge %}<div class="text-xs text-rose-500 mt-0.5">↔ visões divergem</div>{% endif %}
       </div>
-      {# DIREITA — voz do cliente #}
+      {# DIREITA — voz do cliente. Temas são tema_label agregados (não fala literal):
+         sem aspas; prefixo pela valência dominante, como no confronto. #}
       <div class="text-sm text-right">
         {{ val_badge(p.cli_val) }}
         {% if p.temas %}
-        <div class="text-xs text-loyall-500 mt-1 space-y-0.5">
-          {% for t in p.temas %}<div>“{{ t }}”</div>{% endfor %}
+        <div class="text-xs text-loyall-500 mt-1">
+          {% if p.cli_val == 'promotor' %}elogia:
+          {% elif p.cli_val == 'detrator' %}reclama de:
+          {% else %}comenta:{% endif %}
+          {{ p.temas | join(' · ') }}
         </div>
         {% endif %}
       </div>

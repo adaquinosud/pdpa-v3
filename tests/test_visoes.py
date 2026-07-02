@@ -114,10 +114,10 @@ def test_visoes_renderiza_estrutura(client_loyall, db_session):
     db_session.commit()
     body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
     assert "Duas visões que se encontram" in body
-    # as 3 colunas
-    assert (
-        "O que a empresa pensa" in body and "O modelo" in body and "O que o cliente pensa" in body
-    )
+    # as 3 colunas (rótulos explícitos)
+    assert "Como o time se avalia" in body and "O modelo" in body and "Temas do cliente" in body
+    # sem dado do time → rótulo não-mudo (não "—")
+    assert "time não avaliou este pilar" in body
     # os 4 pilares
     for nome in ("Precisão", "Disponibilidade", "Parceria", "Aconselhamento"):
         assert nome in body
@@ -137,7 +137,9 @@ def test_visoes_agrega_e_marca_divergencia(client_loyall, db_session):
     assert "promotor" in body and "detrator" in body  # os dois lados
     assert "nota 4" in body  # média da nota do time
     assert "visões divergem" in body  # acento onde dói
-    assert "check-in demora" in body  # tema como citação do cliente
+    # tema sem aspas, prefixado pela valência (cliente detrator → reclama de:)
+    assert "reclama de:" in body and "check-in demora" in body
+    assert "“check-in demora”" not in body  # sem aspas (não é fala literal)
 
 
 def test_visoes_so_confronto_redireciona(client_loyall, db_session):
