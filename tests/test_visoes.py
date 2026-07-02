@@ -211,3 +211,17 @@ def test_visoes_responsivo_empilha_no_mobile(client_loyall, db_session):
     body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
     assert "grid-cols-1 md:grid-cols-3" in body  # empilha no mobile
     assert "flex flex-wrap" in body  # nav não estoura
+
+
+def test_visoes_radar_chartjs(client_loyall, db_session):
+    """Piloto do radar (Chart.js já no base): canvas + init com as 2 séries
+    (time × cliente) e os dados injetados. Valência → score 1-3."""
+    e, f, a, p = _cenario(db_session)
+    _verb(db_session, e, f, "D2", "detrator")  # cliente detrator (D)
+    _resp(db_session, p, "D2", "D2", "promotor")  # time promotor (D)
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    assert 'id="radar-visoes"' in body and "type: 'radar'" in body
+    assert "Como o time se avalia" in body and "Voz do cliente" in body
+    # eixos = códigos dos 4 pilares; D: time promotor(3) × cliente detrator(1)
+    assert '["P", "D", "Pa", "A"]' in body

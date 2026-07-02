@@ -800,5 +800,19 @@ def pesquisa_visoes(pesquisa_id):
                     "diverge": bool(time_val and cli_val and time_val != cli_val),
                 }
             )
-        ctx = {"pesquisa_id": pesquisa_id, "titulo": pesq.titulo, "pilares": pilares}
+        # Radar (Chart.js, já carregado no base): valência → score 1-3 (0=sem dado),
+        # comparável entre time e cliente; onde os polígonos separam = divergência.
+        _score = {"detrator": 1, "conversivel": 2, "promotor": 3}
+        radar = {
+            "labels": [p["code"] for p in pilares],
+            "nomes": [p["nome"] for p in pilares],
+            "time": [_score.get(p["time_val"], 0) for p in pilares],
+            "cliente": [_score.get(p["cli_val"], 0) for p in pilares],
+        }
+        ctx = {
+            "pesquisa_id": pesquisa_id,
+            "titulo": pesq.titulo,
+            "pilares": pilares,
+            "radar": radar,
+        }
     return render_template("pesquisa/visoes.html", **ctx)

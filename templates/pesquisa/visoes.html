@@ -28,6 +28,36 @@
   <p class="text-sm text-loyall-500 mt-1">
     O que a empresa pensa e o que o cliente expressa, encontrando-se em cada pilar.</p>
 
+  {# RADAR (Chart.js, já no base). Resumo visual: time × cliente nos 4 pilares.
+     Onde os polígonos se afastam = as visões divergem. Responsivo. #}
+  <div class="mt-5 mx-auto" style="max-width:520px;height:320px"><canvas id="radar-visoes"></canvas></div>
+  <p class="text-xs text-loyall-400 text-center mt-1">
+    {% for c, n in [('P','Precisão'),('D','Disponibilidade'),('Pa','Parceria'),('A','Aconselhamento')] %}<span class="mx-1">{{ c }} {{ n }}</span>{% endfor %}</p>
+  <script>
+    (function () {
+      var el = document.getElementById('radar-visoes');
+      if (!el || typeof Chart === 'undefined') return;
+      var rot = {0: '—', 1: 'detrator', 2: 'conversível', 3: 'promotor'};
+      new Chart(el, {
+        type: 'radar',
+        data: {
+          labels: {{ radar.labels | tojson }},
+          datasets: [
+            {label: 'Como o time se avalia', data: {{ radar.time | tojson }},
+             borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.12)', pointBackgroundColor: '#4f46e5'},
+            {label: 'Voz do cliente', data: {{ radar.cliente | tojson }},
+             borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,0.12)', pointBackgroundColor: '#d97706'}
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {r: {min: 0, max: 3, ticks: {stepSize: 1, callback: function (v) { return rot[v] || v; }}}},
+          plugins: {tooltip: {callbacks: {label: function (c) { return c.dataset.label + ': ' + (rot[c.raw] || c.raw); }}}}
+        }
+      });
+    })();
+  </script>
+
   {# Cabeçalho das 3 colunas — só no desktop (no mobile os blocos empilham com
      rótulo próprio). #}
   <div class="hidden md:grid grid-cols-3 gap-4 mt-5 text-xs uppercase tracking-wider text-loyall-400">
