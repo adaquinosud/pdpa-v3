@@ -68,7 +68,7 @@ def _verb(db_session, e, f, sub, tipo, n=3):
         )
 
 
-def _resp(db_session, p, sub_alvo, sub_class, val, nota=None):
+def _resp(db_session, p, sub_alvo, sub_class, val, nota=None, texto="c"):
     q = PesquisaPergunta(
         pesquisa_id=p.id, ordem=_k[0], enunciado="?", formato="mista", subpilar_alvo=sub_alvo
     )
@@ -82,7 +82,7 @@ def _resp(db_session, p, sub_alvo, sub_class, val, nota=None):
         Resposta(
             respondente_id=r.id,
             pergunta_id=q.id,
-            valor_texto="c",
+            valor_texto=texto,
             valor_nota=nota,
             subpilar_classificado=sub_class,
             valencia_classificada=val,
@@ -176,3 +176,28 @@ def test_links_reciprocos_visoes(client_loyall, db_session):
     assert "Duas visões →" in conf
     quad = client_loyall.get(f"/pesquisas/{p.id}/quadro").get_data(as_text=True)
     assert "Duas visões →" in quad
+
+
+def test_visoes_citacoes_literais_do_time(client_loyall, db_session):
+    """Lado do time ganha falas LITERAIS (entre aspas), top-2 mais recentes,
+    truncadas ~100 chars. Distinto dos temas do cliente (sem aspas)."""
+    e, f, a, p = _cenario(db_session)
+    curto = "A gente entrega no prazo combinado"
+    longo = "x" * 130  # >100 → trunca
+    _resp(db_session, p, "D2", "D2", "promotor", texto=curto)
+    _resp(db_session, p, "D1", "D1", "promotor", texto=longo)
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    assert f"“{curto}”" in body  # fala literal do time, entre aspas
+    assert "…" in body and ("x" * 130) not in body  # truncado ~100 chars
+
+
+def test_visoes_sem_texto_time_so_valencia(client_loyall, db_session):
+    """Pilar do time sem valor_texto classificado → só valência/nota, sem aspas."""
+    e, f, a, p = _cenario(db_session)
+    _resp(db_session, p, "D2", "D2", "promotor", nota=4, texto=None)  # nota, sem texto
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    assert "nota 4" in body
+    # nenhuma citação literal do time (não há valor_texto)
+    assert "“" not in body or "reclama" in body  # aspas do time ausentes

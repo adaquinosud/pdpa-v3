@@ -38,13 +38,19 @@
   <div class="mt-1 border border-loyall-200 rounded divide-y divide-loyall-100">
     {% for p in pilares %}
     <div class="grid grid-cols-3 gap-4 px-3 py-3 items-center {% if p.diverge %}bg-rose-50/60{% endif %}">
-      {# ESQUERDA — como o time se avalia (valência + nota). Sem dado → não mudo. #}
+      {# ESQUERDA — como o time se avalia (valência + nota). Sem dado → não mudo.
+         Citações são fala LITERAL do time (entre aspas), ≠ dos temas do cliente. #}
       <div class="text-sm">
         {% if p.time_val %}
         {{ val_badge(p.time_val) }}
         {% if p.time_nota is not none %}<span class="text-loyall-400 text-xs">· nota {{ p.time_nota }}</span>{% endif %}
         {% else %}
         <span class="text-loyall-400 text-xs italic">time não avaliou este pilar</span>
+        {% endif %}
+        {% if p.time_citacoes %}
+        <div class="text-xs text-loyall-500 mt-1 space-y-0.5">
+          {% for c in p.time_citacoes %}<div>“{{ c }}”</div>{% endfor %}
+        </div>
         {% endif %}
       </div>
       {# CENTRO — o modelo (pilar + subpilares) #}

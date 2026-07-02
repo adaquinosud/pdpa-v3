@@ -706,6 +706,37 @@ def _moda(vals):
     return Counter(vals).most_common(1)[0][0] if vals else None
 
 
+def _visoes_citacoes_time(s, pesquisa_id):
+    """{pilar: [1-2 citações LITERAIS do time]} — valor_texto de respostas
+    classificadas com valência clara, mais recentes primeiro, truncadas ~100
+    chars. Determinístico (sem LLM). Diferente dos temas do cliente (agregados)."""
+    from src.api.painel import PILAR_DE_SUBPILAR
+    from src.models.respondente import Respondente, Resposta
+
+    rows = (
+        s.query(Resposta.valor_texto, Resposta.subpilar_classificado)
+        .join(Respondente, Respondente.id == Resposta.respondente_id)
+        .filter(
+            Respondente.pesquisa_id == pesquisa_id,
+            Resposta.valor_texto.isnot(None),
+            Resposta.subpilar_classificado.isnot(None),
+            Resposta.valencia_classificada.in_(("promotor", "conversivel", "detrator")),
+        )
+        .order_by(Resposta.classificado_em.desc(), Resposta.id.desc())
+        .all()
+    )
+    out = {}
+    for texto, sub in rows:
+        pilar = PILAR_DE_SUBPILAR.get(sub)
+        if pilar is None:
+            continue
+        lst = out.setdefault(pilar, [])
+        if len(lst) < 2:
+            t = (texto or "").strip()
+            lst.append(t if len(t) <= 100 else t[:100].rstrip() + "…")
+    return out
+
+
 @ui_bp.route("/pesquisas/<int:pesquisa_id>/visoes")
 @loyall_required_ui
 def pesquisa_visoes(pesquisa_id):
@@ -727,6 +758,7 @@ def pesquisa_visoes(pesquisa_id):
             flash("As duas visões são só para pesquisas de propósito 'confronto'.", "erro")
             return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
         por_sub = {g["subpilar"]: g for g in (gap_confronto(s, pesquisa_id) or [])}
+        citacoes_time = _visoes_citacoes_time(s, pesquisa_id)  # falas literais do time
 
         pilares = []
         for code in PILARES_ORDEM:
@@ -761,6 +793,7 @@ def pesquisa_visoes(pesquisa_id):
                     "subpilares": subs,
                     "time_val": time_val,
                     "time_nota": round(sum(notas) / len(notas), 1) if notas else None,
+                    "time_citacoes": citacoes_time.get(code, []),
                     "cli_val": cli_val,
                     "temas": temas_top,
                     # acento onde as duas visões divergem (o pilar dói)
