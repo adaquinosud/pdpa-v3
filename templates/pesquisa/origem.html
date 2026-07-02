@@ -105,12 +105,18 @@
           <div class="flex flex-wrap gap-1 justify-end">
             {% for a in achados %}
             <span class="px-2 py-0.5 rounded text-xs {% if a.lado == 'solidez' %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %}">
-              {% if a.lado == 'solidez' %}🟢{% else %}🔴{% endif %} {{ a.subpilar }}</span>
+              {% if a.lado == 'solidez' %}🟢{% else %}🔴{% endif %} {{ a.subpilar }} · {{ a.nome }}</span>
             {% else %}
             <span class="text-xs text-loyall-300">—</span>
             {% endfor %}
           </div>
         </div>
+        {# frase-síntese do elo: 1ª frase da primeira justificativa dali (derivada,
+           sem campo novo no LLM). #}
+        {% set com_just = achados | selectattr('justificativa') | list %}
+        {% if com_just %}
+        <p class="text-xs text-loyall-600 mt-1">{{ com_just[0].justificativa.split('.')[0] }}.</p>
+        {% endif %}
         {% if ruptura_ordem is not none and loop.index0 == ruptura_ordem %}
         <div class="text-xs text-rose-500 mt-0.5">◀ a corrente rompe aqui — pela régua do método, os elos abaixo herdam</div>
         {% endif %}
@@ -119,23 +125,38 @@
     {% endfor %}
   </div>
 
-  {# Detalhe por gap — as justificativas (o porquê de cada selo), abaixo da cadeia. #}
+  {# Detalhe por gap — agrupado por ELO (Essência→Resultado), problemas e forças
+     separados dentro de cada elo. #}
+  {% macro detalhe_item(a) %}
+  <div class="px-3 py-2 text-sm">
+    <span class="font-medium">{{ a.subpilar }} · {{ a.nome }}</span>
+    {% if a.justificativa %}<p class="text-xs text-loyall-600 mt-0.5">{{ a.justificativa }}</p>{% endif %}
+  </div>
+  {% endmacro %}
   <div class="mt-6">
     <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Detalhe por gap</div>
-    <div class="border border-loyall-200 rounded divide-y divide-loyall-100">
-      {% for a in analises %}
-      <div class="px-3 py-2 text-sm {% if a.lado == 'gravidade' and a.nivel in FUNDO %}bg-rose-50{% elif a.lado == 'solidez' and a.nivel in FUNDO %}bg-emerald-50{% endif %}">
-        <div class="flex items-center gap-2">
-          <span class="font-medium">{{ a.subpilar }} · {{ a.nome }}</span>
-          {{ nivel_badge(a.nivel, a.lado) }}
-          <span class="text-xs">{% if a.lado == 'solidez' %}🟢 solidez{% else %}🔴 gravidade{% endif %}</span>
-        </div>
-        {% if a.justificativa %}
-        <p class="text-xs text-loyall-600 mt-1">{{ a.justificativa }}</p>
-        {% endif %}
+    {% for code, label, glosa in ELOS %}
+    {% set do_elo = analises | selectattr('nivel', 'equalto', code) | list %}
+    {% if do_elo %}
+    {% set probs = do_elo | selectattr('lado', 'equalto', 'gravidade') | list %}
+    {% set forcas = do_elo | selectattr('lado', 'equalto', 'solidez') | list %}
+    <div class="mt-3">
+      <div class="text-sm font-semibold">{{ label }}</div>
+      {% if probs %}
+      <div class="mt-1 border border-rose-100 rounded divide-y divide-rose-50">
+        <div class="px-3 py-1 text-xs font-medium text-rose-600 bg-rose-50">🔴 Problemas</div>
+        {% for a in probs %}{{ detalhe_item(a) }}{% endfor %}
       </div>
-      {% endfor %}
+      {% endif %}
+      {% if forcas %}
+      <div class="mt-1 border border-emerald-100 rounded divide-y divide-emerald-50">
+        <div class="px-3 py-1 text-xs font-medium text-emerald-600 bg-emerald-50">🟢 Forças</div>
+        {% for a in forcas %}{{ detalhe_item(a) }}{% endfor %}
+      </div>
+      {% endif %}
     </div>
+    {% endif %}
+    {% endfor %}
   </div>
   {% else %}
   {# Sem análise ainda — explica o que o ORIGEM faz. #}

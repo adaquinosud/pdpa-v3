@@ -89,7 +89,8 @@ def test_origem_renderiza_e_ordena_por_profundidade(client_loyall, db_session):
     assert "A maioria rompe na essência." in body  # síntese no topo
     # ordem por profundidade: Essência(P1) → Caminho(Pa1) → Resultado(D2)
     assert body.index("P1 ·") < body.index("Pa1 ·") < body.index("D2 ·")
-    assert "Essência" in body and "🔴 gravidade" in body and "🟢 solidez" in body
+    # detalhe agrupado por elo separa problemas de forças
+    assert "Essência" in body and "🔴 Problemas" in body and "🟢 Forças" in body
 
 
 def test_links_reciprocos(client_loyall, db_session):
@@ -200,3 +201,29 @@ def test_cadeia_sem_gravidade_nao_marca_ruptura(client_loyall, db_session):
     body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
     assert "Cadeia generativa" in body
     assert "a corrente rompe aqui" not in body  # nada rompe
+
+
+def test_cadeia_v2_chip_nome_frase_e_detalhe_agrupado(client_loyall, db_session):
+    """A) chip 'sigla · nome'; frase-síntese do elo (1ª frase da justificativa);
+    detalhe agrupado por elo com problemas e forças separados."""
+    e = _empresa(db_session)
+    p = _pesquisa(db_session, e)
+    _analise(
+        db_session,
+        p,
+        "P2",
+        "essencia",
+        "gravidade",
+        just="A ruptura mora na essência. Trai a promessa.",
+    )
+    _analise(
+        db_session, p, "Pa3", "essencia", "solidez", just="Encarna o cuidado declarado. Sólida."
+    )
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    # chip com sigla + nome
+    assert "P2 · Qualidade da Entrega" in body
+    # frase-síntese do elo (1ª frase, derivada da justificativa)
+    assert "A ruptura mora na essência" in body
+    # detalhe agrupado por elo, problemas e forças separados (mesmo elo: Essência)
+    assert "🔴 Problemas" in body and "🟢 Forças" in body
