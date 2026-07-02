@@ -365,3 +365,57 @@ def test_tela_mostra_temas_e_aviso(client_loyall, db_session):
     db_session.commit()
     body2 = client_loyall.get(f"/pesquisas/{p2.id}/confronto").get_data(as_text=True)
     assert "apenas para pesquisas por agrupamento" in body2
+
+
+# ── PONTO 1: a coluna Time faz o vazio falar; PONTO 2: manchete ──────────────
+
+
+def test_time_nota_sem_valencia_explica(client_loyall, db_session):
+    """Ponto cego: time deu nota mas comentário inativo → 'não apontou o problema'."""
+    e_id, f_id, p = _pesquisa(db_session)
+    q = _pergunta(db_session, p, "P1")
+    _verb(db_session, e_id, f_id, "P1", "detrator")  # cliente detrator
+    _resp(db_session, p, q, sub_class="sem_lastro", val="inativo", nota=4)  # nota + sem valência
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    assert "nota 4.0" in body and "não apontou o problema" in body
+
+
+def test_time_valencia_sem_nota_explica(client_loyall, db_session):
+    """Força: time promotor por comentário, sem nota → 'sem nota específica'."""
+    e_id, f_id, p = _pesquisa(db_session)
+    q = _pergunta(db_session, p, "Pa3")
+    _verb(db_session, e_id, f_id, "Pa3", "promotor")  # cliente promotor
+    _resp(db_session, p, q, sub_class="Pa3", val="promotor")  # valência, nota=None
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    assert "sem nota específica" in body
+
+
+def test_time_ambos_sinais(client_loyall, db_session):
+    """Descompasso: time promotor + nota → 'promotor · nota X' (os dois sinais)."""
+    e_id, f_id, p = _pesquisa(db_session)
+    q = _pergunta(db_session, p, "D2")
+    _verb(db_session, e_id, f_id, "D2", "detrator")  # cliente detrator
+    _resp(db_session, p, q, sub_class="D2", val="promotor", nota=4)  # valência + nota
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    assert "nota 4.0" in body and "promotor" in body
+
+
+def test_manchete_contagem_no_topo(client_loyall, db_session):
+    """PONTO 2: manchete com contagem por categoria antes da lista."""
+    e_id, f_id, p = _pesquisa(db_session)
+    # 1 ponto cego
+    q1 = _pergunta(db_session, p, "P1")
+    _verb(db_session, e_id, f_id, "P1", "detrator")
+    _resp(db_session, p, q1, sub_class="sem_lastro", val="inativo")
+    # 1 força
+    q2 = _pergunta(db_session, p, "Pa3")
+    _verb(db_session, e_id, f_id, "Pa3", "promotor")
+    _resp(db_session, p, q2, sub_class="Pa3", val="promotor")
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    assert "1 ponto(s) cego(s)" in body and "1 força(s)" in body
+    # manchete vem ANTES do bloco de pontos cegos
+    assert body.index("1 ponto(s) cego(s)") < body.index("🔴 Pontos cegos")

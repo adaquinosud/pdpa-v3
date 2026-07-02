@@ -10,39 +10,65 @@
   {% else %}<span class="text-loyall-300 text-xs">—</span>{% endif %}
 {% endmacro %}
 
-{# Linha de um subpilar: cliente | time | gap. O lado do time vazio vira "time não
-   consegue avaliar" SÓ no ponto cego (perguntado, silêncio total). #}
-{% macro linha(r) %}
-<div class="flex items-start justify-between border-t border-loyall-100 px-3 py-2 text-sm">
-  <div>
-    <div class="font-medium">{{ r.subpilar }} · {{ r.nome }}</div>
-    {% if r.temas_cliente %}
-    {# Conteúdo do gap: sobre o quê o cliente fala neste subpilar (assimétrico —
-       só o lado cliente tem tema). Rótulo pela valência dominante do cliente. #}
+{# PONTO 1 — o lado do time faz o vazio FALAR: explicita por que falta o outro
+   sinal (nota sem valência = não apontou; valência sem nota = sem nota). #}
+{% macro time_cell(r) %}
+  {% if r.colaborador %}
+    {% set v = r.colaborador.valencia_dominante %}
+    {% set n = r.colaborador.nota_media %}
+    {% if v and n is not none %}{{ val_badge(v) }} <span class="text-loyall-400">· nota {{ n }}</span>
+    {% elif v %}{{ val_badge(v) }} <span class="text-loyall-400">· sem nota específica</span>
+    {% elif n is not none %}<span class="text-loyall-600">nota {{ n }}</span> <span class="text-rose-400">· não apontou o problema</span>
+    {% else %}{{ val_badge(None) }}{% endif %}
+  {% elif r.categoria == 'ponto_cego' %}<span class="text-rose-400 italic">time não consegue avaliar</span>
+  {% else %}{{ val_badge(None) }}{% endif %}
+{% endmacro %}
+
+{# Temas do cliente (assimétrico — só o lado cliente tem tema). Rótulo pela valência. #}
+{% macro temas_line(r) %}
+  {% if r.temas_cliente %}
     {% set val = r.cliente.valencia_dominante if r.cliente else None %}
-    <div class="text-xs text-loyall-500 mt-0.5">
+    <div class="text-sm text-loyall-600 mt-1">
       {% if val == 'promotor' %}Cliente elogia:
       {% elif val == 'detrator' %}Cliente reclama de:
       {% else %}Cliente comenta:{% endif %}
       {{ r.temas_cliente | map(attribute='tema_label') | join(', ') }}
     </div>
+  {% endif %}
+{% endmacro %}
+
+{# Cliente / Time em duas linhas rotuladas e alinhadas (badges agrupados). #}
+{% macro cli_time(r) %}
+<div class="mt-2 text-xs space-y-0.5">
+  <div><span class="text-loyall-400 inline-block w-14">Cliente</span>
+    {{ val_badge(r.cliente.valencia_dominante) if r.cliente else val_badge(None) }}{% if r.cliente %} <span class="text-loyall-400">· {{ r.cliente.faixa }}</span>{% endif %}</div>
+  <div><span class="text-loyall-400 inline-block w-14">Time</span> {{ time_cell(r) }}</div>
+</div>
+{% endmacro %}
+
+{# Card GRANDE (tier 1 — ponto cego domina): barra vermelha, respiro, destaque. #}
+{% macro card_grande(r) %}
+<div class="border-l-4 border-rose-400 bg-white shadow-sm rounded p-4 mb-3">
+  <div class="font-medium text-base">{{ r.subpilar }} · {{ r.nome }}</div>
+  {{ temas_line(r) }}
+  {{ cli_time(r) }}
+</div>
+{% endmacro %}
+
+{# Card MÉDIO (tier 2 — descompasso/consciência): borda simples, sem barra grossa. #}
+{% macro card_medio(r) %}
+<div class="border border-loyall-200 rounded p-3 mb-2">
+  <div class="flex items-center justify-between gap-2">
+    <span class="font-medium text-sm">{{ r.subpilar }} · {{ r.nome }}</span>
+    {% if r.gap and r.gap.direcao in ['superestima', 'subestima'] %}
+    <span class="text-xs font-medium text-right
+      {% if r.gap.direcao == 'superestima' %}text-rose-600{% else %}text-sky-600{% endif %}">
+      {% if r.gap.direcao == 'superestima' %}o time acha melhor do que o cliente sente
+      {% else %}o time se cobra mais do que o cliente{% endif %}</span>
     {% endif %}
   </div>
-  <div class="flex items-center gap-4 text-xs whitespace-nowrap">
-    <span>Cliente: {{ val_badge(r.cliente.valencia_dominante) if r.cliente else val_badge(None) }}
-      {% if r.cliente %}<span class="text-loyall-400">{{ r.cliente.faixa }}</span>{% endif %}</span>
-    <span>Time:
-      {% if r.colaborador %}{{ val_badge(r.colaborador.valencia_dominante) }}
-        {% if r.colaborador.nota_media is not none %}<span class="text-loyall-400">nota {{ r.colaborador.nota_media }}</span>{% endif %}
-      {% elif r.categoria == 'ponto_cego' %}<span class="text-rose-400 italic">time não consegue avaliar</span>
-      {% else %}{{ val_badge(None) }}{% endif %}</span>
-    {% if r.gap %}
-      <span class="font-medium
-        {% if r.gap.direcao == 'superestima' %}text-rose-600{% elif r.gap.direcao == 'subestima' %}text-sky-600{% else %}text-loyall-500{% endif %}">
-        {% if r.gap.direcao == 'superestima' %}o time acha melhor do que o cliente sente
-        {% elif r.gap.direcao == 'subestima' %}o time se cobra mais do que o cliente{% endif %}</span>
-    {% endif %}
-  </div>
+  {{ temas_line(r) }}
+  {{ cli_time(r) }}
 </div>
 {% endmacro %}
 
@@ -58,7 +84,7 @@
   <p class="text-sm text-loyall-500 mt-1">Cliente × colaborador, por subpilar.</p>
 
   {% if pendentes %}
-  {# T3 — não mostrar gap falso: há comentários por classificar. #}
+  {# não mostrar gap falso: há comentários por classificar. #}
   <div class="mt-4 bg-amber-50 border border-amber-200 text-amber-800 rounded p-4 text-sm">
     <p><strong>{{ pendentes }}</strong> comentário(s) ainda não classificado(s).
        Classifique antes de ver o confronto (senão o lado do colaborador fica vazio).</p>
@@ -88,32 +114,84 @@
   <p class="text-xs text-loyall-400 mt-3 italic">Temas disponíveis apenas para pesquisas por agrupamento.</p>
   {% endif %}
 
-  {# Categorias na ordem da história: ponto cego → descompasso → consciência →
-     força → não perguntado → outros. Cada uma só aparece se tiver subpilar. #}
-  {% set secoes = [
-    ('ponto_cego', '🔴', 'Pontos cegos', 'o cliente sofre e o time não vê', 'text-rose-700'),
-    ('descompasso', '🟠', 'Descompassos', 'time e cliente enxergam diferente', 'text-orange-700'),
-    ('consciencia_compartilhada', '🟡', 'Consciência compartilhada', 'os dois reconhecem o problema', 'text-amber-700'),
-    ('forca', '🟢', 'Forças confirmadas', 'o que proteger', 'text-emerald-700'),
-    ('nao_perguntado', '⚪', 'Não perguntado', 'a pesquisa não cobriu — considere na próxima', 'text-loyall-500'),
-    ('outros', '·', 'Outros', '', 'text-loyall-500'),
-  ] %}
   {% if not gap %}
   <p class="text-loyall-400 mt-4">Sem dado para confrontar.</p>
+  {% else %}
+
+  {% set pc = gap | selectattr('categoria', 'equalto', 'ponto_cego') | list %}
+  {% set dc = gap | selectattr('categoria', 'equalto', 'descompasso') | list %}
+  {% set cc = gap | selectattr('categoria', 'equalto', 'consciencia_compartilhada') | list %}
+  {% set fc = gap | selectattr('categoria', 'equalto', 'forca') | list %}
+  {% set np = gap | selectattr('categoria', 'equalto', 'nao_perguntado') | list %}
+  {% set ou = gap | selectattr('categoria', 'equalto', 'outros') | list %}
+
+  {# MANCHETE — só contagem (o veredito antes da lista). #}
+  <div class="mt-4 flex flex-wrap gap-2 text-xs font-medium">
+    {% if pc %}<span class="px-2 py-1 rounded bg-rose-100 text-rose-700">🔴 {{ pc|length }} ponto(s) cego(s)</span>{% endif %}
+    {% if dc %}<span class="px-2 py-1 rounded bg-orange-100 text-orange-700">🟠 {{ dc|length }} descompasso(s)</span>{% endif %}
+    {% if cc %}<span class="px-2 py-1 rounded bg-amber-100 text-amber-700">🟡 {{ cc|length }} consciência</span>{% endif %}
+    {% if fc %}<span class="px-2 py-1 rounded bg-emerald-100 text-emerald-700">🟢 {{ fc|length }} força(s)</span>{% endif %}
+    {% if np %}<span class="px-2 py-1 rounded bg-loyall-100 text-loyall-500">⚪ {{ np|length }} não perguntado</span>{% endif %}
+  </div>
+
+  {# TIER 1 — Pontos cegos: cards grandes, dominam. #}
+  {% if pc %}
+  <section class="mt-8">
+    <h2 class="text-sm font-semibold text-rose-700 mb-2">🔴 Pontos cegos ({{ pc|length }})
+      <span class="text-loyall-400 font-normal">· o cliente sofre e o time não vê</span></h2>
+    {% for r in pc %}{{ card_grande(r) }}{% endfor %}
+  </section>
   {% endif %}
-  {% for cat, emoji, titulo, subtitulo, cor in secoes %}
-    {% set itens = gap | selectattr('categoria', 'equalto', cat) | list %}
-    {% if itens %}
-    <section class="mt-5 {% if cat in ['nao_perguntado', 'outros'] %}opacity-70{% endif %}">
-      <h2 class="text-sm font-semibold {{ cor }}">{{ emoji }} {{ titulo }}
-        <span class="text-loyall-400 font-normal">({{ itens|length }})</span></h2>
-      {% if subtitulo %}<p class="text-xs text-loyall-500">{{ subtitulo }}</p>{% endif %}
-      <div class="mt-1 border border-loyall-200 rounded">
-        {% for r in itens %}{{ linha(r) }}{% endfor %}
+
+  {# TIER 2 — Descompassos + Consciência: cards médios. #}
+  {% if dc %}
+  <section class="mt-8">
+    <h2 class="text-sm font-semibold text-orange-700 mb-2">🟠 Descompassos ({{ dc|length }})
+      <span class="text-loyall-400 font-normal">· time e cliente enxergam diferente</span></h2>
+    {% for r in dc %}{{ card_medio(r) }}{% endfor %}
+  </section>
+  {% endif %}
+  {% if cc %}
+  <section class="mt-8">
+    <h2 class="text-sm font-semibold text-amber-700 mb-2">🟡 Consciência compartilhada ({{ cc|length }})
+      <span class="text-loyall-400 font-normal">· os dois reconhecem o problema</span></h2>
+    {% for r in cc %}{{ card_medio(r) }}{% endfor %}
+  </section>
+  {% endif %}
+
+  {# TIER 3 — Forças: lista compacta, discreta. #}
+  {% if fc %}
+  <section class="mt-8">
+    <h2 class="text-sm font-semibold text-emerald-700 mb-2">🟢 Forças confirmadas ({{ fc|length }})
+      <span class="text-loyall-400 font-normal">· o que proteger</span></h2>
+    <div class="rounded border border-emerald-100 bg-emerald-50/60 divide-y divide-emerald-100">
+      {% for r in fc %}
+      <div class="px-3 py-1.5 text-sm flex items-center justify-between gap-2">
+        <span class="font-medium">{{ r.subpilar }} · {{ r.nome }}</span>
+        <span class="text-xs whitespace-nowrap">{{ time_cell(r) }}</span>
       </div>
-    </section>
-    {% endif %}
-  {% endfor %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# TIER 4 — Não perguntado + Outros: recolhido, muted. #}
+  {% if np or ou %}
+  <details class="mt-8 opacity-70">
+    <summary class="text-sm text-loyall-500 cursor-pointer">
+      Não perguntado ({{ np|length }}) · Outros ({{ ou|length }})</summary>
+    <div class="mt-2 border border-loyall-200 rounded divide-y divide-loyall-100">
+      {% for r in np + ou %}
+      <div class="px-3 py-2 text-sm flex items-center justify-between">
+        <span>{{ r.subpilar }} · {{ r.nome }}</span>
+        <span class="text-xs text-loyall-400">{{ 'não perguntado' if r.categoria == 'nao_perguntado' else 'outros' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+
+  {% endif %}
   {% endif %}
 </div>
 {% endblock %}
