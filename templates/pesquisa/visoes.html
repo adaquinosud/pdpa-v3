@@ -12,10 +12,10 @@
 
 {% block conteudo %}
 <div class="max-w-4xl">
-  <div class="flex items-center justify-between text-sm">
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
     <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
        class="text-loyall-400 hover:underline">← Confronto</a>
-    <span class="flex items-center gap-3">
+    <span class="flex flex-wrap items-center gap-x-3 gap-y-1">
       <a href="{{ url_for('ui.pesquisa_quadro', pesquisa_id=pesquisa_id) }}"
          class="text-loyall-600 hover:underline">Quadro dos pilares →</a>
       <a href="{{ url_for('ui.pesquisa_origem', pesquisa_id=pesquisa_id) }}"
@@ -28,8 +28,9 @@
   <p class="text-sm text-loyall-500 mt-1">
     O que a empresa pensa e o que o cliente expressa, encontrando-se em cada pilar.</p>
 
-  {# Cabeçalho das 3 colunas #}
-  <div class="grid grid-cols-3 gap-4 mt-5 text-xs uppercase tracking-wider text-loyall-400">
+  {# Cabeçalho das 3 colunas — só no desktop (no mobile os blocos empilham com
+     rótulo próprio). #}
+  <div class="hidden md:grid grid-cols-3 gap-4 mt-5 text-xs uppercase tracking-wider text-loyall-400">
     <div>Como o time se avalia <span class="normal-case tracking-normal">(valência + nota)</span></div>
     <div class="text-center">O modelo</div>
     <div class="text-right">Temas do cliente <span class="normal-case tracking-normal">(valência + assuntos)</span></div>
@@ -37,10 +38,12 @@
 
   <div class="mt-1 border border-loyall-200 rounded divide-y divide-loyall-100">
     {% for p in pilares %}
-    <div class="grid grid-cols-3 gap-4 px-3 py-3 items-center {% if p.diverge %}bg-rose-50/60{% endif %}">
+    {# desktop: 3 colunas; mobile: empilha (modelo → time → cliente) #}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 px-3 py-3 md:items-center {% if p.diverge %}bg-rose-50/60{% endif %}">
       {# ESQUERDA — como o time se avalia (valência + nota). Sem dado → não mudo.
          Citações são fala LITERAL do time (entre aspas), ≠ dos temas do cliente. #}
-      <div class="text-sm">
+      <div class="text-sm order-2 md:order-none">
+        <div class="md:hidden text-xs uppercase tracking-wider text-loyall-400 mb-0.5">Time</div>
         {% if p.time_val %}
         {{ val_badge(p.time_val) }}
         {% if p.time_nota is not none %}<span class="text-loyall-400 text-xs">· nota {{ p.time_nota }}</span>{% endif %}
@@ -53,8 +56,8 @@
         </div>
         {% endif %}
       </div>
-      {# CENTRO — o modelo (pilar + subpilares) #}
-      <div class="text-center">
+      {# CENTRO — o modelo (pilar + subpilares). No mobile vem primeiro. #}
+      <div class="text-center order-1 md:order-none">
         <div class="inline-flex items-center gap-2">
           <span class="w-7 h-7 rounded-full bg-loyall-700 text-white text-xs font-bold inline-flex items-center justify-center">{{ p.code }}</span>
           <span class="font-medium text-sm">{{ p.nome }}</span>
@@ -64,7 +67,8 @@
       </div>
       {# DIREITA — voz do cliente. Temas são tema_label agregados (não fala literal):
          sem aspas; prefixo pela valência dominante, como no confronto. #}
-      <div class="text-sm text-right">
+      <div class="text-sm text-left md:text-right order-3 md:order-none">
+        <div class="md:hidden text-xs uppercase tracking-wider text-loyall-400 mb-0.5">Cliente</div>
         {{ val_badge(p.cli_val) }}
         {% if p.temas %}
         <div class="text-xs text-loyall-500 mt-1">

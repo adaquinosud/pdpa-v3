@@ -5,10 +5,10 @@
 {# Cores do sistema (paleta loyall). A identidade dos slides (creme/marrom/dourado,
    serifada) fica para o futuro "exportar parecer". #}
 <div class="max-w-3xl">
-  <div class="flex items-center justify-between text-sm">
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
     <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
        class="text-loyall-400 hover:underline">← Confronto</a>
-    <span class="flex items-center gap-3">
+    <span class="flex flex-wrap items-center gap-x-3 gap-y-1">
       <a href="{{ url_for('ui.pesquisa_visoes', pesquisa_id=pesquisa_id) }}"
          class="text-loyall-600 hover:underline">Duas visões →</a>
       <a href="{{ url_for('ui.pesquisa_origem', pesquisa_id=pesquisa_id) }}"
@@ -28,7 +28,7 @@
   <section class="mt-6 p-5 rounded border border-loyall-200 bg-loyall-50">
     <div class="text-xs uppercase tracking-wider text-loyall-400">{{ faixa.eyebrow }}</div>
     <div class="text-sm italic text-loyall-500 mt-0.5">{{ faixa.frase }}</div>
-    <div class="grid grid-cols-2 gap-6 mt-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
       {% for pilar in faixa.pilares %}
       <div>
         <div class="flex items-center gap-2">

@@ -201,3 +201,13 @@ def test_visoes_sem_texto_time_so_valencia(client_loyall, db_session):
     assert "nota 4" in body
     # nenhuma citação literal do time (não há valor_texto)
     assert "“" not in body or "reclama" in body  # aspas do time ausentes
+
+
+def test_visoes_responsivo_empilha_no_mobile(client_loyall, db_session):
+    """Smoke: as 3 colunas viram grid-cols-1 no mobile (md:grid-cols-3), e a nav
+    faz wrap — não quebra no celular (uso desktop-first, mobile = não quebrar)."""
+    e, f, a, p = _cenario(db_session)
+    db_session.commit()
+    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    assert "grid-cols-1 md:grid-cols-3" in body  # empilha no mobile
+    assert "flex flex-wrap" in body  # nav não estoura

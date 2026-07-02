@@ -58,10 +58,10 @@
 {# Card MÉDIO (tier 2 — descompasso/consciência): borda simples, sem barra grossa. #}
 {% macro card_medio(r) %}
 <div class="border border-loyall-200 rounded p-3 mb-2">
-  <div class="flex items-center justify-between gap-2">
+  <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
     <span class="font-medium text-sm">{{ r.subpilar }} · {{ r.nome }}</span>
     {% if r.gap and r.gap.direcao in ['superestima', 'subestima'] %}
-    <span class="text-xs font-medium text-right
+    <span class="text-xs font-medium md:text-right
       {% if r.gap.direcao == 'superestima' %}text-rose-600{% else %}text-sky-600{% endif %}">
       {% if r.gap.direcao == 'superestima' %}o time acha melhor do que o cliente sente
       {% else %}o time se cobra mais do que o cliente{% endif %}</span>
@@ -74,10 +74,10 @@
 
 {% block conteudo %}
 <div class="max-w-3xl">
-  <div class="flex items-center justify-between">
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
     <a href="{{ url_for('ui.pesquisa_respostas', pesquisa_id=pesquisa_id) }}"
        class="text-sm text-loyall-400 hover:underline">← Respostas</a>
-    <span class="flex items-center gap-3">
+    <span class="flex flex-wrap items-center gap-x-3 gap-y-1">
       <a href="{{ url_for('ui.pesquisa_visoes', pesquisa_id=pesquisa_id) }}"
          class="text-sm text-loyall-600 hover:underline">Duas visões →</a>
       <a href="{{ url_for('ui.pesquisa_quadro', pesquisa_id=pesquisa_id) }}"
