@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block titulo %}Duas visões — {{ titulo }}{% endblock %}
+
+{# Badge de valência (paleta do sistema). #}
+{% macro val_badge(v) %}
+  {% set cor = {'promotor':'bg-emerald-100 text-emerald-700',
+                'conversivel':'bg-amber-100 text-amber-700',
+                'detrator':'bg-rose-100 text-rose-700'} %}
+  {% if v %}<span class="px-2 py-0.5 rounded text-xs {{ cor.get(v,'bg-loyall-100 text-loyall-600') }}">{{ v }}</span>
+  {% else %}<span class="text-loyall-300 text-xs">—</span>{% endif %}
+{% endmacro %}
+
+{% block conteudo %}
+<div class="max-w-4xl">
+  <div class="flex items-center justify-between text-sm">
+    <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
+       class="text-loyall-400 hover:underline">← Confronto</a>
+    <span class="flex items-center gap-3">
+      <a href="{{ url_for('ui.pesquisa_quadro', pesquisa_id=pesquisa_id) }}"
+         class="text-loyall-600 hover:underline">Quadro dos pilares →</a>
+      <a href="{{ url_for('ui.pesquisa_origem', pesquisa_id=pesquisa_id) }}"
+         class="text-loyall-600 hover:underline">Ler a profundidade (ORIGEM) →</a>
+    </span>
+  </div>
+
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mt-4">Confronto · leitura por pilar</div>
+  <h1 class="text-2xl font-semibold mt-1">Duas visões que se encontram</h1>
+  <p class="text-sm text-loyall-500 mt-1">
+    O que a empresa pensa e o que o cliente expressa, encontrando-se em cada pilar.</p>
+
+  {# Cabeçalho das 3 colunas #}
+  <div class="grid grid-cols-3 gap-4 mt-5 text-xs uppercase tracking-wider text-loyall-400">
+    <div>O que a empresa pensa <span class="normal-case tracking-normal">(time)</span></div>
+    <div class="text-center">O modelo</div>
+    <div class="text-right">O que o cliente pensa <span class="normal-case tracking-normal">(cliente)</span></div>
+  </div>
+
+  <div class="mt-1 border border-loyall-200 rounded divide-y divide-loyall-100">
+    {% for p in pilares %}
+    <div class="grid grid-cols-3 gap-4 px-3 py-3 items-center {% if p.diverge %}bg-rose-50/60{% endif %}">
+      {# ESQUERDA — visão do time #}
+      <div class="text-sm">
+        {{ val_badge(p.time_val) }}
+        {% if p.time_nota is not none %}<span class="text-loyall-400 text-xs">· nota {{ p.time_nota }}</span>{% endif %}
+      </div>
+      {# CENTRO — o modelo (pilar + subpilares) #}
+      <div class="text-center">
+        <div class="inline-flex items-center gap-2">
+          <span class="w-7 h-7 rounded-full bg-loyall-700 text-white text-xs font-bold inline-flex items-center justify-center">{{ p.code }}</span>
+          <span class="font-medium text-sm">{{ p.nome }}</span>
+        </div>
+        <div class="text-xs text-loyall-400 mt-0.5">{{ p.subpilares | join(' · ') }}</div>
+        {% if p.diverge %}<div class="text-xs text-rose-500 mt-0.5">↔ visões divergem</div>{% endif %}
+      </div>
+      {# DIREITA — voz do cliente #}
+      <div class="text-sm text-right">
+        {{ val_badge(p.cli_val) }}
+        {% if p.temas %}
+        <div class="text-xs text-loyall-500 mt-1 space-y-0.5">
+          {% for t in p.temas %}<div>“{{ t }}”</div>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# Rodapé-síntese #}
+  <div class="mt-5 rounded bg-loyall-700 text-loyall-50 px-4 py-3 text-sm">
+    As duas visões falam a mesma língua: num só lugar, dá pra ver se o investimento
+    está onde a relação pede.</div>
+</div>
+{% endblock %}

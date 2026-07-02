@@ -2,74 +2,57 @@
 {% block titulo %}Quadro dos pilares — {{ titulo }}{% endblock %}
 
 {% block conteudo %}
-{# Identidade visual dos slides Loyall — tokens LOCAIS desta tela (não tocam o app):
-   creme/off-white de fundo, marrom-escuro nos títulos e rodapé, dourado nos
-   acentos/bordas, cards bege com borda fina. Editorial: serifada nos títulos,
-   eyebrows em small-caps. Os estados 🔴🟠🟡🟢⚪ ficam como pontinhos discretos. #}
-<style>
-  .quadro{--creme:#F6F1E7;--creme2:#EFE7D4;--marrom:#3E2E24;--marrom2:#5A4636;
-          --ouro:#B0894F;--ouro2:#CDB182;background:var(--creme);color:var(--marrom)}
-  .q-eyebrow{text-transform:uppercase;letter-spacing:.18em;font-size:.7rem;color:var(--ouro);font-weight:600}
-  .q-serif{font-family:Georgia,'Times New Roman',serif}
-  .q-manchete{font-family:Georgia,'Times New Roman',serif;color:var(--marrom);line-height:1.15}
-  .q-faixa{border:1px solid var(--ouro2);background:var(--creme)}
-  .q-frase{font-style:italic;color:var(--marrom2)}
-  .q-badge{width:2rem;height:2rem;border-radius:9999px;background:var(--marrom);color:var(--creme);
-           display:inline-flex;align-items:center;justify-content:center;font-weight:700}
-  .q-card{background:var(--creme2);border:1px solid var(--ouro2);border-radius:2px}
-  .q-card summary{list-style:none;cursor:pointer}
-  .q-card summary::-webkit-details-marker{display:none}
-  .q-footer{background:var(--marrom);color:var(--creme)}
-  .q-grao{border:1px solid var(--ouro2);background:var(--creme2);color:var(--marrom2)}
-  .q-link{color:var(--ouro);text-decoration:none}
-  .q-link:hover{text-decoration:underline}
-  .q-muted{color:var(--marrom2)}
-</style>
-
-<div class="quadro p-6 rounded-sm">
+{# Cores do sistema (paleta loyall). A identidade dos slides (creme/marrom/dourado,
+   serifada) fica para o futuro "exportar parecer". #}
+<div class="max-w-3xl">
   <div class="flex items-center justify-between text-sm">
-    <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}" class="q-link">← Confronto</a>
-    <a href="{{ url_for('ui.pesquisa_origem', pesquisa_id=pesquisa_id) }}" class="q-link">Ler a profundidade (ORIGEM) →</a>
+    <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=pesquisa_id) }}"
+       class="text-loyall-400 hover:underline">← Confronto</a>
+    <span class="flex items-center gap-3">
+      <a href="{{ url_for('ui.pesquisa_visoes', pesquisa_id=pesquisa_id) }}"
+         class="text-loyall-600 hover:underline">Duas visões →</a>
+      <a href="{{ url_for('ui.pesquisa_origem', pesquisa_id=pesquisa_id) }}"
+         class="text-loyall-600 hover:underline">Ler a profundidade (ORIGEM) →</a>
+    </span>
   </div>
 
-  <div class="q-eyebrow mt-4">Quadro dos pilares · sistêmico e individual</div>
-  <h1 class="q-manchete text-3xl font-semibold mt-1">A base é sistêmica.<br>O topo é individual.</h1>
-  <div class="q-grao inline-block text-xs px-3 py-1 mt-3 rounded-sm">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mt-4">Quadro dos pilares · sistêmico e individual</div>
+  <h1 class="text-2xl font-semibold text-loyall-800 mt-1">A base é sistêmica.<br>O topo é individual.</h1>
+  <div class="inline-block text-xs px-3 py-1 mt-3 rounded border border-loyall-200 bg-loyall-50 text-loyall-500">
     Grão desta leitura: {{ grao }} · <strong>{{ n_resp }}</strong> respondente(s)</div>
 
-  {# Legenda dos estados — discreta. #}
-  <div class="q-muted text-xs mt-3">
+  <div class="text-xs text-loyall-400 mt-3">
     🔴 ponto cego · 🟠 descompasso · 🟡 consciência · 🟢 força · ⚪ não perguntado</div>
 
   {% for faixa in faixas %}
-  <section class="q-faixa mt-6 p-5 rounded-sm">
-    <div class="q-eyebrow">{{ faixa.eyebrow }}</div>
-    <div class="q-frase text-sm mt-0.5">{{ faixa.frase }}</div>
+  <section class="mt-6 p-5 rounded border border-loyall-200 bg-loyall-50">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">{{ faixa.eyebrow }}</div>
+    <div class="text-sm italic text-loyall-500 mt-0.5">{{ faixa.frase }}</div>
     <div class="grid grid-cols-2 gap-6 mt-4">
       {% for pilar in faixa.pilares %}
       <div>
         <div class="flex items-center gap-2">
-          <span class="q-badge text-sm">{{ pilar.code }}</span>
-          <span class="q-serif text-lg font-semibold">{{ pilar.nome }}</span>
+          <span class="w-8 h-8 rounded-full bg-loyall-700 text-white text-sm font-bold inline-flex items-center justify-center">{{ pilar.code }}</span>
+          <span class="text-lg font-semibold text-loyall-800">{{ pilar.nome }}</span>
         </div>
         <div class="mt-2 space-y-2">
           {% for c in pilar.subpilares %}
           {# Resumo no card (estado + os 2 lados + temas curtos); detalhe expande. #}
-          <details class="q-card px-3 py-2 text-sm">
-            <summary>
+          <details class="border border-loyall-200 bg-white rounded px-3 py-2 text-sm">
+            <summary class="cursor-pointer">
               <div class="flex items-center justify-between gap-2">
                 <span><span title="{{ c.estado_label }}">{{ c.estado_emoji }}</span>
                   <strong>{{ c.subpilar }}</strong> · {{ c.nome }}</span>
-                <span class="q-muted text-xs">{{ c.estado_label }}</span>
+                <span class="text-loyall-400 text-xs">{{ c.estado_label }}</span>
               </div>
-              <div class="q-muted text-xs mt-1">
+              <div class="text-loyall-500 text-xs mt-1">
                 Time: {{ c.time }} · Cliente: {{ c.cliente }}{% if c.temas %} · {{ c.temas | join(', ') }}{% endif %}</div>
             </summary>
-            <div class="q-muted text-xs mt-2 pt-2" style="border-top:1px solid var(--ouro2)">
+            <div class="text-loyall-500 text-xs mt-2 pt-2 border-t border-loyall-100">
               <div>Cliente: <strong>{{ c.cliente }}</strong>{% if c.faixa %} · faixa {{ c.faixa }}{% endif %}
                 {% if c.temas %}<br>fala sobre: {{ c.temas | join(', ') }}{% endif %}</div>
               <div class="mt-1">Time: {{ c.time }}</div>
-              <div class="mt-1 q-serif italic">↕ os dois lados se encontram neste subpilar</div>
+              <div class="mt-1 italic">↕ os dois lados se encontram neste subpilar</div>
             </div>
           </details>
           {% endfor %}
@@ -80,9 +63,7 @@
   </section>
   {% endfor %}
 
-  {# Faixa-síntese do rodapé (como o rodapé dos slides). #}
-  <div class="q-footer mt-6 px-5 py-4 rounded-sm">
-    <span class="q-serif text-base">A visão individual não é camada nova: é o topo do PDPA operando.</span>
-  </div>
+  <div class="mt-6 px-5 py-4 rounded bg-loyall-700 text-loyall-50 text-sm">
+    A visão individual não é camada nova: é o topo do PDPA operando.</div>
 </div>
 {% endblock %}

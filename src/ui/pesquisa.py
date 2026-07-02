@@ -697,3 +697,75 @@ def pesquisa_quadro(pesquisa_id):
             "n_resp": ret["total_respondentes"] if ret else 0,
         }
     return render_template("pesquisa/quadro.html", **ctx)
+
+
+# ── Duas visões que se encontram — time × modelo × cliente, por pilar ────────
+def _moda(vals):
+    from collections import Counter
+
+    return Counter(vals).most_common(1)[0][0] if vals else None
+
+
+@ui_bp.route("/pesquisas/<int:pesquisa_id>/visoes")
+@loyall_required_ui
+def pesquisa_visoes(pesquisa_id):
+    """'Duas visões que se encontram': por pilar, a visão do TIME (valência+nota
+    agregadas) × o MODELO × a voz do CLIENTE (valência + temas como citações).
+    Agregado fiel (moda da valência, média da nota); o detalhe por subpilar vive
+    no quadro. Leitura pura sobre gap_confronto. Só proposito='confronto'."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.api.painel import NOME_PILAR, PILAR_DE_SUBPILAR, PILARES_ORDEM, SUBPILARES_ORDEM
+    from src.pesquisa.confronto import gap_confronto
+
+    with db_session() as s:
+        pesq = obter(s, pesquisa_id)
+        if pesq is None:
+            return render_template("404.html"), 404
+        if pesq.proposito != "confronto":
+            flash("As duas visões são só para pesquisas de propósito 'confronto'.", "erro")
+            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+        por_sub = {g["subpilar"]: g for g in (gap_confronto(s, pesquisa_id) or [])}
+
+        pilares = []
+        for code in PILARES_ORDEM:
+            subs = [sp for sp in SUBPILARES_ORDEM if PILAR_DE_SUBPILAR.get(sp) == code]
+            time_vals, notas, cli_vals, temas = [], [], [], []
+            for sp in subs:
+                g = por_sub.get(sp)
+                if not g:
+                    continue
+                col = g.get("colaborador") or {}
+                if col.get("valencia_dominante"):
+                    time_vals.append(col["valencia_dominante"])
+                if col.get("nota_media") is not None:
+                    notas.append(col["nota_media"])
+                cli = g.get("cliente") or {}
+                if cli.get("valencia_dominante"):
+                    cli_vals.append(cli["valencia_dominante"])
+                temas.extend(g.get("temas_cliente") or [])
+            time_val = _moda(time_vals)
+            cli_val = _moda(cli_vals)
+            # top-4 temas por volume (citações curtas do cliente)
+            temas_top = []
+            for t in sorted(temas, key=lambda x: -x.get("volume", 0)):
+                if t["tema_label"] not in temas_top:
+                    temas_top.append(t["tema_label"])
+                if len(temas_top) >= 4:
+                    break
+            pilares.append(
+                {
+                    "code": code,
+                    "nome": NOME_PILAR.get(code, code),
+                    "subpilares": subs,
+                    "time_val": time_val,
+                    "time_nota": round(sum(notas) / len(notas), 1) if notas else None,
+                    "cli_val": cli_val,
+                    "temas": temas_top,
+                    # acento onde as duas visões divergem (o pilar dói)
+                    "diverge": bool(time_val and cli_val and time_val != cli_val),
+                }
+            )
+        ctx = {"pesquisa_id": pesquisa_id, "titulo": pesq.titulo, "pilares": pilares}
+    return render_template("pesquisa/visoes.html", **ctx)
