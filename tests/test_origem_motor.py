@@ -301,3 +301,85 @@ def test_prompt_recebe_natureza_e_pratica(db_session):
     assert "Precisão" in user and "Parceria" in user
     # o system prompt ensina as 2 camadas
     assert "TIPO DE REMÉDIO" in system and "PRÁTICA INTERNA do Caminho" in system
+
+
+# ── Estabilização (recalibração): nível primeiro, coerência, temperatura ─────
+
+
+def test_incoerente_heuristica():
+    from src.pesquisa.origem import _incoerente
+
+    # 1ª frase nomeia OUTRO elo (essência) mas o selo é resultado → incoerente
+    assert _incoerente("resultado", "A ruptura mora na essência da empresa. Etc.")
+    # 1ª frase nomeia o elo marcado → coerente
+    assert not _incoerente("essencia", "Na essência, contradiz o que declara ser.")
+    # nenhum nome de elo na 1ª frase → não sinaliza
+    assert not _incoerente("caminho", "O método de atendimento não sustenta a promessa.")
+
+
+def test_gerar_origem_sinaliza_incoerencia(db_session):
+    """Justificativa que nomeia outro elo → 'avisos' (não bloqueia; persiste)."""
+    e, f = _empresa(db_session)
+    p, a = _pesquisa_agrup(db_session, e)
+    _cenario_ponto_cego_e_forca(db_session, e, f, p, a)  # P1 + Pa3
+    db_session.commit()
+
+    def _fake_incoerente(system, user):
+        return {
+            "gaps": [
+                {
+                    "subpilar": "P1",
+                    "nivel": "resultado",
+                    "justificativa": "A ruptura está na essência.",
+                },
+                {
+                    "subpilar": "Pa3",
+                    "nivel": "significado",
+                    "justificativa": "encarna o cuidado declarado",
+                },
+            ],
+            "sintese": "s",
+        }
+
+    out = gerar_origem(db_session, p.id, gerar_fn=_fake_incoerente)
+    assert out["status"] == "ok" and out["analisados"] == 2
+    assert out.get("avisos") == ["P1"]  # P1: selo resultado, texto diz essência
+    # mas persiste mesmo assim (não bloqueia)
+    assert db_session.query(OrigemAnalise).filter_by(pesquisa_id=p.id).count() == 2
+
+
+def test_prompt_nivel_primeiro_e_ancoras():
+    from src.pesquisa.origem import _SYSTEM
+
+    # nível é o passo 1 (decisão primária)
+    assert "PASSO 1" in _SYSTEM and "CLASSIFIQUE O NÍVEL" in _SYSTEM
+    # natureza/prática são passo 2 (vocabulário, não critério)
+    assert "PASSO 2" in _SYSTEM and "NÃO decidem o nível" in _SYSTEM
+    # regra de coerência texto×selo
+    assert "PRIMEIRA frase" in _SYSTEM
+    # 5 exemplos-âncora neutros (um por elo)
+    assert "o pedido saiu trocado uma vez" in _SYSTEM  # resultado
+    assert "trata cada cliente como um número" in _SYSTEM  # essência
+
+
+def test_gerar_via_llm_forwarda_temperature(monkeypatch):
+    """A temperatura chega ao _call_claude_with_retry (habilitação do ponto 4)."""
+    import src.classifier.classifier_v3 as cls
+
+    captura = {}
+
+    class _Bloco:
+        text = '{"ok": 1}'
+
+    class _Resp:
+        content = [_Bloco()]
+
+    def _fake(system_blocks, user, modelo, max_tokens, temperature=None):
+        captura["temp"] = temperature
+        return _Resp()
+
+    monkeypatch.setattr(cls, "_call_claude_with_retry", _fake)
+    from src.pesquisa.llm import gerar_via_llm
+
+    out = gerar_via_llm("sys", "usr", temperature=0.2)
+    assert out == {"ok": 1} and captura["temp"] == 0.2

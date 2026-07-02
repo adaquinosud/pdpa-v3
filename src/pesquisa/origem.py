@@ -52,59 +52,87 @@ def pratica_de(subpilar):
     return _PRATICA_PILAR.get(_pilar(subpilar))
 
 
+# Temperatura baixa no ORIGEM: a classificação de nível estava instável entre
+# rodadas (o default do SDK é alto). Não afeta classificação/geração (só o ORIGEM
+# passa este valor).
+_TEMP_ORIGEM = 0.2
+
+# Coerência texto×selo (leve, NÃO bloqueia): a 1ª frase deve nomear o elo marcado.
+_NIVEL_NOME = {
+    "resultado": "resultado",
+    "caminho": "caminho",
+    "proposito": "propósito",
+    "significado": "significado",
+    "essencia": "essência",
+}
+
+
+def _incoerente(nivel, justificativa) -> bool:
+    """Heurística leve: a 1ª frase da justificativa nomeia OUTRO elo (e não o
+    marcado) → provável contradição texto×selo. Sinaliza, não bloqueia."""
+    primeira = (justificativa or "").lower().split(".", 1)[0]
+    alvo = _NIVEL_NOME.get(nivel, nivel)
+    outros = [nome for n, nome in _NIVEL_NOME.items() if n != nivel]
+    return alvo not in primeira and any(o in primeira for o in outros)
+
+
 _SYSTEM = """\
-Você é o ORIGEM — a última leitura do método PDPA. Lê em que ELO da cadeia
-generativa mora a origem de cada gap entre o que a empresa DECLARA ser e o que o
-cliente vive. A cadeia, do mais profundo ao mais raso:
+Você é o ORIGEM — a última leitura do método PDPA. Para cada gap entre o que a
+empresa DECLARA ser e o que o cliente vive, você diz em que ELO da cadeia
+generativa a corrente rompe (nas forças: o quão FUNDO ela se sustenta):
 
   Essência → Significado → Propósito → Caminho → Resultado
 
-Cada elo gera o seguinte: a essência internalizada gera o significado, que gera o
-propósito, que define o caminho, que produz o resultado. Uma ruptura mora no elo
-onde a corrente arrebentou.
+Cada elo gera o seguinte: a essência gera o significado, que gera o propósito,
+que define o caminho, que produz o resultado. A ruptura mora no elo onde a
+corrente arrebentou; corrigir ABAIXO dele dá alívio passageiro, corrigir NO elo
+rompido é a correção sustentável — e quanto mais fundo o elo, mais custosa.
 
-Níveis (onde a ruptura mora):
-- RESULTADO: ruptura só no output; a execução tropeçou numa entrega, mas
-  essência/significado/propósito/caminho estão íntegros. Correção rasa e localizada.
-- CAMINHO: ruptura no método; o propósito é claro, mas o jeito de agir não o
+═══ PASSO 1 — CLASSIFIQUE O NÍVEL (a decisão principal; faça ISTO primeiro) ═══
+Escolha UM elo, olhando SÓ para onde a corrente rompe. É a decisão que mais
+importa — resolva-a antes de pensar em remédio, natureza ou prática. Referência,
+com um exemplo neutro por elo:
+
+- RESULTADO — ruptura só no output; tropeçou numa entrega pontual, mas
+  identidade/sentido/alvo/método seguem íntegros. Correção rasa.
+  ex.: "o pedido saiu trocado uma vez; o processo e a intenção estavam certos."
+- CAMINHO — ruptura no método; o propósito é claro, mas o jeito de agir não o
   sustenta.
-- PROPÓSITO: ruptura no alvo; persegue-se algo desalinhado do que o cliente
+  ex.: "querem atender bem, mas o roteiro engessado não deixa o time ouvir."
+- PROPÓSITO — ruptura no alvo; persegue-se algo desalinhado do que o cliente
   precisa; o para-quê desviou.
-- SIGNIFICADO: ruptura no sentido; aquilo perdeu internamente o significado que
-  tem na essência declarada.
-- ESSÊNCIA: ruptura na identidade; o gap contradiz o que a empresa declara ser;
-  a essência se perdeu. Correção mais profunda e custosa.
+  ex.: "mede-se velocidade, mas o cliente queria ser entendido, não despachado."
+- SIGNIFICADO — ruptura no sentido; aquilo perdeu internamente o significado que
+  tem na essência declarada; virou métrica vazia.
+  ex.: "a pontualidade virou número no painel; ninguém lembra por que importa."
+- ESSÊNCIA — ruptura na identidade; o gap CONTRADIZ o que a empresa declara ser.
+  Correção mais profunda e custosa.
+  ex.: "declara-se próxima, mas trata cada cliente como um número."
 
-Princípio central: quanto MAIS ALTO na cadeia mora a ruptura, mais difícil e
-trabalhosa a correção. Pressionar níveis abaixo do ponto de ruptura dá melhora
-passageira; a correção sustentável age no elo rompido.
+Para FORÇAS, INVERTA: o nível é o quão FUNDO a força se enraíza. Força que
+encarna a essência declarada = ESSÊNCIA (sólida, sustentável) — NÃO a rebaixe
+para Resultado a menos que a justificativa dê razão explícita (ex.: "é boa por
+acaso desta vez, não por identidade"). Quanto mais raso, mais circunstancial.
 
-Para PROBLEMAS (pontos cegos, descompassos): nivel = onde a corrente rompeu.
-Para FORÇAS: INVERTA a leitura — quanto mais FUNDO o nível, mais a força está
-enraizada na essência (sólida, sustentável); quanto mais RASO, mais a força é
-circunstancial e frágil.
+═══ PASSO 2 — SÓ DEPOIS, ESCREVA A JUSTIFICATIVA ═══
+Natureza e prática NÃO decidem o nível — são apenas VOCABULÁRIO para explicar o
+remédio. Use-os só agora, na justificativa:
 
-DUAS LEITURAS ADICIONAIS por gap (já informadas no input de cada um):
+- NATUREZA do pilar (o TIPO DE REMÉDIO), já informada no input de cada gap:
+  · SISTÊMICO (Precisão, Disponibilidade): resolve-se UMA vez no processo/
+    tecnologia/consistência e TODOS se beneficiam.
+  · INDIVIDUAL (Parceria, Aconselhamento): conta a conta, pessoa a pessoa; NÃO
+    se sistematiza, cultiva-se na relação.
+- PRÁTICA INTERNA do Caminho, já informada no input: Integridade→Precisão,
+  Presença→Disponibilidade, Conexão→Parceria, Contribuição→Aconselhamento.
+  Nomeie a prática que FALHA (problemas) ou que SUSTENTA (forças).
 
-1. NATUREZA do pilar — o TIPO DE REMÉDIO:
-   - SISTÊMICO (pilares Precisão e Disponibilidade): a base agregada. Resolve-se
-     UMA vez — no processo, na tecnologia, na consistência — e TODOS os clientes
-     se beneficiam. Remédio: "conserta-se no processo, uma vez, e todos se
-     beneficiam".
-   - INDIVIDUAL (pilares Parceria e Aconselhamento): o topo, conta a conta, em
-     tempo real entre uma pessoa e aquele cliente. NÃO se sistematiza. Remédio:
-     "cultiva-se na relação, pessoa a pessoa; não há atalho de processo".
+COERÊNCIA (obrigatória): a PRIMEIRA frase da justificativa NOMEIA o elo que você
+classificou e por que a ruptura mora ali. NÃO descreva a ruptura como estando em
+um elo diferente do que marcou — texto e selo têm que bater. Depois da primeira
+frase, incorpore o tipo de remédio (pela natureza) + a prática do Caminho,
+ancorando na essência declarada (cite o que missão/visão/valores prometem).
 
-2. PRÁTICA INTERNA do Caminho — a disciplina por trás do gap. Cada prática
-   sustenta um pilar externo: Integridade→Precisão, Presença→Disponibilidade,
-   Conexão→Parceria, Contribuição→Aconselhamento. Nomeie a prática interna que
-   FALHA (nos problemas) ou que SUSTENTA (nas forças): ex. gap em Parceria → "a
-   prática interna é a Conexão; sem vínculo genuíno interno, a parceria externa
-   não se materializa".
-
-Por gap, devolva: nivel + uma justificativa de 1–2 frases que INCORPORE as duas
-leituras — o tipo de remédio (pela natureza) + a prática interna do Caminho —
-ancorada na essência declarada (cite o que missão/visão/valores prometem).
 Síntese: o PADRÃO dominante (em que nível a maioria rompe) + o recado central,
 citando a essência. Se os problemas se concentram em pilares SISTÊMICOS, aponte a
 alavanca de processo; se no INDIVIDUAL, aponte o cultivo relacional.
@@ -113,7 +141,7 @@ Responda APENAS com JSON válido, no formato:
 {"gaps": [
    {"subpilar": "<código>",
     "nivel": "resultado|caminho|proposito|significado|essencia",
-    "justificativa": "<1–2 frases: remédio pela natureza + prática do Caminho, na essência>"}
+    "justificativa": "<1ª frase nomeia o elo; depois remédio + prática, na essência>"}
  ],
  "sintese": "<padrão dominante + recado central + padrão de natureza, citando a essência>"}
 """
@@ -235,7 +263,8 @@ def gerar_origem(
     if gerar_fn is None:
         from src.pesquisa.llm import gerar_via_llm
 
-        gerar_fn = gerar_via_llm
+        def gerar_fn(system, user):  # temperatura baixa p/ estabilidade do nível
+            return gerar_via_llm(system, user, temperature=_TEMP_ORIGEM)
 
     bruto = gerar_fn(_SYSTEM, _montar_user(emp, gaps))
     # lado é DETERMINÍSTICO pela categoria (força→solidez, problema→gravidade) —
@@ -246,6 +275,7 @@ def gerar_origem(
     # upsert = sobrescreve o run anterior desta pesquisa.
     s.query(OrigemAnalise).filter_by(pesquisa_id=pesquisa_id).delete()
     n = 0
+    avisos = []  # coerência texto×selo (leve): subpilares cuja justificativa nomeia outro elo
     for item in bruto.get("gaps", []):
         sub = item.get("subpilar")
         if sub not in lado_por_sub:  # LLM inventou um subpilar fora do input → ignora
@@ -253,13 +283,16 @@ def gerar_origem(
         nivel = item.get("nivel")
         if nivel not in NIVEIS:
             nivel = "resultado"  # coerce defensivo (CHECK do banco não aceita fora)
+        justificativa = _norm(item.get("justificativa")) or None
+        if _incoerente(nivel, justificativa):
+            avisos.append(sub)
         s.add(
             OrigemAnalise(
                 pesquisa_id=pesquisa_id,
                 subpilar=sub,
                 nivel=nivel,
                 lado=lado_por_sub[sub],
-                justificativa=_norm(item.get("justificativa")) or None,
+                justificativa=justificativa,
                 gerado_em=datetime.utcnow(),
             )
         )
@@ -272,7 +305,17 @@ def gerar_origem(
     sint.texto = _norm(bruto.get("sintese")) or None
     sint.gerado_em = datetime.utcnow()
     s.flush()
-    return {"status": "ok", "analisados": n}
+    out = {"status": "ok", "analisados": n}
+    if avisos:  # só quando há incoerência — não polui o caso limpo
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "ORIGEM coerência texto×selo (pesquisa %s): justificativa nomeia outro elo em %s",
+            pesquisa_id,
+            avisos,
+        )
+        out["avisos"] = avisos
+    return out
 
 
 # Domínios re-exportados para conveniência de quem lê o resultado.

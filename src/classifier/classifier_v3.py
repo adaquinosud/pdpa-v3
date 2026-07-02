@@ -456,7 +456,11 @@ def _build_system_blocks(empresa_setor: Optional[str] = None) -> list[dict]:
 
 
 def _call_claude_with_retry(
-    system_blocks: list[dict], user_msg: str, modelo: str, max_tokens: int = MAX_TOKENS
+    system_blocks: list[dict],
+    user_msg: str,
+    modelo: str,
+    max_tokens: int = MAX_TOKENS,
+    temperature: Optional[float] = None,
 ):
     """Chama o Claude com retry exponencial para 429 e 5xx.
 
@@ -482,6 +486,9 @@ def _call_claude_with_retry(
     client = _get_client()
 
     last_err: Optional[Exception] = None
+    # temperature=None → omite o kwarg (mantém o default do SDK; classificação e
+    # geração seguem idênticas). Só o ORIGEM passa um valor baixo p/ estabilidade.
+    extra = {} if temperature is None else {"temperature": temperature}
     for attempt in range(MAX_RETRIES):
         try:
             resp = client.messages.create(
@@ -489,6 +496,7 @@ def _call_claude_with_retry(
                 max_tokens=max_tokens,
                 system=system_blocks,
                 messages=[{"role": "user", "content": user_msg}],
+                **extra,
             )
             return resp
         except anthropic.RateLimitError as exc:

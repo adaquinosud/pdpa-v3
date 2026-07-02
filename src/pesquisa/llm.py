@@ -44,19 +44,25 @@ def _texto_da_resposta(resp) -> str:
     return resp.content[0].text
 
 
-def gerar_via_llm(system: str, user: str) -> Dict[str, Any]:
+def gerar_via_llm(system: str, user: str, temperature=None) -> Dict[str, Any]:
     """Chama o Haiku; em parse inválido, escala pro Sonnet. Devolve dict JSON.
 
     Reusa ``_call_claude_with_retry`` (retry 429/5xx) e os modelos do classifier.
+    ``temperature`` (opcional): None = default do SDK; o ORIGEM passa um valor
+    baixo p/ estabilizar a classificação de nível entre rodadas.
     """
     from src.classifier.classifier_v3 import HAIKU_MODEL, _call_claude_with_retry
     from src.config import get_config
 
     system_blocks = [{"type": "text", "text": system}]
-    resp = _call_claude_with_retry(system_blocks, user, HAIKU_MODEL, _MAX_TOKENS_GERACAO)
+    resp = _call_claude_with_retry(
+        system_blocks, user, HAIKU_MODEL, _MAX_TOKENS_GERACAO, temperature=temperature
+    )
     try:
         return _parse_json(_texto_da_resposta(resp))
     except (ValueError, TypeError):
         sonnet = getattr(get_config(), "CLASSIFIER_SONNET_MODEL", "claude-sonnet-4-5-20250929")
-        resp = _call_claude_with_retry(system_blocks, user, sonnet, _MAX_TOKENS_GERACAO)
+        resp = _call_claude_with_retry(
+            system_blocks, user, sonnet, _MAX_TOKENS_GERACAO, temperature=temperature
+        )
         return _parse_json(_texto_da_resposta(resp))

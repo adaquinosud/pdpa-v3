@@ -16,13 +16,15 @@ def _fake_resp(texto):
 def test_geracao_passa_max_tokens_maior(monkeypatch):
     capturado = {}
 
-    def _fake_call(system_blocks, user_msg, modelo, max_tokens=2048):
+    def _fake_call(system_blocks, user_msg, modelo, max_tokens=2048, temperature=None):
         capturado["max_tokens"] = max_tokens
+        capturado["temperature"] = temperature
         return _fake_resp(json.dumps({"perguntas": []}))
 
     monkeypatch.setattr("src.classifier.classifier_v3._call_claude_with_retry", _fake_call)
     gerar_via_llm("sys", "user")
     assert capturado["max_tokens"] == _MAX_TOKENS_GERACAO == 8192
+    assert capturado["temperature"] is None  # geração NÃO passa temperature (default do SDK)
 
 
 def test_classificador_segue_em_2048():
