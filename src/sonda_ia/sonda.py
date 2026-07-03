@@ -58,7 +58,7 @@ def sondar_empresa(
     re-cobra). ``callers`` injetável (default = adapters reais; testes passam fakes).
     Tolerante: erro de um modelo/call não derruba o lote."""
     callers = callers or ADAPTERS
-    stats = {"respostas": 0, "erros": 0, "custo_usd": 0.0, "pulado": False}
+    stats = {"respostas": 0, "erros": 0, "custo_usd": 0.0, "pulado": False, "execucao_id": None}
 
     with db_session() as s:
         emp_nome = _nome_empresa(s, empresa_id)
@@ -68,6 +68,7 @@ def sondar_empresa(
             .first()
         )
         if execucao is not None and execucao.status == "concluida":
+            stats["execucao_id"] = execucao.id
             stats["pulado"] = True
             return stats
         if execucao is None:
@@ -86,6 +87,7 @@ def sondar_empresa(
             s.query(SondaIAResposta).filter_by(execucao_id=execucao.id).delete()
 
         exec_id = execucao.id
+        stats["execucao_id"] = exec_id
         custo = 0.0
         for vendor in modelos:
             caller = callers.get(vendor)
@@ -124,4 +126,68 @@ def sondar_empresa(
         execucao.custo_usd = round(custo, 4)
         execucao.concluido_em = datetime.utcnow()
         stats["custo_usd"] = round(custo, 4)
+    return stats
+
+
+def _empresas_alvo():
+    """Empresas alvo da sonda mensal: as que têm ≥1 verbatim (clientes reais) —
+    evita sondar empresas vazias/teste."""
+    from src.models.verbatim import Verbatim
+
+    with db_session() as s:
+        return [
+            r[0]
+            for r in s.query(Verbatim.empresa_id).distinct().order_by(Verbatim.empresa_id).all()
+        ]
+
+
+def rodar_sonda_mensal(
+    competencia: Optional[str] = None,
+    *,
+    empresa_ids=None,
+    n: int = 3,
+    callers=None,
+    gerar_avaliacao=None,
+    gerar_leitura=None,
+) -> Dict[str, Any]:
+    """Cron MENSAL: p/ cada empresa alvo, ``sondar_empresa`` → ``processar_sonda``
+    (classifica avaliações + sintetiza leitura + cruza a defasagem). Idempotente por
+    competência (sonda pulada se já concluída; o processamento é retomável). Erro de
+    uma empresa não derruba as outras. ``competencia`` default = mês atual (YYYY-MM);
+    ``callers``/``gerar_*`` injetáveis (testes)."""
+    from datetime import date
+
+    from src.sonda_ia.classificador import processar_sonda
+
+    competencia = competencia or date.today().strftime("%Y-%m")
+    alvo = empresa_ids if empresa_ids is not None else _empresas_alvo()
+    stats = {
+        "competencia": competencia,
+        "empresas": 0,
+        "sondadas": 0,
+        "puladas": 0,
+        "respostas": 0,
+        "custo_usd": 0.0,
+        "erros": 0,
+    }
+    for eid in alvo:
+        stats["empresas"] += 1
+        try:
+            r = sondar_empresa(eid, competencia, n=n, callers=callers)
+            if r["pulado"]:
+                stats["puladas"] += 1
+            else:
+                stats["sondadas"] += 1
+                stats["respostas"] += r["respostas"]
+                stats["custo_usd"] += r["custo_usd"]
+            # Encadeia G3 (classificar + sintetizar) + G4 (defasagem). Idempotente:
+            # roda mesmo em 'pulado' p/ completar processamento de tentativa anterior.
+            if r.get("execucao_id"):
+                processar_sonda(
+                    r["execucao_id"], gerar_avaliacao=gerar_avaliacao, gerar_leitura=gerar_leitura
+                )
+        except Exception as exc:
+            stats["erros"] += 1
+            print(f"[sonda_ia] empresa {eid}: {type(exc).__name__}: {exc}")
+    stats["custo_usd"] = round(stats["custo_usd"], 4)
     return stats

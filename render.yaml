@@ -93,3 +93,23 @@ services:
         fromDatabase:
           name: pdpa-db
           property: connectionString
+
+  # ── Cron Job: Reputação em IA (frente IA · G5) — MENSAL ────────────────────
+  # Sonda ChatGPT/Gemini/Claude sobre cada empresa alvo (≥1 verbatim), classifica
+  # na régua PDPA, sintetiza a leitura e cruza a defasagem IA×diagnóstico. Idempotente
+  # por competência (não re-cobra no mês). ~US$0,55/empresa. Precisa das chaves
+  # OPENAI/GOOGLE/ANTHROPIC (vêm do grupo pdpa-config).
+  - type: cron
+    name: pdpa-sonda-ia
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: virginia
+    schedule: "0 5 1 * *"    # dia 1, 05:00 UTC = 02:00 BRT (mensal)
+    dockerCommand: bash scripts/run_sonda_ia.sh
+    envVars:
+      - fromGroup: pdpa-config
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pdpa-db
+          property: connectionString
