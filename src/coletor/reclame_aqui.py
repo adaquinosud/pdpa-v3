@@ -122,6 +122,9 @@ def _upsert_caso(
         if norm["hash_thread"] != caso.hash_thread:
             caso.hash_thread = norm["hash_thread"]
             caso.thread_mudou_em = agora
+            # Thread mudou → a classificação de desfecho ficou obsoleta. Zera pra
+            # o classificador (F3) reprocessar (gatilho = desfecho IS NULL).
+            caso.desfecho = None
         return "atualizado"
 
 
@@ -252,12 +255,15 @@ def expirar_abandonados(session, fonte_id: int, *, dias: int = ABANDONO_DIAS, ag
     ou, se a thread nunca mudou, ``primeira_coleta``. Devolve quantos expirou."""
     agora = agora or datetime.utcnow()
     corte = agora - timedelta(days=dias)
+    # Não-terminal = não-avaliado E ainda não abandonado (mesma def de
+    # tem_nao_terminais). Inclui casos já classificados pelo F3 (desfecho set,
+    # mas não-abandonado) que ficaram parados 90d.
     candidatos = (
         session.query(Caso)
         .filter(
             Caso.fonte_id == fonte_id,
             Caso.evaluated.isnot(True),
-            Caso.desfecho.is_(None),
+            (Caso.desfecho.is_(None)) | (Caso.desfecho != "abandonado"),
         )
         .all()
     )
