@@ -5050,3 +5050,6 @@ def _bad_request_html(e):
 # Rotas do Motor de Pesquisa (CP-Pesquisa-F1.5) — registradas no fim para o
 # ui_bp/decorators já existirem. O import tem o efeito de anexar as rotas.
 from src.ui import pesquisa as _pesquisa_routes  # noqa: E402,F401
+
+# Rotas dos Casos (ReclameAqui — sequência viva). Mesmo padrão: import no fim.
+from src.ui import casos as _casos_routes  # noqa: E402,F401

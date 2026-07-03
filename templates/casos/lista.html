@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block titulo %}Casos ReclameAqui — {{ empresa_nome }}{% endblock %}
+
+{% macro desfecho_badge(d) %}
+  {% if d %}{% set cor, rot = badge_map[d] if d in badge_map else ('bg-loyall-100 text-loyall-500', d) %}
+  <span class="px-2 py-0.5 rounded text-xs {{ cor }}">{{ rot }}</span>
+  {% else %}<span class="text-loyall-300 text-xs">— sem classificação</span>{% endif %}
+{% endmacro %}
+
+{% block conteudo %}
+<div class="max-w-4xl">
+  <div class="text-xs uppercase tracking-wider text-loyall-400">ReclameAqui · casos</div>
+  <h1 class="text-2xl font-semibold text-loyall-800 mt-1">Casos — {{ empresa_nome }}</h1>
+  <p class="text-sm text-loyall-500 mt-1">
+    Cada reclamação como sequência viva: a queixa, a resposta da empresa e o desfecho.
+    A voz do consumidor e da empresa vive aqui — só a queixa inicial entra no diagnóstico.</p>
+
+  {% if not casos %}
+  <div class="mt-6 text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+    Nenhum caso coletado para esta empresa.
+  </div>
+  {% else %}
+  <div class="mt-4 text-xs text-loyall-500">{{ casos|length }} caso(s)</div>
+  <div class="mt-2 border border-loyall-200 rounded-lg divide-y divide-loyall-100">
+    {% for c in casos %}
+    <a href="{{ url_for('ui.caso_detalhe', caso_id=c.id) }}"
+       class="flex items-center gap-3 px-3 py-2.5 hover:bg-loyall-50">
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-medium text-loyall-800 truncate">{{ c.titulo }}</div>
+        <div class="text-xs text-loyall-400 mt-0.5">
+          {% if c.criado %}{{ c.criado.strftime('%d/%m/%Y') }} · {% endif %}
+          {% if c.categoria %}{{ c.categoria }} · {% endif %}
+          {{ c.interactions_count }} interaç{{ 'ão' if c.interactions_count == 1 else 'ões' }}</div>
+      </div>
+      <div class="shrink-0 flex items-center gap-2">
+        {% if c.evaluated and c.score is not none %}
+        <span class="text-xs text-loyall-500" title="Nota final do consumidor (0–10)">★ {{ c.score }}</span>
+        {% endif %}
+        {% if c.status_label %}<span class="text-xs text-loyall-400">{{ c.status_label }}</span>{% endif %}
+        {{ desfecho_badge(c.desfecho) }}
+        <span class="text-loyall-300">›</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

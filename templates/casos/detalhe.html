@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titulo %}Caso — {{ titulo }}{% endblock %}
+
+{% block conteudo %}
+<div class="max-w-3xl">
+  <a href="{{ url_for('ui.casos_lista', empresa_id=empresa_id) }}"
+     class="text-sm text-loyall-400 hover:underline">← Casos</a>
+
+  <h1 class="text-xl font-semibold text-loyall-800 mt-1">{{ titulo }}</h1>
+
+  {# Faixa de estado: status + desfecho + causa/nota #}
+  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+    {% if status_label %}<span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-600">{{ status_label }}</span>{% endif %}
+    {% if desfecho %}{% set cor, rot = badge_map[desfecho] if desfecho in badge_map else ('bg-loyall-100 text-loyall-500', desfecho) %}
+    <span class="px-2 py-0.5 rounded {{ cor }}">{{ rot }}</span>{% endif %}
+    {% if evaluated and score is not none %}
+    <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-600" title="Nota final do consumidor (0–10)">★ nota {{ score }}</span>{% endif %}
+    {% if causa_resolvida is not none %}
+    <span class="px-2 py-0.5 rounded {{ 'bg-emerald-50 text-emerald-700' if causa_resolvida else 'bg-rose-50 text-rose-600' }}">
+      causa-raiz {{ 'resolvida' if causa_resolvida else 'não resolvida' }}</span>{% endif %}
+  </div>
+  <div class="mt-1 text-xs text-loyall-400">
+    {% if criado %}{{ criado.strftime('%d/%m/%Y %H:%M') }} · {% endif %}
+    {% if categoria %}{{ categoria }} · {% endif %}
+    {% if autor_cidade %}{{ autor_cidade }}{% if autor_estado %}/{{ autor_estado }}{% endif %} · {% endif %}
+    {% if url %}<a href="{{ url }}" target="_blank" rel="noopener" class="hover:underline">ver na RA ↗</a>{% endif %}
+  </div>
+  {% if justificativa %}
+  <p class="mt-2 text-xs text-loyall-500 italic border-l-2 border-loyall-200 pl-2">{{ justificativa }}</p>
+  {% endif %}
+
+  {# ─── TIMELINE ─── queixa inicial (cliente) → interações. Cliente à esquerda,
+     empresa à direita; a coluna do lado dá o "vai-e-volta" da conversa. #}
+  <div class="mt-6 space-y-3">
+    {# Abertura: a queixa inicial = o único verbatim de valência do caso #}
+    <div class="flex">
+      <div class="w-[80%] rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+        <div class="text-[10px] uppercase tracking-wide text-rose-500 font-semibold">Cliente · reclamação inicial</div>
+        <div class="text-sm text-loyall-700 mt-1 whitespace-pre-line">{{ queixa or '(sem texto)' }}</div>
+      </div>
+    </div>
+
+    {% for i in interacoes %}
+    {% set empresa = i.lado == 'empresa' %}
+    <div class="flex {{ 'justify-end' if empresa else '' }}">
+      <div class="w-[80%] rounded-lg border px-3 py-2
+        {{ 'border-sky-200 bg-sky-50' if empresa else 'border-loyall-200 bg-white' }}">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[10px] uppercase tracking-wide font-semibold {{ 'text-sky-600' if empresa else 'text-loyall-500' }}">
+            {{ 'Empresa' if empresa else 'Cliente' }}
+            {% if i.tipo == 'FINAL_ANSWER' %}· avaliação final{% elif i.tipo == 'REPLY' %}· réplica{% elif i.tipo == 'ANSWER' %}· resposta{% endif %}
+          </span>
+          {% if i.created %}<span class="text-[10px] text-loyall-400">{{ i.created[:16].replace('T', ' ') }}</span>{% endif %}
+        </div>
+        <div class="text-sm text-loyall-700 mt-1 whitespace-pre-line">{{ i.texto or '—' }}</div>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if not interacoes %}
+    <div class="text-center text-loyall-400 text-sm py-3">Sem resposta da empresa ainda.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
