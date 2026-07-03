@@ -773,6 +773,30 @@ def _classificar_pendentes_batch(
         return stats
 
 
+def _classificar_casos_ra(empresa_id: int) -> Dict[str, int]:
+    """F3.1: classifica o DESFECHO dos casos ReclameAqui da empresa (só
+    ``desfecho IS NULL`` — casos novos ou de thread mudada). Determinístico p/ os
+    claros; Sonnet só p/ o ambíguo. $0 quando a empresa não tem fonte/caso RA
+    pendente. Devolve tokens agregados (in/out) p/ o custo do pós-coleta."""
+    from src.coletor.caso_classificador import gerar_desfecho_pendentes
+    from src.models.fonte import Fonte
+    from src.utils.db import db_session
+
+    tin = tout = 0
+    with db_session() as s:
+        ra_fontes = [
+            fid
+            for (fid,) in s.query(Fonte.id).filter_by(
+                empresa_id=empresa_id, conector_tipo="reclame_aqui"
+            )
+        ]
+    for fid in ra_fontes:
+        d = gerar_desfecho_pendentes(fid)
+        tin += d["in"]
+        tout += d["out"]
+    return {"in": tin, "out": tout}
+
+
 def executar_pos_coleta(
     empresa_id: int,
     *,
@@ -867,6 +891,9 @@ def executar_pos_coleta(
     r.sugestoes_geradas = ms["sugestoes"]
     r.sugestoes_pulados = ms["pulados"]
 
+    # ── F3.1: desfecho dos casos ReclameAqui (só desfecho IS NULL) ──
+    _casos_ra = _classificar_casos_ra(empresa_id)
+
     custo = r.classificados * CUSTO_USD_POR_CLASSIFICACAO
     custo += rp.custo_usd_acumulado
     custo += rsem.input_tokens / 1e6 * 1.0 + rsem.output_tokens / 1e6 * 5.0
@@ -874,6 +901,7 @@ def executar_pos_coleta(
     custo += md["in"] / 1e6 * 3.0 + md["out"] / 1e6 * 15.0
     custo += mp["in"] / 1e6 * 3.0 + mp["out"] / 1e6 * 15.0
     custo += ms["in"] / 1e6 * 3.0 + ms["out"] / 1e6 * 15.0
+    custo += _casos_ra["in"] / 1e6 * 3.0 + _casos_ra["out"] / 1e6 * 15.0  # F3.1 desfecho (Sonnet)
 
     # ── Escopo loja (Bloco 9 / CP-A5): diagnóstico + sugestões por loja ≥30 ──
     from src.diagnostico.leituras import lojas_qualificadas

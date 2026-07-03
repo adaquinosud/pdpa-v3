@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from src.coletor import caso_classificador as cc
 from src.coletor import reclame_aqui as ra
 from src.models.caso import Caso
+from src.models.empresa import Empresa
 
 # reusa fixtures/payloads do teste do coletor (mesmo domínio)
 from tests.test_reclame_aqui import _THREAD, _empresa_fonte, _patch_actor, _reclamacao
@@ -165,3 +166,37 @@ def test_expiry_abandona_classificado_parado(db_session):
     assert n == 1
     db_session.expire_all()
     assert db_session.query(Caso).filter_by(origem_id="C1").one().desfecho == "abandonado"
+
+
+# ── F3.1: fio da pós-coleta ──────────────────────────────────────────────────
+
+
+def test_poscoleta_wire_classifica_casos_ra(db_session):
+    from src.temas.pos_coleta import _classificar_casos_ra
+
+    e, f = _empresa_fonte(db_session)
+    _caso(
+        db_session,
+        e,
+        f,
+        origem_id="W",
+        evaluated=True,
+        solved=True,
+        interactions_count=1,
+        thread_json="[]",
+    )
+    db_session.commit()
+    r = _classificar_casos_ra(e.id)
+    assert r == {"in": 0, "out": 0}  # determinístico → $0
+    db_session.expire_all()
+    assert db_session.query(Caso).filter_by(origem_id="W").one().desfecho == "resolvido"
+
+
+def test_poscoleta_wire_noop_sem_ra(db_session):
+    """Empresa sem fonte RA → no-op ($0, nenhuma query de caso)."""
+    from src.temas.pos_coleta import _classificar_casos_ra
+
+    e = Empresa(nome=f"SemRA-{id(db_session)}")
+    db_session.add(e)
+    db_session.commit()
+    assert _classificar_casos_ra(e.id) == {"in": 0, "out": 0}
