@@ -3837,15 +3837,23 @@ def _explorar_quadro(s, empresa_id, ag_id, local_id=None):
     )
 
 
-def _explorar_casos(s, empresa_id):
+_CASOS_PERIODO_DIAS = {"1m": 30, "3m": 90, "6m": 180, "12m": 365}
+
+
+def _explorar_casos(s, empresa_id, filtros=None):
     """Casos ReclameAqui da empresa: painel de reputação (derivado dos casos) +
-    a lista. Reputação = distribuição de desfecho + taxas (resposta, resolução,
-    causa-raiz) + nota média — computadas dos NOSSOS casos (o scorecard oficial da
-    RA é evolução futura). Nível empresa (fonte RA não tem grão de loja)."""
+    a lista FILTRÁVEL. Reputação = distribuição de desfecho + taxas (resposta,
+    resolução, causa-raiz) + nota média — computadas dos NOSSOS casos (o scorecard
+    oficial da RA é evolução futura). Nível empresa (fonte RA não tem grão de loja).
+
+    ``filtros`` (dict): ``desfecho``/``status``/``periodo``/``q`` filtram só a
+    LISTA; o painel reflete o retrato geral (todos os casos)."""
     from collections import Counter
+    from datetime import datetime, timedelta
 
     from src.models.caso import Caso
 
+    filtros = filtros or {}
     casos = (
         s.query(Caso)
         .filter(Caso.empresa_id == empresa_id)
@@ -3873,6 +3881,28 @@ def _explorar_casos(s, empresa_id):
         n_avaliados=len(avaliados),
         n_classificados=len(classificados),
     )
+    # ── Filtros (só a LISTA) ──────────────────────────────────────────────────
+    from urllib.parse import urlencode
+
+    f_desfecho = filtros.get("desfecho") or None
+    f_status = filtros.get("status") or None
+    f_periodo = filtros.get("periodo") or None
+    f_q = (filtros.get("q") or "").strip().lower() or None
+    corte_dias = _CASOS_PERIODO_DIAS.get(f_periodo)
+    corte_data = (datetime.utcnow() - timedelta(days=corte_dias)) if corte_dias else None
+
+    def _passa(c):
+        if f_desfecho and c.desfecho != f_desfecho:
+            return False
+        if f_status and c.status_label != f_status:
+            return False
+        if corte_data and (c.criado_em_origem is None or c.criado_em_origem < corte_data):
+            return False
+        if f_q and f_q not in (c.titulo or "").lower():
+            return False
+        return True
+
+    filtrados = [c for c in casos if _passa(c)]
     linhas = [
         {
             "id": c.id,
@@ -3885,9 +3915,28 @@ def _explorar_casos(s, empresa_id):
             "categoria": c.categoria,
             "interactions_count": c.interactions_count or 0,
         }
-        for c in casos
+        for c in filtrados
     ]
-    return SimpleNamespace(painel=painel, casos=linhas, tem_dado=total > 0)
+    # querystring dos filtros SEM desfecho (p/ os chips clicáveis preservarem o resto)
+    _sem_desf = {
+        k: v
+        for k, v in (("status", f_status), ("periodo", f_periodo), ("q", filtros.get("q")))
+        if v
+    }
+    return SimpleNamespace(
+        painel=painel,
+        casos=linhas,
+        tem_dado=total > 0,
+        n_filtrado=len(linhas),
+        filtros={
+            "desfecho": f_desfecho,
+            "status": f_status,
+            "periodo": f_periodo,
+            "q": filtros.get("q") or "",
+        },
+        status_opcoes=sorted({c.status_label for c in casos if c.status_label}),
+        qs_sem_desfecho=urlencode(_sem_desf),
+    )
 
 
 def _explorar_governanca(s, empresa_id, ag_id=None):
@@ -4317,7 +4366,18 @@ def _explorar_contexto(empresa_id, tab):
             _explorar_diagnostico(s, empresa_id, ag_id, local_id) if tab == "diagnostico" else None
         )
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id) if tab == "quadro" else None
-        casos = _explorar_casos(s, empresa_id) if tab == "casos" else None
+        casos = None
+        if tab == "casos":
+            casos = _explorar_casos(
+                s,
+                empresa_id,
+                {
+                    "desfecho": request.args.get("desfecho"),
+                    "status": request.args.get("status"),
+                    "periodo": request.args.get("periodo"),
+                    "q": request.args.get("q"),
+                },
+            )
         concentracao = (
             _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
         )

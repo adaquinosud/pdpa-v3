@@ -196,6 +196,23 @@ def test_coletar_falha_apify(db_session, monkeypatch):
     assert stats["falhou_apify"] is True and stats["casos_novos"] == 0
 
 
+def test_corte_15_meses_datefrom_e_guarda(db_session, monkeypatch):
+    """Passa dateFrom (corte server-side) e a guarda pula reclamação anterior ao corte."""
+    e, f = _empresa_fonte(db_session)
+    captura = {}
+    antigo = _reclamacao("OLD")
+    antigo["created"] = "2023-01-01T00:00:00"  # bem antes do corte (15 meses)
+
+    def _fake(actor, run_input, **kw):
+        captura["run_input"] = run_input
+        return [_reclamacao("REC"), antigo]
+
+    monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _fake)
+    stats = ra.coletar(f)
+    assert "dateFrom" in captura["run_input"]  # corte server-side no input
+    assert stats["casos_novos"] == 1 and stats["fora_janela"] == 1  # antigo pulado
+
+
 # ── Recoleta / expiry ────────────────────────────────────────────────────────
 
 

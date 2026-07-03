@@ -14,7 +14,7 @@ consumidor fechou) OU ``desfecho='abandonado'``. Não-terminal sem mudança de
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, Optional
 
 from sqlalchemy import func
@@ -32,6 +32,14 @@ APIFY_TIMEOUT_SECONDS = 900
 MAX_COMPLAINTS_PER_COMPANY = 100
 RECOLETA_IDADE_DIAS = 7  # cadência semanal
 ABANDONO_DIAS = 90  # não-terminal sem mudança → abandonado
+# Corte de coleta: 15 meses (padrão da casa p/ comentários — COLETA_JANELA_MESES).
+# O actor filtra server-side por `dateFrom` (só cobra reclamações no período) — o
+# guard no coletor é só rede de segurança.
+CORTE_MESES = 15
+
+
+def _data_corte() -> date:
+    return date.today() - timedelta(days=CORTE_MESES * 30)
 
 
 def _empresa_param(url: str) -> str:
@@ -176,6 +184,7 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         "verbatins_novos": 0,
         "sem_descricao": 0,
         "ignorados": 0,
+        "fora_janela": 0,
         "abandonados": 0,
         "erros": 0,
         "pulado_cadencia": False,
@@ -194,6 +203,7 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
                 print(f"[reclame_aqui] fonte {fonte_id} pulada (cadência semanal)")
                 return stats
 
+    corte = _data_corte()
     run_input = {
         "companies": [empresa_param],
         "scrapeComplaints": True,
@@ -203,6 +213,9 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         "maxComplaintsPerCompany": MAX_COMPLAINTS_PER_COMPANY,
         "descriptionFormat": "text",
         "excludeEmptyFields": False,
+        # Corte de 15 meses server-side: o actor só retorna/cobra reclamações
+        # created >= dateFrom (economiza custo por reclamação).
+        "dateFrom": corte.isoformat(),
     }
     try:
         items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
@@ -218,6 +231,12 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
             norm = adaptar_reclamacao(item)
             if norm is None:  # record de empresa/scorecard ou malformado
                 stats["ignorados"] += 1
+                continue
+            # Guarda do corte (rede de segurança — o actor já filtra por dateFrom).
+            # Sem data → entra (não dá pra datar; mesma semântica dos temas).
+            co = norm.get("criado_em_origem")
+            if co is not None and co.date() < corte:
+                stats["fora_janela"] += 1
                 continue
             r = _upsert_caso(fonte_id, empresa_id, local_id, norm, agora)
             if r == "novo_com_verbatim":

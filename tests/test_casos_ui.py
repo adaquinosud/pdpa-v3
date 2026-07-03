@@ -149,6 +149,72 @@ def test_painel_taxas(db_session):
     assert p.nota_media == 5.0  # (10+0)/2
 
 
+# ── Filtros da lista ─────────────────────────────────────────────────────────
+
+
+def test_filtros_lista(db_session):
+    e, f = _empresa(db_session)
+    _caso(
+        db_session,
+        e,
+        f,
+        "R1",
+        titulo="Cobrança indevida",
+        desfecho="resolvido",
+        status_label="Respondida",
+        evaluated=True,
+        criado_em_origem=datetime(2026, 6, 1),
+        interactions_count=2,
+    )
+    _caso(
+        db_session,
+        e,
+        f,
+        "D1",
+        titulo="Reserva não honrada",
+        desfecho="nao_resolvido",
+        status_label="Respondida",
+        evaluated=True,
+        criado_em_origem=datetime(2024, 1, 1),
+        interactions_count=2,
+    )
+    _caso(
+        db_session,
+        e,
+        f,
+        "P1",
+        titulo="Sem resposta ainda",
+        desfecho="nao_respondida",
+        status_label="Não respondida",
+        criado_em_origem=datetime(2026, 6, 20),
+        interactions_count=0,
+    )
+    db_session.commit()
+    assert ui._explorar_casos(db_session, e.id).n_filtrado == 3  # sem filtro
+    # desfecho — e o painel segue refletindo TODOS
+    r = ui._explorar_casos(db_session, e.id, {"desfecho": "resolvido"})
+    assert r.n_filtrado == 1 and r.casos[0]["titulo"] == "Cobrança indevida" and r.painel.total == 3
+    # status
+    assert ui._explorar_casos(db_session, e.id, {"status": "Não respondida"}).n_filtrado == 1
+    # busca por título (case-insensitive)
+    assert ui._explorar_casos(db_session, e.id, {"q": "reserva"}).n_filtrado == 1
+    # período: últimos 12m exclui o de 2024
+    assert ui._explorar_casos(db_session, e.id, {"periodo": "12m"}).n_filtrado == 2
+
+
+def test_aba_filtra_por_desfecho_http(client_loyall, db_session):
+    e, c = _empresa_caso(db_session)  # 1 caso, desfecho respondida_em_disputa
+    body = client_loyall.get(
+        f"/empresas/{e.id}/explorar?tab=casos&desfecho=respondida_em_disputa"
+    ).get_data(as_text=True)
+    assert "Insatisfação com reserva" in body
+    # filtro que não casa → lista vazia, painel permanece
+    body2 = client_loyall.get(f"/empresas/{e.id}/explorar?tab=casos&desfecho=resolvido").get_data(
+        as_text=True
+    )
+    assert "Nenhum caso com esses filtros" in body2 and "Reputação em casos" in body2
+
+
 # ── Redirect da rota antiga ──────────────────────────────────────────────────
 
 

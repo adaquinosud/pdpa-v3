@@ -1,4 +1,4 @@
-{# Casos ReclameAqui — painel de reputação (derivado dos casos) + lista → timeline. #}
+{# Casos ReclameAqui — painel de reputação + lista FILTRÁVEL → timeline. #}
 {% set dmap = {
   'resolvido':                {'cor':'bg-emerald-100 text-emerald-700','rot':'resolvido'},
   'nao_resolvido':            {'cor':'bg-rose-100 text-rose-700','rot':'não resolvido'},
@@ -8,6 +8,9 @@
   'abandonado':               {'cor':'bg-loyall-100 text-loyall-500','rot':'abandonado'},
 } %}
 {% set p = casos.painel %}
+{% set fl = casos.filtros %}
+{% set tab_url = url_for('ui.explorar_tab', empresa_id=empresa.id, tab='casos') %}
+{% set push = url_for('ui.explorar_empresa', empresa_id=empresa.id) ~ '?tab=casos' %}
 
 <div class="text-xs uppercase tracking-wider text-loyall-400">ReclameAqui · casos + reputação</div>
 <h3 class="text-lg font-semibold text-loyall-800 mt-0.5">Reputação em casos</h3>
@@ -21,7 +24,7 @@
 </div>
 {% else %}
 
-{# ── PAINEL DE REPUTAÇÃO ── #}
+{# ── PAINEL DE REPUTAÇÃO (todos os casos) ── #}
 <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
   {% macro metric(rotulo, valor, sufixo='', hint='') %}
   <div class="border border-loyall-200 rounded-lg px-3 py-2" title="{{ hint }}">
@@ -38,21 +41,47 @@
 <div class="mt-2 text-xs text-loyall-500">Nota média dos avaliados: <strong class="text-loyall-800">★ {{ p.nota_media }}</strong> / 10 ({{ p.n_avaliados }} avaliados)</div>
 {% endif %}
 
-{# Distribuição de desfecho — barra + chips #}
+{# Desfechos = chips CLICÁVEIS que filtram a lista (preservam status/período/busca). #}
 {% if p.desfechos %}
 <div class="mt-3">
-  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Desfechos</div>
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Desfechos <span class="normal-case tracking-normal">(clique para filtrar)</span></div>
   <div class="flex flex-wrap gap-1.5">
+    <a hx-get="{{ tab_url }}{% if casos.qs_sem_desfecho %}?{{ casos.qs_sem_desfecho }}{% endif %}"
+       hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-push-url="{{ push }}"
+       class="cursor-pointer inline-flex items-center px-2 py-0.5 rounded text-xs border {% if not fl.desfecho %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 text-loyall-500 hover:bg-loyall-50{% endif %}">todos</a>
     {% for d, n in p.desfechos.items() %}
     {% set m = dmap.get(d, {'cor':'bg-loyall-100 text-loyall-500','rot':d}) %}
-    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs {{ m.cor }}">{{ m.rot }} · {{ n }}</span>
+    <a hx-get="{{ tab_url }}?{% if casos.qs_sem_desfecho %}{{ casos.qs_sem_desfecho }}&{% endif %}desfecho={{ d }}"
+       hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-push-url="{{ push }}"
+       class="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs {{ m.cor }} {% if fl.desfecho == d %}ring-2 ring-loyall-400{% endif %}">{{ m.rot }} · {{ n }}</a>
     {% endfor %}
   </div>
 </div>
 {% endif %}
 
-{# ── LISTA DE CASOS ── #}
-<div class="mt-5 text-xs uppercase tracking-wider text-loyall-400">Casos ({{ casos.casos|length }})</div>
+{# ── BARRA DE FILTROS (status / período / busca) — form HTMX ── #}
+<form hx-get="{{ tab_url }}" hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-push-url="{{ push }}"
+      class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+  <input type="hidden" name="desfecho" value="{{ fl.desfecho or '' }}">
+  <input type="text" name="q" value="{{ fl.q }}" placeholder="buscar por título…"
+         class="px-2 py-1 rounded border border-loyall-200 w-48">
+  <select name="status" class="px-2 py-1 rounded border border-loyall-200">
+    <option value="">status: todos</option>
+    {% for st in casos.status_opcoes %}<option value="{{ st }}" {% if fl.status == st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+  </select>
+  <select name="periodo" class="px-2 py-1 rounded border border-loyall-200">
+    {% for v, l in [('','período: todo'),('12m','últimos 12m'),('6m','últimos 6m'),('3m','últimos 3m'),('1m','último mês')] %}
+    <option value="{{ v }}" {% if fl.periodo == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+  <button class="px-3 py-1 rounded bg-loyall-700 text-loyall-50 hover:bg-loyall-600">Filtrar</button>
+  <a hx-get="{{ tab_url }}" hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-push-url="{{ push }}"
+     class="cursor-pointer text-loyall-400 hover:underline">limpar</a>
+</form>
+
+{# ── LISTA (filtrada) ── #}
+<div class="mt-4 text-xs uppercase tracking-wider text-loyall-400">
+  Casos ({{ casos.n_filtrado }}{% if casos.n_filtrado != p.total %} de {{ p.total }}{% endif %})</div>
+{% if casos.casos %}
 <div class="mt-1 border border-loyall-200 rounded-lg divide-y divide-loyall-100">
   {% for c in casos.casos %}
   <a href="{{ url_for('ui.caso_detalhe', caso_id=c.id) }}"
@@ -75,4 +104,8 @@
   </a>
   {% endfor %}
 </div>
+{% else %}
+<div class="mt-1 text-center text-loyall-400 py-8 border border-dashed border-loyall-200 rounded-lg">
+  Nenhum caso com esses filtros.</div>
+{% endif %}
 {% endif %}
