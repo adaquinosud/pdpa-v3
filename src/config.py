@@ -17,6 +17,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # Gemini (Reputação em IA)
     APIFY_TOKEN = os.getenv("APIFY_TOKEN")
     FERNET_KEY = os.getenv("FERNET_KEY")
 
