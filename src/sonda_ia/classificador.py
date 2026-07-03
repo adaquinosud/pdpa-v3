@@ -156,7 +156,12 @@ def sintetizar_leitura(execucao_id: int, *, gerar_fn: Optional[Callable] = None)
 def processar_sonda(
     execucao_id: int, *, gerar_avaliacao=None, gerar_leitura=None
 ) -> Dict[str, Any]:
-    """G3 completo de UMA execução: classifica avaliações + sintetiza a leitura."""
+    """G3+G4 de UMA execução: classifica avaliações → sintetiza a leitura →
+    cruza a defasagem (IA × diagnóstico). A defasagem roda por ÚLTIMO (usa as
+    avaliações já classificadas) e é determinística ($0)."""
+    from src.sonda_ia.defasagem import cruzar_defasagem
+
     av = classificar_avaliacoes(execucao_id, gerar_fn=gerar_avaliacao)
     lt = sintetizar_leitura(execucao_id, gerar_fn=gerar_leitura)
-    return {"avaliacoes": av, "leitura": lt}
+    df = cruzar_defasagem(execucao_id)
+    return {"avaliacoes": av, "leitura": lt, "defasagem": df["resumo"]}
