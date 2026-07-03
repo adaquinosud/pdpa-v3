@@ -56,6 +56,9 @@ CONECTORES_COM_SCRAPER = frozenset(
         "appstore",
         "mercadolivre",
         "google_news",
+        # ReclameAqui: coletor de CASOS (thread viva via upsert), não verbatim
+        # comum. Ver src/coletor/reclame_aqui.py + docs/CONTRATO_RA_ACTOR.md.
+        "reclame_aqui",
     }
 )
 
@@ -65,7 +68,6 @@ CONECTORES_CATALOGADOS = frozenset(
         "website",
         "glassdoor",
         "indeed",
-        "reclame_aqui",
         "consumidor_gov",
         "amazon",
         "excel_manual",

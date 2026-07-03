@@ -48,6 +48,7 @@ def _roteamento_coletores() -> Dict[str, Callable[[Fonte], Dict]]:
         instagram,
         linkedin,
         mercadolivre,
+        reclame_aqui,
         tiktok,
         tripadvisor,
         youtube,
@@ -55,6 +56,7 @@ def _roteamento_coletores() -> Dict[str, Callable[[Fonte], Dict]]:
 
     return {
         "google": google.coletar,
+        "reclame_aqui": reclame_aqui.coletar,
         "instagram": instagram.coletar,
         "facebook": facebook.coletar,
         "tripadvisor": tripadvisor.coletar,
