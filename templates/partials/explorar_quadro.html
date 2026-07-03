@@ -1,0 +1,99 @@
+{# Quadro dos Pilares (Explorar) — retrato de estado na escada TOPO individual ×
+   BASE sistêmica. Mesma moldura do /quadro do confronto, mas alimentada pelo
+   diagnóstico geral (all-time, sem lado do time). Cor pela FAIXA de saúde. #}
+{% set q = quadro %}
+{% set fclass = {
+  'critico':   {'bg':'bg-rose-100','text':'text-rose-700','bar':'bg-rose-500'},
+  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700','bar':'bg-orange-500'},
+  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800','bar':'bg-amber-400'},
+  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700','bar':'bg-emerald-400'},
+  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800','bar':'bg-emerald-600'},
+} %}
+
+{# Badge de valência dominante (mesma paleta do confronto). #}
+{% macro val_badge(v) %}
+  {% set cor = {'promotor':'bg-emerald-100 text-emerald-700',
+                'conversivel':'bg-amber-100 text-amber-700',
+                'detrator':'bg-rose-100 text-rose-700'} %}
+  {% if v %}<span class="px-1.5 py-0.5 rounded text-[10px] {{ cor.get(v,'bg-loyall-100 text-loyall-600') }}">{{ v }}</span>{% endif %}
+{% endmacro %}
+
+<div class="text-xs uppercase tracking-wider text-loyall-400">Quadro dos pilares · retrato de estado</div>
+<h3 class="text-lg font-semibold text-loyall-800 mt-0.5">A base é sistêmica. O topo é individual.</h3>
+<p class="text-xs text-loyall-500 mt-1">
+  Saúde de cada subpilar no escopo — faixa {{ glossario_i('faixa') if glossario_i is defined else '' }} (crítico→excelente),
+  valência dominante e temas do cliente. Histórico completo (não é o recorte do confronto).</p>
+
+{% if not q.tem_dado %}
+<div class="mt-4 text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Sem verbatins classificados no escopo selecionado.
+</div>
+{% else %}
+
+{% if q.temas_indisponiveis %}
+<p class="text-xs text-loyall-400 mt-2 italic">
+  Temas indisponíveis no grão de loja{% if q.loja_nome %} ({{ q.loja_nome }}){% endif %} — o TemaCache é por agrupamento/empresa. Faixa e ratio são da própria loja.</p>
+{% endif %}
+
+{# Legenda das faixas — o vocabulário do diagnóstico. #}
+<div class="mt-3 flex flex-wrap gap-1.5 text-[10px]">
+  {% for f in ['critico','fraco','atencao','bom','excelente'] %}
+  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded {{ fclass[f].bg }} {{ fclass[f].text }}">{{ f }}</span>
+  {% endfor %}
+</div>
+
+{% for faixa in q.faixas %}
+<section class="mt-4 p-4 rounded border border-loyall-200 bg-loyall-50">
+  <div class="text-xs uppercase tracking-wider text-loyall-400">{{ faixa.eyebrow }}</div>
+  <div class="text-sm italic text-loyall-500 mt-0.5">{{ faixa.frase }}</div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+    {% for pilar in faixa.pilares %}
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="w-7 h-7 rounded-full bg-loyall-700 text-white text-xs font-bold inline-flex items-center justify-center">{{ pilar.code }}</span>
+        <span class="text-base font-semibold text-loyall-800">{{ pilar.nome }}</span>
+      </div>
+      <div class="mt-2 space-y-1.5">
+        {% for c in pilar.subpilares %}
+        {% set fc = fclass.get(c.faixa, {'bg':'bg-loyall-100','text':'text-loyall-500','bar':'bg-loyall-300'}) %}
+        <div class="border border-loyall-200 bg-white rounded px-2.5 py-2 text-sm {% if not c.total %}opacity-50{% endif %}">
+          <div class="flex items-center justify-between gap-2">
+            <span class="min-w-0">
+              <strong class="text-loyall-800">{{ c.subpilar }}</strong>
+              <span class="text-xs text-loyall-500">· {{ c.nome }}</span>
+            </span>
+            {% if c.total %}
+            <span class="shrink-0 inline-flex items-center gap-1.5">
+              {{ val_badge(c.valencia) }}
+              <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span>
+            </span>
+            {% else %}
+            <span class="shrink-0 text-[10px] uppercase px-1.5 py-0.5 rounded bg-loyall-100 text-loyall-400">sem dado</span>
+            {% endif %}
+          </div>
+          {% if c.total %}
+          <div class="mt-1 flex items-center justify-between gap-2 text-xs text-loyall-400">
+            <span>Ratio P/D <strong class="text-loyall-700">{{ '%.2f'|format(c.ratio) }}</strong></span>
+            <span title="Confiança por volume">{% if selo_emoji is defined %}{{ selo_emoji(c.total) }}{% endif %} {{ c.total }} verbatins</span>
+          </div>
+          {% if c.temas %}
+          <div class="mt-1 text-xs text-loyall-500">
+            {% if c.valencia == 'promotor' %}elogia:
+            {% elif c.valencia == 'detrator' %}reclama de:
+            {% else %}comenta:{% endif %}
+            {{ c.temas | join(' · ') }}
+          </div>
+          {% endif %}
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<div class="mt-4 px-4 py-3 rounded bg-loyall-700 text-loyall-50 text-sm">
+  A base sustenta o topo: um ralo na base (P, D) limita o quanto o topo individual (Pa, A) rende.</div>
+{% endif %}

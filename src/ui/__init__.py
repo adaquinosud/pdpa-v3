@@ -2789,6 +2789,12 @@ _EXPLORAR_TABS = [
     },
     # DIAGNÓSTICO (causa)
     {
+        "id": "quadro",
+        "label": "Quadro dos Pilares",
+        "grupo": "diagnostico",
+        "escopo_aceito": ["agrupamento", "local"],
+    },
+    {
         "id": "diagnostico",
         "label": "Diagnóstico",
         "grupo": "diagnostico",
@@ -3735,6 +3741,96 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
     )
 
 
+def _explorar_quadro(s, empresa_id, ag_id, local_id=None):
+    """Quadro dos Pilares (Explorar): retrato de estado por subpilar arranjado na
+    escada TOPO individual (Pa, A) × BASE sistêmica (P, D) — a mesma moldura do
+    /quadro do confronto, mas alimentada pelo diagnóstico geral.
+
+    Reusa ``agregar_subpilares`` ALL-TIME (sem janela — é o retrato de estado do
+    Explorar), SEM lado do time. Cor pela faixa de saúde (crítico→excelente), não
+    pelas categorias do confronto. Loja: números PRÓPRIOS (sem herança) + gate de
+    temas (TemaCache não tem grão de loja → indisponível, sem fallback empresa)."""
+    from src.api.painel import (
+        NOME_PILAR,
+        NOME_SUBPILAR,
+        PILAR_DE_SUBPILAR,
+        SUBPILARES_ORDEM,
+    )
+    from src.diagnostico.leituras import agregar_subpilares
+    from src.models.local import Local
+    from src.pesquisa.confronto import _dominante, _temas_subpilar
+
+    agg = agregar_subpilares(s, empresa_id, ag_id, local_id)  # all-time, sem `desde`
+
+    # Temas por escopo — mesmo gate do confronto (temas_escopo): loja → indisponível
+    # (sem fallback); agrupamento → [ag_id]; empresa → agrupamento_id IS NULL.
+    if local_id is not None:
+        ag_ids_temas, temas_indisp = None, True
+    elif ag_id is not None:
+        ag_ids_temas, temas_indisp = [ag_id], False
+    else:
+        ag_ids_temas, temas_indisp = None, False
+
+    def _cell(sub):
+        d = agg.get(sub)
+        if d is None:  # subpilar no mapa mas sem volume no escopo → célula muda
+            return SimpleNamespace(
+                subpilar=sub,
+                nome=NOME_SUBPILAR.get(sub, sub),
+                total=0,
+                valencia=None,
+                ratio=None,
+                faixa=None,
+                temas=[],
+            )
+        val = _dominante({"promotor": d["prom"], "conversivel": d["conv"], "detrator": d["det"]})
+        temas = (
+            _temas_subpilar(s, empresa_id, sub, val, ag_ids_temas)
+            if (val and not temas_indisp)
+            else []
+        )
+        return SimpleNamespace(
+            subpilar=sub,
+            nome=NOME_SUBPILAR.get(sub, sub),
+            total=d["total"],
+            valencia=val,
+            ratio=d["ratio"],
+            faixa=d["faixa"],
+            temas=[t["tema_label"] for t in temas],
+        )
+
+    def _bloco(code):
+        subs = [sp for sp in SUBPILARES_ORDEM if PILAR_DE_SUBPILAR.get(sp) == code]
+        return SimpleNamespace(
+            code=code, nome=NOME_PILAR.get(code, code), subpilares=[_cell(sp) for sp in subs]
+        )
+
+    # TOPO individual (Pa, A) primeiro, BASE sistêmica (P, D) embaixo — a escada.
+    faixas = [
+        SimpleNamespace(
+            eyebrow="TOPO · INDIVIDUAL",
+            frase="conta a conta, pessoa a pessoa; não se sistematiza.",
+            pilares=[_bloco("Pa"), _bloco("A")],
+        ),
+        SimpleNamespace(
+            eyebrow="BASE · SISTÊMICA",
+            frase="resolve-se uma vez, no processo, e todos se beneficiam.",
+            pilares=[_bloco("P"), _bloco("D")],
+        ),
+    ]
+    loja_nome = None
+    if local_id is not None:
+        loc = s.get(Local, local_id)
+        loja_nome = loc.nome if loc else None
+    tem_dado = any(c.total for f in faixas for p in f.pilares for c in p.subpilares)
+    return SimpleNamespace(
+        faixas=faixas,
+        temas_indisponiveis=temas_indisp,
+        loja_nome=loja_nome,
+        tem_dado=tem_dado,
+    )
+
+
 def _explorar_governanca(s, empresa_id, ag_id=None):
     """Painel de Governança (CP-LG-8, board view). Levas 1-3: cobertura + radar +
     concentração + previsibilidade + ranking + simulação de cenários + projeção
@@ -4161,6 +4257,7 @@ def _explorar_contexto(empresa_id, tab):
         diagnostico = (
             _explorar_diagnostico(s, empresa_id, ag_id, local_id) if tab == "diagnostico" else None
         )
+        quadro = _explorar_quadro(s, empresa_id, ag_id, local_id) if tab == "quadro" else None
         concentracao = (
             _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
         )
@@ -4204,6 +4301,7 @@ def _explorar_contexto(empresa_id, tab):
         "comparar": comparar,
         "evolucao": evolucao,
         "diagnostico": diagnostico,
+        "quadro": quadro,
         "concentracao": concentracao,
         "governanca": governanca,
         "planos": planos,

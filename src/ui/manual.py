@@ -72,7 +72,7 @@ def por_slug(slug: str):
 # Tab do Explorar → slug da seção no Manual. Quase toda tab já coincide com o slug
 # derivado do cabeçalho do .md (painel→painel, anomalias→anomalias…); só override o
 # que difere. Teste garante que todo slug resolvido existe em secoes().
-_TAB_SLUG_OVERRIDE = {"planos": "plano-de-acao"}
+_TAB_SLUG_OVERRIDE = {"planos": "plano-de-acao", "quadro": "quadro-dos-pilares"}
 
 
 def slug_da_tab(tab: str) -> str:

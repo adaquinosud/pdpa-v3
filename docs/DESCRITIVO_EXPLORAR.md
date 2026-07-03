@@ -274,7 +274,37 @@ estão como "segurança da IA na classificação" e "o porquê da classificaçã
 
 ---
 
-## 9. DIAGNÓSTICO
+## 9. QUADRO DOS PILARES
+
+**Propósito.** O retrato de estado dos 12 subpilares arranjado na escada **TOPO individual (Pa, A) × BASE
+sistêmica (P, D)** — a mesma moldura do Quadro do confronto, mas alimentada pelo diagnóstico geral (todos
+os verbatins do escopo, **sem recorte de janela**) e **sem o lado do time**. Uma leitura-síntese: onde a
+saúde mora, antes de descer pro Diagnóstico detalhado. Fonte: `_explorar_quadro` (ui).
+
+**Anatomia.**
+*Duas bandas:* TOPO · INDIVIDUAL (Parceria, Aconselhamento — "conta a conta, pessoa a pessoa; não se
+sistematiza") e BASE · SISTÊMICA (Precisão, Disponibilidade — "resolve-se uma vez, no processo"). A base
+sustenta o topo: um ralo em P/D limita o quanto Pa/A rende.
+
+*Cada célula (subpilar):*
+1. **Sigla + nome** do subpilar.
+2. **Valência dominante** (badge) — promotor / conversível / detrator do cliente.
+3. **Faixa de saúde** (badge colorido) — crítico → fraco → atenção → bom → excelente (cor do ratio, ver
+   glossário).
+4. **Ratio P/D** + emoji de confiança por volume + total de verbatins.
+5. **Temas do cliente** da valência dominante ("reclama de:" / "elogia:" / "comenta:"). Subpilar sem
+   volume no escopo → célula muda ("sem dado").
+
+**Escopo & loja.** Respeita o escopo do header (empresa / agrupamento / loja). Na loja, os números são
+**próprios** (sem herança) e os **temas ficam indisponíveis** — o TemaCache não tem grão de loja (faixa e
+ratio continuam da loja).
+
+**Diferença vs Diagnóstico.** O Quadro é a síntese (panorama por pilar, cor por faixa); o Diagnóstico é o
+drill (Proximity, R$ de Estoque, leituras de IA por subpilar).
+
+---
+
+## 10. DIAGNÓSTICO
 
 **Propósito.** Foto holística com leitura analítica: o Mapa de Lastro (gargalo), o Confronto Visual dos
 12 subpilares com Proximity e R$ de Estoque, e as **leituras de IA (Sonnet) por subpilar**. Quando uma
@@ -306,7 +336,7 @@ lista de 3 subpilares (código·nome, ratio, badge). (Termos no glossário.)
 
 ---
 
-## 10. CONCENTRAÇÃO
+## 11. CONCENTRAÇÃO
 
 **Propósito.** Mostra **onde** os detratores se concentram entre as lojas — se o problema é de poucas
 lojas (dá pra fazer cirurgia) ou de muitas (é sistêmico, do processo). Fonte: `_explorar_concentracao`
@@ -331,7 +361,7 @@ detratores. Cruza "qual loja" com "em qual subpilar" ela peca.
 
 ---
 
-## 11. ANOMALIAS (Monitoramento)
+## 12. ANOMALIAS (Monitoramento)
 
 **Propósito.** É um **vigia automático 24/7** dos dados. Em vez de alguém varrer manualmente loja por
 loja e mês a mês, o sistema usa **machine learning** para apontar sozinho o que está fora do normal —
@@ -402,7 +432,7 @@ score (ML) e os estados estão explicados. Correção vs versão anterior: **mag
 
 ---
 
-## 12. PLANO DE AÇÃO
+## 13. PLANO DE AÇÃO
 
 **Propósito.** Junta num só lugar todas as ações sugeridas — vindas de 4 motores diferentes — agrupadas
 por frente de negócio, com prioridade e uma **projeção de impacto** se a ação for executada. É o "o que
@@ -447,7 +477,7 @@ cards/tabela.
 
 ---
 
-## 13. GOVERNANÇA
+## 14. GOVERNANÇA
 
 **Propósito.** Visão de Conselho: a saúde relacional consolidada, o risco concentrado, a previsibilidade,
 a excelência (selos) e uma simulação de cenário. É o "resumo executivo navegável". Fonte:
@@ -490,7 +520,7 @@ ficam explicados.)*
 
 ---
 
-## 14. RELATÓRIOS (5 documentos executivos)
+## 15. RELATÓRIOS (5 documentos executivos)
 
 **Propósito.** Cinco PDFs/telas prontos pra apresentar, janela de 180 dias, com cache de IA. Cada seção
 abaixo diz o que mostra e marca a origem: **IA (Sonnet)** vs **assemblado** (montagem de métricas, sem
@@ -525,7 +555,7 @@ métricas de governança. É a versão "para o Conselho" da aba Governança.
 
 ---
 
-## 15. IA (✨ IA — aba transversal)
+## 16. IA (✨ IA — aba transversal)
 
 **Propósito.** Um **consultor PDPA em linguagem natural**: o gestor faz uma pergunta sobre a empresa e
 recebe uma resposta executiva e acionável, ancorada **só** nos dados do recorte ativo (diagnóstico,
