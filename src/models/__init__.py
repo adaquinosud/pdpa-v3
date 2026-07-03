@@ -35,6 +35,12 @@ from src.models.pessoa import Pessoa, PessoaIdentificador
 from src.models.plano_acao import AcaoStatus
 from src.models.respondente import Respondente, Resposta
 from src.models.relatorio_cache import RelatorioCache
+from src.models.sonda_ia import (
+    SondaIAAvaliacao,
+    SondaIAExecucao,
+    SondaIALeitura,
+    SondaIAResposta,
+)
 from src.models.sugestao_estrutural import SugestaoEstrutural
 from src.models.temas import (
     AcaoVenda,
@@ -83,6 +89,10 @@ __all__ = [
     "RelatorioCache",
     "Respondente",
     "Resposta",
+    "SondaIAAvaliacao",
+    "SondaIAExecucao",
+    "SondaIALeitura",
+    "SondaIAResposta",
     "SugestaoEstrutural",
     "Tema",
     "TemaCache",

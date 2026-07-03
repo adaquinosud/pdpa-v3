@@ -99,6 +99,11 @@ PLANO: list[tuple[str, str, str]] = [
     ("síntese ORIGEM", "origem_sintese", _FILHO_PESQUISAS),
     ("pesquisas", "pesquisas", _DIRETO),
     ("verbatins", "verbatins", _DIRETO),
+    # Reputação em IA (sonda_ia_*): filhas antes das mães; independentes de verbatins.
+    ("sonda IA: avaliações", "sonda_ia_avaliacoes", _DIRETO),
+    ("sonda IA: leituras", "sonda_ia_leituras", _DIRETO),
+    ("sonda IA: respostas", "sonda_ia_respostas", _DIRETO),
+    ("sonda IA: execuções", "sonda_ia_execucoes", _DIRETO),
     # casos RA depois de verbatins: verbatins.caso_id → casos (filho antes do pai).
     ("casos ReclameAqui", "casos", _DIRETO),
 ]
