@@ -155,9 +155,9 @@ def test_coletar_upsert_nao_duplica(db_session, monkeypatch):
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_reclamacao("U1")])
     ra.coletar(f)
-    # 2ª coleta: agora respondida, com thread
+    # 2ª coleta: agora respondida, com thread (force → ignora o gate semanal)
     _patch_actor(monkeypatch, [_reclamacao("U1", status="ANSWERED", interactions=_THREAD)])
-    stats = ra.coletar(f)
+    stats = ra.coletar(f, force=True)
     assert stats["casos_atualizados"] == 1 and stats["casos_novos"] == 0
     assert db_session.query(Caso).filter_by(origem_id="U1").count() == 1
     assert db_session.query(Verbatim).count() == 1  # NÃO recriou o verbatim
@@ -251,3 +251,59 @@ def test_tem_nao_terminais(db_session):
     db_session.query(Caso).filter_by(origem_id="A").one().desfecho = "abandonado"
     db_session.commit()
     assert ra.tem_nao_terminais(db_session, f.id) is False
+
+
+# ── F2.1: gate de cadência semanal ───────────────────────────────────────────
+
+
+def test_cadencia_pula_coleta_recente(db_session, monkeypatch):
+    """Fonte coletada há < 7d → pula, SEM chamar o Apify (não re-cobra diário)."""
+    e, f = _empresa_fonte(db_session)
+    db_session.add(
+        Caso(empresa_id=e.id, fonte_id=f.id, origem_id="R1", ultima_coleta=datetime.utcnow())
+    )
+    db_session.commit()
+
+    def _boom(*a, **k):
+        raise AssertionError("run_and_collect não deveria ser chamado sob o gate")
+
+    monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _boom)
+    stats = ra.coletar(f)
+    assert stats["pulado_cadencia"] is True and stats["casos_novos"] == 0
+
+
+def test_cadencia_primeira_coleta_roda(db_session, monkeypatch):
+    """Sem coleta anterior (nenhum caso) → a primeira coleta SEMPRE roda."""
+    e, f = _empresa_fonte(db_session)
+    _patch_actor(monkeypatch, [_reclamacao("F1")])
+    stats = ra.coletar(f)
+    assert stats["pulado_cadencia"] is False and stats["casos_novos"] == 1
+
+
+def test_cadencia_coleta_velha_roda(db_session, monkeypatch):
+    """Última coleta há > 7d → roda de novo (recoleta semanal)."""
+    e, f = _empresa_fonte(db_session)
+    db_session.add(
+        Caso(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="OLD",
+            ultima_coleta=datetime.utcnow() - timedelta(days=10),
+        )
+    )
+    db_session.commit()
+    _patch_actor(monkeypatch, [_reclamacao("N1")])
+    stats = ra.coletar(f)
+    assert stats["pulado_cadencia"] is False and stats["casos_novos"] == 1
+
+
+def test_cadencia_force_bypassa(db_session, monkeypatch):
+    """force=True (coleta manual) ignora o gate mesmo com coleta recente."""
+    e, f = _empresa_fonte(db_session)
+    db_session.add(
+        Caso(empresa_id=e.id, fonte_id=f.id, origem_id="R2", ultima_coleta=datetime.utcnow())
+    )
+    db_session.commit()
+    _patch_actor(monkeypatch, [_reclamacao("FC1")])
+    stats = ra.coletar(f, force=True)
+    assert stats["pulado_cadencia"] is False and stats["casos_novos"] == 1

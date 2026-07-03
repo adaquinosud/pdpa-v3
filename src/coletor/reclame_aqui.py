@@ -17,6 +17,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
+from sqlalchemy import func
+
 from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.pipeline import MIN_CHARS_PARA_PROCESSAR, computar_hash_dedup
 from src.coletor.reclame_aqui_adapter import adaptar_reclamacao
@@ -43,6 +45,20 @@ def _empresa_param(url: str) -> str:
 
 def _terminal(caso: Caso) -> bool:
     return bool(caso.evaluated) or caso.desfecho == "abandonado"
+
+
+def em_cadencia_cooldown(
+    session, fonte_id: int, *, idade_dias: int = RECOLETA_IDADE_DIAS, agora=None
+) -> bool:
+    """A fonte foi coletada há menos de ``idade_dias``? (cadência SEMANAL — sem
+    isto a noturna diária re-cobraria RA todo dia). Sinal = ``MAX(Caso.ultima_coleta)``
+    da fonte (self-contained). Sem coleta anterior (nenhum caso) → False: a
+    PRIMEIRA coleta sempre roda."""
+    agora = agora or datetime.utcnow()
+    ultima = session.query(func.max(Caso.ultima_coleta)).filter(Caso.fonte_id == fonte_id).scalar()
+    if ultima is None:
+        return False
+    return (agora - ultima) < timedelta(days=idade_dias)
 
 
 def _upsert_caso(
@@ -134,12 +150,17 @@ def _criar_verbatim_description(s, caso, empresa_id, fonte_id, local_id, norm) -
     return True
 
 
-def coletar(fonte: Fonte) -> Dict[str, Any]:
+def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
     """Coleta/recoleta os casos de UMA fonte RA via Apify + upsert.
+
+    Cadência SEMANAL (F2.1): pula se a fonte foi coletada há < 7 dias, salvo
+    ``force=True`` (coleta manual). Sem isto a noturna diária re-cobraria RA por
+    reclamação todo dia.
 
     Stats: ``coletados`` (itens recebidos), ``casos_novos``, ``casos_atualizados``,
     ``verbatins_novos``, ``sem_descricao``, ``ignorados`` (records de empresa/
-    malformados), ``erros`` (falha em item de um run OK), ``falhou_apify``."""
+    malformados), ``abandonados``, ``erros``, ``pulado_cadencia`` (gate semanal),
+    ``falhou_apify``."""
     fonte_id = fonte.id
     empresa_id = fonte.empresa_id
     local_id = fonte.entidade_id if fonte.entidade_tipo == "local" else None
@@ -154,12 +175,21 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "ignorados": 0,
         "abandonados": 0,
         "erros": 0,
+        "pulado_cadencia": False,
         "falhou_apify": False,
     }
     if not empresa_param:
         print(f"[reclame_aqui] fonte {fonte_id} sem url — abortando")
         stats["falhou_apify"] = True
         return stats
+
+    # Gate de cadência semanal (F2.1): não re-cobrar diário. force=coleta manual.
+    if not force:
+        with db_session() as s:
+            if em_cadencia_cooldown(s, fonte_id):
+                stats["pulado_cadencia"] = True
+                print(f"[reclame_aqui] fonte {fonte_id} pulada (cadência semanal)")
+                return stats
 
     run_input = {
         "companies": [empresa_param],
