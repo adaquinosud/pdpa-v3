@@ -186,7 +186,7 @@ def test_cadeia_de_elos_e_gerado_em(client_loyall, db_session):
     for elo in ("Essência", "Significado", "Propósito", "Caminho", "Resultado"):
         assert elo in body
     # cascata: o elo mais fundo com gravidade é Essência (P1)
-    assert "a corrente rompe aqui" in body
+    assert "◀ rompe aqui" in body
     # síntese vira caption; gerado_em aparece
     assert "Síntese ·" in body and "Rompe na essência." in body
     assert "Análise gerada em" in body
@@ -200,7 +200,7 @@ def test_cadeia_sem_gravidade_nao_marca_ruptura(client_loyall, db_session):
     db_session.commit()
     body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
     assert "Cadeia generativa" in body
-    assert "a corrente rompe aqui" not in body  # nada rompe
+    assert "rompe aqui" not in body  # nada rompe
 
 
 def test_cadeia_v2_chip_nome_frase_e_detalhe_agrupado(client_loyall, db_session):
@@ -230,8 +230,8 @@ def test_cadeia_v2_chip_nome_frase_e_detalhe_agrupado(client_loyall, db_session)
 
 
 def test_cadeia_svg_diagrama(client_loyall, db_session):
-    """A cadeia agora é diagrama SVG: <svg>, chips-pílula coloridos (fill-emerald/
-    fill-rose), spine + cascata vermelha nos elos herdeiros, marca da ruptura."""
+    """A cadeia: faixas compactas (chips-pílula bg-emerald/bg-rose) ligadas por seta
+    SVG; cascata = fundo rosado nas herdeiras + seta vermelha do ponto de ruptura."""
     e = _empresa(db_session)
     p = _pesquisa(db_session, e)
     _analise(db_session, p, "P1", "essencia", "gravidade")  # rompe no topo → cascata p/ baixo
@@ -239,12 +239,10 @@ def test_cadeia_svg_diagrama(client_loyall, db_session):
     _analise(db_session, p, "D2", "resultado", "gravidade")
     db_session.commit()
     body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
-    assert "<svg" in body and 'aria-label="Cadeia generativa' in body
-    # chips-pílula por lado
-    assert "fill-rose-100" in body and "fill-emerald-100" in body
-    # chip traz sigla · nome
+    # chips-pílula por lado + sigla·nome
+    assert "bg-rose-100" in body and "bg-emerald-100" in body
     assert "P1 · Calibração da Promessa" in body
-    # cascata: barra lateral + spine vermelhos nos elos herdeiros
-    assert "fill-rose-300" in body and "stroke-rose-400" in body
-    # marca da ruptura
-    assert "◀ a corrente rompe aqui" in body
+    # setas SVG entre faixas; cascata: fundo rosado + seta vermelha
+    assert "<svg" in body and "stroke-rose-400" in body and "bg-rose-50" in body
+    # marca da ruptura dentro da faixa
+    assert "◀ rompe aqui" in body

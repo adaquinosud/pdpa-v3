@@ -94,64 +94,47 @@
   <div class="mt-5">
     <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">
       Cadeia generativa · 🔴 onde rompe · 🟢 onde sustenta</div>
-    {# Diagrama SVG da corrente: 5 faixas empilhadas (Essência→Resultado), spine à
-       esquerda com setas descendo, achados como chips-pílula dentro da faixa
-       (verde=sustenta / vermelho=rompe). O elo da ruptura tem faixa vermelha; a
-       spine e uma barra lateral ficam vermelhas nos elos herdeiros (cascata).
-       Puro SVG, sem lib; largura dos chips estimada por nº de chars. #}
-    {% set BH = 92 %}
-    <svg viewBox="0 0 680 {{ BH * 5 }}" class="w-full h-auto"
-         role="img" aria-label="Cadeia generativa — onde a corrente rompe e onde sustenta"
-         font-family="Inter, ui-sans-serif, system-ui">
-      {% for code, label, glosa in ELOS %}
-      {% set i = loop.index0 %}
-      {% set achados = analises | selectattr('nivel', 'equalto', code) | list %}
-      {% set herda = ruptura_ordem is not none and i > ruptura_ordem %}
-      {% set is_ruptura = ruptura_ordem is not none and i == ruptura_ordem %}
-      {% set vermelho = herda or is_ruptura %}
-      {% set y0 = i * BH %}
-      {% set cy = y0 + BH // 2 %}
-      {# faixa (fundo) — vermelha no elo da ruptura #}
-      <rect x="44" y="{{ y0 }}" width="636" height="{{ BH }}"
-            class="{{ 'fill-rose-50' if is_ruptura else 'fill-transparent' }} stroke-loyall-100"/>
-      {# barra lateral da cascata nos elos herdeiros #}
-      {% if herda %}<rect x="40" y="{{ y0 }}" width="3" height="{{ BH }}" class="fill-rose-300"/>{% endif %}
-      {# spine + seta descendo para o próximo elo (vermelha na cascata) #}
-      {% if not loop.last %}
-      <line x1="22" y1="{{ cy }}" x2="22" y2="{{ cy + BH }}" stroke-width="2"
-            class="{{ 'stroke-rose-400' if vermelho else 'stroke-loyall-300' }}"/>
-      <path d="M 17 {{ cy + BH - 9 }} L 22 {{ cy + BH - 3 }} L 27 {{ cy + BH - 9 }}" fill="none" stroke-width="2"
-            class="{{ 'stroke-rose-400' if vermelho else 'stroke-loyall-300' }}"/>
+    {# Corrente: faixas COMPACTAS (auto-altura, chips centralizados) ligadas por uma
+       seta ↓ direta entre elas. Sem spine. Elo da ruptura e herdeiros com fundo
+       rosado (cascata); a seta fica vermelha do ponto de ruptura pra baixo. Setas
+       são SVG (arrowhead nítido); faixas são HTML (robustas ao conteúdo). #}
+    {% for code, label, glosa in ELOS %}
+    {% set i = loop.index0 %}
+    {% set achados = analises | selectattr('nivel', 'equalto', code) | list %}
+    {% set herda = ruptura_ordem is not none and i > ruptura_ordem %}
+    {% set is_ruptura = ruptura_ordem is not none and i == ruptura_ordem %}
+    {# Só o elo da RUPTURA tem destaque forte (borda rose-400 + fundo). Herdeiros
+       ficam neutros — a herança é sinalizada só pela seta vermelha + "herda". #}
+    <div class="flex items-center gap-3 rounded px-3 py-2
+         {% if is_ruptura %}border-2 border-rose-400 bg-rose-50{% else %}border border-loyall-200{% endif %}
+         {% if not achados %}opacity-50{% endif %}">
+      <div class="shrink-0 w-32 sm:w-40">
+        <div class="font-semibold text-sm text-loyall-800">{{ label }}</div>
+        <div class="text-xs text-loyall-400 leading-tight">{{ glosa }}</div>
+      </div>
+      <div class="flex-1 flex flex-wrap gap-1 items-center">
+        {% for a in achados %}
+        <span class="px-2 py-0.5 rounded-full text-xs {% if a.lado == 'solidez' %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %}">{{ a.subpilar }} · {{ a.nome }}</span>
+        {% else %}
+        <span class="text-xs text-loyall-300">—</span>
+        {% endfor %}
+      </div>
+      {% if is_ruptura %}
+      <div class="shrink-0 w-16 text-xs font-medium text-rose-600 text-right leading-tight">◀ rompe aqui</div>
       {% endif %}
-      {# nó da corrente #}
-      <circle cx="22" cy="{{ cy }}" r="6"
-              class="{{ 'fill-rose-500' if is_ruptura else ('fill-loyall-400' if achados else 'fill-loyall-200') }}"/>
-      {# rótulo + glosa (elo vazio fica apagado) #}
-      <g {% if not achados %}opacity="0.5"{% endif %}>
-        <text x="56" y="{{ y0 + 26 }}" class="fill-loyall-800" font-size="14" font-weight="600">{{ label }}</text>
-        <text x="56" y="{{ y0 + 42 }}" class="fill-loyall-400" font-size="10">{{ glosa }}</text>
-        {% if is_ruptura %}
-        <text x="56" y="{{ y0 + 60 }}" class="fill-rose-500" font-size="10">◀ a corrente rompe aqui — os elos abaixo herdam</text>
-        {% endif %}
-      </g>
-      {# chips-pílula dos achados, com quebra de linha por estimativa de largura #}
-      {% if achados %}
-      {% set ns = namespace(x=230, y=y0 + 16) %}
-      {% for a in achados %}
-      {% set lbl = a.subpilar ~ ' · ' ~ a.nome %}
-      {% set w = (((lbl | length) * 6.4) | int) + 24 %}
-      {% if ns.x + w > 664 %}{% set ns.x = 230 %}{% set ns.y = ns.y + 22 %}{% endif %}
-      <rect x="{{ ns.x }}" y="{{ ns.y }}" width="{{ w }}" height="18" rx="9"
-            class="{{ 'fill-emerald-100' if a.lado == 'solidez' else 'fill-rose-100' }}"/>
-      <text x="{{ ns.x + 12 }}" y="{{ ns.y + 13 }}" font-size="11"
-            class="{{ 'fill-emerald-700' if a.lado == 'solidez' else 'fill-rose-700' }}">{{ lbl }}</text>
-      {% set ns.x = ns.x + w + 6 %}
-      {% endfor %}
-      {% else %}
-      <text x="230" y="{{ y0 + 30 }}" class="fill-loyall-300" font-size="12">—</text>
-      {% endif %}
-      {% endfor %}
-    </svg>
+    </div>
+    {# seta direta pro próximo elo; vermelha + "herda" do ponto de ruptura pra baixo #}
+    {% if not loop.last %}
+    {% set cascata = ruptura_ordem is not none and i >= ruptura_ordem %}
+    <div class="flex justify-center items-center gap-1.5 py-1">
+      <svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke-width="2" aria-hidden="true"
+           class="{{ 'stroke-rose-400' if cascata else 'stroke-loyall-300' }}">
+        <path d="M8 1 V9 M4 6 L8 11 L12 6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      {% if cascata %}<span class="text-[10px] uppercase tracking-wide text-loyall-400">herda</span>{% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
   </div>
 
   {# Detalhe por gap — agrupado por ELO (Essência→Resultado), problemas e forças
