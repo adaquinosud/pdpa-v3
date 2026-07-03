@@ -203,13 +203,19 @@ def gap_confronto(
     Nota (colaborador) e faixa/ratio (cliente) acompanham como cor secundária."""
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
     from src.diagnostico.leituras import agregar_subpilares
+    from src.temas.janela import data_corte
 
     pesq = s.get(Pesquisa, pesquisa_id)
     if pesq is None:
         return None
 
     ag_id, local_id = _escopo_para_agg(escopo)
-    cliente_agg = agregar_subpilares(s, pesq.empresa_id, ag_id=ag_id, local_id=local_id)
+    # Janela do lado cliente: mesma dos temas (data_corte = MAX(data_coleta) − N).
+    # Compara o time de HOJE com o cliente RECENTE; verbatim velho não distorce.
+    corte = data_corte(pesq.empresa_id, s)
+    cliente_agg = agregar_subpilares(
+        s, pesq.empresa_id, ag_id=ag_id, local_id=local_id, desde=corte
+    )
     colab_val, colab_nota = _lado_colaborador(s, pesquisa_id, escopo)
 
     # Escopo da pesquisa: subpilares que o time FOI perguntado (subpilar_alvo != None,

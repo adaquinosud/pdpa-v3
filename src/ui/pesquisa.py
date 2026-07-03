@@ -39,6 +39,14 @@ def _int(v):
         return None
 
 
+def _janela_meses():
+    """Janela do lado cliente do confronto, em meses (p/ rótulo na tela). Deriva
+    do mesmo env dos temas (PDPA_TEMAS_JANELA_DIAS) — janela e valência consistentes."""
+    from src.temas.janela import get_janela_dias
+
+    return round(get_janela_dias() / 30)
+
+
 def _resolver_escopo(s, empresa_id, escopo_tipo, escopo_ids):
     """(escopo_tipo, [ids]) → (local_ids, ag_ids) p/ a agregação multi-alvo (P2.E).
 
@@ -479,6 +487,7 @@ def pesquisa_confronto(pesquisa_id):
             "empresa_id": pesq.empresa_id,
             "titulo": pesq.titulo,
             "temas_indisponiveis": temas_indisponiveis,
+            "janela_meses": _janela_meses(),
         }
     return render_template(
         "pesquisa/confronto.html",
@@ -695,6 +704,7 @@ def pesquisa_quadro(pesquisa_id):
             "faixas": faixas,
             "grao": _quadro_grao(s, pesq),
             "n_resp": ret["total_respondentes"] if ret else 0,
+            "janela_meses": _janela_meses(),
         }
     return render_template("pesquisa/quadro.html", **ctx)
 
@@ -814,5 +824,6 @@ def pesquisa_visoes(pesquisa_id):
             "titulo": pesq.titulo,
             "pilares": pilares,
             "radar": radar,
+            "janela_meses": _janela_meses(),
         }
     return render_template("pesquisa/visoes.html", **ctx)

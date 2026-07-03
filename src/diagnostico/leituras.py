@@ -11,6 +11,7 @@ boas). A ``acao`` alimenta o futuro Plano de Ação (CP-B2).
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -42,6 +43,7 @@ def agregar_subpilares(
     *,
     so_texto: bool = False,
     local_ids: Optional[List[int]] = None,
+    desde: Optional[datetime] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Mix prom/conv/det + ratio + faixa por subpilar, no escopo (empresa,
     agrupamento ou loja). ``local_id`` set ⟹ escopo loja (tem precedência).
@@ -50,8 +52,13 @@ def agregar_subpilares(
     ``so_texto=True`` exclui os verbatins só-símbolo (``tem_texto=False``) —
     diagnóstico "só-texto" p/ comparar contra a versão com-símbolo (auditoria do
     CP distribuicao-simbolos). Default False = comportamento de produção (símbolo
-    distribuído conta como 1 voto pleno)."""
-    from sqlalchemy import func
+    distribuído conta como 1 voto pleno).
+
+    ``desde`` (opcional): janela temporal por ``data_criacao_original >= desde``
+    (verbatins sem data ENTRAM — mesma semântica do ``filtro_janela`` dos temas).
+    Default None = all-time → Explorar/diagnóstico INTACTOS. Só o confronto passa
+    o corte, p/ comparar o time de HOJE com o cliente RECENTE."""
+    from sqlalchemy import func, or_
 
     from src.api.painel import calcular_ratio, faixa_ratio
     from src.models.verbatim import Verbatim
@@ -63,6 +70,10 @@ def agregar_subpilares(
     )
     if so_texto:
         q = q.filter(Verbatim.tem_texto.is_(True))
+    if desde is not None:  # janela do confronto (inclui verbatim sem data)
+        q = q.filter(
+            or_(Verbatim.data_criacao_original >= desde, Verbatim.data_criacao_original.is_(None))
+        )
     # P2.E: escopo multi-alvo = união de locais (1 query IN; o ratio é recomputado
     # dos counts somados, NUNCA somando ratios). Precedência sobre local_id/ag_id.
     if local_ids is not None:
