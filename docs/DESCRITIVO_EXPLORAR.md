@@ -608,6 +608,32 @@ placeholder.)*
 
 ---
 
+## 17. RECLAMEAQUI (casos + painel de reputação)
+
+**Propósito.** A "vitrine" de reclamações da empresa no ReclameAqui, como CASOS
+(sequência viva: queixa → resposta → réplica → avaliação), não verbatins comuns.
+Só a **queixa inicial** entra no diagnóstico (classificação + temas + ratio); a
+conversa e o desfecho vivem aqui. Fonte: `_explorar_casos` (ui) +
+`src/coletor/reclame_aqui.py`.
+
+**Anatomia.**
+*Painel de reputação* (derivado dos NOSSOS casos, não do scorecard oficial da RA):
+- **Casos** (total), **Taxa de resposta** (respondidos ÷ total), **Taxa de
+  resolução** (resolvidos ÷ avaliados), **Causa-raiz resolvida** (a resposta
+  enfrentou a raiz ÷ classificados — o diferencial vs a RA, que só tem "solved"
+  declarado), **Nota média** dos avaliados (0–10).
+- **Desfechos**: distribuição (resolvido / não resolvido / em disputa / respondida
+  s/ avaliação / não respondida / abandonado).
+
+*Lista de casos*: título · data · categoria · nº de interações · nota · desfecho.
+Clique → **timeline** do caso (`/casos/<id>`): a queixa inicial + a thread
+cliente↔empresa (HTML limpo) + status/desfecho/causa-raiz/nota.
+
+**Escopo.** Nível empresa (fonte RA não tem grão de loja). Coleta semanal via
+Apify (upsert; ver docs/CONTRATO_RA_ACTOR.md). Vazio até uma fonte RA ser ativada.
+
+---
+
 ## As 6 Perspectivas (do Plano de Ação)
 
 As 6 frentes de negócio em que toda ação cai. Ações **Estruturais** já nascem com a perspectiva escolhida

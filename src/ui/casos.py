@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from flask import render_template
+from flask import redirect, render_template, url_for
 
 from src.coletor.reclame_aqui_adapter import _strip_html
 from src.ui import _require_loyall_html, loyall_required_ui, ui_bp
@@ -29,45 +29,12 @@ DESFECHO_BADGE = {
 @ui_bp.route("/empresas/<int:empresa_id>/casos")
 @loyall_required_ui
 def casos_lista(empresa_id):
-    """Lista os casos RA da empresa (mais recentes primeiro), com status/desfecho."""
+    """Compat: a lista vive na aba 'ReclameAqui' do Explorar (painel + casos).
+    Redireciona pra lá (mantém links antigos)."""
     r = _require_loyall_html()
     if r:
         return r
-    from src.models.caso import Caso
-    from src.models.empresa import Empresa
-
-    with db_session() as s:
-        emp = s.get(Empresa, empresa_id)
-        if emp is None:
-            return render_template("404.html"), 404
-        casos = (
-            s.query(Caso)
-            .filter(Caso.empresa_id == empresa_id)
-            .order_by(Caso.criado_em_origem.desc().nullslast())
-            .all()
-        )
-        linhas = [
-            {
-                "id": c.id,
-                "titulo": c.titulo or "(sem título)",
-                "status_label": c.status_label,
-                "desfecho": c.desfecho,
-                "score": c.score,
-                "evaluated": c.evaluated,
-                "criado": c.criado_em_origem,
-                "categoria": c.categoria,
-                "interactions_count": c.interactions_count or 0,
-            }
-            for c in casos
-        ]
-        nome = emp.nome
-    return render_template(
-        "casos/lista.html",
-        empresa_id=empresa_id,
-        empresa_nome=nome,
-        casos=linhas,
-        badge_map=DESFECHO_BADGE,
-    )
+    return redirect(url_for("ui.explorar_empresa", empresa_id=empresa_id) + "?tab=casos")
 
 
 @ui_bp.route("/casos/<int:caso_id>")

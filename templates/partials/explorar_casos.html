@@ -1,0 +1,78 @@
+{# Casos ReclameAqui — painel de reputação (derivado dos casos) + lista → timeline. #}
+{% set dmap = {
+  'resolvido':                {'cor':'bg-emerald-100 text-emerald-700','rot':'resolvido'},
+  'nao_resolvido':            {'cor':'bg-rose-100 text-rose-700','rot':'não resolvido'},
+  'respondida_em_disputa':    {'cor':'bg-orange-100 text-orange-700','rot':'em disputa'},
+  'respondida_sem_avaliacao': {'cor':'bg-amber-100 text-amber-800','rot':'respondida s/ avaliação'},
+  'nao_respondida':           {'cor':'bg-rose-100 text-rose-700','rot':'não respondida'},
+  'abandonado':               {'cor':'bg-loyall-100 text-loyall-500','rot':'abandonado'},
+} %}
+{% set p = casos.painel %}
+
+<div class="text-xs uppercase tracking-wider text-loyall-400">ReclameAqui · casos + reputação</div>
+<h3 class="text-lg font-semibold text-loyall-800 mt-0.5">Reputação em casos</h3>
+<p class="text-xs text-loyall-500 mt-1">
+  Cada reclamação como sequência viva. Só a queixa inicial entra no diagnóstico; a
+  conversa e o desfecho vivem aqui.</p>
+
+{% if not casos.tem_dado %}
+<div class="mt-6 text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Nenhum caso coletado. Ative uma fonte ReclameAqui para esta empresa.
+</div>
+{% else %}
+
+{# ── PAINEL DE REPUTAÇÃO ── #}
+<div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+  {% macro metric(rotulo, valor, sufixo='', hint='') %}
+  <div class="border border-loyall-200 rounded-lg px-3 py-2" title="{{ hint }}">
+    <div class="text-xs text-loyall-400">{{ rotulo }}</div>
+    <div class="text-xl font-bold text-loyall-800">{% if valor is none %}—{% else %}{{ valor }}{{ sufixo }}{% endif %}</div>
+  </div>
+  {% endmacro %}
+  {{ metric('Casos', p.total) }}
+  {{ metric('Taxa de resposta', p.taxa_resposta, '%', 'Casos respondidos ÷ total') }}
+  {{ metric('Taxa de resolução', p.taxa_resolucao, '%', 'Resolvidos ÷ avaliados (' ~ p.n_avaliados ~ ')') }}
+  {{ metric('Causa-raiz resolvida', p.taxa_causa, '%', 'Nosso diferencial: a resposta enfrentou a raiz ÷ classificados (' ~ p.n_classificados ~ ')') }}
+</div>
+{% if p.nota_media is not none %}
+<div class="mt-2 text-xs text-loyall-500">Nota média dos avaliados: <strong class="text-loyall-800">★ {{ p.nota_media }}</strong> / 10 ({{ p.n_avaliados }} avaliados)</div>
+{% endif %}
+
+{# Distribuição de desfecho — barra + chips #}
+{% if p.desfechos %}
+<div class="mt-3">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Desfechos</div>
+  <div class="flex flex-wrap gap-1.5">
+    {% for d, n in p.desfechos.items() %}
+    {% set m = dmap.get(d, {'cor':'bg-loyall-100 text-loyall-500','rot':d}) %}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs {{ m.cor }}">{{ m.rot }} · {{ n }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── LISTA DE CASOS ── #}
+<div class="mt-5 text-xs uppercase tracking-wider text-loyall-400">Casos ({{ casos.casos|length }})</div>
+<div class="mt-1 border border-loyall-200 rounded-lg divide-y divide-loyall-100">
+  {% for c in casos.casos %}
+  <a href="{{ url_for('ui.caso_detalhe', caso_id=c.id) }}"
+     class="flex items-center gap-3 px-3 py-2.5 hover:bg-loyall-50">
+    <div class="min-w-0 flex-1">
+      <div class="text-sm font-medium text-loyall-800 truncate">{{ c.titulo }}</div>
+      <div class="text-xs text-loyall-400 mt-0.5">
+        {% if c.criado %}{{ c.criado.strftime('%d/%m/%Y') }} · {% endif %}
+        {% if c.categoria %}{{ c.categoria }} · {% endif %}
+        {{ c.interactions_count }} interaç{{ 'ão' if c.interactions_count == 1 else 'ões' }}</div>
+    </div>
+    <div class="shrink-0 flex items-center gap-2">
+      {% if c.evaluated and c.score is not none %}<span class="text-xs text-loyall-500" title="Nota final (0–10)">★ {{ c.score }}</span>{% endif %}
+      {% if c.status_label %}<span class="text-xs text-loyall-400 hidden sm:inline">{{ c.status_label }}</span>{% endif %}
+      {% if c.desfecho %}{% set m = dmap.get(c.desfecho, {'cor':'bg-loyall-100 text-loyall-500','rot':c.desfecho}) %}
+      <span class="px-2 py-0.5 rounded text-xs {{ m.cor }}">{{ m.rot }}</span>
+      {% else %}<span class="text-loyall-300 text-xs">—</span>{% endif %}
+      <span class="text-loyall-300">›</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}

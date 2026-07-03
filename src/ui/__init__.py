@@ -2812,6 +2812,12 @@ _EXPLORAR_TABS = [
         "grupo": "diagnostico",
         "escopo_aceito": _ESCOPO_FULL,
     },
+    {
+        "id": "casos",
+        "label": "ReclameAqui",
+        "grupo": "diagnostico",
+        "escopo_aceito": [],  # fonte RA é nível-empresa (sem agrupamento/loja)
+    },
     # AÇÃO
     {
         "id": "planos",
@@ -3831,6 +3837,59 @@ def _explorar_quadro(s, empresa_id, ag_id, local_id=None):
     )
 
 
+def _explorar_casos(s, empresa_id):
+    """Casos ReclameAqui da empresa: painel de reputação (derivado dos casos) +
+    a lista. Reputação = distribuição de desfecho + taxas (resposta, resolução,
+    causa-raiz) + nota média — computadas dos NOSSOS casos (o scorecard oficial da
+    RA é evolução futura). Nível empresa (fonte RA não tem grão de loja)."""
+    from collections import Counter
+
+    from src.models.caso import Caso
+
+    casos = (
+        s.query(Caso)
+        .filter(Caso.empresa_id == empresa_id)
+        .order_by(Caso.criado_em_origem.desc().nullslast())
+        .all()
+    )
+    total = len(casos)
+    avaliados = [c for c in casos if c.evaluated]
+    classificados = [c for c in casos if c.desfecho]
+    respondidos = sum(1 for c in casos if (c.interactions_count or 0) > 0)
+    resolvidos = sum(1 for c in avaliados if c.desfecho == "resolvido")
+    causa_ok = sum(1 for c in classificados if c.causa_resolvida)
+    notas = [c.score for c in avaliados if c.score is not None]
+
+    def _pct(num, den):
+        return round(100 * num / den) if den else None
+
+    painel = SimpleNamespace(
+        total=total,
+        desfechos=dict(Counter(c.desfecho for c in casos if c.desfecho)),
+        taxa_resposta=_pct(respondidos, total),
+        taxa_resolucao=_pct(resolvidos, len(avaliados)),
+        taxa_causa=_pct(causa_ok, len(classificados)),
+        nota_media=round(sum(notas) / len(notas), 1) if notas else None,
+        n_avaliados=len(avaliados),
+        n_classificados=len(classificados),
+    )
+    linhas = [
+        {
+            "id": c.id,
+            "titulo": c.titulo or "(sem título)",
+            "status_label": c.status_label,
+            "desfecho": c.desfecho,
+            "score": c.score,
+            "evaluated": c.evaluated,
+            "criado": c.criado_em_origem,
+            "categoria": c.categoria,
+            "interactions_count": c.interactions_count or 0,
+        }
+        for c in casos
+    ]
+    return SimpleNamespace(painel=painel, casos=linhas, tem_dado=total > 0)
+
+
 def _explorar_governanca(s, empresa_id, ag_id=None):
     """Painel de Governança (CP-LG-8, board view). Levas 1-3: cobertura + radar +
     concentração + previsibilidade + ranking + simulação de cenários + projeção
@@ -4258,6 +4317,7 @@ def _explorar_contexto(empresa_id, tab):
             _explorar_diagnostico(s, empresa_id, ag_id, local_id) if tab == "diagnostico" else None
         )
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id) if tab == "quadro" else None
+        casos = _explorar_casos(s, empresa_id) if tab == "casos" else None
         concentracao = (
             _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
         )
@@ -4302,6 +4362,7 @@ def _explorar_contexto(empresa_id, tab):
         "evolucao": evolucao,
         "diagnostico": diagnostico,
         "quadro": quadro,
+        "casos": casos,
         "concentracao": concentracao,
         "governanca": governanca,
         "planos": planos,
