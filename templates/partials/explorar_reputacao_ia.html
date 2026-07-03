@@ -1,0 +1,134 @@
+{# Reputação em IA — snapshot + defasagem + divergência entre modelos + série. #}
+{% set r = reputacao_ia %}
+{% macro val_badge(v) %}
+  {% set cor = {'promotor':'bg-emerald-100 text-emerald-700','conversivel':'bg-amber-100 text-amber-700','detrator':'bg-rose-100 text-rose-700'} %}
+  {% if v %}<span class="px-1.5 py-0.5 rounded text-[10px] {{ cor.get(v,'bg-loyall-100 text-loyall-600') }}">{{ v }}</span>
+  {% else %}<span class="text-loyall-300 text-xs">—</span>{% endif %}
+{% endmacro %}
+{% set dfmap = {
+  'ia_atrasada':       {'cor':'border-rose-300 bg-rose-50','rot':'IA atrasada — o cliente já mostra resolvido'},
+  'ia_exclusiva':      {'cor':'border-amber-300 bg-amber-50','rot':'IA vê o que o diagnóstico não pegou'},
+  'ia_otimista':       {'cor':'border-orange-300 bg-orange-50','rot':'IA vê melhor do que o cliente'},
+  'verbatim_exclusivo':{'cor':'border-loyall-200 bg-white','rot':'o cliente reclama, a IA não ecoa'},
+  'parcial':           {'cor':'border-loyall-200 bg-white','rot':'parcial'},
+  'alinhado':          {'cor':'border-emerald-200 bg-emerald-50','rot':'alinhado'},
+} %}
+
+<div class="text-xs uppercase tracking-wider text-loyall-400">Reputação em IA · a vitrine da empresa nas IAs</div>
+<h3 class="text-lg font-semibold text-loyall-800 mt-0.5">O que as IAs respondem sobre a empresa</h3>
+<p class="text-xs text-loyall-500 mt-1">
+  Sondagem mensal (ChatGPT · Gemini · Claude). Espelho, não voz de cliente — cruzável
+  com o diagnóstico, em tabela própria.</p>
+
+{% if not r.tem_dado %}
+<div class="mt-6 text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Sem sondagem ainda. A sonda roda no dia 1 de cada mês (ou rode <code class="bg-loyall-100 px-1 rounded">scripts/run_sonda_ia.sh</code>).
+</div>
+{% else %}
+{% set snap = r.snapshot %}
+
+{# ── 1. SNAPSHOT ── #}
+<div class="mt-4 inline-block text-xs px-3 py-1 rounded border border-loyall-200 bg-loyall-50 text-loyall-500">
+  Competência <strong>{{ snap.competencia }}</strong> · {{ snap.n_modelos }} modelos × {{ snap.n_reps }} repetições{% if snap.custo is not none %} · US${{ snap.custo }}{% endif %}</div>
+
+{% if snap.identidade_ecoada %}
+<div class="mt-3 rounded border-l-4 border-loyall-400 bg-loyall-50 px-3 py-2">
+  <div class="text-xs uppercase tracking-wider text-loyall-500">Identidade ecoada</div>
+  <p class="text-sm text-loyall-800 mt-0.5">{{ snap.identidade_ecoada }}</p>
+  {% if snap.identidade_vs_essencia %}<p class="text-xs text-loyall-500 mt-1">× essência declarada: {{ snap.identidade_vs_essencia }}</p>{% endif %}
+</div>
+{% endif %}
+
+{% if snap.avaliacao %}
+<div class="mt-3">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Avaliação por subpilar (régua PDPA)</div>
+  <div class="flex flex-wrap gap-1.5">
+    {% for a in snap.avaliacao %}
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-loyall-200 text-xs">
+      <strong class="text-loyall-700">{{ a.subpilar }}</strong> <span class="text-loyall-400">{{ a.nome }}</span> {{ val_badge(a.val) }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if snap.encaminhamentos %}
+<div class="mt-3 text-sm text-loyall-600">
+  <span class="text-xs uppercase tracking-wider text-loyall-400">Pra onde a IA manda um insatisfeito:</span>
+  {% for d in snap.encaminhamentos %}<span class="inline-block px-2 py-0.5 rounded bg-loyall-100 text-loyall-700 text-xs ml-1">{{ d }}</span>{% endfor %}
+</div>
+{% endif %}
+
+{# ── 2. DEFASAGEM ── #}
+{% if r.defasagem %}
+<div class="mt-6">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Defasagem · IA × diagnóstico dos verbatins</div>
+  <div class="space-y-1.5">
+    {% for d in r.defasagem %}
+    {% set m = dfmap.get(d.defasagem, {'cor':'border-loyall-200 bg-white','rot':d.defasagem}) %}
+    <div class="flex items-center gap-3 rounded border px-3 py-2 {{ m.cor }}">
+      <div class="shrink-0 w-28"><strong class="text-sm text-loyall-800">{{ d.subpilar }}</strong> <span class="text-xs text-loyall-400">{{ d.nome }}</span></div>
+      <div class="flex-1 flex items-center gap-2 text-xs">
+        <span class="text-loyall-400">IA</span> {{ val_badge(d.ia_val) }}
+        <span class="text-loyall-300">×</span>
+        <span class="text-loyall-400">cliente</span> {{ val_badge(d.verb_val) }}
+      </div>
+      <div class="shrink-0 text-xs text-loyall-600 text-right">{{ m.rot }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── 3. DIVERGÊNCIA ENTRE MODELOS (matriz) ── #}
+{% if r.divergencia.linhas %}
+<div class="mt-6">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">
+    Divergência entre modelos <span class="normal-case tracking-normal text-loyall-500">· {{ r.divergencia.n_discordam }} subpilar(es) onde os modelos discordam</span></div>
+  {% if r.divergencia.n_discordam == 0 %}
+  <p class="text-xs text-loyall-500 italic">Os modelos concordam em todos os subpilares avaliados.</p>
+  {% else %}
+  <div class="overflow-x-auto border border-loyall-200 rounded-lg">
+    <table class="w-full text-xs">
+      <thead><tr class="bg-loyall-50 text-loyall-500">
+        <th class="text-left px-3 py-1.5 font-medium">Subpilar</th>
+        {% for v in r.divergencia.vendors %}<th class="px-2 py-1.5 font-medium text-center">{{ v }}</th>{% endfor %}
+      </tr></thead>
+      <tbody>
+        {% for row in r.divergencia.linhas %}
+        <tr class="border-t border-loyall-100 {% if row.discordam %}bg-amber-50/50{% endif %}">
+          <td class="px-3 py-1.5"><strong>{{ row.subpilar }}</strong> <span class="text-loyall-400">{{ row.nome }}</span>{% if row.discordam %} <span class="text-amber-600">↔</span>{% endif %}</td>
+          {% for v in r.divergencia.vendors %}<td class="px-2 py-1.5 text-center">{{ val_badge(row.por_vendor.get(v)) }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── 4. SÉRIE TEMPORAL (% alinhado) ── #}
+{% if r.serie|length > 1 %}
+<div class="mt-6">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Tendência · % de subpilares alinhados (IA ↔ diagnóstico)</div>
+  <div style="max-width:520px;height:220px"><canvas id="serie-ia"></canvas></div>
+  <script>
+    (function () {
+      var el = document.getElementById('serie-ia');
+      if (!el || typeof Chart === 'undefined') return;
+      new Chart(el, {
+        type: 'line',
+        data: {
+          labels: {{ r.serie | map(attribute='competencia') | list | tojson }},
+          datasets: [{label: '% alinhado', data: {{ r.serie | map(attribute='pct') | list | tojson }},
+                      borderColor: '#395672', backgroundColor: 'rgba(57,86,114,0.12)', tension: 0.3, fill: true}]
+        },
+        options: {responsive: true, maintainAspectRatio: false,
+                  scales: {y: {min: 0, max: 100, ticks: {callback: function (v) { return v + '%'; }}}},
+                  plugins: {legend: {display: false}}}
+      });
+    })();
+  </script>
+</div>
+{% endif %}
+{% endif %}

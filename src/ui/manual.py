@@ -76,6 +76,7 @@ _TAB_SLUG_OVERRIDE = {
     "planos": "plano-de-acao",
     "quadro": "quadro-dos-pilares",
     "casos": "reclameaqui",
+    "reputacao_ia": "reputacao-em-ia",
 }
 
 

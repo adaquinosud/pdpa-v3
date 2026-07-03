@@ -2818,6 +2818,12 @@ _EXPLORAR_TABS = [
         "grupo": "diagnostico",
         "escopo_aceito": [],  # fonte RA é nível-empresa (sem agrupamento/loja)
     },
+    {
+        "id": "reputacao_ia",
+        "label": "Reputação IA",
+        "grupo": "diagnostico",
+        "escopo_aceito": [],  # sonda é nível-empresa
+    },
     # AÇÃO
     {
         "id": "planos",
@@ -3840,6 +3846,132 @@ def _explorar_quadro(s, empresa_id, ag_id, local_id=None):
 _CASOS_PERIODO_DIAS = {"1m": 30, "3m": 90, "6m": 180, "12m": 365}
 
 
+_DEFASAGEM_ORDEM = {
+    "ia_atrasada": 0,
+    "ia_exclusiva": 1,
+    "ia_otimista": 2,
+    "verbatim_exclusivo": 3,
+    "parcial": 4,
+    "alinhado": 5,
+}
+
+
+def _explorar_reputacao_ia(s, empresa_id):
+    """Reputação em IA (frente IA · G6): última execução mensal → snapshot
+    (identidade × ORIGEM, avaliação por subpilar, encaminhamentos), defasagem
+    (IA × diagnóstico), divergência entre modelos (matriz subpilar×vendor), e a
+    série temporal (% alinhado por competência). Lê só as tabelas sonda_ia_* +
+    o defasagem_json já computado — não toca a base do cliente."""
+    import json as _json
+    from collections import Counter
+
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+    from src.models.sonda_ia import (
+        SondaIAAvaliacao,
+        SondaIAExecucao,
+        SondaIALeitura,
+        SondaIAResposta,
+    )
+    from src.pesquisa.confronto import _dominante
+
+    execucao = (
+        s.query(SondaIAExecucao)
+        .filter(SondaIAExecucao.empresa_id == empresa_id, SondaIAExecucao.status == "concluida")
+        .order_by(SondaIAExecucao.competencia.desc())
+        .first()
+    )
+    # Série (% alinhado por competência) — de TODAS as leituras com defasagem.
+    serie = []
+    for comp, dj in (
+        s.query(SondaIALeitura.competencia, SondaIALeitura.defasagem_json)
+        .filter(SondaIALeitura.empresa_id == empresa_id)
+        .order_by(SondaIALeitura.competencia)
+        .all()
+    ):
+        linhas = _json.loads(dj) if dj else []
+        if linhas:
+            n_al = sum(1 for x in linhas if x.get("defasagem") == "alinhado")
+            serie.append({"competencia": comp, "pct": round(100 * n_al / len(linhas))})
+
+    if execucao is None:
+        return SimpleNamespace(tem_dado=False, serie=serie)
+
+    leitura = s.query(SondaIALeitura).filter_by(execucao_id=execucao.id).first()
+
+    # Pontos classificados (subpilar, valência, vendor) da execução.
+    rows = (
+        s.query(SondaIAAvaliacao.subpilar, SondaIAAvaliacao.tipo, SondaIAResposta.vendor)
+        .join(SondaIAResposta, SondaIAResposta.id == SondaIAAvaliacao.resposta_id)
+        .filter(SondaIAResposta.execucao_id == execucao.id)
+        .all()
+    )
+    por_sub = {}  # subpilar -> Counter(tipo)  (snapshot)
+    por_sub_vendor = {}  # (subpilar, vendor) -> Counter(tipo)  (divergência)
+    vendors = []
+    for sub, tipo, vendor in rows:
+        por_sub.setdefault(sub, Counter())[tipo] += 1
+        por_sub_vendor.setdefault((sub, vendor), Counter())[tipo] += 1
+        if vendor not in vendors:
+            vendors.append(vendor)
+    vendors = [v for v in ("claude", "gpt", "gemini") if v in vendors] or vendors
+
+    avaliacao = [
+        {
+            "subpilar": sub,
+            "nome": NOME_SUBPILAR.get(sub, sub),
+            "val": _dominante(dict(por_sub[sub])),
+        }
+        for sub in SUBPILARES_ORDEM
+        if sub in por_sub
+    ]
+    # Matriz de divergência: subpilar × vendor → valência; discordam se >1 valência.
+    div_linhas = []
+    for sub in SUBPILARES_ORDEM:
+        if sub not in por_sub:
+            continue
+        por_vendor = {
+            v: _dominante(dict(por_sub_vendor[(sub, v)])) if (sub, v) in por_sub_vendor else None
+            for v in vendors
+        }
+        vals = {x for x in por_vendor.values() if x}
+        div_linhas.append(
+            {
+                "subpilar": sub,
+                "nome": NOME_SUBPILAR.get(sub, sub),
+                "por_vendor": por_vendor,
+                "discordam": len(vals) > 1,
+            }
+        )
+    n_discordam = sum(1 for x in div_linhas if x["discordam"])
+
+    defasagem = sorted(
+        (_json.loads(leitura.defasagem_json) if (leitura and leitura.defasagem_json) else []),
+        key=lambda x: _DEFASAGEM_ORDEM.get(x.get("defasagem"), 9),
+    )
+    encaminhamentos = (
+        _json.loads(leitura.encaminhamentos_json)
+        if (leitura and leitura.encaminhamentos_json)
+        else []
+    )
+    snapshot = SimpleNamespace(
+        competencia=execucao.competencia,
+        n_reps=execucao.repeticoes,
+        n_modelos=len(vendors),
+        custo=execucao.custo_usd,
+        identidade_ecoada=(leitura.identidade_ecoada if leitura else None),
+        identidade_vs_essencia=(leitura.identidade_vs_essencia if leitura else None),
+        encaminhamentos=encaminhamentos,
+        avaliacao=avaliacao,
+    )
+    return SimpleNamespace(
+        tem_dado=True,
+        snapshot=snapshot,
+        defasagem=defasagem,
+        divergencia=SimpleNamespace(vendors=vendors, linhas=div_linhas, n_discordam=n_discordam),
+        serie=serie,
+    )
+
+
 def _explorar_casos(s, empresa_id, filtros=None):
     """Casos ReclameAqui da empresa: painel de reputação (derivado dos casos) +
     a lista FILTRÁVEL. Reputação = distribuição de desfecho + taxas (resposta,
@@ -4378,6 +4510,7 @@ def _explorar_contexto(empresa_id, tab):
                     "q": request.args.get("q"),
                 },
             )
+        reputacao_ia = _explorar_reputacao_ia(s, empresa_id) if tab == "reputacao_ia" else None
         concentracao = (
             _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
         )
@@ -4423,6 +4556,7 @@ def _explorar_contexto(empresa_id, tab):
         "diagnostico": diagnostico,
         "quadro": quadro,
         "casos": casos,
+        "reputacao_ia": reputacao_ia,
         "concentracao": concentracao,
         "governanca": governanca,
         "planos": planos,

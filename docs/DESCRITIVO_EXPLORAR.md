@@ -634,6 +634,34 @@ Apify (upsert; ver docs/CONTRATO_RA_ACTOR.md). Vazio até uma fonte RA ser ativa
 
 ---
 
+## 18. REPUTAÇÃO EM IA (sondagem das IAs)
+
+**Propósito.** A "vitrine" da empresa nas IAs generativas: o que ChatGPT, Gemini e
+Claude respondem sobre ela. 45% dos consumidores já pedem recomendação a IAs — essa
+vitrine é invisível e dinâmica, e o PDPA passa a sondá-la (mensal). Espelho, NÃO voz
+de cliente: tabelas próprias (`sonda_ia_*`), cruzáveis com o diagnóstico mas
+separadas. Fonte: `_explorar_reputacao_ia` (ui) + `src/sonda_ia/`.
+
+**Anatomia.**
+*Snapshot* (última competência): identidade ecoada (como as IAs descrevem a empresa)
+× a essência declarada (ORIGEM); avaliação por subpilar na régua PDPA (comparável ao
+diagnóstico); encaminhamentos (pra onde a IA manda um insatisfeito).
+
+*Defasagem* (o sinal-chave): por subpilar, valência-IA × valência-verbatim →
+**`ia_atrasada`** (a IA ecoa um problema que o cliente já mostra resolvido),
+**`ia_exclusiva`** (a IA vê o que o diagnóstico não pegou), `ia_otimista`,
+`verbatim_exclusivo`, `alinhado`.
+
+*Divergência entre modelos*: matriz subpilar × modelo (a divergência é sinal — os
+modelos discordam bastante). *Série temporal*: % de subpilares alinhados (IA ↔
+diagnóstico) por competência.
+
+**Operação.** Cron mensal (`run_sonda_ia.sh`, dia 1). N repetições por
+pergunta/modelo (respostas variam — agregadas). ~US$0,55/empresa. Vazio até a 1ª
+sondagem.
+
+---
+
 ## As 6 Perspectivas (do Plano de Ação)
 
 As 6 frentes de negócio em que toda ação cai. Ações **Estruturais** já nascem com a perspectiva escolhida
