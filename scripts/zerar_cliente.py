@@ -99,6 +99,8 @@ PLANO: list[tuple[str, str, str]] = [
     ("síntese ORIGEM", "origem_sintese", _FILHO_PESQUISAS),
     ("pesquisas", "pesquisas", _DIRETO),
     ("verbatins", "verbatins", _DIRETO),
+    # casos RA depois de verbatins: verbatins.caso_id → casos (filho antes do pai).
+    ("casos ReclameAqui", "casos", _DIRETO),
 ]
 
 # Estrutura que DEVE permanecer (não entra no PLANO de deleção).

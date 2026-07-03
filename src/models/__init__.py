@@ -13,6 +13,7 @@ from src.models.anomalia import (
     TemaSnapshot,
 )
 from src.models.base import Base
+from src.models.caso import Caso
 from src.models.chat_cache import ChatCache
 from src.models.classificacao_batch import ClassificacaoBatch
 from src.models.classifier_metric import ClassifierMetric
@@ -57,6 +58,7 @@ __all__ = [
     "RatioMensal",
     "TemaSnapshot",
     "Base",
+    "Caso",
     "ChatCache",
     "ClassificacaoBatch",
     "ClassifierMetric",

@@ -32,10 +32,12 @@ def test_plano_nao_toca_estrutura():
 
 
 def test_plano_ordem_fk_safe():
-    """Filhos antes dos pais: verbatins por último; temas depois dos seus filhos."""
+    """Filhos antes dos pais: casos por último (verbatins, seu filho via caso_id,
+    sai antes); temas depois dos seus filhos."""
     ordem = [t for _, t, _ in zc.PLANO]
-    # verbatins é o ÚLTIMO (seus filhos via subquery saem antes)
-    assert ordem[-1] == "verbatins"
+    # casos é o ÚLTIMO: verbatins.caso_id → casos, então verbatins (filho) sai antes
+    assert ordem[-1] == "casos"
+    assert ordem.index("verbatins") < ordem.index("casos")
     # filhos de verbatins vêm antes de verbatins
     for filho in ("verbatim_embeddings", "verbatins_reclassificacoes", "verbatim_temas"):
         assert ordem.index(filho) < ordem.index("verbatins")

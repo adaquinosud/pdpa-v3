@@ -60,6 +60,7 @@ class Verbatim(Base):
         Index("idx_verbatins_data", "data_criacao_original"),
         Index("idx_verbatins_classif", "subpilar", "tipo"),
         Index("idx_verbatins_pessoa", "pessoa_id"),
+        Index("idx_verbatins_caso", "caso_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -75,6 +76,11 @@ class Verbatim(Base):
     # pipeline); pessoa_id NUNCA substitui autor. SET NULL: apagar a Pessoa não
     # apaga o verbatim.
     pessoa_id: Mapped[Optional[int]] = mapped_column(ForeignKey("pessoa.id", ondelete="SET NULL"))
+    # Caso (frente ReclameAqui): ADITIVO, nasce NULL. A `description` inicial de
+    # uma reclamação RA aponta pro seu Caso — é o ÚNICO verbatim de valência por
+    # caso (respostas/réplicas vivem em Caso.thread_json, não viram verbatim).
+    # SET NULL: apagar o Caso não apaga o verbatim. Ver src/models/caso.py.
+    caso_id: Mapped[Optional[int]] = mapped_column(ForeignKey("casos.id", ondelete="SET NULL"))
     texto: Mapped[str] = mapped_column(Text, nullable=False)
     autor: Mapped[Optional[str]] = mapped_column(String)
     data_criacao_original: Mapped[Optional[datetime]] = mapped_column(DateTime)
