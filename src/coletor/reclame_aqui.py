@@ -43,11 +43,15 @@ def _data_corte() -> date:
 
 
 def _empresa_param(url: str) -> str:
-    """Extrai o slug RA da URL da fonte (o actor aceita slug/URL/nome). Sem
-    barra → assume que já é slug/nome."""
+    """Extrai o slug RA da URL da fonte (o actor aceita slug/URL/nome). Aceita
+    ``/empresa/<slug>/`` (a URL do perfil da empresa) E ``/<slug>/...`` — o bug
+    do 'empresa' que trouxe a Sebracom. Sem barra → assume que já é slug/nome."""
     u = (url or "").strip().rstrip("/")
     if "reclameaqui.com.br/" in u:
-        return u.split("reclameaqui.com.br/", 1)[1].split("/", 1)[0] or u
+        segs = [s for s in u.split("reclameaqui.com.br/", 1)[1].split("/") if s]
+        if segs and segs[0] == "empresa":
+            segs = segs[1:]  # pula o segmento /empresa/; o slug é o próximo
+        return segs[0] if segs else u
     return u
 
 

@@ -196,6 +196,18 @@ def test_coletar_falha_apify(db_session, monkeypatch):
     assert stats["falhou_apify"] is True and stats["casos_novos"] == 0
 
 
+def test_empresa_param_aceita_ambas_urls():
+    """O slug sai certo de /empresa/<slug>/ (perfil) E de /<slug>/... (o bug que
+    trouxe a Sebracom via 'empresa')."""
+    from src.coletor.reclame_aqui import _empresa_param
+
+    assert _empresa_param("https://www.reclameaqui.com.br/empresa/club-med/") == "club-med"
+    assert _empresa_param("https://www.reclameaqui.com.br/club-med/") == "club-med"
+    assert _empresa_param("https://www.reclameaqui.com.br/empresa/club-med") == "club-med"
+    assert _empresa_param("https://www.reclameaqui.com.br/club-med/reclamacao_X_id/") == "club-med"
+    assert _empresa_param("club-med") == "club-med"
+
+
 def test_corte_15_meses_datefrom_e_guarda(db_session, monkeypatch):
     """Passa dateFrom (corte server-side) e a guarda pula reclamação anterior ao corte."""
     e, f = _empresa_fonte(db_session)
