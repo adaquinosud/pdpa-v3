@@ -185,3 +185,21 @@ def test_processar_sonda_roda_as_duas_etapas(db_session):
     db_session.expire_all()
     assert db_session.query(SondaIAAvaliacao).filter_by(empresa_id=e.id).count() == 1
     assert db_session.query(SondaIALeitura).filter_by(execucao_id=x.id).count() == 1
+
+
+def test_processar_sonda_soma_custo_sonnet(db_session):
+    """O custo da classificação+síntese (Sonnet) entra no custo_usd da execução —
+    senão o cabeçalho da aba subestima o custo real da competência."""
+    e, x = _setup(db_session)
+    x.custo_usd = 0.0736  # custo só da sonda (3 vendors), como grava sondar_empresa
+    _resp(db_session, e, x, "avaliacao", "fortes e fracos")
+    _resp(db_session, e, x, "identidade", "é uma rede")
+    db_session.commit()
+    cl.processar_sonda(x.id, gerar_avaliacao=_FAKE_AVAL, gerar_leitura=_FAKE_LEITURA)
+    esperado = round(0.0736 + cl._custo_sonnet(100 + 200, 50 + 80), 4)  # aval + leitura
+    db_session.expire_all()
+    assert db_session.get(SondaIAExecucao, x.id).custo_usd == esperado
+    # idempotente: 2ª passada pula tudo (0 tokens) → custo não infla
+    cl.processar_sonda(x.id, gerar_avaliacao=_FAKE_AVAL, gerar_leitura=_FAKE_LEITURA)
+    db_session.expire_all()
+    assert db_session.get(SondaIAExecucao, x.id).custo_usd == esperado

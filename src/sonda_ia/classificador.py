@@ -216,15 +216,35 @@ def sintetizar_leitura(execucao_id: int, *, gerar_fn: Optional[Callable] = None)
         }
 
 
+def _custo_sonnet(tokens_in: int, tokens_out: int) -> float:
+    """USD do Sonnet 4.6 (mesma tabela do editorial): $3/Mtok in, $15/Mtok out."""
+    return tokens_in / 1e6 * 3 + tokens_out / 1e6 * 15
+
+
 def processar_sonda(
     execucao_id: int, *, gerar_avaliacao=None, gerar_leitura=None
 ) -> Dict[str, Any]:
     """G3+G4 de UMA execução: classifica avaliações → sintetiza a leitura →
     cruza a defasagem (IA × diagnóstico). A defasagem roda por ÚLTIMO (usa as
-    avaliações já classificadas) e é determinística ($0)."""
+    avaliações já classificadas) e é determinística ($0).
+
+    Soma o custo Sonnet incorrido (classificação + síntese) ao ``custo_usd`` da
+    execução — ``sondar_empresa`` só grava o custo da SONDA (os 3 vendors), então
+    sem isto o cabeçalho da aba subestima o custo real da competência. Idempotente:
+    as duas etapas pulam trabalho já feito (respostas já classificadas / leitura já
+    existente) → 0 tokens → 0 a somar num re-run."""
     from src.sonda_ia.defasagem import cruzar_defasagem
 
     av = classificar_avaliacoes(execucao_id, gerar_fn=gerar_avaliacao)
     lt = sintetizar_leitura(execucao_id, gerar_fn=gerar_leitura)
     df = cruzar_defasagem(execucao_id)
+
+    incorrido = _custo_sonnet(
+        av.get("in", 0) + lt.get("in", 0), av.get("out", 0) + lt.get("out", 0)
+    )
+    if incorrido:
+        with db_session() as s:
+            ex = s.get(SondaIAExecucao, execucao_id)
+            if ex is not None:
+                ex.custo_usd = round((ex.custo_usd or 0.0) + incorrido, 4)
     return {"avaliacoes": av, "leitura": lt, "defasagem": df["resumo"]}
