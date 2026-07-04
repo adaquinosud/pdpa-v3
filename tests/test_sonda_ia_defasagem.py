@@ -5,6 +5,7 @@ determinístico ($0). Cobre as 4 categorias-chave e a persistência no defasagem
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 
 from src.models.empresa import Empresa
 from src.models.fonte import Fonte
@@ -94,6 +95,31 @@ def test_quatro_categorias(db_session):
     assert d["D1"] == "verbatim_exclusivo"
     assert d["Pa1"] == "alinhado"
     assert res["resumo"]["ia_atrasada"] == 1
+
+
+def test_defasagem_usa_janela_recente(db_session):
+    """O lado verbatim usa a JANELA (~180d), não all-time: um problema ANTIGO já
+    resolvido não conta → IA que ainda o ecoa vira ia_exclusiva (all-time daria
+    'alinhado' e mascararia a defasagem)."""
+    e, f, x, r = _setup(db_session)
+    _ia(db_session, e, r, "D2", "detrator")
+    # verbatim ANTIGO (queixa de 2 anos atrás), coleta recente → fora da janela
+    _k[0] += 1
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            texto="x",
+            subpilar="D2",
+            tipo="detrator",
+            hash_dedup=f"h{_k[0]}",
+            data_criacao_original=datetime.utcnow() - timedelta(days=730),
+            data_coleta=datetime.utcnow(),
+        )
+    )
+    db_session.commit()
+    d = _por_sub(cruzar_defasagem(x.id))
+    assert d["D2"] == "ia_exclusiva"  # janela exclui o antigo → cliente sem sinal recente
 
 
 def test_persiste_na_leitura(db_session):

@@ -51,6 +51,7 @@ def cruzar_defasagem(execucao_id: int) -> Dict[str, Any]:
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
     from src.diagnostico.leituras import agregar_subpilares
     from src.pesquisa.confronto import _dominante
+    from src.temas.janela import data_corte
 
     with db_session() as s:
         execucao = s.get(SondaIAExecucao, execucao_id)
@@ -69,8 +70,11 @@ def cruzar_defasagem(execucao_id: int) -> Dict[str, Any]:
         for sub, tipo in rows:
             ia_counts.setdefault(sub, Counter())[tipo] += 1
 
-        # Lado verbatim: o diagnóstico all-time (retrato de estado).
-        verb = agregar_subpilares(s, empresa_id)
+        # Lado verbatim: a JANELA RECENTE (mesmo corte dos temas/confronto, ~180d),
+        # não all-time. Pra "a IA ecoa problema que o cliente já resolveu", o certo é
+        # o retrato RECENTE — um problema antigo já resolvido não pode mascarar a
+        # defasagem como 'alinhado'. (verbatim sem data ENTRA — mesma semântica.)
+        verb = agregar_subpilares(s, empresa_id, desde=data_corte(empresa_id, s))
 
         linhas = []
         for sub in SUBPILARES_ORDEM:
