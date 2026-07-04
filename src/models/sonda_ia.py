@@ -166,6 +166,8 @@ class SondaIALeitura(Base):
     identidade_vs_essencia: Mapped[Optional[str]] = mapped_column(Text)  # × ORIGEM
     encaminhamentos_json: Mapped[Optional[str]] = mapped_column(Text)  # sonda 3 (destinos)
     defasagem_json: Mapped[Optional[str]] = mapped_column(Text)  # sonda 4 (× diagnóstico)
+    # resumo por modelo: vendor → 1–2 frases do que aquela IA diz da empresa (G3).
+    resumo_modelos_json: Mapped[Optional[str]] = mapped_column(Text)
     gerado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self) -> str:

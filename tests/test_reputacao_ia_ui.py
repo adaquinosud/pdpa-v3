@@ -76,6 +76,7 @@ def _setup(db_session):
             identidade_vs_essencia="bate com a essência",
             encaminhamentos_json=json.dumps(["Concorrente A"]),
             defasagem_json=json.dumps(df),
+            resumo_modelos_json=json.dumps({"claude": "elogia estrutura", "gpt": "critica pico"}),
         )
     )
     # execução/leitura anterior (p/ a série ter 2 pontos)
@@ -107,6 +108,8 @@ def test_builder_snapshot_defasagem_divergencia_serie(db_session):
     d2 = next(a for a in r.snapshot.avaliacao if a["subpilar"] == "D2")
     assert d2["val"] == "detrator"
     assert r.snapshot.encaminhamentos == ["Concorrente A"]
+    # resumo por modelo (ajuste #2)
+    assert {rm["vendor"] for rm in r.snapshot.resumo_modelos} == {"claude", "gpt"}
     # defasagem ordenada: ia_atrasada primeiro
     assert r.defasagem[0]["defasagem"] == "ia_atrasada" and r.defasagem[0]["subpilar"] == "D2"
     # divergência: só D2 discorda (gemini promotor vs claude/gpt detrator)
@@ -132,6 +135,8 @@ def test_aba_renderiza(client_loyall, db_session):
     body = client_loyall.get(f"/empresas/{e.id}/explorar?tab=reputacao_ia").get_data(as_text=True)
     assert "O que as IAs respondem" in body
     assert "Rede de resorts all-inclusive." in body  # identidade ecoada
+    assert "Como as IAs avaliam" in body  # rótulo ajustado (#1)
+    assert "O que cada IA diz" in body and "elogia estrutura" in body  # resumo por modelo (#2)
     assert "IA atrasada" in body  # defasagem
     assert "Divergência entre modelos" in body and "discordam" in body
     assert "% alinhado" in body  # série (2 pontos)

@@ -118,20 +118,25 @@ def sintetizar_leitura(execucao_id: int, *, gerar_fn: Optional[Callable] = None)
         if s.query(SondaIALeitura).filter_by(execucao_id=execucao_id).first() is not None:
             return {"pulado": True, "motivo": "já sintetizada"}
 
+        respostas = [
+            r
+            for r in s.query(SondaIAResposta).filter_by(execucao_id=execucao_id)
+            if (r.resposta_texto or "").strip()
+        ]
+
         def _textos(tipo):
-            return [
-                r.resposta_texto
-                for r in s.query(SondaIAResposta).filter_by(
-                    execucao_id=execucao_id, pergunta_tipo=tipo
-                )
-                if (r.resposta_texto or "").strip()
-            ]
+            return [r.resposta_texto for r in respostas if r.pergunta_tipo == tipo]
+
+        por_modelo = {}  # vendor → todas as respostas do modelo (p/ o resumo por IA)
+        for r in respostas:
+            por_modelo.setdefault(r.vendor, []).append(r.resposta_texto)
 
         data = gerar(
             {
                 "identidade": _textos("identidade"),
                 "encaminhamento": _textos("encaminhamento"),
                 "essencia": _essencia(s, execucao.empresa_id),
+                "por_modelo": por_modelo,
             }
         )
         s.add(
@@ -143,6 +148,9 @@ def sintetizar_leitura(execucao_id: int, *, gerar_fn: Optional[Callable] = None)
                 identidade_vs_essencia=data.get("identidade_vs_essencia"),
                 encaminhamentos_json=json.dumps(
                     data.get("encaminhamentos") or [], ensure_ascii=False
+                ),
+                resumo_modelos_json=json.dumps(
+                    data.get("resumo_por_modelo") or {}, ensure_ascii=False
                 ),
             )
         )

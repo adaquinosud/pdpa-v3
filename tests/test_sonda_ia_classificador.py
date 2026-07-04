@@ -60,6 +60,7 @@ _FAKE_LEITURA = lambda payload: {  # noqa: E731
     "identidade_ecoada": "As IAs veem a empresa como líder de resorts.",
     "identidade_vs_essencia": "Bate com a essência declarada.",
     "encaminhamentos": ["Concorrente A", "Concorrente B"],
+    "resumo_por_modelo": {"claude": "elogia a estrutura, critica o pico."},
     "_in": 200,
     "_out": 80,
 }
@@ -113,6 +114,7 @@ def test_sintetizar_leitura_cria_e_idempotente(db_session):
     lt = db_session.query(SondaIALeitura).filter_by(execucao_id=x.id).one()
     assert "líder de resorts" in lt.identidade_ecoada
     assert json.loads(lt.encaminhamentos_json) == ["Concorrente A", "Concorrente B"]
+    assert json.loads(lt.resumo_modelos_json) == {"claude": "elogia a estrutura, critica o pico."}
     # 2ª vez → pula (1 leitura por execução)
     r2 = cl.sintetizar_leitura(x.id, gerar_fn=_FAKE_LEITURA)
     assert r2["pulado"] is True

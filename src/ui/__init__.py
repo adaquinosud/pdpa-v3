@@ -3953,6 +3953,11 @@ def _explorar_reputacao_ia(s, empresa_id):
         if (leitura and leitura.encaminhamentos_json)
         else []
     )
+    resumo_modelos = (
+        _json.loads(leitura.resumo_modelos_json)
+        if (leitura and leitura.resumo_modelos_json)
+        else {}
+    )
     snapshot = SimpleNamespace(
         competencia=execucao.competencia,
         n_reps=execucao.repeticoes,
@@ -3962,6 +3967,7 @@ def _explorar_reputacao_ia(s, empresa_id):
         identidade_vs_essencia=(leitura.identidade_vs_essencia if leitura else None),
         encaminhamentos=encaminhamentos,
         avaliacao=avaliacao,
+        resumo_modelos=[{"vendor": v, "texto": t} for v, t in resumo_modelos.items()],
     )
     return SimpleNamespace(
         tem_dado=True,
