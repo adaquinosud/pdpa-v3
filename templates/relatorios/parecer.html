@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Parecer Loyall — {{ d.empresa_nome }}</title>
+<style>
+  /* ── Identidade Loyall (paleta dos slides, recuperada) ───────────────────── */
+  :root{
+    --creme:#F6F1E7; --creme2:#EFE7D4; --marrom:#3E2E24; --marrom2:#5A4636;
+    --ouro:#B0894F; --ouro2:#CDB182;
+    --crit:#8B2020; --aten:#7A5820; --bom:#2E5C24; --exc:#0E4840;
+  }
+  @page{ size:A4; margin:18mm 16mm; background:var(--creme); }
+  @page:first{ margin:0; }
+  *{ box-sizing:border-box; }
+  body{
+    font-family:Georgia,"Liberation Serif","Times New Roman",serif;
+    color:var(--marrom); background:var(--creme);
+    font-size:10.5pt; line-height:1.5; margin:0;
+  }
+  h1,h2,h3{ font-family:Georgia,"Liberation Serif",serif; color:var(--marrom); line-height:1.15; margin:0; }
+  .serif-italic{ font-style:italic; color:var(--marrom2); }
+  .muted{ color:var(--marrom2); }
+  .gold{ color:var(--ouro); }
+
+  /* Capa — folha inteira */
+  .capa{ background:var(--creme); height:100vh; padding:34mm 24mm; page-break-after:always; }
+  .capa-eyebrow{ letter-spacing:.28em; text-transform:uppercase; font-size:9pt; color:var(--ouro); }
+  .capa-rule{ width:64px; height:3px; background:var(--ouro); margin:14mm 0 8mm; }
+  .capa-titulo{ font-size:34pt; color:var(--marrom); }
+  .capa-empresa{ font-size:18pt; color:var(--marrom2); margin-top:6mm; font-style:italic; }
+  .capa-meta{ position:running(capa); }
+  .capa-foot{ margin-top:40mm; font-size:8.5pt; color:var(--marrom2); border-top:1px solid var(--ouro2); padding-top:4mm; }
+
+  /* Atos */
+  .ato{ page-break-before:always; }
+  .ato-num{ font-size:9pt; letter-spacing:.24em; text-transform:uppercase; color:var(--ouro); }
+  .ato-titulo{ font-size:20pt; margin-top:2mm; }
+  .ato-frase{ font-style:italic; color:var(--marrom2); margin-top:2mm; font-size:11pt; }
+  .ato-rule{ width:100%; height:1px; background:var(--ouro2); margin:6mm 0; }
+
+  .bloco-label{ font-size:8.5pt; letter-spacing:.14em; text-transform:uppercase; color:var(--marrom2); margin:5mm 0 2mm; }
+  .card{ background:var(--creme2); border:1px solid var(--ouro2); border-radius:2px; padding:4mm 5mm; margin-bottom:3mm; }
+  .card h3{ font-size:11pt; }
+  .card p{ margin:1.5mm 0 0; }
+  .faixa{ border:1px solid var(--ouro2); background:var(--creme); padding:4mm 5mm; border-left:4px solid var(--ouro); }
+  .grid2{ width:100%; border-collapse:separate; border-spacing:3mm 0; }
+  .grid2 td{ width:50%; vertical-align:top; }
+  .sem-dado{ color:var(--marrom2); font-style:italic; font-size:9.5pt; }
+
+  /* Evidência RA — números-choque */
+  .kpis{ width:100%; border-collapse:collapse; margin:3mm 0; }
+  .kpis td{ text-align:center; padding:3mm; border:1px solid var(--ouro2); background:var(--creme2); }
+  .kpi-num{ font-size:22pt; color:var(--marrom); }
+  .kpi-lab{ font-size:8pt; text-transform:uppercase; letter-spacing:.1em; color:var(--marrom2); }
+  .conc-item{ margin:2mm 0; }
+  .conc-pct{ font-size:14pt; color:var(--crit); }
+
+  /* Quadro topo/base */
+  .quadro-faixa{ border:1px solid var(--ouro2); background:var(--creme); padding:4mm; margin-bottom:4mm; }
+  .quadro-eyebrow{ font-size:8.5pt; letter-spacing:.18em; text-transform:uppercase; color:var(--ouro); }
+  .quadro-frase{ font-style:italic; color:var(--marrom2); font-size:9.5pt; margin:1mm 0 3mm; }
+  .subcell{ display:inline-block; width:31%; vertical-align:top; margin:1mm 1%; padding:2.5mm; border:1px solid var(--ouro2); background:var(--creme2); border-radius:2px; }
+  .subcell .sub-nome{ font-size:9.5pt; }
+  .sub-meta{ font-size:8pt; color:var(--marrom2); }
+  .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .f-critico{ background:var(--crit); } .f-atencao{ background:var(--aten); }
+  .f-bom{ background:var(--bom); } .f-excelente{ background:var(--exc); } .f-none{ background:var(--ouro2); }
+
+  .footer{ position:fixed; bottom:6mm; left:16mm; right:16mm; font-size:7.5pt; color:var(--marrom2);
+           border-top:1px solid var(--ouro2); padding-top:2mm; }
+</style>
+</head>
+<body>
+
+{# ═══ CAPA ═══ #}
+<div class="capa">
+  <div class="capa-eyebrow">Parecer Loyall · PDPA</div>
+  <div class="capa-rule"></div>
+  <h1 class="capa-titulo">O que a marca<br>promete, e o que<br>ela cumpre.</h1>
+  <div class="capa-empresa">{{ d.empresa_nome }}</div>
+  <div class="capa-foot">
+    Diagnóstico relacional · gerado em {{ d.gerado_em.strftime('%d/%m/%Y') }} ·
+    <span class="gold">Loyall</span>
+  </div>
+</div>
+
+<div class="footer">Parecer Loyall · {{ d.empresa_nome }} · confidencial</div>
+
+{# ═══ ATO 1 — O QUE A EMPRESA DECLARA SER ═══ #}
+<div class="ato">
+  <div class="ato-num">Ato 1</div>
+  <h2 class="ato-titulo">O que a empresa declara ser</h2>
+  <div class="ato-frase">A identidade que ela afirma — e a que as IAs devolvem quando perguntadas.</div>
+  <div class="ato-rule"></div>
+
+  <div class="bloco-label">A essência declarada</div>
+  {% if d.ato1.essencia.tem %}
+  <table class="grid2"><tr>
+    <td>
+      {% if d.ato1.essencia.missao %}<div class="card"><h3>Missão</h3><p>{{ d.ato1.essencia.missao }}</p></div>{% endif %}
+      {% if d.ato1.essencia.valores %}<div class="card"><h3>Valores</h3><p>{{ d.ato1.essencia.valores }}</p></div>{% endif %}
+    </td>
+    <td>
+      {% if d.ato1.essencia.visao %}<div class="card"><h3>Visão</h3><p>{{ d.ato1.essencia.visao }}</p></div>{% endif %}
+    </td>
+  </tr></table>
+  {% else %}
+  <p class="sem-dado">Essência (missão/visão/valores) ainda não cadastrada para esta empresa.</p>
+  {% endif %}
+
+  <div class="bloco-label">A identidade que as IAs ecoam × a essência</div>
+  {% if d.ato1.ia %}
+  <div class="faixa">
+    <p><strong>As IAs veem:</strong> {{ d.ato1.ia.identidade_ecoada }}</p>
+    {% if d.ato1.ia.identidade_vs_essencia %}
+    <p class="serif-italic" style="margin-top:2mm">↔ vs. essência: {{ d.ato1.ia.identidade_vs_essencia }}</p>
+    {% endif %}
+    <div class="muted" style="font-size:8pt;margin-top:2mm">Sondagem {{ d.ato1.ia.competencia }} · ChatGPT · Gemini · Claude</div>
+  </div>
+  {% for rm in d.ato1.ia.resumo_modelos %}
+  <div class="card"><h3 style="text-transform:capitalize">{{ rm.vendor }}</h3><p>{{ rm.texto }}</p></div>
+  {% endfor %}
+  {% else %}
+  <p class="sem-dado">Sem sondagem de IA ainda (roda mensalmente, ou sob demanda).</p>
+  {% endif %}
+</div>
+
+{# ═══ ATO 2 — ONDE TRAI E ONDE ENCARNA ═══ #}
+<div class="ato">
+  <div class="ato-num">Ato 2</div>
+  <h2 class="ato-titulo">Onde trai e onde encarna</h2>
+  <div class="ato-frase">A cadeia da origem, os gaps do confronto e a evidência pública.</div>
+  <div class="ato-rule"></div>
+
+  <div class="bloco-label">Evidência pública — ReclameAqui</div>
+  {% if d.ato2.ra_tem %}
+  <table class="kpis"><tr>
+    <td><div class="kpi-num">{{ d.ato2.ra.total }}</div><div class="kpi-lab">casos</div></td>
+    <td><div class="kpi-num">{{ d.ato2.ra.taxa_resolucao if d.ato2.ra.taxa_resolucao is not none else '—' }}{% if d.ato2.ra.taxa_resolucao is not none %}%{% endif %}</div><div class="kpi-lab">resolução</div></td>
+    <td><div class="kpi-num">{{ d.ato2.ra.taxa_causa if d.ato2.ra.taxa_causa is not none else '—' }}{% if d.ato2.ra.taxa_causa is not none %}%{% endif %}</div><div class="kpi-lab">causa resolvida</div></td>
+    <td><div class="kpi-num">{{ d.ato2.ra.nota_media if d.ato2.ra.nota_media is not none else '—' }}</div><div class="kpi-lab">nota média</div></td>
+  </tr></table>
+  {% else %}
+  <p class="sem-dado">Sem casos ReclameAqui coletados para esta empresa.</p>
+  {% endif %}
+
+  {% if d.ato2.concentracao %}
+  <div class="bloco-label">Onde a dor se concentra</div>
+  <div class="faixa">
+    {% for c in d.ato2.concentracao %}
+    <div class="conc-item"><span class="conc-pct">{{ c.det_pct }}%</span> dos verbatins de <strong>{{ c.nome }}</strong> são detratores <span class="muted">({{ c.det }} de {{ c.total }})</span></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="bloco-label">A cadeia da origem (Essência → Resultado)</div>
+  {% if d.ato2.origem %}
+    {% if d.ato2.origem.sintese %}<div class="faixa serif-italic">{{ d.ato2.origem.sintese }}</div>{% endif %}
+    {% for a in d.ato2.origem.analises %}
+    <div class="card"><h3>{{ a.nome }} <span class="muted" style="font-size:8.5pt">· rompe no nível <em>{{ a.nivel }}</em> ({{ a.lado }})</span></h3>
+      {% if a.justificativa %}<p>{{ a.justificativa }}</p>{% endif %}</div>
+    {% endfor %}
+  {% else %}
+  <p class="sem-dado">Cadeia da origem indisponível — depende de uma pesquisa com confronto para esta empresa.</p>
+  {% endif %}
+
+  <div class="bloco-label">Gaps do confronto — cliente × time</div>
+  {% if d.ato2.gaps %}
+    {% set _traicoes = d.ato2.gaps | selectattr('estado','equalto','gap') | list %}
+    {% if _traicoes %}
+      {% for g in _traicoes %}
+      <div class="card"><h3>{{ g.nome }}</h3>
+        <p class="muted" style="font-size:9pt">cliente vê <strong>{{ g.cliente.valencia_dominante or '—' }}</strong> · time vê <strong>{{ g.colaborador.valencia_dominante or '—' }}</strong>{% if g.gap and g.gap.direcao %} · {{ g.gap.direcao }}{% endif %}</p>
+      </div>
+      {% endfor %}
+    {% else %}
+    <p class="sem-dado">Confronto sem gaps de valência — cliente e time convergem nos subpilares perguntados.</p>
+    {% endif %}
+  {% elif d.ato2.tem_pesquisa %}
+  <p class="sem-dado">A pesquisa desta empresa ainda não tem confronto processado.</p>
+  {% else %}
+  <p class="sem-dado">Sem pesquisa/confronto para esta empresa.</p>
+  {% endif %}
+</div>
+
+{# ═══ ATO 3 — ONDE A CORREÇÃO MORA ═══ #}
+<div class="ato">
+  <div class="ato-num">Ato 3</div>
+  <h2 class="ato-titulo">Onde a correção mora</h2>
+  <div class="ato-frase">A base é processo; o topo é relação. A escada mostra por onde começar.</div>
+  <div class="ato-rule"></div>
+
+  {% if d.ato3.quadro.tem_dado %}
+    {% for f in d.ato3.quadro.faixas %}
+    <div class="quadro-faixa">
+      <div class="quadro-eyebrow">{{ f.eyebrow }}</div>
+      <div class="quadro-frase">{{ f.frase }}</div>
+      {% for p in f.pilares %}
+        {% for c in p.subpilares %}
+        <div class="subcell">
+          <div class="sub-nome"><span class="dot f-{{ c.faixa or 'none' }}"></span>{{ c.nome }}</div>
+          <div class="sub-meta">{% if c.total %}{{ c.valencia or '—' }} · {{ c.total }} sinais{% else %}sem sinal{% endif %}</div>
+          {% if c.temas %}<div class="sub-meta" style="margin-top:1mm">{{ c.temas[:2] | join(' · ') }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  {% else %}
+  <p class="sem-dado">Sem volume suficiente para montar o quadro dos pilares.</p>
+  {% endif %}
+</div>
+
+</body>
+</html>

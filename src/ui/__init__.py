@@ -1526,6 +1526,14 @@ _RELATORIOS = [
         "B5",
         "disponivel",
     ),
+    (
+        "parecer",
+        "Parecer Loyall",
+        "O entregável de board: narrativa em atos na identidade Loyall — declara × ecoa, "
+        "onde trai/encarna, onde a correção mora.",
+        "PARECER",
+        "disponivel",
+    ),
 ]
 _RELATORIOS_DICT = {t[0]: t for t in _RELATORIOS}
 
@@ -1636,6 +1644,13 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             escopo_label=None,
             d=d,
         )
+    if tipo == "parecer":
+        from src.relatorios.parecer import montar_dados as _mpar
+
+        d = _mpar(empresa_w.id)
+        if d is None:
+            return None
+        return render_template("relatorios/parecer.html", empresa=empresa_w, d=d)
     return render_template(
         "relatorios/em_construcao.html",
         empresa=empresa_w,

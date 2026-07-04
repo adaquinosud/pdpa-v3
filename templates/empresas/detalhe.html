@@ -46,6 +46,11 @@
     <h1 class="text-2xl font-semibold">{{ empresa.nome }}</h1>
     <span class="ml-1">{% include 'partials/ultima_coleta.html' %}</span>
     {% if eh_loyall %}
+    <a href="{{ url_for('ui.relatorios_pdf', empresa_id=empresa.id, tipo='parecer') }}"
+       target="_blank"
+       title="Gera o Parecer Loyall (PDF de board, na identidade dos slides). Leitura + render, sem custo de LLM."
+       class="text-xs px-3 py-1 rounded font-medium text-white hover:opacity-90"
+       style="background:#3E2E24;border:1px solid #B0894F">📄 Exportar parecer Loyall</a>
     <button hx-get="{{ url_for('ui.htmx_editar_empresa_modal', empresa_id=empresa.id) }}"
             hx-target="body" hx-swap="beforeend"
             class="text-xs px-2 py-1 rounded border border-loyall-200 hover:bg-loyall-100 text-loyall-700">editar</button>
