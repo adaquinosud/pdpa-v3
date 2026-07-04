@@ -10,7 +10,7 @@
 
     <div class="space-y-3 text-sm">
       <div class="text-xs text-loyall-400">
-        {{ v.agrupamento_nome or '—' }} · {{ v.local_nome or 'sem local' }} ·
+        {% if v.local_nome %}{{ v.agrupamento_nome or '—' }} · {{ v.local_nome }}{% else %}🏢 empresa{% endif %} ·
         <code>{{ v.fonte_conector_tipo }}</code>
         {% if v.autor %} · @{{ v.autor }}{% endif %}
         {% if v.data_criacao_original %} · {{ v.data_criacao_original[:10] }}{% endif %}

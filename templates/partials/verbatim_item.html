@@ -28,7 +28,7 @@
       <span class="px-2 py-0.5 rounded bg-loyall-200 text-loyall-700" title="Review só com nota, sem texto">só rating</span>
     {% endif %}
     <span class="ml-auto text-loyall-400">
-      {{ v.agrupamento_nome or '—' }} · {{ v.local_nome or 'sem local' }} · <code class="text-xs">{{ v.fonte_conector_tipo }}</code>
+      {% if v.local_nome %}{{ v.agrupamento_nome or '—' }} · {{ v.local_nome }}{% else %}🏢 empresa{% endif %} · <code class="text-xs">{{ v.fonte_conector_tipo }}</code>
     </span>
   </div>
 

@@ -95,6 +95,64 @@ def test_recomputar_ratios_mensais(client_loyall, db_session):
     assert row.ratio == 3.0  # 3/1
 
 
+def test_grao_empresa_visivel_em_toda_leitura(client_loyall, db_session):
+    """O RA inaugurou o grão empresa-wide (``local_id=NULL`` = voz da marca).
+    REGRA: toda leitura de escopo EMPRESA/'Todos' inclui o NULL; escopos
+    loja/agrupamento o excluem. Guarda contra o ponto cego de uma geração."""
+    from sqlalchemy import func
+
+    from src.diagnostico.leituras import agregar_subpilares
+
+    e, a, locais, f = _ctx(client_loyall, "grao")
+    loc = locais[0]["id"]
+    base = datetime(2026, 3, 15)
+
+    def _add(local_id, tipo, tag):
+        db_session.add(
+            Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f["id"],
+                local_id=local_id,
+                texto=tag,
+                data_criacao_original=base,
+                hash_dedup=f"{tag}-{datetime.utcnow().timestamp()}",
+                subpilar="D2",
+                tipo=tipo,
+                tem_texto=True,
+            )
+        )
+
+    _add(loc, "promotor", "loja1")
+    _add(None, "detrator", "emp1")  # empresa-wide (voz da marca)
+    _add(None, "detrator", "emp2")
+    db_session.commit()
+
+    # 1. builder do RatioMensal gera linha de grão empresa (local/agrupamento NULL)
+    recomputar_ratios_mensais(e["id"])
+    null_rows = [
+        r
+        for r in db_session.query(RatioMensal).filter_by(empresa_id=e["id"]).all()
+        if r.local_id is None
+    ]
+    assert len(null_rows) == 1
+    assert null_rows[0].agrupamento_id is None and null_rows[0].detrator == 2
+
+    # 2. "Todos" (sem filtro de local) soma loja + empresa; loja pega só a loja
+    todos = db_session.query(func.sum(RatioMensal.total)).filter_by(empresa_id=e["id"]).scalar()
+    so_loja = (
+        db_session.query(func.sum(RatioMensal.total))
+        .filter_by(empresa_id=e["id"], local_id=loc)
+        .scalar()
+    )
+    assert todos == 3 and so_loja == 1  # o NULL entra no Todos, não no escopo loja
+
+    # 3. leitura live (agregar_subpilares): empresa inclui NULL, loja exclui
+    emp = agregar_subpilares(db_session, e["id"])
+    assert emp["D2"]["det"] == 2 and emp["D2"]["prom"] == 1  # 2 empresa-wide + 1 loja
+    so = agregar_subpilares(db_session, e["id"], local_id=loc)
+    assert so["D2"]["det"] == 0 and so["D2"]["prom"] == 1  # só a loja
+
+
 # ── detecção cross-sectional ─────────────────────────────────────────────
 
 

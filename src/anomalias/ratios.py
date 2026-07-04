@@ -19,8 +19,15 @@ def recomputar_ratios_mensais(empresa_id: int) -> int:
     """(Re)constrói ``ratios_mensais`` da empresa. Devolve nº de linhas gravadas.
 
     Granularidade: ``(local_id, subpilar, ano-mês)``. Só verbatins com
-    ``subpilar`` válido (12 subpilares), ``data_criacao_original`` e
-    ``local_id`` (a anomalia de indicador é por loja, como no v2).
+    ``subpilar`` válido (12 subpilares) e ``data_criacao_original``.
+
+    Grão empresa: verbatins ``local_id=NULL`` (voz da marca — RA e afins) geram
+    linha com ``local_id=NULL``/``agrupamento_id=NULL``. Disjunta das linhas por
+    loja (um verbatim é de UMA loja OU empresa-wide, nunca ambos), então o "Todos"
+    do painel/Evolução (que soma todas as linhas da empresa) passa a incluí-los,
+    sem dupla contagem; escopos loja/agrupamento (que filtram ``local_id``/
+    ``agrupamento_id``) seguem excluindo o NULL, correto. As anomalias por loja
+    (camada 1) filtram ``local_id.isnot(None)`` à parte — intactas.
     """
     from sqlalchemy import func
 
@@ -52,7 +59,8 @@ def recomputar_ratios_mensais(empresa_id: int) -> int:
             )
             .filter(
                 Verbatim.empresa_id == empresa_id,
-                Verbatim.local_id.isnot(None),
+                # local_id=NULL ENTRA (grão empresa/voz da marca) — vira sua própria
+                # linha agregada; ver docstring. NÃO reintroduza este filtro.
                 Verbatim.subpilar.isnot(None),
                 Verbatim.data_criacao_original.isnot(None),
             )
