@@ -29,7 +29,9 @@ from src.utils.db import db_session
 
 ATOR_APIFY = "blackfalcondata/reclameaqui-scraper"
 APIFY_TIMEOUT_SECONDS = 900
-MAX_COMPLAINTS_PER_COMPANY = 100
+# 500: o actor cobra por reclamação RETORNADA (não pelo cap) — headroom seguro p/
+# trazer a janela inteira de empresas com >100 (o cap de 100 truncava o Club Med).
+MAX_COMPLAINTS_PER_COMPANY = 500
 RECOLETA_IDADE_DIAS = 7  # cadência semanal
 ABANDONO_DIAS = 90  # não-terminal sem mudança → abandonado
 # Corte de coleta: 15 meses (padrão da casa p/ comentários — COLETA_JANELA_MESES).

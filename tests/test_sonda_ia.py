@@ -79,6 +79,24 @@ def test_sondar_tolera_erro_de_um_modelo(db_session):
     assert x.status == "concluida"  # conclui mesmo com erros parciais
 
 
+def test_sondar_zero_respostas_marca_falhou(db_session):
+    """Todas as IAs falham → 0 respostas → status 'falhou' (não 'concluida', p/
+    permitir retry e sinalizar a falha na UI)."""
+    e = _empresa(db_session)
+
+    def _boom(prompt):
+        raise RuntimeError("api down")
+
+    callers = {"claude": _boom, "gpt": _boom, "gemini": _boom}
+    stats = sondar_empresa(
+        e.id, "2026-07", modelos=("claude", "gpt", "gemini"), n=2, callers=callers
+    )
+    assert stats["respostas"] == 0 and stats["erros"] == 18  # 3 modelos × 3 perguntas × 2 reps
+    db_session.expire_all()
+    x = db_session.query(SondaIAExecucao).filter_by(empresa_id=e.id).one()
+    assert x.status == "falhou"
+
+
 def test_adapters_registry_e_cap():
     """Estrutura: os 3 vendors registrados, cap de saída setado, preço p/ cada modelo."""
     assert set(adapters.ADAPTERS) == {"claude", "gpt", "gemini"}

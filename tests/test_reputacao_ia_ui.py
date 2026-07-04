@@ -127,7 +127,53 @@ def test_builder_empty(db_session):
     db_session.add(e)
     db_session.commit()
     r = ui._explorar_reputacao_ia(db_session, e.id)
-    assert r.tem_dado is False and r.serie == []
+    assert r.tem_dado is False and r.serie == [] and r.ultima_falhou is False
+
+
+def test_builder_ultima_falhou(db_session):
+    """Execução 'falhou' (0 respostas) → tem_dado False + ultima_falhou True."""
+    e = Empresa(nome=f"Falha-{id(db_session)}")
+    db_session.add(e)
+    db_session.flush()
+    db_session.add(SondaIAExecucao(empresa_id=e.id, competencia="2026-07", status="falhou"))
+    db_session.commit()
+    r = ui._explorar_reputacao_ia(db_session, e.id)
+    assert r.tem_dado is False and r.ultima_falhou is True and r.ultima_competencia == "2026-07"
+
+
+def test_builder_concluida_sem_conteudo_e_degradada(db_session):
+    """Concluída com respostas vazias mas SEM avaliação/leitura (o '0 modelos' de
+    prod) → tratada como falha, não snapshot vazio."""
+    e = Empresa(nome=f"Degr-{id(db_session)}")
+    db_session.add(e)
+    db_session.flush()
+    x = SondaIAExecucao(empresa_id=e.id, competencia="2026-07", status="concluida", custo_usd=0.07)
+    db_session.add(x)
+    db_session.flush()
+    db_session.add(
+        SondaIAResposta(
+            execucao_id=x.id,
+            empresa_id=e.id,
+            vendor="gpt",
+            modelo="gpt-5",
+            pergunta_tipo="avaliacao",
+            repeticao=1,
+            resposta_texto="",
+        )
+    )
+    db_session.commit()
+    r = ui._explorar_reputacao_ia(db_session, e.id)
+    assert r.tem_dado is False and r.ultima_falhou is True
+
+
+def test_aba_falhou_render(client_loyall, db_session):
+    e = Empresa(nome=f"FalhaR-{id(db_session)}")
+    db_session.add(e)
+    db_session.flush()
+    db_session.add(SondaIAExecucao(empresa_id=e.id, competencia="2026-07", status="falhou"))
+    db_session.commit()
+    body = client_loyall.get(f"/empresas/{e.id}/explorar?tab=reputacao_ia").get_data(as_text=True)
+    assert "última sondagem" in body and "falhou" in body and "OPENAI_API_KEY" in body
 
 
 def test_aba_renderiza(client_loyall, db_session):

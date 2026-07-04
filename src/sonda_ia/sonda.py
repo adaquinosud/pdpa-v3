@@ -122,7 +122,10 @@ def sondar_empresa(
                     )
                     stats["respostas"] += 1
 
-        execucao.status = "concluida"
+        # Sem NENHUMA resposta = falha (as IAs não retornaram — chaves/rede/modelo).
+        # NÃO marca 'concluida': senão a idempotência pularia o retry e a UI mostraria
+        # uma sondagem "vazia" (0 modelos) em vez de sinalizar a falha.
+        execucao.status = "concluida" if stats["respostas"] > 0 else "falhou"
         execucao.custo_usd = round(custo, 4)
         execucao.concluido_em = datetime.utcnow()
         stats["custo_usd"] = round(custo, 4)

@@ -3880,6 +3880,17 @@ def _explorar_reputacao_ia(s, empresa_id):
         .order_by(SondaIAExecucao.competencia.desc())
         .first()
     )
+    # Última tentativa de QUALQUER status — pra distinguir "nunca sondou" de
+    # "a última falhou" (as IAs não retornaram) no empty state.
+    ultima = (
+        s.query(SondaIAExecucao)
+        .filter(SondaIAExecucao.empresa_id == empresa_id)
+        .order_by(SondaIAExecucao.competencia.desc(), SondaIAExecucao.id.desc())
+        .first()
+    )
+    ultima_falhou = ultima is not None and ultima.status == "falhou"
+    ultima_competencia = ultima.competencia if ultima is not None else None
+
     # Série (% alinhado por competência) — de TODAS as leituras com defasagem.
     serie = []
     for comp, dj in (
@@ -3894,7 +3905,12 @@ def _explorar_reputacao_ia(s, empresa_id):
             serie.append({"competencia": comp, "pct": round(100 * n_al / len(linhas))})
 
     if execucao is None:
-        return SimpleNamespace(tem_dado=False, serie=serie)
+        return SimpleNamespace(
+            tem_dado=False,
+            serie=serie,
+            ultima_falhou=ultima_falhou,
+            ultima_competencia=ultima_competencia,
+        )
 
     leitura = s.query(SondaIALeitura).filter_by(execucao_id=execucao.id).first()
 
@@ -3969,6 +3985,15 @@ def _explorar_reputacao_ia(s, empresa_id):
         avaliacao=avaliacao,
         resumo_modelos=[{"vendor": v, "texto": t} for v, t in resumo_modelos.items()],
     )
+    # Concluída mas SEM conteúdo útil (respostas vazias / classificação sem pontos)
+    # = degradada → trata como falha (empty state claro, não snapshot com "0 modelos").
+    if not (avaliacao or snapshot.identidade_ecoada or defasagem):
+        return SimpleNamespace(
+            tem_dado=False,
+            serie=serie,
+            ultima_falhou=True,
+            ultima_competencia=execucao.competencia,
+        )
     return SimpleNamespace(
         tem_dado=True,
         snapshot=snapshot,

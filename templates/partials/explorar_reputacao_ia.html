@@ -21,9 +21,19 @@
   com o diagnóstico, em tabela própria.</p>
 
 {% if not r.tem_dado %}
+{% if r.ultima_falhou %}
+<div class="mt-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-800">
+  <div class="font-semibold">A última sondagem{% if r.ultima_competencia %} ({{ r.ultima_competencia }}){% endif %} falhou.</div>
+  <p class="mt-1 text-rose-700">As IAs não retornaram resposta — geralmente chave de API ausente/inválida no serviço,
+    rede, ou modelo indisponível. Confira as chaves <code class="bg-rose-100 px-1 rounded">OPENAI_API_KEY</code> /
+    <code class="bg-rose-100 px-1 rounded">GOOGLE_API_KEY</code> / <code class="bg-rose-100 px-1 rounded">ANTHROPIC_API_KEY</code>
+    no serviço e os logs, e rode de novo <code class="bg-rose-100 px-1 rounded">scripts/run_sonda_ia.sh</code>.</p>
+</div>
+{% else %}
 <div class="mt-6 text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
   Sem sondagem ainda. A sonda roda no dia 1 de cada mês (ou rode <code class="bg-loyall-100 px-1 rounded">scripts/run_sonda_ia.sh</code>).
 </div>
+{% endif %}
 {% else %}
 {% set snap = r.snapshot %}
 

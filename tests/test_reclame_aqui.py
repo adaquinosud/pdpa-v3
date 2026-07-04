@@ -222,6 +222,7 @@ def test_corte_15_meses_datefrom_e_guarda(db_session, monkeypatch):
     monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _fake)
     stats = ra.coletar(f)
     assert "dateFrom" in captura["run_input"]  # corte server-side no input
+    assert captura["run_input"]["maxComplaintsPerCompany"] == 500  # cap com headroom
     assert stats["casos_novos"] == 1 and stats["fora_janela"] == 1  # antigo pulado
 
 
