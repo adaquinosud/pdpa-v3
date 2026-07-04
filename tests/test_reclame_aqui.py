@@ -149,6 +149,40 @@ def test_coletar_cria_caso_e_verbatim(db_session, monkeypatch):
     assert v.data_criacao_original == datetime(2026, 6, 14, 16, 31, 52)
 
 
+def test_coletar_forca_grao_empresa_wide(db_session, monkeypatch):
+    """Mesmo com a fonte cadastrada sob um LOCAL dentro de um agrupamento, os
+    casos/verbatins saem empresa-wide (local_id=NULL) — RA é voz da marca, não de
+    um lugar. Foi o bug dos 204 do Club Med (grão Institucional em vez de empresa)."""
+    from src.models.agrupamento import Agrupamento
+    from src.models.local import Local
+
+    e = Empresa(nome=f"ERAlocal-{id(db_session)}")
+    db_session.add(e)
+    db_session.flush()
+    ag = Agrupamento(empresa_id=e.id, nome="Institucional")
+    db_session.add(ag)
+    db_session.flush()
+    loc = Local(empresa_id=e.id, agrupamento_id=ag.id, nome="ReclameAqui")
+    db_session.add(loc)
+    db_session.flush()
+    f = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="local",  # cadastrada COMO local (o cenário do bug)
+        entidade_id=loc.id,
+        conector_tipo="reclame_aqui",
+        url="https://www.reclameaqui.com.br/empresa/club-med/",
+        autenticacao_tipo="publica",
+        status="ativa",
+    )
+    db_session.add(f)
+    db_session.commit()
+    _patch_actor(monkeypatch, [_reclamacao("L1")])
+    ra.coletar(f)
+    caso = db_session.query(Caso).filter_by(origem_id="L1").one()
+    assert caso.local_id is None  # empresa-wide, NÃO o local ReclameAqui
+    assert db_session.query(Verbatim).filter_by(caso_id=caso.id).one().local_id is None
+
+
 def test_coletar_upsert_nao_duplica(db_session, monkeypatch):
     """Recoleta do mesmo caso: atualiza (não cria 2º caso nem 2º verbatim);
     thread nova marca thread_mudou_em."""

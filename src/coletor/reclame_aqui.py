@@ -177,10 +177,17 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
     Stats: ``coletados`` (itens recebidos), ``casos_novos``, ``casos_atualizados``,
     ``verbatins_novos``, ``sem_descricao``, ``ignorados`` (records de empresa/
     malformados), ``abandonados``, ``erros``, ``pulado_cadencia`` (gate semanal),
-    ``falhou_apify``."""
+    ``falhou_apify``.
+
+    GRÃO: RA é a voz da MARCA (um perfil único da empresa no ReclameAqui), não de
+    um lugar. Os casos/verbatins são SEMPRE empresa-wide (``local_id=NULL`` →
+    agrupamento NULL no motor de temas), independente de onde a fonte foi
+    cadastrada na árvore (mesmo sob um local "ReclameAqui" dentro de um
+    agrupamento). Por isso ignoramos ``fonte.entidade_tipo/entidade_id`` para o
+    grão — cadastrar a fonte no nível empresa é o ideal, mas não é exigido."""
     fonte_id = fonte.id
     empresa_id = fonte.empresa_id
-    local_id = fonte.entidade_id if fonte.entidade_tipo == "local" else None
+    local_id = None  # RA = marca, sempre empresa-wide (ver docstring/GRÃO)
     empresa_param = _empresa_param(fonte.url or "")
 
     stats: Dict[str, Any] = {
