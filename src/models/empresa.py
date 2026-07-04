@@ -55,6 +55,15 @@ class Empresa(Base):
     reprocessar_em: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True, default=None
     )
+    # CP-poscoleta-watchdog: estado do pós-coleta p/ auto-retomada + banner admin.
+    # ``pos_coleta_status``: rodando|completo|interrompido (NULL = nunca rodou).
+    # 'rodando' que não vira 'completo' = processo morreu no meio (redeploy) → o
+    # watchdog detecta como interrompido e retoma. ``pendencias_json`` = último
+    # snapshot {subpilar_null, desfecho_null, embeddings_faltando, cache_defasado}.
+    pos_coleta_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pos_coleta_iniciado_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    pos_coleta_concluido_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    pos_coleta_pendencias_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

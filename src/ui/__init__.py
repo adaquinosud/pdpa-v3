@@ -677,6 +677,41 @@ def _carregar_detalhe_empresa(empresa_id: int):
     }
 
 
+def _pos_coleta_banner(empresa_id: int):
+    """Estado do pós-coleta p/ o banner admin (CP-poscoleta-watchdog). Devolve
+    None quando não há nada a avisar (completo e sem pendência)."""
+    import json as _json
+
+    from src.models.empresa import Empresa
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        e = s.get(Empresa, empresa_id)
+        if e is None:
+            return None
+        pend = _json.loads(e.pos_coleta_pendencias_json) if e.pos_coleta_pendencias_json else {}
+        status = e.pos_coleta_status
+        iniciado, concluido = e.pos_coleta_iniciado_em, e.pos_coleta_concluido_em
+
+    total_pend = (
+        int(pend.get("subpilar_null", 0))
+        + int(pend.get("desfecho_null", 0))
+        + int(pend.get("embeddings_faltando", 0))
+    )
+    tem_pend = total_pend > 0 or bool(pend.get("cache_defasado"))
+    # Só avisa se interrompido, rodando, ou com pendência acionável.
+    if status not in ("interrompido", "rodando") and not tem_pend:
+        return None
+    return SimpleNamespace(
+        status=status,
+        pend=pend,
+        total_pend=total_pend,
+        cache_defasado=bool(pend.get("cache_defasado")),
+        iniciado=iniciado,
+        concluido=concluido,
+    )
+
+
 @ui_bp.route("/empresas/<int:empresa_id>")
 def detalhe_empresa(empresa_id: int):
     r = _require_login_html()
@@ -699,6 +734,7 @@ def detalhe_empresa(empresa_id: int):
         agrupamento_nome=ag_map,
         local_nome=local_map,
         eh_loyall=(user.papel == PAPEL_LOYALL),
+        pos_coleta=_pos_coleta_banner(empresa_id),
         **dados,
     )
 

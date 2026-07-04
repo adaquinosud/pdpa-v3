@@ -275,6 +275,35 @@ def _lock_empresa(empresa_id: int):
             conn.close()
 
 
+def _marcar_pos_coleta_status(empresa_id, status, pendencias=None, *, agora=None):
+    """Persiste o estado do pós-coleta na empresa (p/ o watchdog + banner admin).
+
+    ``rodando`` grava ``iniciado_em``; ``completo``/``interrompido`` gravam
+    ``concluido_em``. Sempre atualiza o snapshot de pendências. Best-effort: nunca
+    derruba o pós-coleta se a escrita de status falhar."""
+    import json as _json
+    from datetime import datetime as _dt
+
+    from src.models.empresa import Empresa
+    from src.utils.db import db_session
+
+    agora = agora or _dt.utcnow()
+    try:
+        with db_session() as s:
+            emp = s.get(Empresa, empresa_id)
+            if emp is None:
+                return
+            emp.pos_coleta_status = status
+            if pendencias is not None:
+                emp.pos_coleta_pendencias_json = _json.dumps(pendencias, ensure_ascii=False)
+            if status == "rodando":
+                emp.pos_coleta_iniciado_em = agora
+            elif status in ("completo", "interrompido"):
+                emp.pos_coleta_concluido_em = agora
+    except Exception as exc:  # status é observabilidade, não pode quebrar o pipeline
+        print(f"[pos-coleta-status] empresa {empresa_id}: {type(exc).__name__}: {exc}")
+
+
 def _carregar_contexto(s, empresa_id: int) -> Dict[str, Any]:
     """Contexto de classificação (nome/setor + mapas fonte→tipo e local→nome)."""
     from src.models.empresa import Empresa
@@ -823,13 +852,21 @@ def executar_pos_coleta(
     de dados antigos), passe ``False`` — só assim o cache de TODOS os buckets é
     regenerado; senão buckets fora da janela ficam com volume defasado.
     """
+    from src.temas.watchdog import deve_reprocessar, pendencias_pos_coleta
+
     r = ResumoPosColeta(empresa_id=empresa_id, limiar=limiar)
     r.novos = contar_novos(empresa_id)
-    if r.novos < limiar and not force:
-        r.motivo_skip = f"poucos novos ({r.novos} < {limiar}) — pulando"
+    pend = pendencias_pos_coleta(empresa_id)
+    # Gate por PENDÊNCIA, não só por "novos": mesmo com 0 novos a classificar, se há
+    # desfecho/embeddings/temas pendentes (daemon morreu no meio), re-entra e conclui.
+    # Foi o buraco dos 204 casos sem desfecho: classificação terminava, novos=0, e o
+    # gate antigo pulava tudo → desfecho ficava NULL pra sempre.
+    if not force and r.novos < limiar and not deve_reprocessar(pend):
+        r.motivo_skip = f"poucos novos ({r.novos} < {limiar}) e sem pendência — pulando"
         return r
 
     r.executou = True
+    _marcar_pos_coleta_status(empresa_id, "rodando", pend)
     cs = classificar_pendentes(empresa_id, limite=limite)
     r.classificados = cs["classificados"]
     r.classif_falhas = cs["falhas"]
@@ -981,4 +1018,9 @@ def executar_pos_coleta(
         print(f"[pos-coleta] leituras anomalias: {type(exc).__name__}: {exc}")
 
     r.custo_estimado_usd = round(custo, 4)
+    # Chegou ao fim = 'completo'. Se o processo morre antes daqui (redeploy), o
+    # status fica 'rodando' e o watchdog o detecta como interrompido.
+    from src.temas.watchdog import pendencias_pos_coleta as _pend
+
+    _marcar_pos_coleta_status(empresa_id, "completo", _pend(empresa_id))
     return r

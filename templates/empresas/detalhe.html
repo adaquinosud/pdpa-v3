@@ -18,6 +18,28 @@
 {% endblock %}
 
 {% block conteudo %}
+{% if pos_coleta and eh_loyall %}
+{# CP-poscoleta-watchdog: banner admin — interrupção nunca silenciosa. #}
+{% if pos_coleta.status == 'interrompido' %}
+<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+  <span class="font-semibold">⚠ Pós-coleta interrompido</span>
+  {% if pos_coleta.iniciado %}<span class="text-amber-700">(iniciado {{ pos_coleta.iniciado.strftime('%d/%m %H:%M') }} UTC)</span>{% endif %}
+  — o processo caiu no meio (provável redeploy). O watchdog retoma sozinho em até 6h. Pendências:
+  <span class="font-medium">{{ pos_coleta.pend.desfecho_null or 0 }} desfecho · {{ pos_coleta.pend.subpilar_null or 0 }} classificação · {{ pos_coleta.pend.embeddings_faltando or 0 }} embeddings{% if pos_coleta.cache_defasado %} · cache defasado{% endif %}</span>.
+</div>
+{% elif pos_coleta.status == 'rodando' %}
+<div class="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+  <span class="font-semibold">⏳ Pós-coleta em andamento</span>
+  {% if pos_coleta.iniciado %}<span class="text-sky-700">(desde {{ pos_coleta.iniciado.strftime('%d/%m %H:%M') }} UTC)</span>{% endif %}
+  — temas, diagnóstico e desfechos sendo recalculados.
+</div>
+{% elif pos_coleta.total_pend or pos_coleta.cache_defasado %}
+<div class="mb-4 rounded-lg border border-loyall-200 bg-loyall-50 px-4 py-3 text-sm text-loyall-700">
+  <span class="font-semibold">Pós-coleta com pendências</span> — serão concluídas no próximo ciclo (≤6h):
+  <span class="font-medium">{{ pos_coleta.pend.desfecho_null or 0 }} desfecho · {{ pos_coleta.pend.subpilar_null or 0 }} classificação · {{ pos_coleta.pend.embeddings_faltando or 0 }} embeddings{% if pos_coleta.cache_defasado %} · cache defasado{% endif %}</span>.
+</div>
+{% endif %}
+{% endif %}
 <div class="mb-4">
   <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
   <div class="flex items-center gap-3 mt-1">

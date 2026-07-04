@@ -783,6 +783,29 @@ def _register_cli_commands(app: Flask) -> None:
         )
         click.echo(f"[pos-coleta] custo estimado ~${r.custo_estimado_usd}")
 
+    # ── CP-poscoleta-watchdog: flask pos-coleta-watchdog (retoma pós-coleta) ──
+    @app.cli.command("pos-coleta-watchdog")
+    @click.option(
+        "--cooldown-horas", type=int, default=None, help="Janela anti-thrash (default: 6)."
+    )
+    def pos_coleta_watchdog_cmd(cooldown_horas):
+        """Varre as empresas e RETOMA o pós-coleta das que ficaram com estado
+        parcial (subpilar/desfecho/embeddings/temas pendentes) — a rede de segurança
+        contra a daemon-thread morta por redeploy. Lock por-empresa + cooldown.
+        Roda no cron (sobrevive a redeploy). Idempotente: empresa limpa = no-op.
+        """
+        from src.temas.watchdog import COOLDOWN_HORAS, pos_coleta_watchdog
+
+        cd = cooldown_horas if cooldown_horas is not None else COOLDOWN_HORAS
+        click.echo(f"[watchdog] varrendo empresas · cooldown={cd}h")
+        s = pos_coleta_watchdog(cooldown_horas=cd)
+        click.echo(
+            f"[watchdog] varridas={s['varridas']} retomadas={s['retomadas']} "
+            f"cache_alinhado={s['cache_alinhado']} interrompidas={s['interrompidas']} "
+            f"limpas={s['limpas']} puladas(cooldown={s['puladas_cooldown']} "
+            f"lock={s['puladas_lock']})"
+        )
+
     # ── CP distribuicao-simbolos: flask simbolos-redistribuir ($0, sem LLM) ──
     @app.cli.command("simbolos-redistribuir")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
