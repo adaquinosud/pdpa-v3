@@ -127,6 +127,54 @@ def test_pendentes_so_processa_null(db_session):
     assert db_session.query(Caso).filter_by(origem_id="A").one().desfecho == "resolvido"
 
 
+def test_desfecho_resiliente_um_caso_falha(db_session):
+    """Um caso que estoura no LLM NÃO derruba o lote (nem faz rollback dos outros)
+    — a causa dos 204 do Club Med ficarem NULL."""
+    e, f = _empresa_fonte(db_session)
+    # 2 casos ambíguos (respondido, não avaliado → LLM)
+    _caso(
+        db_session,
+        e,
+        f,
+        origem_id="X1",
+        evaluated=False,
+        status="ANSWERED",
+        interactions_count=1,
+        thread_json=json.dumps(_THREAD),
+    )
+    _caso(
+        db_session,
+        e,
+        f,
+        origem_id="X2",
+        evaluated=False,
+        status="ANSWERED",
+        interactions_count=1,
+        thread_json=json.dumps(_THREAD),
+    )
+    db_session.commit()
+    chamadas = {"n": 0}
+
+    def _flaky(payload):
+        chamadas["n"] += 1
+        if chamadas["n"] == 1:
+            raise RuntimeError("LLM caiu")
+        return {
+            "desfecho": "respondida_sem_avaliacao",
+            "causa_resolvida": True,
+            "justificativa": "x",
+            "_in": 1,
+            "_out": 1,
+        }
+
+    stats = cc.gerar_desfecho_pendentes(f.id, gerar_fn=_flaky)
+    assert stats["erros"] == 1 and stats["analisados"] == 1  # 1 falhou, 1 classificou
+    db_session.expire_all()
+    desf = {c.origem_id: c.desfecho for c in db_session.query(Caso).filter_by(fonte_id=f.id)}
+    # o que falhou segue NULL (retomável); o outro persistiu (sem rollback)
+    assert None in desf.values() and "respondida_sem_avaliacao" in desf.values()
+
+
 # ── Interações com coletor e expiry ──────────────────────────────────────────
 
 

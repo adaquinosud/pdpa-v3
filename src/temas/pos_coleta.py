@@ -791,7 +791,11 @@ def _classificar_casos_ra(empresa_id: int) -> Dict[str, int]:
             )
         ]
     for fid in ra_fontes:
-        d = gerar_desfecho_pendentes(fid)
+        try:
+            d = gerar_desfecho_pendentes(fid)
+        except Exception as exc:  # não aborta o pós-coleta (temas/diagnóstico já feitos)
+            print(f"[pos_coleta] desfecho RA fonte {fid} falhou: {type(exc).__name__}: {exc}")
+            continue
         tin += d["in"]
         tout += d["out"]
     return {"in": tin, "out": tout}

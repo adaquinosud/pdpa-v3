@@ -87,16 +87,26 @@ def classificar_caso(caso: Caso, *, gerar_fn: Optional[Callable] = None) -> Dict
 
 
 def gerar_desfecho_pendentes(
-    fonte_id: int, *, gerar_fn: Optional[Callable] = None
+    fonte_id: int, *, gerar_fn: Optional[Callable] = None, chunk: int = 50
 ) -> Dict[str, Any]:
     """Classifica os casos com ``desfecho IS NULL`` de uma fonte. Persiste
     desfecho/causa_resolvida/justificativa/versao. Stats: analisados, det, llm,
-    custo de tokens."""
-    stats = {"analisados": 0, "deterministico": 0, "llm": 0, "in": 0, "out": 0}
+    erros, custo de tokens.
+
+    RESILIENTE (senão os 204 do Club Med ficam NULL): falha num caso (erro de
+    LLM/parse) NÃO derruba o lote — loga, conta em ``erros`` e segue. Commit a cada
+    ``chunk`` → progresso PARCIAL persiste e é retomável (re-rodar pega só os que
+    seguem ``desfecho IS NULL``)."""
+    stats = {"analisados": 0, "deterministico": 0, "llm": 0, "erros": 0, "in": 0, "out": 0}
     with db_session() as s:
         casos = s.query(Caso).filter(Caso.fonte_id == fonte_id, Caso.desfecho.is_(None)).all()
-        for caso in casos:
-            r = classificar_caso(caso, gerar_fn=gerar_fn)
+        for i, caso in enumerate(casos, 1):
+            try:
+                r = classificar_caso(caso, gerar_fn=gerar_fn)
+            except Exception as exc:  # um caso ruim não derruba o lote (nem faz rollback)
+                stats["erros"] += 1
+                print(f"[caso_desfecho] caso {caso.id}: {type(exc).__name__}: {exc}")
+                continue
             caso.desfecho = r["desfecho"]
             caso.causa_resolvida = r["causa_resolvida"]
             caso.desfecho_justificativa = r["justificativa"]
@@ -105,4 +115,6 @@ def gerar_desfecho_pendentes(
             stats["deterministico" if r["versao"] == VERSAO_DET else "llm"] += 1
             stats["in"] += r["_in"]
             stats["out"] += r["_out"]
+            if i % chunk == 0:
+                s.commit()  # persiste o progresso parcial (retomável)
     return stats
