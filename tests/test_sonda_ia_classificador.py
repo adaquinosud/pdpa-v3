@@ -100,6 +100,31 @@ def test_classificar_ignora_outras_perguntas(db_session):
     assert stats["respostas"] == 0  # nenhuma resposta de avaliacao
 
 
+def test_classificar_avaliacoes_resiliente(db_session):
+    """Falha no LLM de UMA resposta não derruba o lote (nem faz rollback) — a causa
+    do '0 modelos'."""
+    e, x = _setup(db_session)
+    _resp(db_session, e, x, "avaliacao", "resp 1")
+    _resp(db_session, e, x, "avaliacao", "resp 2")
+    db_session.commit()
+    chamadas = {"n": 0}
+
+    def _flaky(payload):
+        chamadas["n"] += 1
+        if chamadas["n"] == 1:
+            raise RuntimeError("LLM caiu")
+        return {
+            "pontos": [{"subpilar": "D2", "tipo": "detrator", "tema_label": "t"}],
+            "_in": 1,
+            "_out": 1,
+        }
+
+    stats = cl.classificar_avaliacoes(x.id, gerar_fn=_flaky)
+    assert stats["erros"] == 1 and stats["respostas"] == 1 and stats["pontos"] == 1
+    db_session.expire_all()
+    assert db_session.query(SondaIAAvaliacao).filter_by(empresa_id=e.id).count() == 1
+
+
 # ── Síntese (identidade × ORIGEM + encaminhamentos) ──────────────────────────
 
 

@@ -67,9 +67,15 @@ def classificar_avaliacoes(
     execucao_id: int, *, gerar_fn: Optional[Callable] = None
 ) -> Dict[str, Any]:
     """Respostas 'avaliacao' da execução → pontos (subpilar+valência) na régua PDPA.
-    Idempotente (pula resposta já classificada); descarta ponto com enum inválido."""
+    Idempotente (pula resposta já classificada); descarta ponto com enum inválido.
+
+    RESILIENTE (mesmo motivo do desfecho): falha num LLM/parse de UMA resposta NÃO
+    derruba o lote (nem faz rollback das outras) — loga, conta em ``erros`` e segue;
+    commit a cada ``chunk``. Sem isso, 1 falha zerava TODAS as avaliações (o
+    '0 modelos' da tela)."""
     gerar = gerar_fn or _chamar(AVALIACAO_PROMPT)
-    stats = {"respostas": 0, "pontos": 0, "in": 0, "out": 0}
+    stats = {"respostas": 0, "pontos": 0, "erros": 0, "in": 0, "out": 0}
+    chunk = 20
     with db_session() as s:
         ja = {
             rid
@@ -83,10 +89,15 @@ def classificar_avaliacoes(
             .filter_by(execucao_id=execucao_id, pergunta_tipo="avaliacao")
             .all()
         )
-        for r in respostas:
+        for i, r in enumerate(respostas, 1):
             if r.id in ja or not (r.resposta_texto or "").strip():
                 continue
-            data = gerar({"texto": r.resposta_texto})
+            try:
+                data = gerar({"texto": r.resposta_texto})
+            except Exception as exc:  # uma resposta ruim não derruba o lote
+                stats["erros"] += 1
+                print(f"[sonda_avaliacao] resposta {r.id}: {type(exc).__name__}: {exc}")
+                continue
             for p in data.get("pontos") or []:
                 sub, tipo = p.get("subpilar"), p.get("tipo")
                 if sub not in _SUBPILARES or tipo not in _TIPOS:
@@ -104,6 +115,8 @@ def classificar_avaliacoes(
             stats["respostas"] += 1
             stats["in"] += int(data.get("_in", 0) or 0)
             stats["out"] += int(data.get("_out", 0) or 0)
+            if i % chunk == 0:
+                s.commit()  # progresso parcial persiste (retomável)
     return stats
 
 
