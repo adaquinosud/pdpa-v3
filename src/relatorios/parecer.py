@@ -13,8 +13,23 @@ atos) são melhor-esforço da base viva e ganham curadoria/Sonnet na F2.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
+# Fontes bundladas (Gelasio — clone métrico de Georgia, Apache) p/ o @font-face:
+# base_url passado ao WeasyPrint resolve url('Gelasio.ttf').
+FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
+PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
+
+# Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
+# P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
+# A Aconselhamento→Contribuição.
+_PRATICA = {"P": "Integridade", "D": "Presença", "Pa": "Conexão", "A": "Contribuição"}
+_PRATICA_ORDEM = ["P", "D", "Pa", "A"]
+_PRIO_ORDEM = {"alto": 0, "medio": 1, "baixo": 2}
 
 _MESES = [
     "",
@@ -165,6 +180,98 @@ def _rung(faixa) -> Dict[str, Any]:
     return {"frase": faixa.frase, "subpilares": subs, "leitura": None}
 
 
+def _ato4(s, empresa_id: int) -> Dict[str, Any]:
+    """Ato 4: remédios (``consolidar_acoes``) organizados pelas 4 práticas do
+    Caminho + R$ recuperável (estoque). Omite o R$ se não houver LTV de loja."""
+    from src.governanca.impacto_rs import rs_estoque
+    from src.planos.consolidar import consolidar_acoes
+
+    itens = consolidar_acoes(empresa_id)
+    itens = sorted(itens, key=lambda x: _PRIO_ORDEM.get(x.prioridade, 1))
+    por_prat: Dict[str, list] = {}
+    for it in itens:
+        if it.pilar in _PRATICA:
+            por_prat.setdefault(it.pilar, []).append(
+                {"texto": it.texto, "subpilar_nome": it.subpilar_nome, "prioridade": it.prioridade}
+            )
+    praticas = [
+        {"nome": _PRATICA[p], "pilar": p, "acoes": por_prat[p][:3]}
+        for p in _PRATICA_ORDEM
+        if p in por_prat
+    ]
+
+    est = rs_estoque(s, empresa_id)
+    total = sum(v.get("valor") or 0 for v in est.values())
+    rs = {"estoque": round(total)} if total else None  # sem LTV → None (omite a seção)
+    return {"praticas": praticas, "rs": rs}
+
+
+def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Fatos crus (sem prosa) que alimentam a síntese Sonnet + o hash do cache."""
+    t = d["tese"]
+    return {
+        "empresa": d["empresa_nome"],
+        "ferida": t["subpilar_nome"],
+        "voz": t["voz"],
+        "conduta": t["conduta"],
+        "ruptura_nivel": t["profundidade"]["nivel"],
+        "ruptura_frase": t["profundidade"]["frase"],
+        "encaminhamentos": d["ato2c"]["encaminhamentos"],
+        "topo": [sp["nome"] for sp in d["ato3"]["topo"]["subpilares"]],
+        "base": [sp["nome"] for sp in d["ato3"]["base"]["subpilares"]],
+    }
+
+
+def sintetizar_parecer(
+    empresa_id: int, d: Dict[str, Any], *, gerar_fn: Optional[Callable] = None
+) -> Dict[str, Any]:
+    """Síntese executiva (abertura + fecho) via Sonnet, SOB DEMANDA e CACHEADA por
+    ``dados_hash`` em ``relatorio_cache`` (secao='parecer_sintese'). Só chama o LLM
+    quando os fatos mudam. ``gerar_fn`` injetável (testes/preview)."""
+    from src.models.relatorio_cache import RelatorioCache
+    from src.utils.db import db_session
+
+    facts = _facts_sintese(d)
+    fhash = hashlib.sha256(
+        json.dumps(facts, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()[:32]
+
+    with db_session() as s:
+        row = (
+            s.query(RelatorioCache)
+            .filter_by(empresa_id=empresa_id, escopo_hash="empresa", secao="parecer_sintese")
+            .first()
+        )
+        if row is not None and row.dados_hash == fhash and row.conteudo_json:
+            return json.loads(row.conteudo_json)
+
+    if gerar_fn is None:
+        from src.anomalias.editorial import _chamar_sonnet
+        from src.sonda_ia.classificador import _extrair_json_aninhado
+
+        def gerar_fn(payload):  # noqa: E731
+            return _chamar_sonnet(payload, PROMPT_SINTESE, parse_fn=_extrair_json_aninhado)
+
+    data = gerar_fn(facts)
+    out = {"abertura": data.get("abertura"), "fecho": data.get("fecho")}
+    with db_session() as s:
+        row = (
+            s.query(RelatorioCache)
+            .filter_by(empresa_id=empresa_id, escopo_hash="empresa", secao="parecer_sintese")
+            .first()
+        )
+        if row is None:
+            row = RelatorioCache(
+                empresa_id=empresa_id, escopo_hash="empresa", secao="parecer_sintese"
+            )
+            s.add(row)
+        row.conteudo_json = json.dumps(out, ensure_ascii=False)
+        row.dados_hash = fhash
+        row.tokens_in = int(data.get("_in", 0) or 0)
+        row.tokens_out = int(data.get("_out", 0) or 0)
+    return out
+
+
 def montar_dados(
     empresa_id: int, *, ag_id: Optional[int] = None, local_id: Optional[int] = None
 ) -> Optional[Dict[str, Any]]:
@@ -208,6 +315,7 @@ def montar_dados(
             gaps = gap_confronto(s, pesq.id)
         corrente = _corrente(analises, NOME_SUBPILAR)
         citacoes = _citacoes(s, empresa_id)
+        ato4 = _ato4(s, empresa_id)
 
     # ── monta a forma editorial (fora da sessão) ──
     fer_sub = ferida["subpilar"] if ferida else None
@@ -346,4 +454,6 @@ def montar_dados(
                 else {"frase": "", "subpilares": [], "leitura": None}
             ),
         },
+        "ato4": ato4,
+        "sintese": None,  # preenchido pelo route via sintetizar_parecer (sob demanda)
     }

@@ -81,7 +81,44 @@ def test_montar_dados_completo(db_session):
     assert len(d["ato2a"]["citacoes"]) >= 1  # verbatim detrator vira citação
     # ato3: quadro com sinal
     assert d["ato3"]["topo"]["subpilares"] or d["ato3"]["base"]["subpilares"]
+    # ato4: estrutura das práticas + R$ omitido sem LTV
+    assert "praticas" in d["ato4"] and d["ato4"]["rs"] is None  # sem loja/LTV
+    assert d["sintese"] is None  # síntese só no route (sob demanda)
     assert "A tese" in _render(d) and e.nome in _render(d)
+
+
+def test_sintetizar_parecer_cacheia(db_session):
+    from src.relatorios.parecer import montar_dados as _md
+    from src.relatorios.parecer import sintetizar_parecer
+
+    e = _empresa(db_session, "sint", missao="M")
+    f = _fonte(db_session, e)
+    for i in range(3):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="reclamação real de atendimento",
+                tem_texto=True,
+                subpilar="Pa1",
+                tipo="detrator",
+                hash_dedup=f"hs{i}",
+            )
+        )
+    db_session.commit()
+    d = _md(e.id)
+
+    chamadas = {"n": 0}
+
+    def _fake(facts):
+        chamadas["n"] += 1
+        return {"abertura": "p1\n\np2", "fecho": "fim", "_in": 5, "_out": 5}
+
+    r1 = sintetizar_parecer(e.id, d, gerar_fn=_fake)
+    assert r1["abertura"] == "p1\n\np2" and r1["fecho"] == "fim"
+    # 2ª chamada com os MESMOS fatos → cache (não chama o LLM de novo)
+    r2 = sintetizar_parecer(e.id, d, gerar_fn=_fake)
+    assert r2 == r1 and chamadas["n"] == 1
 
 
 def test_montar_dados_degrada_sem_dado(db_session):

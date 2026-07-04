@@ -1664,10 +1664,18 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         )
     if tipo == "parecer":
         from src.relatorios.parecer import montar_dados as _mpar
+        from src.relatorios.parecer import sintetizar_parecer
 
         d = _mpar(empresa_w.id)
         if d is None:
             return None
+        # Síntese executiva (Sonnet) SOB DEMANDA + cacheada — só quando há
+        # diagnóstico real (ferida ≠ fallback). Falha do LLM não derruba o PDF.
+        if d["tese"]["subpilar_nome"] != "Relação":
+            try:
+                d["sintese"] = sintetizar_parecer(empresa_w.id, d)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[parecer] síntese Sonnet falhou: {type(exc).__name__}: {exc}")
         return render_template("relatorios/parecer.html", empresa=empresa_w, d=d)
     return render_template(
         "relatorios/em_construcao.html",
@@ -1720,8 +1728,14 @@ def relatorios_pdf(empresa_id: int, tipo: str):
     html = _relatorio_html(empresa_w, tipo)
     from src.relatorios.pdf import PdfIndisponivel, render_pdf
 
+    # O Parecer usa @font-face (Gelasio bundlada) — base_url resolve os arquivos.
+    base_url = None
+    if tipo == "parecer":
+        from src.relatorios.parecer import FONTS_BASE_URL
+
+        base_url = FONTS_BASE_URL
     try:
-        pdf_bytes = render_pdf(html)
+        pdf_bytes = render_pdf(html, base_url=base_url)
     except PdfIndisponivel as exc:
         return Response(str(exc), status=503, mimetype="text/plain; charset=utf-8")
     nome = f"PDPA_{tipo}_{empresa_w.nome.replace(' ', '_')}.pdf"

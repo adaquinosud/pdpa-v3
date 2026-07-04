@@ -4,21 +4,26 @@
 <meta charset="utf-8">
 <title>Parecer Loyall — {{ d.empresa_nome }}</title>
 <style>
+  /* Serifada dos slides: Gelasio (clone métrico de Georgia, Apache). base_url
+     resolve os arquivos; fallback DejaVu/Georgia se ausentes. */
+  @font-face{ font-family:'Gelasio'; src:url('Gelasio.ttf'); font-weight:400 700; font-style:normal; }
+  @font-face{ font-family:'Gelasio'; src:url('Gelasio-Italic.ttf'); font-weight:400 700; font-style:italic; }
   :root{
     --creme:#F6F1E7; --creme2:#EFE7D4; --marrom:#3E2E24; --marrom2:#5A4636;
     --ouro:#B0894F; --ouro2:#CDB182;
     --crit:#8B2020; --aten:#8A5A1E; --bom:#2E5C24; --exc:#0E4840;
+    --serif:'Gelasio',Georgia,"Liberation Serif","Times New Roman",serif;
   }
   @page{ size:A4; margin:22mm 20mm; }
   @page:first{ margin:0; }
   *{ box-sizing:border-box; }
   html,body{ margin:0; }
   body{
-    font-family:Georgia,"Liberation Serif","Times New Roman",serif;
+    font-family:var(--serif);
     color:var(--marrom); font-size:10.5pt; line-height:1.55;
   }
   .page{ page-break-before:always; }
-  h1,h2,h3{ font-family:Georgia,"Liberation Serif",serif; color:var(--marrom); line-height:1.12; margin:0; font-weight:normal; }
+  h1,h2,h3{ font-family:var(--serif); color:var(--marrom); line-height:1.12; margin:0; font-weight:normal; }
   em,.italic{ font-style:italic; }
   .muted{ color:var(--marrom2); }
   .gold{ color:var(--ouro); }
@@ -113,6 +118,14 @@
   .dims .dq{ font-size:9.5pt; color:var(--marrom2); font-style:italic; margin-top:1mm; }
   .assinatura{ margin-top:12mm; text-align:center; color:var(--marrom2); font-size:9pt; border-top:1px solid var(--ouro2); padding-top:5mm; }
 
+  /* síntese executiva (Sonnet) */
+  .lead{ font-size:12.5pt; line-height:1.62; margin:0 0 4mm; max-width:160mm; color:var(--marrom); }
+  /* Ato 4 — remédios pelas práticas */
+  .pratica{ margin-bottom:5mm; }
+  .pratica-h{ font-size:13pt; color:var(--marrom); border-bottom:1px solid var(--ouro2); padding-bottom:1.5mm; margin-bottom:2.5mm; }
+  .remedio{ margin:0 0 2.5mm; line-height:1.45; }
+  .remedio .prio{ font-size:7.5pt; letter-spacing:.1em; text-transform:uppercase; color:var(--ouro); }
+
   .footer{ position:fixed; bottom:8mm; left:20mm; right:20mm; font-size:7.5pt; color:var(--marrom2);
            border-top:1px solid var(--ouro2); padding-top:2mm; }
 </style>
@@ -136,6 +149,9 @@
   <h2 class="manchete">A ferida tem endereço:<br>a {{ d.tese.subpilar_nome }}.</h2>
   <div class="dek">Quatro leituras independentes apontam o mesmo lugar: quando algo dá errado, o cliente não sente a empresa do seu lado.</div>
   <div class="rule"></div>
+  {% if d.sintese and d.sintese.abertura %}
+    {% for par in d.sintese.abertura.split('\n\n') %}<p class="lead">{{ par }}</p>{% endfor %}
+  {% endif %}
   <table class="tese-grid">
     <tr>
       <td class="k"><div class="kl">A voz pública</div><div class="kn">{{ d.tese.voz.pct }}%</div></td>
@@ -293,6 +309,30 @@
   </div>
 </div>
 
+{# ═══════════ P8 · ATO 4 ═══════════ #}
+<div class="page">
+  <div class="eyebrow">Ato 4</div>
+  <h2 class="manchete">Por onde começar.</h2>
+  <div class="dek">Remédios pela natureza da prática — Integridade, Presença, Conexão, Contribuição.</div>
+  <div class="rule"></div>
+  {% for pr in d.ato4.praticas %}
+  <div class="pratica">
+    <div class="pratica-h">{{ pr.nome }}</div>
+    {% for a in pr.acoes %}
+    <div class="remedio">{{ a.texto }}{% if a.subpilar_nome %} <span class="muted" style="font-size:9pt">· {{ a.subpilar_nome }}</span>{% endif %} <span class="prio">{{ a.prioridade }}</span></div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted" style="font-style:italic">Sem remédios priorizados ainda para esta empresa.</p>
+  {% endfor %}
+  {% if d.ato4.rs %}
+  <div class="band" style="border-left:5px solid var(--ouro);margin-top:6mm">
+    <div class="band-lab">R$ recuperável — estoque de conversíveis</div>
+    <div><span class="heroi-sm">R$ {{ "{:,}".format(d.ato4.rs.estoque).replace(",", ".") }}</span></div>
+  </div>
+  {% endif %}
+</div>
+
 {# ═══════════ P9 · FECHO ═══════════ #}
 <div class="page">
   <div class="eyebrow">A moldura</div>
@@ -309,6 +349,7 @@
       <td><div class="dn">Aconselhamento</div><div class="dq">orienta com autoridade valorizada?</div></td>
     </tr>
   </table>
+  {% if d.sintese and d.sintese.fecho %}<p class="lead" style="margin:6mm 0">{{ d.sintese.fecho }}</p>{% endif %}
   <p class="method" style="font-size:13pt;text-align:center">“Lê toda a base, continuamente. Diz onde dói — e o que fazer.”</p>
   <div class="assinatura">Loyall Company · metodologia PDPA · confidencial</div>
 </div>
