@@ -66,6 +66,34 @@ _FAKE_LEITURA = lambda payload: {  # noqa: E731
 }
 
 
+# ── Parser do envelope JSON (o bug do '0 pontos') ────────────────────────────
+
+
+def test_extrair_json_aninhado_pega_envelope_nao_objeto_interno():
+    """Schema aninhado ``{"pontos":[{...}]}``: o parser raso do editorial casaria
+    o 1º ponto; o novo pega o envelope → ``.get('pontos')`` tem os 2 pontos."""
+    raw = (
+        '```json\n{"pontos": ['
+        '{"subpilar": "P2", "tipo": "promotor", "tema_label": "estrutura"},'
+        '{"subpilar": "D2", "tipo": "detrator", "tema_label": "atendimento"}'
+        "]}\n```"
+    )
+    data = cl._extrair_json_aninhado(raw)
+    assert [p["subpilar"] for p in data["pontos"]] == ["P2", "D2"]
+
+
+def test_extrair_json_aninhado_leitura_com_objeto_interno():
+    """Leitura tem ``resumo_por_modelo: {...}`` (objeto interno) — o parser raso
+    pegaria só esse; o novo mantém as chaves de topo."""
+    raw = 'Segue:\n{"identidade_ecoada": "líder", "resumo_por_modelo": {"chatgpt": "x"}}\nfim.'
+    data = cl._extrair_json_aninhado(raw)
+    assert data["identidade_ecoada"] == "líder" and data["resumo_por_modelo"] == {"chatgpt": "x"}
+
+
+def test_extrair_json_aninhado_json_puro():
+    assert cl._extrair_json_aninhado('{"pontos": []}') == {"pontos": []}
+
+
 # ── Avaliação → régua PDPA ───────────────────────────────────────────────────
 
 

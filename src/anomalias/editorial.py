@@ -473,11 +473,23 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
     }
 
 
-def _chamar_sonnet(payload: Dict[str, Any], prompt_path: Optional[Path] = None) -> Dict[str, Any]:
-    """Chama o Sonnet com o payload de negócio. Returns dict (7 chaves) + tokens."""
+def _chamar_sonnet(
+    payload: Dict[str, Any],
+    prompt_path: Optional[Path] = None,
+    *,
+    parse_fn: Optional[Callable[[str], Any]] = None,
+) -> Dict[str, Any]:
+    """Chama o Sonnet com o payload de negócio. Returns dict (7 chaves) + tokens.
+
+    ``parse_fn`` (default ``_parse_label_json``) extrai o dict do texto cru. O
+    default pega o 1º ``{...}`` SEM chaves internas — correto pro schema PLANO do
+    editorial, mas ERRADO pra schema ANINHADO (casa o 1º objeto interno, não o
+    envelope). Quem devolve JSON aninhado (ex.: sonda IA, ``{"pontos":[{...}]}``)
+    passa um parser que lê o objeto externo balanceado."""
     from src.classifier.classifier_v3 import _get_client
     from src.temas.rotulador import _parse_label_json
 
+    parse = parse_fn or _parse_label_json
     system_prompt = Path(prompt_path or LEITURA_PROMPT_PATH).read_text(encoding="utf-8")
     client = _get_client()
     resp = client.messages.create(
@@ -489,7 +501,7 @@ def _chamar_sonnet(payload: Dict[str, Any], prompt_path: Optional[Path] = None) 
     )
     raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
     usage = getattr(resp, "usage", None)
-    data = _parse_label_json(raw)
+    data = parse(raw)
     if not isinstance(data, dict):
         raise ValueError("resposta do Sonnet não é objeto JSON")
     data["_in"] = int(getattr(usage, "input_tokens", 0) or 0)

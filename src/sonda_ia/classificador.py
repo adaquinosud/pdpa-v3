@@ -15,6 +15,7 @@ Idempotente: pula resposta já classificada / execução já com leitura.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -47,10 +48,51 @@ _SUBPILARES = {
 _TIPOS = {"promotor", "conversivel", "detrator", "inativo"}
 
 
+def _extrair_json_aninhado(raw: str) -> Any:
+    """Extrai o objeto JSON EXTERNO (envelope), tolerando fence markdown e prosa
+    ao redor. Necessário porque os schemas da sonda são aninhados
+    (``{"pontos":[{...}]}``, ``{"resumo_por_modelo":{...}}``) e o parser raso do
+    editorial (1º ``{...}`` sem chaves internas) casaria o PRIMEIRO objeto interno
+    — devolvendo o 1º ponto/o resumo em vez do envelope → ``.get("pontos")`` vazio
+    → 0 avaliações silenciosas (o bug do '0 pontos'). Aqui varremos o 1º ``{`` até
+    a ``}`` que o balanceia (respeitando strings/escapes) e parseamos isso."""
+    s = raw.strip()
+    if s.startswith("```"):  # ```json … ``` ou ``` … ```
+        s = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", s).strip()
+    try:
+        return json.loads(s)  # caminho feliz: JSON puro
+    except json.JSONDecodeError:
+        pass
+    ini = s.find("{")
+    if ini < 0:
+        raise ValueError("resposta do Sonnet não tem objeto JSON")
+    prof, em_str, esc = 0, False, False
+    for i in range(ini, len(s)):
+        c = s[i]
+        if em_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                em_str = False
+            continue
+        if c == '"':
+            em_str = True
+        elif c == "{":
+            prof += 1
+        elif c == "}":
+            prof -= 1
+            if prof == 0:
+                fim = i + 1
+                return json.loads(s[ini:fim])
+    raise ValueError("objeto JSON não fechado na resposta do Sonnet")
+
+
 def _chamar(prompt_path: Path) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
     from src.anomalias.editorial import _chamar_sonnet
 
-    return lambda payload: _chamar_sonnet(payload, prompt_path)
+    return lambda payload: _chamar_sonnet(payload, prompt_path, parse_fn=_extrair_json_aninhado)
 
 
 def _essencia(s, empresa_id: int) -> str:
