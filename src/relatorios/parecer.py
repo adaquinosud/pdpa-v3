@@ -363,17 +363,23 @@ def montar_dados(
             else None
         )
         casos = _explorar_casos(s, empresa_id).painel
-        # Bug 2: a citação do funil ("compensam sem consertar") é parametrizada pelos
-        # RESOLVIDOS reais — nada de fração hardcoded que contradiz a base do causa.
+        # Bug 2: a citação do funil é parametrizada pelo dado real — nada hardcoded,
+        # e a lente segue o dado: se há resolvidos que SÓ compensam, conta-os; se
+        # todo resolvido conserta a causa (sem_causa=0), a história verdadeira do
+        # 23% está nos CLASSIFICADOS sem causa enfrentada. (regra: frase condicional
+        # só renderiza o que o dado sustenta.)
         from src.models.caso import Caso as _Caso
 
-        _resolvidos = (
-            s.query(_Caso)
-            .filter(_Caso.empresa_id == empresa_id, _Caso.desfecho == "resolvido")
-            .all()
+        _classif = (
+            s.query(_Caso).filter(_Caso.empresa_id == empresa_id, _Caso.desfecho.isnot(None)).all()
         )
+        _classif_total = len(_classif)
+        _classif_com_causa = sum(1 for c in _classif if c.causa_resolvida)
+        _classif_sem_causa = _classif_total - _classif_com_causa
+        _resolvidos = [c for c in _classif if c.desfecho == "resolvido"]
         _res_total = len(_resolvidos)
-        _res_compensa = sum(1 for c in _resolvidos if not c.causa_resolvida)
+        _res_com_causa = sum(1 for c in _resolvidos if c.causa_resolvida)
+        _res_compensa = _res_total - _res_com_causa  # resolvidos que só compensaram
         rep = _explorar_reputacao_ia(s, empresa_id)
         snap = getattr(rep, "snapshot", None) if getattr(rep, "tem_dado", False) else None
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id)
@@ -530,9 +536,14 @@ def montar_dados(
             },
             "nota_media": casos.nota_media if casos.nota_media is not None else "—",
             "n_avaliados": casos.n_avaliados,
-            # citação parametrizada: dos N resolvidos, M compensaram sem consertar
-            # a causa (reconcilia com a base — nada de '3 em 4' hardcoded).
-            "compensa": {"total": _res_total, "sem_causa": _res_compensa},
+            # citação parametrizada pela lente do dado (ver bloco acima):
+            "compensa": {
+                "resolvidos": _res_total,
+                "resolvidos_com_causa": _res_com_causa,
+                "sem_causa": _res_compensa,  # resolvidos que só compensaram
+                "classif_total": _classif_total,
+                "classif_sem_causa": _classif_sem_causa,  # classificados sem causa enfrentada
+            },
             "desfechos": [
                 {"label": _DESFECHO_LABEL.get(k, k), "n": v}
                 for k, v in sorted((casos.desfechos or {}).items(), key=lambda kv: -kv[1])

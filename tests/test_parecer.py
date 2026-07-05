@@ -341,6 +341,50 @@ def test_ponto_cego_gate_direcional_consciencia(db_session):
     assert "consciência" in gap["frase"]  # NÃO 'ponto cego'
 
 
+def test_citacao_funil_lente_sem_causa_zero(db_session):
+    """Regra 'condicional só renderiza o que o dado sustenta': quando todo resolvido
+    conserta a causa (sem_causa=0), a citação NÃO pode afirmar compensação-sem-
+    conserto. Usa a lente dos CLASSIFICADOS sem causa (a história real do 23%)."""
+    e = _empresa(db_session, "lente0")
+    f = _fonte(db_session, e)
+    # 3 resolvidos, TODOS com causa consertada (sem_causa=0)
+    for i in range(3):
+        db_session.add(
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id=f"R{i}",
+                desfecho="resolvido",
+                evaluated=True,
+                causa_resolvida=True,
+            )
+        )
+    # 5 não-resolvidos SEM causa enfrentada → classificados sem causa
+    for i in range(5):
+        db_session.add(
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id=f"N{i}",
+                desfecho="nao_resolvido",
+                evaluated=True,
+                causa_resolvida=False,
+            )
+        )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    cmp = d["ato2a"]["compensa"]
+    assert cmp["sem_causa"] == 0  # nenhum resolvido só compensou
+    assert cmp["resolvidos"] == 3 and cmp["resolvidos_com_causa"] == 3
+    assert cmp["classif_total"] == 8 and cmp["classif_sem_causa"] == 5
+    html = _render(d)
+    # a lente correta: NÃO afirma 'compensam sem consertar'; fala dos classificados
+    assert "seguem sem a causa enfrentada" in html
+    assert "5 dos 8 casos classificados" in html
+    assert "compensam o cliente sem consertar" not in html
+
+
 def test_montar_dados_degrada_sem_dado(db_session):
     e = _empresa(db_session, "vazia")  # nada
     db_session.commit()

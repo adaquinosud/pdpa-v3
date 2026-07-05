@@ -218,7 +218,8 @@
     <div class="arrow">↓</div>
     <div class="step s3"><div class="fn">{{ d.ato2a.funil.causa }}%</div><div class="fl">enfrenta a causa{% if d.ato2a.funil.base_causa %} · dos {{ d.ato2a.funil.base_causa }} classificados{% endif %}</div></div>
   </div>
-  <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:0 auto">{% if d.ato2a.compensa.total and d.ato2a.compensa.sem_causa %}“{{ d.ato2a.compensa.sem_causa }} dos {{ d.ato2a.compensa.total }} casos ‘resolvidos’ compensam o cliente sem consertar a causa — que segue fabricando o próximo detrator.”{% else %}“Casos ‘resolvidos’ que compensam o cliente sem consertar a causa seguem fabricando o próximo detrator.”{% endif %}</p>
+  {% set cmp = d.ato2a.compensa %}
+  <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:0 auto">{% if cmp.sem_causa %}“{{ cmp.sem_causa }} dos {{ cmp.resolvidos }} casos ‘resolvidos’ compensam o cliente sem consertar a causa — que segue fabricando o próximo detrator.”{% elif cmp.resolvidos and cmp.classif_sem_causa %}“Quando resolve, conserta a causa ({{ cmp.resolvidos_com_causa }} de {{ cmp.resolvidos }}) — mas {{ cmp.classif_sem_causa }} dos {{ cmp.classif_total }} casos classificados seguem sem a causa enfrentada.”{% elif cmp.classif_sem_causa %}“{{ cmp.classif_sem_causa }} dos {{ cmp.classif_total }} casos classificados seguem sem a causa enfrentada.”{% endif %}</p>
 
   <div class="barra">
     {% for seg in d.ato2a.desfechos %}
