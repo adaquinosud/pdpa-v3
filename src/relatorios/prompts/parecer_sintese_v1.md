@@ -60,9 +60,13 @@ Produza SEIS saídas:
    ``corrente_elos``, você extrai a FRASE-NÚCLEO da justificativa em UMA linha
    (máx. ~15 palavras), preservando o sentido. A chave é o ``nivel`` exato do elo
    (ex.: "Significado", "Essência"). É pra caber num diagrama — a versão longa NÃO
-   entra.
+   entra. CADA frase deve ser gramaticalmente completa e com CONCORDÂNCIA correta
+   (sujeito e verbo no mesmo número): ao usar o nome do subpilar como sujeito
+   (singular), o verbo fica no singular — ex. "Acessibilidade que falha EXCLUI o
+   hóspede", nunca "Acessibilidade falha excluem".
 
 Português do Brasil; nada de bullet, título ou markdown DENTRO dos textos.
+Revise a concordância de número (sujeito × verbo) de cada frase antes de responder.
 
 Responda SOMENTE com JSON, sem texto fora:
 

@@ -23,6 +23,9 @@ from typing import Any, Callable, Dict, List, Optional
 # base_url passado ao WeasyPrint resolve url('Gelasio.ttf').
 FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
+# Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
+# (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
+PROMPT_SINTESE_VER = "v1.1-concordancia"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -259,7 +262,7 @@ def sintetizar_parecer(
 
     facts = _facts_sintese(d)
     fhash = hashlib.sha256(
-        json.dumps(facts, sort_keys=True, ensure_ascii=False).encode()
+        (PROMPT_SINTESE_VER + json.dumps(facts, sort_keys=True, ensure_ascii=False)).encode()
     ).hexdigest()[:32]
 
     with db_session() as s:
