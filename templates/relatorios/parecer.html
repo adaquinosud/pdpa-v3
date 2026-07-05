@@ -48,8 +48,8 @@
   .heroi-lab{ font-size:10.5pt; color:var(--marrom2); margin-top:3mm; }
 
   /* ── citação real ── */
-  .quote{ position:relative; padding:2mm 0 2mm 14mm; margin:6mm 0; font-style:italic; font-size:14pt; color:var(--marrom); line-height:1.4; }
-  .quote:before{ content:"\201C"; position:absolute; left:0; top:-6mm; font-size:44pt; color:var(--ouro2); font-family:Georgia,serif; }
+  .quote{ position:relative; padding:1mm 0 1mm 13mm; margin:3.5mm 0; font-style:italic; font-size:11.5pt; color:var(--marrom); line-height:1.38; }
+  .quote:before{ content:"\201C"; position:absolute; left:0; top:-4mm; font-size:34pt; color:var(--ouro2); font-family:Georgia,serif; }
   .quote .src{ display:block; font-style:normal; font-size:9pt; color:var(--marrom2); margin-top:3mm; letter-spacing:.02em; }
 
   /* faixa horizontal (essência, blocos) */
@@ -65,10 +65,10 @@
   .tese-grid .v{ vertical-align:top; border-left:1px solid var(--ouro2); padding-left:5mm; font-size:10pt; line-height:1.4; }
 
   /* funil descendente */
-  .funil{ text-align:center; margin:8mm 0; }
-  .funil .step{ margin:0 auto 3mm; background:var(--creme2); border:1px solid var(--ouro2); padding:4mm; }
+  .funil{ text-align:center; margin:5mm 0; }
+  .funil .step{ margin:0 auto 2mm; background:var(--creme2); border:1px solid var(--ouro2); padding:2.5mm; }
   .funil .s1{ width:82%; } .funil .s2{ width:60%; } .funil .s3{ width:40%; background:#f3e2df; border-color:var(--crit); }
-  .funil .fn{ font-size:30pt; color:var(--marrom); line-height:1; }
+  .funil .fn{ font-size:24pt; color:var(--marrom); line-height:1; }
   .funil .s3 .fn{ color:var(--crit); }
   .funil .fl{ font-size:9pt; color:var(--marrom2); }
   .funil .arrow{ color:var(--ouro); font-size:12pt; }
@@ -80,8 +80,8 @@
   .barra .bn{ font-size:16pt; color:var(--marrom); } .barra .bl{ font-size:7.5pt; text-transform:uppercase; letter-spacing:.06em; color:var(--marrom2); }
 
   /* corrente ORIGEM — 5 faixas empilhadas */
-  .corrente{ margin:6mm 0; }
-  .elo{ border:1px solid var(--ouro2); background:var(--creme2); padding:3.5mm 5mm; margin-bottom:2.5mm; position:relative; }
+  .corrente{ margin:4mm 0; }
+  .elo{ border:1px solid var(--ouro2); background:var(--creme2); padding:2.5mm 5mm; margin-bottom:1.5mm; position:relative; }
   .elo .en{ font-size:8pt; letter-spacing:.16em; text-transform:uppercase; color:var(--marrom2); }
   .elo .et{ font-size:12pt; }
   .elo.forca{ border-left:5px solid var(--bom); }
@@ -91,7 +91,7 @@
   .elo.forca .tag{ color:var(--bom); border:1px solid var(--bom); }
   .elo.ruptura .tag{ color:var(--crit); border:1px solid var(--crit); }
   .elo.herda .tag{ color:var(--marrom2); border:1px solid var(--ouro2); }
-  .elo-arrow{ text-align:center; color:var(--ouro); font-size:11pt; margin:-1mm 0 1mm; }
+  .elo-arrow{ text-align:center; color:var(--ouro); font-size:9pt; margin:-1mm 0 0; }
 
   /* chips (encaminhamentos) */
   .chips{ margin:4mm 0; }
@@ -109,6 +109,8 @@
   .rung .rf{ font-style:italic; color:var(--ouro); font-size:10.5pt; margin:1mm 0 3mm; }
   .sp{ display:inline-block; padding:2mm 3.5mm; margin:0 2mm 2mm 0; border:1px solid var(--ouro2); background:var(--creme); font-size:10pt; }
   .sp.crit{ border-color:var(--crit); color:var(--crit); background:#f4e3e0; }
+  .spv{ font-size:8pt; text-transform:uppercase; letter-spacing:.06em; margin-left:2mm; }
+  .v-detrator{ color:var(--crit); } .v-conversivel{ color:var(--aten); } .v-promotor{ color:var(--bom); }
   .rung .leitura{ margin-top:2mm; font-style:italic; color:var(--marrom2); }
 
   /* fecho */
@@ -177,22 +179,22 @@
   <div class="eyebrow">Ato 1</div>
   <h2 class="manchete">O que a empresa<br>declara ser.</h2>
   <div class="rule"></div>
+  {% set _ess = (d.sintese.essencia if (d.sintese and d.sintese.essencia) else d.ato1.essencia) %}
   <div class="band">
     <div class="band-lab">A essência declarada</div>
-    {% if d.ato1.essencia.missao %}<p style="margin:0 0 2mm"><strong>Missão.</strong> {{ d.ato1.essencia.missao }}</p>{% endif %}
-    {% if d.ato1.essencia.visao %}<p style="margin:0 0 2mm"><strong>Visão.</strong> {{ d.ato1.essencia.visao }}</p>{% endif %}
-    {% if d.ato1.essencia.valores %}<p style="margin:0"><strong>Valores.</strong> {{ d.ato1.essencia.valores }}</p>{% endif %}
+    {% if _ess.missao %}<p style="margin:0 0 2mm"><strong>Missão.</strong> {{ _ess.missao }}</p>{% endif %}
+    {% if _ess.visao %}<p style="margin:0 0 2mm"><strong>Visão.</strong> {{ _ess.visao }}</p>{% endif %}
+    {% if _ess.valores %}<p style="margin:0"><strong>Valores.</strong> {{ _ess.valores }}</p>{% endif %}
   </div>
 
   <h3 style="font-size:17pt;margin:10mm 0 4mm">As IAs sabem o que você vende.<br>Não sabem quem você é.</h3>
-  {% if d.ato1.ia_ecoam %}
-  <p class="muted" style="margin:0 0 5mm">O que ecoam, em consenso alto: {{ d.ato1.ia_ecoam | join(' · ') }}.</p>
-  {% endif %}
-  {% if d.ato1.ausentes %}
+  {% set _aus = (d.sintese.ausentes if d.sintese else None) or d.ato1.ausentes %}
+  {% if _aus %}
   <div class="band" style="border-left:5px solid var(--ouro)">
     <div class="band-lab">O que nenhuma IA menciona</div>
-    <div style="font-size:15pt;line-height:1.35">{{ d.ato1.ausentes | join(' · ') }}</div>
-    <p class="method" style="margin:3mm 0 0;font-size:11.5pt">“{{ d.ato1.ausentes_frase }}”</p>
+    <div style="font-size:15pt;line-height:1.35">{{ _aus | join(' · ') }}</div>
+    {% set _ausf = (d.sintese.ausentes_frase if d.sintese else None) or d.ato1.ausentes_frase %}
+    {% if _ausf %}<p class="method" style="margin:3mm 0 0;font-size:11.5pt">“{{ _ausf }}”</p>{% endif %}
   </div>
   {% endif %}
   {% if d.ato1.resumo_modelos %}
@@ -248,8 +250,9 @@
   {% if d.ato2b.ruptura_frase %}<p class="method" style="font-size:11.5pt">“{{ d.ato2b.ruptura_frase }}”</p>{% endif %}
   <table class="cols" style="margin-top:5mm"><tr>
     <td>
-      <div class="col-h">Onde a dor se concentra</div>
-      <div><span class="heroi-sm" style="color:var(--crit)">{{ d.ato2b.concentracao.pct }}%</span> <span class="muted">{{ d.ato2b.concentracao.subpilar_nome }} · ratio {{ d.ato2b.concentracao.ratio }}</span></div>
+      <div class="col-h">A intensidade da dor</div>
+      <div><span class="heroi-sm" style="color:var(--crit)">{{ d.ato2b.concentracao.det_pct }}%</span></div>
+      <div class="muted" style="margin-top:1mm">dos verbatins de <strong>{{ d.ato2b.concentracao.subpilar_nome }}</strong> são detratores ({{ d.ato2b.concentracao.det }} de {{ d.ato2b.concentracao.total }}) · ratio {{ d.ato2b.concentracao.ratio }}</div>
     </td>
     <td>
       <div class="col-h">O ponto cego do time</div>
@@ -294,16 +297,18 @@
   <h2 class="manchete">Onde a correção mora.</h2>
   <div class="rule"></div>
   <div class="ladder">
+    {% macro sp_chip(sp) %}<span class="sp {{ 'crit' if sp.critico }}">{{ sp.nome }}{% if sp.valencia %} <span class="spv v-{{ sp.valencia }}">{{ sp.valencia }}</span>{% endif %}</span>{% endmacro %}
     <div class="rung">
       <div class="re">Topo · Individual</div>
       <div class="rf">“{{ d.ato3.topo.frase }}”</div>
-      {% for sp in d.ato3.topo.subpilares %}<span class="sp {{ 'crit' if sp.critico }}">{{ sp.nome }}</span>{% endfor %}
-      {% if d.ato3.topo.leitura %}<div class="leitura">{{ d.ato3.topo.leitura }}</div>{% endif %}
+      {% for sp in d.ato3.topo.subpilares %}{{ sp_chip(sp) }}{% endfor %}
+      {% set _lt = (d.sintese.leitura_topo if d.sintese else None) or d.ato3.topo.leitura %}
+      {% if _lt %}<div class="leitura">{{ _lt }}</div>{% endif %}
     </div>
     <div class="rung">
       <div class="re">Base · Sistêmica</div>
       <div class="rf">“{{ d.ato3.base.frase }}”</div>
-      {% for sp in d.ato3.base.subpilares %}<span class="sp {{ 'crit' if sp.critico }}">{{ sp.nome }}</span>{% endfor %}
+      {% for sp in d.ato3.base.subpilares %}{{ sp_chip(sp) }}{% endfor %}
       {% if d.ato3.base.leitura %}<div class="leitura">{{ d.ato3.base.leitura }}</div>{% endif %}
     </div>
   </div>

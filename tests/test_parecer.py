@@ -54,6 +54,29 @@ def test_montar_dados_completo(db_session):
             interactions_count=2,
         )
     )
+    # Caso com CAUSA NÃO RESOLVIDA + verbatim ESPESSO (>200 chars) → vira citação.
+    c2 = Caso(
+        empresa_id=e.id, fonte_id=f.id, origem_id="C2", causa_resolvida=False, interactions_count=1
+    )
+    db_session.add(c2)
+    db_session.flush()
+    espesso = (
+        "Fiz a reserva com três meses de antecedência e paguei o pacote completo, mas ao chegar "
+        "no resort fui informado de que o quarto reservado não existia mais; me realocaram num "
+        "apartamento pior e ninguém do atendimento resolveu ou explicou o ocorrido."
+    )
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            caso_id=c2.id,
+            texto=espesso,
+            tem_texto=True,
+            subpilar="Pa1",
+            tipo="detrator",
+            hash_dedup="hcit",
+        )
+    )
     for i in range(3):  # 3 detratores RA em Pa1 → é a "ferida"
         db_session.add(
             Verbatim(
@@ -72,13 +95,15 @@ def test_montar_dados_completo(db_session):
     assert d["empresa_nome"] == e.nome and "Capital Relacional" in d["subtitulo"]
     # tese: a ferida é um subpilar real (não o fallback), com voz RA
     assert d["tese"]["subpilar_nome"] != "Relação"
-    assert d["tese"]["voz"]["total"] == 3 and d["tese"]["voz"]["pct"] == 100
-    assert d["tese"]["voz"]["detratores"] == 3
+    assert d["tese"]["voz"]["total"] == 4 and d["tese"]["voz"]["pct"] == 100
+    assert d["tese"]["voz"]["detratores"] == 4
     assert isinstance(d["tese"]["conduta"]["resolve"], int)
-    # ato2a: funil + desfechos + citações (melhor-esforço)
+    # ato2a: funil + desfechos + citação curada (espessa, causa não resolvida)
     assert d["ato2a"]["funil"]["responde"] == 100
-    assert d["ato2a"]["desfechos"] and d["ato2a"]["desfechos"][0]["n"] == 1
-    assert len(d["ato2a"]["citacoes"]) >= 1  # verbatim detrator vira citação
+    assert len(d["ato2a"]["citacoes"]) == 1 and "reserva" in d["ato2a"]["citacoes"][0]["texto"]
+    # ato2b: concentração com referente exato (det_pct = detratores DENTRO do subpilar)
+    assert d["ato2b"]["concentracao"]["det_pct"] == 100  # 4 de 4 em Pa1 são detratores
+    assert d["ato2b"]["concentracao"]["det"] == 4
     # ato3: quadro com sinal
     assert d["ato3"]["topo"]["subpilares"] or d["ato3"]["base"]["subpilares"]
     # ato4: estrutura das práticas + R$ omitido sem LTV
@@ -119,6 +144,39 @@ def test_sintetizar_parecer_cacheia(db_session):
     # 2ª chamada com os MESMOS fatos → cache (não chama o LLM de novo)
     r2 = sintetizar_parecer(e.id, d, gerar_fn=_fake)
     assert r2 == r1 and chamadas["n"] == 1
+
+
+def test_seletor_pesquisa_prefere_a_com_origem(db_session):
+    """BUG crítico: uma pesquisa NOVA vazia (id maior) escondia a que TEM ORIGEM.
+    O seletor deve pegar a que tem OrigemAnalise, não a de maior id."""
+    from src.models.origem import OrigemAnalise
+    from src.models.pesquisa import Pesquisa
+
+    e = _empresa(db_session, "sel")
+
+    def _pesq(titulo):
+        p = Pesquisa(empresa_id=e.id, natureza="externa", proposito="coleta", titulo=titulo)
+        db_session.add(p)
+        db_session.flush()
+        return p
+
+    p_origem = _pesq("Teste1")  # id menor, TEM origem
+    db_session.add(
+        OrigemAnalise(
+            pesquisa_id=p_origem.id,
+            subpilar="Pa2",
+            nivel="significado",
+            lado="gravidade",
+            justificativa="a gentileza virou palavra vazia",
+        )
+    )
+    _pesq("Rascunho novo")  # id MAIOR, sem origem — não pode vencer
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    # a corrente veio da pesquisa com origem → ruptura no Significado, não '—'
+    assert d["tese"]["profundidade"]["nivel"] == "Significado"
+    assert any(el["estado"] == "ruptura" for el in d["ato2b"]["corrente"])
 
 
 def test_montar_dados_degrada_sem_dado(db_session):

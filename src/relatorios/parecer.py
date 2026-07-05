@@ -64,25 +64,6 @@ _DESFECHO_LABEL = {
 }
 
 
-def _concentracao_detrator(agg: Dict[str, Any], nome_map, top: int = 3) -> List[Dict[str, Any]]:
-    """Subpilares por CONCENTRAÇÃO de detratores (ex.: 'Pa2 · 62%')."""
-    linhas = []
-    for sub, d in (agg or {}).items():
-        total, det = d.get("total", 0), d.get("det", 0)
-        if total >= 3 and det:
-            linhas.append(
-                {
-                    "subpilar": sub,
-                    "nome": nome_map.get(sub, sub),
-                    "det_pct": round(100 * det / total),
-                    "det": det,
-                    "total": total,
-                }
-            )
-    linhas.sort(key=lambda x: -x["det_pct"])
-    return linhas[:top]
-
-
 def _conc_ra(s, empresa_id: int) -> Dict[str, Any]:
     """Concentração das reclamações RA por subpilar (verbatins de fonte RA)."""
     from sqlalchemy import func
@@ -106,7 +87,9 @@ def _conc_ra(s, empresa_id: int) -> Dict[str, Any]:
 
 
 def _citacoes(s, empresa_id: int, k: int = 2) -> List[Dict[str, Any]]:
-    """Melhor-esforço: verbatins detratores RA curtos como citações reais."""
+    """Citações reais curadas: detratores RA de casos com a CAUSA NÃO RESOLVIDA,
+    texto ESPESSO (>200 chars — carrega fato concreto). Ordena do mais espesso
+    (mais substância) e pega ``k``. Trunca só na exibição (≤280, corte em palavra)."""
     from src.models.caso import Caso
     from src.models.fonte import Fonte
     from src.models.verbatim import Verbatim
@@ -114,25 +97,28 @@ def _citacoes(s, empresa_id: int, k: int = 2) -> List[Dict[str, Any]]:
     rows = (
         s.query(Verbatim.texto, Caso.criado_em_origem)
         .join(Fonte, Fonte.id == Verbatim.fonte_id)
-        .outerjoin(Caso, Caso.id == Verbatim.caso_id)
+        .join(Caso, Caso.id == Verbatim.caso_id)  # inner: precisa do caso p/ causa
         .filter(
             Verbatim.empresa_id == empresa_id,
             Fonte.conector_tipo == "reclame_aqui",
             Verbatim.tipo == "detrator",
             Verbatim.tem_texto.is_(True),
             Verbatim.texto.isnot(None),
+            Caso.causa_resolvida.isnot(True),  # causa NÃO resolvida (false ou pendente)
         )
-        .limit(40)
         .all()
     )
-    out = []
+    grossos = []
     for texto, dt in rows:
         t = " ".join((texto or "").split())
-        if 25 <= len(t) <= 150:
-            fonte = f"caso {_MESES[dt.month][:3]}/{dt.year}" if dt else "ReclameAqui"
-            out.append({"texto": t, "fonte": fonte})
-        if len(out) >= k:
-            break
+        if len(t) > 200:  # espesso: tem fato concreto, não desabafo genérico
+            grossos.append((len(t), t, dt))
+    grossos.sort(key=lambda x: -x[0])
+    out = []
+    for _n, t, dt in grossos[:k]:
+        disp = t if len(t) <= 280 else t[:279].rsplit(" ", 1)[0] + "…"
+        fonte = f"caso {_MESES[dt.month][:3]}/{dt.year}" if dt else "ReclameAqui"
+        out.append({"texto": disp, "fonte": fonte})
     return out
 
 
@@ -164,19 +150,27 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
         if grp:
             subs = " · ".join(nome_map.get(x.subpilar, x.subpilar) for x in grp)
             texto = next((x.justificativa for x in grp if x.justificativa), None) or subs
-        else:
-            texto = "—"
+        else:  # elo abaixo da ruptura sem análise própria → herda (sem '—' seco)
+            texto = "consequência herdada da ruptura acima."
         elos.append({"nivel": _NIVEL_PT[n], "estado": estado, "tag": tag, "texto": texto})
     return {"elos": elos, "ruptura_frase": ruptura_frase}
 
 
 def _rung(faixa) -> Dict[str, Any]:
-    """Faixa topo/base do quadro → só subpilares com sinal relevante (corta neutros)."""
+    """Faixa topo/base do quadro → só subpilares com sinal relevante (corta neutros),
+    carregando valência + faixa (o P7 mostra a cor, não só o nome)."""
     subs = []
     for p in faixa.pilares:
         for c in p.subpilares:
             if c.total and (c.faixa in ("critico", "atencao") or c.valencia == "detrator"):
-                subs.append({"nome": c.nome, "critico": c.faixa == "critico"})
+                subs.append(
+                    {
+                        "nome": c.nome,
+                        "critico": c.faixa == "critico",
+                        "valencia": c.valencia,
+                        "faixa": c.faixa,
+                    }
+                )
     return {"frase": faixa.frase, "subpilares": subs, "leitura": None}
 
 
@@ -228,8 +222,17 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         "consultam_ia_pct": d["ato2c"]["stat"]["pct"],
         "ias": ["ChatGPT", "Gemini", "Claude"],
         "encaminhamentos": d["ato2c"]["encaminhamentos"],
-        "topo": [sp["nome"] for sp in d["ato3"]["topo"]["subpilares"]],
-        "base": [sp["nome"] for sp in d["ato3"]["base"]["subpilares"]],
+        "topo": [
+            {"nome": sp["nome"], "valencia": sp.get("valencia"), "critico": sp.get("critico")}
+            for sp in d["ato3"]["topo"]["subpilares"]
+        ],
+        "base": [
+            {"nome": sp["nome"], "valencia": sp.get("valencia"), "critico": sp.get("critico")}
+            for sp in d["ato3"]["base"]["subpilares"]
+        ],
+        # p/ comprimir (essencia) e extrair os 3 pilares que a IA não menciona:
+        "essencia_declarada": d["ato1"]["essencia"],
+        "identidade_ia_vs_essencia": d["ato1"].get("identidade_vs_essencia"),
     }
 
 
@@ -264,7 +267,14 @@ def sintetizar_parecer(
             return _chamar_sonnet(payload, PROMPT_SINTESE, parse_fn=_extrair_json_aninhado)
 
     data = gerar_fn(facts)
-    out = {"abertura": data.get("abertura"), "fecho": data.get("fecho")}
+    out = {
+        "abertura": data.get("abertura"),
+        "fecho": data.get("fecho"),
+        "ausentes": data.get("ausentes") or None,  # 3 pilares que a IA não menciona
+        "ausentes_frase": data.get("ausentes_frase"),
+        "essencia": data.get("essencia") or None,  # missao/visao/valores comprimidos
+        "leitura_topo": data.get("leitura_topo"),  # leitura da ferida individual (P7)
+    }
     with db_session() as s:
         row = (
             s.query(RelatorioCache)
@@ -305,21 +315,54 @@ def montar_dados(
         essencia = {"missao": emp.missao, "visao": emp.visao, "valores": emp.valores}
 
         agg = agregar_subpilares(s, empresa_id)
-        conc = _concentracao_detrator(agg, NOME_SUBPILAR)
-        ferida = conc[0] if conc else None
         ra = _conc_ra(s, empresa_id)
+        # A FERIDA = subpilar de MAIOR concentração de reclamações RA (a dor mais
+        # concentrada, def. da pauta '62% moram na Mutualidade') — NÃO o de maior %
+        # detrator, que elegia bucket minúsculo 100%-detrator. Fallback (sem RA):
+        # subpilar de mais detratores no diagnóstico.
+        if ra["por_sub"]:
+            fer_sub = max(ra["por_sub"], key=lambda k: ra["por_sub"][k])
+        elif agg:
+            fer_sub = max(agg, key=lambda k: agg[k].get("det", 0))
+            fer_sub = fer_sub if agg[fer_sub].get("det") else None
+        else:
+            fer_sub = None
+        _fa = agg.get(fer_sub) if fer_sub else None
+        ferida = (
+            {
+                "subpilar": fer_sub,
+                "nome": NOME_SUBPILAR.get(fer_sub, fer_sub),
+                "det": _fa["det"] if _fa else 0,
+                "total": _fa["total"] if _fa else 0,
+                "det_pct": round(100 * _fa["det"] / _fa["total"]) if (_fa and _fa["total"]) else 0,
+            }
+            if fer_sub
+            else None
+        )
         casos = _explorar_casos(s, empresa_id).painel
         rep = _explorar_reputacao_ia(s, empresa_id)
         snap = getattr(rep, "snapshot", None) if getattr(rep, "tem_dado", False) else None
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id)
 
         # ── ORIGEM + confronto (por pesquisa) ──
+        # A pesquisa CERTA é a que TEM ORIGEM — não a de maior id. Uma pesquisa
+        # nova/vazia (id maior) escondia a que tem confronto+ORIGEM (bug: 'ruptura
+        # no —' + 'sem confronto'). Prioriza a mais recente COM OrigemAnalise;
+        # fallback = a mais recente qualquer (para gaps sem origem).
         pesq = (
             s.query(Pesquisa)
+            .join(OrigemAnalise, OrigemAnalise.pesquisa_id == Pesquisa.id)
             .filter(Pesquisa.empresa_id == empresa_id)
             .order_by(Pesquisa.id.desc())
             .first()
         )
+        if pesq is None:
+            pesq = (
+                s.query(Pesquisa)
+                .filter(Pesquisa.empresa_id == empresa_id)
+                .order_by(Pesquisa.id.desc())
+                .first()
+            )
         analises, gaps = [], None
         if pesq is not None:
             analises = s.query(OrigemAnalise).filter(OrigemAnalise.pesquisa_id == pesq.id).all()
@@ -405,10 +448,13 @@ def montar_dados(
         "ato1": {
             "essencia": essencia,
             "ia_ecoam": None,  # editorial/curadoria → F2
-            "ausentes": None,
+            "ausentes": None,  # preenchido pela síntese (extrai de identidade_vs_essencia)
             "ausentes_frase": None,
             "resumo_modelos": list(getattr(snap, "resumo_modelos", []) or []) if snap else [],
             "identidade_ecoada": getattr(snap, "identidade_ecoada", None) if snap else None,
+            "identidade_vs_essencia": (
+                getattr(snap, "identidade_vs_essencia", None) if snap else None
+            ),
         },
         "ato2a": {
             "funil": {
@@ -427,9 +473,14 @@ def montar_dados(
         "ato2b": {
             "corrente": prof_nivel,
             "ruptura_frase": corrente["ruptura_frase"],
+            # Dois referentes DISTINTOS, cada um com seu rótulo (bug do '98% vs 62%'):
+            # det_pct = % de detratores DENTRO do subpilar (intensidade);
+            # ra_pct = concentração das reclamações RA ENTRE subpilares (o 62% da tese).
             "concentracao": {
                 "subpilar_nome": ferida["nome"] if ferida else "—",
-                "pct": ferida["det_pct"] if ferida else 0,
+                "det_pct": ferida["det_pct"] if ferida else 0,
+                "det": ferida["det"] if ferida else 0,
+                "total": ferida["total"] if ferida else 0,
                 "ratio": f"{fer_agg['ratio']:.2f}" if fer_agg else "—",
             },
             "gap": ponto_cego,
