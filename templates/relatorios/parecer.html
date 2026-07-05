@@ -218,7 +218,7 @@
     <div class="arrow">↓</div>
     <div class="step s3"><div class="fn">{{ d.ato2a.funil.causa }}%</div><div class="fl">enfrenta a causa{% if d.ato2a.funil.base_causa %} · dos {{ d.ato2a.funil.base_causa }} classificados{% endif %}</div></div>
   </div>
-  <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:0 auto">“3 em cada 4 casos ‘resolvidos’ compensam o cliente sem consertar a causa — que segue fabricando o próximo detrator.”</p>
+  <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:0 auto">{% if d.ato2a.compensa.total and d.ato2a.compensa.sem_causa %}“{{ d.ato2a.compensa.sem_causa }} dos {{ d.ato2a.compensa.total }} casos ‘resolvidos’ compensam o cliente sem consertar a causa — que segue fabricando o próximo detrator.”{% else %}“Casos ‘resolvidos’ que compensam o cliente sem consertar a causa seguem fabricando o próximo detrator.”{% endif %}</p>
 
   <div class="barra">
     {% for seg in d.ato2a.desfechos %}
@@ -255,9 +255,9 @@
       <div class="muted" style="margin-top:1mm">dos verbatins de <strong>{{ d.ato2b.concentracao.subpilar_nome }}</strong> são detratores ({{ d.ato2b.concentracao.det }} de {{ d.ato2b.concentracao.total }}) · ratio {{ d.ato2b.concentracao.ratio }}</div>
     </td>
     <td>
-      <div class="col-h">O ponto cego do time</div>
+      <div class="col-h">{% if d.ato2b.gap and d.ato2b.gap.tipo == 'consciencia' %}A consciência do time{% else %}O ponto cego do time{% endif %}</div>
       {% if d.ato2b.gap %}
-      <p style="margin:0">Em <strong>{{ d.ato2b.gap.subpilar_nome }}</strong>, o time se avalia <strong>{{ d.ato2b.gap.time_val }}</strong>{% if d.ato2b.gap.time_nota %} (nota {{ d.ato2b.gap.time_nota }}){% endif %}; o cliente é <strong>{{ d.ato2b.gap.cliente_val }}</strong>. <em class="muted">{{ d.ato2b.gap.frase }}.</em></p>
+      <p style="margin:0">Em <strong>{{ d.ato2b.gap.subpilar_nome }}</strong>, {% if d.ato2b.gap.time_val %}o time se avalia <strong>{{ d.ato2b.gap.time_val }}</strong>{% if d.ato2b.gap.time_nota %} (nota {{ d.ato2b.gap.time_nota }}){% endif %}; o cliente é <strong>{{ d.ato2b.gap.cliente_val }}</strong>{% else %}o cliente é <strong>{{ d.ato2b.gap.cliente_val }}</strong>; o time não sinaliza{% endif %}. <em class="muted">{{ d.ato2b.gap.frase }}.</em></p>
       {% else %}<p class="muted" style="margin:0;font-style:italic">Sem confronto cliente × time para esta empresa.</p>{% endif %}
     </td>
   </tr></table>

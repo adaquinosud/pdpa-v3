@@ -280,8 +280,65 @@ def test_ponto_cego_divergencia_sem_nota(db_session):
 
     gap = montar_dados(e.id)["ato2b"]["gap"]
     assert gap is not None, "divergência sem nota deve popular o ponto cego"
+    # time promotor > cliente detrator = superestima → ponto cego (time não vê a dor)
+    assert gap["tipo"] == "ponto_cego"
     assert gap["time_val"] == "promotor" and gap["cliente_val"] == "detrator"
     assert gap["time_nota"] is None  # sem nota — o template omite
+
+
+def test_ponto_cego_gate_direcional_consciencia(db_session):
+    """BUG do PDF real v5: 'time detrator × cliente conversível' (time MAIS severo)
+    saía como 'ponto cego'. É CONSCIÊNCIA — o time já vê a dor. O gate é direcional:
+    ponto cego só quando o time é mais OTIMISTA que o cliente."""
+    from src.models.origem import OrigemAnalise
+    from src.models.pesquisa import Pesquisa, PesquisaPergunta
+    from src.models.respondente import Resposta, Respondente
+
+    e = _empresa(db_session, "consc")
+    f = _fonte(db_session, e)
+    # cliente: Pa2 PROMOTOR (RA elogios) — cliente mais otimista que o time
+    for i in range(3):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="elogio",
+                tem_texto=True,
+                subpilar="Pa2",
+                tipo="promotor",
+                hash_dedup=f"cs{i}",
+            )
+        )
+    p = Pesquisa(empresa_id=e.id, natureza="externa", proposito="confronto", titulo="P")
+    db_session.add(p)
+    db_session.flush()
+    db_session.add(
+        OrigemAnalise(pesquisa_id=p.id, subpilar="Pa2", nivel="significado", lado="gravidade")
+    )
+    perg = PesquisaPergunta(
+        pesquisa_id=p.id, ordem=1, enunciado="?", formato="fechada", subpilar_alvo="Pa2"
+    )
+    db_session.add(perg)
+    db_session.flush()
+    rp = Respondente(pesquisa_id=p.id, entidade_tipo="empresa")
+    db_session.add(rp)
+    db_session.flush()
+    # time: Pa2 DETRATOR (mais severo que o cliente promotor) → subestima
+    db_session.add(
+        Resposta(
+            respondente_id=rp.id,
+            pergunta_id=perg.id,
+            valor_nota=None,
+            subpilar_classificado="Pa2",
+            valencia_classificada="detrator",
+        )
+    )
+    db_session.commit()
+
+    gap = montar_dados(e.id)["ato2b"]["gap"]
+    assert gap is not None and gap["tipo"] == "consciencia"
+    assert gap["time_val"] == "detrator" and gap["cliente_val"] == "promotor"
+    assert "consciência" in gap["frase"]  # NÃO 'ponto cego'
 
 
 def test_montar_dados_degrada_sem_dado(db_session):

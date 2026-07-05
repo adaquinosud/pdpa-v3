@@ -33,6 +33,8 @@ PROMPT_SINTESE_VER = "v1.2-concordancia-bases"
 _PRATICA = {"P": "Integridade", "D": "Presença", "Pa": "Conexão", "A": "Contribuição"}
 _PRATICA_ORDEM = ["P", "D", "Pa", "A"]
 _PRIO_ORDEM = {"alto": 0, "medio": 1, "baixo": 2}
+# Rótulo de valência p/ exibição (o valor de enum 'conversivel' não tem acento):
+_VAL_LABEL = {"promotor": "promotor", "conversivel": "conversível", "detrator": "detrator"}
 
 _MESES = [
     "",
@@ -361,6 +363,17 @@ def montar_dados(
             else None
         )
         casos = _explorar_casos(s, empresa_id).painel
+        # Bug 2: a citação do funil ("compensam sem consertar") é parametrizada pelos
+        # RESOLVIDOS reais — nada de fração hardcoded que contradiz a base do causa.
+        from src.models.caso import Caso as _Caso
+
+        _resolvidos = (
+            s.query(_Caso)
+            .filter(_Caso.empresa_id == empresa_id, _Caso.desfecho == "resolvido")
+            .all()
+        )
+        _res_total = len(_resolvidos)
+        _res_compensa = sum(1 for c in _resolvidos if not c.causa_resolvida)
         rep = _explorar_reputacao_ia(s, empresa_id)
         snap = getattr(rep, "snapshot", None) if getattr(rep, "tem_dado", False) else None
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id)
@@ -416,27 +429,48 @@ def montar_dados(
     doura, ecoa = _defas("ia_otimista"), _defas("ia_atrasada")
     div = getattr(rep, "divergencia", None)
 
-    # Ponto cego = onde cliente e time DIVERGEM em valência (estado='gap' e valências
-    # diferentes). A NOTA é enfeite (o P7 a omite se NULL) — a divergência é o fato.
-    # Prefere a ferida; senão a 1ª divergência. Só fica None (→ 'Sem confronto') se
-    # NÃO houver divergência de valência em nenhum subpilar — bug antigo: o critério
-    # estreito (só detrator×promotor) mentia 'Sem confronto' com confronto vivo.
-    def _diverge(g):
-        cli = (g.get("cliente") or {}).get("valencia_dominante")
-        tval = (g.get("colaborador") or {}).get("valencia_dominante")
-        return g.get("estado") == "gap" and cli and tval and cli != tval
+    # Ponto cego vs consciência — a DIREÇÃO importa (o confronto.py já a calcula).
+    # Otimismo: promotor > conversivel > detrator. PONTO CEGO = o time vê MELHOR que
+    # o cliente (superestima → não vê a dor), OU cliente detrator + time sem sinal
+    # (confronto rotula categoria='ponto_cego'). CONSCIÊNCIA = o time vê PIOR
+    # (subestima → já sabe da dor). NUNCA chamar 'ponto cego' o que é consciência.
+    # Ancora no subpilar da ferida/ruptura ORIGEM (a espinha do parecer), não numa
+    # divergência solta. Só None (→ 'Sem confronto') se não houver nenhuma das duas.
+    def _tipo_gap(g):
+        if g.get("estado") == "gap":
+            d = (g.get("gap") or {}).get("direcao")
+            return (
+                "ponto_cego" if d == "superestima" else "consciencia" if d == "subestima" else None
+            )
+        return "ponto_cego" if g.get("categoria") == "ponto_cego" else None
 
-    _divs = [g for g in (gaps or []) if _diverge(g)]
-    _g = next((g for g in _divs if g["subpilar"] == fer_sub), None) or (_divs[0] if _divs else None)
+    _cands = [(g, t) for g in (gaps or []) if (t := _tipo_gap(g))]
+
+    def _pick(pred):
+        return next((c for c in _cands if pred(c)), None)
+
+    _sel = (
+        _pick(lambda c: c[1] == "ponto_cego" and c[0]["subpilar"] == fer_sub)
+        or _pick(lambda c: c[1] == "ponto_cego")
+        or _pick(lambda c: c[1] == "consciencia" and c[0]["subpilar"] == fer_sub)
+        or _pick(lambda c: c[1] == "consciencia")
+    )
     ponto_cego = None
-    if _g is not None:
+    if _sel is not None:
+        _g, _tipo = _sel
         col = _g.get("colaborador") or {}
+        cli = _g.get("cliente") or {}
         ponto_cego = {
+            "tipo": _tipo,  # 'ponto_cego' (time otimista) | 'consciencia' (time severo)
             "subpilar_nome": _g["nome"],
-            "time_val": col.get("valencia_dominante"),
-            "time_nota": col.get("nota_media"),  # pode ser None → o P7 omite a nota
-            "cliente_val": (_g.get("cliente") or {}).get("valencia_dominante"),
-            "frase": "ponto cego — o time não vê a dor que o cliente vive",
+            "time_val": _VAL_LABEL.get(col.get("valencia_dominante")),  # None se so_cliente
+            "time_nota": col.get("nota_media"),  # pode ser None → o P5 omite a nota
+            "cliente_val": _VAL_LABEL.get(cli.get("valencia_dominante")),
+            "frase": (
+                "ponto cego — o time não vê a dor que o cliente vive"
+                if _tipo == "ponto_cego"
+                else "consciência — o time já vê a dor; falta agir"
+            ),
         }
 
     prof_nivel = corrente["elos"]
@@ -496,6 +530,9 @@ def montar_dados(
             },
             "nota_media": casos.nota_media if casos.nota_media is not None else "—",
             "n_avaliados": casos.n_avaliados,
+            # citação parametrizada: dos N resolvidos, M compensaram sem consertar
+            # a causa (reconcilia com a base — nada de '3 em 4' hardcoded).
+            "compensa": {"total": _res_total, "sem_causa": _res_compensa},
             "desfechos": [
                 {"label": _DESFECHO_LABEL.get(k, k), "n": v}
                 for k, v in sorted((casos.desfechos or {}).items(), key=lambda kv: -kv[1])
