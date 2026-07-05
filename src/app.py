@@ -81,8 +81,8 @@ def create_app() -> Flask:
     from src.ui import glossario_i as _glossario_i
 
     @app.template_global("glossario_i")
-    def glossario_i(slug):  # noqa: ANN001, ANN201
-        return _glossario_i(slug, debug=app.debug)
+    def glossario_i(slug, align="left"):  # noqa: ANN001, ANN201
+        return _glossario_i(slug, debug=app.debug, align=align)
 
     # CP-5b: gate de produção pra esconder o botão de coleta de AGRUPAMENTO
     # on-demand (estoura o timeout HTTP — dezenas de fontes em série; a coleta

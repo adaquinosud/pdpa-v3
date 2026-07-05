@@ -4764,7 +4764,7 @@ def _explorar_render(empresa_id, tab):
     if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
         return render_template("403.html"), 403
     if tab not in _EXPLORAR_TAB_IDS:
-        tab = "locais"
+        tab = "painel"
     ctx = _explorar_contexto(empresa_id, tab)
     if ctx is None:
         return render_template("404.html"), 404
@@ -4781,7 +4781,7 @@ def _explorar_render(empresa_id, tab):
 @ui_bp.route("/empresas/<int:empresa_id>/explorar")
 def explorar_empresa(empresa_id: int):
     """Hub Explorar — shell + header global + tab ativa (server-rendered)."""
-    return _explorar_render(empresa_id, request.args.get("tab", "locais"))
+    return _explorar_render(empresa_id, request.args.get("tab", "painel"))
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar/tab/<tab>")
@@ -4794,7 +4794,7 @@ def explorar_tab(empresa_id: int, tab: str):
     if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
         return render_template("403.html"), 403
     if tab not in _EXPLORAR_TAB_IDS:
-        tab = "locais"
+        tab = "painel"
     ctx = _explorar_contexto(empresa_id, tab)
     if ctx is None:
         return render_template("404.html"), 404
@@ -5257,9 +5257,11 @@ def _glossario_cache_dict() -> dict:
     return out
 
 
-def glossario_i(slug: str, debug: bool = False):
+def glossario_i(slug: str, debug: bool = False, align: str = "left"):
     """Renderiza o ⓘ do termo `slug` (Markup). Cacheia o glossário em flask.g
-    (1 query/request). Slug ausente → marcador discreto se debug, senão vazio."""
+    (1 query/request). Slug ausente → marcador discreto se debug, senão vazio.
+    ``align='right'`` ancora o popover à direita do ⓘ (cards na borda da tela —
+    evita o corte da viewport)."""
     from flask import g
     from markupsafe import Markup
 
@@ -5275,7 +5277,7 @@ def glossario_i(slug: str, debug: bool = False):
                 f'title="glossário: slug ausente">ⓘ?{slug}</span>'
             )
         return Markup("")
-    return Markup(render_template("partials/glossario_i.html", t=termo))
+    return Markup(render_template("partials/glossario_i.html", t=termo, align=align))
 
 
 # ── Gestão de usuários (loyall-only, CRUD soft) ──────────────────────────

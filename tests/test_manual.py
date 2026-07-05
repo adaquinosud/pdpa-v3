@@ -7,19 +7,35 @@ from src.ui.manual import por_slug, secoes
 
 # ── Loader (fonte única: docs/DESCRITIVO_EXPLORAR.md) ──────────────────────────
 def test_manual_secoes_cobre_as_telas_e_glossario():
-    slugs = [s["slug"] for s in secoes()]
-    for esperado in (
-        "painel",
-        "locais",
-        "leaderboard",
-        "heatmap",
-        "anomalias",
-        "plano-de-acao",
-        "relatorios",
-        "ia",
-        "glossario",
-    ):
-        assert esperado in slugs, esperado
+    """Toda tab do Explorar + o glossário têm seção no Manual. DERIVADO de
+    ``_EXPLORAR_TABS`` (não hardcoded) — assim uma tab NOVA sem seção quebra aqui,
+    fechando o furo: a lista fixa antiga não incluía casos/reputacao_ia/quadro."""
+    from src.ui import _EXPLORAR_TABS
+    from src.ui.manual import slug_da_tab
+
+    slugs = {s["slug"] for s in secoes()}
+    for t in _EXPLORAR_TABS:
+        assert slug_da_tab(t["id"]) in slugs, f"tab '{t['id']}' sem seção no Manual"
+    assert "glossario" in slugs
+
+
+def test_glossario_i_slugs_dos_templates_estao_no_seed():
+    """Todo ``glossario_i('slug')`` nos templates tem termo no seed. Fecha o furo
+    do bug 'faixa' (o slug era 'faixa-ratio'): slug errado renderia ⓘ VAZIO,
+    silencioso — o teste torna isso barulhento."""
+    import re
+    from pathlib import Path
+
+    from scripts.seed_glossario import TERMOS
+
+    seed_slugs = {t[0] for t in TERMOS}
+    tdir = Path(__file__).resolve().parent.parent / "templates"
+    ref = set()
+    pat = re.compile(r"glossario_i\(\s*['\"]([a-z0-9-]+)['\"]")
+    for f in tdir.rglob("*.html"):
+        ref |= set(pat.findall(f.read_text(encoding="utf-8")))
+    faltando = ref - seed_slugs
+    assert not faltando, f"glossario_i com slug sem termo no seed: {sorted(faltando)}"
 
 
 def test_manual_slugs_unicos_e_html_nao_vazio():

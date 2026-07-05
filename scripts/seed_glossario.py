@@ -752,6 +752,83 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "(empresa/agrupamento), atualizada por subpilar. (Bloco 8)",
         "aba Diagnóstico, Plano de Ação",
     ),
+    # ── ReclameAqui (aba Casos) ───────────────────────────────────────────
+    (
+        "taxa-resposta",
+        "Taxa de resposta",
+        "ReclameAqui",
+        "% dos casos em que a empresa respondeu ao consumidor ÷ total de casos.",
+        "Mede diligência de atendimento — não resolução. Responder 100% e resolver "
+        "pouco é gestão de visibilidade.",
+        "aba ReclameAqui",
+    ),
+    (
+        "taxa-resolucao",
+        "Taxa de resolução",
+        "ReclameAqui",
+        "% de casos resolvidos ÷ casos avaliados pelo consumidor.",
+        "Só entra quem o consumidor avaliou (deu nota). Resolvido = o consumidor "
+        "marcou como resolvido no ReclameAqui.",
+        "aba ReclameAqui",
+    ),
+    (
+        "causa-raiz-resolvida",
+        "Causa-raiz resolvida",
+        "ReclameAqui",
+        "% de casos em que a resposta ENFRENTOU a causa-raiz ÷ casos classificados.",
+        "O diferencial do PDPA: distingue compensar o cliente (cortesia, reembolso) "
+        "de consertar a causa. Baixa taxa = o problema segue fabricando detratores.",
+        "aba ReclameAqui",
+    ),
+    (
+        "desfecho-ra",
+        "Desfecho",
+        "ReclameAqui",
+        "Como o caso terminou: resolvido, não resolvido, em disputa, sem avaliação, "
+        "não respondida ou abandonado.",
+        "Eixo paralelo à valência: a queixa diz 'quão ruim foi'; o desfecho diz "
+        "'como terminou'. Classificado por regra + LLM só no ambíguo.",
+        "aba ReclameAqui",
+    ),
+    # ── Reputação em IA (aba Reputação IA) ────────────────────────────────
+    (
+        "identidade-ecoada",
+        "Identidade ecoada",
+        "Reputação IA",
+        "O que as IAs (ChatGPT, Gemini, Claude) respondem quando perguntadas sobre a "
+        "empresa — cruzado com a essência declarada.",
+        "É a leitura das IAs, não a voz do cliente. Fica em base separada, mas "
+        "comparável ao diagnóstico. Sondagem mensal.",
+        "aba Reputação IA",
+    ),
+    (
+        "defasagem-ia",
+        "Defasagem IA × diagnóstico",
+        "Reputação IA",
+        "Onde a leitura das IAs diverge do diagnóstico dos verbatins: IA atrasada, "
+        "IA otimista, IA exclusiva, verbatim exclusivo, alinhado ou parcial.",
+        "'IA doura' = a IA vê promotor onde os casos são detratores; 'IA ecoa o "
+        "passado' = problema que o cliente já mostra resolvido.",
+        "aba Reputação IA",
+    ),
+    (
+        "divergencia-ia",
+        "Divergência entre modelos",
+        "Reputação IA",
+        "Nº de subpilares onde ChatGPT, Gemini e Claude discordam da valência.",
+        "Quanto maior, menos consistente a leitura pública da marca — quem pergunta "
+        "a uma IA ouve uma empresa diferente de quem pergunta a outra.",
+        "aba Reputação IA",
+    ),
+    (
+        "encaminhamentos-ia",
+        "Encaminhamentos",
+        "Reputação IA",
+        "Concorrentes que as IAs recomendam quando um cliente insatisfeito consulta.",
+        "A vitrine algorítmica: para onde a IA manda o cliente que a marca não "
+        "reteve. Extraído da sondagem mensal.",
+        "aba Reputação IA",
+    ),
 ]
 
 

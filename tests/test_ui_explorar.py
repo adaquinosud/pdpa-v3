@@ -182,7 +182,7 @@ def test_locais_tabela_densa_e_pills(client_loyall, db_session):
     _verb(db_session, e, l1, f1, "D2", "detrator", 3)
     _verb(db_session, e, l1, f1, "D2", "promotor", 1)
     db_session.commit()
-    html = client_loyall.get(f"/empresas/{e['id']}/explorar").get_data(as_text=True)
+    html = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais").get_data(as_text=True)
     assert "% Impacto" in html and "Ratio" in html and "Faixa" in html  # colunas da tabela
     assert "Conversíveis" in html and "Promotores" in html  # pills
     assert "vis=detratores" in html  # link da pill
@@ -379,7 +379,7 @@ def test_filtro_periodo_recorta(client_loyall, db_session):
         )
     )
     db_session.commit()
-    r = client_loyall.get(f"/empresas/{e['id']}/explorar?periodo=30d")
+    r = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=locais&periodo=30d")
     html = r.get_data(as_text=True)
     # sem verbatins no período → estado vazio
     assert "Nenhum local com verbatins" in html

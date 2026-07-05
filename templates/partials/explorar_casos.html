@@ -25,17 +25,17 @@
 {% else %}
 
 {# ── PAINEL DE REPUTAÇÃO (todos os casos) ── #}
-<div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-  {% macro metric(rotulo, valor, sufixo='', hint='') %}
-  <div class="border border-loyall-200 rounded-lg px-3 py-2" title="{{ hint }}">
-    <div class="text-xs text-loyall-400">{{ rotulo }}</div>
+<div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+  {% macro metric(rotulo, valor, sufixo='', hint='', slug='', align='left') %}
+  <div class="border border-loyall-200 rounded-lg px-3 py-2 min-w-0" title="{{ hint }}">
+    <div class="text-xs text-loyall-400 flex items-center gap-1"><span class="truncate">{{ rotulo }}</span>{% if slug and glossario_i is defined %}{{ glossario_i(slug, align=align) }}{% endif %}</div>
     <div class="text-xl font-bold text-loyall-800">{% if valor is none %}—{% else %}{{ valor }}{{ sufixo }}{% endif %}</div>
   </div>
   {% endmacro %}
   {{ metric('Casos', p.total) }}
-  {{ metric('Taxa de resposta', p.taxa_resposta, '%', 'Casos respondidos ÷ total') }}
-  {{ metric('Taxa de resolução', p.taxa_resolucao, '%', 'Resolvidos ÷ avaliados (' ~ p.n_avaliados ~ ')') }}
-  {{ metric('Causa-raiz resolvida', p.taxa_causa, '%', 'Nosso diferencial: a resposta enfrentou a raiz ÷ classificados (' ~ p.n_classificados ~ ')') }}
+  {{ metric('Taxa de resposta', p.taxa_resposta, '%', 'Casos respondidos ÷ total', 'taxa-resposta') }}
+  {{ metric('Taxa de resolução', p.taxa_resolucao, '%', 'Resolvidos ÷ avaliados (' ~ p.n_avaliados ~ ')', 'taxa-resolucao') }}
+  {{ metric('Causa-raiz resolvida', p.taxa_causa, '%', 'Nosso diferencial: a resposta enfrentou a raiz ÷ classificados (' ~ p.n_classificados ~ ')', 'causa-raiz-resolvida', align='right') }}
 </div>
 {% if p.nota_media is not none %}
 <div class="mt-2 text-xs text-loyall-500">Nota média dos avaliados: <strong class="text-loyall-800">★ {{ p.nota_media }}</strong> / 10 ({{ p.n_avaliados }} avaliados)</div>
@@ -44,7 +44,7 @@
 {# Desfechos = chips CLICÁVEIS que filtram a lista (preservam status/período/busca). #}
 {% if p.desfechos %}
 <div class="mt-3">
-  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Desfechos <span class="normal-case tracking-normal">(clique para filtrar)</span></div>
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Desfechos {% if glossario_i is defined %}{{ glossario_i('desfecho-ra') }}{% endif %} <span class="normal-case tracking-normal">(clique para filtrar)</span></div>
   <div class="flex flex-wrap gap-1.5">
     <a hx-get="{{ tab_url }}{% if casos.qs_sem_desfecho %}?{{ casos.qs_sem_desfecho }}{% endif %}"
        hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-push-url="{{ push }}"

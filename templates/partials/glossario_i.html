@@ -5,7 +5,7 @@
   <summary class="cursor-pointer text-loyall-400 hover:text-loyall-600 select-none inline
                   list-none [&::-webkit-details-marker]:hidden"
            aria-label="o que é {{ t.termo }}?">ⓘ</summary>
-  <div class="absolute z-30 left-0 mt-1 w-72 max-w-[80vw] p-3 rounded border border-loyall-200
+  <div class="absolute z-30 {{ 'right-0' if align|default('left') == 'right' else 'left-0' }} mt-1 w-72 max-w-[80vw] p-3 rounded border border-loyall-200
               bg-white shadow-lg text-left font-normal normal-case tracking-normal">
     <p class="font-semibold text-loyall-800 text-sm">{{ t.termo }}</p>
     <p class="text-xs text-loyall-700 mt-0.5">{{ t.curta }}</p>

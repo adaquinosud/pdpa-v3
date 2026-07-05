@@ -82,10 +82,12 @@
   <div class="flex items-center gap-1 text-xs">
     <span class="text-loyall-400 mr-1">Ordenar:</span>
     {% for v, l in [('score','Score'),('ratio','Ratio'),('proximity','Proximity'),('volume','Volume')] %}
-    <a hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='leaderboard') }}?{{ qs }}&order_by={{ v }}"
+    <button type="button"
+       hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='leaderboard') }}?{{ qs }}&order_by={{ v }}"
        hx-target="#explorar-conteudo" hx-swap="innerHTML"
        hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=leaderboard&{{ qs }}&order_by={{ v }}"
-       class="px-2 py-1 rounded border {% if lb.order_by==v %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">{{ l }}</a>
+       aria-pressed="{{ 'true' if lb.order_by==v else 'false' }}"
+       class="cursor-pointer px-2 py-1 rounded border {% if lb.order_by==v %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">{{ l }}</button>
     {% endfor %}
   </div>
 </div>

@@ -44,7 +44,7 @@
 
 {% if snap.identidade_ecoada %}
 <div class="mt-3 rounded border-l-4 border-loyall-400 bg-loyall-50 px-3 py-2">
-  <div class="text-xs uppercase tracking-wider text-loyall-500">Identidade ecoada</div>
+  <div class="text-xs uppercase tracking-wider text-loyall-500">Identidade ecoada {% if glossario_i is defined %}{{ glossario_i('identidade-ecoada') }}{% endif %}</div>
   <p class="text-sm text-loyall-800 mt-0.5">{{ snap.identidade_ecoada }}</p>
   {% if snap.identidade_vs_essencia %}<p class="text-xs text-loyall-500 mt-1">× essência declarada: {{ snap.identidade_vs_essencia }}</p>{% endif %}
 </div>
@@ -65,7 +65,7 @@
 
 {% if snap.encaminhamentos %}
 <div class="mt-3 text-sm text-loyall-600">
-  <span class="text-xs uppercase tracking-wider text-loyall-400">Pra onde a IA manda um insatisfeito:</span>
+  <span class="text-xs uppercase tracking-wider text-loyall-400">Pra onde a IA manda um insatisfeito: {% if glossario_i is defined %}{{ glossario_i('encaminhamentos-ia') }}{% endif %}</span>
   {% for d in snap.encaminhamentos %}<span class="inline-block px-2 py-0.5 rounded bg-loyall-100 text-loyall-700 text-xs ml-1">{{ d }}</span>{% endfor %}
 </div>
 {% endif %}
@@ -84,7 +84,7 @@
 {# ── 2. DEFASAGEM ── #}
 {% if r.defasagem %}
 <div class="mt-6">
-  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Defasagem · IA × diagnóstico dos verbatins</div>
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Defasagem · IA × diagnóstico dos verbatins {% if glossario_i is defined %}{{ glossario_i('defasagem-ia') }}{% endif %}</div>
   <div class="space-y-1.5">
     {% for d in r.defasagem %}
     {% set m = dfmap.get(d.defasagem, {'cor':'border-loyall-200 bg-white','rot':d.defasagem}) %}
@@ -106,7 +106,7 @@
 {% if r.divergencia.linhas %}
 <div class="mt-6">
   <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">
-    Divergência entre modelos <span class="normal-case tracking-normal text-loyall-500">· {{ r.divergencia.n_discordam }} subpilar(es) onde os modelos discordam</span></div>
+    Divergência entre modelos {% if glossario_i is defined %}{{ glossario_i('divergencia-ia') }}{% endif %} <span class="normal-case tracking-normal text-loyall-500">· {{ r.divergencia.n_discordam }} subpilar(es) onde os modelos discordam</span></div>
   {% if r.divergencia.n_discordam == 0 %}
   <p class="text-xs text-loyall-500 italic">Os modelos concordam em todos os subpilares avaliados.</p>
   {% else %}
