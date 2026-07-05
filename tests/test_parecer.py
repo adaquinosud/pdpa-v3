@@ -100,6 +100,10 @@ def test_montar_dados_completo(db_session):
     assert isinstance(d["tese"]["conduta"]["resolve"], int)
     # ato2a: funil + desfechos + citação curada (espessa, causa não resolvida)
     assert d["ato2a"]["funil"]["responde"] == 100
+    # item 5: cada degrau declara sua base (denominadores distintos)
+    assert d["ato2a"]["funil"]["base_responde"] == 2  # total de casos
+    assert d["ato2a"]["funil"]["base_resolve"] == 1  # avaliados (C1)
+    assert d["ato2a"]["funil"]["base_causa"] == 1  # classificados (C1 tem desfecho)
     assert len(d["ato2a"]["citacoes"]) == 1 and "reserva" in d["ato2a"]["citacoes"][0]["texto"]
     # ato2b: concentração com referente exato (det_pct = detratores DENTRO do subpilar)
     assert d["ato2b"]["concentracao"]["det_pct"] == 100  # 4 de 4 em Pa1 são detratores

@@ -25,7 +25,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.1-concordancia"
+PROMPT_SINTESE_VER = "v1.2-concordancia-bases"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -220,11 +220,16 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
             "diagnostico_ratio": v["ratio"],
         },
         "conduta": {
+            # CADA taxa tem base PRÓPRIA (item 5 — não misturar denominadores):
             "responde_pct": t["conduta"]["responde"],
+            "responde_base": "do total de casos",
             "resolve_pct": t["conduta"]["resolve"],
+            "resolve_base": "dos casos avaliados",
             # % dos casos em que a EMPRESA atacou a causa-raiz (consertou, não só
             # compensou). NÃO é '% em que a empresa é a causa' — não inverter.
+            # Base = casos com desfecho classificado (NÃO 'ocorrências', NÃO 'resolvidos').
             "enfrenta_a_causa_pct": t["conduta"]["causa"],
+            "enfrenta_a_causa_base": "dos casos com desfecho classificado",
         },
         "ruptura_nivel": t["profundidade"]["nivel"],
         "ruptura_frase": t["profundidade"]["frase"],
@@ -483,6 +488,11 @@ def montar_dados(
                 "responde": casos.taxa_resposta or 0,
                 "resolve": casos.taxa_resolucao or 0,
                 "causa": casos.taxa_causa or 0,
+                # base de CADA degrau (denominadores distintos — item 5):
+                # responde/total · resolve/avaliados · causa/classificados
+                "base_responde": casos.total,
+                "base_resolve": casos.n_avaliados,
+                "base_causa": casos.n_classificados,
             },
             "nota_media": casos.nota_media if casos.nota_media is not None else "—",
             "n_avaliados": casos.n_avaliados,

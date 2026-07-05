@@ -212,11 +212,11 @@
   <h2 class="manchete">Responde-se tudo.<br>Conserta-se pouco.</h2>
   <div class="rule"></div>
   <div class="funil">
-    <div class="step s1"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde</div></div>
+    <div class="step s1"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde{% if d.ato2a.funil.base_responde %} · dos {{ d.ato2a.funil.base_responde }} casos{% endif %}</div></div>
     <div class="arrow">↓</div>
-    <div class="step s2"><div class="fn">{{ d.ato2a.funil.resolve }}%</div><div class="fl">resolve</div></div>
+    <div class="step s2"><div class="fn">{{ d.ato2a.funil.resolve }}%</div><div class="fl">resolve{% if d.ato2a.funil.base_resolve %} · dos {{ d.ato2a.funil.base_resolve }} avaliados{% endif %}</div></div>
     <div class="arrow">↓</div>
-    <div class="step s3"><div class="fn">{{ d.ato2a.funil.causa }}%</div><div class="fl">enfrenta a causa</div></div>
+    <div class="step s3"><div class="fn">{{ d.ato2a.funil.causa }}%</div><div class="fl">enfrenta a causa{% if d.ato2a.funil.base_causa %} · dos {{ d.ato2a.funil.base_causa }} classificados{% endif %}</div></div>
   </div>
   <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:0 auto">“3 em cada 4 casos ‘resolvidos’ compensam o cliente sem consertar a causa — que segue fabricando o próximo detrator.”</p>
 

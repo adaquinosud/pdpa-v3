@@ -14,6 +14,12 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
   causa-raiz (consertou). NUNCA descreva como "a empresa é a causa" — é o oposto.
   Diga "enfrenta/ataca/conserta a causa em X%", e note que é BAIXO (o resto
   compensa sem consertar).
+- BASE DE CADA TAXA DA CONDUTA (não misture denominadores): cada ``*_pct`` vem
+  com seu ``*_base`` — use o referente EXATO. ``responde_pct`` é ``responde_base``
+  (do total de casos); ``resolve_pct`` é ``resolve_base`` (dos avaliados);
+  ``enfrenta_a_causa_pct`` é ``enfrenta_a_causa_base`` (dos casos com desfecho
+  classificado). NUNCA escreva "X% das ocorrências" nem troque a base — o 23%
+  não é "dos resolvidos" nem "das ocorrências", é dos casos com desfecho.
 - Só afirme o que está no JSON. Se um fato vier vazio/"—", não o mencione.
 
 Campos do JSON: ``empresa``, ``ferida`` (subpilar mais ferido); ``voz_publica``
