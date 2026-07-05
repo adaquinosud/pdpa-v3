@@ -408,28 +408,28 @@ def montar_dados(
     doura, ecoa = _defas("ia_otimista"), _defas("ia_atrasada")
     div = getattr(rep, "divergencia", None)
 
-    # ponto cego do confronto: cliente detrator × time promotor/conversível
-    ponto_cego = None
-    for g in gaps or []:
+    # Ponto cego = onde cliente e time DIVERGEM em valência (estado='gap' e valências
+    # diferentes). A NOTA é enfeite (o P7 a omite se NULL) — a divergência é o fato.
+    # Prefere a ferida; senão a 1ª divergência. Só fica None (→ 'Sem confronto') se
+    # NÃO houver divergência de valência em nenhum subpilar — bug antigo: o critério
+    # estreito (só detrator×promotor) mentia 'Sem confronto' com confronto vivo.
+    def _diverge(g):
         cli = (g.get("cliente") or {}).get("valencia_dominante")
-        col = g.get("colaborador") or {}
-        if (
-            g.get("estado") == "gap"
-            and cli == "detrator"
-            and col.get("valencia_dominante")
-            in (
-                "promotor",
-                "conversivel",
-            )
-        ):
-            ponto_cego = {
-                "subpilar_nome": g["nome"],
-                "time_val": col.get("valencia_dominante"),
-                "time_nota": col.get("nota_media"),
-                "cliente_val": "detrator",
-                "frase": "ponto cego — o time não vê a dor que o cliente vive",
-            }
-            break
+        tval = (g.get("colaborador") or {}).get("valencia_dominante")
+        return g.get("estado") == "gap" and cli and tval and cli != tval
+
+    _divs = [g for g in (gaps or []) if _diverge(g)]
+    _g = next((g for g in _divs if g["subpilar"] == fer_sub), None) or (_divs[0] if _divs else None)
+    ponto_cego = None
+    if _g is not None:
+        col = _g.get("colaborador") or {}
+        ponto_cego = {
+            "subpilar_nome": _g["nome"],
+            "time_val": col.get("valencia_dominante"),
+            "time_nota": col.get("nota_media"),  # pode ser None → o P7 omite a nota
+            "cliente_val": (_g.get("cliente") or {}).get("valencia_dominante"),
+            "frase": "ponto cego — o time não vê a dor que o cliente vive",
+        }
 
     prof_nivel = corrente["elos"]
     ruptura = next((e for e in corrente["elos"] if e["estado"] == "ruptura"), None)

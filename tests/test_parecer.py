@@ -226,6 +226,60 @@ def test_seletor_ancora_no_confronto_nao_na_origem(db_session):
     assert d["ato2b"]["corrente"], "corrente deve existir (pesquisa rodada tem origem)"
 
 
+def test_ponto_cego_divergencia_sem_nota(db_session):
+    """BUG do PDF real: divergência de valência com time_nota NULL virava 'Sem
+    confronto'. Deve popular o ponto cego (a nota é enfeite; a divergência é o fato)."""
+    from src.models.origem import OrigemAnalise
+    from src.models.pesquisa import Pesquisa, PesquisaPergunta
+    from src.models.respondente import Resposta, Respondente
+
+    e = _empresa(db_session, "pcnota")
+    f = _fonte(db_session, e)
+    # cliente: Pa2 detrator (RA) → ferida
+    for i in range(3):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="reclamação",
+                tem_texto=True,
+                subpilar="Pa2",
+                tipo="detrator",
+                hash_dedup=f"pc{i}",
+            )
+        )
+    p = Pesquisa(empresa_id=e.id, natureza="externa", proposito="confronto", titulo="P")
+    db_session.add(p)
+    db_session.flush()
+    db_session.add(
+        OrigemAnalise(pesquisa_id=p.id, subpilar="Pa2", nivel="significado", lado="gravidade")
+    )
+    perg = PesquisaPergunta(
+        pesquisa_id=p.id, ordem=1, enunciado="?", formato="fechada", subpilar_alvo="Pa2"
+    )
+    db_session.add(perg)
+    db_session.flush()
+    rp = Respondente(pesquisa_id=p.id, entidade_tipo="empresa")
+    db_session.add(rp)
+    db_session.flush()
+    # time: Pa2 PROMOTOR, nota NULL (a divergência é de valência)
+    db_session.add(
+        Resposta(
+            respondente_id=rp.id,
+            pergunta_id=perg.id,
+            valor_nota=None,
+            subpilar_classificado="Pa2",
+            valencia_classificada="promotor",
+        )
+    )
+    db_session.commit()
+
+    gap = montar_dados(e.id)["ato2b"]["gap"]
+    assert gap is not None, "divergência sem nota deve popular o ponto cego"
+    assert gap["time_val"] == "promotor" and gap["cliente_val"] == "detrator"
+    assert gap["time_nota"] is None  # sem nota — o template omite
+
+
 def test_montar_dados_degrada_sem_dado(db_session):
     e = _empresa(db_session, "vazia")  # nada
     db_session.commit()
