@@ -65,6 +65,15 @@ from src.utils.db import db_session
 
 
 def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
+    from src.coletor.reclame_aqui import (
+        CORTE_MESES,
+        CUSTO_POR_CASO_USD,
+        MAX_COMPLAINTS_PER_COMPANY,
+    )
+
+    eh_ra = f.conector_tipo == "reclame_aqui"
+    janela_ef = f.ra_janela_meses or CORTE_MESES
+    cap_ef = f.ra_max_casos or MAX_COMPLAINTS_PER_COMPANY
     return SimpleNamespace(
         id=f.id,
         empresa_id=f.empresa_id,
@@ -72,6 +81,15 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         entidade_id=f.entidade_id,
         conector_tipo=f.conector_tipo,
         url=f.url,
+        # Config de coleta RA por fonte (override) + vigentes + teto de custo.
+        eh_ra=eh_ra,
+        ra_janela_meses=f.ra_janela_meses,
+        ra_max_casos=f.ra_max_casos,
+        ra_janela_ef=janela_ef,
+        ra_cap_ef=cap_ef,
+        ra_custo_max=round(cap_ef * CUSTO_POR_CASO_USD, 2),
+        ra_default_janela=CORTE_MESES,
+        ra_default_cap=MAX_COMPLAINTS_PER_COMPANY,
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
         # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
         # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).
@@ -2361,6 +2379,25 @@ def htmx_deletar_local(local_id: int):
     return ("", 200)
 
 
+def _ra_config_do_form(conector: str):
+    """(ra_janela_meses, ra_max_casos) do form — só p/ reclame_aqui; inteiros
+    positivos ou None (usa o default global). Ignora lixo/valores ≤ 0."""
+    if conector != "reclame_aqui":
+        return None, None
+
+    def _pos(name):
+        v = (request.form.get(name) or "").strip()
+        if not v:
+            return None
+        try:
+            n = int(v)
+        except ValueError:
+            return None
+        return n if n > 0 else None
+
+    return _pos("ra_janela_meses"), _pos("ra_max_casos")
+
+
 @ui_bp.route("/ui/locais/<int:local_id>/fontes", methods=["POST"])
 @loyall_required_ui
 def htmx_criar_fonte(local_id: int):
@@ -2394,6 +2431,7 @@ def htmx_criar_fonte(local_id: int):
     if not url:
         return ("<div class='text-red-600'>url é obrigatória.</div>", 400)
 
+    ra_janela, ra_cap = _ra_config_do_form(conector)
     with db_session() as s:
         f = Fonte(
             empresa_id=empresa_id,
@@ -2402,6 +2440,8 @@ def htmx_criar_fonte(local_id: int):
             conector_tipo=conector,
             url=url,
             ativo=ativo,
+            ra_janela_meses=ra_janela,
+            ra_max_casos=ra_cap,
         )
         s.add(f)
         s.flush()
@@ -2414,6 +2454,8 @@ def htmx_criar_fonte(local_id: int):
             f.conector_tipo,
             f.url,
             f.ativo,
+            f.ra_janela_meses,
+            f.ra_max_casos,
             f.ultima_coleta,
             f.criada_em,
             f.observacao,
@@ -2479,8 +2521,11 @@ def htmx_salvar_fonte(fonte_id: int):
         erro = _check_acesso(f.empresa_id)
         if erro:
             return erro
+        ra_janela, ra_cap = _ra_config_do_form(f.conector_tipo)
         f.url = url
         f.observacao = observacao
+        f.ra_janela_meses = ra_janela
+        f.ra_max_casos = ra_cap
         s.flush()
         local_map = {}
         if f.entidade_tipo == "local":
@@ -2495,6 +2540,8 @@ def htmx_salvar_fonte(fonte_id: int):
             f.conector_tipo,
             f.url,
             f.ativo,
+            f.ra_janela_meses,
+            f.ra_max_casos,
             f.ultima_coleta,
             f.criada_em,
             f.observacao,

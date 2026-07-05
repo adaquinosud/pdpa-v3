@@ -27,6 +27,12 @@
   {% if f.ultima_coleta %}
     <span class="text-loyall-400" title="Última coleta">{{ f.ultima_coleta.strftime('%Y-%m-%d') }}</span>
   {% endif %}
+  {% if f.eh_ra %}
+    <span class="text-loyall-500 whitespace-nowrap"
+          title="Config de coleta ReclameAqui{% if not f.ra_janela_meses and not f.ra_max_casos %} (defaults globais){% endif %} · o actor cobra só o que retorna dentro da janela → cap = teto de gasto">
+      {{ f.ra_janela_ef }}m · máx {{ f.ra_cap_ef }} · até US$ {{ '%.2f'|format(f.ra_custo_max) }}{% if not f.ra_janela_meses and not f.ra_max_casos %} <span class="text-loyall-300">(padrão)</span>{% endif %}
+    </span>
+  {% endif %}
   <div class="flex items-center gap-2">
     {% if f.ativo %}
     <button hx-post="{{ url_for('ui.htmx_disparar_fonte', fonte_id=f.id) }}"

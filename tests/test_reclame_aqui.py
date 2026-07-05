@@ -136,6 +136,44 @@ def test_adapter_strip_html_da_descricao():
 # ── Coletor + upsert ─────────────────────────────────────────────────────────
 
 
+def _capturar_input(monkeypatch, items):
+    """Patch do actor que CAPTURA o run_input (p/ inspecionar cap/janela)."""
+    cap = {}
+
+    def _run(actor, run_input, **k):
+        cap.update(run_input)
+        return items
+
+    monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _run)
+    return cap
+
+
+def test_coletar_usa_override_por_fonte(db_session, monkeypatch):
+    """Override na fonte (caso comercial): cap + janela vão pro run_input do actor."""
+    from datetime import date, timedelta
+
+    e, f = _empresa_fonte(db_session)
+    f.ra_janela_meses = 6
+    f.ra_max_casos = 120
+    db_session.commit()
+    cap = _capturar_input(monkeypatch, [_reclamacao("O1")])
+    ra.coletar(f)
+    assert cap["maxComplaintsPerCompany"] == 120
+    assert cap["dateFrom"] == (date.today() - timedelta(days=6 * 30)).isoformat()
+
+
+def test_coletar_usa_defaults_sem_override(db_session, monkeypatch):
+    from datetime import date, timedelta
+
+    e, f = _empresa_fonte(db_session)  # ra_* NULL → defaults globais
+    db_session.commit()
+    cap = _capturar_input(monkeypatch, [_reclamacao("D1")])
+    ra.coletar(f)
+    assert cap["maxComplaintsPerCompany"] == ra.MAX_COMPLAINTS_PER_COMPANY
+    assert cap["dateFrom"] == (date.today() - timedelta(days=ra.CORTE_MESES * 30)).isoformat()
+    assert cap["statusFilter"] == ["LATEST"]  # cap = teto de gasto de fato
+
+
 def test_coletar_cria_caso_e_verbatim(db_session, monkeypatch):
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_reclamacao("C1")])

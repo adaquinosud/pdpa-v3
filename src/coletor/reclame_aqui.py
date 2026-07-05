@@ -32,6 +32,10 @@ APIFY_TIMEOUT_SECONDS = 900
 # 500: o actor cobra por reclamação RETORNADA (não pelo cap) — headroom seguro p/
 # trazer a janela inteira de empresas com >100 (o cap de 100 truncava o Club Med).
 MAX_COMPLAINTS_PER_COMPANY = 500
+# Custo do actor por reclamação retornada (PAY_PER_EVENT). Como o actor cobra só o
+# que RETORNA dentro da janela (statusFilter LATEST + dateFrom), cap × isto = teto
+# de gasto de fato (fora as taxas fixas: $0.005 start + $0.05/empresa).
+CUSTO_POR_CASO_USD = 0.025
 RECOLETA_IDADE_DIAS = 7  # cadência semanal
 ABANDONO_DIAS = 90  # não-terminal sem mudança → abandonado
 # Corte de coleta: 15 meses (padrão da casa p/ comentários — COLETA_JANELA_MESES).
@@ -40,8 +44,8 @@ ABANDONO_DIAS = 90  # não-terminal sem mudança → abandonado
 CORTE_MESES = 15
 
 
-def _data_corte() -> date:
-    return date.today() - timedelta(days=CORTE_MESES * 30)
+def _data_corte(meses: int = CORTE_MESES) -> date:
+    return date.today() - timedelta(days=meses * 30)
 
 
 def _empresa_param(url: str) -> str:
@@ -216,18 +220,21 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
                 print(f"[reclame_aqui] fonte {fonte_id} pulada (cadência semanal)")
                 return stats
 
-    corte = _data_corte()
+    # Override por fonte (caso comercial de alto volume); NULL = defaults globais.
+    janela_meses = fonte.ra_janela_meses or CORTE_MESES
+    cap = fonte.ra_max_casos or MAX_COMPLAINTS_PER_COMPANY
+    corte = _data_corte(janela_meses)
     run_input = {
         "companies": [empresa_param],
         "scrapeComplaints": True,
         "includeInteractions": True,
         "includeCompanyProfile": False,
         "statusFilter": ["LATEST"],
-        "maxComplaintsPerCompany": MAX_COMPLAINTS_PER_COMPANY,
+        "maxComplaintsPerCompany": cap,
         "descriptionFormat": "text",
         "excludeEmptyFields": False,
-        # Corte de 15 meses server-side: o actor só retorna/cobra reclamações
-        # created >= dateFrom (economiza custo por reclamação).
+        # Corte server-side: o actor só retorna/cobra reclamações created >= dateFrom
+        # (economiza custo por reclamação). Janela vigente = override da fonte ou 15m.
         "dateFrom": corte.isoformat(),
     }
     try:

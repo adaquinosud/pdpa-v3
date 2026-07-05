@@ -48,6 +48,11 @@ class Fonte(Base):
     # status (sistema) vs ativo (gestão): coleta dispara só se ativo=1 e status='ativa'.
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     observacao: Mapped[Optional[str]] = mapped_column(Text)
+    # Config de coleta RA por fonte (caso comercial de alto volume, ex. Localiza).
+    # NULL = usa os defaults globais do coletor (CORTE_MESES=15 / MAX=500). O actor
+    # cobra por reclamação RETORNADA dentro da janela → cap = teto de gasto de fato.
+    ra_janela_meses: Mapped[Optional[int]] = mapped_column(Integer)
+    ra_max_casos: Mapped[Optional[int]] = mapped_column(Integer)
     ultima_coleta: Mapped[Optional[datetime]] = mapped_column(DateTime)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

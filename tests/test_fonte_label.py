@@ -21,6 +21,8 @@ def _fake_fonte(entidade_tipo, entidade_id=1, url="ChIJ_X"):
         conector_tipo="google",
         url=url,
         ativo=True,
+        ra_janela_meses=None,
+        ra_max_casos=None,
         ultima_coleta=None,
         criada_em=None,
         observacao=None,
