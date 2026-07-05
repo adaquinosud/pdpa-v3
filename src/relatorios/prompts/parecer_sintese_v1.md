@@ -10,12 +10,17 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
   subpilar, não proporção de detratores.
 - Não dramatize além do fato. As IAs, quando consultadas, RECOMENDAM concorrentes
   — não "encaminham ativamente" nem "abandonam a marca". O dado cru já é grave.
+- ATENÇÃO ao ``enfrenta_a_causa_pct``: é a % de casos em que a empresa ATACOU a
+  causa-raiz (consertou). NUNCA descreva como "a empresa é a causa" — é o oposto.
+  Diga "enfrenta/ataca/conserta a causa em X%", e note que é BAIXO (o resto
+  compensa sem consertar).
 - Só afirme o que está no JSON. Se um fato vier vazio/"—", não o mencione.
 
 Campos do JSON: ``empresa``, ``ferida`` (subpilar mais ferido); ``voz_publica``
 (``concentracao_pct``, ``casos_no_subpilar``/``casos_total``, e o diagnóstico do
 subpilar: ``diagnostico_detratores``/``diagnostico_promotores``/
-``diagnostico_ratio``); ``conduta`` (responde/resolve/causa %); ``ruptura_nivel`` +
+``diagnostico_ratio``); ``conduta`` (``responde_pct``/``resolve_pct``/
+``enfrenta_a_causa_pct``); ``ruptura_nivel`` +
 ``ruptura_frase``; ``consultam_ia_pct``, ``ias``, ``encaminhamentos``; ``topo`` /
 ``base`` (subpilares em risco, cada um com nome+valência); ``essencia_declarada``
 (missão/visão/valores crus); ``identidade_ia_vs_essencia`` (o que as IAs veem × a

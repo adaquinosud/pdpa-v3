@@ -216,7 +216,13 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
             "diagnostico_promotores": v["promotores"],
             "diagnostico_ratio": v["ratio"],
         },
-        "conduta": t["conduta"],
+        "conduta": {
+            "responde_pct": t["conduta"]["responde"],
+            "resolve_pct": t["conduta"]["resolve"],
+            # % dos casos em que a EMPRESA atacou a causa-raiz (consertou, não só
+            # compensou). NÃO é '% em que a empresa é a causa' — não inverter.
+            "enfrenta_a_causa_pct": t["conduta"]["causa"],
+        },
         "ruptura_nivel": t["profundidade"]["nivel"],
         "ruptura_frase": t["profundidade"]["frase"],
         "consultam_ia_pct": d["ato2c"]["stat"]["pct"],
