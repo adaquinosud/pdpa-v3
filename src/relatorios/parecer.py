@@ -207,15 +207,26 @@ def _ato4(s, empresa_id: int) -> Dict[str, Any]:
 
 
 def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
-    """Fatos crus (sem prosa) que alimentam a síntese Sonnet + o hash do cache."""
-    t = d["tese"]
+    """Fatos crus (sem prosa) que alimentam a síntese Sonnet + o hash do cache.
+    Chaves AUTO-DESCRITIVAS: a concentração RA e o diagnóstico do subpilar são
+    métricas DISTINTAS (o prompt exige separá-las — nada de '62% são detratores')."""
+    t, v = d["tese"], d["tese"]["voz"]
     return {
         "empresa": d["empresa_nome"],
         "ferida": t["subpilar_nome"],
-        "voz": t["voz"],
+        "voz_publica": {
+            "concentracao_pct": v["pct"],  # % das reclamações RA que caem no subpilar
+            "casos_no_subpilar": v["n"],
+            "casos_total": v["total"],
+            "diagnostico_detratores": v["detratores"],  # contagem all-time do subpilar
+            "diagnostico_promotores": v["promotores"],
+            "diagnostico_ratio": v["ratio"],
+        },
         "conduta": t["conduta"],
         "ruptura_nivel": t["profundidade"]["nivel"],
         "ruptura_frase": t["profundidade"]["frase"],
+        "consultam_ia_pct": d["ato2c"]["stat"]["pct"],
+        "ias": ["ChatGPT", "Gemini", "Claude"],
         "encaminhamentos": d["ato2c"]["encaminhamentos"],
         "topo": [sp["nome"] for sp in d["ato3"]["topo"]["subpilares"]],
         "base": [sp["nome"] for sp in d["ato3"]["base"]["subpilares"]],
