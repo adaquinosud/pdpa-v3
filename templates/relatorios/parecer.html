@@ -239,15 +239,15 @@
   <div class="rule"></div>
   <div class="corrente">
     {% for elo in d.ato2b.corrente %}
+    {% set _et = (d.sintese.corrente[elo.nivel] if (d.sintese and d.sintese.corrente) else None) or elo.texto %}
     <div class="elo {{ elo.estado }}">
       {% if elo.tag %}<span class="tag">{{ elo.tag }}</span>{% endif %}
       <div class="en">{{ elo.nivel }}</div>
-      <div class="et">{{ elo.texto }}</div>
+      {% if _et %}<div class="et">{{ _et }}</div>{% endif %}
     </div>
     {% if not loop.last %}<div class="elo-arrow">↓</div>{% endif %}
     {% endfor %}
   </div>
-  {% if d.ato2b.ruptura_frase %}<p class="method" style="font-size:11.5pt">“{{ d.ato2b.ruptura_frase }}”</p>{% endif %}
   <table class="cols" style="margin-top:5mm"><tr>
     <td>
       <div class="col-h">A intensidade da dor</div>

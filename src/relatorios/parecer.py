@@ -150,8 +150,8 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
         if grp:
             subs = " · ".join(nome_map.get(x.subpilar, x.subpilar) for x in grp)
             texto = next((x.justificativa for x in grp if x.justificativa), None) or subs
-        else:  # elo abaixo da ruptura sem análise própria → herda (sem '—' seco)
-            texto = "consequência herdada da ruptura acima."
+        else:  # elo abaixo da ruptura sem análise → só a tag HERDA, sem frase-eco
+            texto = None
         elos.append({"nivel": _NIVEL_PT[n], "estado": estado, "tag": tag, "texto": texto})
     return {"elos": elos, "ruptura_frase": ruptura_frase}
 
@@ -239,6 +239,12 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         # p/ comprimir (essencia) e extrair os 3 pilares que a IA não menciona:
         "essencia_declarada": d["ato1"]["essencia"],
         "identidade_ia_vs_essencia": d["ato1"].get("identidade_vs_essencia"),
+        # elos da corrente ORIGEM com texto (justificativa longa) p/ comprimir:
+        "corrente_elos": [
+            {"nivel": el["nivel"], "texto": el["texto"]}
+            for el in d["ato2b"]["corrente"]
+            if el.get("texto")
+        ],
     }
 
 
@@ -280,6 +286,7 @@ def sintetizar_parecer(
         "ausentes_frase": data.get("ausentes_frase"),
         "essencia": data.get("essencia") or None,  # missao/visao/valores comprimidos
         "leitura_topo": data.get("leitura_topo"),  # leitura da ferida individual (P7)
+        "corrente": data.get("corrente_nucleo") or {},  # {nivel: frase-núcleo 1 linha}
     }
     with db_session() as s:
         row = (
@@ -351,17 +358,23 @@ def montar_dados(
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id)
 
         # ── ORIGEM + confronto (por pesquisa) ──
-        # A pesquisa CERTA é a que TEM ORIGEM — não a de maior id. Uma pesquisa
-        # nova/vazia (id maior) escondia a que tem confronto+ORIGEM (bug: 'ruptura
-        # no —' + 'sem confronto'). Prioriza a mais recente COM OrigemAnalise;
-        # fallback = a mais recente qualquer (para gaps sem origem).
-        pesq = (
-            s.query(Pesquisa)
-            .join(OrigemAnalise, OrigemAnalise.pesquisa_id == Pesquisa.id)
-            .filter(Pesquisa.empresa_id == empresa_id)
-            .order_by(Pesquisa.id.desc())
-            .first()
-        )
+        # A pesquisa do parecer é a que foi RODADA: âncora no CONFRONTO (tem
+        # Respondente), pois é DELE que a ORIGEM deriva. Ancorar só na OrigemAnalise
+        # deixava uma pesquisa nova com origem (mas sem confronto) esconder a
+        # pesquisa completa → 'Sem confronto' no PDF. Fallbacks: origem, depois a
+        # mais recente qualquer.
+        from src.models.respondente import Respondente
+
+        def _pesq_com(join_model):
+            return (
+                s.query(Pesquisa)
+                .join(join_model, join_model.pesquisa_id == Pesquisa.id)
+                .filter(Pesquisa.empresa_id == empresa_id)
+                .order_by(Pesquisa.id.desc())
+                .first()
+            )
+
+        pesq = _pesq_com(Respondente) or _pesq_com(OrigemAnalise)
         if pesq is None:
             pesq = (
                 s.query(Pesquisa)

@@ -179,6 +179,53 @@ def test_seletor_pesquisa_prefere_a_com_origem(db_session):
     assert any(el["estado"] == "ruptura" for el in d["ato2b"]["corrente"])
 
 
+def test_seletor_ancora_no_confronto_nao_na_origem(db_session):
+    """BUG do PDF real: uma pesquisa NOVA com origem (mas sem confronto) escondia a
+    pesquisa RODADA (com confronto) → 'Sem confronto'. O seletor deve ancorar na
+    que tem Respondente (confronto), não só na OrigemAnalise."""
+    from src.models.origem import OrigemAnalise
+    from src.models.pesquisa import Pesquisa, PesquisaPergunta
+    from src.models.respondente import Resposta, Respondente
+
+    e = _empresa(db_session, "conf")
+    # pesquisa RODADA (id menor): confronto (respondente/resposta) + origem
+    p_run = Pesquisa(empresa_id=e.id, natureza="externa", proposito="confronto", titulo="Rodada")
+    db_session.add(p_run)
+    db_session.flush()
+    db_session.add(
+        OrigemAnalise(pesquisa_id=p_run.id, subpilar="Pa2", nivel="significado", lado="gravidade")
+    )
+    perg = PesquisaPergunta(
+        pesquisa_id=p_run.id, ordem=1, enunciado="?", formato="fechada", subpilar_alvo="Pa2"
+    )
+    db_session.add(perg)
+    db_session.flush()
+    rp = Respondente(pesquisa_id=p_run.id, entidade_tipo="empresa")
+    db_session.add(rp)
+    db_session.flush()
+    db_session.add(
+        Resposta(
+            respondente_id=rp.id,
+            pergunta_id=perg.id,
+            valor_nota=4,
+            subpilar_classificado="Pa2",
+            valencia_classificada="promotor",
+        )
+    )
+    # pesquisa NOVA (id maior) só com origem — não pode vencer
+    p_new = Pesquisa(empresa_id=e.id, natureza="externa", proposito="coleta", titulo="Nova")
+    db_session.add(p_new)
+    db_session.flush()
+    db_session.add(
+        OrigemAnalise(pesquisa_id=p_new.id, subpilar="Pa2", nivel="resultado", lado="gravidade")
+    )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    # confronto veio da p_run → há gaps (o corrente veio da MESMA pesquisa rodada)
+    assert d["ato2b"]["corrente"], "corrente deve existir (pesquisa rodada tem origem)"
+
+
 def test_montar_dados_degrada_sem_dado(db_session):
     e = _empresa(db_session, "vazia")  # nada
     db_session.commit()

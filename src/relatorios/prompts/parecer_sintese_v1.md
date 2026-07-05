@@ -56,6 +56,12 @@ Produza SEIS saídas:
    se corrige na RELAÇÃO, caso a caso, e não com um novo processo. Se a ferida for
    sistêmica (``base``), adapte para a leitura correspondente.
 
+7. ``corrente_nucleo`` — objeto ``{nivel: frase}`` onde, para CADA elo de
+   ``corrente_elos``, você extrai a FRASE-NÚCLEO da justificativa em UMA linha
+   (máx. ~15 palavras), preservando o sentido. A chave é o ``nivel`` exato do elo
+   (ex.: "Significado", "Essência"). É pra caber num diagrama — a versão longa NÃO
+   entra.
+
 Português do Brasil; nada de bullet, título ou markdown DENTRO dos textos.
 
 Responda SOMENTE com JSON, sem texto fora:
@@ -66,5 +72,6 @@ Responda SOMENTE com JSON, sem texto fora:
   "essencia": {"missao": "…", "visao": "…", "valores": "…"},
   "ausentes": ["…", "…", "…"],
   "ausentes_frase": "…",
-  "leitura_topo": "…"
+  "leitura_topo": "…",
+  "corrente_nucleo": {"Essência": "…", "Significado": "…"}
 }
