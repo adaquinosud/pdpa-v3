@@ -442,6 +442,9 @@ def test_gate_maturidade_base_recente(db_session):
     html = _render(d)
     assert "A base é recente" in html and "não é julgada sobre coleta recente" in html
     assert "resolve · dos" not in html  # o degrau de conduta não é julgado
+    # bug v2: o card da TESE também respeita o gate — sem resolve/causa
+    assert "resolução e causa-raiz" in html and "em maturação" in html
+    assert "resolve <strong>" not in html and "enfrenta a causa em <strong>" not in html
 
 
 def test_funil_base_zero_declara_sem_casos(db_session):

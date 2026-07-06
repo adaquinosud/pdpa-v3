@@ -160,8 +160,8 @@
       <td class="v">das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}). No diagnóstico geral, o ratio é <strong>{{ d.tese.voz.ratio }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
     </tr>
     <tr>
-      <td class="k"><div class="kl">A conduta</div><div class="kn">{{ d.tese.conduta.resolve }}%</div></td>
-      <td class="v">responde <strong>{{ d.tese.conduta.responde }}%</strong>, resolve <strong>{{ d.tese.conduta.resolve }}%</strong>, enfrenta a causa em <strong>{{ d.tese.conduta.causa }}%</strong>.</td>
+      <td class="k"><div class="kl">A conduta</div><div class="kn">{% if d.ato2a.maturidade.madura %}{{ d.tese.conduta.resolve }}%{% else %}{{ d.tese.conduta.responde }}%{% endif %}</div></td>
+      <td class="v">{% if d.ato2a.maturidade.madura %}responde <strong>{{ d.tese.conduta.responde }}%</strong>, resolve <strong>{{ d.tese.conduta.resolve }}%</strong>, enfrenta a causa em <strong>{{ d.tese.conduta.causa }}%</strong>.{% else %}responde <strong>{{ d.tese.conduta.responde }}%</strong>; resolução e causa-raiz <em>em maturação</em> — base recente, ainda não julgada.{% endif %}</td>
     </tr>
     {% if d.tese.profundidade.nivel %}
     <tr>
