@@ -1670,12 +1670,26 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         if d is None:
             return None
         # Síntese executiva (Sonnet) SOB DEMANDA + cacheada — só quando há
-        # diagnóstico real (ferida ≠ fallback). Falha do LLM não derruba o PDF.
+        # diagnóstico real (ferida ≠ fallback). Falha transitória → retry; se
+        # esgotar, NÃO renderiza parecer mudo (banner visível), e loga estruturado.
         if d["tese"]["subpilar_nome"] != "Relação":
-            try:
-                d["sintese"] = sintetizar_parecer(empresa_w.id, d)
-            except Exception as exc:  # noqa: BLE001
-                print(f"[parecer] síntese Sonnet falhou: {type(exc).__name__}: {exc}")
+            import logging
+
+            _log = logging.getLogger(__name__)
+            for _tent in range(3):
+                try:
+                    d["sintese"] = sintetizar_parecer(empresa_w.id, d)
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    _log.error(
+                        "parecer: síntese Sonnet falhou (empresa=%s, tentativa=%d/3): %s",
+                        empresa_w.id,
+                        _tent + 1,
+                        type(exc).__name__,
+                        exc_info=True,
+                    )
+            else:  # esgotou o retry sem break → falha residual VISÍVEL
+                d["sintese_falhou"] = True
         return render_template("relatorios/parecer.html", empresa=empresa_w, d=d)
     return render_template(
         "relatorios/em_construcao.html",

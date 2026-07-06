@@ -153,6 +153,8 @@
   <div class="rule"></div>
   {% if d.sintese and d.sintese.abertura %}
     {% for par in d.sintese.abertura.split('\n\n') %}<p class="lead">{{ par }}</p>{% endfor %}
+  {% elif d.sintese_falhou %}
+    <p class="lead" style="color:var(--crit);border-left:3px solid var(--crit);padding-left:4mm">⚠ A síntese executiva não pôde ser gerada agora. O diagnóstico abaixo está completo; <strong>regenere o parecer</strong> para incluir a leitura executiva.</p>
   {% endif %}
   <table class="tese-grid">
     <tr>

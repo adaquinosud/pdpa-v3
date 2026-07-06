@@ -475,6 +475,35 @@ def test_funil_base_zero_declara_sem_casos(db_session):
     assert "enfrenta a causa · sem casos classificados" in html
 
 
+def test_banner_sintese_falhou_nao_fica_mudo(db_session):
+    """Bug v2: falha residual de síntese não pode virar PDF mudo. Sem síntese +
+    flag sintese_falhou → banner visível 'regenere o parecer' no lugar da abertura."""
+    e = _empresa(db_session, "banner")
+    f = _fonte(db_session, e)
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            texto="reclamação",
+            tem_texto=True,
+            subpilar="Pa2",
+            tipo="detrator",
+            hash_dedup="bn0",
+        )
+    )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    d["sintese"] = None
+    d["sintese_falhou"] = True
+    html = _render(d)
+    assert "síntese executiva não pôde ser gerada" in html
+    assert "regenere o parecer" in html
+    # sem a flag, nada de banner (não polui o caso normal degradado)
+    d.pop("sintese_falhou")
+    assert "não pôde ser gerada" not in _render(d)
+
+
 def test_montar_dados_degrada_sem_dado(db_session):
     e = _empresa(db_session, "vazia")  # nada
     db_session.commit()
