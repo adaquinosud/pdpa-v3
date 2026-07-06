@@ -29,7 +29,7 @@
     O que a empresa pensa e o que o cliente expressa, encontrando-se em cada pilar.</p>
   {% if janela_meses %}
   <p class="text-xs text-loyall-400 mt-0.5">
-    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-loyall-100 text-loyall-500">⏱ voz do cliente: últimos {{ janela_meses }} meses</span></p>
+    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-loyall-100 text-loyall-500">⏱ voz pública: últimos {{ janela_meses }} meses</span></p>
   {% endif %}
 
   {# RADAR (Chart.js, já no base). Resumo visual: time × cliente nos 4 pilares.
@@ -49,7 +49,7 @@
           datasets: [
             {label: 'Como o time se avalia', data: {{ radar.time | tojson }},
              borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.12)', pointBackgroundColor: '#4f46e5'},
-            {label: 'Voz do cliente', data: {{ radar.cliente | tojson }},
+            {label: 'Voz pública', data: {{ radar.cliente | tojson }},
              borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,0.12)', pointBackgroundColor: '#d97706'}
           ]
         },
@@ -99,7 +99,7 @@
         <div class="text-xs text-loyall-400 mt-0.5">{{ p.subpilares | join(' · ') }}</div>
         {% if p.diverge %}<div class="text-xs text-rose-500 mt-0.5">↔ visões divergem</div>{% endif %}
       </div>
-      {# DIREITA — voz do cliente. Temas são tema_label agregados (não fala literal):
+      {# DIREITA — voz pública. Temas são tema_label agregados (não fala literal):
          sem aspas; prefixo pela valência dominante, como no confronto. #}
       <div class="text-sm text-left md:text-right order-3 md:order-none">
         <div class="md:hidden text-xs uppercase tracking-wider text-loyall-400 mb-0.5">Cliente</div>

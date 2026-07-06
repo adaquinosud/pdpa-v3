@@ -222,6 +222,6 @@ def test_visoes_radar_chartjs(client_loyall, db_session):
     db_session.commit()
     body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
     assert 'id="radar-visoes"' in body and "type: 'radar'" in body
-    assert "Como o time se avalia" in body and "Voz do cliente" in body
+    assert "Como o time se avalia" in body and "Voz pública" in body
     # eixos = códigos dos 4 pilares; D: time promotor(3) × cliente detrator(1)
     assert '["P", "D", "Pa", "A"]' in body

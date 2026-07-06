@@ -797,7 +797,7 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "Reputação IA",
         "O que as IAs (ChatGPT, Gemini, Claude) respondem quando perguntadas sobre a "
         "empresa — cruzado com a essência declarada.",
-        "É a leitura das IAs, não a voz do cliente. Fica em base separada, mas "
+        "É a leitura das IAs, não a voz pública. Fica em base separada, mas "
         "comparável ao diagnóstico. Sondagem mensal.",
         "aba Reputação IA",
     ),

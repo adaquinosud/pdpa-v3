@@ -2,9 +2,14 @@
 
 Classifica o comentário do colaborador (``Resposta.valor_texto`` de pesquisas
 ``proposito='confronto'``) no MESMO vocabulário dos verbatins, via ``classificar()``
-(função PURA), e grava o resultado NA PRÓPRIA Resposta. **Fronteira inegociável:**
-nenhum ``Verbatim`` é criado e o ratio/diagnóstico do cliente fica intocado — a
-segregação é por ausência de ponte.
+(função PURA), e grava o resultado NA PRÓPRIA Resposta.
+
+**Um modelo, quatro perspectivas (Mandala c.4):** é o mesmo vocabulário lido por
+lentes distintas (voz pública, colaborador, IA, …) — não silos segregados. A
+perspectiva do colaborador vive na PRÓPRIA Resposta; não vira ``Verbatim``, logo
+não entra na leitura PÚBLICA (o ratio/diagnóstico público fica intocado). Isso é
+desenho — não "segregação por ausência de ponte" (evitar reabrir o falso-bug: a
+voz de colaborador não estar no agregado público é intencional, não omissão).
 
 Em LOTE (não por submissão) — disparável pela noturna ou sob demanda.
 """
