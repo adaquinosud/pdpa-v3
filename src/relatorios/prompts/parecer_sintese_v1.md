@@ -42,9 +42,11 @@ Produza SEIS saídas:
    pública. §2: a consequência — a conduta reativa que gerencia
    visibilidade sem consertar; e a vitrine (ao serem consultadas por um cliente
    insatisfeito, e ``consultam_ia_pct`` já consultam IAs, as ``ias`` RECOMENDAM os
-   ``encaminhamentos``). Factual, sem inflar. Se a base for recente/imatura
-   (poucos casos com > 30 dias), não acuse a conduta — trate resolução/causa como
-   ainda em maturação.
+   ``encaminhamentos``). Factual, sem inflar. Se ``base_madura`` for false (base
+   recente/imatura), os campos ``resolve_pct``/``enfrenta_a_causa_pct`` NÃO virão —
+   e você NÃO pode citar nem inventar % de resolução ou de causa. Fale só de
+   ``responde_pct`` + volume, e note que resolução/causa estão em maturação (a
+   coleta é recente); nada de julgar a conduta.
 
 2. ``fecho`` — 1 parágrafo (máx. ~70 palavras). A ferida é individual (topo) ou
    sistêmica (base)? o que muda se agir. NÃO liste vários subpilares; nomeie no

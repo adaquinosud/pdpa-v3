@@ -25,7 +25,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.3-origem-maturidade"
+PROMPT_SINTESE_VER = "v1.4-conduta-imatura-omitida"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -35,11 +35,11 @@ _PRATICA_ORDEM = ["P", "D", "Pa", "A"]
 _PRIO_ORDEM = {"alto": 0, "medio": 1, "baixo": 2}
 # Rótulo de valência p/ exibição (o valor de enum 'conversivel' não tem acento):
 _VAL_LABEL = {"promotor": "promotor", "conversivel": "conversível", "detrator": "detrator"}
-# Gate de maturidade da conduta (proposta): resolve/causa só são JULGADAS quando a
-# coleta tem lastro temporal — caso recente 'não resolvido' é andamento, não falha.
-# Maduro = reclamação criada há > N dias; base madura = >= X% dos casos maduros.
-_MATUR_DIAS = 30
-_MATUR_PCT_MIN = 50
+# ── Config do gate de maturidade da conduta (calibrável pós-Localiza) ─────────
+# resolve/causa só são JULGADAS com lastro temporal — caso recente 'não resolvido'
+# é andamento, não falha. Maduro = reclamação criada há > `dias`; base madura =
+# >= `pct_min`% dos casos maduros. Nomeado (não literal) p/ ajuste fácil.
+MATURIDADE_CONFIG = {"dias": 30, "pct_min": 50}
 
 _MESES = [
     "",
@@ -229,17 +229,25 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         # maturidade da base: se imatura, a conduta NÃO deve ser acusada (bug 4):
         "base_madura": d["ato2a"]["maturidade"]["madura"],
         "maduros_pct": d["ato2a"]["maturidade"]["maduros_pct"],
+        # Conduta: responde é imediato (sempre). resolve/causa SÓ entram quando a
+        # base é madura — imatura NÃO recebe os números (Sonnet não tem o que citar).
         "conduta": {
             # CADA taxa tem base PRÓPRIA (item 5 — não misturar denominadores):
             "responde_pct": t["conduta"]["responde"],
             "responde_base": "do total de casos",
-            "resolve_pct": t["conduta"]["resolve"],
-            "resolve_base": "dos casos avaliados",
-            # % dos casos em que a EMPRESA atacou a causa-raiz (consertou, não só
-            # compensou). NÃO é '% em que a empresa é a causa' — não inverter.
-            # Base = casos com desfecho classificado (NÃO 'ocorrências', NÃO 'resolvidos').
-            "enfrenta_a_causa_pct": t["conduta"]["causa"],
-            "enfrenta_a_causa_base": "dos casos com desfecho classificado",
+            **(
+                {
+                    "resolve_pct": t["conduta"]["resolve"],
+                    "resolve_base": "dos casos avaliados",
+                    # % em que a EMPRESA atacou a causa-raiz (consertou, não só
+                    # compensou). NÃO é '% em que a empresa é a causa' — não inverter.
+                    # Base = casos com desfecho classificado (NÃO 'ocorrências'/'resolvidos').
+                    "enfrenta_a_causa_pct": t["conduta"]["causa"],
+                    "enfrenta_a_causa_base": "dos casos com desfecho classificado",
+                }
+                if d["ato2a"]["maturidade"]["madura"]
+                else {}
+            ),
         },
         "ruptura_nivel": t["profundidade"]["nivel"],
         "ruptura_frase": t["profundidade"]["frase"],
@@ -396,12 +404,12 @@ def montar_dados(
         _idades = s.query(_Caso.criado_em_origem).filter(_Caso.empresa_id == empresa_id).all()
         _n_casos = len(_idades)
         _com_data = sum(1 for (dt,) in _idades if dt)
-        _corte_mad = now - timedelta(days=_MATUR_DIAS)
+        _corte_mad = now - timedelta(days=MATURIDADE_CONFIG["dias"])
         _n_maduros = sum(1 for (dt,) in _idades if dt and dt <= _corte_mad)
         _maduros_pct = round(100 * _n_maduros / _n_casos) if _n_casos else 0
         # Imatura só quando HÁ datas e são majoritariamente recentes. Sem nenhuma
         # data conhecida não dá pra alegar 'coleta recente' → não suprime a conduta.
-        _madura = _n_casos > 0 and (_com_data == 0 or _maduros_pct >= _MATUR_PCT_MIN)
+        _madura = _n_casos > 0 and (_com_data == 0 or _maduros_pct >= MATURIDADE_CONFIG["pct_min"])
         rep = _explorar_reputacao_ia(s, empresa_id)
         snap = getattr(rep, "snapshot", None) if getattr(rep, "tem_dado", False) else None
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id)
@@ -570,7 +578,7 @@ def montar_dados(
             "maturidade": {  # bug 4: gate — julga a conduta só com lastro temporal
                 "madura": _madura,
                 "maduros_pct": _maduros_pct,
-                "dias": _MATUR_DIAS,
+                "dias": MATURIDADE_CONFIG["dias"],
                 "n_casos": _n_casos,
             },
             "funil": {
