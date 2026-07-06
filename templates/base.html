@@ -82,7 +82,12 @@
     </aside>
     {% endif %}
 
-    <main class="flex-1 px-6 py-6">
+    {# min-w-0: sem isso o flex item (min-width:auto) não encolhe abaixo do
+       min-content de um filho largo (ex.: tabela do ReclameAqui) → o main estoura
+       o viewport e arrasta a tab bar pra fora da tela (abas cortadas). Com min-w-0
+       o main respeita a largura disponível: a tab bar (flex-wrap) quebra por grupo
+       e as tabelas rolam no próprio overflow-x-auto. #}
+    <main class="flex-1 min-w-0 px-6 py-6">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="mb-4">
