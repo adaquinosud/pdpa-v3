@@ -385,6 +385,93 @@ def test_citacao_funil_lente_sem_causa_zero(db_session):
     assert "compensam o cliente sem consertar" not in html
 
 
+def test_sem_origem_suprime_ruptura(db_session):
+    """Bug Localiza 2: sem OrigemAnalise, o parecer NÃO pode afirmar 'ruptura no —'.
+    Suprime a linha da profundidade (P2) e o bloco da corrente (P5)."""
+    e = _empresa(db_session, "semorigem")
+    f = _fonte(db_session, e)
+    for i in range(3):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="reclamação",
+                tem_texto=True,
+                subpilar="Pa2",
+                tipo="detrator",
+                hash_dedup=f"so{i}",
+            )
+        )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    assert d["tese"]["profundidade"]["nivel"] is None  # sem ORIGEM
+    assert d["ato2b"]["tem_origem"] is False and d["ato2b"]["corrente"] == []
+    html = _render(d)
+    assert "localiza a ruptura no" not in html  # a linha some
+    assert "A ruptura não é de processo" not in html  # a manchete ORIGEM some
+    assert "A dor tem" in html  # manchete neutra no lugar
+
+
+def test_gate_maturidade_base_recente(db_session):
+    """Bug Localiza 4: coleta recente não julga a conduta. Casos com reclamação de
+    poucos dias → variante 'base recente', sem o funil resolve/causa."""
+    from datetime import datetime, timedelta
+
+    e = _empresa(db_session, "recente")
+    f = _fonte(db_session, e)
+    recente = datetime.utcnow() - timedelta(days=5)
+    for i in range(6):
+        db_session.add(
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id=f"REC{i}",
+                desfecho="nao_resolvido",
+                evaluated=True,
+                interactions_count=1,
+                criado_em_origem=recente,
+            )
+        )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    assert d["ato2a"]["maturidade"]["madura"] is False
+    assert d["ato2a"]["maturidade"]["maduros_pct"] == 0
+    assert d["ato2a"]["manchete"]["l2"] == "é recente."
+    html = _render(d)
+    assert "A base é recente" in html and "não é julgada sobre coleta recente" in html
+    assert "resolve · dos" not in html  # o degrau de conduta não é julgado
+
+
+def test_funil_base_zero_declara_sem_casos(db_session):
+    """Bug Localiza 3: com classificados=0 o degrau 'enfrenta a causa' não pode
+    mostrar % sem base — declara 'sem casos classificados'."""
+    from datetime import datetime, timedelta
+
+    e = _empresa(db_session, "base0")
+    f = _fonte(db_session, e)
+    antigo = datetime.utcnow() - timedelta(days=90)  # maduro → funil renderiza
+    for i in range(4):
+        db_session.add(
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id=f"B0{i}",
+                desfecho=None,  # não classificado
+                interactions_count=1,
+                criado_em_origem=antigo,
+            )
+        )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    assert d["ato2a"]["maturidade"]["madura"] is True  # datas antigas
+    assert d["ato2a"]["funil"]["base_causa"] == 0
+    html = _render(d)
+    assert "enfrenta a causa · sem casos classificados" in html
+
+
 def test_montar_dados_degrada_sem_dado(db_session):
     e = _empresa(db_session, "vazia")  # nada
     db_session.commit()

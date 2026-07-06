@@ -37,10 +37,14 @@ Produza SEIS saídas:
 1. ``abertura`` — 2 parágrafos (máx. ~95 palavras cada). §1: a tese — onde a marca
    trai a promessa e por quê (ferida + ruptura + voz pública com os DOIS fatos
    SEPARADOS: concentração das reclamações, e à parte o diagnóstico
-   detratores×promotores). §2: a consequência — a conduta reativa que gerencia
+   detratores×promotores). Se ``ruptura_nivel`` vier null/vazio (sem análise
+   ORIGEM), NÃO invente ruptura nem cite nível — descreva a ferida só pela voz
+   pública. §2: a consequência — a conduta reativa que gerencia
    visibilidade sem consertar; e a vitrine (ao serem consultadas por um cliente
    insatisfeito, e ``consultam_ia_pct`` já consultam IAs, as ``ias`` RECOMENDAM os
-   ``encaminhamentos``). Factual, sem inflar.
+   ``encaminhamentos``). Factual, sem inflar. Se a base for recente/imatura
+   (poucos casos com > 30 dias), não acuse a conduta — trate resolução/causa como
+   ainda em maturação.
 
 2. ``fecho`` — 1 parágrafo (máx. ~70 palavras). A ferida é individual (topo) ou
    sistêmica (base)? o que muda se agir. NÃO liste vários subpilares; nomeie no

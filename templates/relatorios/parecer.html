@@ -163,10 +163,12 @@
       <td class="k"><div class="kl">A conduta</div><div class="kn">{{ d.tese.conduta.resolve }}%</div></td>
       <td class="v">responde <strong>{{ d.tese.conduta.responde }}%</strong>, resolve <strong>{{ d.tese.conduta.resolve }}%</strong>, enfrenta a causa em <strong>{{ d.tese.conduta.causa }}%</strong>.</td>
     </tr>
+    {% if d.tese.profundidade.nivel %}
     <tr>
       <td class="k"><div class="kl">A profundidade</div><div class="kn">{{ d.tese.profundidade.nivel }}</div></td>
       <td class="v">a análise ORIGEM localiza a ruptura no <strong>{{ d.tese.profundidade.nivel }}</strong>{% if d.tese.profundidade.frase %} — <em>“{{ d.tese.profundidade.frase }}”</em>{% endif %}</td>
     </tr>
+    {% endif %}
     <tr>
       <td class="k"><div class="kl">A vitrine</div><div class="kn">{{ d.tese.vitrine.n_concorrentes }}</div></td>
       <td class="v">as IAs já ecoam as cobranças — e encaminham o insatisfeito para <strong>{{ d.tese.vitrine.n_concorrentes }} concorrentes nomeados</strong>.</td>
@@ -209,17 +211,22 @@
 {# ═══════════ P4 · ATO 2a ═══════════ #}
 <div class="page">
   <div class="eyebrow">Ato 2 · a evidência pública</div>
-  <h2 class="manchete">Responde-se tudo.<br>Conserta-se pouco.</h2>
+  <h2 class="manchete">{{ d.ato2a.manchete.l1 }}<br>{{ d.ato2a.manchete.l2 }}</h2>
   <div class="rule"></div>
+  {% if d.ato2a.maturidade.madura %}
   <div class="funil">
     <div class="step s1"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde{% if d.ato2a.funil.base_responde %} · dos {{ d.ato2a.funil.base_responde }} casos{% endif %}</div></div>
     <div class="arrow">↓</div>
-    <div class="step s2"><div class="fn">{{ d.ato2a.funil.resolve }}%</div><div class="fl">resolve{% if d.ato2a.funil.base_resolve %} · dos {{ d.ato2a.funil.base_resolve }} avaliados{% endif %}</div></div>
+    {% if d.ato2a.funil.base_resolve %}<div class="step s2"><div class="fn">{{ d.ato2a.funil.resolve }}%</div><div class="fl">resolve · dos {{ d.ato2a.funil.base_resolve }} avaliados</div></div>{% else %}<div class="step s2"><div class="fn">—</div><div class="fl">resolve · sem casos avaliados</div></div>{% endif %}
     <div class="arrow">↓</div>
-    <div class="step s3"><div class="fn">{{ d.ato2a.funil.causa }}%</div><div class="fl">enfrenta a causa{% if d.ato2a.funil.base_causa %} · dos {{ d.ato2a.funil.base_causa }} classificados{% endif %}</div></div>
+    {% if d.ato2a.funil.base_causa %}<div class="step s3"><div class="fn">{{ d.ato2a.funil.causa }}%</div><div class="fl">enfrenta a causa · dos {{ d.ato2a.funil.base_causa }} classificados</div></div>{% else %}<div class="step s3"><div class="fn">—</div><div class="fl">enfrenta a causa · sem casos classificados</div></div>{% endif %}
   </div>
   {% set cmp = d.ato2a.compensa %}
   <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:0 auto">{% if cmp.sem_causa %}“{{ cmp.sem_causa }} dos {{ cmp.resolvidos }} casos ‘resolvidos’ compensam o cliente sem consertar a causa — que segue fabricando o próximo detrator.”{% elif cmp.resolvidos and cmp.classif_sem_causa %}“Quando resolve, conserta a causa ({{ cmp.resolvidos_com_causa }} de {{ cmp.resolvidos }}) — mas {{ cmp.classif_sem_causa }} dos {{ cmp.classif_total }} casos classificados seguem sem a causa enfrentada.”{% elif cmp.classif_sem_causa %}“{{ cmp.classif_sem_causa }} dos {{ cmp.classif_total }} casos classificados seguem sem a causa enfrentada.”{% endif %}</p>
+  {% else %}
+  <div class="step s1" style="width:70%;margin:5mm auto;text-align:center"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde · dos {{ d.ato2a.funil.base_responde }} casos</div></div>
+  <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:3mm auto">A base é recente: só <strong>{{ d.ato2a.maturidade.maduros_pct }}%</strong> dos {{ d.ato2a.maturidade.n_casos }} casos têm mais de {{ d.ato2a.maturidade.dias }} dias. Resolução e causa-raiz precisam de tempo para amadurecer — <em>a conduta não é julgada sobre coleta recente</em>.</p>
+  {% endif %}
 
   <div class="barra">
     {% for seg in d.ato2a.desfechos %}
@@ -235,6 +242,7 @@
 
 {# ═══════════ P5 · ATO 2b ═══════════ #}
 <div class="page">
+  {% if d.ato2b.tem_origem %}
   <div class="eyebrow">Ato 2 · a origem</div>
   <h2 class="manchete">A ruptura não é de processo.<br>É de significado.</h2>
   <div class="rule"></div>
@@ -249,6 +257,11 @@
     {% if not loop.last %}<div class="elo-arrow">↓</div>{% endif %}
     {% endfor %}
   </div>
+  {% else %}
+  <div class="eyebrow">Ato 2 · a intensidade</div>
+  <h2 class="manchete">A dor tem<br>concentração.</h2>
+  <div class="rule"></div>
+  {% endif %}
   <table class="cols" style="margin-top:5mm"><tr>
     <td>
       <div class="col-h">A intensidade da dor</div>

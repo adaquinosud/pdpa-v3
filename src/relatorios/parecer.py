@@ -25,7 +25,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.2-concordancia-bases"
+PROMPT_SINTESE_VER = "v1.3-origem-maturidade"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -35,6 +35,11 @@ _PRATICA_ORDEM = ["P", "D", "Pa", "A"]
 _PRIO_ORDEM = {"alto": 0, "medio": 1, "baixo": 2}
 # Rótulo de valência p/ exibição (o valor de enum 'conversivel' não tem acento):
 _VAL_LABEL = {"promotor": "promotor", "conversivel": "conversível", "detrator": "detrator"}
+# Gate de maturidade da conduta (proposta): resolve/causa só são JULGADAS quando a
+# coleta tem lastro temporal — caso recente 'não resolvido' é andamento, não falha.
+# Maduro = reclamação criada há > N dias; base madura = >= X% dos casos maduros.
+_MATUR_DIAS = 30
+_MATUR_PCT_MIN = 50
 
 _MESES = [
     "",
@@ -221,6 +226,9 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
             "diagnostico_promotores": v["promotores"],
             "diagnostico_ratio": v["ratio"],
         },
+        # maturidade da base: se imatura, a conduta NÃO deve ser acusada (bug 4):
+        "base_madura": d["ato2a"]["maturidade"]["madura"],
+        "maduros_pct": d["ato2a"]["maturidade"]["maduros_pct"],
         "conduta": {
             # CADA taxa tem base PRÓPRIA (item 5 — não misturar denominadores):
             "responde_pct": t["conduta"]["responde"],
@@ -380,6 +388,20 @@ def montar_dados(
         _res_total = len(_resolvidos)
         _res_com_causa = sum(1 for c in _resolvidos if c.causa_resolvida)
         _res_compensa = _res_total - _res_com_causa  # resolvidos que só compensaram
+
+        # Bug 4: maturidade da base — % de casos com reclamação criada há > N dias.
+        # Sem lastro temporal, a conduta (resolve/causa) não é julgada (só volume).
+        from datetime import timedelta
+
+        _idades = s.query(_Caso.criado_em_origem).filter(_Caso.empresa_id == empresa_id).all()
+        _n_casos = len(_idades)
+        _com_data = sum(1 for (dt,) in _idades if dt)
+        _corte_mad = now - timedelta(days=_MATUR_DIAS)
+        _n_maduros = sum(1 for (dt,) in _idades if dt and dt <= _corte_mad)
+        _maduros_pct = round(100 * _n_maduros / _n_casos) if _n_casos else 0
+        # Imatura só quando HÁ datas e são majoritariamente recentes. Sem nenhuma
+        # data conhecida não dá pra alegar 'coleta recente' → não suprime a conduta.
+        _madura = _n_casos > 0 and (_com_data == 0 or _maduros_pct >= _MATUR_PCT_MIN)
         rep = _explorar_reputacao_ia(s, empresa_id)
         snap = getattr(rep, "snapshot", None) if getattr(rep, "tem_dado", False) else None
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id)
@@ -481,6 +503,26 @@ def montar_dados(
 
     prof_nivel = corrente["elos"]
     ruptura = next((e for e in corrente["elos"] if e["estado"] == "ruptura"), None)
+    _tem_origem = ruptura is not None  # bug 2: sem ORIGEM não afirmar ruptura
+
+    # Bug 1: manchete do ATO 2 parametrizada pelo dado (não 'Responde-se tudo' fixo).
+    # Base imatura → manchete de maturação (não julga a conduta).
+    _resp_pct = casos.taxa_resposta or 0
+    _causa_pct = casos.taxa_causa or 0
+    if not _madura:
+        _manchete = {"l1": "A base ainda", "l2": "é recente."}
+    else:
+        _l1 = (
+            "Responde-se tudo."
+            if _resp_pct >= 85
+            else "Responde-se à maioria." if _resp_pct >= 50 else "Responde-se pouco."
+        )
+        _l2 = (
+            "Conserta-se pouco."
+            if _causa_pct <= 35
+            else "Conserta-se em parte." if _causa_pct <= 70 else "Conserta-se de fato."
+        )
+        _manchete = {"l1": _l1, "l2": _l2}
 
     return {
         "gerado_em": now,
@@ -507,7 +549,7 @@ def montar_dados(
                 "causa": casos.taxa_causa or 0,
             },
             "profundidade": {
-                "nivel": ruptura["nivel"] if ruptura else "—",
+                "nivel": ruptura["nivel"] if ruptura else None,  # None → P2 suprime a linha
                 "frase": corrente["ruptura_frase"],
             },
             "vitrine": {"n_concorrentes": f"{n_enc}+" if n_enc else "—"},
@@ -524,6 +566,13 @@ def montar_dados(
             ),
         },
         "ato2a": {
+            "manchete": _manchete,  # bug 1: parametrizada (ou 'base recente' se imatura)
+            "maturidade": {  # bug 4: gate — julga a conduta só com lastro temporal
+                "madura": _madura,
+                "maduros_pct": _maduros_pct,
+                "dias": _MATUR_DIAS,
+                "n_casos": _n_casos,
+            },
             "funil": {
                 "responde": casos.taxa_resposta or 0,
                 "resolve": casos.taxa_resolucao or 0,
@@ -551,6 +600,7 @@ def montar_dados(
             "citacoes": citacoes,
         },
         "ato2b": {
+            "tem_origem": _tem_origem,  # bug 2: sem ORIGEM → P5 suprime corrente/ruptura
             "corrente": prof_nivel,
             "ruptura_frase": corrente["ruptura_frase"],
             # Dois referentes DISTINTOS, cada um com seu rótulo (bug do '98% vs 62%'):
