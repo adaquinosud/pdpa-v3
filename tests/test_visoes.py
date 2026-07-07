@@ -142,6 +142,29 @@ def test_visoes_agrega_e_marca_divergencia(client_loyall, db_session):
     assert "“check-in demora”" not in body  # sem aspas (não é fala literal)
 
 
+def test_visoes_gauge_e_corte_sistemico_individual(client_loyall, db_session):
+    """(a) gauge do ratio do cliente por pilar (faixa oficial) + (b) corte
+    BASE·SISTÊMICA (P,D) × TOPO·INDIVIDUAL (Pa,A). Só apresentação — não toca o
+    cálculo das categorias."""
+    e, f, a, p = _cenario(db_session)
+    _verb(db_session, e, f, "P1", "promotor", n=20)  # P → ratio alto (bom/excelente)
+    _verb(db_session, e, f, "Pa2", "detrator", n=20)  # Pa → ratio crítico (a ferida)
+    _resp(db_session, p, "Pa2", "Pa2", "promotor", nota=4)  # time promotor (ponto cego)
+    db_session.commit()
+
+    from src.ui.pesquisa import _gauge_pct  # o marcador cai na faixa do ratio
+
+    assert _gauge_pct(0.0) == 0.0 and _gauge_pct(20.0) == 100.0  # extremos
+
+    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    # (b) os dois blocos do corte, com as frases do /quadro
+    assert "BASE · SISTÊMICA" in body and "TOPO · INDIVIDUAL" in body
+    assert "resolve-se uma vez" in body and "conta a conta" in body
+    # (a) gauge presente: rótulo de ratio + as faixas oficiais
+    assert "ratio" in body and "critico" in body  # Pa em crítico
+    assert "bg-rose-500" in body  # barra da faixa (fclass.bar centralizado)
+
+
 def test_visoes_so_confronto_redireciona(client_loyall, db_session):
     e = Empresa(nome=f"EVSc{id(db_session)}-{_k[0]}")
     _k[0] += 1

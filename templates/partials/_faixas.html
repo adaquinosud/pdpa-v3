@@ -1,0 +1,37 @@
+{# Faixas de ratio — VISUAL ÚNICO (cores + badge + gauge). Centraliza o fclass que
+   estava duplicado em explorar_quadro.html e explorar_leaderboard.html. As FAIXAS
+   (cortes) são fonte única no Python (painel.FAIXAS_RATIO); aqui é só a cor/forma.
+   Uso: {% import 'partials/_faixas.html' as fx %} → fx.FCLASS / fx.faixa_badge /
+   fx.faixa_legenda / fx.ratio_gauge. #}
+{% set FCLASS = {
+  'critico':   {'bg':'bg-rose-100','text':'text-rose-700','bar':'bg-rose-500'},
+  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700','bar':'bg-orange-500'},
+  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800','bar':'bg-amber-400'},
+  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700','bar':'bg-emerald-400'},
+  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800','bar':'bg-emerald-600'}
+} %}
+{% set _BANDS = ['critico','fraco','atencao','bom','excelente'] %}
+
+{% macro faixa_badge(faixa) -%}
+  {%- set fc = FCLASS.get(faixa, {'bg':'bg-loyall-100','text':'text-loyall-500'}) -%}
+  <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ faixa }}</span>
+{%- endmacro %}
+
+{% macro faixa_legenda() -%}
+  <div class="flex flex-wrap gap-1.5 text-[10px]">
+    {% for f in _BANDS %}<span class="inline-flex items-center px-1.5 py-0.5 rounded {{ FCLASS[f].bg }} {{ FCLASS[f].text }}">{{ f }}</span>{% endfor %}
+  </div>
+{%- endmacro %}
+
+{# Barra de 5 faixas (larguras iguais) com marcador na posição `pct` (0-100,
+   calculada no Python pelos cortes de FAIXAS_RATIO). A faixa ativa fica cheia; as
+   demais esmaecidas — dá pra ver a escala inteira e onde o ratio cai. #}
+{% macro ratio_gauge(ratio, faixa, pct) -%}
+  <div class="mt-1" title="ratio {{ '%.2f'|format(ratio) }} · {{ faixa }}">
+    <div class="relative h-2 rounded overflow-hidden flex">
+      {% for b in _BANDS %}<div class="flex-1 {{ FCLASS[b].bar }}{% if b != faixa %} opacity-25{% endif %}"></div>{% endfor %}
+      <div class="absolute -top-0.5 w-0.5 h-3 bg-loyall-800 rounded" style="left:{{ pct }}%"></div>
+    </div>
+    <div class="text-[10px] text-loyall-500 mt-0.5">ratio <strong class="text-loyall-700">{{ '%.2f'|format(ratio) }}</strong> · {{ faixa_badge(faixa) }}</div>
+  </div>
+{%- endmacro %}

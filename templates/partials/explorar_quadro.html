@@ -2,13 +2,9 @@
    BASE sistêmica. Mesma moldura do /quadro do confronto, mas alimentada pelo
    diagnóstico geral (all-time, sem lado do time). Cor pela FAIXA de saúde. #}
 {% set q = quadro %}
-{% set fclass = {
-  'critico':   {'bg':'bg-rose-100','text':'text-rose-700','bar':'bg-rose-500'},
-  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700','bar':'bg-orange-500'},
-  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800','bar':'bg-amber-400'},
-  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700','bar':'bg-emerald-400'},
-  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800','bar':'bg-emerald-600'},
-} %}
+{# fclass centralizado em _faixas.html (fonte única de cor de faixa). #}
+{% import 'partials/_faixas.html' as fx %}
+{% set fclass = fx.FCLASS %}
 
 {# Badge de valência dominante (mesma paleta do confronto). #}
 {% macro val_badge(v) %}

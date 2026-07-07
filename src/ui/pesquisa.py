@@ -747,6 +747,23 @@ def _visoes_citacoes_time(s, pesquisa_id):
     return out
 
 
+def _gauge_pct(ratio):
+    """Posição 0-100 do marcador na barra de 5 faixas iguais, pela posição do ratio
+    DENTRO da sua faixa (cortes de FAIXAS_RATIO — fonte única). Excelente (∞) usa um
+    teto suave (10.0) só p/ POSICIONAR o marcador; não altera a faixa."""
+    from src.api.painel import FAIXAS_RATIO
+
+    seg = 100.0 / len(FAIXAS_RATIO)
+    lo = 0.0
+    for i, (hi, _label) in enumerate(FAIXAS_RATIO):
+        teto = 10.0 if hi == float("inf") else hi
+        if ratio < hi or hi == float("inf"):
+            frac = (ratio - lo) / (teto - lo) if teto > lo else 1.0
+            return round(i * seg + min(1.0, max(0.0, frac)) * seg, 1)
+        lo = hi
+    return 100.0
+
+
 @ui_bp.route("/pesquisas/<int:pesquisa_id>/visoes")
 @loyall_required_ui
 def pesquisa_visoes(pesquisa_id):
@@ -757,8 +774,17 @@ def pesquisa_visoes(pesquisa_id):
     r = _require_loyall_html()
     if r:
         return r
-    from src.api.painel import NOME_PILAR, PILAR_DE_SUBPILAR, PILARES_ORDEM, SUBPILARES_ORDEM
+    from src.api.painel import (
+        NOME_PILAR,
+        PILAR_DE_SUBPILAR,
+        PILARES_ORDEM,
+        SUBPILARES_ORDEM,
+        calcular_ratio,
+        faixa_ratio,
+    )
+    from src.diagnostico.leituras import agregar_subpilares
     from src.pesquisa.confronto import gap_confronto
+    from src.temas.janela import data_corte
 
     with db_session() as s:
         pesq = obter(s, pesquisa_id)
@@ -769,6 +795,11 @@ def pesquisa_visoes(pesquisa_id):
             return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
         por_sub = {g["subpilar"]: g for g in (gap_confronto(s, pesquisa_id) or [])}
         citacoes_time = _visoes_citacoes_time(s, pesquisa_id)  # falas literais do time
+        # Ratio do CLIENTE por pilar (gauge) — MESMA janela do confronto (data_corte),
+        # recomputado dos counts somados (nunca soma ratios). Referente idêntico ao do
+        # confronto que o gauge acompanha. Não toca estado/categoria do gap_confronto.
+        corte = data_corte(pesq.empresa_id, s)
+        cliente_agg = agregar_subpilares(s, pesq.empresa_id, desde=corte)
 
         pilares = []
         for code in PILARES_ORDEM:
@@ -789,6 +820,12 @@ def pesquisa_visoes(pesquisa_id):
                 temas.extend(g.get("temas_cliente") or [])
             time_val = _moda(time_vals)
             cli_val = _moda(cli_vals)
+            # ratio do CLIENTE no pilar: Σprom/Σdet dos subpilares (mesma janela) →
+            # calcular_ratio (recomputa dos counts, não soma ratios) + faixa + posição.
+            _prom = sum(cliente_agg.get(sp, {}).get("prom", 0) for sp in subs)
+            _det = sum(cliente_agg.get(sp, {}).get("det", 0) for sp in subs)
+            _tot = sum(cliente_agg.get(sp, {}).get("total", 0) for sp in subs)
+            cli_ratio = calcular_ratio(_prom, _det) if _tot else None
             # top-4 temas por volume (citações curtas do cliente)
             temas_top = []
             for t in sorted(temas, key=lambda x: -x.get("volume", 0)):
@@ -806,6 +843,10 @@ def pesquisa_visoes(pesquisa_id):
                     "time_citacoes": citacoes_time.get(code, []),
                     "cli_val": cli_val,
                     "temas": temas_top,
+                    # gauge de ratio do cliente (barra de faixas) — mesma janela
+                    "cli_ratio": cli_ratio,
+                    "cli_faixa": faixa_ratio(cli_ratio) if cli_ratio is not None else None,
+                    "cli_gauge_pct": _gauge_pct(cli_ratio) if cli_ratio is not None else None,
                     # acento onde as duas visões divergem (o pilar dói)
                     "diverge": bool(time_val and cli_val and time_val != cli_val),
                 }
@@ -819,10 +860,27 @@ def pesquisa_visoes(pesquisa_id):
             "time": [_score.get(p["time_val"], 0) for p in pilares],
             "cliente": [_score.get(p["cli_val"], 0) for p in pilares],
         }
+        # Corte de leitura sistêmico × individual (espelha o /quadro do ORIGEM):
+        # BASE (P,D) processo · TOPO (Pa,A) relação. Reorg de apresentação — a
+        # `pilares` (motor) fica intacta e alimenta o radar.
+        _by_code = {p["code"]: p for p in pilares}
+        grupos = [
+            {
+                "eyebrow": "BASE · SISTÊMICA",
+                "frase": "resolve-se uma vez, no processo, e todos se beneficiam.",
+                "pilares": [_by_code[c] for c in ("P", "D") if c in _by_code],
+            },
+            {
+                "eyebrow": "TOPO · INDIVIDUAL",
+                "frase": "conta a conta, pessoa a pessoa; não se sistematiza.",
+                "pilares": [_by_code[c] for c in ("Pa", "A") if c in _by_code],
+            },
+        ]
         ctx = {
             "pesquisa_id": pesquisa_id,
             "titulo": pesq.titulo,
             "pilares": pilares,
+            "grupos": grupos,
             "radar": radar,
             "janela_meses": _janela_meses(),
         }

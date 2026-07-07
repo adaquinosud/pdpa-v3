@@ -2,13 +2,9 @@
 {# 3 faixas de confiança (= selo): ranking ≥30 🟢 / em formação 10-30 🟡 / <10 🔴. #}
 {% set lb = leaderboard %}
 {% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
-{% set fclass = {
-  'critico':   {'bg':'bg-rose-100','text':'text-rose-700'},
-  'fraco':     {'bg':'bg-orange-100','text':'text-orange-700'},
-  'atencao':   {'bg':'bg-amber-100','text':'text-amber-800'},
-  'bom':       {'bg':'bg-emerald-100','text':'text-emerald-700'},
-  'excelente': {'bg':'bg-emerald-200','text':'text-emerald-800'},
-} %}
+{# fclass centralizado em _faixas.html (fonte única de cor de faixa). #}
+{% import 'partials/_faixas.html' as fx %}
+{% set fclass = fx.FCLASS %}
 {% set medals = {1:'🥇', 2:'🥈', 3:'🥉'} %}
 {% set max_score = (lb.linhas[0].score_mod if lb.linhas else 10) or 10 %}
 

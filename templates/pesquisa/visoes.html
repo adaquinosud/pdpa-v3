@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block titulo %}Duas visões — {{ titulo }}{% endblock %}
+{% import 'partials/_faixas.html' as fx %}
 
 {# Badge de valência (paleta do sistema). #}
 {% macro val_badge(v) %}
@@ -70,8 +71,13 @@
     <div class="text-right">Temas do cliente <span class="normal-case tracking-normal">(valência + assuntos)</span></div>
   </div>
 
-  <div class="mt-1 border border-loyall-200 rounded divide-y divide-loyall-100">
-    {% for p in pilares %}
+  {# Corte de leitura: BASE sistêmica (P,D) × TOPO individual (Pa,A), como o /quadro. #}
+  {% for grupo in grupos %}
+  <div class="mt-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">{{ grupo.eyebrow }}</div>
+    <div class="text-sm italic text-loyall-500 mt-0.5 mb-1">{{ grupo.frase }}</div>
+    <div class="border border-loyall-200 rounded divide-y divide-loyall-100">
+    {% for p in grupo.pilares %}
     {# desktop: 3 colunas; mobile: empilha (modelo → time → cliente) #}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 px-3 py-3 md:items-center {% if p.diverge %}bg-rose-50/60{% endif %}">
       {# ESQUERDA — como o time se avalia (valência + nota). Sem dado → não mudo.
@@ -104,6 +110,10 @@
       <div class="text-sm text-left md:text-right order-3 md:order-none">
         <div class="md:hidden text-xs uppercase tracking-wider text-loyall-400 mb-0.5">Cliente</div>
         {{ val_badge(p.cli_val) }}
+        {# Gauge do ratio do cliente no pilar (mesma janela do confronto). #}
+        {% if p.cli_ratio is not none %}
+        <div class="md:ml-auto md:max-w-[180px]">{{ fx.ratio_gauge(p.cli_ratio, p.cli_faixa, p.cli_gauge_pct) }}</div>
+        {% endif %}
         {% if p.temas %}
         <div class="text-xs text-loyall-500 mt-1">
           {% if p.cli_val == 'promotor' %}elogia:
@@ -115,7 +125,9 @@
       </div>
     </div>
     {% endfor %}
+    </div>
   </div>
+  {% endfor %}
 
   {# Rodapé-síntese #}
   <div class="mt-5 rounded bg-loyall-700 text-loyall-50 px-4 py-3 text-sm">
