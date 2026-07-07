@@ -149,6 +149,22 @@ def _register_cli_commands(app: Flask) -> None:
             session.add(user)
         click.echo(f"OK — admin '{email}' criado.")
 
+    @app.cli.command("seed-glossario")
+    def seed_glossario_cmd() -> None:
+        """Upsert do glossário — COMANDO ÚNICO (usa a config de DB do app, sem
+        `-m`/PYTHONPATH). Grita se o arquivo estiver defasado (não seeda mudo)."""
+        from scripts.seed_glossario import seed
+
+        try:
+            r = seed()
+        except RuntimeError as exc:
+            click.echo(f"FALHOU — {exc}", err=True)
+            raise SystemExit(1)
+        click.echo(
+            f"OK — glossário: {r['no_seed']} no seed → +{r['adicionados']} novos, "
+            f"{r['atualizados']} atualizados, {r['total']} na tabela."
+        )
+
     @app.cli.command("retencao-aplicar")
     @click.option(
         "--meses",

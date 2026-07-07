@@ -5,8 +5,8 @@ Lê do SQLite dev (read-only) SÓ o cadastro de UMA empresa — ``empresas[id]``
 antes de aplicar em prod (FASE 2 = ``scripts/seed_import.py``).
 
 NÃO exporta verbatins nem derivados (recoleta + recalcula em prod). NÃO exporta o
-glossário: o texto aprovado dos 77 termos é idêntico ao ``scripts/seed_glossario.py``
-(conferido) → em prod roda-se aquele script, não migra a tabela.
+glossário: a FONTE ÚNICA dos termos é ``scripts/seed_glossario.py`` (aqui não há
+cópia) → em prod roda-se ``flask seed-glossario``, não migra a tabela.
 
 Preserva os IDs (as FKs dependem: fonte.entidade_id→local, local.agrupamento_id→
 agrupamento). Ordem de FK fixada em ``TABELAS``.

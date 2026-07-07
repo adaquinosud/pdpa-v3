@@ -832,8 +832,42 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
 ]
 
 
-def seed() -> int:
-    """Upsert idempotente por slug. Retorna o total de termos no glossário."""
+# Slugs-canário: se o ARQUIVO executado não os tiver, é um checkout/imagem
+# defasado (o falso-alarme 3252cb0 seria BARULHENTO com isto). Mexeu na lista?
+# atualize aqui e no test_manual (guard espelhado).
+REQUIRED_SLUGS = frozenset(
+    {
+        "taxa-resposta",
+        "taxa-resolucao",
+        "causa-raiz-resolvida",
+        "desfecho-ra",
+        "identidade-ecoada",
+        "defasagem-ia",
+        "divergencia-ia",
+        "encaminhamentos-ia",
+    }
+)
+
+
+def verificar_arquivo() -> None:
+    """GRITA se o TERMOS executado está defasado — pega 'seed stale' que antes
+    reportava um total mudo. Roda ANTES de tocar o banco (fail-fast, sem escrita)."""
+    faltando = REQUIRED_SLUGS - {t[0] for t in TERMOS}
+    if faltando:
+        raise RuntimeError(
+            f"seed defasado: TERMOS sem os slugs obrigatórios {sorted(faltando)} — "
+            "checkout/imagem stale? (rode do deploy atual)"
+        )
+    ident = next((t for t in TERMOS if t[0] == "identidade-ecoada"), None)
+    if ident is None or "voz pública" not in " ".join(x or "" for x in ident):
+        raise RuntimeError("seed defasado: 'identidade-ecoada' sem 'voz pública'.")
+
+
+def seed() -> dict:
+    """Upsert idempotente por slug. Auto-verifica o arquivo (grita se stale) e
+    devolve o resumo (no_seed/adicionados/atualizados/total)."""
+    verificar_arquivo()
+    adicionados = atualizados = 0
     with db_session() as s:
         for ordem, (slug, termo, categoria, curta, completa, onde) in enumerate(TERMOS):
             row = s.query(GlossarioTermo).filter(GlossarioTermo.slug == slug).one_or_none()
@@ -849,6 +883,7 @@ def seed() -> int:
                         ordem=ordem,
                     )
                 )
+                adicionados += 1
             else:
                 # Atualiza conteúdo; preserva `ativo` (inativações feitas na tela).
                 row.termo = termo
@@ -857,11 +892,20 @@ def seed() -> int:
                 row.definicao_completa = completa
                 row.onde_aparece = onde
                 row.ordem = ordem
+                atualizados += 1
         s.flush()
         total = s.query(GlossarioTermo).count()
-    return total
+    return {
+        "no_seed": len(TERMOS),
+        "adicionados": adicionados,
+        "atualizados": atualizados,
+        "total": total,
+    }
 
 
 if __name__ == "__main__":
-    total = seed()
-    print(f"Glossário populado: {len(TERMOS)} termos no seed, {total} na tabela.")
+    r = seed()
+    print(
+        f"Glossário: {r['no_seed']} no seed → +{r['adicionados']} novos, "
+        f"{r['atualizados']} atualizados, {r['total']} na tabela."
+    )

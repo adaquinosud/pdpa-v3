@@ -38,6 +38,20 @@ def test_glossario_i_slugs_dos_templates_estao_no_seed():
     assert not faltando, f"glossario_i com slug sem termo no seed: {sorted(faltando)}"
 
 
+def test_seed_glossario_nao_defasado():
+    """Guard anti-staleness (falso-alarme 3252cb0): o ARQUIVO carrega os slugs-
+    canário e o texto novo. Espelha REQUIRED_SLUGS + verificar_arquivo() do seed —
+    se a fonte regredir, quebra aqui (CI) antes de ir mudo pro prod."""
+    from scripts.seed_glossario import REQUIRED_SLUGS, TERMOS, verificar_arquivo
+
+    seed_slugs = {t[0] for t in TERMOS}
+    faltando = REQUIRED_SLUGS - seed_slugs
+    assert not faltando, f"seed sem os slugs obrigatórios: {sorted(faltando)}"
+    ident = next((t for t in TERMOS if t[0] == "identidade-ecoada"), None)
+    assert ident and "voz pública" in " ".join(ident)  # conteúdo novo presente
+    verificar_arquivo()  # a auto-verificação do seed não pode levantar
+
+
 def test_manual_slugs_unicos_e_html_nao_vazio():
     ss = secoes()
     slugs = [s["slug"] for s in ss]
