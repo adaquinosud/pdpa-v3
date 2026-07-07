@@ -88,6 +88,7 @@ PLANO: list[tuple[str, str, str]] = [
     ("governança: previsibilidade", "previsibilidade_calculations", _DIRETO),
     ("governança: gini", "gini_concentracao", _DIRETO),
     ("execuções de coleta", "coletas_execucoes", _DIRETO),
+    ("reputação de fonte (vitrine)", "fonte_reputacao", _DIRETO),
     ("batches de classificação", "classificacao_batches", _DIRETO),
     # Motor de Pesquisa: filhas antes das mães. Coleta (Fase 2) antes de
     # perguntas/pesquisas — resposta → respondente → pesquisa_perguntas → pesquisas.

@@ -67,6 +67,7 @@ from src.utils.db import db_session
 def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     from src.coletor.reclame_aqui import (
         CORTE_MESES,
+        CUSTO_PERFIL_USD,
         CUSTO_POR_CASO_USD,
         MAX_COMPLAINTS_PER_COMPANY,
     )
@@ -87,7 +88,7 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ra_max_casos=f.ra_max_casos,
         ra_janela_ef=janela_ef,
         ra_cap_ef=cap_ef,
-        ra_custo_max=round(cap_ef * CUSTO_POR_CASO_USD, 2),
+        ra_custo_max=round(cap_ef * CUSTO_POR_CASO_USD + CUSTO_PERFIL_USD, 2),
         ra_default_janela=CORTE_MESES,
         ra_default_cap=MAX_COMPLAINTS_PER_COMPANY,
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
@@ -2950,6 +2951,8 @@ _EXPLORAR_TABS = [
         "grupo": "diagnostico",
         "escopo_aceito": [],  # sonda é nível-empresa
     },
+    # VITRINE (decisão do consumidor NOVO — nível empresa, sem grão de loja)
+    {"id": "vitrine", "label": "Vitrine", "grupo": "vitrine", "escopo_aceito": []},
     # AÇÃO
     {
         "id": "planos",
@@ -2969,6 +2972,7 @@ _EXPLORAR_GRUPOS = [
     {"id": "visao", "label": "Visão"},
     {"id": "explorar", "label": "Explorar"},
     {"id": "diagnostico", "label": "Diagnóstico"},
+    {"id": "vitrine", "label": "Vitrine"},
     {"id": "acao", "label": "Ação"},
     {"id": "saida", "label": "Governança & Saída"},
 ]
@@ -3978,6 +3982,149 @@ _CASOS_PERIODO_LABEL = {
     "12m": "últimos 12 meses",
 }
 
+# ── Módulo Vitrine — thresholds da decisão do consumidor NOVO (BrightLocal LCRS) ──
+# CONFIG NOMEADA, calibrável por setor (não hardcoded). nota em ESTRELAS (0-5).
+VITRINE_CONFIG = {
+    "nota_corte": 4.5,  # estrelas mínimas p/ entrar no shortlist
+    "volume_min": 20,  # nº mínimo de avaliações
+    "recencia_dias": 90,  # janela de "reviews recentes"
+    "resposta_dias": 7,  # velocidade de resposta (o SINAL de velocidade é v2)
+    "amostra_min": 5,  # nota per-review só vale com N >= isto (verde sobre amostra
+    # mínima é frágil — abaixo disto → 'não medido')
+}
+MINIMO_AMOSTRA_RATING = VITRINE_CONFIG["amostra_min"]
+
+
+def _explorar_vitrine(s, empresa_id):
+    """Scorecard VITRINE (decisão do consumidor NOVO) — cada sinal × seu threshold
+    (VITRINE_CONFIG). NÃO é o diagnóstico da relação de quem já é cliente.
+
+    Bloco A (RA oficial, universo): FonteReputacao (consumer_score conhecido; taxas
+    'aguardando 1ª coleta com perfil' se ainda não mapeadas). Bloco B (nossa amostra
+    coletada): volume, recência, rating per-review — rotulado 'amostra, não média
+    oficial'. Sinal sem dado → 'não medido' (nunca 0)."""
+    from collections import Counter  # noqa: F401  (mantém paridade de imports locais)
+    from datetime import datetime, timedelta
+
+    from src.models.caso import Caso
+    from src.models.fonte import Fonte
+    from src.models.fonte_reputacao import FonteReputacao
+    from src.models.verbatim import Verbatim
+
+    cfg = VITRINE_CONFIG
+    corte_recencia = datetime.utcnow() - timedelta(days=cfg["recencia_dias"])
+
+    rep = (
+        s.query(FonteReputacao)
+        .filter(FonteReputacao.empresa_id == empresa_id, FonteReputacao.provedor == "reclame_aqui")
+        .one_or_none()
+    )
+    # Volume coletado (NOSSA amostra): casos RA + reviews com rating de outras fontes.
+    n_casos = s.query(Caso).filter(Caso.empresa_id == empresa_id).count()
+    reviews_rating = (
+        s.query(Verbatim.rating, Verbatim.data_criacao_original)
+        .join(Fonte, Fonte.id == Verbatim.fonte_id)
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.rating.isnot(None))
+        .all()
+    )
+    n_reviews = len(reviews_rating)
+    volume = n_casos + n_reviews
+    recentes = sum(
+        1
+        for c in s.query(Caso.criado_em_origem).filter(Caso.empresa_id == empresa_id).all()
+        if c[0] and c[0] >= corte_recencia
+    ) + sum(1 for _r, dt in reviews_rating if dt and dt >= corte_recencia)
+    notas = [r for r, _dt in reviews_rating if r is not None]
+    n_notas = len(notas)
+    # N absoluto + limiar: verde sobre amostra mínima é frágil (contradiz reputação RA
+    # baixa). Abaixo de MINIMO_AMOSTRA_RATING → 'não medido', não uma nota "boa".
+    rating_amostra = round(sum(notas) / n_notas, 1) if n_notas >= MINIMO_AMOSTRA_RATING else None
+
+    def _sinal(
+        chave, label, valor, corte, unidade, origem, obs=None, aguardando=False, n_base=None
+    ):
+        """status: verde/vermelho/nao_medido/aguardando; gap só quando há valor+corte.
+        ``n_base`` = N absoluto da amostra (mostrado junto do valor, anti-fragilidade)."""
+        if aguardando:
+            status = "aguardando"
+        elif valor is None:
+            status = "nao_medido"
+        elif corte is None:
+            status = "info"  # sem threshold — informativo (ex.: taxa RA; velocidade é v2)
+        else:
+            status = "verde" if valor >= corte else "vermelho"
+        gap = round(corte - valor, 1) if (valor is not None and corte is not None) else None
+        return {
+            "chave": chave,
+            "label": label,
+            "valor": valor,
+            "corte": corte,
+            "unidade": unidade,
+            "status": status,
+            "gap": gap if (gap is not None and gap > 0) else None,
+            "origem": origem,
+            "obs": obs,
+            "n_base": n_base,
+        }
+
+    # Nota RA oficial: consumer_score 0-10 → estrelas (÷2) p/ comparar com 4,5★.
+    nota_ra = round(rep.consumer_score / 2, 1) if (rep and rep.consumer_score is not None) else None
+    sinais = [
+        _sinal(
+            "nota_ra",
+            "Reputação ReclameAqui",
+            nota_ra,
+            cfg["nota_corte"],
+            "★",
+            "RA oficial (universo · 0-10 → 5★)",
+            aguardando=(nota_ra is None),  # sem perfil OU score ausente = lacuna nossa
+        ),
+        _sinal(
+            "volume",
+            "Volume de avaliações",
+            volume or None,
+            cfg["volume_min"],
+            "",
+            "amostra coletada (não o total real da fonte)",
+        ),
+        _sinal(
+            "recencia",
+            f"Atividade recente ({cfg['recencia_dias']}d)",
+            recentes or None,
+            1,  # basta ≥1 sinal na janela p/ "vitrine viva"
+            "",
+            "amostra coletada",
+            obs=f"avaliações nos últimos {cfg['recencia_dias']} dias",
+        ),
+        _sinal(
+            "rating_amostra",
+            "Nota (outras fontes)",
+            rating_amostra,
+            cfg["nota_corte"],
+            "★",
+            "amostra coletada, NÃO a média oficial da fonte",
+            obs=(
+                f"Google/App/Trip/ML por review · amostra < {cfg['amostra_min']} não conta"
+                if n_notas < cfg["amostra_min"]
+                else "Google/App/Trip/ML por review; sociais sem estrela ficam de fora"
+            ),
+            n_base=n_notas or None,
+        ),
+        _sinal(
+            "resposta_ra",
+            "Taxa de resposta (RA oficial)",
+            (rep.response_rate if rep else None),
+            None,  # sem corte de taxa; a velocidade (7d) é v2
+            "%",
+            "RA oficial",
+            obs="velocidade de resposta (7d) fica para o v2",
+            # RA oficial: sem valor = lacuna nossa (aguardando perfil), não 'não medido'
+            aguardando=(rep is None or rep.response_rate is None),
+        ),
+    ]
+    tem_dado = any(sig["status"] in ("verde", "vermelho", "info") for sig in sinais)
+    return SimpleNamespace(sinais=sinais, config=cfg, tem_dado=tem_dado)
+
 
 _DEFASAGEM_ORDEM = {
     "ia_atrasada": 0,
@@ -4718,6 +4865,7 @@ def _explorar_contexto(empresa_id, tab):
                 },
             )
         reputacao_ia = _explorar_reputacao_ia(s, empresa_id) if tab == "reputacao_ia" else None
+        vitrine = _explorar_vitrine(s, empresa_id) if tab == "vitrine" else None
         concentracao = (
             _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
         )
@@ -4764,6 +4912,7 @@ def _explorar_contexto(empresa_id, tab):
         "quadro": quadro,
         "casos": casos,
         "reputacao_ia": reputacao_ia,
+        "vitrine": vitrine,
         "concentracao": concentracao,
         "governanca": governanca,
         "planos": planos,

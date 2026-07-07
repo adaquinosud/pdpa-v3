@@ -21,7 +21,7 @@ from sqlalchemy import func
 
 from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.pipeline import MIN_CHARS_PARA_PROCESSAR, computar_hash_dedup
-from src.coletor.reclame_aqui_adapter import adaptar_reclamacao
+from src.coletor.reclame_aqui_adapter import adaptar_reclamacao, adaptar_reputacao
 from src.models.caso import Caso
 from src.models.fonte import Fonte
 from src.models.verbatim import Verbatim
@@ -36,6 +36,7 @@ MAX_COMPLAINTS_PER_COMPANY = 500
 # que RETORNA dentro da janela (statusFilter LATEST + dateFrom), cap × isto = teto
 # de gasto de fato (fora as taxas fixas: $0.005 start + $0.05/empresa).
 CUSTO_POR_CASO_USD = 0.025
+CUSTO_PERFIL_USD = 0.05  # Vitrine/Bloco A: company-scraped (includeCompanyProfile) por empresa
 RECOLETA_IDADE_DIAS = 7  # cadência semanal
 ABANDONO_DIAS = 90  # não-terminal sem mudança → abandonado
 # Corte de coleta: 15 meses (padrão da casa p/ comentários — COLETA_JANELA_MESES).
@@ -77,6 +78,23 @@ def em_cadencia_cooldown(
     if ultima is None:
         return False
     return (agora - ultima) < timedelta(days=idade_dias)
+
+
+def _upsert_reputacao(fonte_id: int, empresa_id: int, rep: Dict[str, Any], agora: datetime) -> None:
+    """Upsert do scorecard OFICIAL da fonte (1 linha por fonte). Transação própria."""
+    from src.models.fonte_reputacao import FonteReputacao
+
+    with db_session() as s:
+        row = s.query(FonteReputacao).filter_by(fonte_id=fonte_id).one_or_none()
+        if row is None:
+            row = FonteReputacao(fonte_id=fonte_id, empresa_id=empresa_id, provedor="reclame_aqui")
+            s.add(row)
+        row.coletado_em = agora
+        row.consumer_score = rep.get("consumer_score")
+        row.response_rate = rep.get("response_rate")
+        row.resolution_rate = rep.get("resolution_rate")
+        row.recommendation_rate = rep.get("recommendation_rate")
+        row.raw_json = rep.get("raw_json")
 
 
 def _upsert_caso(
@@ -228,7 +246,7 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         "companies": [empresa_param],
         "scrapeComplaints": True,
         "includeInteractions": True,
-        "includeCompanyProfile": False,
+        "includeCompanyProfile": True,  # Vitrine/Bloco A: scorecard OFICIAL (+US$0,05/empresa)
         "statusFilter": ["LATEST"],
         "maxComplaintsPerCompany": cap,
         "descriptionFormat": "text",
@@ -248,8 +266,14 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
     for item in items:
         stats["coletados"] += 1
         try:
+            if item.get("recordType") == "company":  # Vitrine/Bloco A: scorecard oficial
+                rep = adaptar_reputacao(item)
+                if rep is not None:
+                    _upsert_reputacao(fonte_id, empresa_id, rep, agora)
+                    stats["reputacao"] = True
+                continue
             norm = adaptar_reclamacao(item)
-            if norm is None:  # record de empresa/scorecard ou malformado
+            if norm is None:  # malformado
                 stats["ignorados"] += 1
                 continue
             # Guarda do corte (rede de segurança — o actor já filtra por dateFrom).

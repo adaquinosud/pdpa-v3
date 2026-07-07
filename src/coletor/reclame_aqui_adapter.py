@@ -61,6 +61,47 @@ def _int_ou_none(valor: Any) -> Optional[int]:
         return None
 
 
+def _float_ou_none(valor: Any) -> Optional[float]:
+    try:
+        return float(valor) if valor is not None else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _primeiro(item: Dict[str, Any], chaves) -> Any:
+    """Mapeamento DEFENSIVO: 1º valor não-nulo entre chaves candidatas (o schema do
+    scorecard ainda não foi confirmado numa coleta real — o raw_json fica guardado)."""
+    for k in chaves:
+        v = item.get(k)
+        if v is not None:
+            return v
+    return None
+
+
+def adaptar_reputacao(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Record de EMPRESA (``recordType='company'``) → scorecard OFICIAL da fonte.
+    ``consumer_score`` é conhecido; as taxas são mapeadas por chaves prováveis
+    (None = 'aguardando 1ª coleta com perfil', não falha da empresa). O record cru
+    vai em ``raw_json`` p/ confirmar/refinar as chaves depois."""
+    if not isinstance(item, dict) or item.get("recordType") != "company":
+        return None
+    return {
+        "consumer_score": _float_ou_none(item.get("consumerScore")),  # conhecido
+        "response_rate": _float_ou_none(
+            _primeiro(item, ("responseRate", "answeredPercentage", "answeredRate"))
+        ),
+        "resolution_rate": _float_ou_none(
+            _primeiro(item, ("resolutionRate", "solvedPercentage", "solvedRate"))
+        ),
+        "recommendation_rate": _float_ou_none(
+            _primeiro(
+                item, ("recommendationRate", "recommendPercentage", "wouldDoBusinessAgainRate")
+            )
+        ),
+        "raw_json": json.dumps(item, ensure_ascii=False),
+    }
+
+
 def hash_thread(interactions: Any) -> str:
     """Hash estável da thread p/ detectar mudança entre coletas (recoleta →
     re-classifica só quando muda). Canônico: tipo|autor|created|message por

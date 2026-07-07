@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from src.coletor import reclame_aqui as ra
-from src.coletor.reclame_aqui_adapter import adaptar_reclamacao, hash_thread
+from src.coletor.reclame_aqui_adapter import adaptar_reclamacao, adaptar_reputacao, hash_thread
 from src.models.caso import Caso
 from src.models.empresa import Empresa
 from src.models.fonte import Fonte
@@ -97,6 +97,17 @@ def _patch_actor(monkeypatch, items):
 
 
 # ── Adapter ──────────────────────────────────────────────────────────────────
+
+
+def test_adapter_reputacao_company_record():
+    """Vitrine/Bloco A: record recordType='company' → scorecard. consumer_score
+    conhecido; taxa sem chave = None (aguardando 1ª coleta); raw guardado."""
+    rep = adaptar_reputacao({**_EMPRESA_RECORD, "responseRate": 92.0})
+    assert rep is not None and rep["consumer_score"] == 2.58  # conhecido
+    assert rep["response_rate"] == 92.0  # chave mapeada (defensiva)
+    assert rep["resolution_rate"] is None  # sem chave → aguardando, não falha
+    assert "CLUB MED" in rep["raw_json"]  # record cru guardado p/ refino
+    assert adaptar_reputacao({"recordType": "complaint"}) is None  # não é company
 
 
 def test_adapter_mapeia_reclamacao_completa():
@@ -238,11 +249,17 @@ def test_coletar_upsert_nao_duplica(db_session, monkeypatch):
     assert caso.thread_mudou_em is not None
 
 
-def test_coletar_ignora_empresa_e_malformado(db_session, monkeypatch):
+def test_coletar_captura_reputacao_e_ignora_malformado(db_session, monkeypatch):
+    from src.models.fonte_reputacao import FonteReputacao
+
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_EMPRESA_RECORD, _MALFORMADO, _reclamacao("K1")])
     stats = ra.coletar(f)
-    assert stats["ignorados"] == 2 and stats["casos_novos"] == 1
+    # company record agora é CAPTURADO (Vitrine/Bloco A), não ignorado; só o malformado
+    assert stats["ignorados"] == 1 and stats["casos_novos"] == 1
+    assert stats.get("reputacao") is True
+    rep = db_session.query(FonteReputacao).filter_by(fonte_id=f.id).one()
+    assert rep.consumer_score == 2.58 and rep.provedor == "reclame_aqui"
 
 
 def test_coletar_sem_descricao_cria_caso_sem_verbatim(db_session, monkeypatch):

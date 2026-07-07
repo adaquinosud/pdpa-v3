@@ -1,0 +1,53 @@
+{# Vitrine — scorecard da DECISÃO do consumidor NOVO (≠ diagnóstico da relação de
+   quem já é cliente). Cada sinal × seu threshold de mercado (VITRINE_CONFIG). #}
+{% set v = vitrine %}
+<div class="mt-1">
+  <div class="text-xs uppercase tracking-wider text-loyall-400">Vitrine · decisão</div>
+  <h3 class="text-lg font-semibold text-loyall-800 mt-0.5">O que te custa cliente NOVO</h3>
+  <p class="text-xs text-loyall-500 mt-1 max-w-2xl">
+    Os sinais que o consumidor que <strong>ainda não é cliente</strong> usa antes de escolher —
+    medidos contra o corte de mercado (BrightLocal). É a <strong>vitrine</strong>, não a conduta
+    da relação: aqui o que importa é entrar (ou não) no shortlist.</p>
+
+  {% if not v.tem_dado %}
+  <div class="mt-4 text-center text-loyall-400 py-10 border border-dashed border-loyall-200 rounded-lg">
+    Sem sinal de vitrine medido ainda para esta empresa.
+  </div>
+  {% endif %}
+
+  {% set cor = {
+    'verde':     {'bg':'bg-emerald-50','bd':'border-emerald-200','tx':'text-emerald-700','sel':'atende'},
+    'vermelho':  {'bg':'bg-rose-50','bd':'border-rose-200','tx':'text-rose-700','sel':'abaixo do corte'},
+    'nao_medido':{'bg':'bg-loyall-50','bd':'border-loyall-200','tx':'text-loyall-400','sel':'não medido'},
+    'aguardando':{'bg':'bg-amber-50','bd':'border-amber-200','tx':'text-amber-700','sel':'aguardando 1ª coleta com perfil'},
+    'info':      {'bg':'bg-loyall-50','bd':'border-loyall-200','tx':'text-loyall-700','sel':'informativo'}
+  } %}
+  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    {% for sig in v.sinais %}
+    {% set c = cor[sig.status] %}
+    <div class="border {{ c.bd }} {{ c.bg }} rounded-lg px-3 py-3 min-w-0">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs text-loyall-500 truncate">{{ sig.label }}</div>
+        <span class="shrink-0 text-[10px] uppercase px-1.5 py-0.5 rounded {{ c.tx }} border {{ c.bd }}">{{ c.sel }}</span>
+      </div>
+      <div class="mt-1 text-2xl font-bold {{ c.tx }}">
+        {% if sig.status == 'nao_medido' %}—{% elif sig.status == 'aguardando' %}<span class="text-base font-medium">aguardando perfil</span>{% else %}{{ sig.valor }}{{ sig.unidade }}{% if sig.n_base %}<span class="text-xs font-normal text-loyall-400"> · {{ sig.n_base }} reviews</span>{% endif %}{% endif %}
+      </div>
+      {% if sig.status == 'vermelho' and sig.gap %}
+      <div class="text-xs text-rose-600 mt-0.5">{{ sig.gap }}{{ sig.unidade }} abaixo do corte de mercado {{ sig.corte }}{{ sig.unidade }}</div>
+      {% elif sig.status == 'verde' and sig.corte %}
+      <div class="text-xs text-emerald-600 mt-0.5">≥ corte de mercado {{ sig.corte }}{{ sig.unidade }}</div>
+      {% endif %}
+      <div class="text-[10px] text-loyall-400 mt-1.5">{{ sig.origem }}</div>
+      {% if sig.obs %}<div class="text-[10px] text-loyall-400 mt-0.5 italic">{{ sig.obs }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="mt-3 text-[10px] text-loyall-400">
+    Cortes de mercado (VITRINE_CONFIG, calibrável por setor): nota {{ v.config.nota_corte }}★ ·
+    volume {{ v.config.volume_min }} · recência {{ v.config.recencia_dias }}d ·
+    resposta {{ v.config.resposta_dias }}d. <span class="italic">v2: nota/volume oficiais do Google
+    (place-level) e velocidade de resposta (thread RA).</span>
+  </div>
+</div>

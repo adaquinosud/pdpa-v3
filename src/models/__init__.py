@@ -22,6 +22,7 @@ from src.models.diagnostico import LeituraDiagnostico
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
+from src.models.fonte_reputacao import FonteReputacao
 from src.models.glossario_termo import GlossarioTermo
 from src.models.governanca import (
     GiniConcentracao,
@@ -72,6 +73,7 @@ __all__ = [
     "Empresa",
     "EventoManutencao",
     "Fonte",
+    "FonteReputacao",
     "GlossarioTermo",
     "GiniConcentracao",
     "LeituraDiagnostico",

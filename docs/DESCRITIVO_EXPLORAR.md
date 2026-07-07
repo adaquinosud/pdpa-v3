@@ -662,6 +662,29 @@ sondagem.
 
 ---
 
+## 19. VITRINE (decisão do consumidor NOVO)
+
+O scorecard da **vitrine**: os sinais que o consumidor que **ainda não é cliente** usa antes de
+escolher a marca — medidos contra o corte de mercado (pesquisa BrightLocal LCRS). É distinto do
+diagnóstico da relação (quem já é cliente): aqui o que importa é **entrar no shortlist**.
+
+**Cortes (VITRINE_CONFIG, calibrável por setor):** nota **4,5★** · volume **20** avaliações ·
+recência **90 dias** · resposta **7 dias**.
+
+**Origem do dado (rotulada, sem fundir):**
+- **RA oficial (universo):** reputação do ReclameAqui (`consumer_score`) + taxas do scorecard da
+  empresa — capturadas na coleta com `includeCompanyProfile`. Enquanto não vier, o sinal fica
+  **"aguardando 1ª coleta com perfil"** (lacuna nossa, ≠ "empresa não respondeu").
+- **Amostra coletada:** volume, recência e nota per-review (Google/App Store/TripAdvisor/Mercado
+  Livre via `rating`) — é a **amostra que coletamos, não a média oficial** da fonte. Redes sociais
+  não têm estrela, ficam de fora.
+
+Cada sinal aparece **verde** se atende o corte, **vermelho** se abaixo (com o gap: "4,2★ · 0,3
+abaixo do corte 4,5"), ou **"não medido"** quando não há dado — nunca 0. **v2:** nota/volume
+oficiais do Google (place-level) e velocidade de resposta derivada do thread do RA.
+
+---
+
 ## As 6 Perspectivas (do Plano de Ação)
 
 As 6 frentes de negócio em que toda ação cai. Ações **Estruturais** já nascem com a perspectiva escolhida
