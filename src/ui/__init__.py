@@ -3970,6 +3970,13 @@ def _explorar_quadro(s, empresa_id, ag_id, local_id=None):
 
 
 _CASOS_PERIODO_DIAS = {"1m": 30, "3m": 90, "6m": 180, "12m": 365}
+# Rótulo do SELO quando o período recorta o painel (nunca se disfarça de histórico):
+_CASOS_PERIODO_LABEL = {
+    "1m": "último mês",
+    "3m": "últimos 3 meses",
+    "6m": "últimos 6 meses",
+    "12m": "últimos 12 meses",
+}
 
 
 _DEFASAGEM_ORDEM = {
@@ -4149,36 +4156,67 @@ def _explorar_casos(s, empresa_id, filtros=None):
         .order_by(Caso.criado_em_origem.desc().nullslast())
         .all()
     )
-    total = len(casos)
-    avaliados = [c for c in casos if c.evaluated]
-    classificados = [c for c in casos if c.desfecho]
-    respondidos = sum(1 for c in casos if (c.interactions_count or 0) > 0)
-    resolvidos = sum(1 for c in avaliados if c.desfecho == "resolvido")
-    causa_ok = sum(1 for c in classificados if c.causa_resolvida)
-    notas = [c.score for c in avaliados if c.score is not None]
+    # Período recorta O PAINEL também (revisão da decisão all-time): SÓ o filtro de
+    # período afeta os KPIs — desfecho/status/q seguem drills SÓ da lista. Anchor =
+    # criado_em_origem (data da queixa); caso sem data cai fora do recorte (consistente
+    # com a lista). Sem período → casos_painel = todos → tela idêntica a hoje.
+    f_periodo = filtros.get("periodo") or None
+    corte_dias = _CASOS_PERIODO_DIAS.get(f_periodo)
+    corte_data = (datetime.utcnow() - timedelta(days=corte_dias)) if corte_dias else None
+    casos_painel = (
+        [c for c in casos if c.criado_em_origem and c.criado_em_origem >= corte_data]
+        if corte_data is not None
+        else casos
+    )
 
     def _pct(num, den):
         return round(100 * num / den) if den else None
 
+    _av = [c for c in casos_painel if c.evaluated]
+    _cl = [c for c in casos_painel if c.desfecho]
+    _resp = sum(1 for c in casos_painel if (c.interactions_count or 0) > 0)
+    _resol = sum(1 for c in _av if c.desfecho == "resolvido")
+    _causa = sum(1 for c in _cl if c.causa_resolvida)
+    _notas = [c.score for c in _av if c.score is not None]
+    # Micro-aviso de maturidade: recorte recente = coorte jovem que subestima conduta
+    # (mesma régua do parecer). Só quando há recorte.
+    aviso_maturidade, maduros_pct, matur_dias = False, None, None
+    if corte_data is not None:
+        from src.relatorios.parecer import MATURIDADE_CONFIG
+
+        matur_dias = MATURIDADE_CONFIG["dias"]
+        _cd = datetime.utcnow() - timedelta(days=matur_dias)
+        _com_data = [c for c in casos_painel if c.criado_em_origem]
+        if _com_data:
+            maduros_pct = round(
+                100 * sum(1 for c in _com_data if c.criado_em_origem <= _cd) / len(_com_data)
+            )
+            aviso_maturidade = maduros_pct < MATURIDADE_CONFIG["pct_min"]
     painel = SimpleNamespace(
-        total=total,
-        desfechos=dict(Counter(c.desfecho for c in casos if c.desfecho)),
-        taxa_resposta=_pct(respondidos, total),
-        taxa_resolucao=_pct(resolvidos, len(avaliados)),
-        taxa_causa=_pct(causa_ok, len(classificados)),
-        nota_media=round(sum(notas) / len(notas), 1) if notas else None,
-        n_avaliados=len(avaliados),
-        n_classificados=len(classificados),
+        total=len(casos_painel),
+        desfechos=dict(Counter(c.desfecho for c in casos_painel if c.desfecho)),
+        taxa_resposta=_pct(_resp, len(casos_painel)),
+        taxa_resolucao=_pct(_resol, len(_av)),
+        taxa_causa=_pct(_causa, len(_cl)),
+        nota_media=round(sum(_notas) / len(_notas), 1) if _notas else None,
+        n_avaliados=len(_av),
+        n_classificados=len(_cl),
+        # ── recorte por período (None = all-time) ──
+        recorte=_CASOS_PERIODO_LABEL.get(f_periodo),  # selo; None → sem selo
+        anchor="data da queixa",
+        resp_num=_resp,
+        resol_num=_resol,
+        causa_num=_causa,
+        aviso_maturidade=aviso_maturidade,
+        maduros_pct=maduros_pct,
+        maturidade_dias=matur_dias,
     )
     # ── Filtros (só a LISTA) ──────────────────────────────────────────────────
     from urllib.parse import urlencode
 
     f_desfecho = filtros.get("desfecho") or None
     f_status = filtros.get("status") or None
-    f_periodo = filtros.get("periodo") or None
     f_q = (filtros.get("q") or "").strip().lower() or None
-    corte_dias = _CASOS_PERIODO_DIAS.get(f_periodo)
-    corte_data = (datetime.utcnow() - timedelta(days=corte_dias)) if corte_dias else None
 
     def _passa(c):
         if f_desfecho and c.desfecho != f_desfecho:
@@ -4215,7 +4253,7 @@ def _explorar_casos(s, empresa_id, filtros=None):
     return SimpleNamespace(
         painel=painel,
         casos=linhas,
-        tem_dado=total > 0,
+        tem_dado=len(casos) > 0,  # tem RA data (independe do recorte de período)
         n_filtrado=len(linhas),
         filtros={
             "desfecho": f_desfecho,

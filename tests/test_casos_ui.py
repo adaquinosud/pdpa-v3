@@ -149,6 +149,56 @@ def test_painel_taxas(db_session):
     assert p.nota_media == 5.0  # (10+0)/2
 
 
+def test_periodo_recorta_painel(db_session):
+    """Item 3 (revisão): com filtro de período o PAINEL recalcula pro recorte
+    (default all-time intacto); selo + N absoluto + aviso de maturidade em recorte
+    recente. Anchor = criado_em_origem (data da queixa)."""
+    from datetime import datetime, timedelta
+
+    e, f = _empresa(db_session)
+    antigo = datetime.utcnow() - timedelta(days=200)  # fora de 3m, maduro
+    recente = datetime.utcnow() - timedelta(days=5)  # dentro de 3m, imaturo
+    # 1 caso ANTIGO resolvido (só entra no all-time)
+    _caso(
+        db_session,
+        e,
+        f,
+        "OLD",
+        evaluated=True,
+        desfecho="resolvido",
+        causa_resolvida=True,
+        interactions_count=2,
+        criado_em_origem=antigo,
+    )
+    # 2 casos RECENTES não resolvidos (entram no recorte 3m)
+    for i in range(2):
+        _caso(
+            db_session,
+            e,
+            f,
+            f"NEW{i}",
+            evaluated=True,
+            desfecho="nao_resolvido",
+            causa_resolvida=False,
+            interactions_count=1,
+            criado_em_origem=recente,
+        )
+    db_session.commit()
+
+    # DEFAULT all-time: 3 casos, sem selo
+    allt = ui._explorar_casos(db_session, e.id).painel
+    assert allt.total == 3 and allt.recorte is None
+    assert allt.taxa_resolucao == 33  # 1 resolvido de 3 avaliados
+
+    # RECORTE 3m: só os 2 recentes; painel recalcula + selo + aviso de maturidade
+    rec = ui._explorar_casos(db_session, e.id, {"periodo": "3m"}).painel
+    assert rec.total == 2 and rec.recorte == "últimos 3 meses"
+    assert rec.anchor == "data da queixa"
+    assert rec.taxa_resolucao == 0  # 0 resolvidos de 2 avaliados (coorte jovem)
+    assert rec.resol_num == 0 and rec.n_avaliados == 2  # N absoluto (base<20)
+    assert rec.aviso_maturidade is True and rec.maduros_pct == 0  # recorte imaturo
+
+
 # ── Filtros da lista ─────────────────────────────────────────────────────────
 
 

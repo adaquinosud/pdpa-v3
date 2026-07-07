@@ -24,18 +24,25 @@
 </div>
 {% else %}
 
-{# ── PAINEL DE REPUTAÇÃO (todos os casos) ── #}
-<div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-  {% macro metric(rotulo, valor, sufixo='', hint='', slug='', align='left') %}
+{# ── PAINEL DE REPUTAÇÃO — all-time por default; recorta com o filtro de período ── #}
+{% if p.recorte %}
+<div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-loyall-100 text-loyall-600 font-medium" title="Os KPIs abaixo refletem só este recorte, ancorado na data da queixa (criado_em_origem).">recorte: {{ p.recorte }} · por {{ p.anchor }}</span>
+  {% if p.aviso_maturidade %}<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700" title="Coorte jovem: queixas recentes ainda não tiveram tempo de resolver. Leia resolução/causa como provisórias.">⚠ base recente — só {{ p.maduros_pct }}% dos casos têm +{{ p.maturidade_dias }} dias; resolução e causa-raiz ainda amadurecem</span>{% endif %}
+</div>
+{% endif %}
+<div class="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-3">
+  {% macro metric(rotulo, valor, sufixo='', hint='', slug='', align='left', num=none, base=none, base_label='') %}
   <div class="border border-loyall-200 rounded-lg px-3 py-2 min-w-0" title="{{ hint }}">
     <div class="text-xs text-loyall-400 flex items-center gap-1"><span class="truncate">{{ rotulo }}</span>{% if slug and glossario_i is defined %}{{ glossario_i(slug, align=align) }}{% endif %}</div>
     <div class="text-xl font-bold text-loyall-800">{% if valor is none %}—{% else %}{{ valor }}{{ sufixo }}{% endif %}</div>
+    {% if p.recorte and base is not none %}<div class="text-[11px] text-loyall-400 mt-0.5">{% if base < 20 %}{{ num }} de {{ base }} {{ base_label }}{% else %}de {{ base }} {{ base_label }}{% endif %}</div>{% endif %}
   </div>
   {% endmacro %}
   {{ metric('Casos', p.total) }}
-  {{ metric('Taxa de resposta', p.taxa_resposta, '%', 'Casos respondidos ÷ total', 'taxa-resposta') }}
-  {{ metric('Taxa de resolução', p.taxa_resolucao, '%', 'Resolvidos ÷ avaliados (' ~ p.n_avaliados ~ ')', 'taxa-resolucao') }}
-  {{ metric('Causa-raiz resolvida', p.taxa_causa, '%', 'Nosso diferencial: a resposta enfrentou a raiz ÷ classificados (' ~ p.n_classificados ~ ')', 'causa-raiz-resolvida', align='right') }}
+  {{ metric('Taxa de resposta', p.taxa_resposta, '%', 'Casos respondidos ÷ total', 'taxa-resposta', num=p.resp_num, base=p.total, base_label='casos') }}
+  {{ metric('Taxa de resolução', p.taxa_resolucao, '%', 'Resolvidos ÷ avaliados (' ~ p.n_avaliados ~ ')', 'taxa-resolucao', num=p.resol_num, base=p.n_avaliados, base_label='avaliados') }}
+  {{ metric('Causa-raiz resolvida', p.taxa_causa, '%', 'Nosso diferencial: a resposta enfrentou a raiz ÷ classificados (' ~ p.n_classificados ~ ')', 'causa-raiz-resolvida', align='right', num=p.causa_num, base=p.n_classificados, base_label='classificados') }}
 </div>
 {% if p.nota_media is not none %}
 <div class="mt-2 text-xs text-loyall-500">Nota média dos avaliados: <strong class="text-loyall-800">★ {{ p.nota_media }}</strong> / 10 ({{ p.n_avaliados }} avaliados)</div>
