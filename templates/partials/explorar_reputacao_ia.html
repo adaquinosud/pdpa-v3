@@ -153,5 +153,13 @@
     })();
   </script>
 </div>
+{% elif r.serie|length == 1 %}
+{# 1 competência: sem série (precisa de 2 pontos). Nota em vez de gráfico degenerado. #}
+<div class="mt-6">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Tendência · % de subpilares alinhados (IA ↔ diagnóstico)</div>
+  <div class="text-xs text-loyall-500 rounded border border-dashed border-loyall-200 px-3 py-2">
+    📈 Série disponível a partir da 2ª competência{% if r.proxima_competencia %} — próxima sonda: <strong>{{ r.proxima_competencia }}</strong>{% endif %}.
+  </div>
+</div>
 {% endif %}
 {% endif %}

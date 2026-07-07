@@ -3989,6 +3989,15 @@ _DEFASAGEM_ORDEM = {
 }
 
 
+def _proxima_competencia(comp):
+    """'YYYY-MM' → competência do mês seguinte (a sonda é mensal). None se malformada."""
+    try:
+        y, m = (int(x) for x in comp.split("-"))
+        return f"{y + m // 12}-{m % 12 + 1:02d}"
+    except (ValueError, AttributeError):
+        return None
+
+
 def _explorar_reputacao_ia(s, empresa_id):
     """Reputação em IA (frente IA · G6): última execução mensal → snapshot
     (identidade × ORIGEM, avaliação por subpilar, encaminhamentos), defasagem
@@ -4133,6 +4142,9 @@ def _explorar_reputacao_ia(s, empresa_id):
         defasagem=defasagem,
         divergencia=SimpleNamespace(vendors=vendors, linhas=div_linhas, n_discordam=n_discordam),
         serie=serie,
+        # série real só a partir da 2ª competência (cron mensal) — a nota de 1 ponto
+        # usa a próxima competência esperada.
+        proxima_competencia=_proxima_competencia(execucao.competencia),
     )
 
 

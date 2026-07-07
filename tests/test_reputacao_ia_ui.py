@@ -99,6 +99,46 @@ def _setup(db_session):
     return e
 
 
+def _setup_uma_competencia(db_session):
+    """Empresa com UMA competência (o caso comum: série só a partir da 2ª)."""
+    e = Empresa(nome=f"EIA1-{id(db_session)}")
+    db_session.add(e)
+    db_session.flush()
+    x = SondaIAExecucao(
+        empresa_id=e.id, competencia="2026-07", status="concluida", repeticoes=3, custo_usd=0.07
+    )
+    db_session.add(x)
+    db_session.flush()
+    db_session.add(
+        SondaIALeitura(
+            execucao_id=x.id,
+            empresa_id=e.id,
+            competencia="2026-07",
+            identidade_ecoada="Rede de resorts.",
+            defasagem_json=json.dumps([{"subpilar": "D2", "defasagem": "alinhado"}]),
+        )
+    )
+    db_session.commit()
+    return e
+
+
+def test_uma_competencia_sem_serie_com_proxima(db_session):
+    """1 competência: série de 1 ponto (sem gráfico) + próxima competência p/ a nota."""
+    e = _setup_uma_competencia(db_session)
+    r = ui._explorar_reputacao_ia(db_session, e.id)
+    assert r.tem_dado is True and len(r.serie) == 1  # 1 ponto → template suprime o gráfico
+    assert r.proxima_competencia == "2026-08"
+
+
+def test_aba_uma_competencia_render_nota(client_loyall, db_session):
+    """Render: com 1 competência mostra a NOTA (não o canvas da série degenerado)."""
+    e = _setup_uma_competencia(db_session)
+    body = client_loyall.get(f"/empresas/{e.id}/explorar?tab=reputacao_ia").get_data(as_text=True)
+    assert "Série disponível a partir da 2ª competência" in body
+    assert "próxima sonda: <strong>2026-08</strong>" in body
+    assert 'id="serie-ia"' not in body  # o gráfico NÃO renderiza com 1 ponto
+
+
 def test_builder_snapshot_defasagem_divergencia_serie(db_session):
     e = _setup(db_session)
     r = ui._explorar_reputacao_ia(db_session, e.id)
