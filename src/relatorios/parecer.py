@@ -25,7 +25,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.4-conduta-imatura-omitida"
+PROMPT_SINTESE_VER = "v1.5-camada-direcao"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -56,11 +56,11 @@ _MESES = [
     "novembro",
     "dezembro",
 ]
-_NIVEIS = ["essencia", "significado", "proposito", "caminho", "resultado"]
+_NIVEIS = ["essencia", "significado", "direcao", "caminho", "resultado"]
 _NIVEL_PT = {
     "essencia": "Essência",
     "significado": "Significado",
-    "proposito": "Propósito",
+    "direcao": "Direção",
     "caminho": "Caminho",
     "resultado": "Resultado",
 }

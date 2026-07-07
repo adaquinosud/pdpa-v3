@@ -1,6 +1,6 @@
 """Motor do ORIGEM (fatia 2) — a régua de profundidade do confronto.
 
-Lê em que elo da cadeia generativa (Essência→Significado→Propósito→Caminho→
+Lê em que elo da cadeia generativa (Essência→Significado→Direção→Caminho→
 Resultado) mora a ruptura de cada gap/força, medido contra a essência DECLARADA
 da empresa (missão/visão/valores). 1 chamada LLM por confronto, sob demanda
 (molde de ``classificar_respostas_confronto``). Função pura sobre a sessão —
@@ -61,7 +61,7 @@ _TEMP_ORIGEM = 0.2
 _NIVEL_NOME = {
     "resultado": "resultado",
     "caminho": "caminho",
-    "proposito": "propósito",
+    "direcao": "direção",
     "significado": "significado",
     "essencia": "essência",
 }
@@ -81,9 +81,9 @@ Você é o ORIGEM — a última leitura do método PDPA. Para cada gap entre o q
 empresa DECLARA ser e o que o cliente vive, você diz em que ELO da cadeia
 generativa a corrente rompe (nas forças: o quão FUNDO ela se sustenta):
 
-  Essência → Significado → Propósito → Caminho → Resultado
+  Essência → Significado → Direção → Caminho → Resultado
 
-Cada elo gera o seguinte: a essência gera o significado, que gera o propósito,
+Cada elo gera o seguinte: a essência gera o significado, que gera a direção,
 que define o caminho, que produz o resultado. A ruptura mora no elo onde a
 corrente arrebentou; corrigir ABAIXO dele dá alívio passageiro, corrigir NO elo
 rompido é a correção sustentável — e quanto mais fundo o elo, mais custosa.
@@ -96,10 +96,10 @@ com um exemplo neutro por elo:
 - RESULTADO — ruptura só no output; tropeçou numa entrega pontual, mas
   identidade/sentido/alvo/método seguem íntegros. Correção rasa.
   ex.: "o pedido saiu trocado uma vez; o processo e a intenção estavam certos."
-- CAMINHO — ruptura no método; o propósito é claro, mas o jeito de agir não o
+- CAMINHO — ruptura no método; a direção é clara, mas o jeito de agir não a
   sustenta.
   ex.: "querem atender bem, mas o roteiro engessado não deixa o time ouvir."
-- PROPÓSITO — ruptura no alvo; persegue-se algo desalinhado do que o cliente
+- DIREÇÃO — ruptura no alvo; persegue-se algo desalinhado do que o cliente
   precisa; o para-quê desviou.
   ex.: "mede-se velocidade, mas o cliente queria ser entendido, não despachado."
 - SIGNIFICADO — ruptura no sentido; aquilo perdeu internamente o significado que
@@ -140,7 +140,7 @@ alavanca de processo; se no INDIVIDUAL, aponte o cultivo relacional.
 Responda APENAS com JSON válido, no formato:
 {"gaps": [
    {"subpilar": "<código>",
-    "nivel": "resultado|caminho|proposito|significado|essencia",
+    "nivel": "resultado|caminho|direcao|significado|essencia",
     "justificativa": "<1ª frase nomeia o elo; depois remédio + prática, na essência>"}
  ],
  "sintese": "<padrão dominante + recado central + padrão de natureza, citando a essência>"}

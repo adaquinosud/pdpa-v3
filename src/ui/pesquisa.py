@@ -501,7 +501,7 @@ def pesquisa_confronto(pesquisa_id):
 
 # ── ORIGEM (fatia 3): régua de profundidade — tela irmã do confronto ─────────
 # Ordem de profundidade: Essência (mais fundo) → Resultado (mais raso).
-_ORIGEM_ORDEM = {"essencia": 0, "significado": 1, "proposito": 2, "caminho": 3, "resultado": 4}
+_ORIGEM_ORDEM = {"essencia": 0, "significado": 1, "direcao": 2, "caminho": 3, "resultado": 4}
 
 
 @ui_bp.route("/pesquisas/<int:pesquisa_id>/origem")
@@ -548,7 +548,7 @@ def pesquisa_origem(pesquisa_id):
         # Cascata conceitual: o elo MAIS FUNDO que rompe (primeiro na ordem com
         # gravidade). Índice 0..4 (essencia..resultado); None se nenhum problema.
         grav = {a["nivel"] for a in analises if a["lado"] == "gravidade"}
-        _ordem_elos = ["essencia", "significado", "proposito", "caminho", "resultado"]
+        _ordem_elos = ["essencia", "significado", "direcao", "caminho", "resultado"]
         ruptura_ordem = next((i for i, n in enumerate(_ordem_elos) if n in grav), None)
         ctx = {
             "pesquisa_id": pesquisa_id,

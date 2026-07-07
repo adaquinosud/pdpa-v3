@@ -181,9 +181,9 @@ def test_cadeia_de_elos_e_gerado_em(client_loyall, db_session):
     db_session.add(OrigemSintese(pesquisa_id=p.id, texto="Rompe na essência."))
     db_session.commit()
     body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
-    # cabeçalho + os 5 elos (inclusive os vazios: Significado, Propósito)
+    # cabeçalho + os 5 elos (inclusive os vazios: Significado, Direção)
     assert "Cadeia generativa" in body
-    for elo in ("Essência", "Significado", "Propósito", "Caminho", "Resultado"):
+    for elo in ("Essência", "Significado", "Direção", "Caminho", "Resultado"):
         assert elo in body
     # cascata: o elo mais fundo com gravidade é Essência (P1)
     assert "◀ rompe aqui" in body

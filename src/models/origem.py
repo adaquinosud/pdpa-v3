@@ -1,7 +1,7 @@
 """Modelos do ORIGEM (fatia 2) — a régua de profundidade do confronto.
 
 ``origem_analise``: por (pesquisa, subpilar) o NÍVEL da ruptura na cadeia
-generativa (Essência→Significado→Propósito→Caminho→Resultado) + o ``lado``
+generativa (Essência→Significado→Direção→Caminho→Resultado) + o ``lado``
 (gravidade nos problemas, solidez nas forças) + justificativa ancorada na
 essência declarada. ``origem_sintese``: o padrão dominante + recado central,
 1 por pesquisa. Leitura DERIVADA e re-executável (upsert por pesquisa/subpilar).
@@ -26,7 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
 
-NIVEIS = ("resultado", "caminho", "proposito", "significado", "essencia")
+NIVEIS = ("resultado", "caminho", "direcao", "significado", "essencia")
 LADOS = ("gravidade", "solidez")
 
 
@@ -35,7 +35,7 @@ class OrigemAnalise(Base):
     __table_args__ = (
         UniqueConstraint("pesquisa_id", "subpilar", name="uq_origem_analise"),
         CheckConstraint(
-            "nivel IN ('resultado','caminho','proposito','significado','essencia')",
+            "nivel IN ('resultado','caminho','direcao','significado','essencia')",
             name="ck_origem_nivel",
         ),
         CheckConstraint("lado IN ('gravidade','solidez')", name="ck_origem_lado"),
