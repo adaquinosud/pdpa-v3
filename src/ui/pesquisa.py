@@ -550,6 +550,17 @@ def pesquisa_origem(pesquisa_id):
         grav = {a["nivel"] for a in analises if a["lado"] == "gravidade"}
         _ordem_elos = ["essencia", "significado", "direcao", "caminho", "resultado"]
         ruptura_ordem = next((i for i, n in enumerate(_ordem_elos) if n in grav), None)
+        # 6a: forma degradada nomeada por elo ABAIXO da ruptura (badge curto + frase
+        # no tooltip). Fallback 'herda' fica no template. Motor da ruptura intocado.
+        degradacao = {}
+        if ruptura_ordem is not None:
+            from src.pesquisa.origem import forma_degradada
+
+            _rompido = _ordem_elos[ruptura_ordem]
+            for idx, n in enumerate(_ordem_elos):
+                cel = forma_degradada(_rompido, n) if idx > ruptura_ordem else None
+                if cel:
+                    degradacao[n] = cel
         ctx = {
             "pesquisa_id": pesquisa_id,
             "empresa_id": pesq.empresa_id,
@@ -560,6 +571,7 @@ def pesquisa_origem(pesquisa_id):
             "sintese": sint.texto if sint else None,
             "gerado_em": gerado_em,
             "ruptura_ordem": ruptura_ordem,
+            "degradacao": degradacao,
         }
     return render_template("pesquisa/origem.html", **ctx)
 

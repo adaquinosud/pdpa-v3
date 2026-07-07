@@ -504,6 +504,27 @@ def test_banner_sintese_falhou_nao_fica_mudo(db_session):
     assert "não pôde ser gerada" not in _render(d)
 
 
+def test_corrente_forma_degradada(db_session):
+    """6a: abaixo da ruptura, o rótulo deixa de ser 'HERDA' e vira a forma nomeada
+    da célula (rompido→afetado); a frase preenche o texto quando não há gap próprio.
+    Elo da ruptura e acima não mudam. Motor da inferência intocado."""
+    from types import SimpleNamespace
+
+    from src.relatorios.parecer import _corrente
+
+    # ruptura no Significado (gravidade) → Direção/Caminho/Resultado herdam nomeados
+    analises = [
+        SimpleNamespace(nivel="significado", lado="gravidade", justificativa="x", subpilar="Pa2")
+    ]
+    elos = {e["nivel"]: e for e in _corrente(analises, {"Pa2": "Mutualidade"})["elos"]}
+    assert elos["Significado"]["estado"] == "ruptura"  # ruptura intocada
+    assert elos["Direção"]["tag"] == "busca sem rumo" and elos["Direção"]["estado"] == "herda"
+    assert elos["Direção"]["texto"].startswith("sem o significado")  # frase → texto
+    assert elos["Caminho"]["tag"] == "vira tarefa"
+    assert elos["Resultado"]["tag"] == "função, não entrega"
+    assert "herda" not in {elos["Direção"]["tag"], elos["Caminho"]["tag"]}  # sem genérico
+
+
 def test_montar_dados_degrada_sem_dado(db_session):
     e = _empresa(db_session, "vazia")  # nada
     db_session.commit()

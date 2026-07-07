@@ -137,6 +137,8 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
     é o nível de gravidade mais a montante; abaixo dela os elos HERDAM."""
     if not analises:
         return {"elos": [], "ruptura_frase": None}
+    from src.pesquisa.origem import forma_degradada  # tabela de formas degradadas
+
     por_nivel: Dict[str, list] = {}
     for a in analises:
         por_nivel.setdefault(a.nivel, []).append(a)
@@ -146,11 +148,16 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
     elos, passou = [], False
     for n in _NIVEIS:
         grp = por_nivel.get(n, [])
+        cel = None  # célula da forma degradada (só p/ elos ABAIXO da ruptura)
         if n == ruptura_nivel:
             estado, tag, passou = "ruptura", "ruptura", True
             ruptura_frase = next((x.justificativa for x in grp if x.justificativa), None)
         elif passou:
-            estado, tag = "herda", "herda"
+            # 6a: abaixo da ruptura, o rótulo deixa de ser "HERDA" genérico e vira a
+            # forma nomeada da célula (rompido→afetado); fallback "herda" se faltar.
+            estado = "herda"
+            cel = forma_degradada(ruptura_nivel, n)
+            tag = cel["curto"] if cel else "herda"
         elif grp and all(x.lado == "solidez" for x in grp):
             estado, tag = "forca", "força"
         elif grp:
@@ -160,7 +167,9 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
         if grp:
             subs = " · ".join(nome_map.get(x.subpilar, x.subpilar) for x in grp)
             texto = next((x.justificativa for x in grp if x.justificativa), None) or subs
-        else:  # elo abaixo da ruptura sem análise → só a tag HERDA, sem frase-eco
+        elif cel and cel.get("frase"):
+            texto = cel["frase"]  # sem gap próprio → a frase da degradação preenche
+        else:  # sem gap e sem frase → "—" (item 3)
             texto = None
         elos.append({"nivel": _NIVEL_PT[n], "estado": estado, "tag": tag, "texto": texto})
     return {"elos": elos, "ruptura_frase": ruptura_frase}

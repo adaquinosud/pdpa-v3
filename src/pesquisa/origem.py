@@ -66,6 +66,69 @@ _NIVEL_NOME = {
     "essencia": "essência",
 }
 
+# ── Forma degradada nomeada (APRESENTAÇÃO — motor da inferência intocado) ──────
+# Por (elo_rompido → elo_afetado abaixo), a forma que a degradação assume nesse
+# elo: {curto} vira o rótulo (era "HERDA") no badge/seta; {frase} é o tooltip
+# (/origem) / a linha de texto do elo (parecer). Triangular; célula ausente →
+# fallback "herda". FONTE ÚNICA da tabela canônica; anti-drift do item 6(b).
+DEGRADACAO = {
+    "essencia": {
+        "significado": {
+            "curto": "papel sem lastro",
+            "frase": "a função é assumida como papel, sem a essência por trás — "
+            "desempenho, não manifestação.",
+        },
+        "direcao": {
+            "curto": "meta sem sentido",
+            "frase": "persegue-se meta sem sentido próprio, porque a essência não foi implantada.",
+        },
+        "caminho": {
+            "curto": "prática performática",
+            "frase": "o comportamento vira encenação — prática performática, não natural.",
+        },
+        "resultado": {
+            "curto": "resultado sob pressão",
+            "frase": "o resultado oscila, dependente de pressão externa permanente "
+            "pra se sustentar.",
+        },
+    },
+    "significado": {
+        "direcao": {
+            "curto": "busca sem rumo",
+            "frase": "sem o significado assumido, falta o que perseguir — busca sem rumo.",
+        },
+        "caminho": {
+            "curto": "vira tarefa",
+            "frase": "as ações viram cumprimento de tarefa; a função é papel a executar.",
+        },
+        "resultado": {
+            "curto": "função, não entrega",
+            "frase": "o cliente percebe pessoa executando função, não manifestando algo maior.",
+        },
+    },
+    "direcao": {
+        "caminho": {
+            "curto": "decisões incoerentes",
+            "frase": "sem direção, cada um decide pela lógica do momento — decisões incoerentes.",
+        },
+        "resultado": {
+            "curto": "incoerência percebida",
+            "frase": "a incoerência transparece; o cliente sente sem conseguir nomear.",
+        },
+    },
+    "caminho": {
+        "resultado": {
+            "curto": "não vira ação",
+            "frase": "as camadas anteriores ficam contidas — não se traduzem em ação observável.",
+        },
+    },
+}
+
+
+def forma_degradada(elo_rompido, elo_afetado):
+    """{curto, frase} da célula da matriz, ou None (chamador usa 'herda')."""
+    return (DEGRADACAO.get(elo_rompido) or {}).get(elo_afetado)
+
 
 def _incoerente(nivel, justificativa) -> bool:
     """Heurística leve: a 1ª frase da justificativa nomeia OUTRO elo (e não o

@@ -121,6 +121,11 @@
       </div>
       {% if is_ruptura %}
       <div class="shrink-0 w-16 text-xs font-medium text-rose-600 text-right leading-tight">◀ rompe aqui</div>
+      {% elif herda %}
+      {# 6a: forma degradada nomeada (curto no badge, frase no tooltip); fallback 'herda'. #}
+      <div class="shrink-0 text-right"{% if degradacao.get(code) %} title="{{ degradacao[code].frase }}"{% endif %}>
+        <span class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-loyall-100 text-loyall-500 border border-loyall-200">{{ degradacao[code].curto if degradacao.get(code) else 'herda' }}</span>
+      </div>
       {% endif %}
     </div>
     {# seta direta pro próximo elo; vermelha + "herda" do ponto de ruptura pra baixo #}
@@ -131,7 +136,7 @@
            class="{{ 'stroke-rose-400' if cascata else 'stroke-loyall-300' }}">
         <path d="M8 1 V9 M4 6 L8 11 L12 6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      {% if cascata %}<span class="text-[10px] uppercase tracking-wide text-loyall-400">herda</span>{% endif %}
+      {# a forma degradada agora vive no badge do elo abaixo; a seta só marca a cascata #}
     </div>
     {% endif %}
     {% endfor %}
