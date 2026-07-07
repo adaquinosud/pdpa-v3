@@ -77,6 +77,17 @@ Produza SEIS saídas:
    (singular), o verbo fica no singular — ex. "Acessibilidade que falha EXCLUI o
    hóspede", nunca "Acessibilidade falha excluem".
 
+8. ``corrente_ancorado`` — objeto ``{nivel: frase}`` para CADA elo de
+   ``corrente_degradada`` (elos ABAIXO da ruptura, sem dado próprio). Reescreva a
+   ``frase_canonica`` de modo que ela: (i) PRESERVE o núcleo conceitual do
+   ``nucleo`` (a ideia do rótulo — ex. "busca sem rumo" mantém a ideia de falta de
+   rumo); (ii) ANCORE no efeito da ferida — cite pelo NOME o subpilar ``ferida``
+   (ex.: "Mutualidade"), pois o elo degradado herda o efeito da ruptura, não tem
+   dado próprio. UMA linha (~18 palavras). REGRA DE PRECISÃO: a âncora é FATO
+   observado (a ferida existe nos dados) — NUNCA invente número, tema ou causa que
+   não esteja nos fatos. Se não conseguir ancorar num fato real mantendo o núcleo,
+   NÃO force: devolva a própria ``frase_canonica`` (o sistema usa o fallback).
+
 Português do Brasil; nada de bullet, título ou markdown DENTRO dos textos.
 Revise a concordância de número (sujeito × verbo) de cada frase antes de responder.
 
@@ -89,5 +100,6 @@ Responda SOMENTE com JSON, sem texto fora:
   "ausentes": ["…", "…", "…"],
   "ausentes_frase": "…",
   "leitura_topo": "…",
-  "corrente_nucleo": {"Essência": "…", "Significado": "…"}
+  "corrente_nucleo": {"Essência": "…", "Significado": "…"},
+  "corrente_ancorado": {"Direção": "…", "Caminho": "…", "Resultado": "…"}
 }

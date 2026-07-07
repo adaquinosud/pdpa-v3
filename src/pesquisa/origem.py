@@ -71,23 +71,29 @@ _NIVEL_NOME = {
 # elo: {curto} vira o rótulo (era "HERDA") no badge/seta; {frase} é o tooltip
 # (/origem) / a linha de texto do elo (parecer). Triangular; célula ausente →
 # fallback "herda". FONTE ÚNICA da tabela canônica; anti-drift do item 6(b).
+# Cada célula: {curto (badge), frase (canônica 6a / fallback), nucleo_kw (guard 6b:
+# a frase ANCORADA precisa conter ≥1 desses stems — núcleo conceitual travado)}.
 DEGRADACAO = {
     "essencia": {
         "significado": {
             "curto": "papel sem lastro",
+            "nucleo_kw": ["papel", "lastro"],
             "frase": "a função é assumida como papel, sem a essência por trás — "
             "desempenho, não manifestação.",
         },
         "direcao": {
             "curto": "meta sem sentido",
+            "nucleo_kw": ["meta", "sentido"],
             "frase": "persegue-se meta sem sentido próprio, porque a essência não foi implantada.",
         },
         "caminho": {
             "curto": "prática performática",
+            "nucleo_kw": ["performátic", "encenaç"],
             "frase": "o comportamento vira encenação — prática performática, não natural.",
         },
         "resultado": {
             "curto": "resultado sob pressão",
+            "nucleo_kw": ["pressão", "oscil"],
             "frase": "o resultado oscila, dependente de pressão externa permanente "
             "pra se sustentar.",
         },
@@ -95,30 +101,36 @@ DEGRADACAO = {
     "significado": {
         "direcao": {
             "curto": "busca sem rumo",
+            "nucleo_kw": ["rumo", "persegu"],
             "frase": "sem o significado assumido, falta o que perseguir — busca sem rumo.",
         },
         "caminho": {
             "curto": "vira tarefa",
+            "nucleo_kw": ["tarefa", "executar"],
             "frase": "as ações viram cumprimento de tarefa; a função é papel a executar.",
         },
         "resultado": {
             "curto": "função, não entrega",
+            "nucleo_kw": ["função", "entrega"],
             "frase": "o cliente percebe pessoa executando função, não manifestando algo maior.",
         },
     },
     "direcao": {
         "caminho": {
             "curto": "decisões incoerentes",
+            "nucleo_kw": ["incoerên", "decis"],
             "frase": "sem direção, cada um decide pela lógica do momento — decisões incoerentes.",
         },
         "resultado": {
             "curto": "incoerência percebida",
+            "nucleo_kw": ["incoerên", "percebe"],
             "frase": "a incoerência transparece; o cliente sente sem conseguir nomear.",
         },
     },
     "caminho": {
         "resultado": {
             "curto": "não vira ação",
+            "nucleo_kw": ["ação", "traduz"],
             "frase": "as camadas anteriores ficam contidas — não se traduzem em ação observável.",
         },
     },
@@ -126,8 +138,29 @@ DEGRADACAO = {
 
 
 def forma_degradada(elo_rompido, elo_afetado):
-    """{curto, frase} da célula da matriz, ou None (chamador usa 'herda')."""
+    """{curto, frase, nucleo_kw} da célula da matriz, ou None (chamador usa 'herda')."""
     return (DEGRADACAO.get(elo_rompido) or {}).get(elo_afetado)
+
+
+def _norm_txt(s):
+    import unicodedata
+
+    s = unicodedata.normalize("NFKD", s or "")
+    return "".join(c for c in s if not unicodedata.combining(c)).lower()
+
+
+def validar_ancora(frase, cel, ferida_nome):
+    """Guard 6b da frase ANCORADA (Sonnet). (a) NÚCLEO: contém ≥1 ``nucleo_kw`` da
+    célula (núcleo conceitual preservado); (b) ÂNCORA: menciona o subpilar da ferida
+    (fato real). Retorna ``(ok, motivo)``; falha → o chamador cai na frase canônica."""
+    f = _norm_txt(frase)
+    if not f:
+        return False, "vazia"
+    if not any(_norm_txt(k) in f for k in (cel.get("nucleo_kw") or [])):
+        return False, "sem_nucleo"  # drift: perdeu o núcleo da célula
+    if not ferida_nome or _norm_txt(ferida_nome) not in f:
+        return False, "sem_ancora"  # alucinação: âncora sem lastro no dado
+    return True, "ok"
 
 
 def _incoerente(nivel, justificativa) -> bool:

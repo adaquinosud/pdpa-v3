@@ -250,7 +250,11 @@
   <div class="rule"></div>
   <div class="corrente">
     {% for elo in d.ato2b.corrente %}
+    {% if elo.degradada %}{# 6b: elo degradado usa a frase ANCORADA (guardada); senão a canônica #}
+    {% set _et = (d.sintese.corrente_ancorado[elo.nivel] if (d.sintese and d.sintese.corrente_ancorado) else None) or elo.texto %}
+    {% else %}
     {% set _et = (d.sintese.corrente[elo.nivel] if (d.sintese and d.sintese.corrente) else None) or elo.texto %}
+    {% endif %}
     <div class="elo {{ elo.estado }}">
       {% if elo.tag %}<span class="tag">{{ elo.tag }}</span>{% endif %}
       <div class="en">{{ elo.nivel }}</div>

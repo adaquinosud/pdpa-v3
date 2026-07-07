@@ -504,6 +504,54 @@ def test_banner_sintese_falhou_nao_fica_mudo(db_session):
     assert "não pôde ser gerada" not in _render(d)
 
 
+def test_corrente_ancorada_guard(db_session):
+    """6b: a frase ancorada só entra se passa no guard — (a) núcleo (nucleo_kw) e
+    (b) âncora (nome da ferida). Falha em qualquer → dropa o nível (fallback 6a)."""
+    from src.models.origem import OrigemAnalise
+    from src.models.pesquisa import Pesquisa
+    from src.relatorios.parecer import sintetizar_parecer
+
+    e = _empresa(db_session, "anc")
+    f = _fonte(db_session, e)
+    for i in range(3):  # ferida = Pa2 (Mutualidade)
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="reclamação",
+                tem_texto=True,
+                subpilar="Pa2",
+                tipo="detrator",
+                hash_dedup=f"an{i}",
+            )
+        )
+    p = Pesquisa(empresa_id=e.id, natureza="externa", proposito="confronto", titulo="P")
+    db_session.add(p)
+    db_session.flush()
+    # ruptura no Significado → Direção/Caminho/Resultado degradados
+    db_session.add(
+        OrigemAnalise(pesquisa_id=p.id, subpilar="Pa2", nivel="significado", lado="gravidade")
+    )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    assert d["tese"]["subpilar_nome"] == "Mutualidade"  # a âncora esperada
+
+    def _fake(facts):
+        return {
+            "corrente_ancorado": {
+                "Direção": "em Mutualidade, a operação perde o rumo e persegue metas erradas",
+                "Caminho": "vira tarefa sem alma nenhuma",  # (b) sem âncora → cai
+                "Resultado": "a Mutualidade se desfaz aos poucos",  # (a) sem núcleo → cai
+            }
+        }
+
+    r = sintetizar_parecer(e.id, d, gerar_fn=_fake)
+    anc = r["corrente_ancorado"]
+    assert "Direção" in anc and "rumo" in anc["Direção"] and "Mutualidade" in anc["Direção"]
+    assert "Caminho" not in anc and "Resultado" not in anc  # fallback → não entram
+
+
 def test_corrente_forma_degradada(db_session):
     """6a: abaixo da ruptura, o rótulo deixa de ser 'HERDA' e vira a forma nomeada
     da célula (rompido→afetado); a frase preenche o texto quando não há gap próprio.

@@ -25,7 +25,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.5-camada-direcao"
+PROMPT_SINTESE_VER = "v1.6-corrente-ancorada"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -171,7 +171,16 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
             texto = cel["frase"]  # sem gap próprio → a frase da degradação preenche
         else:  # sem gap e sem frase → "—" (item 3)
             texto = None
-        elos.append({"nivel": _NIVEL_PT[n], "estado": estado, "tag": tag, "texto": texto})
+        elos.append(
+            {
+                "nivel": _NIVEL_PT[n],
+                "estado": estado,
+                "tag": tag,
+                "texto": texto,
+                "degradada": cel is not None,  # 6b: elo degradado → ancoragem (não compressão)
+                "cel": cel,  # {curto, frase, nucleo_kw} p/ o guard; None se não degradada
+            }
+        )
     return {"elos": elos, "ruptura_frase": ruptura_frase}
 
 
@@ -274,11 +283,23 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         # p/ comprimir (essencia) e extrair os 3 pilares que a IA não menciona:
         "essencia_declarada": d["ato1"]["essencia"],
         "identidade_ia_vs_essencia": d["ato1"].get("identidade_vs_essencia"),
-        # elos da corrente ORIGEM com texto (justificativa longa) p/ comprimir:
+        # elos com justificativa PRÓPRIA (não degradados) → compressão (corrente_nucleo):
         "corrente_elos": [
             {"nivel": el["nivel"], "texto": el["texto"]}
             for el in d["ato2b"]["corrente"]
-            if el.get("texto")
+            if el.get("texto") and not el.get("degradada")
+        ],
+        # elos DEGRADADOS (6b) → ancoragem na ferida, mantendo o núcleo da célula.
+        # Núcleo = curto/frase canônica; a âncora é a `ferida` (subpilar) já nos fatos.
+        "corrente_degradada": [
+            {
+                "nivel": el["nivel"],
+                "nucleo": (el["cel"] or {}).get("curto"),
+                "nucleo_kw": (el["cel"] or {}).get("nucleo_kw"),  # guard (a)
+                "frase_canonica": (el["cel"] or {}).get("frase"),
+            }
+            for el in d["ato2b"]["corrente"]
+            if el.get("degradada") and el.get("cel")
         ],
     }
 
@@ -314,6 +335,30 @@ def sintetizar_parecer(
             return _chamar_sonnet(payload, PROMPT_SINTESE, parse_fn=_extrair_json_aninhado)
 
     data = gerar_fn(facts)
+    # 6b: guard das frases ANCORADAS — (a) núcleo (nucleo_kw) + (b) âncora (ferida).
+    # Falha em qualquer → dropa o nível (template cai na canônica 6a); loga o motivo.
+    import logging
+
+    from src.pesquisa.origem import validar_ancora
+
+    _deg = {c["nivel"]: c for c in facts.get("corrente_degradada", [])}
+    _ferida = facts.get("ferida")
+    corrente_ancorado = {}
+    for nivel, frase in (data.get("corrente_ancorado") or {}).items():
+        cel = _deg.get(nivel)
+        if not cel:
+            continue
+        ok, motivo = validar_ancora(frase, cel, _ferida)
+        if ok:
+            corrente_ancorado[nivel] = frase
+        else:
+            logging.getLogger(__name__).warning(
+                "parecer 6b: âncora descartada → fallback canônico "
+                "(empresa=%s, nivel=%s, motivo=%s)",
+                empresa_id,
+                nivel,
+                motivo,
+            )
     out = {
         "abertura": data.get("abertura"),
         "fecho": data.get("fecho"),
@@ -322,6 +367,7 @@ def sintetizar_parecer(
         "essencia": data.get("essencia") or None,  # missao/visao/valores comprimidos
         "leitura_topo": data.get("leitura_topo"),  # leitura da ferida individual (P7)
         "corrente": data.get("corrente_nucleo") or {},  # {nivel: frase-núcleo 1 linha}
+        "corrente_ancorado": corrente_ancorado,  # 6b: {nivel: frase ancorada validada}
     }
     with db_session() as s:
         row = (
