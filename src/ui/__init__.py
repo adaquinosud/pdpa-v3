@@ -68,19 +68,18 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     import json as _json
 
     from src.coletor.reclame_aqui import (
-        CORTE_MESES,
         CUSTO_POR_CASO_USD,
         CUSTO_SCORECARD_USD,
         CUSTO_START_USD,
-        MAX_COMPLAINTS_PER_COMPANY,
     )
 
     eh_ra = f.conector_tipo == "reclame_aqui"
-    janela_ef = f.ra_janela_meses or CORTE_MESES
-    cap_ef = f.ra_max_casos or MAX_COMPLAINTS_PER_COMPANY
-    # Custo DOIS-MODOS: (A) scorecard semanal = fixo; (B) threads/coorte mensal =
-    # volume-do-mês × custo/caso. O volume vem do PRÓPRIO scorecard (complaints30Days)
-    # → estimativa data-driven; sem scorecard ainda, cai no teto por cap.
+    # Controle REAL do custo de threads no dois-modos: nº de coortes mensais ativas
+    # (Fatia 3.5). NULL → 1 (conservador). ra_max_casos/ra_janela_meses = dormant.
+    coortes = f.ra_coortes_ativas or 1
+    # Custo DOIS-MODOS: (A) scorecard semanal = fixo; (B) threads/mês =
+    # coortes × volume-do-mês (complaints30Days do scorecard) × custo/caso + start.
+    # Sem scorecard ainda → volume desconhecido, sem fallback por cap (era fantasma).
     compl_30d = None
     if eh_ra:
         from src.models.fonte_reputacao import FonteReputacao
@@ -92,8 +91,11 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
                     compl_30d = _json.loads(_rep.raw_json).get("complaints30Days")
                 except (ValueError, TypeError):
                     compl_30d = None
-    _threads_base = compl_30d if compl_30d else cap_ef
-    ra_custo_threads_mes = round(_threads_base * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
+    ra_custo_threads_mes = (
+        round(coortes * compl_30d * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
+        if compl_30d
+        else None  # aguardando 1º scorecard → sem número (não inventa por cap)
+    )
     return SimpleNamespace(
         id=f.id,
         empresa_id=f.empresa_id,
@@ -101,18 +103,13 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         entidade_id=f.entidade_id,
         conector_tipo=f.conector_tipo,
         url=f.url,
-        # Config de coleta RA por fonte (override) + vigentes + teto de custo.
+        # Config de coleta RA por fonte (dois-modos): coortes ativas + custo por modo.
         eh_ra=eh_ra,
-        ra_janela_meses=f.ra_janela_meses,
-        ra_max_casos=f.ra_max_casos,
-        ra_janela_ef=janela_ef,
-        ra_cap_ef=cap_ef,
-        # DOIS-MODOS na tela: linha A (scorecard/semana, fixo) + linha B (threads/mês).
+        ra_coortes_ativas=coortes,
         ra_custo_scorecard=CUSTO_SCORECARD_USD,
-        ra_custo_threads_mes=ra_custo_threads_mes,
-        ra_threads_volume_mes=compl_30d,  # None → estimativa por cap; senão volume real
-        ra_default_janela=CORTE_MESES,
-        ra_default_cap=MAX_COMPLAINTS_PER_COMPANY,
+        ra_custo_threads_mes=ra_custo_threads_mes,  # None = aguardando scorecard
+        ra_threads_volume_mes=compl_30d,  # complaints30Days (por mês); None = sem scorecard
+        ra_custo_por_caso=CUSTO_POR_CASO_USD,  # p/ o cálculo ao vivo no input
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
         # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
         # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).
@@ -2430,23 +2427,20 @@ def htmx_deletar_local(local_id: int):
     return ("", 200)
 
 
-def _ra_config_do_form(conector: str):
-    """(ra_janela_meses, ra_max_casos) do form — só p/ reclame_aqui; inteiros
-    positivos ou None (usa o default global). Ignora lixo/valores ≤ 0."""
+def _ra_coortes_do_form(conector: str):
+    """ra_coortes_ativas do form — só p/ reclame_aqui (dois-modos, Fatia 3.5). É o
+    controle demo↔cliente do custo de threads; inteiro ≥1, nasce conservador (1) sem
+    input ou com lixo. Não-RA → None (não usa)."""
     if conector != "reclame_aqui":
-        return None, None
-
-    def _pos(name):
-        v = (request.form.get(name) or "").strip()
-        if not v:
-            return None
-        try:
-            n = int(v)
-        except ValueError:
-            return None
-        return n if n > 0 else None
-
-    return _pos("ra_janela_meses"), _pos("ra_max_casos")
+        return None
+    v = (request.form.get("ra_coortes_ativas") or "").strip()
+    if not v:
+        return 1  # conservador (demo/custo-Loyall); operador sobe na tela
+    try:
+        n = int(v)
+    except ValueError:
+        return 1
+    return n if n >= 1 else 1
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/fontes", methods=["POST"])
@@ -2482,7 +2476,7 @@ def htmx_criar_fonte(local_id: int):
     if not url:
         return ("<div class='text-red-600'>url é obrigatória.</div>", 400)
 
-    ra_janela, ra_cap = _ra_config_do_form(conector)
+    ra_coortes = _ra_coortes_do_form(conector)
     with db_session() as s:
         f = Fonte(
             empresa_id=empresa_id,
@@ -2491,8 +2485,7 @@ def htmx_criar_fonte(local_id: int):
             conector_tipo=conector,
             url=url,
             ativo=ativo,
-            ra_janela_meses=ra_janela,
-            ra_max_casos=ra_cap,
+            ra_coortes_ativas=ra_coortes,
         )
         s.add(f)
         s.flush()
@@ -2505,8 +2498,7 @@ def htmx_criar_fonte(local_id: int):
             f.conector_tipo,
             f.url,
             f.ativo,
-            f.ra_janela_meses,
-            f.ra_max_casos,
+            f.ra_coortes_ativas,
             f.ultima_coleta,
             f.criada_em,
             f.observacao,
@@ -2572,11 +2564,12 @@ def htmx_salvar_fonte(fonte_id: int):
         erro = _check_acesso(f.empresa_id)
         if erro:
             return erro
-        ra_janela, ra_cap = _ra_config_do_form(f.conector_tipo)
+        ra_coortes = _ra_coortes_do_form(f.conector_tipo)
         f.url = url
         f.observacao = observacao
-        f.ra_janela_meses = ra_janela
-        f.ra_max_casos = ra_cap
+        # Só sobrescreve p/ RA (não-RA → None; não zera nada relevante).
+        if f.conector_tipo == "reclame_aqui":
+            f.ra_coortes_ativas = ra_coortes
         s.flush()
         local_map = {}
         if f.entidade_tipo == "local":
@@ -2591,8 +2584,7 @@ def htmx_salvar_fonte(fonte_id: int):
             f.conector_tipo,
             f.url,
             f.ativo,
-            f.ra_janela_meses,
-            f.ra_max_casos,
+            f.ra_coortes_ativas,
             f.ultima_coleta,
             f.criada_em,
             f.observacao,

@@ -1,5 +1,6 @@
-"""Config de coleta RA por fonte: persistência via UI (criar/editar) + o helper
-só aceita override em fonte reclame_aqui."""
+"""Config de coleta RA por fonte (dois-modos, Fatia 3.5): ra_coortes_ativas via UI
+(criar/editar), só p/ reclame_aqui. ra_max_casos/ra_janela_meses saíram da UI
+(dormant). O campo é o controle demo↔cliente do custo de threads."""
 
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ def _empresa_local(client_loyall):
     return e, loc
 
 
-def test_criar_fonte_ra_persiste_override(client_loyall, db_session):
+def test_criar_fonte_ra_persiste_coortes(client_loyall, db_session):
     e, loc = _empresa_local(client_loyall)
     r = client_loyall.post(
         f"/ui/locais/{loc['id']}/fontes",
@@ -23,20 +24,19 @@ def test_criar_fonte_ra_persiste_override(client_loyall, db_session):
             "conector_tipo": "reclame_aqui",
             "url": "https://www.reclameaqui.com.br/localiza/",
             "ativo": "on",
-            "ra_janela_meses": "18",
-            "ra_max_casos": "1000",
+            "ra_coortes_ativas": "3",
         },
     )
     assert r.status_code == 200
     f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
-    assert f.ra_janela_meses == 18 and f.ra_max_casos == 1000
-    # DOIS-MODOS: scorecard fixo/semana + threads/mês (sem scorecard coletado →
-    # estimativa cai no teto por cap: 1000 × 0.025 + 0.005 start = 25.00/mês).
+    assert f.ra_coortes_ativas == 3
+    # sem scorecard ainda → threads sem número (aguardando), scorecard fixo visível
     assert b"scorecard US$ 0.055/sem" in r.data
-    assert b"US$ 25.00" in r.data and "/mês".encode() in r.data
+    assert "aguardando".encode() in r.data
 
 
-def test_criar_fonte_ra_sem_override_fica_null(client_loyall, db_session):
+def test_criar_fonte_ra_sem_input_nasce_conservador(client_loyall, db_session):
+    """Sem ra_coortes_ativas no form → nasce em 1 (demo/custo-Loyall)."""
     e, loc = _empresa_local(client_loyall)
     client_loyall.post(
         f"/ui/locais/{loc['id']}/fontes",
@@ -47,11 +47,11 @@ def test_criar_fonte_ra_sem_override_fica_null(client_loyall, db_session):
         },
     )
     f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
-    assert f.ra_janela_meses is None and f.ra_max_casos is None  # usa defaults
+    assert f.ra_coortes_ativas == 1
 
 
 def test_config_ignorada_em_fonte_nao_ra(client_loyall, db_session):
-    """Override só vale p/ reclame_aqui — google ignora o que vier no form."""
+    """Coortes só valem p/ reclame_aqui — google ignora o que vier no form."""
     e, loc = _empresa_local(client_loyall)
     client_loyall.post(
         f"/ui/locais/{loc['id']}/fontes",
@@ -59,14 +59,14 @@ def test_config_ignorada_em_fonte_nao_ra(client_loyall, db_session):
             "conector_tipo": "google",
             "url": "ChIJ_teste",
             "ativo": "on",
-            "ra_max_casos": "999",  # deve ser ignorado
+            "ra_coortes_ativas": "9",  # deve ser ignorado
         },
     )
     f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
-    assert f.ra_max_casos is None and f.ra_janela_meses is None
+    assert f.ra_coortes_ativas is None
 
 
-def test_editar_fonte_ra_atualiza_override(client_loyall, db_session):
+def test_editar_fonte_ra_atualiza_coortes(client_loyall, db_session):
     e, loc = _empresa_local(client_loyall)
     client_loyall.post(
         f"/ui/locais/{loc['id']}/fontes",
@@ -81,11 +81,10 @@ def test_editar_fonte_ra_atualiza_override(client_loyall, db_session):
         f"/ui/fontes/{f.id}",
         data={
             "url": "https://www.reclameaqui.com.br/x/",
-            "ra_janela_meses": "24",
-            "ra_max_casos": "2000",
+            "ra_coortes_ativas": "6",
         },
     )
     assert r.status_code == 200
     db_session.expire_all()
     f2 = db_session.get(Fonte, f.id)
-    assert f2.ra_janela_meses == 24 and f2.ra_max_casos == 2000
+    assert f2.ra_coortes_ativas == 6

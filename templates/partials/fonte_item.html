@@ -29,10 +29,10 @@
   {% endif %}
   {% if f.eh_ra %}
     <span class="text-loyall-500 whitespace-nowrap"
-          title="Dois modos: scorecard oficial (semanal, barato) + threads em coorte mensal. O custo de threads é estimado pelo volume real do mês (complaints30Days do scorecard); sem scorecard ainda, cai no teto por cap.">
-      scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads
-      {%- if f.ra_threads_volume_mes %} ~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês ({{ f.ra_threads_volume_mes }}/mês)
-      {%- else %} até US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês (cap {{ f.ra_cap_ef }}){% endif %}
+          title="Dois modos: scorecard oficial (semanal) + threads em coorte mensal. Custo de threads = coortes ativas × volume do mês (complaints30Days) × US$0,025; vira número após o 1º scorecard.">
+      {{ f.ra_coortes_ativas }} coorte{{ 's' if f.ra_coortes_ativas != 1 }} · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads
+      {%- if f.ra_custo_threads_mes is not none %} ~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês ({{ f.ra_coortes_ativas }}×{{ f.ra_threads_volume_mes }}/mês)
+      {%- else %} <span class="text-loyall-400">aguardando 1º scorecard</span>{% endif %}
     </span>
   {% endif %}
   <div class="flex items-center gap-2">

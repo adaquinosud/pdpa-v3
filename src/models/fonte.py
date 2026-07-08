@@ -48,9 +48,13 @@ class Fonte(Base):
     # status (sistema) vs ativo (gestão): coleta dispara só se ativo=1 e status='ativa'.
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
     observacao: Mapped[Optional[str]] = mapped_column(Text)
-    # Config de coleta RA por fonte (caso comercial de alto volume, ex. Localiza).
-    # NULL = usa os defaults globais do coletor (CORTE_MESES=15 / MAX=500). O actor
-    # cobra por reclamação RETORNADA dentro da janela → cap = teto de gasto de fato.
+    # Config de coleta RA por fonte. DOIS-MODOS (Fatia 3.5): ``ra_coortes_ativas`` é
+    # o controle demo↔cliente do custo de threads (nº de coortes mensais no refresh;
+    # custo ≈ coortes × volume-do-mês × US$0,025). Default 1 (demo/custo-Loyall).
+    ra_coortes_ativas: Mapped[Optional[int]] = mapped_column(Integer)
+    # DORMANT (deprecados na UI, coluna preservada): ra_janela_meses (era a janela
+    # deslizante — modelo antigo); ra_max_casos vira teto-de-segurança default
+    # ilimitado no coletor (0 = sem cap). Não são mais editáveis pela tela.
     ra_janela_meses: Mapped[Optional[int]] = mapped_column(Integer)
     ra_max_casos: Mapped[Optional[int]] = mapped_column(Integer)
     ultima_coleta: Mapped[Optional[datetime]] = mapped_column(DateTime)

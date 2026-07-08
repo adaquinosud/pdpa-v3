@@ -180,9 +180,9 @@ def test_coletar_usa_defaults_sem_override(db_session, monkeypatch):
     db_session.commit()
     cap = _capturar_input(monkeypatch, [_reclamacao("D1")])
     ra.coletar_threads(f)
-    assert cap["maxComplaintsPerCompany"] == ra.MAX_COMPLAINTS_PER_COMPANY
+    assert cap["maxComplaintsPerCompany"] == 0  # dormant, default ILIMITADO (dois-modos)
     assert cap["dateFrom"] == (date.today() - timedelta(days=ra.CORTE_MESES * 30)).isoformat()
-    assert cap["statusFilter"] == ["LATEST"]  # cap = teto de gasto de fato
+    assert cap["statusFilter"] == ["LATEST"]  # volume do mês manda (sem cap fantasma)
 
 
 def test_coletar_cria_caso_e_verbatim(db_session, monkeypatch):
@@ -320,7 +320,7 @@ def test_corte_15_meses_datefrom_e_guarda(db_session, monkeypatch):
     monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _fake)
     stats = ra.coletar_threads(f)
     assert "dateFrom" in captura["run_input"]  # corte server-side no input
-    assert captura["run_input"]["maxComplaintsPerCompany"] == 500  # cap com headroom
+    assert captura["run_input"]["maxComplaintsPerCompany"] == 0  # dormant, ilimitado
     assert stats["casos_novos"] == 1 and stats["fora_janela"] == 1  # antigo pulado
 
 
