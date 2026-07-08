@@ -49,6 +49,7 @@ def empresas_elegiveis() -> List[Tuple[int, str, int]]:
                     Fonte.empresa_id == e.id,
                     Fonte.ativo.is_(True),
                     Fonte.conector_tipo.in_(suportados),
+                    Fonte.conector_tipo != "reclame_aqui",  # RA saiu do noturno (Fatia 4.5b)
                 )
                 .count()
             )

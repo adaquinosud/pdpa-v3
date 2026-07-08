@@ -507,6 +507,28 @@ def test_planejar_coortes_zero_desliga_threads(db_session):
     assert ra.planejar_coortes(db_session, f) == []
 
 
+def test_fontes_scorecard_elegiveis_independe_do_noturno(db_session):
+    """Cron de scorecard enumera fontes RA com scorecard_ra_ativo, INDEPENDENTE de
+    coleta_noturna_ativa (empresa OFF no noturno segue com scorecard)."""
+    from scripts.coleta_scorecard_todas import fontes_scorecard_elegiveis
+
+    e, f = _empresa_fonte(db_session)  # scorecard_ra_ativo default True; noturno False
+    db_session.commit()
+    assert f.id in fontes_scorecard_elegiveis()  # noturno OFF não exclui o scorecard
+    e.scorecard_ra_ativo = False
+    db_session.commit()
+    assert f.id not in fontes_scorecard_elegiveis()  # flag próprio desliga
+
+
+def test_noturno_exclui_ra(db_session):
+    """Fatia 4.5b: o noturno NÃO seleciona mais fontes RA (movidas p/ o cron próprio)."""
+    from scripts.coleta_noturna import descobrir_fontes_pendentes
+
+    e, f = _empresa_fonte(db_session)  # fonte RA ativa
+    db_session.commit()
+    assert f.id not in descobrir_fontes_pendentes(e.id, redisparar_horas=1)
+
+
 def test_fontes_ra_elegiveis_gate_por_coortes(db_session):
     """Cron de threads gatilha só em coortes>0 + fonte.ativo (dropou coleta_noturna).
     Fonte com coortes=0 fica fora; empresa OFF no noturno NÃO exclui as threads."""

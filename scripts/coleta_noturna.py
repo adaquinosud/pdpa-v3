@@ -120,7 +120,14 @@ def descobrir_fontes_pendentes(empresa: Union[int, str], redisparar_horas: float
             .all()
         )
         suportados = _roteamento_coletores()
-        ids_todas = [f.id for f in fontes if f.conector_tipo in suportados]
+        # Fatia 4.5b: RA SAI do noturno — scorecard vive no cron próprio
+        # (pdpa-ra-scorecard) e threads no cron de coorte. Senão empresa ON coletaria
+        # o scorecard 2×. coleta_noturna_ativa volta a governar só o não-RA.
+        ids_todas = [
+            f.id
+            for f in fontes
+            if f.conector_tipo in suportados and f.conector_tipo != "reclame_aqui"
+        ]
         if INCLUDE_IDS:
             ids_todas = [i for i in ids_todas if i in INCLUDE_IDS]
         if EXCLUDE_IDS:

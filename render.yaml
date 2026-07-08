@@ -133,3 +133,26 @@ services:
         fromDatabase:
           name: pdpa-db
           property: connectionString
+
+  # ── Cron Job: scorecard RA (Fatia 4.5b) — DIÁRIO (gate 7d = semanal) ──────────
+  # Modo A do dois-modos: o scorecard oficial RA (~US$0,055/fonte), BARATO e
+  # INDEPENDENTE da coleta noturna. Enumera fontes RA de empresas com
+  # scorecard_ra_ativo=TRUE; o em_cadencia_scorecard (7d, FonteReputacao.coletado_em)
+  # faz o diário virar semanal por-fonte. Alimenta a Vitrine + popula complaints30Days
+  # (→ o dry-run de threads mostra custo REAL). RA saiu do noturno; threads = cron de
+  # coorte (pdpa-ra-coortes, ligado só no 4c após dry-run). Precisa do APIFY_TOKEN
+  # (grupo pdpa-config). Custo é centavos — pode ligar sem dry-run.
+  - type: cron
+    name: pdpa-ra-scorecard
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: virginia
+    schedule: "0 4 * * *"    # 04:00 UTC = 01:00 BRT (diário; gate 7d → semanal/fonte)
+    dockerCommand: bash scripts/run_ra_scorecard.sh
+    envVars:
+      - fromGroup: pdpa-config
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pdpa-db
+          property: connectionString
