@@ -636,10 +636,55 @@ def planejar_coortes(session, fonte, *, hoje: Optional[date] = None) -> list:
     return plano
 
 
+def _complaints30days(session, fonte_id: int):
+    """complaints30Days do scorecard mais recente da fonte (proxy de volume)."""
+    import json as _json
+
+    from src.models.fonte_reputacao import FonteReputacao
+
+    rep = (
+        session.query(FonteReputacao)
+        .filter_by(fonte_id=fonte_id)
+        .order_by(FonteReputacao.coletado_em.desc())
+        .first()
+    )
+    if rep is None or not rep.raw_json:
+        return None
+    try:
+        return _json.loads(rep.raw_json).get("complaints30Days")
+    except (ValueError, TypeError):
+        return None
+
+
+def _fetch_coorte_confiavel(
+    session, fonte_id: int, coorte: int, stats: Dict[str, Any], hoje
+) -> bool:
+    """A coleta da coorte é COBERTURA confirmada (pode gravar o ledger)? NÃO se falhou
+    no Apify; NÃO se veio 0 resultado num mês que ESPERAVA volume — o deadline interno
+    do actor exita Succeeded-VAZIO (não levanta erro), e gravar o ledger aí faria o cron
+    pular a coorte pra sempre (bug do ledger que mente)."""
+    if stats.get("falhou_apify"):
+        return False
+    if stats.get("coletados", 0) > 0:
+        return True  # trouxe reclamações → cobertura real
+    # 0 resultados: só é 'mês genuinamente vazio' se NÃO esperávamos volume.
+    n_casos = (
+        session.query(Caso).filter(Caso.fonte_id == fonte_id, Caso.coorte_ano_mes == coorte).count()
+    )
+    if n_casos > 0:
+        return False  # já tínhamos casos e o fetch trouxe 0 → falha silenciosa
+    vol = _complaints30days(session, fonte_id)
+    if vol and vol > 0 and _idade_meses(coorte, hoje) <= 1:
+        return False  # mês recente de fonte com volume conhecido → 0 é suspeito
+    return True  # sem casos prévios + sem volume esperado → mês vazio de verdade
+
+
 def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str, Any]:
     """Executa 1 item 'coletar' do plano: ``coletar_threads`` na janela fechada
-    (expirar=False) + expirar ESCOPADO à coorte + upsert do ledger. ``fechada`` =
-    idade ≥ 2 meses E zero não-terminais (piso evita aposentar por zero transitório)."""
+    (expirar=False). SÓ grava o ledger + roda o expirar ESCOPADO se a coleta for
+    COBERTURA confirmada (``_fetch_coorte_confiavel``) — um run falho/vazio NÃO conta
+    como coletado (senão o ledger mente e o cron pula a coorte pra sempre). ``fechada``
+    = idade ≥ 2 meses E zero não-terminais (piso evita aposentar por zero transitório)."""
     agora = agora or datetime.utcnow()
     hoje = agora.date()
     coorte = plano_item["coorte"]
@@ -651,18 +696,29 @@ def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str
         expirar=False,
     )
     with db_session() as s:
-        exp = expirar_abandonados(s, fonte.id, agora=agora, coorte_ano_mes=coorte)
         n_casos = (
             s.query(Caso).filter(Caso.fonte_id == fonte.id, Caso.coorte_ano_mes == coorte).count()
         )
+        sucesso = _fetch_coorte_confiavel(s, fonte.id, coorte, stats, hoje)
+        stats.update(coorte=coorte, n_casos=n_casos, sucesso=sucesso)
+        if not sucesso:
+            # Run falho/vazio-suspeito → NÃO grava ledger, NÃO roda expirar (ambos
+            # supõem cobertura). O cron re-tenta a coorte no próximo run.
+            print(
+                f"[reclame_aqui] coorte {coorte} fonte {fonte.id}: coleta NÃO confiável "
+                f"(coletados={stats.get('coletados')} falhou_apify={stats.get('falhou_apify')} "
+                f"n_casos={n_casos}) — ledger NÃO gravado, expirar NÃO rodado"
+            )
+            stats.update(abandonados=0, nao_rastreado=0, fechada=False, ledger_gravado=False)
+            return stats
+        exp = expirar_abandonados(s, fonte.id, agora=agora, coorte_ano_mes=coorte)
         nnt = _n_nao_terminais_coorte(s, fonte.id, coorte)
         fechada = _idade_meses(coorte, hoje) >= COORTE_IDADE_APOSENTAR and nnt == 0
         _upsert_coorte_ledger(s, fonte.id, fonte.empresa_id, coorte, agora, n_casos, fechada)
     stats.update(
-        coorte=coorte,
         abandonados=exp["abandonados"],
         nao_rastreado=exp["nao_rastreado"],
-        n_casos=n_casos,
         fechada=fechada,
+        ledger_gravado=True,
     )
     return stats
