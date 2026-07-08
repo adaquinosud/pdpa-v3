@@ -362,6 +362,34 @@ def test_expirar_abandonados(db_session):
             ultima_coleta=velho,
         )
     )
+    # INFORMATIVO congelado (leitura assentada) → foto válida: PRESERVA, não vira
+    # nao_rastreado mesmo tendo saído do fetch.
+    db_session.add(
+        Caso(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="FRZ-INFO",
+            evaluated=False,
+            desfecho="nao_respondida",
+            primeira_coleta=velho,
+            thread_mudou_em=velho,
+            ultima_coleta=velho,
+        )
+    )
+    # INFORMATIVO ainda-no-fetch, parado 100d → foto válida: PRESERVA, não vira
+    # abandonado (o "foto válida" vale nos dois ramos).
+    db_session.add(
+        Caso(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="STALE-INFO",
+            evaluated=False,
+            desfecho="respondida_em_disputa",
+            primeira_coleta=velho,
+            thread_mudou_em=velho,
+            ultima_coleta=agora,
+        )
+    )
     # terminal (evaluated) → nunca fecha
     db_session.add(
         Caso(
@@ -381,6 +409,10 @@ def test_expirar_abandonados(db_session):
     assert db_session.query(Caso).filter_by(origem_id="FROZEN").one().desfecho == "nao_rastreado"
     assert db_session.query(Caso).filter_by(origem_id="NEW").one().desfecho is None
     assert db_session.query(Caso).filter_by(origem_id="DONE").one().desfecho is None
+    # B: informativos preservados (foto válida), em ambos os ramos
+    assert db_session.query(Caso).filter_by(origem_id="FRZ-INFO").one().desfecho == "nao_respondida"
+    _si = db_session.query(Caso).filter_by(origem_id="STALE-INFO").one()
+    assert _si.desfecho == "respondida_em_disputa"
 
 
 def test_tem_nao_terminais(db_session):

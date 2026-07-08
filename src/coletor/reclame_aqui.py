@@ -71,6 +71,10 @@ def _empresa_param(url: str) -> str:
 # Desfechos que PARAM a recoleta do caso (não vale re-cobrar). 'nao_rastreado' é
 # terminal p/ a recoleta: o caso caiu do fetch e não re-entra sem subir o cap.
 _DESFECHO_TERMINAL = ("abandonado", "nao_rastreado")
+# Indefinidos = sem leitura de conduta assentada; os ÚNICOS que expirar pode fechar
+# (→ abandonado se ainda no fetch e parado 90d; → nao_rastreado se congelou). NULL
+# é indefinido também, tratado à parte no filtro (IS NULL). Informativos ficam fora.
+_DESFECHO_INDEFINIDO = ("respondida_sem_avaliacao",)
 
 
 def _terminal(caso: Caso) -> bool:
@@ -330,11 +334,18 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
 def expirar_abandonados(
     session, fonte_id: int, *, dias: int = ABANDONO_DIAS, agora=None
 ) -> Dict[str, int]:
-    """Fecha não-terminais parados, separando DOIS destinos (correção de método):
+    """Fecha só os INDEFINIDOS parados, separando DOIS destinos (correção de método):
 
-    - **nao_rastreado** (artefato NOSSO): o caso SAIU do último fetch da fonte —
-      ``ultima_coleta`` defasado vs ``MAX(ultima_coleta)`` da fonte. Congelou por
-      janela deslizante LATEST×cap; nunca é falso-abandono. Independe dos 90d.
+    Indefinido = sem leitura de conduta assentada (``desfecho`` NULL ou
+    ``respondida_sem_avaliacao`` — ainda podia/devia amadurecer). Desfechos
+    informativos (``nao_respondida``, ``respondida_em_disputa``, ``nao_resolvido``)
+    são FOTO VÁLIDA da última observação: expirar NÃO os toca — preserva, só não
+    evoluem. Isso vale nos dois ramos (senão preservaríamos um congelado mas
+    atropelaríamos o ainda-no-fetch com abandono).
+
+    - **nao_rastreado** (artefato NOSSO): o indefinido SAIU do último fetch da fonte
+      — ``ultima_coleta`` defasado vs ``MAX(ultima_coleta)``. Congelou por janela
+      deslizante LATEST×cap; nunca é falso-abandono. Independe dos 90d.
     - **abandonado** (real): seguimos rebuscando (``ultima_coleta`` = último fetch)
       E a thread ficou parada há ``dias`` (ref: ``thread_mudou_em`` ou
       ``primeira_coleta``) → o consumidor não voltou.
@@ -348,14 +359,14 @@ def expirar_abandonados(
     ultimo_fetch = (
         session.query(func.max(Caso.ultima_coleta)).filter(Caso.fonte_id == fonte_id).scalar()
     )
-    # Não-terminal = não-avaliado E ainda não fechado por abandono/nao_rastreado
-    # (mesma def de tem_nao_terminais). Inclui casos já classificados pelo F3.
+    # Candidatos = não-avaliados E INDEFINIDOS (NULL ou respondida_sem_avaliacao).
+    # Informativos ficam de fora → foto válida preservada.
     candidatos = (
         session.query(Caso)
         .filter(
             Caso.fonte_id == fonte_id,
             Caso.evaluated.isnot(True),
-            (Caso.desfecho.is_(None)) | (Caso.desfecho.notin_(_DESFECHO_TERMINAL)),
+            (Caso.desfecho.is_(None)) | (Caso.desfecho.in_(_DESFECHO_INDEFINIDO)),
         )
         .all()
     )
