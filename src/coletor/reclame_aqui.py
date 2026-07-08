@@ -125,21 +125,28 @@ def em_cadencia_scorecard(
     return (agora - ultima) < timedelta(days=idade_dias)
 
 
-def _upsert_reputacao(fonte_id: int, empresa_id: int, rep: Dict[str, Any], agora: datetime) -> None:
-    """Upsert do scorecard OFICIAL da fonte (1 linha por fonte). Transação própria."""
+def _inserir_reputacao(
+    fonte_id: int, empresa_id: int, rep: Dict[str, Any], agora: datetime
+) -> None:
+    """Append-history (Fatia 4a): INSERE uma nova linha de scorecard por coleta (não
+    sobrescreve). A série semanal é o valor do modo barato + base do gatilho-delta v2;
+    os leitores pegam a MAIS RECENTE (order_by coletado_em desc). Transação própria."""
     from src.models.fonte_reputacao import FonteReputacao
 
     with db_session() as s:
-        row = s.query(FonteReputacao).filter_by(fonte_id=fonte_id).one_or_none()
-        if row is None:
-            row = FonteReputacao(fonte_id=fonte_id, empresa_id=empresa_id, provedor="reclame_aqui")
-            s.add(row)
-        row.coletado_em = agora
-        row.consumer_score = rep.get("consumer_score")
-        row.response_rate = rep.get("response_rate")
-        row.resolution_rate = rep.get("resolution_rate")
-        row.recommendation_rate = rep.get("recommendation_rate")
-        row.raw_json = rep.get("raw_json")
+        s.add(
+            FonteReputacao(
+                fonte_id=fonte_id,
+                empresa_id=empresa_id,
+                provedor="reclame_aqui",
+                coletado_em=agora,
+                consumer_score=rep.get("consumer_score"),
+                response_rate=rep.get("response_rate"),
+                resolution_rate=rep.get("resolution_rate"),
+                recommendation_rate=rep.get("recommendation_rate"),
+                raw_json=rep.get("raw_json"),
+            )
+        )
 
 
 def _upsert_caso(
@@ -241,7 +248,7 @@ def _proc_reputacao(item, fonte_id, empresa_id, agora, stats) -> None:
     """Um record de empresa (``recordType='company'``) → scorecard oficial."""
     rep = adaptar_reputacao(item)
     if rep is not None:
-        _upsert_reputacao(fonte_id, empresa_id, rep, agora)
+        _inserir_reputacao(fonte_id, empresa_id, rep, agora)
         stats["reputacao"] = True
 
 

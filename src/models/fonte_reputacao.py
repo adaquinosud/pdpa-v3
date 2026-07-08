@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -21,7 +21,10 @@ from src.models.base import Base
 
 class FonteReputacao(Base):
     __tablename__ = "fonte_reputacao"
-    __table_args__ = (UniqueConstraint("fonte_id", name="uq_fonte_reputacao"),)
+    # Append-history (Fatia 4a): N linhas por fonte, 1 por coleta (série semanal do
+    # scorecard — valor do modo barato + base do gatilho-delta v2). Antes era 1 linha
+    # (UniqueConstraint) sobrescrita. Índice p/ o "mais recente por fonte".
+    __table_args__ = (Index("idx_fonte_reputacao_fonte_coletado", "fonte_id", "coletado_em"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     fonte_id: Mapped[int] = mapped_column(

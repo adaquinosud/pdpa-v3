@@ -341,6 +341,27 @@ def test_coletar_scorecard_so_perfil(db_session, monkeypatch):
     assert rep.consumer_score == 2.58 and rep.response_rate == 96.2
 
 
+def test_scorecard_append_history_latest(db_session, monkeypatch):
+    """Fatia 4a: cada scorecard INSERE nova linha (não sobrescreve); o leitor pega
+    a MAIS RECENTE. A série semana-a-semana é o valor do modo barato."""
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    _patch_actor(monkeypatch, [{**_EMPRESA_RECORD, "consumerScore": 2.0}])
+    ra.coletar_scorecard(f, force=True)
+    _patch_actor(monkeypatch, [{**_EMPRESA_RECORD, "consumerScore": 3.5}])
+    ra.coletar_scorecard(f, force=True)  # force → ignora cadência
+    rows = db_session.query(FonteReputacao).filter_by(fonte_id=f.id).all()
+    assert len(rows) == 2  # append: histórico preservado, não sobrescreveu
+    latest = (
+        db_session.query(FonteReputacao)
+        .filter_by(fonte_id=f.id)
+        .order_by(FonteReputacao.coletado_em.desc())
+        .first()
+    )
+    assert latest.consumer_score == 3.5  # leitor pega a mais recente
+
+
 def test_scorecard_cadencia_por_reputacao_nao_por_caso(db_session, monkeypatch):
     """O gate do scorecard lê FonteReputacao.coletado_em — NÃO Caso.ultima_coleta.
     Um Caso recente sozinho NÃO segura o scorecard; uma reputação recente sim."""

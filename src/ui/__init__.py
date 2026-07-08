@@ -85,7 +85,13 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         from src.models.fonte_reputacao import FonteReputacao
 
         with db_session() as _s:
-            _rep = _s.query(FonteReputacao).filter_by(fonte_id=f.id).one_or_none()
+            # Append-history: pega a MAIS RECENTE (N linhas por fonte desde a Fatia 4a).
+            _rep = (
+                _s.query(FonteReputacao)
+                .filter_by(fonte_id=f.id)
+                .order_by(FonteReputacao.coletado_em.desc())
+                .first()
+            )
             if _rep is not None and _rep.raw_json:
                 try:
                     compl_30d = _json.loads(_rep.raw_json).get("complaints30Days")
@@ -4031,7 +4037,8 @@ def _explorar_vitrine(s, empresa_id):
     rep = (
         s.query(FonteReputacao)
         .filter(FonteReputacao.empresa_id == empresa_id, FonteReputacao.provedor == "reclame_aqui")
-        .one_or_none()
+        .order_by(FonteReputacao.coletado_em.desc())  # append-history: a MAIS RECENTE
+        .first()
     )
     # Volume coletado (NOSSA amostra): casos RA + reviews com rating de outras fontes.
     n_casos = s.query(Caso).filter(Caso.empresa_id == empresa_id).count()
