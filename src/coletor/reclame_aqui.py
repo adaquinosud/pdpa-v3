@@ -361,13 +361,18 @@ def coletar_threads(
     force: bool = False,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    expirar: bool = True,
 ) -> Dict[str, Any]:
     """MODO B — só as threads (casos/verbatim/maturação), sem o scorecard.
 
     ``scrapeComplaints:True`` + ``includeCompanyProfile:False`` (o scorecard vem do
     modo A). ``date_from``/``date_to`` (ISO) fecham a janela por COORTE mensal
     (Fatia 3/4); ``date_to=None`` mantém a janela deslizante vigente (compat).
-    Roda ``expirar_abandonados``. Gate = ``em_cadencia_cooldown`` (Caso.ultima_coleta)."""
+    Gate = ``em_cadencia_cooldown`` (Caso.ultima_coleta).
+
+    ``expirar``: roda ``expirar_abandonados`` fonte-wide ao fim (default, sliding/CLI).
+    A orquestração de COORTE passa ``expirar=False`` — o expirar escopado à coorte
+    roda no ``coletar_coorte`` (senão marcaria as outras coortes de falso-nao_rastreado)."""
     fonte_id = fonte.id
     empresa_id = fonte.empresa_id
     local_id = None  # RA = marca, sempre empresa-wide (ver coletar/GRÃO)
@@ -436,10 +441,11 @@ def coletar_threads(
             stats["erros"] += 1
             print(f"[reclame_aqui] threads erro fonte {fonte_id}: {type(exc).__name__}: {exc}")
 
-    with db_session() as s:
-        exp = expirar_abandonados(s, fonte_id, agora=agora)
-        stats["abandonados"] = exp["abandonados"]
-        stats["nao_rastreado"] = exp["nao_rastreado"]
+    if expirar:  # coorte passa expirar=False (faz o escopado no coletar_coorte)
+        with db_session() as s:
+            exp = expirar_abandonados(s, fonte_id, agora=agora)
+            stats["abandonados"] = exp["abandonados"]
+            stats["nao_rastreado"] = exp["nao_rastreado"]
 
     print(
         f"[reclame_aqui] threads fonte {fonte_id} fim: coletados={stats['coletados']} "
@@ -454,7 +460,7 @@ def coletar_threads(
 
 
 def expirar_abandonados(
-    session, fonte_id: int, *, dias: int = ABANDONO_DIAS, agora=None
+    session, fonte_id: int, *, dias: int = ABANDONO_DIAS, agora=None, coorte_ano_mes=None
 ) -> Dict[str, int]:
     """Fecha só os INDEFINIDOS parados, separando DOIS destinos (correção de método):
 
@@ -472,26 +478,33 @@ def expirar_abandonados(
       E a thread ficou parada há ``dias`` (ref: ``thread_mudou_em`` ou
       ``primeira_coleta``) → o consumidor não voltou.
 
+    ``coorte_ano_mes`` (Fatia 4): ESCOPA a uma coorte — necessário no fetch por
+    janela fechada, senão os casos das OUTRAS coortes (não buscadas nesse run) teriam
+    ultima_coleta defasado e virariam falso-nao_rastreado. A assinatura do fetch e os
+    candidatos ficam ambos dentro da coorte.
+
     Devolve ``{"abandonados": x, "nao_rastreado": y}``."""
     agora = agora or datetime.utcnow()
     corte = agora - timedelta(days=dias)
-    # Assinatura do último fetch da fonte: casos rebuscados nesse fetch compartilham
-    # o mesmo ultima_coleta (setado uma vez por coletar). ultima_coleta < isto ⇒ o
-    # caso caiu do fetch (congelou). Robusto se expirar rodar fora de uma coleta.
-    ultimo_fetch = (
-        session.query(func.max(Caso.ultima_coleta)).filter(Caso.fonte_id == fonte_id).scalar()
-    )
+
+    def _escopo(q):
+        q = q.filter(Caso.fonte_id == fonte_id)
+        if coorte_ano_mes is not None:
+            q = q.filter(Caso.coorte_ano_mes == coorte_ano_mes)
+        return q
+
+    # Assinatura do último fetch (da fonte OU da coorte, se escopado): casos rebuscados
+    # nesse fetch compartilham o mesmo ultima_coleta. ultima_coleta < isto ⇒ caiu do
+    # fetch (congelou). No modo coorte, comparar só dentro da coorte é o correto.
+    ultimo_fetch = _escopo(session.query(func.max(Caso.ultima_coleta))).scalar()
     # Candidatos = não-avaliados E INDEFINIDOS (NULL ou respondida_sem_avaliacao).
     # Informativos ficam de fora → foto válida preservada.
-    candidatos = (
-        session.query(Caso)
-        .filter(
-            Caso.fonte_id == fonte_id,
+    candidatos = _escopo(
+        session.query(Caso).filter(
             Caso.evaluated.isnot(True),
             (Caso.desfecho.is_(None)) | (Caso.desfecho.in_(_DESFECHO_INDEFINIDO)),
         )
-        .all()
-    )
+    ).all()
     res = {"abandonados": 0, "nao_rastreado": 0}
     for c in candidatos:
         fora_do_fetch = (
@@ -519,3 +532,133 @@ def tem_nao_terminais(session, fonte_id: int) -> bool:
         (Caso.desfecho.is_(None)) | (Caso.desfecho.notin_(_DESFECHO_TERMINAL)),
     )
     return session.query(q.exists()).scalar()
+
+
+# ── Coortes mensais (Fatia 4) — planejamento + ledger + execução escopada ─────
+
+COORTE_IDADE_APOSENTAR = 2  # piso: só aposenta coorte com idade ≥ 2 meses
+
+
+def _coortes_ativas(n: int, hoje: date) -> list:
+    """Os ``n`` meses mais recentes INCLUINDO o corrente (ex. n=3 em jul/26 →
+    [202607, 202606, 202605])."""
+    out = []
+    y, m = hoje.year, hoje.month
+    for _ in range(max(1, n)):
+        out.append(y * 100 + m)
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+    return out
+
+
+def _idade_meses(coorte: int, hoje: date) -> int:
+    """Meses entre a coorte e o mês corrente (0 = corrente)."""
+    return (hoje.year - coorte // 100) * 12 + (hoje.month - coorte % 100)
+
+
+def _janela_coorte(coorte: int, hoje: date):
+    """(date_from, date_to) ISO da coorte. Mês corrente → janela ABERTA (dateTo=hoje);
+    mês passado → FECHADA (último dia do mês)."""
+    y, m = coorte // 100, coorte % 100
+    primeiro = date(y, m, 1)
+    prox = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1)
+    ultimo = prox - timedelta(days=1)
+    eh_corrente = coorte == hoje.year * 100 + hoje.month
+    return primeiro.isoformat(), (hoje if eh_corrente else ultimo).isoformat()
+
+
+def _n_nao_terminais_coorte(session, fonte_id: int, coorte: int) -> int:
+    """Nº de não-terminais na coorte (dirige o ``fechada`` e a estimativa)."""
+    return (
+        session.query(Caso)
+        .filter(
+            Caso.fonte_id == fonte_id,
+            Caso.coorte_ano_mes == coorte,
+            Caso.evaluated.isnot(True),
+            (Caso.desfecho.is_(None)) | (Caso.desfecho.notin_(_DESFECHO_TERMINAL)),
+        )
+        .count()
+    )
+
+
+def _upsert_coorte_ledger(session, fonte_id, empresa_id, coorte, agora, n_casos, fechada) -> None:
+    """Upsert do ledger de coorte (memória do agendador). 1 linha por (fonte, coorte)."""
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+
+    row = (
+        session.query(FonteCoorteColeta)
+        .filter_by(fonte_id=fonte_id, coorte_ano_mes=coorte)
+        .one_or_none()
+    )
+    if row is None:
+        row = FonteCoorteColeta(fonte_id=fonte_id, empresa_id=empresa_id, coorte_ano_mes=coorte)
+        session.add(row)
+    row.ultima_coleta_coorte = agora
+    row.n_casos = n_casos
+    row.fechada = fechada
+
+
+def planejar_coortes(session, fonte, *, hoje: Optional[date] = None) -> list:
+    """Plano de refresh das coortes de UMA fonte (Fatia 4, cadência A mensal). Lê
+    ``ra_coortes_ativas`` (N), o ledger e os não-terminais → decide, por coorte ativa,
+    se rebusca AGORA. NÃO coleta (dry-run friendly). Cada item: ``coorte``, ``acao``
+    ('coletar'|'skip'), ``motivo`` (quando skip), ``date_from``/``date_to`` (quando
+    coletar), ``idade_meses``, ``n_nao_terminais``."""
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+
+    hoje = hoje or date.today()
+    n = fonte.ra_coortes_ativas or 1
+    ledger = {
+        r.coorte_ano_mes: r
+        for r in session.query(FonteCoorteColeta).filter_by(fonte_id=fonte.id).all()
+    }
+    plano = []
+    for coorte in _coortes_ativas(n, hoje):
+        row = ledger.get(coorte)
+        idade = _idade_meses(coorte, hoje)
+        nnt = _n_nao_terminais_coorte(session, fonte.id, coorte)
+        base = {"coorte": coorte, "idade_meses": idade, "n_nao_terminais": nnt}
+        if row is not None and row.fechada:
+            plano.append({**base, "acao": "skip", "motivo": "fechada"})
+            continue
+        # Idempotência: já coletada neste mês-calendário? (re-run do cron não re-cobra)
+        uc = row.ultima_coleta_coorte if row is not None else None
+        if uc is not None and uc.year == hoje.year and uc.month == hoje.month:
+            plano.append({**base, "acao": "skip", "motivo": "ja_coletada_no_mes"})
+            continue
+        df, dt = _janela_coorte(coorte, hoje)
+        plano.append({**base, "acao": "coletar", "date_from": df, "date_to": dt})
+    return plano
+
+
+def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str, Any]:
+    """Executa 1 item 'coletar' do plano: ``coletar_threads`` na janela fechada
+    (expirar=False) + expirar ESCOPADO à coorte + upsert do ledger. ``fechada`` =
+    idade ≥ 2 meses E zero não-terminais (piso evita aposentar por zero transitório)."""
+    agora = agora or datetime.utcnow()
+    hoje = agora.date()
+    coorte = plano_item["coorte"]
+    stats = coletar_threads(
+        fonte,
+        force=True,
+        date_from=plano_item["date_from"],
+        date_to=plano_item["date_to"],
+        expirar=False,
+    )
+    with db_session() as s:
+        exp = expirar_abandonados(s, fonte.id, agora=agora, coorte_ano_mes=coorte)
+        n_casos = (
+            s.query(Caso).filter(Caso.fonte_id == fonte.id, Caso.coorte_ano_mes == coorte).count()
+        )
+        nnt = _n_nao_terminais_coorte(s, fonte.id, coorte)
+        fechada = _idade_meses(coorte, hoje) >= COORTE_IDADE_APOSENTAR and nnt == 0
+        _upsert_coorte_ledger(s, fonte.id, fonte.empresa_id, coorte, agora, n_casos, fechada)
+    stats.update(
+        coorte=coorte,
+        abandonados=exp["abandonados"],
+        nao_rastreado=exp["nao_rastreado"],
+        n_casos=n_casos,
+        fechada=fechada,
+    )
+    return stats

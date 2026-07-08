@@ -453,6 +453,96 @@ def test_fonte_coorte_coleta_unique(db_session):
         db_session.rollback()
 
 
+# ── Coortes: planejamento + execução (Fatia 4) ───────────────────────────────
+
+
+def test_coortes_ativas_idade_e_janela():
+    from datetime import date as _date
+
+    hoje = _date(2026, 7, 15)
+    assert ra._coortes_ativas(3, hoje) == [202607, 202606, 202605]
+    assert ra._coortes_ativas(1, hoje) == [202607]
+    assert ra._coortes_ativas(2, _date(2026, 1, 10)) == [202601, 202512]  # rollover de ano
+    assert ra._idade_meses(202607, hoje) == 0 and ra._idade_meses(202605, hoje) == 2
+    # corrente → janela ABERTA (dateTo=hoje); passado → FECHADA (último dia)
+    assert ra._janela_coorte(202607, hoje) == ("2026-07-01", "2026-07-15")
+    assert ra._janela_coorte(202606, hoje) == ("2026-06-01", "2026-06-30")
+
+
+def test_planejar_coortes_respeita_ledger(db_session):
+    from datetime import date as _date
+    from datetime import datetime as _dt
+
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+
+    e, f = _empresa_fonte(db_session)
+    f.ra_coortes_ativas = 3
+    db_session.commit()
+    hoje = _date(2026, 7, 15)
+    db_session.add(
+        FonteCoorteColeta(fonte_id=f.id, empresa_id=e.id, coorte_ano_mes=202606, fechada=True)
+    )
+    db_session.add(
+        FonteCoorteColeta(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            coorte_ano_mes=202605,
+            ultima_coleta_coorte=_dt(2026, 7, 1),
+            fechada=False,
+        )
+    )
+    db_session.commit()
+    plano = {p["coorte"]: p for p in ra.planejar_coortes(db_session, f, hoje=hoje)}
+    assert plano[202607]["acao"] == "coletar"  # corrente, sem ledger
+    assert plano[202606] == {**plano[202606], "acao": "skip", "motivo": "fechada"}
+    assert plano[202605]["acao"] == "skip" and plano[202605]["motivo"] == "ja_coletada_no_mes"
+
+
+def test_coletar_coorte_expirar_escopado_nao_atinge_outra(db_session, monkeypatch):
+    """CERNE Front 2 × Fatia 4: coletar a coorte 202607 NÃO marca casos de 202606
+    (não buscados nesse run) como nao_rastreado — expirar é escopado à coorte."""
+    from datetime import datetime as _dt
+
+    e, f = _empresa_fonte(db_session)
+    db_session.add(
+        Caso(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="OUTRA",
+            evaluated=False,
+            coorte_ano_mes=202606,
+            ultima_coleta=_dt(2026, 6, 1),
+            primeira_coleta=_dt(2026, 6, 1),
+        )
+    )
+    db_session.commit()
+    julho = _reclamacao("J1")
+    julho["created"] = "2026-07-10T00:00:00"
+    _patch_actor(monkeypatch, [julho])
+    item = {"coorte": 202607, "date_from": "2026-07-01", "date_to": "2026-07-31"}
+    st = ra.coletar_coorte(f, item, agora=_dt(2026, 7, 15, 12, 0, 0))
+    assert st["nao_rastreado"] == 0  # nada da própria coorte caiu
+    # o caso de 202606 (outra coorte) segue INTOCADO
+    assert db_session.query(Caso).filter_by(origem_id="OUTRA").one().desfecho is None
+
+
+def test_coletar_coorte_ledger_e_fechada(db_session, monkeypatch):
+    """Ledger upsert + fechada = idade ≥2m E zero não-terminais (caso evaluated)."""
+    from datetime import datetime as _dt
+
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+
+    e, f = _empresa_fonte(db_session)
+    antigo = _reclamacao("A1", status="ANSWERED", evaluated=True, score=8)
+    antigo["created"] = "2026-04-10T00:00:00"  # coorte 202604 (idade 3m em jul)
+    _patch_actor(monkeypatch, [antigo])
+    item = {"coorte": 202604, "date_from": "2026-04-01", "date_to": "2026-04-30"}
+    st = ra.coletar_coorte(f, item, agora=_dt(2026, 7, 15, 12, 0, 0))
+    assert st["n_casos"] == 1 and st["fechada"] is True  # idade 3m + zero não-terminais
+    row = db_session.query(FonteCoorteColeta).filter_by(fonte_id=f.id, coorte_ano_mes=202604).one()
+    assert row.n_casos == 1 and row.fechada is True and row.ultima_coleta_coorte is not None
+
+
 # ── Recoleta / expiry ────────────────────────────────────────────────────────
 
 
