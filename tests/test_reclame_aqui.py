@@ -315,6 +315,80 @@ def test_corte_15_meses_datefrom_e_guarda(db_session, monkeypatch):
     assert stats["casos_novos"] == 1 and stats["fora_janela"] == 1  # antigo pulado
 
 
+# ── Dois-modos (Fatia 2): scorecard-only × threads ───────────────────────────
+
+
+def test_coletar_scorecard_so_perfil(db_session, monkeypatch):
+    """Modo A: scrapeComplaints:False, só popula FonteReputacao, nenhum Caso."""
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    cap = _capturar_input(monkeypatch, [{**_EMPRESA_RECORD, "responseRate": 96.2}])
+    stats = ra.coletar_scorecard(f)
+    assert cap["scrapeComplaints"] is False and cap["includeCompanyProfile"] is True
+    assert stats["modo"] == "scorecard" and stats["reputacao"] is True
+    assert db_session.query(Caso).filter_by(fonte_id=f.id).count() == 0  # não cria caso
+    rep = db_session.query(FonteReputacao).filter_by(fonte_id=f.id).one()
+    assert rep.consumer_score == 2.58 and rep.response_rate == 96.2
+
+
+def test_scorecard_cadencia_por_reputacao_nao_por_caso(db_session, monkeypatch):
+    """O gate do scorecard lê FonteReputacao.coletado_em — NÃO Caso.ultima_coleta.
+    Um Caso recente sozinho NÃO segura o scorecard; uma reputação recente sim."""
+    e, f = _empresa_fonte(db_session)
+    # Caso recente, mas sem FonteReputacao → scorecard NÃO é pulado (roda a 1ª vez).
+    db_session.add(
+        Caso(empresa_id=e.id, fonte_id=f.id, origem_id="R1", ultima_coleta=datetime.utcnow())
+    )
+    db_session.commit()
+    _patch_actor(monkeypatch, [_EMPRESA_RECORD])
+    assert ra.coletar_scorecard(f)["pulado_cadencia"] is False
+    # Agora há reputação recente → o próximo scorecard é pulado pela cadência.
+    _patch_actor(monkeypatch, [_EMPRESA_RECORD])
+    assert ra.coletar_scorecard(f)["pulado_cadencia"] is True
+
+
+def test_em_cadencia_scorecard_unit(db_session):
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    agora = datetime(2026, 7, 8, 12, 0, 0)
+    assert ra.em_cadencia_scorecard(db_session, f.id, agora=agora) is False  # sem linha → roda
+    db_session.add(
+        FonteReputacao(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            provedor="reclame_aqui",
+            coletado_em=agora - timedelta(days=2),
+        )
+    )
+    db_session.commit()
+    assert ra.em_cadencia_scorecard(db_session, f.id, agora=agora) is True  # 2d < 7d
+    r = db_session.query(FonteReputacao).filter_by(fonte_id=f.id).one()
+    r.coletado_em = agora - timedelta(days=10)
+    db_session.commit()
+    assert ra.em_cadencia_scorecard(db_session, f.id, agora=agora) is False  # 10d ≥ 7d
+
+
+def test_coletar_threads_so_reclamacoes(db_session, monkeypatch):
+    """Modo B: scrapeComplaints:True, includeCompanyProfile:False; cria Caso, roda expiry."""
+    e, f = _empresa_fonte(db_session)
+    cap = _capturar_input(monkeypatch, [_reclamacao("T1")])
+    stats = ra.coletar_threads(f)
+    assert cap["scrapeComplaints"] is True and cap["includeCompanyProfile"] is False
+    assert "dateTo" not in cap  # janela deslizante (compat) quando date_to=None
+    assert stats["modo"] == "threads" and stats["casos_novos"] == 1
+    assert "abandonados" in stats and "nao_rastreado" in stats  # expiry rodou
+
+
+def test_coletar_threads_coorte_fechada(db_session, monkeypatch):
+    """date_from + date_to → janela FECHADA no run_input (coorte mensal, Fatia 3/4)."""
+    e, f = _empresa_fonte(db_session)
+    cap = _capturar_input(monkeypatch, [_reclamacao("CC1")])
+    ra.coletar_threads(f, date_from="2026-06-01", date_to="2026-06-30")
+    assert cap["dateFrom"] == "2026-06-01" and cap["dateTo"] == "2026-06-30"
+
+
 # ── Recoleta / expiry ────────────────────────────────────────────────────────
 
 

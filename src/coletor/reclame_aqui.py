@@ -99,6 +99,26 @@ def em_cadencia_cooldown(
     return (agora - ultima) < timedelta(days=idade_dias)
 
 
+def em_cadencia_scorecard(
+    session, fonte_id: int, *, idade_dias: int = RECOLETA_IDADE_DIAS, agora=None
+) -> bool:
+    """Gate de cadência do MODO SCORECARD. Sinal = ``FonteReputacao.coletado_em``
+    (NÃO ``Caso.ultima_coleta`` — o scorecard não cria casos; usar o sinal de
+    threads faria o scorecard rodar toda noite). Sem linha → False: a 1ª sempre
+    roda."""
+    from src.models.fonte_reputacao import FonteReputacao
+
+    agora = agora or datetime.utcnow()
+    ultima = (
+        session.query(func.max(FonteReputacao.coletado_em))
+        .filter(FonteReputacao.fonte_id == fonte_id)
+        .scalar()
+    )
+    if ultima is None:
+        return False
+    return (agora - ultima) < timedelta(days=idade_dias)
+
+
 def _upsert_reputacao(fonte_id: int, empresa_id: int, rep: Dict[str, Any], agora: datetime) -> None:
     """Upsert do scorecard OFICIAL da fonte (1 linha por fonte). Transação própria."""
     from src.models.fonte_reputacao import FonteReputacao
@@ -208,6 +228,38 @@ def _criar_verbatim_description(s, caso, empresa_id, fonte_id, local_id, norm) -
     return True
 
 
+def _proc_reputacao(item, fonte_id, empresa_id, agora, stats) -> None:
+    """Um record de empresa (``recordType='company'``) → scorecard oficial."""
+    rep = adaptar_reputacao(item)
+    if rep is not None:
+        _upsert_reputacao(fonte_id, empresa_id, rep, agora)
+        stats["reputacao"] = True
+
+
+def _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats) -> None:
+    """Um record de reclamação → upsert do Caso + verbatim de valência. Malformado
+    → ``ignorados``; fora da janela → ``fora_janela``."""
+    norm = adaptar_reclamacao(item)
+    if norm is None:  # malformado
+        stats["ignorados"] += 1
+        return
+    # Guarda do corte (rede de segurança — o actor já filtra por dateFrom). Sem data
+    # → entra (não dá pra datar; mesma semântica dos temas).
+    co = norm.get("criado_em_origem")
+    if co is not None and co.date() < corte:
+        stats["fora_janela"] += 1
+        return
+    r = _upsert_caso(fonte_id, empresa_id, local_id, norm, agora)
+    if r == "novo_com_verbatim":
+        stats["casos_novos"] += 1
+        stats["verbatins_novos"] += 1
+    elif r == "novo_sem_descricao":
+        stats["casos_novos"] += 1
+        stats["sem_descricao"] += 1
+    else:
+        stats["casos_atualizados"] += 1
+
+
 def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
     """Coleta/recoleta os casos de UMA fonte RA via Apify + upsert.
 
@@ -287,30 +339,9 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         stats["coletados"] += 1
         try:
             if item.get("recordType") == "company":  # Vitrine/Bloco A: scorecard oficial
-                rep = adaptar_reputacao(item)
-                if rep is not None:
-                    _upsert_reputacao(fonte_id, empresa_id, rep, agora)
-                    stats["reputacao"] = True
-                continue
-            norm = adaptar_reclamacao(item)
-            if norm is None:  # malformado
-                stats["ignorados"] += 1
-                continue
-            # Guarda do corte (rede de segurança — o actor já filtra por dateFrom).
-            # Sem data → entra (não dá pra datar; mesma semântica dos temas).
-            co = norm.get("criado_em_origem")
-            if co is not None and co.date() < corte:
-                stats["fora_janela"] += 1
-                continue
-            r = _upsert_caso(fonte_id, empresa_id, local_id, norm, agora)
-            if r == "novo_com_verbatim":
-                stats["casos_novos"] += 1
-                stats["verbatins_novos"] += 1
-            elif r == "novo_sem_descricao":
-                stats["casos_novos"] += 1
-                stats["sem_descricao"] += 1
+                _proc_reputacao(item, fonte_id, empresa_id, agora, stats)
             else:
-                stats["casos_atualizados"] += 1
+                _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats)
         except Exception as exc:  # per-item: um item ruim não derruba o lote
             stats["erros"] += 1
             print(f"[reclame_aqui] erro no item da fonte {fonte_id}: {type(exc).__name__}: {exc}")
@@ -326,6 +357,164 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         f"[reclame_aqui] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['casos_novos']} atualizados={stats['casos_atualizados']} "
         f"verbatins={stats['verbatins_novos']} ignorados={stats['ignorados']} "
+        f"abandonados={stats['abandonados']} nao_rastreado={stats['nao_rastreado']} "
+        f"erros={stats['erros']}"
+    )
+    return stats
+
+
+# ── Dois-modos (Fatia 2): scorecard-only (semanal, barato) × threads (coorte) ──
+
+
+def coletar_scorecard(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
+    """MODO A — só o scorecard oficial (Vitrine/Bloco A), sem baixar threads.
+
+    ``scrapeComplaints:False`` → o actor devolve só o record de empresa
+    (US$0,05 + start). Cadência SEMANAL via ``em_cadencia_scorecard``
+    (FonteReputacao.coletado_em — NÃO Caso.ultima_coleta). Não cria caso/verbatim,
+    não roda expiry."""
+    fonte_id = fonte.id
+    empresa_id = fonte.empresa_id
+    empresa_param = _empresa_param(fonte.url or "")
+    stats: Dict[str, Any] = {
+        "modo": "scorecard",
+        "coletados": 0,
+        "reputacao": False,
+        "erros": 0,
+        "pulado_cadencia": False,
+        "falhou_apify": False,
+    }
+    if not empresa_param:
+        print(f"[reclame_aqui] scorecard fonte {fonte_id} sem url — abortando")
+        stats["falhou_apify"] = True
+        return stats
+
+    if not force:
+        with db_session() as s:
+            if em_cadencia_scorecard(s, fonte_id):
+                stats["pulado_cadencia"] = True
+                print(f"[reclame_aqui] scorecard fonte {fonte_id} pulado (cadência semanal)")
+                return stats
+
+    run_input = {
+        "companies": [empresa_param],
+        "scrapeComplaints": False,  # <-- só o perfil; sem custo por reclamação
+        "includeCompanyProfile": True,
+        "statusFilter": ["LATEST"],
+        "maxComplaintsPerCompany": 0,
+        "excludeEmptyFields": False,
+    }
+    try:
+        items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
+    except ApifyError as exc:
+        print(f"[reclame_aqui] scorecard Apify falhou fonte {fonte_id}: {exc}")
+        stats["falhou_apify"] = True
+        return stats
+
+    agora = datetime.utcnow()
+    for item in items:
+        stats["coletados"] += 1
+        try:
+            if item.get("recordType") == "company":
+                _proc_reputacao(item, fonte_id, empresa_id, agora, stats)
+        except Exception as exc:  # per-item: um item ruim não derruba o lote
+            stats["erros"] += 1
+            print(f"[reclame_aqui] scorecard erro fonte {fonte_id}: {type(exc).__name__}: {exc}")
+
+    print(
+        f"[reclame_aqui] scorecard fonte {fonte_id} fim: coletados={stats['coletados']} "
+        f"reputacao={stats['reputacao']} erros={stats['erros']}"
+    )
+    return stats
+
+
+def coletar_threads(
+    fonte: Fonte,
+    *,
+    force: bool = False,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+) -> Dict[str, Any]:
+    """MODO B — só as threads (casos/verbatim/maturação), sem o scorecard.
+
+    ``scrapeComplaints:True`` + ``includeCompanyProfile:False`` (o scorecard vem do
+    modo A). ``date_from``/``date_to`` (ISO) fecham a janela por COORTE mensal
+    (Fatia 3/4); ``date_to=None`` mantém a janela deslizante vigente (compat).
+    Roda ``expirar_abandonados``. Gate = ``em_cadencia_cooldown`` (Caso.ultima_coleta)."""
+    fonte_id = fonte.id
+    empresa_id = fonte.empresa_id
+    local_id = None  # RA = marca, sempre empresa-wide (ver coletar/GRÃO)
+    empresa_param = _empresa_param(fonte.url or "")
+    stats: Dict[str, Any] = {
+        "modo": "threads",
+        "coletados": 0,
+        "casos_novos": 0,
+        "casos_atualizados": 0,
+        "verbatins_novos": 0,
+        "sem_descricao": 0,
+        "ignorados": 0,
+        "fora_janela": 0,
+        "abandonados": 0,
+        "nao_rastreado": 0,
+        "erros": 0,
+        "pulado_cadencia": False,
+        "falhou_apify": False,
+    }
+    if not empresa_param:
+        print(f"[reclame_aqui] threads fonte {fonte_id} sem url — abortando")
+        stats["falhou_apify"] = True
+        return stats
+
+    if not force:
+        with db_session() as s:
+            if em_cadencia_cooldown(s, fonte_id):
+                stats["pulado_cadencia"] = True
+                print(f"[reclame_aqui] threads fonte {fonte_id} pulada (cadência)")
+                return stats
+
+    janela_meses = fonte.ra_janela_meses or CORTE_MESES
+    cap = fonte.ra_max_casos or MAX_COMPLAINTS_PER_COMPANY
+    # date_from explícito (coorte) tem precedência; senão a janela deslizante vigente.
+    corte = date.fromisoformat(date_from) if date_from else _data_corte(janela_meses)
+    run_input = {
+        "companies": [empresa_param],
+        "scrapeComplaints": True,
+        "includeInteractions": True,
+        "includeCompanyProfile": False,  # scorecard vem do modo A
+        "statusFilter": ["LATEST"],
+        "maxComplaintsPerCompany": cap,
+        "descriptionFormat": "text",
+        "excludeEmptyFields": False,
+        "dateFrom": corte.isoformat(),
+    }
+    if date_to:
+        run_input["dateTo"] = date_to  # coorte FECHADA (Fatia 3/4)
+    try:
+        items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
+    except ApifyError as exc:
+        print(f"[reclame_aqui] threads Apify falhou fonte {fonte_id}: {exc}")
+        stats["falhou_apify"] = True
+        return stats
+
+    agora = datetime.utcnow()
+    for item in items:
+        stats["coletados"] += 1
+        try:
+            if item.get("recordType") == "company":
+                continue  # includeCompanyProfile:False não deveria retornar, mas ignora
+            _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats)
+        except Exception as exc:  # per-item: um item ruim não derruba o lote
+            stats["erros"] += 1
+            print(f"[reclame_aqui] threads erro fonte {fonte_id}: {type(exc).__name__}: {exc}")
+
+    with db_session() as s:
+        exp = expirar_abandonados(s, fonte_id, agora=agora)
+        stats["abandonados"] = exp["abandonados"]
+        stats["nao_rastreado"] = exp["nao_rastreado"]
+
+    print(
+        f"[reclame_aqui] threads fonte {fonte_id} fim: coletados={stats['coletados']} "
+        f"novos={stats['casos_novos']} atualizados={stats['casos_atualizados']} "
         f"abandonados={stats['abandonados']} nao_rastreado={stats['nao_rastreado']} "
         f"erros={stats['erros']}"
     )
