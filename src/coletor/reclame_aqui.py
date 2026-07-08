@@ -608,7 +608,11 @@ def planejar_coortes(session, fonte, *, hoje: Optional[date] = None) -> list:
     from src.models.fonte_coorte_coleta import FonteCoorteColeta
 
     hoje = hoje or date.today()
-    n = fonte.ra_coortes_ativas or 1
+    # 0 = threads DESLIGADAS (plano vazio); NULL = 1 (conservador, não migrado). O
+    # `or 1` engoliria o 0 — o 0 tem que significar 0 (Fatia 4.5).
+    n = fonte.ra_coortes_ativas if fonte.ra_coortes_ativas is not None else 1
+    if n <= 0:
+        return []
     ledger = {
         r.coorte_ano_mes: r
         for r in session.query(FonteCoorteColeta).filter_by(fonte_id=fonte.id).all()

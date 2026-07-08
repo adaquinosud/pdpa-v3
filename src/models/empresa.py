@@ -48,6 +48,12 @@ class Empresa(Base):
     coleta_noturna_ativa: Mapped[bool] = mapped_column(
         Boolean, server_default="false", default=False, nullable=False
     )
+    # Fatia 4.5: controle SEPARADO do scorecard RA (barato, ~US$0,055/sem) — vive num
+    # cron próprio, INDEPENDENTE de coleta_noturna_ativa (que volta a governar só o
+    # não-RA). Default TRUE: liga em quase todo mundo (é centavos, alimenta a Vitrine).
+    scorecard_ra_ativo: Mapped[bool] = mapped_column(
+        Boolean, server_default="true", default=True, nullable=False
+    )
     # CP-reprocessar-sujos: flag "suja" setado pela reclassificação manual da UI.
     # A noturna varre empresas com reprocessar_em != NULL, roda reconciliar_vinculos
     # + pós-coleta (recalcula temas/cache/anomalias do resto — a classificação manual

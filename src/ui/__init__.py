@@ -75,8 +75,10 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
 
     eh_ra = f.conector_tipo == "reclame_aqui"
     # Controle REAL do custo de threads no dois-modos: nº de coortes mensais ativas
-    # (Fatia 3.5). NULL → 1 (conservador). ra_max_casos/ra_janela_meses = dormant.
-    coortes = f.ra_coortes_ativas or 1
+    # (Fatia 3.5/4.5). NULL → 1 (conservador); 0 = threads DESLIGADAS (o `or 1`
+    # engoliria o 0). ra_max_casos/ra_janela_meses = dormant.
+    coortes = f.ra_coortes_ativas if f.ra_coortes_ativas is not None else 1
+    threads_off = coortes <= 0
     # Custo DOIS-MODOS: (A) scorecard semanal = fixo; (B) threads/mês =
     # coortes × volume-do-mês (complaints30Days do scorecard) × custo/caso + start.
     # Sem scorecard ainda → volume desconhecido, sem fallback por cap (era fantasma).
@@ -97,11 +99,12 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
                     compl_30d = _json.loads(_rep.raw_json).get("complaints30Days")
                 except (ValueError, TypeError):
                     compl_30d = None
-    ra_custo_threads_mes = (
-        round(coortes * compl_30d * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
-        if compl_30d
-        else None  # aguardando 1º scorecard → sem número (não inventa por cap)
-    )
+    if threads_off:
+        ra_custo_threads_mes = 0.0  # threads desligadas → custo zero
+    elif compl_30d:
+        ra_custo_threads_mes = round(coortes * compl_30d * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
+    else:
+        ra_custo_threads_mes = None  # aguardando 1º scorecard → sem número (não inventa)
     return SimpleNamespace(
         id=f.id,
         empresa_id=f.empresa_id,
@@ -112,8 +115,9 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         # Config de coleta RA por fonte (dois-modos): coortes ativas + custo por modo.
         eh_ra=eh_ra,
         ra_coortes_ativas=coortes,
+        ra_threads_off=threads_off,  # coortes=0 → "threads desligadas"
         ra_custo_scorecard=CUSTO_SCORECARD_USD,
-        ra_custo_threads_mes=ra_custo_threads_mes,  # None = aguardando scorecard
+        ra_custo_threads_mes=ra_custo_threads_mes,  # None = aguardando scorecard; 0 = off
         ra_threads_volume_mes=compl_30d,  # complaints30Days (por mês); None = sem scorecard
         ra_custo_por_caso=CUSTO_POR_CASO_USD,  # p/ o cálculo ao vivo no input
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
@@ -219,6 +223,8 @@ def _wrap_empresa(e, ultima_coleta=None) -> SimpleNamespace:
         # CP-noturna-toggle: o toggle 🌙 na tela de cadastro lê este campo. Sem ele
         # no wrapper, o template lia undefined → sempre "desligada" (bug fbb2ee1).
         coleta_noturna_ativa=bool(e.coleta_noturna_ativa),
+        # Fatia 4.5: toggle 📇 do scorecard RA (par do 🌙, controle separado).
+        scorecard_ra_ativo=bool(e.scorecard_ra_ativo),
     )
 
 
@@ -2446,7 +2452,7 @@ def _ra_coortes_do_form(conector: str):
         n = int(v)
     except ValueError:
         return 1
-    return n if n >= 1 else 1
+    return n if n >= 0 else 0  # 0 = threads desligadas (Fatia 4.5); negativo → 0
 
 
 @ui_bp.route("/ui/locais/<int:local_id>/fontes", methods=["POST"])
@@ -2869,6 +2875,23 @@ def htmx_toggle_coleta_noturna(empresa_id: int):
     return render_template(
         "partials/coleta_noturna_toggle.html",
         empresa=SimpleNamespace(id=empresa_id, coleta_noturna_ativa=novo),
+    )
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/toggle-scorecard-ra", methods=["POST"])
+@loyall_required_ui
+def htmx_toggle_scorecard_ra(empresa_id: int):
+    """Liga/desliga o scorecard RA (cron próprio, ~US$0,055/sem) — SEPARADO do 🌙
+    noturno (Fatia 4.5). Loyall-only. Devolve o próprio botão (outerHTML)."""
+    with db_session() as s:
+        empresa = s.get(Empresa, empresa_id)
+        if empresa is None:
+            return ("", 404)
+        empresa.scorecard_ra_ativo = not bool(empresa.scorecard_ra_ativo)
+        novo = empresa.scorecard_ra_ativo
+    return render_template(
+        "partials/scorecard_ra_toggle.html",
+        empresa=SimpleNamespace(id=empresa_id, scorecard_ra_ativo=novo),
     )
 
 

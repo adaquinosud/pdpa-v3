@@ -66,6 +66,37 @@ def test_config_ignorada_em_fonte_nao_ra(client_loyall, db_session):
     assert f.ra_coortes_ativas is None
 
 
+def test_criar_fonte_ra_coortes_zero_threads_off(client_loyall, db_session):
+    """Fatia 4.5: coortes=0 persiste 0 e a linha mostra 'threads desligadas'."""
+    e, loc = _empresa_local(client_loyall)
+    r = client_loyall.post(
+        f"/ui/locais/{loc['id']}/fontes",
+        data={
+            "conector_tipo": "reclame_aqui",
+            "url": "https://www.reclameaqui.com.br/x/",
+            "ativo": "on",
+            "ra_coortes_ativas": "0",
+        },
+    )
+    assert r.status_code == 200
+    f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
+    assert f.ra_coortes_ativas == 0  # 0 = threads off (não vira 1)
+    assert "desligadas".encode() in r.data
+
+
+def test_toggle_scorecard_ra(client_loyall, db_session):
+    """Toggle 📇 do scorecard RA (par do 🌙): inverte o flag e re-renderiza."""
+    from src.models.empresa import Empresa
+
+    e = client_loyall.post("/api/empresas/", json={"nome": "TogScore"}).get_json()
+    emp = db_session.get(Empresa, e["id"])
+    assert emp.scorecard_ra_ativo is True  # default liga em quase todo mundo
+    r = client_loyall.post(f"/ui/empresas/{e['id']}/toggle-scorecard-ra")
+    assert r.status_code == 200 and b"desligado" in r.data
+    db_session.expire_all()
+    assert db_session.get(Empresa, e["id"]).scorecard_ra_ativo is False
+
+
 def test_editar_fonte_ra_atualiza_coortes(client_loyall, db_session):
     e, loc = _empresa_local(client_loyall)
     client_loyall.post(

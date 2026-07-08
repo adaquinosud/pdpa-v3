@@ -13,13 +13,13 @@
           data-ra-vol="{{ f.ra_threads_volume_mes if f.ra_threads_volume_mes else '' }}"
           data-ra-caso="{{ f.ra_custo_por_caso }}">
       coortes ativas
-      <input name="ra_coortes_ativas" type="number" min="1" value="{{ f.ra_coortes_ativas }}"
-             oninput="(function(el){var w=el.closest('[data-ra-vol]');var v=parseFloat(w.dataset.raVol);var c=(el.value|0)||1;el.closest('form').querySelector('[data-ra-cost]').textContent=v?('~US$ '+(c*v*parseFloat(w.dataset.raCaso)+0.005).toFixed(2)+'/mês'):'aguardando scorecard';})(this)"
+      <input name="ra_coortes_ativas" type="number" min="0" value="{{ f.ra_coortes_ativas }}"
+             oninput="(function(el){var w=el.closest('[data-ra-vol]');var v=parseFloat(w.dataset.raVol);var c=el.value|0;var o=el.closest('form').querySelector('[data-ra-cost]');o.textContent=(c<=0)?'desligadas':(v?('~US$ '+(c*v*parseFloat(w.dataset.raCaso)+0.005).toFixed(2)+'/mês'):'aguardando scorecard');})(this)"
              class="w-14 px-1 py-0.5 border border-loyall-300 rounded">
       · scorecard <span class="text-loyall-700 font-medium">US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem</span>
       · threads <span data-ra-cost class="text-loyall-700 font-medium">
-        {%- if f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% else %}aguardando scorecard{% endif %}</span>
-      <span class="text-[10px] text-loyall-400">(scorecard semanal + threads = coortes × vol/mês × US$0,025)</span>
+        {%- if f.ra_threads_off %}desligadas{% elif f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% else %}aguardando scorecard{% endif %}</span>
+      <span class="text-[10px] text-loyall-400">(scorecard semanal + threads = coortes × vol/mês × US$0,025; 0 = threads off)</span>
     </span>
     {% endif %}
     <button type="submit" class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">salvar</button>

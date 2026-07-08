@@ -1,0 +1,10 @@
+{# Toggle "Scorecard RA" da empresa (Fatia 4.5). Loyall-only; troca a si mesmo via
+   outerHTML. SEPARADO do 🌙 noturno: o scorecard é barato (~US$0,055/sem) e alimenta
+   a Vitrine mesmo com noturno OFF. Contexto: empresa (com .id e .scorecard_ra_ativo). #}
+<button id="scorecard-ra-toggle"
+        hx-post="{{ url_for('ui.htmx_toggle_scorecard_ra', empresa_id=empresa.id) }}"
+        hx-target="#scorecard-ra-toggle" hx-swap="outerHTML"
+        title="Liga/desliga o scorecard RA (cron próprio, ~US$0,055/sem) — alimenta a Vitrine, independente da coleta noturna"
+        class="text-xs px-2 py-1 rounded border {% if empresa.scorecard_ra_ativo %}border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100{% else %}border-loyall-200 text-loyall-500 bg-loyall-50 hover:bg-loyall-100{% endif %}">
+  📇 Scorecard RA: <b>{% if empresa.scorecard_ra_ativo %}ligado{% else %}desligado{% endif %}</b>
+</button>

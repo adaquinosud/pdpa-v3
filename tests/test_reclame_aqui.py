@@ -498,6 +498,29 @@ def test_planejar_coortes_respeita_ledger(db_session):
     assert plano[202605]["acao"] == "skip" and plano[202605]["motivo"] == "ja_coletada_no_mes"
 
 
+def test_planejar_coortes_zero_desliga_threads(db_session):
+    """Fatia 4.5: ra_coortes_ativas=0 → plano VAZIO (threads desligadas). O `or 1`
+    engolia o 0 — agora 0 é 0."""
+    e, f = _empresa_fonte(db_session)
+    f.ra_coortes_ativas = 0
+    db_session.commit()
+    assert ra.planejar_coortes(db_session, f) == []
+
+
+def test_fontes_ra_elegiveis_gate_por_coortes(db_session):
+    """Cron de threads gatilha só em coortes>0 + fonte.ativo (dropou coleta_noturna).
+    Fonte com coortes=0 fica fora; empresa OFF no noturno NÃO exclui as threads."""
+    from scripts.coleta_coortes_todas import fontes_ra_elegiveis
+
+    e, f = _empresa_fonte(db_session)  # empresa nasce coleta_noturna_ativa=False
+    f.ra_coortes_ativas = 2
+    db_session.commit()
+    assert f.id in fontes_ra_elegiveis()  # coortes>0 basta (noturno OFF não exclui)
+    f.ra_coortes_ativas = 0
+    db_session.commit()
+    assert f.id not in fontes_ra_elegiveis()  # 0 = fora do plano
+
+
 def test_coletar_coorte_expirar_escopado_nao_atinge_outra(db_session, monkeypatch):
     """CERNE Front 2 × Fatia 4: coletar a coorte 202607 NÃO marca casos de 202606
     (não buscados nesse run) como nao_rastreado — expirar é escopado à coorte."""

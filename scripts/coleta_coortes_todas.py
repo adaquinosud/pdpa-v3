@@ -29,22 +29,23 @@ from src.coletor.reclame_aqui import (  # noqa: E402
     coletar_coorte,
     planejar_coortes,
 )
-from src.models.empresa import Empresa  # noqa: E402
 from src.models.fonte import Fonte  # noqa: E402
 from src.models.fonte_reputacao import FonteReputacao  # noqa: E402
 from src.utils.db import db_session  # noqa: E402
 
 
 def fontes_ra_elegiveis() -> List[int]:
-    """fonte_ids RA ativas de empresas com ``coleta_noturna_ativa=TRUE``."""
+    """fonte_ids RA ATIVAS com ``ra_coortes_ativas > 0`` (Fatia 4.5: threads gatilham
+    SÓ por coortes>0 + fonte.ativo — dropou o coleta_noturna_ativa, que agora governa
+    só o não-RA). coortes=0 (default demo) = fora do plano."""
     with db_session() as s:
         rows = (
             s.query(Fonte.id)
-            .join(Empresa, Empresa.id == Fonte.empresa_id)
             .filter(
-                Empresa.coleta_noturna_ativa.is_(True),
                 Fonte.ativo.is_(True),
                 Fonte.conector_tipo == "reclame_aqui",
+                Fonte.ra_coortes_ativas.isnot(None),
+                Fonte.ra_coortes_ativas > 0,
             )
             .order_by(Fonte.id)
             .all()
