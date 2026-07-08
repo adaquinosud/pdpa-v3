@@ -14,10 +14,12 @@
       <input name="ra_janela_meses" type="number" min="1" value="{{ f.ra_janela_meses or '' }}" placeholder="{{ f.ra_default_janela }}"
              class="w-12 px-1 py-0.5 border border-loyall-300 rounded">m · máx
       <input name="ra_max_casos" type="number" min="1" value="{{ f.ra_max_casos or '' }}" placeholder="{{ f.ra_default_cap }}"
-             oninput="this.closest('form').querySelector('[data-ra-cost]').textContent='até US$ '+((((this.value|0)||{{ f.ra_default_cap }})*0.025+0.05).toFixed(2))"
+             oninput="this.closest('form').querySelector('[data-ra-cost]').textContent='até US$ '+((((this.value|0)||{{ f.ra_default_cap }})*0.025+0.005).toFixed(2))+'/mês'"
              class="w-16 px-1 py-0.5 border border-loyall-300 rounded">
-      · <span data-ra-cost class="text-loyall-700 font-medium">até US$ {{ '%.2f'|format(f.ra_custo_max) }}</span>
-      <span class="text-[10px] text-loyall-400">(inclui +US$0,05 do perfil de reputação)</span>
+      · scorecard <span class="text-loyall-700 font-medium">US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem</span>
+      · threads <span data-ra-cost class="text-loyall-700 font-medium">
+        {%- if f.ra_threads_volume_mes %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% else %}até US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% endif %}</span>
+      <span class="text-[10px] text-loyall-400">(scorecard semanal + threads em coorte mensal)</span>
     </span>
     {% endif %}
     <button type="submit" class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">salvar</button>

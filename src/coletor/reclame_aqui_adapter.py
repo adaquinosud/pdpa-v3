@@ -68,16 +68,6 @@ def _float_ou_none(valor: Any) -> Optional[float]:
         return None
 
 
-def _primeiro(item: Dict[str, Any], chaves) -> Any:
-    """Mapeamento DEFENSIVO: 1º valor não-nulo entre chaves candidatas (o schema do
-    scorecard ainda não foi confirmado numa coleta real — o raw_json fica guardado)."""
-    for k in chaves:
-        v = item.get(k)
-        if v is not None:
-            return v
-    return None
-
-
 def adaptar_reputacao(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Record de EMPRESA (``recordType='company'``) → scorecard OFICIAL da fonte.
     ``consumer_score`` é conhecido; as taxas são mapeadas por chaves prováveis
@@ -85,19 +75,14 @@ def adaptar_reputacao(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     vai em ``raw_json`` p/ confirmar/refinar as chaves depois."""
     if not isinstance(item, dict) or item.get("recordType") != "company":
         return None
+    # Chaves CONFIRMADAS no test run real da Localiza (2026-07-08): o record de
+    # empresa usa exatamente estes nomes. Antes eram mapeadas por _primeiro (palpite);
+    # agora diretas. raw_json segue guardado p/ refino/campos extras futuros.
     return {
-        "consumer_score": _float_ou_none(item.get("consumerScore")),  # conhecido
-        "response_rate": _float_ou_none(
-            _primeiro(item, ("responseRate", "answeredPercentage", "answeredRate"))
-        ),
-        "resolution_rate": _float_ou_none(
-            _primeiro(item, ("resolutionRate", "solvedPercentage", "solvedRate"))
-        ),
-        "recommendation_rate": _float_ou_none(
-            _primeiro(
-                item, ("recommendationRate", "recommendPercentage", "wouldDoBusinessAgainRate")
-            )
-        ),
+        "consumer_score": _float_ou_none(item.get("consumerScore")),
+        "response_rate": _float_ou_none(item.get("responseRate")),
+        "resolution_rate": _float_ou_none(item.get("resolutionRate")),
+        "recommendation_rate": _float_ou_none(item.get("recommendationRate")),
         "raw_json": json.dumps(item, ensure_ascii=False),
     }
 

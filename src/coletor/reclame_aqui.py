@@ -43,6 +43,10 @@ MAX_COMPLAINTS_PER_COMPANY = 500
 # de gasto de fato (fora as taxas fixas: $0.005 start + $0.05/empresa).
 CUSTO_POR_CASO_USD = 0.025
 CUSTO_PERFIL_USD = 0.05  # Vitrine/Bloco A: company-scraped (includeCompanyProfile) por empresa
+CUSTO_START_USD = 0.005  # apify-actor-start (por GB, mín. 1) — taxa fixa por run
+# Dois-modos: scorecard-only (semanal, barato) = perfil + start; threads-coorte
+# (mensal) = reclamações-do-mês × custo/caso + start (sem perfil, já coletado no modo A).
+CUSTO_SCORECARD_USD = round(CUSTO_PERFIL_USD + CUSTO_START_USD, 3)  # 0.055/empresa/semana
 RECOLETA_IDADE_DIAS = 7  # cadência semanal
 ABANDONO_DIAS = 90  # não-terminal sem mudança → abandonado
 # Corte de coleta: 15 meses (padrão da casa p/ comentários — COLETA_JANELA_MESES).

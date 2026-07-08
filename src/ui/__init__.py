@@ -65,16 +65,35 @@ from src.utils.db import db_session
 
 
 def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
+    import json as _json
+
     from src.coletor.reclame_aqui import (
         CORTE_MESES,
-        CUSTO_PERFIL_USD,
         CUSTO_POR_CASO_USD,
+        CUSTO_SCORECARD_USD,
+        CUSTO_START_USD,
         MAX_COMPLAINTS_PER_COMPANY,
     )
 
     eh_ra = f.conector_tipo == "reclame_aqui"
     janela_ef = f.ra_janela_meses or CORTE_MESES
     cap_ef = f.ra_max_casos or MAX_COMPLAINTS_PER_COMPANY
+    # Custo DOIS-MODOS: (A) scorecard semanal = fixo; (B) threads/coorte mensal =
+    # volume-do-mês × custo/caso. O volume vem do PRÓPRIO scorecard (complaints30Days)
+    # → estimativa data-driven; sem scorecard ainda, cai no teto por cap.
+    compl_30d = None
+    if eh_ra:
+        from src.models.fonte_reputacao import FonteReputacao
+
+        with db_session() as _s:
+            _rep = _s.query(FonteReputacao).filter_by(fonte_id=f.id).one_or_none()
+            if _rep is not None and _rep.raw_json:
+                try:
+                    compl_30d = _json.loads(_rep.raw_json).get("complaints30Days")
+                except (ValueError, TypeError):
+                    compl_30d = None
+    _threads_base = compl_30d if compl_30d else cap_ef
+    ra_custo_threads_mes = round(_threads_base * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
     return SimpleNamespace(
         id=f.id,
         empresa_id=f.empresa_id,
@@ -88,7 +107,10 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ra_max_casos=f.ra_max_casos,
         ra_janela_ef=janela_ef,
         ra_cap_ef=cap_ef,
-        ra_custo_max=round(cap_ef * CUSTO_POR_CASO_USD + CUSTO_PERFIL_USD, 2),
+        # DOIS-MODOS na tela: linha A (scorecard/semana, fixo) + linha B (threads/mês).
+        ra_custo_scorecard=CUSTO_SCORECARD_USD,
+        ra_custo_threads_mes=ra_custo_threads_mes,
+        ra_threads_volume_mes=compl_30d,  # None → estimativa por cap; senão volume real
         ra_default_janela=CORTE_MESES,
         ra_default_cap=MAX_COMPLAINTS_PER_COMPANY,
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').

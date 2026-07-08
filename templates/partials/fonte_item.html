@@ -29,8 +29,10 @@
   {% endif %}
   {% if f.eh_ra %}
     <span class="text-loyall-500 whitespace-nowrap"
-          title="Config de coleta ReclameAqui{% if not f.ra_janela_meses and not f.ra_max_casos %} (defaults globais){% endif %} · o actor cobra só o que retorna dentro da janela → cap = teto de gasto">
-      {{ f.ra_janela_ef }}m · máx {{ f.ra_cap_ef }} · até US$ {{ '%.2f'|format(f.ra_custo_max) }}{% if not f.ra_janela_meses and not f.ra_max_casos %} <span class="text-loyall-300">(padrão)</span>{% endif %}
+          title="Dois modos: scorecard oficial (semanal, barato) + threads em coorte mensal. O custo de threads é estimado pelo volume real do mês (complaints30Days do scorecard); sem scorecard ainda, cai no teto por cap.">
+      scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads
+      {%- if f.ra_threads_volume_mes %} ~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês ({{ f.ra_threads_volume_mes }}/mês)
+      {%- else %} até US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês (cap {{ f.ra_cap_ef }}){% endif %}
     </span>
   {% endif %}
   <div class="flex items-center gap-2">

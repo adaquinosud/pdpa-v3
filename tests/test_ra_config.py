@@ -30,8 +30,10 @@ def test_criar_fonte_ra_persiste_override(client_loyall, db_session):
     assert r.status_code == 200
     f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
     assert f.ra_janela_meses == 18 and f.ra_max_casos == 1000
-    # a linha mostra os vigentes + custo (cap × 0.025 + 0.05 perfil = 25.05)
-    assert b"US$ 25.05" in r.data
+    # DOIS-MODOS: scorecard fixo/semana + threads/mês (sem scorecard coletado →
+    # estimativa cai no teto por cap: 1000 × 0.025 + 0.005 start = 25.00/mês).
+    assert b"scorecard US$ 0.055/sem" in r.data
+    assert b"US$ 25.00" in r.data and "/mês".encode() in r.data
 
 
 def test_criar_fonte_ra_sem_override_fica_null(client_loyall, db_session):
