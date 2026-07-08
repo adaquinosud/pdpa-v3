@@ -22,6 +22,7 @@ from src.models.diagnostico import LeituraDiagnostico
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
+from src.models.fonte_coorte_coleta import FonteCoorteColeta
 from src.models.fonte_reputacao import FonteReputacao
 from src.models.glossario_termo import GlossarioTermo
 from src.models.governanca import (
@@ -66,6 +67,7 @@ __all__ = [
     "TemaSnapshot",
     "Base",
     "Caso",
+    "FonteCoorteColeta",
     "ChatCache",
     "ClassificacaoBatch",
     "ClassifierMetric",

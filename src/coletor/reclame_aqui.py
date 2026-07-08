@@ -59,6 +59,12 @@ def _data_corte(meses: int = CORTE_MESES) -> date:
     return date.today() - timedelta(days=meses * 30)
 
 
+def _coorte_ano_mes(dt: Optional[datetime]) -> Optional[int]:
+    """Coorte mensal (ano*100+mês, ex. 202607) da data de criação da reclamação.
+    ``None`` → ``None`` (caso sem ``criado_em_origem`` não entra em janela mensal)."""
+    return dt.year * 100 + dt.month if dt is not None else None
+
+
 def _empresa_param(url: str) -> str:
     """Extrai o slug RA da URL da fonte (o actor aceita slug/URL/nome). Aceita
     ``/empresa/<slug>/`` (a URL do perfil da empresa) E ``/<slug>/...`` — o bug
@@ -173,6 +179,7 @@ def _upsert_caso(
                 origem_id=norm["origem_id"],
                 origem_legacy_id=norm.get("origem_legacy_id"),
                 criado_em_origem=norm.get("criado_em_origem"),
+                coorte_ano_mes=_coorte_ano_mes(norm.get("criado_em_origem")),
                 autor_cidade=norm.get("autor_cidade"),
                 autor_estado=norm.get("autor_estado"),
                 autor_origem_id=norm.get("autor_origem_id"),
@@ -194,6 +201,8 @@ def _upsert_caso(
         for c in campos:
             setattr(caso, c, norm.get(c))
         caso.ultima_coleta = agora
+        # Backfilla a coorte em casos pré-Fatia-3 re-tocados (criado_em_origem estável).
+        caso.coorte_ano_mes = _coorte_ano_mes(caso.criado_em_origem)
         if norm["hash_thread"] != caso.hash_thread:
             caso.hash_thread = norm["hash_thread"]
             caso.thread_mudou_em = agora

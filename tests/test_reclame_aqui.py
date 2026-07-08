@@ -398,6 +398,40 @@ def test_coletar_threads_coorte_fechada(db_session, monkeypatch):
     assert cap["dateFrom"] == "2026-06-01" and cap["dateTo"] == "2026-06-30"
 
 
+# ── Coorte mensal (Fatia 3) ──────────────────────────────────────────────────
+
+
+def test_coorte_ano_mes_deriva_e_none():
+    assert ra._coorte_ano_mes(datetime(2026, 6, 14, 16, 31, 52)) == 202606
+    assert ra._coorte_ano_mes(datetime(2026, 1, 1)) == 202601
+    assert ra._coorte_ano_mes(None) is None  # sem data → fora de janela mensal
+
+
+def test_coletar_threads_seta_coorte(db_session, monkeypatch):
+    """upsert deriva coorte_ano_mes de criado_em_origem (created=2026-06 → 202606)."""
+    e, f = _empresa_fonte(db_session)
+    _patch_actor(monkeypatch, [_reclamacao("CM1")])
+    ra.coletar_threads(f)
+    assert db_session.query(Caso).filter_by(origem_id="CM1").one().coorte_ano_mes == 202606
+
+
+def test_fonte_coorte_coleta_unique(db_session):
+    """Ledger: 1 linha por (fonte, coorte). Nasce vazio (Fatia 4 popula)."""
+    from sqlalchemy.exc import IntegrityError
+
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+
+    e, f = _empresa_fonte(db_session)
+    db_session.add(FonteCoorteColeta(fonte_id=f.id, empresa_id=e.id, coorte_ano_mes=202607))
+    db_session.commit()
+    db_session.add(FonteCoorteColeta(fonte_id=f.id, empresa_id=e.id, coorte_ano_mes=202607))
+    try:
+        db_session.commit()
+        assert False, "esperava IntegrityError no par (fonte, coorte) duplicado"
+    except IntegrityError:
+        db_session.rollback()
+
+
 # ── Recoleta / expiry ────────────────────────────────────────────────────────
 
 

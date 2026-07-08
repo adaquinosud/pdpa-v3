@@ -63,6 +63,9 @@ class Caso(Base):
         Index("idx_casos_fonte", "fonte_id"),
         Index("idx_casos_status", "status"),
         Index("idx_casos_ultima_coleta", "ultima_coleta"),
+        # Coorte mensal (dois-modos): o job de threads pergunta "casos da fonte X na
+        # coorte Y" — sem índice é scan.
+        Index("idx_casos_fonte_coorte", "fonte_id", "coorte_ano_mes"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -92,6 +95,9 @@ class Caso(Base):
     categoria: Mapped[Optional[str]] = mapped_column(String)
     problema_tipo: Mapped[Optional[str]] = mapped_column(String)
     criado_em_origem: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    # Coorte mensal derivada de criado_em_origem (ano*100+mês, ex. 202607) — chave do
+    # fetch por janela fechada (dois-modos). NULL se criado_em_origem ausente (raro).
+    coorte_ano_mes: Mapped[Optional[int]] = mapped_column(Integer)
 
     # ── Thread (matéria do classificador do Caso + timeline da UI) ────────────
     thread_json: Mapped[Optional[str]] = mapped_column(Text)  # array interactions cru
