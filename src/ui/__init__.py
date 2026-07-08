@@ -4332,7 +4332,9 @@ def _explorar_casos(s, empresa_id, filtros=None):
         return round(100 * num / den) if den else None
 
     _av = [c for c in casos_painel if c.evaluated]
-    _cl = [c for c in casos_painel if c.desfecho]
+    # 'nao_rastreado' (caso que caiu do fetch) sai do denominador de conduta —
+    # aparece na distribuição (transparência) mas não é classificado de conduta.
+    _cl = [c for c in casos_painel if c.desfecho and c.desfecho != "nao_rastreado"]
     _resp = sum(1 for c in casos_painel if (c.interactions_count or 0) > 0)
     _resol = sum(1 for c in _av if c.desfecho == "resolvido")
     _causa = sum(1 for c in _cl if c.causa_resolvida)

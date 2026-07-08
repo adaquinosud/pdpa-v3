@@ -56,7 +56,7 @@ class Caso(Base):
         # (coluna nullable — CHECK só falha em FALSE).
         CheckConstraint(
             "desfecho IN ('resolvido','nao_resolvido','respondida_em_disputa',"
-            "'abandonado','respondida_sem_avaliacao','nao_respondida')",
+            "'abandonado','respondida_sem_avaliacao','nao_respondida','nao_rastreado')",
             name="ck_casos_desfecho",
         ),
         Index("idx_casos_empresa", "empresa_id"),

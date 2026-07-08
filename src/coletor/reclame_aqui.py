@@ -8,8 +8,14 @@ viram verbatim (anti-dupla-contagem). Ver docs/CONTRATO_RA_ACTOR.md e
 src/models/caso.py.
 
 Recoleta: semanal, só casos NÃO-TERMINAIS. Terminal = ``evaluated=True`` (o
-consumidor fechou) OU ``desfecho='abandonado'``. Não-terminal sem mudança de
-``hash_thread`` por 90 dias → ``abandonado`` (para de re-cobrar).
+consumidor fechou) OU ``desfecho`` em {``abandonado``, ``nao_rastreado``}.
+
+Expiry de não-terminal parado 90d separa DOIS destinos (correção de método):
+- ``abandonado`` (real): seguimos rebuscando (``ultima_coleta`` = último fetch da
+  fonte) e a thread ficou parada 90d → o consumidor não voltou.
+- ``nao_rastreado`` (artefato NOSSO): o caso SAIU do fetch (janela deslizante
+  LATEST×cap) — ``ultima_coleta`` defasado vs o último fetch → congelou, parou de
+  amadurecer. Nunca é falso-abandono; sai do funil de conduta.
 """
 
 from __future__ import annotations
@@ -62,8 +68,13 @@ def _empresa_param(url: str) -> str:
     return u
 
 
+# Desfechos que PARAM a recoleta do caso (não vale re-cobrar). 'nao_rastreado' é
+# terminal p/ a recoleta: o caso caiu do fetch e não re-entra sem subir o cap.
+_DESFECHO_TERMINAL = ("abandonado", "nao_rastreado")
+
+
 def _terminal(caso: Caso) -> bool:
-    return bool(caso.evaluated) or caso.desfecho == "abandonado"
+    return bool(caso.evaluated) or caso.desfecho in _DESFECHO_TERMINAL
 
 
 def em_cadencia_cooldown(
@@ -221,6 +232,7 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         "ignorados": 0,
         "fora_janela": 0,
         "abandonados": 0,
+        "nao_rastreado": 0,
         "erros": 0,
         "pulado_cadencia": False,
         "falhou_apify": False,
@@ -298,13 +310,16 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
     # Expiry (decisão 4): a cada coleta, não-terminal parado há 90d → abandonado
     # (para de re-cobrar). Roda junto da coleta — sem cron dedicado.
     with db_session() as s:
-        stats["abandonados"] = expirar_abandonados(s, fonte_id, agora=agora)
+        exp = expirar_abandonados(s, fonte_id, agora=agora)
+        stats["abandonados"] = exp["abandonados"]
+        stats["nao_rastreado"] = exp["nao_rastreado"]
 
     print(
         f"[reclame_aqui] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['casos_novos']} atualizados={stats['casos_atualizados']} "
         f"verbatins={stats['verbatins_novos']} ignorados={stats['ignorados']} "
-        f"abandonados={stats['abandonados']} erros={stats['erros']}"
+        f"abandonados={stats['abandonados']} nao_rastreado={stats['nao_rastreado']} "
+        f"erros={stats['erros']}"
     )
     return stats
 
@@ -312,39 +327,62 @@ def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
 # ── Recoleta / expiry (decisão 4) ────────────────────────────────────────────
 
 
-def expirar_abandonados(session, fonte_id: int, *, dias: int = ABANDONO_DIAS, agora=None) -> int:
-    """Não-terminais sem mudança de thread há ``dias`` → ``desfecho='abandonado'``
-    (param de expiry, para de re-cobrar). Referência de tempo: ``thread_mudou_em``
-    ou, se a thread nunca mudou, ``primeira_coleta``. Devolve quantos expirou."""
+def expirar_abandonados(
+    session, fonte_id: int, *, dias: int = ABANDONO_DIAS, agora=None
+) -> Dict[str, int]:
+    """Fecha não-terminais parados, separando DOIS destinos (correção de método):
+
+    - **nao_rastreado** (artefato NOSSO): o caso SAIU do último fetch da fonte —
+      ``ultima_coleta`` defasado vs ``MAX(ultima_coleta)`` da fonte. Congelou por
+      janela deslizante LATEST×cap; nunca é falso-abandono. Independe dos 90d.
+    - **abandonado** (real): seguimos rebuscando (``ultima_coleta`` = último fetch)
+      E a thread ficou parada há ``dias`` (ref: ``thread_mudou_em`` ou
+      ``primeira_coleta``) → o consumidor não voltou.
+
+    Devolve ``{"abandonados": x, "nao_rastreado": y}``."""
     agora = agora or datetime.utcnow()
     corte = agora - timedelta(days=dias)
-    # Não-terminal = não-avaliado E ainda não abandonado (mesma def de
-    # tem_nao_terminais). Inclui casos já classificados pelo F3 (desfecho set,
-    # mas não-abandonado) que ficaram parados 90d.
+    # Assinatura do último fetch da fonte: casos rebuscados nesse fetch compartilham
+    # o mesmo ultima_coleta (setado uma vez por coletar). ultima_coleta < isto ⇒ o
+    # caso caiu do fetch (congelou). Robusto se expirar rodar fora de uma coleta.
+    ultimo_fetch = (
+        session.query(func.max(Caso.ultima_coleta)).filter(Caso.fonte_id == fonte_id).scalar()
+    )
+    # Não-terminal = não-avaliado E ainda não fechado por abandono/nao_rastreado
+    # (mesma def de tem_nao_terminais). Inclui casos já classificados pelo F3.
     candidatos = (
         session.query(Caso)
         .filter(
             Caso.fonte_id == fonte_id,
             Caso.evaluated.isnot(True),
-            (Caso.desfecho.is_(None)) | (Caso.desfecho != "abandonado"),
+            (Caso.desfecho.is_(None)) | (Caso.desfecho.notin_(_DESFECHO_TERMINAL)),
         )
         .all()
     )
-    n = 0
+    res = {"abandonados": 0, "nao_rastreado": 0}
     for c in candidatos:
+        fora_do_fetch = (
+            ultimo_fetch is not None
+            and c.ultima_coleta is not None
+            and c.ultima_coleta < ultimo_fetch
+        )
+        if fora_do_fetch:
+            c.desfecho = "nao_rastreado"
+            res["nao_rastreado"] += 1
+            continue
         referencia = c.thread_mudou_em or c.primeira_coleta
         if referencia is not None and referencia < corte:
             c.desfecho = "abandonado"
-            n += 1
-    return n
+            res["abandonados"] += 1
+    return res
 
 
 def tem_nao_terminais(session, fonte_id: int) -> bool:
     """A fonte tem caso não-terminal (vale recoletar)? Terminal = evaluated OU
-    desfecho='abandonado'."""
+    desfecho em {abandonado, nao_rastreado}."""
     q = session.query(Caso.id).filter(
         Caso.fonte_id == fonte_id,
         Caso.evaluated.isnot(True),
-        (Caso.desfecho.is_(None)) | (Caso.desfecho != "abandonado"),
+        (Caso.desfecho.is_(None)) | (Caso.desfecho.notin_(_DESFECHO_TERMINAL)),
     )
     return session.query(q.exists()).scalar()

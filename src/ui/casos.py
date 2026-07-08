@@ -23,6 +23,7 @@ DESFECHO_BADGE = {
     "respondida_sem_avaliacao": ("bg-amber-100 text-amber-700", "respondida · sem avaliação"),
     "nao_respondida": ("bg-rose-100 text-rose-700", "não respondida"),
     "abandonado": ("bg-loyall-100 text-loyall-500", "abandonado"),
+    "nao_rastreado": ("bg-slate-100 text-slate-500", "fora de rastreio"),
 }
 
 

@@ -71,6 +71,7 @@ _DESFECHO_LABEL = {
     "resolvido": "resolvidos",
     "nao_resolvido": "não resolvidos",
     "abandonado": "abandonados",
+    "nao_rastreado": "fora de rastreio",
 }
 
 
@@ -441,8 +442,16 @@ def montar_dados(
         # só renderiza o que o dado sustenta.)
         from src.models.caso import Caso as _Caso
 
+        # 'nao_rastreado' NÃO é conduta (é artefato de coleta — caso caiu do fetch):
+        # fica fora do funil, senão dilui a taxa_causa com casos que nunca julgamos.
         _classif = (
-            s.query(_Caso).filter(_Caso.empresa_id == empresa_id, _Caso.desfecho.isnot(None)).all()
+            s.query(_Caso)
+            .filter(
+                _Caso.empresa_id == empresa_id,
+                _Caso.desfecho.isnot(None),
+                _Caso.desfecho != "nao_rastreado",
+            )
+            .all()
         )
         _classif_total = len(_classif)
         _classif_com_causa = sum(1 for c in _classif if c.causa_resolvida)

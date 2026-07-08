@@ -323,7 +323,9 @@ def test_expirar_abandonados(db_session):
     agora = datetime(2026, 7, 3, 12, 0, 0)
     velho = agora - timedelta(days=100)
     recente = agora - timedelta(days=10)
-    # não-terminal parado há 100d → abandona
+    # 'ultima_coleta=agora' = ainda no fetch desta coleta (a assinatura do fetch é
+    # MAX(ultima_coleta) da fonte). O split abandonado × nao_rastreado depende disso.
+    # não-terminal AINDA rebuscado + thread parada há 100d → abandonado (real)
     db_session.add(
         Caso(
             empresa_id=e.id,
@@ -332,9 +334,10 @@ def test_expirar_abandonados(db_session):
             evaluated=False,
             primeira_coleta=velho,
             thread_mudou_em=None,
+            ultima_coleta=agora,
         )
     )
-    # não-terminal recente → fica
+    # não-terminal recente, ainda rebuscado → fica
     db_session.add(
         Caso(
             empresa_id=e.id,
@@ -343,19 +346,39 @@ def test_expirar_abandonados(db_session):
             evaluated=False,
             primeira_coleta=recente,
             thread_mudou_em=recente,
+            ultima_coleta=agora,
         )
     )
-    # terminal (evaluated) → nunca abandona
+    # CONGELADO: saiu do fetch (ultima_coleta defasado) → nao_rastreado (artefato),
+    # nunca falso-abandono — mesmo com thread parada há 100d.
     db_session.add(
         Caso(
-            empresa_id=e.id, fonte_id=f.id, origem_id="DONE", evaluated=True, primeira_coleta=velho
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="FROZEN",
+            evaluated=False,
+            primeira_coleta=velho,
+            thread_mudou_em=None,
+            ultima_coleta=velho,
+        )
+    )
+    # terminal (evaluated) → nunca fecha
+    db_session.add(
+        Caso(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="DONE",
+            evaluated=True,
+            primeira_coleta=velho,
+            ultima_coleta=agora,
         )
     )
     db_session.commit()
-    n = ra.expirar_abandonados(db_session, f.id, dias=90, agora=agora)
+    res = ra.expirar_abandonados(db_session, f.id, dias=90, agora=agora)
     db_session.commit()
-    assert n == 1
+    assert res == {"abandonados": 1, "nao_rastreado": 1}
     assert db_session.query(Caso).filter_by(origem_id="OLD").one().desfecho == "abandonado"
+    assert db_session.query(Caso).filter_by(origem_id="FROZEN").one().desfecho == "nao_rastreado"
     assert db_session.query(Caso).filter_by(origem_id="NEW").one().desfecho is None
     assert db_session.query(Caso).filter_by(origem_id="DONE").one().desfecho is None
 
@@ -368,6 +391,10 @@ def test_tem_nao_terminais(db_session):
     assert ra.tem_nao_terminais(db_session, f.id) is True
     # marca como abandonado → vira terminal
     db_session.query(Caso).filter_by(origem_id="A").one().desfecho = "abandonado"
+    db_session.commit()
+    assert ra.tem_nao_terminais(db_session, f.id) is False
+    # nao_rastreado (caso congelado) também é terminal p/ o gate de recoleta
+    db_session.query(Caso).filter_by(origem_id="A").one().desfecho = "nao_rastreado"
     db_session.commit()
     assert ra.tem_nao_terminais(db_session, f.id) is False
 

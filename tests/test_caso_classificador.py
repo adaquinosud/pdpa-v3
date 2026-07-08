@@ -209,9 +209,9 @@ def test_expiry_abandona_classificado_parado(db_session):
         )
     )
     db_session.commit()
-    n = ra.expirar_abandonados(db_session, f.id, dias=90, agora=agora)
+    res = ra.expirar_abandonados(db_session, f.id, dias=90, agora=agora)
     db_session.commit()
-    assert n == 1
+    assert res == {"abandonados": 1, "nao_rastreado": 0}
     db_session.expire_all()
     assert db_session.query(Caso).filter_by(origem_id="C1").one().desfecho == "abandonado"
 
