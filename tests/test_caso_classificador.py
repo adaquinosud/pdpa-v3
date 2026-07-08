@@ -181,13 +181,13 @@ def test_desfecho_resiliente_um_caso_falha(db_session):
 def test_coletor_zera_desfecho_ao_mudar_thread(db_session, monkeypatch):
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_reclamacao("T1")])
-    ra.coletar(f)
+    ra.coletar_threads(f)
     cc.gerar_desfecho_pendentes(f.id, gerar_fn=_boom)  # PENDING → nao_respondida (det)
     db_session.expire_all()
     assert db_session.query(Caso).filter_by(origem_id="T1").one().desfecho == "nao_respondida"
     # recoleta (force) com thread nova → desfecho volta a NULL (re-classificar)
     _patch_actor(monkeypatch, [_reclamacao("T1", status="ANSWERED", interactions=_THREAD)])
-    ra.coletar(f, force=True)
+    ra.coletar_threads(f, force=True)
     db_session.expire_all()
     assert db_session.query(Caso).filter_by(origem_id="T1").one().desfecho is None
 

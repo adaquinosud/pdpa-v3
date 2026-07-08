@@ -168,7 +168,7 @@ def test_coletar_usa_override_por_fonte(db_session, monkeypatch):
     f.ra_max_casos = 120
     db_session.commit()
     cap = _capturar_input(monkeypatch, [_reclamacao("O1")])
-    ra.coletar(f)
+    ra.coletar_threads(f)
     assert cap["maxComplaintsPerCompany"] == 120
     assert cap["dateFrom"] == (date.today() - timedelta(days=6 * 30)).isoformat()
 
@@ -179,7 +179,7 @@ def test_coletar_usa_defaults_sem_override(db_session, monkeypatch):
     e, f = _empresa_fonte(db_session)  # ra_* NULL → defaults globais
     db_session.commit()
     cap = _capturar_input(monkeypatch, [_reclamacao("D1")])
-    ra.coletar(f)
+    ra.coletar_threads(f)
     assert cap["maxComplaintsPerCompany"] == ra.MAX_COMPLAINTS_PER_COMPANY
     assert cap["dateFrom"] == (date.today() - timedelta(days=ra.CORTE_MESES * 30)).isoformat()
     assert cap["statusFilter"] == ["LATEST"]  # cap = teto de gasto de fato
@@ -188,7 +188,7 @@ def test_coletar_usa_defaults_sem_override(db_session, monkeypatch):
 def test_coletar_cria_caso_e_verbatim(db_session, monkeypatch):
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_reclamacao("C1")])
-    stats = ra.coletar(f)
+    stats = ra.coletar_threads(f)
     assert stats["casos_novos"] == 1 and stats["verbatins_novos"] == 1
     caso = db_session.query(Caso).filter_by(origem_id="C1").one()
     assert caso.fonte_id == f.id and caso.status == "PENDING"
@@ -226,7 +226,7 @@ def test_coletar_forca_grao_empresa_wide(db_session, monkeypatch):
     db_session.add(f)
     db_session.commit()
     _patch_actor(monkeypatch, [_reclamacao("L1")])
-    ra.coletar(f)
+    ra.coletar_threads(f)
     caso = db_session.query(Caso).filter_by(origem_id="L1").one()
     assert caso.local_id is None  # empresa-wide, NÃO o local ReclameAqui
     assert db_session.query(Verbatim).filter_by(caso_id=caso.id).one().local_id is None
@@ -237,10 +237,10 @@ def test_coletar_upsert_nao_duplica(db_session, monkeypatch):
     thread nova marca thread_mudou_em."""
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_reclamacao("U1")])
-    ra.coletar(f)
+    ra.coletar_threads(f)
     # 2ª coleta: agora respondida, com thread (force → ignora o gate semanal)
     _patch_actor(monkeypatch, [_reclamacao("U1", status="ANSWERED", interactions=_THREAD)])
-    stats = ra.coletar(f, force=True)
+    stats = ra.coletar_threads(f, force=True)
     assert stats["casos_atualizados"] == 1 and stats["casos_novos"] == 0
     assert db_session.query(Caso).filter_by(origem_id="U1").count() == 1
     assert db_session.query(Verbatim).count() == 1  # NÃO recriou o verbatim
@@ -249,17 +249,26 @@ def test_coletar_upsert_nao_duplica(db_session, monkeypatch):
     assert caso.thread_mudou_em is not None
 
 
-def test_coletar_captura_reputacao_e_ignora_malformado(db_session, monkeypatch):
+def test_coletar_threads_ignora_company_e_malformado(db_session, monkeypatch):
+    """Modo threads: company record é PULADO (scorecard vem do modo A), malformado
+    → ignorado; só a reclamação vira caso."""
+    e, f = _empresa_fonte(db_session)
+    _patch_actor(monkeypatch, [_EMPRESA_RECORD, _MALFORMADO, _reclamacao("K1")])
+    stats = ra.coletar_threads(f)
+    assert stats["ignorados"] == 1 and stats["casos_novos"] == 1  # só o malformado ignora
+
+
+def test_coletar_delega_scorecard(db_session, monkeypatch):
+    """FLIP (Fatia 2): a entrada do roteamento (coletar) faz SÓ o scorecard — sem
+    baixar threads. O noturno para de re-cobrar casos toda semana."""
     from src.models.fonte_reputacao import FonteReputacao
 
     e, f = _empresa_fonte(db_session)
-    _patch_actor(monkeypatch, [_EMPRESA_RECORD, _MALFORMADO, _reclamacao("K1")])
+    cap = _capturar_input(monkeypatch, [_EMPRESA_RECORD, _reclamacao("IGN")])
     stats = ra.coletar(f)
-    # company record agora é CAPTURADO (Vitrine/Bloco A), não ignorado; só o malformado
-    assert stats["ignorados"] == 1 and stats["casos_novos"] == 1
-    assert stats.get("reputacao") is True
-    rep = db_session.query(FonteReputacao).filter_by(fonte_id=f.id).one()
-    assert rep.consumer_score == 2.58 and rep.provedor == "reclame_aqui"
+    assert stats["modo"] == "scorecard" and cap["scrapeComplaints"] is False
+    assert db_session.query(Caso).filter_by(fonte_id=f.id).count() == 0  # NÃO cria caso
+    assert db_session.query(FonteReputacao).filter_by(fonte_id=f.id).one().consumer_score == 2.58
 
 
 def test_coletar_sem_descricao_cria_caso_sem_verbatim(db_session, monkeypatch):
@@ -267,7 +276,7 @@ def test_coletar_sem_descricao_cria_caso_sem_verbatim(db_session, monkeypatch):
     item = _reclamacao("S1", descricao="")
     item["descriptionText"] = ""
     _patch_actor(monkeypatch, [item])
-    stats = ra.coletar(f)
+    stats = ra.coletar_threads(f)
     assert (
         stats["casos_novos"] == 1 and stats["sem_descricao"] == 1 and stats["verbatins_novos"] == 0
     )
@@ -281,7 +290,7 @@ def test_coletar_falha_apify(db_session, monkeypatch):
         raise ra.ApifyError("timeout")
 
     monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _boom)
-    stats = ra.coletar(f)
+    stats = ra.coletar_threads(f)
     assert stats["falhou_apify"] is True and stats["casos_novos"] == 0
 
 
@@ -309,7 +318,7 @@ def test_corte_15_meses_datefrom_e_guarda(db_session, monkeypatch):
         return [_reclamacao("REC"), antigo]
 
     monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _fake)
-    stats = ra.coletar(f)
+    stats = ra.coletar_threads(f)
     assert "dateFrom" in captura["run_input"]  # corte server-side no input
     assert captura["run_input"]["maxComplaintsPerCompany"] == 500  # cap com headroom
     assert stats["casos_novos"] == 1 and stats["fora_janela"] == 1  # antigo pulado
@@ -520,7 +529,7 @@ def test_cadencia_pula_coleta_recente(db_session, monkeypatch):
         raise AssertionError("run_and_collect não deveria ser chamado sob o gate")
 
     monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _boom)
-    stats = ra.coletar(f)
+    stats = ra.coletar_threads(f)
     assert stats["pulado_cadencia"] is True and stats["casos_novos"] == 0
 
 
@@ -528,7 +537,7 @@ def test_cadencia_primeira_coleta_roda(db_session, monkeypatch):
     """Sem coleta anterior (nenhum caso) → a primeira coleta SEMPRE roda."""
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_reclamacao("F1")])
-    stats = ra.coletar(f)
+    stats = ra.coletar_threads(f)
     assert stats["pulado_cadencia"] is False and stats["casos_novos"] == 1
 
 
@@ -545,7 +554,7 @@ def test_cadencia_coleta_velha_roda(db_session, monkeypatch):
     )
     db_session.commit()
     _patch_actor(monkeypatch, [_reclamacao("N1")])
-    stats = ra.coletar(f)
+    stats = ra.coletar_threads(f)
     assert stats["pulado_cadencia"] is False and stats["casos_novos"] == 1
 
 
@@ -557,5 +566,5 @@ def test_cadencia_force_bypassa(db_session, monkeypatch):
     )
     db_session.commit()
     _patch_actor(monkeypatch, [_reclamacao("FC1")])
-    stats = ra.coletar(f, force=True)
+    stats = ra.coletar_threads(f, force=True)
     assert stats["pulado_cadencia"] is False and stats["casos_novos"] == 1

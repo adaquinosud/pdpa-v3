@@ -261,106 +261,17 @@ def _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats) 
 
 
 def coletar(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
-    """Coleta/recoleta os casos de UMA fonte RA via Apify + upsert.
+    """Entrada do ROTEAMENTO (cron noturno + botão "disparar"). DOIS-MODOS (Fatia 2):
+    o noturno faz só o **scorecard** (semanal, barato — ``coletar_scorecard``). As
+    **threads** (casos/verbatim/maturação) vão por **coorte mensal** via
+    ``coletar_threads`` (cron mensal / botão dedicado / CLI ``recoletar_threads.py``).
 
-    Cadência SEMANAL (F2.1): pula se a fonte foi coletada há < 7 dias, salvo
-    ``force=True`` (coleta manual). Sem isto a noturna diária re-cobraria RA por
-    reclamação todo dia.
-
-    Stats: ``coletados`` (itens recebidos), ``casos_novos``, ``casos_atualizados``,
-    ``verbatins_novos``, ``sem_descricao``, ``ignorados`` (records de empresa/
-    malformados), ``abandonados``, ``erros``, ``pulado_cadencia`` (gate semanal),
-    ``falhou_apify``.
-
-    GRÃO: RA é a voz da MARCA (um perfil único da empresa no ReclameAqui), não de
-    um lugar. Os casos/verbatins são SEMPRE empresa-wide (``local_id=NULL`` →
-    agrupamento NULL no motor de temas), independente de onde a fonte foi
-    cadastrada na árvore (mesmo sob um local "ReclameAqui" dentro de um
-    agrupamento). Por isso ignoramos ``fonte.entidade_tipo/entidade_id`` para o
-    grão — cadastrar a fonte no nível empresa é o ideal, mas não é exigido."""
-    fonte_id = fonte.id
-    empresa_id = fonte.empresa_id
-    local_id = None  # RA = marca, sempre empresa-wide (ver docstring/GRÃO)
-    empresa_param = _empresa_param(fonte.url or "")
-
-    stats: Dict[str, Any] = {
-        "coletados": 0,
-        "casos_novos": 0,
-        "casos_atualizados": 0,
-        "verbatins_novos": 0,
-        "sem_descricao": 0,
-        "ignorados": 0,
-        "fora_janela": 0,
-        "abandonados": 0,
-        "nao_rastreado": 0,
-        "erros": 0,
-        "pulado_cadencia": False,
-        "falhou_apify": False,
-    }
-    if not empresa_param:
-        print(f"[reclame_aqui] fonte {fonte_id} sem url — abortando")
-        stats["falhou_apify"] = True
-        return stats
-
-    # Gate de cadência semanal (F2.1): não re-cobrar diário. force=coleta manual.
-    if not force:
-        with db_session() as s:
-            if em_cadencia_cooldown(s, fonte_id):
-                stats["pulado_cadencia"] = True
-                print(f"[reclame_aqui] fonte {fonte_id} pulada (cadência semanal)")
-                return stats
-
-    # Override por fonte (caso comercial de alto volume); NULL = defaults globais.
-    janela_meses = fonte.ra_janela_meses or CORTE_MESES
-    cap = fonte.ra_max_casos or MAX_COMPLAINTS_PER_COMPANY
-    corte = _data_corte(janela_meses)
-    run_input = {
-        "companies": [empresa_param],
-        "scrapeComplaints": True,
-        "includeInteractions": True,
-        "includeCompanyProfile": True,  # Vitrine/Bloco A: scorecard OFICIAL (+US$0,05/empresa)
-        "statusFilter": ["LATEST"],
-        "maxComplaintsPerCompany": cap,
-        "descriptionFormat": "text",
-        "excludeEmptyFields": False,
-        # Corte server-side: o actor só retorna/cobra reclamações created >= dateFrom
-        # (economiza custo por reclamação). Janela vigente = override da fonte ou 15m.
-        "dateFrom": corte.isoformat(),
-    }
-    try:
-        items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
-    except ApifyError as exc:
-        print(f"[reclame_aqui] Apify falhou para fonte {fonte_id}: {exc}")
-        stats["falhou_apify"] = True
-        return stats
-
-    agora = datetime.utcnow()
-    for item in items:
-        stats["coletados"] += 1
-        try:
-            if item.get("recordType") == "company":  # Vitrine/Bloco A: scorecard oficial
-                _proc_reputacao(item, fonte_id, empresa_id, agora, stats)
-            else:
-                _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats)
-        except Exception as exc:  # per-item: um item ruim não derruba o lote
-            stats["erros"] += 1
-            print(f"[reclame_aqui] erro no item da fonte {fonte_id}: {type(exc).__name__}: {exc}")
-
-    # Expiry (decisão 4): a cada coleta, não-terminal parado há 90d → abandonado
-    # (para de re-cobrar). Roda junto da coleta — sem cron dedicado.
-    with db_session() as s:
-        exp = expirar_abandonados(s, fonte_id, agora=agora)
-        stats["abandonados"] = exp["abandonados"]
-        stats["nao_rastreado"] = exp["nao_rastreado"]
-
-    print(
-        f"[reclame_aqui] fonte {fonte_id} fim: coletados={stats['coletados']} "
-        f"novos={stats['casos_novos']} atualizados={stats['casos_atualizados']} "
-        f"verbatins={stats['verbatins_novos']} ignorados={stats['ignorados']} "
-        f"abandonados={stats['abandonados']} nao_rastreado={stats['nao_rastreado']} "
-        f"erros={stats['erros']}"
-    )
-    return stats
+    Por que scorecard-only aqui: a janela deslizante LATEST×cap re-baixava (e
+    re-cobrava) todas as threads toda semana sem madurar a coorte. O scorecard
+    oficial dá a tendência de conduta semanal por ~US$0,055; as threads passam a
+    ser evento raro (coorte fechada). Ver docs/CONTRATO_RA_ACTOR.md + a memória
+    do projeto (RA dois-modos)."""
+    return coletar_scorecard(fonte, force=force)
 
 
 # ── Dois-modos (Fatia 2): scorecard-only (semanal, barato) × threads (coorte) ──

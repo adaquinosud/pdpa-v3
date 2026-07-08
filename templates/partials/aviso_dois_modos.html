@@ -1,0 +1,20 @@
+{# Aviso estático (Fatia 2): a coleta noturna de RA virou SÓ scorecard; threads em
+   coorte mensal. Evita ler "0 casos novos = coleta quebrada". Dismissível via
+   localStorage (chave aviso_dois_modos_ok); tolera múltiplas instâncias na página. #}
+<div class="aviso-dois-modos mb-3 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800" style="display:none">
+  <span class="text-sky-500 mt-0.5">ℹ</span>
+  <div class="flex-1">
+    <span class="font-medium">ReclameAqui em dois modos.</span>
+    A coleta noturna agora traz só o <strong>scorecard oficial</strong> (semanal, barato ~US$0,055).
+    Os <strong>casos/threads</strong> passam a ser atualizados por <strong>coorte mensal</strong>
+    (não some nada — é a nova cadência; ver botão dedicado / CLI de threads).
+  </div>
+  <button type="button"
+          onclick="localStorage.setItem('aviso_dois_modos_ok','1');document.querySelectorAll('.aviso-dois-modos').forEach(function(el){el.style.display='none'})"
+          class="text-sky-400 hover:text-sky-600 whitespace-nowrap">dispensar ✕</button>
+</div>
+<script>
+  if (localStorage.getItem('aviso_dois_modos_ok') !== '1') {
+    document.querySelectorAll('.aviso-dois-modos').forEach(function (el) { el.style.display = ''; });
+  }
+</script>

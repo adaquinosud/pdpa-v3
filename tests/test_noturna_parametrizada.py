@@ -66,3 +66,15 @@ def test_descobrir_fontes_por_id_e_por_nome(db_session):
 def test_empresa_inexistente_levanta(db_session):
     with pytest.raises(SystemExit):
         descobrir_fontes_pendentes("empresa que não existe", redisparar_horas=24)
+
+
+def test_estimar_custo_apify_ra_dois_modos():
+    """Custo RA-aware por modo (o proxy 0,001/item subcontava — guard que subestima
+    não protege). scorecard = 0,055; threads = casos × 0,025 + 0,005 start."""
+    from scripts.coleta_noturna import estimar_custo_apify
+
+    assert estimar_custo_apify({"modo": "scorecard", "coletados": 1}) == 0.055
+    assert estimar_custo_apify({"modo": "threads", "coletados": 100}) == 100 * 0.025 + 0.005
+    # sem modo (outros conectores) → proxy 0,001/item
+    assert estimar_custo_apify({"coletados": 40}) == 0.04
+    assert estimar_custo_apify({}) == 0.0

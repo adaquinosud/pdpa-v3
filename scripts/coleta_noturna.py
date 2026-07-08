@@ -147,9 +147,22 @@ def descobrir_fontes_pendentes(empresa: Union[int, str], redisparar_horas: float
 
 
 def estimar_custo_apify(stats: Dict[str, Any]) -> float:
-    """Estimativa simples: $0.001/review coletado (proxy do compass google maps)."""
+    """Estimativa por conector. RA usa o PPE real (o proxy 0,001/item subcontava —
+    guard MAX_USD que subestima não protege): scorecard = perfil + start; threads =
+    reclamações × custo/caso + start. Outros conectores seguem o proxy 0,001/item."""
     if not stats:
         return 0.0
+    from src.coletor.reclame_aqui import (
+        CUSTO_POR_CASO_USD,
+        CUSTO_SCORECARD_USD,
+        CUSTO_START_USD,
+    )
+
+    modo = stats.get("modo")
+    if modo == "scorecard":
+        return CUSTO_SCORECARD_USD
+    if modo == "threads":
+        return float(stats.get("coletados", 0)) * CUSTO_POR_CASO_USD + CUSTO_START_USD
     return float(stats.get("coletados", 0)) * 0.001
 
 

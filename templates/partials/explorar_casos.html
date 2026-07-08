@@ -13,6 +13,7 @@
 {% set tab_url = url_for('ui.explorar_tab', empresa_id=empresa.id, tab='casos') %}
 {% set push = url_for('ui.explorar_empresa', empresa_id=empresa.id) ~ '?tab=casos' %}
 
+{% include "partials/aviso_dois_modos.html" %}
 <div class="text-xs uppercase tracking-wider text-loyall-400">ReclameAqui · casos + reputação</div>
 <h3 class="text-lg font-semibold text-loyall-800 mt-0.5">Reputação em casos</h3>
 <p class="text-xs text-loyall-500 mt-1">
