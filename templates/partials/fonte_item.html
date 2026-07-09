@@ -4,7 +4,7 @@
 {% set _nome_fonte = f.nome_local if f.nome_local
    else (local_nome[f.entidade_id] if (local_nome is defined and local_nome and f.entidade_id in local_nome) else '') %}
 <div id="fonte-{{ f.id }}"
-     class="fonte-item flex items-center gap-2 px-2 py-1 text-xs rounded hover:bg-white
+     class="fonte-item flex flex-wrap items-center gap-2 px-2 py-1 text-xs rounded hover:bg-white
             {% if not f.ativo %}opacity-50{% endif %}"
      data-nome="{{ (f.conector_tipo ~ ' ' ~ (_nome_fonte or f.url))|lower }}"
      data-ativo="{{ 'true' if f.ativo else 'false' }}">
@@ -28,15 +28,11 @@
     <span class="text-loyall-400" title="Última coleta">{{ f.ultima_coleta.strftime('%Y-%m-%d') }}</span>
   {% endif %}
   {% if f.eh_ra %}
-    <span class="text-loyall-500 whitespace-nowrap"
+    <span class="text-loyall-500 min-w-0 break-words"
           title="Dois modos: scorecard oficial (semanal) + threads. Empresa PEQUENA/MÉDIA = coorte mensal (matura histórico); MEGA (>400/mês) = amostra recente capada (o crawl não cabe no deadline por data; custo fixo N×US$0,025). O scorecard cobre a conduta agregada das duas.">
-      {% if f.ra_threads_off %}<span class="text-loyall-400">threads desligadas</span>
-      {%- elif f.ra_modo_threads == 'amostra' %}amostra recente de {{ f.ra_amostra_n }} <span class="text-loyall-300">(mega)</span>
-      {%- else %}{{ f.ra_coortes_ativas }} coorte{{ 's' if f.ra_coortes_ativas != 1 }}{% endif %} · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads
-      {%- if f.ra_threads_off %} <span class="text-loyall-400">desligadas</span>
-      {%- elif f.ra_modo_threads == 'amostra' %} ~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês (amostra {{ f.ra_amostra_n }})
-      {%- elif f.ra_custo_threads_mes is not none %} ~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês ({{ f.ra_coortes_ativas }}×{{ f.ra_threads_volume_mes }}/mês)
-      {%- else %} <span class="text-loyall-400">aguardando 1º scorecard</span>{% endif %}
+      {%- if f.ra_threads_off %}<span class="text-loyall-400">threads off</span> · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem
+      {%- elif f.ra_modo_threads == 'amostra' %}amostra {{ f.ra_amostra_n }} <span class="text-loyall-300">(mega)</span> · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads {% if f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% else %}<span class="text-loyall-400">aguardando</span>{% endif %}
+      {%- else %}{{ f.ra_coortes_ativas }} coorte{{ 's' if f.ra_coortes_ativas != 1 }} · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads {% if f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês ({{ f.ra_coortes_ativas }}×{{ f.ra_threads_volume_mes }}/mês){% else %}<span class="text-loyall-400">aguardando 1º scorecard</span>{% endif %}{% endif %}
     </span>
   {% endif %}
   <div class="flex items-center gap-2">

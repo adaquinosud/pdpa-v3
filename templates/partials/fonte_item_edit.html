@@ -2,14 +2,14 @@
 <div id="fonte-{{ f.id }}" class="fonte-item flex items-center gap-2 px-2 py-2 text-xs rounded bg-amber-50 border border-amber-300">
   <form hx-put="{{ url_for('ui.htmx_salvar_fonte', fonte_id=f.id) }}"
         hx-target="#fonte-{{ f.id }}" hx-swap="outerHTML"
-        class="flex items-center gap-2 w-full">
+        class="flex flex-wrap items-center gap-2 w-full">
     <code class="px-1.5 py-0.5 bg-loyall-100 rounded text-loyall-800 min-w-[6rem] inline-block">{{ f.conector_tipo }}</code>
     <input name="url" value="{{ f.url }}" required autofocus
            class="flex-1 px-2 py-1 border border-loyall-300 rounded">
     <input name="observacao" value="{{ f.observacao or '' }}" placeholder="obs (opcional)"
            class="w-32 px-2 py-1 border border-loyall-300 rounded">
     {% if f.eh_ra %}
-    <span class="flex items-center gap-1 text-loyall-500 border-l border-loyall-300 pl-2 whitespace-nowrap"
+    <span class="flex flex-wrap items-center gap-1 text-loyall-500 border-l border-loyall-300 pl-2 min-w-0"
           data-ra-vol="{{ f.ra_threads_volume_mes if f.ra_threads_volume_mes else '' }}"
           data-ra-caso="{{ f.ra_custo_por_caso }}"
           data-ra-modo="{{ f.ra_modo_threads }}"
@@ -21,7 +21,7 @@
       · scorecard <span class="text-loyall-700 font-medium">US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem</span>
       · threads <span data-ra-cost class="text-loyall-700 font-medium">
         {%- if f.ra_threads_off %}desligadas{% elif f.ra_modo_threads == 'amostra' %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês (amostra){% elif f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% else %}aguardando scorecard{% endif %}</span>
-      <span class="text-[10px] text-loyall-400">{% if f.ra_modo_threads == 'amostra' %}(mega: amostra recente de {{ f.ra_amostra_n }}, custo fixo; 0 = off){% else %}(coorte: coortes × vol/mês × US$0,025; 0 = off){% endif %}</span>
+      <span class="text-[10px] text-loyall-400">{% if f.ra_modo_threads == 'amostra' %}(mega: amostra fixa de {{ f.ra_amostra_n }}){% else %}(coorte × vol/mês; 0 = off){% endif %}</span>
     </span>
     {% endif %}
     <button type="submit" class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">salvar</button>

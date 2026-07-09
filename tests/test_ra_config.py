@@ -67,7 +67,7 @@ def test_config_ignorada_em_fonte_nao_ra(client_loyall, db_session):
 
 
 def test_criar_fonte_ra_coortes_zero_threads_off(client_loyall, db_session):
-    """Fatia 4.5: coortes=0 persiste 0 e a linha mostra 'threads desligadas'."""
+    """Fatia 4.5: coortes=0 persiste 0 e a linha mostra 'threads off'."""
     e, loc = _empresa_local(client_loyall)
     r = client_loyall.post(
         f"/ui/locais/{loc['id']}/fontes",
@@ -81,7 +81,7 @@ def test_criar_fonte_ra_coortes_zero_threads_off(client_loyall, db_session):
     assert r.status_code == 200
     f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
     assert f.ra_coortes_ativas == 0  # 0 = threads off (não vira 1)
-    assert "desligadas".encode() in r.data
+    assert b"threads off" in r.data
 
 
 def test_toggle_scorecard_ra(client_loyall, db_session):
