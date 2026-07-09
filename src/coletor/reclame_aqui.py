@@ -537,6 +537,53 @@ def tem_nao_terminais(session, fonte_id: int) -> bool:
 # ── Coortes mensais (Fatia 4) — planejamento + ledger + execução escopada ─────
 
 COORTE_IDADE_APOSENTAR = 2  # piso: só aposenta coorte com idade ≥ 2 meses
+# Sub-fatiamento (Fatia 4b.2): coorte de alto volume não cabe no deadline interno do
+# actor (~9min). Dividir o mês em blocos de data menores (cada um = run próprio,
+# deadline fresco). Volume-driven: n_blocos = ceil(volume/MAX_THREADS_POR_BLOCO).
+MAX_THREADS_POR_BLOCO = 250
+MAX_BLOCOS = 10
+PISO_BLOCO_DIAS = 1  # granularidade mínima do actor (dateFrom/dateTo é por dia)
+
+
+def _blocos_iniciais(df_mes: str, dt_mes: str, volume) -> list:
+    """Divide a janela [df_mes, dt_mes] em N blocos ~iguais de data. N =
+    ceil(volume/MAX_THREADS_POR_BLOCO), teto MAX_BLOCOS; volume ≤ limiar (ou None) →
+    1 bloco (mês inteiro — Club Med segue igual)."""
+    d0, d1 = date.fromisoformat(df_mes), date.fromisoformat(dt_mes)
+    dias = (d1 - d0).days + 1
+    if not volume or volume <= MAX_THREADS_POR_BLOCO:
+        n = 1
+    else:
+        n = min(-(-int(volume) // MAX_THREADS_POR_BLOCO), MAX_BLOCOS)  # ceil div
+    n = max(1, min(n, dias))
+    blocos, cur, base, resto = [], d0, dias // n, dias % n
+    for i in range(n):
+        span = base + (1 if i < resto else 0)
+        fim = cur + timedelta(days=span - 1)
+        blocos.append((cur.isoformat(), fim.isoformat()))
+        cur = fim + timedelta(days=1)
+    return blocos
+
+
+def _coletar_bloco(fonte, df: str, dt: str, *, volume, dias_mes: int, idade: int) -> list:
+    """Coleta UM bloco de data (run próprio) + RECURSÃO: se o bloco vier 0/falho num
+    range que ESPERAVA volume (proporcional, só p/ mês recente), subdivide em 2 e
+    recorre — rede pro pior caso (pico concentrado numa semana de crise). Piso =
+    PISO_BLOCO_DIAS (1 dia, granularidade do actor): aí aceita a resposta do actor.
+    Devolve a lista de stats dos sub-blocos folha."""
+    d0, d1 = date.fromisoformat(df), date.fromisoformat(dt)
+    dias = (d1 - d0).days + 1
+    esperado = (volume * dias / dias_mes) if (idade <= 1 and volume) else 0
+    stats = coletar_threads(fonte, force=True, date_from=df, date_to=dt, expirar=False)
+    suspeito = stats.get("falhou_apify") or (stats.get("coletados", 0) == 0 and esperado >= 1)
+    if not suspeito or dias <= PISO_BLOCO_DIAS:
+        stats["bloco"] = (df, dt)
+        return [stats]
+    meio = d0 + timedelta(days=dias // 2 - 1)
+    kw = {"volume": volume, "dias_mes": dias_mes, "idade": idade}
+    esq = _coletar_bloco(fonte, df, meio.isoformat(), **kw)
+    dir_ = _coletar_bloco(fonte, (meio + timedelta(days=1)).isoformat(), dt, **kw)
+    return esq + dir_
 
 
 def _coortes_ativas(n: int, hoje: date) -> list:
@@ -680,45 +727,65 @@ def _fetch_coorte_confiavel(
 
 
 def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str, Any]:
-    """Executa 1 item 'coletar' do plano: ``coletar_threads`` na janela fechada
-    (expirar=False). SÓ grava o ledger + roda o expirar ESCOPADO se a coleta for
-    COBERTURA confirmada (``_fetch_coorte_confiavel``) — um run falho/vazio NÃO conta
-    como coletado (senão o ledger mente e o cron pula a coorte pra sempre). ``fechada``
-    = idade ≥ 2 meses E zero não-terminais (piso evita aposentar por zero transitório)."""
+    """Executa 1 item 'coletar' do plano em BLOCOS de data (Fatia 4b.2 — sub-fatiamento
+    volume-driven + recursão no bloco que ainda falha). Os casos de cada bloco são
+    upsertados na hora (idempotente). ALL-OR-NOTHING: só grava o ledger + roda o
+    expirar ESCOPADO se a cobertura da coorte for CONFIRMADA (``_fetch_coorte_confiavel``
+    sobre o agregado — sem bloco falho, coletados coerente). Um run parcial/falho NÃO
+    marca coberto (senão o ledger mente); o cron re-tenta a coorte inteira no próximo.
+    ``fechada`` = idade ≥ 2 meses E zero não-terminais."""
     agora = agora or datetime.utcnow()
     hoje = agora.date()
     coorte = plano_item["coorte"]
-    stats = coletar_threads(
-        fonte,
-        force=True,
-        date_from=plano_item["date_from"],
-        date_to=plano_item["date_to"],
-        expirar=False,
-    )
+    df_mes, dt_mes = plano_item["date_from"], plano_item["date_to"]
+    idade = _idade_meses(coorte, hoje)
+    dias_mes = (date.fromisoformat(dt_mes) - date.fromisoformat(df_mes)).days + 1
+    with db_session() as s:
+        volume = _complaints30days(s, fonte.id)
+
+    blocos_stats = []
+    _kw = {"volume": volume, "dias_mes": dias_mes, "idade": idade}
+    for bdf, bdt in _blocos_iniciais(df_mes, dt_mes, volume):
+        blocos_stats += _coletar_bloco(fonte, bdf, bdt, **_kw)
+
+    def _soma(k):
+        return sum(st.get(k, 0) for st in blocos_stats)
+
+    agg: Dict[str, Any] = {
+        "modo": "threads",
+        "coorte": coorte,
+        "blocos": len(blocos_stats),
+        "coletados": _soma("coletados"),
+        "casos_novos": _soma("casos_novos"),
+        "casos_atualizados": _soma("casos_atualizados"),
+        "verbatins_novos": _soma("verbatins_novos"),
+        "falhou_apify": any(st.get("falhou_apify") for st in blocos_stats),
+    }
     with db_session() as s:
         n_casos = (
             s.query(Caso).filter(Caso.fonte_id == fonte.id, Caso.coorte_ano_mes == coorte).count()
         )
-        sucesso = _fetch_coorte_confiavel(s, fonte.id, coorte, stats, hoje)
-        stats.update(coorte=coorte, n_casos=n_casos, sucesso=sucesso)
+        sucesso = _fetch_coorte_confiavel(s, fonte.id, coorte, agg, hoje)
+        agg.update(n_casos=n_casos, sucesso=sucesso)
         if not sucesso:
-            # Run falho/vazio-suspeito → NÃO grava ledger, NÃO roda expirar (ambos
-            # supõem cobertura). O cron re-tenta a coorte no próximo run.
+            # Cobertura NÃO confirmada (bloco falho ou vazio-suspeito) → NÃO grava
+            # ledger E NÃO roda expirar. O cron re-tenta a coorte inteira (casos já
+            # upsertados persistem — idempotente).
             print(
-                f"[reclame_aqui] coorte {coorte} fonte {fonte.id}: coleta NÃO confiável "
-                f"(coletados={stats.get('coletados')} falhou_apify={stats.get('falhou_apify')} "
-                f"n_casos={n_casos}) — ledger NÃO gravado, expirar NÃO rodado"
+                f"[reclame_aqui] coorte {coorte} fonte {fonte.id}: cobertura NÃO confirmada "
+                f"(blocos={agg['blocos']} coletados={agg['coletados']} "
+                f"falhou_apify={agg['falhou_apify']} n_casos={n_casos}) — ledger NÃO gravado"
             )
-            stats.update(abandonados=0, nao_rastreado=0, fechada=False, ledger_gravado=False)
-            return stats
+            agg.update(abandonados=0, nao_rastreado=0, fechada=False, ledger_gravado=False)
+            return agg
         exp = expirar_abandonados(s, fonte.id, agora=agora, coorte_ano_mes=coorte)
         nnt = _n_nao_terminais_coorte(s, fonte.id, coorte)
-        fechada = _idade_meses(coorte, hoje) >= COORTE_IDADE_APOSENTAR and nnt == 0
+        fechada = idade >= COORTE_IDADE_APOSENTAR and nnt == 0
         _upsert_coorte_ledger(s, fonte.id, fonte.empresa_id, coorte, agora, n_casos, fechada)
-    stats.update(
+    agg.update(
         abandonados=exp["abandonados"],
         nao_rastreado=exp["nao_rastreado"],
         fechada=fechada,
         ledger_gravado=True,
     )
-    return stats
+    return agg

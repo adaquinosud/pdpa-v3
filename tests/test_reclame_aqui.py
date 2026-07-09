@@ -633,6 +633,57 @@ def test_coletar_coorte_ledger_e_fechada(db_session, monkeypatch):
     assert row.n_casos == 1 and row.fechada is True and row.ultima_coleta_coorte is not None
 
 
+def test_blocos_iniciais_volume_driven():
+    """Sub-fatiamento (4b.2): volume alto → N blocos cobrindo o mês; baixo/None → 1."""
+    b = ra._blocos_iniciais("2026-07-01", "2026-07-31", 1230)  # ceil(1230/250)=5
+    assert len(b) == 5 and b[0][0] == "2026-07-01" and b[-1][1] == "2026-07-31"
+    assert ra._blocos_iniciais("2026-07-01", "2026-07-31", 28) == [("2026-07-01", "2026-07-31")]
+    assert ra._blocos_iniciais("2026-07-01", "2026-07-31", None) == [("2026-07-01", "2026-07-31")]
+    assert len(ra._blocos_iniciais("2026-07-01", "2026-07-31", 100000)) == ra.MAX_BLOCOS  # teto
+
+
+def test_coletar_coorte_sub_fatia_recursao(db_session, monkeypatch):
+    """Bloco grande 'estoura o deadline' (janela >2 dias → 0 results); a recursão
+    subdivide até ≤2 dias, que trazem dado → coorte COBERTA (ledger gravado)."""
+    from datetime import date as _date
+    from datetime import datetime as _dt
+
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    db_session.add(
+        FonteReputacao(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            provedor="reclame_aqui",
+            raw_json='{"complaints30Days": 1230}',  # volume alto → multi-bloco + recursão
+        )
+    )
+    db_session.commit()
+    cont = {"n": 0}
+
+    def _run(actor, run_input, **k):
+        df = _date.fromisoformat(run_input["dateFrom"])
+        dt = _date.fromisoformat(run_input["dateTo"])
+        if (dt - df).days + 1 > 2:
+            return []  # deadline simulado: janela grande devolve vazio
+        cont["n"] += 1
+        it = _reclamacao(f"B{cont['n']}")
+        it["created"] = df.isoformat() + "T10:00:00"
+        return [it]
+
+    monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _run)
+    item = {"coorte": 202607, "date_from": "2026-07-01", "date_to": "2026-07-20"}
+    st = ra.coletar_coorte(f, item, agora=_dt(2026, 7, 20, 12, 0, 0))
+    assert st["sucesso"] is True and st["ledger_gravado"] is True
+    assert st["coletados"] > 0 and st["blocos"] > 5  # subdividiu além dos 5 iniciais
+    assert (
+        db_session.query(FonteCoorteColeta).filter_by(fonte_id=f.id, coorte_ano_mes=202607).count()
+        == 1
+    )
+
+
 # ── Recoleta / expiry ────────────────────────────────────────────────────────
 
 
