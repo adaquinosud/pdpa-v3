@@ -4058,10 +4058,9 @@ def _explorar_vitrine(s, empresa_id):
     'aguardando 1ª coleta com perfil' se ainda não mapeadas). Bloco B (nossa amostra
     coletada): volume, recência, rating per-review — rotulado 'amostra, não média
     oficial'. Sinal sem dado → 'não medido' (nunca 0)."""
-    from collections import Counter  # noqa: F401  (mantém paridade de imports locais)
+    import json
     from datetime import datetime, timedelta
 
-    from src.models.caso import Caso
     from src.models.fonte import Fonte
     from src.models.fonte_reputacao import FonteReputacao
     from src.models.verbatim import Verbatim
@@ -4075,36 +4074,58 @@ def _explorar_vitrine(s, empresa_id):
         .order_by(FonteReputacao.coletado_em.desc())  # append-history: a MAIS RECENTE
         .first()
     )
-    # Volume coletado (NOSSA amostra): casos RA + reviews com rating de outras fontes.
-    n_casos = s.query(Caso).filter(Caso.empresa_id == empresa_id).count()
+    # Reorganização: NÃO somamos fontes distintas num "Volume". A nota de outras fontes
+    # carrega seu próprio N (avaliações de apoio) + M (nos últimos 90d); a Nota dos
+    # consumidores RA carrega o universo OFICIAL (complaints6Months), não a amostra.
     reviews_rating = (
         s.query(Verbatim.rating, Verbatim.data_criacao_original)
         .join(Fonte, Fonte.id == Verbatim.fonte_id)
         .filter(Verbatim.empresa_id == empresa_id, Verbatim.rating.isnot(None))
         .all()
     )
-    n_reviews = len(reviews_rating)
-    volume = n_casos + n_reviews
-    recentes = sum(
-        1
-        for c in s.query(Caso.criado_em_origem).filter(Caso.empresa_id == empresa_id).all()
-        if c[0] and c[0] >= corte_recencia
-    ) + sum(1 for _r, dt in reviews_rating if dt and dt >= corte_recencia)
     notas = [r for r, _dt in reviews_rating if r is not None]
-    n_notas = len(notas)
-    # N absoluto + limiar: verde sobre amostra mínima é frágil (contradiz reputação RA
-    # baixa). Abaixo de MINIMO_AMOSTRA_RATING → 'não medido', não uma nota "boa".
+    n_notas = len(notas)  # N = avaliações de apoio (outras fontes)
+    notas_recentes = sum(  # M = as de apoio nos últimos 90d
+        1 for r, dt in reviews_rating if r is not None and dt and dt >= corte_recencia
+    )
+    # <5 (amostra_min) → 'não medido' (sem número); 5-19 (< volume_min) → nota FRÁGIL
+    # (mostra o número, mas não vira verde/vermelho); >=20 → verde/vermelho.
     rating_amostra = round(sum(notas) / n_notas, 1) if n_notas >= MINIMO_AMOSTRA_RATING else None
+    rating_fragil = rating_amostra is not None and n_notas < cfg["volume_min"]
+    # Universo OFICIAL de apoio: complaints6Months (janela de 6 MESES — casa com o que
+    # o RA mostra por padrão e com os 180d da casa). NÃO complaintsTotal (all-time, não
+    # confere com a tela do RA) NEM a amostra (~206).
+    ra_universo = None
+    if rep is not None and rep.raw_json:
+        try:
+            ra_universo = json.loads(rep.raw_json).get("complaints6Months")
+        except (ValueError, TypeError):
+            ra_universo = None
 
     def _sinal(
-        chave, label, valor, corte, unidade, origem, obs=None, aguardando=False, n_base=None
+        chave,
+        label,
+        valor,
+        corte,
+        unidade,
+        origem,
+        obs=None,
+        aguardando=False,
+        n_base=None,
+        n_recente=None,
+        universo=None,
+        fragil=False,
     ):
-        """status: verde/vermelho/nao_medido/aguardando; gap só quando há valor+corte.
-        ``n_base`` = N absoluto da amostra (mostrado junto do valor, anti-fragilidade)."""
+        """status: verde/vermelho/nao_medido/aguardando/info/fragil; gap só com
+        valor+corte. ``n_base`` = N de apoio; ``n_recente`` = M nos 90d; ``universo`` =
+        contagem oficial de apoio (ex. complaintsTotal do RA); ``fragil`` = tem nota mas
+        poucas avaliações de apoio (< volume_min) → não vira verde/vermelho."""
         if aguardando:
             status = "aguardando"
         elif valor is None:
             status = "nao_medido"
+        elif fragil:
+            status = "fragil"  # nota medida mas amostra de apoio pequena (<20)
         elif corte is None:
             status = "info"  # sem threshold — informativo (ex.: taxa RA; velocidade é v2)
         else:
@@ -4121,40 +4142,29 @@ def _explorar_vitrine(s, empresa_id):
             "origem": origem,
             "obs": obs,
             "n_base": n_base,
+            "n_recente": n_recente,
+            "universo": universo,
         }
 
-    # Nota RA oficial: consumer_score 0-10 → estrelas (÷2) p/ comparar com 4,5★.
+    # Nota dos consumidores (RA): consumer_score = consumerScore (a nota que outros
+    # consumidores deram), 0-10 → estrelas (÷2) p/ comparar com o corte 4,5★ — que é
+    # média de estrelas de review (BrightLocal), conceitualmente = nota-dos-consumidores,
+    # NÃO o finalScore (reputação composta que embute resposta/resolução).
     nota_ra = round(rep.consumer_score / 2, 1) if (rep and rep.consumer_score is not None) else None
     sinais = [
         _sinal(
             "nota_ra",
-            "Reputação ReclameAqui",
+            "RA · nota dos consumidores",
             nota_ra,
             cfg["nota_corte"],
             "★",
-            "RA oficial (universo · 0-10 → 5★)",
+            "RA oficial · o que outros consumidores deram (0-10 → 5★)",
             aguardando=(nota_ra is None),  # sem perfil OU score ausente = lacuna nossa
-        ),
-        _sinal(
-            "volume",
-            "Volume de avaliações",
-            volume or None,
-            cfg["volume_min"],
-            "",
-            "amostra coletada (não o total real da fonte)",
-        ),
-        _sinal(
-            "recencia",
-            f"Atividade recente ({cfg['recencia_dias']}d)",
-            recentes or None,
-            1,  # basta ≥1 sinal na janela p/ "vitrine viva"
-            "",
-            "amostra coletada",
-            obs=f"avaliações nos últimos {cfg['recencia_dias']} dias",
+            universo=ra_universo,  # complaints6Months (apoio, 6 meses), NÃO a amostra
         ),
         _sinal(
             "rating_amostra",
-            "Nota (outras fontes)",
+            "Outras fontes · nota",
             rating_amostra,
             cfg["nota_corte"],
             "★",
@@ -4165,6 +4175,8 @@ def _explorar_vitrine(s, empresa_id):
                 else "Google/App/Trip/ML por review; sociais sem estrela ficam de fora"
             ),
             n_base=n_notas or None,
+            n_recente=notas_recentes,
+            fragil=rating_fragil,  # 5-19 avaliações → nota frágil (não verde/vermelho)
         ),
         _sinal(
             "resposta_ra",
@@ -4178,7 +4190,7 @@ def _explorar_vitrine(s, empresa_id):
             aguardando=(rep is None or rep.response_rate is None),
         ),
     ]
-    tem_dado = any(sig["status"] in ("verde", "vermelho", "info") for sig in sinais)
+    tem_dado = any(sig["status"] in ("verde", "vermelho", "info", "fragil") for sig in sinais)
     return SimpleNamespace(sinais=sinais, config=cfg, tem_dado=tem_dado)
 
 

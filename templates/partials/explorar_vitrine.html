@@ -18,6 +18,7 @@
   {% set cor = {
     'verde':     {'bg':'bg-emerald-50','bd':'border-emerald-200','tx':'text-emerald-700','sel':'atende'},
     'vermelho':  {'bg':'bg-rose-50','bd':'border-rose-200','tx':'text-rose-700','sel':'abaixo do corte'},
+    'fragil':    {'bg':'bg-amber-50','bd':'border-amber-200','tx':'text-amber-700','sel':'nota frágil'},
     'nao_medido':{'bg':'bg-loyall-50','bd':'border-loyall-200','tx':'text-loyall-400','sel':'não medido'},
     'aguardando':{'bg':'bg-amber-50','bd':'border-amber-200','tx':'text-amber-700','sel':'aguardando 1ª coleta com perfil'},
     'info':      {'bg':'bg-loyall-50','bd':'border-loyall-200','tx':'text-loyall-700','sel':'informativo'}
@@ -27,16 +28,24 @@
     {% set c = cor[sig.status] %}
     <div class="border {{ c.bd }} {{ c.bg }} rounded-lg px-3 py-3 min-w-0">
       <div class="flex items-center justify-between gap-2">
-        <div class="text-xs text-loyall-500 truncate">{{ sig.label }}</div>
+        <div class="text-xs text-loyall-500 truncate" title="{{ sig.label }}">{{ sig.label }}</div>
         <span class="shrink-0 text-[10px] uppercase px-1.5 py-0.5 rounded {{ c.tx }} border {{ c.bd }}">{{ c.sel }}</span>
       </div>
       <div class="mt-1 text-2xl font-bold {{ c.tx }}">
-        {% if sig.status == 'nao_medido' %}—{% elif sig.status == 'aguardando' %}<span class="text-base font-medium">aguardando perfil</span>{% else %}{{ sig.valor }}{{ sig.unidade }}{% if sig.n_base %}<span class="text-xs font-normal text-loyall-400"> · {{ sig.n_base }} reviews</span>{% endif %}{% endif %}
+        {% if sig.status == 'nao_medido' %}—{% elif sig.status == 'aguardando' %}<span class="text-base font-medium">aguardando perfil</span>{% else %}{{ sig.valor }}{{ sig.unidade }}{% endif %}
       </div>
+      {# Apoio, sem SOMAR fontes: universo oficial (Reputação RA) OU N + M-90d (Nota outras fontes) #}
+      {% if sig.universo %}
+      <div class="text-[11px] text-loyall-400 mt-0.5">sobre {{ "{:,}".format(sig.universo).replace(",", ".") }} reclamações · últimos 6 meses</div>
+      {% elif sig.n_base %}
+      <div class="text-[11px] text-loyall-400 mt-0.5">{{ sig.n_base }} avaliações{% if sig.n_recente %}, {{ sig.n_recente }} nos últimos 90d{% endif %}</div>
+      {% endif %}
       {% if sig.status == 'vermelho' and sig.gap %}
       <div class="text-xs text-rose-600 mt-0.5">{{ sig.gap }}{{ sig.unidade }} abaixo do corte de mercado {{ sig.corte }}{{ sig.unidade }}</div>
       {% elif sig.status == 'verde' and sig.corte %}
       <div class="text-xs text-emerald-600 mt-0.5">≥ corte de mercado {{ sig.corte }}{{ sig.unidade }}</div>
+      {% elif sig.status == 'fragil' %}
+      <div class="text-xs text-amber-600 mt-0.5">nota frágil — poucas avaliações (&lt; {{ v.config.volume_min }})</div>
       {% endif %}
       <div class="text-[10px] text-loyall-400 mt-1.5">{{ sig.origem }}</div>
       {% if sig.obs %}<div class="text-[10px] text-loyall-400 mt-0.5 italic">{{ sig.obs }}</div>{% endif %}
