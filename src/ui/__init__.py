@@ -68,6 +68,7 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     import json as _json
 
     from src.coletor.reclame_aqui import (
+        AMOSTRA_CAP_DEFAULT,
         CUSTO_POR_CASO_USD,
         CUSTO_SCORECARD_USD,
         CUSTO_START_USD,
@@ -79,11 +80,12 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     # engoliria o 0). ra_max_casos/ra_janela_meses = dormant.
     coortes = f.ra_coortes_ativas if f.ra_coortes_ativas is not None else 1
     threads_off = coortes <= 0
-    # Custo DOIS-MODOS: (A) scorecard semanal = fixo; (B) threads/mês =
-    # coortes × volume-do-mês (complaints30Days do scorecard) × custo/caso + start.
-    # Sem scorecard ainda → volume desconhecido, sem fallback por cap (era fantasma).
+    # Modo-por-tamanho (Fatia 4d): mega → AMOSTRA recente capada (custo fixo N×0,025);
+    # senão → COORTE (coortes × complaints30Days). complaints30Days = latest (display).
     compl_30d = None
+    eh_mega = False
     if eh_ra:
+        from src.coletor.reclame_aqui import _e_mega
         from src.models.fonte_reputacao import FonteReputacao
 
         with db_session() as _s:
@@ -99,8 +101,16 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
                     compl_30d = _json.loads(_rep.raw_json).get("complaints30Days")
                 except (ValueError, TypeError):
                     compl_30d = None
+            # Display: 'mega' só com scorecard (o coletor usa o default-mega-seguro sem
+            # scorecard, mas na TELA sem dado → 'aguardando', não 'amostra').
+            if compl_30d is not None:
+                eh_mega = _e_mega(_s, f.id)  # média das últimas N leituras > limiar
+    ra_amostra_n = (f.ra_max_casos or AMOSTRA_CAP_DEFAULT) if eh_ra else None
     if threads_off:
         ra_custo_threads_mes = 0.0  # threads desligadas → custo zero
+    elif eh_mega:
+        # Amostra recente: custo FIXO = N × custo/caso + start (independe de coortes).
+        ra_custo_threads_mes = round(ra_amostra_n * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
     elif compl_30d:
         ra_custo_threads_mes = round(coortes * compl_30d * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
     else:
@@ -116,6 +126,8 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         eh_ra=eh_ra,
         ra_coortes_ativas=coortes,
         ra_threads_off=threads_off,  # coortes=0 → "threads desligadas"
+        ra_modo_threads=("amostra" if eh_mega else "coorte"),  # Fatia 4d
+        ra_amostra_n=ra_amostra_n,  # teto da amostra recente (mega)
         ra_custo_scorecard=CUSTO_SCORECARD_USD,
         ra_custo_threads_mes=ra_custo_threads_mes,  # None = aguardando scorecard; 0 = off
         ra_threads_volume_mes=compl_30d,  # complaints30Days (por mês); None = sem scorecard

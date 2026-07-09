@@ -11,15 +11,17 @@
     {% if f.eh_ra %}
     <span class="flex items-center gap-1 text-loyall-500 border-l border-loyall-300 pl-2 whitespace-nowrap"
           data-ra-vol="{{ f.ra_threads_volume_mes if f.ra_threads_volume_mes else '' }}"
-          data-ra-caso="{{ f.ra_custo_por_caso }}">
-      coortes ativas
+          data-ra-caso="{{ f.ra_custo_por_caso }}"
+          data-ra-modo="{{ f.ra_modo_threads }}"
+          data-ra-amostra="{{ '%.2f'|format(f.ra_custo_threads_mes) if f.ra_modo_threads == 'amostra' and f.ra_custo_threads_mes is not none else '' }}">
+      {% if f.ra_modo_threads == 'amostra' %}amostra recente <span class="text-loyall-300">(mega; 0=off)</span>{% else %}coortes ativas{% endif %}
       <input name="ra_coortes_ativas" type="number" min="0" value="{{ f.ra_coortes_ativas }}"
-             oninput="(function(el){var w=el.closest('[data-ra-vol]');var v=parseFloat(w.dataset.raVol);var c=el.value|0;var o=el.closest('form').querySelector('[data-ra-cost]');o.textContent=(c<=0)?'desligadas':(v?('~US$ '+(c*v*parseFloat(w.dataset.raCaso)+0.005).toFixed(2)+'/mês'):'aguardando scorecard');})(this)"
+             oninput="(function(el){var w=el.closest('[data-ra-vol]');var c=el.value|0;var o=el.closest('form').querySelector('[data-ra-cost]');if(c<=0){o.textContent='desligadas';return;}if(w.dataset.raModo=='amostra'){o.textContent=w.dataset.raAmostra?('~US$ '+w.dataset.raAmostra+'/mês (amostra)'):'aguardando scorecard';return;}var v=parseFloat(w.dataset.raVol);o.textContent=v?('~US$ '+(c*v*parseFloat(w.dataset.raCaso)+0.005).toFixed(2)+'/mês'):'aguardando scorecard';})(this)"
              class="w-14 px-1 py-0.5 border border-loyall-300 rounded">
       · scorecard <span class="text-loyall-700 font-medium">US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem</span>
       · threads <span data-ra-cost class="text-loyall-700 font-medium">
-        {%- if f.ra_threads_off %}desligadas{% elif f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% else %}aguardando scorecard{% endif %}</span>
-      <span class="text-[10px] text-loyall-400">(scorecard semanal + threads = coortes × vol/mês × US$0,025; 0 = threads off)</span>
+        {%- if f.ra_threads_off %}desligadas{% elif f.ra_modo_threads == 'amostra' %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês (amostra){% elif f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês{% else %}aguardando scorecard{% endif %}</span>
+      <span class="text-[10px] text-loyall-400">{% if f.ra_modo_threads == 'amostra' %}(mega: amostra recente de {{ f.ra_amostra_n }}, custo fixo; 0 = off){% else %}(coorte: coortes × vol/mês × US$0,025; 0 = off){% endif %}</span>
     </span>
     {% endif %}
     <button type="submit" class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">salvar</button>
