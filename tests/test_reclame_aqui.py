@@ -474,9 +474,20 @@ def test_planejar_coortes_respeita_ledger(db_session):
     from datetime import datetime as _dt
 
     from src.models.fonte_coorte_coleta import FonteCoorteColeta
+    from src.models.fonte_reputacao import FonteReputacao
 
     e, f = _empresa_fonte(db_session)
     f.ra_coortes_ativas = 3
+    # scorecard PEQUENO (≤400) → rota COORTE (senão, sem scorecard, cairia em mega)
+    db_session.add(
+        FonteReputacao(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            provedor="reclame_aqui",
+            coletado_em=_dt(2026, 7, 1),
+            raw_json='{"complaints30Days": 30}',
+        )
+    )
     db_session.commit()
     hoje = _date(2026, 7, 15)
     db_session.add(
@@ -500,11 +511,95 @@ def test_planejar_coortes_respeita_ledger(db_session):
 
 def test_planejar_coortes_zero_desliga_threads(db_session):
     """Fatia 4.5: ra_coortes_ativas=0 → plano VAZIO (threads desligadas). O `or 1`
-    engolia o 0 — agora 0 é 0."""
+    engolia o 0 — agora 0 é 0. (0 vem ANTES do check de mega.)"""
+    from datetime import datetime as _dt
+
+    from src.models.fonte_reputacao import FonteReputacao
+
     e, f = _empresa_fonte(db_session)
     f.ra_coortes_ativas = 0
+    db_session.add(  # mesmo mega, 0 desliga
+        FonteReputacao(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            provedor="reclame_aqui",
+            coletado_em=_dt(2026, 7, 1),
+            raw_json='{"complaints30Days": 1189}',
+        )
+    )
     db_session.commit()
     assert ra.planejar_coortes(db_session, f) == []
+
+
+def test_e_mega_usa_media_suaviza_churn(db_session):
+    """Mega = MÉDIA das últimas N leituras > 400 (não a pontual) — suaviza churn.
+    Sem scorecard → mega (default seguro)."""
+    from datetime import datetime as _dt
+
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    assert ra._e_mega(db_session, f.id) is True  # sem scorecard → amostra (seguro)
+
+    def _add(v, dia):
+        db_session.add(
+            FonteReputacao(
+                fonte_id=f.id,
+                empresa_id=e.id,
+                provedor="reclame_aqui",
+                coletado_em=_dt(2026, 7, dia),
+                raw_json=f'{{"complaints30Days": {v}}}',
+            )
+        )
+
+    for i, v in enumerate([4, 6, 8]):
+        _add(v, i + 1)
+    db_session.commit()
+    assert ra._e_mega(db_session, f.id) is False  # média 6 → coorte
+    _add(1200, 10)  # pico PONTUAL
+    db_session.commit()
+    # média das últimas 4 = (1200+8+6+4)/4 = 304.5 ≤ 400 → SUAVIZADO, segue coorte
+    assert ra._e_mega(db_session, f.id) is False
+
+
+def test_planejar_coortes_mega_vira_amostra(db_session):
+    from datetime import datetime as _dt
+
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    for i in range(2):  # 2 leituras grandes → média > 400 → mega
+        db_session.add(
+            FonteReputacao(
+                fonte_id=f.id,
+                empresa_id=e.id,
+                provedor="reclame_aqui",
+                coletado_em=_dt(2026, 7, 1 + i),
+                raw_json='{"complaints30Days": 1189}',
+            )
+        )
+    db_session.commit()
+    plano = ra.planejar_coortes(db_session, f)
+    assert plano == [{"acao": "amostra", "cap": ra.AMOSTRA_CAP_DEFAULT}]  # sem override → 250
+
+
+def test_coletar_amostra(db_session, monkeypatch):
+    """Rota amostra: LATEST + cap (SEM dateTo), sem ledger, expirar fonte-wide."""
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+
+    e, f = _empresa_fonte(db_session)
+    cap_in = _capturar_input(monkeypatch, [_reclamacao("AM1")])
+    st = ra.coletar_amostra(f)
+    assert cap_in["maxComplaintsPerCompany"] == ra.AMOSTRA_CAP_DEFAULT  # 250
+    assert "dateTo" not in cap_in  # sem janela fechada (amostra deslizante)
+    assert st["modo"] == "amostra" and st["amostra_cap"] == 250 and st["casos_novos"] == 1
+    assert db_session.query(FonteCoorteColeta).filter_by(fonte_id=f.id).count() == 0  # sem ledger
+    # ra_max_casos sobrepõe o default (force → ignora a cadência semanal no teste)
+    f.ra_max_casos = 100
+    db_session.commit()
+    cap2 = _capturar_input(monkeypatch, [_reclamacao("AM2")])
+    ra.coletar_amostra(f, force=True)
+    assert cap2["maxComplaintsPerCompany"] == 100
 
 
 def test_fontes_scorecard_elegiveis_independe_do_noturno(db_session):

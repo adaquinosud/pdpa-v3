@@ -362,6 +362,7 @@ def coletar_threads(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     expirar: bool = True,
+    cap: Optional[int] = None,
 ) -> Dict[str, Any]:
     """MODO B — só as threads (casos/verbatim/maturação), sem o scorecard.
 
@@ -405,9 +406,10 @@ def coletar_threads(
                 return stats
 
     janela_meses = fonte.ra_janela_meses or CORTE_MESES  # dormant (só sliding-compat)
-    # ra_max_casos é DORMANT: teto-de-segurança default ILIMITADO (0). No modo coorte o
-    # volume do mês manda — cap não deve truncar (era o controle fantasma da Fatia 3.5).
-    cap = fonte.ra_max_casos or 0
+    # ``cap`` explícito (rota AMOSTRA: LATEST + cap, o cap LIMITA o crawl) tem
+    # precedência. Sem cap: ra_max_casos DORMANT default ILIMITADO (0) — no modo coorte
+    # o volume do mês manda, o cap não deve truncar (fantasma da Fatia 3.5).
+    cap = cap if cap is not None else (fonte.ra_max_casos or 0)
     # date_from explícito (coorte) tem precedência; senão a janela deslizante vigente.
     corte = date.fromisoformat(date_from) if date_from else _data_corte(janela_meses)
     run_input = {
@@ -547,6 +549,49 @@ PISO_BLOCO_DIAS = 1  # granularidade mínima do actor (dateFrom/dateTo é por di
 # (1 dia) mas gera ~2×N runs se tudo falha em cadeia — este teto corta a cascata
 # (custo + martelo no RA). Estourou → coorte NÃO coberta, loga, não re-dispara.
 MAX_RUNS_POR_COORTE = 15
+# Modo-por-tamanho (Fatia 4d): mega-empresa não cabe no deadline (o actor crawleia o
+# histórico inteiro antes de filtrar por data — 1 dia da Localiza = 11m39s). Rota
+# AMOSTRA: LATEST + cap (o cap LIMITA o crawl — 250 em 19s), sem data, sem coorte.
+LIMIAR_MEGA_COMPLAINTS30D = 400  # média > isto → mega (Club Med ~5 coorte; Localiza ~1189 amostra)
+AMOSTRA_CAP_DEFAULT = 250  # teto da amostra recente (ra_max_casos sobrepõe)
+N_LEITURAS_MEGA = 4  # média das últimas N leituras de scorecard (suaviza churn no limiar)
+
+
+def _complaints30days_media(session, fonte_id: int, n: int = N_LEITURAS_MEGA):
+    """Média de ``complaints30Days`` sobre as últimas ``n`` leituras de scorecard
+    (append-history 4a) — suaviza churn de fonte oscilando no limiar (decisão: média,
+    não leitura pontual). ``None`` se nenhuma leitura tem o campo."""
+    import json as _json
+
+    from src.models.fonte_reputacao import FonteReputacao
+
+    rows = (
+        session.query(FonteReputacao.raw_json)
+        .filter_by(fonte_id=fonte_id)
+        .order_by(FonteReputacao.coletado_em.desc())
+        .limit(n)
+        .all()
+    )
+    vals = []
+    for (raw,) in rows:
+        if not raw:
+            continue
+        try:
+            v = _json.loads(raw).get("complaints30Days")
+        except (ValueError, TypeError):
+            v = None
+        if v is not None:
+            vals.append(v)
+    return sum(vals) / len(vals) if vals else None
+
+
+def _e_mega(session, fonte_id: int) -> bool:
+    """Fonte 'mega' → rota amostra-capada (o crawl não cabe no deadline; janela por
+    data é inútil). Sinal = média de complaints30Days > LIMIAR_MEGA_COMPLAINTS30D. SEM
+    scorecard ainda → True (default SEGURO: capado é sempre rápido, não arrisca
+    deadline numa fonte de tamanho desconhecido)."""
+    media = _complaints30days_media(session, fonte_id)
+    return True if media is None else media > LIMIAR_MEGA_COMPLAINTS30D
 
 
 def _blocos_iniciais(df_mes: str, dt_mes: str, volume) -> list:
@@ -673,6 +718,11 @@ def planejar_coortes(session, fonte, *, hoje: Optional[date] = None) -> list:
     n = fonte.ra_coortes_ativas if fonte.ra_coortes_ativas is not None else 1
     if n <= 0:
         return []
+    # MEGA (Fatia 4d): o crawl não cabe no deadline → rota AMOSTRA (LATEST+cap, sem
+    # data, sem coorte). ra_coortes_ativas vira on/off (n>0 = amostra on). O número de
+    # coortes não se aplica à amostra (é 1 sample deslizante).
+    if _e_mega(session, fonte.id):
+        return [{"acao": "amostra", "cap": fonte.ra_max_casos or AMOSTRA_CAP_DEFAULT}]
     ledger = {
         r.coorte_ano_mes: r
         for r in session.query(FonteCoorteColeta).filter_by(fonte_id=fonte.id).all()
@@ -810,3 +860,17 @@ def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str
         ledger_gravado=True,
     )
     return agg
+
+
+def coletar_amostra(fonte, *, force: bool = False) -> Dict[str, Any]:
+    """Rota MEGA (Fatia 4d): amostra recente DESLIZANTE (LATEST + cap, SEM data, SEM
+    coorte/ledger). O cap LIMITA o crawl (~19s p/ 250) — a janela por data seria inútil
+    (o actor varre o histórico inteiro antes de filtrar). Reusa ``coletar_threads`` com
+    ``cap`` explícito e ``expirar=True`` FONTE-WIDE → o Front 2 protege o falso-abandono
+    (caso que sai dos N → nao_rastreado; ainda nos N + thread parada 90d → abandonado).
+    Qualitativa (ORIGEM/temas/verbatims), não histórico completo."""
+    cap = fonte.ra_max_casos or AMOSTRA_CAP_DEFAULT
+    stats = coletar_threads(fonte, force=force, cap=cap, expirar=True)
+    stats["modo"] = "amostra"
+    stats["amostra_cap"] = cap
+    return stats

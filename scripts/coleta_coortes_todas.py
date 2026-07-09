@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 from src.coletor.reclame_aqui import (  # noqa: E402
     CUSTO_POR_CASO_USD,
     CUSTO_START_USD,
+    coletar_amostra,
     coletar_coorte,
     planejar_coortes,
 )
@@ -86,6 +87,25 @@ def main(dry_run: bool) -> None:
             s.expunge(fonte)
             plano = planejar_coortes(s, fonte)
             vol = _volume_mes(s, fonte_id)
+
+        # ── Rota AMOSTRA (mega): 1 run capado, sem coorte ──
+        if plano and plano[0]["acao"] == "amostra":
+            cap = plano[0]["cap"]
+            custo_fonte = cap * CUSTO_POR_CASO_USD + CUSTO_START_USD
+            custo_total += custo_fonte
+            print(
+                f"[coortes] fonte {fonte_id}: AMOSTRA recente cap={cap} (mega, "
+                f"vol/mês={vol}) ~US${custo_fonte:.2f}"
+            )
+            if not dry_run:
+                st = coletar_amostra(fonte)
+                print(
+                    f"        → novos={st['casos_novos']} atual={st['casos_atualizados']} "
+                    f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']}"
+                )
+            continue
+
+        # ── Rota COORTE (pequena/média) ──
         a_coletar = [p for p in plano if p["acao"] == "coletar"]
         custo_fonte = sum(_custo_coorte(vol) for _ in a_coletar)
         custo_total += custo_fonte
