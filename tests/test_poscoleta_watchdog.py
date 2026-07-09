@@ -190,3 +190,100 @@ def test_gate_nao_pula_com_desfecho_pendente(db_session, monkeypatch):
     )
     with pytest.raises(_Sentinel):
         pc.executar_pos_coleta(e.id, limiar=5, force=False)
+
+
+# ── regressão do self-deadlock: watchdog SEM wrap externo classifica subpilar ──
+#
+# O wrap externo `with _lock_empresa(eid)` no watchdog fazia a reaquisição interna
+# do MESMO advisory lock (dentro de _classificar_pendentes_batch, sessão diferente)
+# retornar False → o batch-classify pulava e subpilar ficava NULL (só no caminho
+# batch; em SQLite o lock real é no-op, por isso a suíte não pegava). O stub abaixo
+# emula a semântica sessão-escopada do Postgres p/ tornar a regressão observável.
+
+from contextlib import contextmanager  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+_USAGE_B = SimpleNamespace(
+    input_tokens=10, output_tokens=5, cache_creation_input_tokens=0, cache_read_input_tokens=0
+)
+
+
+def _entry_b(vid):
+    text = '{"subpilar":"D2","tipo":"detrator","confianca":0.9,"justificativa_curta":"ok"}'
+    msg = SimpleNamespace(content=[SimpleNamespace(text=text)], usage=_USAGE_B)
+    return SimpleNamespace(
+        custom_id=str(vid), result=SimpleNamespace(type="succeeded", message=msg)
+    )
+
+
+class _FakeBatchesB:
+    def __init__(self, entries):
+        self.entries = entries
+        self.created = []
+
+    def create(self, requests):
+        self.created.append(requests)
+        return SimpleNamespace(id=f"batch_{len(self.created)}")
+
+    def retrieve(self, bid):
+        return SimpleNamespace(processing_status="ended")
+
+    def results(self, bid):
+        return iter(self.entries.get(bid, []))
+
+
+def _client_b(fb):
+    return SimpleNamespace(messages=SimpleNamespace(batches=fb))
+
+
+def _lock_reentrante():
+    """Stub de _lock_empresa com a semântica sessão-escopada do Postgres: reaquisição
+    da MESMA chave enquanto ainda retida → False (é o que o wrap externo do watchdog
+    fazia ao batch-classify interno)."""
+    held: set[int] = set()
+
+    @contextmanager
+    def _cm(empresa_id):
+        key = int(empresa_id)
+        if key in held:
+            yield False
+            return
+        held.add(key)
+        try:
+            yield True
+        finally:
+            held.discard(key)
+
+    return _cm
+
+
+def test_watchdog_sem_lock_externo_classifica_subpilar(client_loyall, db_session, monkeypatch):
+    """Com o wrap externo REMOVIDO, o watchdog classifica subpilar no caminho batch.
+
+    Guarda a regressão: se alguém re-adicionar o `with _lock_empresa(eid)` no
+    watchdog, o stub reentrante faz o batch-classify interno pegar False → subpilar
+    fica NULL → este teste falha.
+    """
+    monkeypatch.setenv("ANTHROPIC_BATCH_ENABLED", "true")
+    e = _empresa(db_session, "nolock")
+    f = _fonte(db_session, e)
+    # Caso desfecho NULL → trip do gate (deve_reprocessar) …
+    db_session.add(Caso(empresa_id=e.id, fonte_id=f.id, origem_id="NL1", desfecho=None))
+    # … e o verbatim de valência subpilar NULL que queremos ver classificado.
+    v = _verb(db_session, e, f, subpilar=None, hd="nl-1")
+    db_session.commit()
+
+    monkeypatch.setattr("src.temas.pos_coleta._lock_empresa", _lock_reentrante())
+    fb = _FakeBatchesB({"batch_1": [_entry_b(v.id)]})
+    monkeypatch.setattr("src.classifier.classifier_v3._get_client", lambda: _client_b(fb))
+    # executar_pos_coleta REAL rodaria o pipeline inteiro; isolamos o passo que
+    # deadlockava — delega à classificação real.
+    from src.temas.pos_coleta import classificar_pendentes as _real_cp
+
+    monkeypatch.setattr("src.temas.pos_coleta.executar_pos_coleta", lambda eid, **k: _real_cp(eid))
+
+    wd.pos_coleta_watchdog(empresa_ids=[e.id])
+
+    db_session.expire_all()
+    assert db_session.get(Verbatim, v.id).subpilar == "D2"  # classificado no mesmo run
+    assert len(fb.created) == 1

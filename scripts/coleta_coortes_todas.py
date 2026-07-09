@@ -87,12 +87,17 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
         modo += f" [--force em {alvo}: ignora cadência/idempotência]"
     print(f"[coortes] {modo} — {len(fontes)} fonte(s) RA elegível(is)")
     custo_total = 0.0
+    # Empresas que coletaram ALGO neste run (novos/atualizados > 0) → recebem
+    # pós-coleta ao fim. Skip/0 não entram. Set → dedup (N fontes da mesma empresa
+    # = 1 digestão company-wide).
+    empresas_coletadas: set[int] = set()
     for fonte_id in fontes:
         with db_session() as s:
             fonte_obj = s.get(Fonte, fonte_id)
             if fonte_obj is None:
                 continue
             s.expunge(fonte_obj)
+            empresa_id = fonte_obj.empresa_id
             plano = planejar_coortes(s, fonte_obj, force=force)
             vol = _volume_mes(s, fonte_id)
 
@@ -111,6 +116,8 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
                     f"        → novos={st['casos_novos']} atual={st['casos_atualizados']} "
                     f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']}"
                 )
+                if st["casos_novos"] + st["casos_atualizados"] > 0:
+                    empresas_coletadas.add(empresa_id)
             continue
 
         # ── Rota COORTE (pequena/média) ──
@@ -136,6 +143,30 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
                         f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']} "
                         f"fechada={st['fechada']}"
                     )
+                    if st["casos_novos"] + st["casos_atualizados"] > 0:
+                        empresas_coletadas.add(empresa_id)
+
+    # ── Acoplamento pós-coleta: digere o que foi coletado (subpilar → temas →
+    # ratios → ORIGEM). A coleta grava casos + verbatim de valência com subpilar
+    # NULL; sem isto ficam invisíveis nas leituras até o watchdog de 6h. Replica o
+    # padrão do noturno/on-demand: executar_pos_coleta SEM wrap de _lock_empresa (o
+    # batch-classify tem lock advisory interno próprio). force=True só ignora o gate
+    # do limiar — classificar_pendentes segue pegando SÓ subpilar IS NULL. ──
+    if not dry_run and empresas_coletadas:
+        from src.temas.pos_coleta import executar_pos_coleta
+
+        print(f"[coortes] pós-coleta: digerindo {len(empresas_coletadas)} empresa(s)")
+        for eid in sorted(empresas_coletadas):
+            try:
+                r = executar_pos_coleta(eid, force=True)
+            except Exception as exc:  # falha de 1 empresa não aborta as demais
+                print(f"[coortes]   empresa {eid}: pós-coleta FALHOU: {type(exc).__name__}: {exc}")
+                continue
+            print(
+                f"[coortes]   empresa {eid}: classificados={r.classificados} "
+                f"(falhas={r.classif_falhas}) ~US${r.custo_estimado_usd}"
+            )
+
     print(f"[coortes] fim — custo estimado do run: ~US${custo_total:.2f}")
 
 

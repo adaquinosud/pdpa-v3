@@ -426,3 +426,45 @@ def test_guard_reata_batch_status_timeout(client_loyall, db_session, monkeypatch
     assert len(fb.created) == 0
     db_session.expire_all()
     assert db_session.get(Verbatim, v.id).subpilar == "D2"  # batch 'timeout' foi reatado
+
+
+def test_concorrencia_coleta_e_watchdog_nao_duplo_submit(client_loyall, db_session, monkeypatch):
+    """coleta e watchdog concorrentes: enquanto uma execução SEGURA o lock advisory
+    interno, a outra (batch-classify) vê ocupado e NÃO submete um 2º batch pros
+    mesmos verbatins. O lock interno é a serialização real — preservada mesmo com o
+    wrap externo do watchdog removido. Stub reentrante emula a semântica do PG (em
+    SQLite o lock é no-op)."""
+    from contextlib import contextmanager
+
+    monkeypatch.setenv("ANTHROPIC_BATCH_ENABLED", "true")
+    e, loc, f = _ctx(client_loyall, "conc")
+    v = _verb(db_session, e["id"], f["id"], loc["id"], "texto")
+    fb = FakeBatches()
+    monkeypatch.setattr("src.classifier.classifier_v3._get_client", lambda: _client(fb))
+
+    held: set[int] = set()
+
+    @contextmanager
+    def _lock_reentrante(empresa_id):
+        key = int(empresa_id)
+        if key in held:
+            yield False
+            return
+        held.add(key)
+        try:
+            yield True
+        finally:
+            held.discard(key)
+
+    monkeypatch.setattr("src.temas.pos_coleta._lock_empresa", _lock_reentrante)
+
+    # A "coleta" segura o lock; DENTRO dela a "watchdog" roda o batch-classify →
+    # vê ocupado → não submete o 2º batch.
+    with _lock_reentrante(e["id"]) as got:
+        assert got is True
+        stats = classificar_pendentes(e["id"])
+
+    assert stats == {"classificados": 0, "falhas": 0}
+    assert len(fb.created) == 0  # 2º submit barrado pelo lock interno
+    db_session.expire_all()
+    assert db_session.get(Verbatim, v.id).subpilar is None

@@ -807,8 +807,9 @@ def _register_cli_commands(app: Flask) -> None:
     def pos_coleta_watchdog_cmd(cooldown_horas):
         """Varre as empresas e RETOMA o pós-coleta das que ficaram com estado
         parcial (subpilar/desfecho/embeddings/temas pendentes) — a rede de segurança
-        contra a daemon-thread morta por redeploy. Lock por-empresa + cooldown.
-        Roda no cron (sobrevive a redeploy). Idempotente: empresa limpa = no-op.
+        contra a daemon-thread morta por redeploy. Cooldown anti-thrash (sem lock
+        externo — o batch-classify serializa internamente). Roda no cron (sobrevive a
+        redeploy). Idempotente: empresa limpa = no-op.
         """
         from src.temas.watchdog import COOLDOWN_HORAS, pos_coleta_watchdog
 
@@ -818,8 +819,7 @@ def _register_cli_commands(app: Flask) -> None:
         click.echo(
             f"[watchdog] varridas={s['varridas']} retomadas={s['retomadas']} "
             f"cache_alinhado={s['cache_alinhado']} interrompidas={s['interrompidas']} "
-            f"limpas={s['limpas']} puladas(cooldown={s['puladas_cooldown']} "
-            f"lock={s['puladas_lock']})"
+            f"limpas={s['limpas']} puladas_cooldown={s['puladas_cooldown']}"
         )
 
     # ── CP distribuicao-simbolos: flask simbolos-redistribuir ($0, sem LLM) ──

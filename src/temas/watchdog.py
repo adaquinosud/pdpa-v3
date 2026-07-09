@@ -10,10 +10,13 @@ desfecho e da sonda meia-boca). Este módulo fecha o buraco SEM infra nova:
   ``desfecho_null >= 1`` (exceção — dor aguda) OU volume de pendências
   (subpilar + embeddings) ``>= THRESHOLD``.
 - ``pos_coleta_watchdog`` — varre TODAS as empresas (não só as da noturna), com
-  lock por-empresa (anti-concorrência) + cooldown (não re-roda a mesma empresa
-  dentro da janela). Roda no cron (container que sobrevive a redeploy) → self-heal
-  automático. Marca ``pos_coleta_status`` (rodando/completo/interrompido) p/ o
-  banner admin — interrupção nunca mais silenciosa.
+  cooldown (não re-roda a mesma empresa dentro da janela). Roda no cron (container
+  que sobrevive a redeploy) → self-heal automático. Marca ``pos_coleta_status``
+  (rodando/completo/interrompido) p/ o banner admin — interrupção nunca mais
+  silenciosa. NÃO embrulha ``executar_pos_coleta`` em ``_lock_empresa``: o
+  batch-classify tem lock advisory interno próprio, e o wrap externo (mesma chave,
+  sessão diferente) fazia a reaquisição interna falhar → subpilar ficava NULL no
+  caminho batch (self-deadlock). Anti-concorrência real = lock interno + cooldown.
 """
 
 from __future__ import annotations
@@ -123,7 +126,7 @@ def pos_coleta_watchdog(
     """
     from src.models.empresa import Empresa
     from src.temas.limpeza import _regenerar_cache_por_vinculos
-    from src.temas.pos_coleta import _lock_empresa, _marcar_pos_coleta_status, executar_pos_coleta
+    from src.temas.pos_coleta import _marcar_pos_coleta_status, executar_pos_coleta
     from src.utils.db import db_session
 
     agora = agora or datetime.utcnow()
@@ -134,7 +137,6 @@ def pos_coleta_watchdog(
         "cache_alinhado": 0,
         "limpas": 0,
         "puladas_cooldown": 0,
-        "puladas_lock": 0,
         "interrompidas": 0,
     }
 
@@ -164,17 +166,21 @@ def pos_coleta_watchdog(
             stats["puladas_cooldown"] += 1
             continue
 
-        with _lock_empresa(eid) as adquiriu:
-            if not adquiriu:
-                stats["puladas_lock"] += 1
-                continue
-            _marcar_pos_coleta_status(eid, "rodando", pend, agora=agora)
-            if deve_reprocessar(pend):
-                executar_pos_coleta(eid, limiar=1, force=True)
-                stats["retomadas"] += 1
-            else:  # só cache defasado → alinhamento leve, sem LLM
-                _regenerar_cache_por_vinculos(eid)
-                stats["cache_alinhado"] += 1
-            _marcar_pos_coleta_status(eid, "completo", pendencias_pos_coleta(eid), agora=agora)
+        # SEM wrap externo de _lock_empresa: executar_pos_coleta → classificar_pendentes
+        # → _classificar_pendentes_batch já pega o MESMO advisory lock (namespace+eid)
+        # numa sessão própria. O advisory lock do Postgres é por-sessão, então um wrap
+        # externo aqui fazia a reaquisição interna retornar False → o batch-classify
+        # pulava e subpilar ficava NULL (self-deadlock que só o caminho batch sofre; em
+        # SQLite o lock é no-op, por isso não aparecia na suíte). A serialização real
+        # continua garantida pelo lock interno (anti-duplo-submit) + o cooldown 6h acima
+        # (anti watchdog-vs-watchdog). O downstream é idempotente/skip-por-hash.
+        _marcar_pos_coleta_status(eid, "rodando", pend, agora=agora)
+        if deve_reprocessar(pend):
+            executar_pos_coleta(eid, limiar=1, force=True)
+            stats["retomadas"] += 1
+        else:  # só cache defasado → alinhamento leve, sem LLM
+            _regenerar_cache_por_vinculos(eid)
+            stats["cache_alinhado"] += 1
+        _marcar_pos_coleta_status(eid, "completo", pendencias_pos_coleta(eid), agora=agora)
 
     return stats
