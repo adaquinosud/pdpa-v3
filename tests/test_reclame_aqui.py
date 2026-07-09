@@ -672,6 +672,48 @@ def test_fontes_ra_elegiveis_gate_por_coortes(db_session):
     assert f.id not in fontes_ra_elegiveis()  # 0 = fora do plano
 
 
+def test_coleta_coortes_fonte_escopa_o_run(db_session, capsys):
+    """--fonte restringe o run (e o --force) a UMA fonte — as outras nem são tocadas."""
+    from datetime import datetime as _dt
+
+    from scripts.coleta_coortes_todas import main
+    from src.models.fonte_reputacao import FonteReputacao
+
+    def _fonte(nome):
+        emp = Empresa(nome=nome)
+        db_session.add(emp)
+        db_session.flush()
+        fx = Fonte(
+            empresa_id=emp.id,
+            entidade_tipo="empresa",
+            entidade_id=emp.id,
+            conector_tipo="reclame_aqui",
+            url="https://www.reclameaqui.com.br/x/",
+            autenticacao_tipo="publica",
+            status="ativa",
+            ra_coortes_ativas=1,
+        )
+        db_session.add(fx)
+        db_session.flush()
+        db_session.add(
+            FonteReputacao(
+                fonte_id=fx.id,
+                empresa_id=emp.id,
+                provedor="reclame_aqui",
+                coletado_em=_dt(2026, 7, 1),
+                raw_json='{"complaints30Days": 30}',
+            )
+        )
+        return fx
+
+    f1 = _fonte(f"ESC1-{id(db_session)}")
+    f2 = _fonte(f"ESC2-{id(db_session)}")
+    db_session.commit()
+    main(dry_run=True, force=True, fonte=f1.id)
+    out = capsys.readouterr().out
+    assert f"fonte {f1.id}:" in out and f"fonte {f2.id}:" not in out  # só a 1ª
+
+
 def test_coletar_coorte_expirar_escopado_nao_atinge_outra(db_session, monkeypatch):
     """CERNE Front 2 × Fatia 4: coletar a coorte 202607 NÃO marca casos de 202606
     (não buscados nesse run) como nao_rastreado — expirar é escopado à coorte."""

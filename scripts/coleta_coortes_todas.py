@@ -74,20 +74,26 @@ def _custo_coorte(volume) -> float:
     return (volume or 0) * CUSTO_POR_CASO_USD + CUSTO_START_USD
 
 
-def main(dry_run: bool, force: bool = False) -> None:
+def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
     fontes = fontes_ra_elegiveis()
+    if fonte is not None:  # ESCOPA o run (e o --force) a UMA fonte
+        fontes = [fid for fid in fontes if fid == fonte]
+        if not fontes:
+            print(f"[coortes] fonte {fonte} não é elegível (não-RA, inativa, ou coortes=0)")
+            return
     modo = "DRY-RUN (não coleta)" if dry_run else "REAL (PAGO)"
     if force:
-        modo += " [--force: ignora cadência/idempotência]"
+        alvo = f"fonte {fonte}" if fonte is not None else "TODAS as elegíveis"
+        modo += f" [--force em {alvo}: ignora cadência/idempotência]"
     print(f"[coortes] {modo} — {len(fontes)} fonte(s) RA elegível(is)")
     custo_total = 0.0
     for fonte_id in fontes:
         with db_session() as s:
-            fonte = s.get(Fonte, fonte_id)
-            if fonte is None:
+            fonte_obj = s.get(Fonte, fonte_id)
+            if fonte_obj is None:
                 continue
-            s.expunge(fonte)
-            plano = planejar_coortes(s, fonte, force=force)
+            s.expunge(fonte_obj)
+            plano = planejar_coortes(s, fonte_obj, force=force)
             vol = _volume_mes(s, fonte_id)
 
         # ── Rota AMOSTRA (mega): 1 run capado, sem coorte ──
@@ -100,7 +106,7 @@ def main(dry_run: bool, force: bool = False) -> None:
                 f"vol/mês={vol}) ~US${custo_fonte:.2f}"
             )
             if not dry_run:
-                st = coletar_amostra(fonte, force=force)
+                st = coletar_amostra(fonte_obj, force=force)
                 print(
                     f"        → novos={st['casos_novos']} atual={st['casos_atualizados']} "
                     f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']}"
@@ -124,7 +130,7 @@ def main(dry_run: bool, force: bool = False) -> None:
                     f"idade={p['idade_meses']}m nnt={p['n_nao_terminais']}"
                 )
                 if not dry_run:
-                    st = coletar_coorte(fonte, p)
+                    st = coletar_coorte(fonte_obj, p)
                     print(
                         f"        → novos={st['casos_novos']} atual={st['casos_atualizados']} "
                         f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']} "
@@ -140,7 +146,14 @@ if __name__ == "__main__":
         "--force",
         action="store_true",
         help="disparo manual 1×: ignora cadência (amostra) + idempotência-do-mês "
-        "(coorte). O cron NÃO usa — o gate protege o automático.",
+        "(coorte). O cron NÃO usa — o gate protege o automático. ESCOPE com --fonte.",
+    )
+    ap.add_argument(
+        "--fonte",
+        type=int,
+        default=None,
+        help="restringe o run (e o --force) a UMA fonte_id — as outras nem são "
+        "tocadas. Sem isto, --force vale pra TODAS as elegíveis (largo demais).",
     )
     args = ap.parse_args()
-    main(dry_run=args.dry_run, force=args.force)
+    main(dry_run=args.dry_run, force=args.force, fonte=args.fonte)
