@@ -674,14 +674,49 @@ def test_coletar_coorte_sub_fatia_recursao(db_session, monkeypatch):
         return [it]
 
     monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _run)
-    item = {"coorte": 202607, "date_from": "2026-07-01", "date_to": "2026-07-20"}
+    # janela curta (8 dias) → 2 blocos iniciais → folga no orçamento (bem < 15)
+    item = {"coorte": 202607, "date_from": "2026-07-01", "date_to": "2026-07-08"}
     st = ra.coletar_coorte(f, item, agora=_dt(2026, 7, 20, 12, 0, 0))
     assert st["sucesso"] is True and st["ledger_gravado"] is True
-    assert st["coletados"] > 0 and st["blocos"] > 5  # subdividiu além dos 5 iniciais
+    assert st["coletados"] > 0 and st["blocos"] > 2  # subdividiu além dos 2 iniciais
+    assert st["orcamento_estourado"] is False
     assert (
         db_session.query(FonteCoorteColeta).filter_by(fonte_id=f.id, coorte_ano_mes=202607).count()
         == 1
     )
+
+
+def test_coletar_coorte_circuit_breaker(db_session, monkeypatch):
+    """CIRCUIT BREAKER: se todo bloco falha (deadline em cadeia), a recursão NÃO vira
+    cascata — corta em MAX_RUNS_POR_COORTE, coorte NÃO coberta, ledger NÃO gravado."""
+    from datetime import datetime as _dt
+
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    db_session.add(
+        FonteReputacao(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            provedor="reclame_aqui",
+            raw_json='{"complaints30Days": 3000}',  # volume alto → muitos blocos
+        )
+    )
+    db_session.commit()
+    runs = {"n": 0}
+
+    def _run(actor, run_input, **k):
+        runs["n"] += 1
+        raise ra.ApifyError("deadline simulado — falha SEMPRE")
+
+    monkeypatch.setattr("src.coletor.reclame_aqui.run_and_collect", _run)
+    item = {"coorte": 202607, "date_from": "2026-07-01", "date_to": "2026-07-31"}
+    st = ra.coletar_coorte(f, item, agora=_dt(2026, 7, 20, 12, 0, 0))
+    assert st["orcamento_estourado"] is True and st["sucesso"] is False
+    assert st["ledger_gravado"] is False
+    assert runs["n"] <= ra.MAX_RUNS_POR_COORTE  # cascata CORTADA no teto
+    assert db_session.query(FonteCoorteColeta).filter_by(fonte_id=f.id).count() == 0
 
 
 # ── Recoleta / expiry ────────────────────────────────────────────────────────

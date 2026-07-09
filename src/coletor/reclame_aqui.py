@@ -543,6 +543,10 @@ COORTE_IDADE_APOSENTAR = 2  # piso: só aposenta coorte com idade ≥ 2 meses
 MAX_THREADS_POR_BLOCO = 250
 MAX_BLOCOS = 10
 PISO_BLOCO_DIAS = 1  # granularidade mínima do actor (dateFrom/dateTo é por dia)
+# Circuit breaker: teto de runs do actor por coorte/execução. A recursão tem piso
+# (1 dia) mas gera ~2×N runs se tudo falha em cadeia — este teto corta a cascata
+# (custo + martelo no RA). Estourou → coorte NÃO coberta, loga, não re-dispara.
+MAX_RUNS_POR_COORTE = 15
 
 
 def _blocos_iniciais(df_mes: str, dt_mes: str, volume) -> list:
@@ -565,12 +569,21 @@ def _blocos_iniciais(df_mes: str, dt_mes: str, volume) -> list:
     return blocos
 
 
-def _coletar_bloco(fonte, df: str, dt: str, *, volume, dias_mes: int, idade: int) -> list:
+def _coletar_bloco(
+    fonte, df: str, dt: str, *, volume, dias_mes: int, idade: int, orcamento
+) -> list:
     """Coleta UM bloco de data (run próprio) + RECURSÃO: se o bloco vier 0/falho num
     range que ESPERAVA volume (proporcional, só p/ mês recente), subdivide em 2 e
     recorre — rede pro pior caso (pico concentrado numa semana de crise). Piso =
     PISO_BLOCO_DIAS (1 dia, granularidade do actor): aí aceita a resposta do actor.
+
+    CIRCUIT BREAKER: ``orcamento`` = ``{"restante": N}`` (runs do actor permitidos na
+    coorte). Zerou → NÃO dispara mais run, devolve marcador ``orcamento_estourado`` e
+    para de recorrer (rede contra cascata de runs quando o actor falha em cadeia).
     Devolve a lista de stats dos sub-blocos folha."""
+    if orcamento["restante"] <= 0:
+        return [{"orcamento_estourado": True, "coletados": 0, "bloco": (df, dt)}]
+    orcamento["restante"] -= 1
     d0, d1 = date.fromisoformat(df), date.fromisoformat(dt)
     dias = (d1 - d0).days + 1
     esperado = (volume * dias / dias_mes) if (idade <= 1 and volume) else 0
@@ -580,7 +593,7 @@ def _coletar_bloco(fonte, df: str, dt: str, *, volume, dias_mes: int, idade: int
         stats["bloco"] = (df, dt)
         return [stats]
     meio = d0 + timedelta(days=dias // 2 - 1)
-    kw = {"volume": volume, "dias_mes": dias_mes, "idade": idade}
+    kw = {"volume": volume, "dias_mes": dias_mes, "idade": idade, "orcamento": orcamento}
     esq = _coletar_bloco(fonte, df, meio.isoformat(), **kw)
     dir_ = _coletar_bloco(fonte, (meio + timedelta(days=1)).isoformat(), dt, **kw)
     return esq + dir_
@@ -744,17 +757,23 @@ def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str
         volume = _complaints30days(s, fonte.id)
 
     blocos_stats = []
-    _kw = {"volume": volume, "dias_mes": dias_mes, "idade": idade}
+    orcamento = {"restante": MAX_RUNS_POR_COORTE}  # circuit breaker (corta cascata)
+    _kw = {"volume": volume, "dias_mes": dias_mes, "idade": idade, "orcamento": orcamento}
     for bdf, bdt in _blocos_iniciais(df_mes, dt_mes, volume):
+        if orcamento["restante"] <= 0:
+            break  # orçamento estourou entre blocos iniciais — não abre novos
         blocos_stats += _coletar_bloco(fonte, bdf, bdt, **_kw)
 
     def _soma(k):
         return sum(st.get(k, 0) for st in blocos_stats)
 
+    estourou = any(st.get("orcamento_estourado") for st in blocos_stats)
     agg: Dict[str, Any] = {
         "modo": "threads",
         "coorte": coorte,
         "blocos": len(blocos_stats),
+        "runs_actor": MAX_RUNS_POR_COORTE - orcamento["restante"],
+        "orcamento_estourado": estourou,
         "coletados": _soma("coletados"),
         "casos_novos": _soma("casos_novos"),
         "casos_atualizados": _soma("casos_atualizados"),
@@ -765,15 +784,17 @@ def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str
         n_casos = (
             s.query(Caso).filter(Caso.fonte_id == fonte.id, Caso.coorte_ano_mes == coorte).count()
         )
-        sucesso = _fetch_coorte_confiavel(s, fonte.id, coorte, agg, hoje)
+        # Cobertura confirmada exige NÃO ter estourado o orçamento (cascata cortada).
+        sucesso = (not estourou) and _fetch_coorte_confiavel(s, fonte.id, coorte, agg, hoje)
         agg.update(n_casos=n_casos, sucesso=sucesso)
         if not sucesso:
-            # Cobertura NÃO confirmada (bloco falho ou vazio-suspeito) → NÃO grava
-            # ledger E NÃO roda expirar. O cron re-tenta a coorte inteira (casos já
-            # upsertados persistem — idempotente).
+            # Cobertura NÃO confirmada (orçamento estourado, bloco falho, ou
+            # vazio-suspeito) → NÃO grava ledger E NÃO roda expirar. Casos já
+            # upsertados persistem (idempotente); o cron re-tenta a coorte inteira.
+            motivo = "CIRCUIT BREAKER (orçamento de runs estourado)" if estourou else "cobertura"
             print(
-                f"[reclame_aqui] coorte {coorte} fonte {fonte.id}: cobertura NÃO confirmada "
-                f"(blocos={agg['blocos']} coletados={agg['coletados']} "
+                f"[reclame_aqui] coorte {coorte} fonte {fonte.id}: {motivo} NÃO confirmada "
+                f"(runs={agg['runs_actor']} blocos={agg['blocos']} coletados={agg['coletados']} "
                 f"falhou_apify={agg['falhou_apify']} n_casos={n_casos}) — ledger NÃO gravado"
             )
             agg.update(abandonados=0, nao_rastreado=0, fechada=False, ledger_gravado=False)
