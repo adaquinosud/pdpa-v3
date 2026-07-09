@@ -531,6 +531,40 @@ def test_planejar_coortes_zero_desliga_threads(db_session):
     assert ra.planejar_coortes(db_session, f) == []
 
 
+def test_planejar_coortes_force_ignora_idempotencia(db_session):
+    """--force (manual 1×): re-coleta coorte já coletada no mês (ignora idempotência)."""
+    from datetime import date as _date
+    from datetime import datetime as _dt
+
+    from src.models.fonte_coorte_coleta import FonteCoorteColeta
+    from src.models.fonte_reputacao import FonteReputacao
+
+    e, f = _empresa_fonte(db_session)
+    db_session.add(  # scorecard pequeno → rota coorte
+        FonteReputacao(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            provedor="reclame_aqui",
+            coletado_em=_dt(2026, 7, 1),
+            raw_json='{"complaints30Days": 30}',
+        )
+    )
+    hoje = _date(2026, 7, 15)
+    db_session.add(
+        FonteCoorteColeta(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            coorte_ano_mes=202607,
+            ultima_coleta_coorte=_dt(2026, 7, 10),  # já coletada em julho
+        )
+    )
+    db_session.commit()
+    p0 = {p["coorte"]: p for p in ra.planejar_coortes(db_session, f, hoje=hoje)}
+    assert p0[202607]["acao"] == "skip" and p0[202607]["motivo"] == "ja_coletada_no_mes"
+    p1 = {p["coorte"]: p for p in ra.planejar_coortes(db_session, f, hoje=hoje, force=True)}
+    assert p1[202607]["acao"] == "coletar"  # force ignora a idempotência
+
+
 def test_e_mega_usa_media_suaviza_churn(db_session):
     """Mega = MÉDIA das últimas N leituras > 400 (não a pontual) — suaviza churn.
     Sem scorecard → mega (default seguro)."""

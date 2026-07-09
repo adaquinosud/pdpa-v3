@@ -704,12 +704,16 @@ def _upsert_coorte_ledger(session, fonte_id, empresa_id, coorte, agora, n_casos,
     row.fechada = fechada
 
 
-def planejar_coortes(session, fonte, *, hoje: Optional[date] = None) -> list:
+def planejar_coortes(session, fonte, *, hoje: Optional[date] = None, force: bool = False) -> list:
     """Plano de refresh das coortes de UMA fonte (Fatia 4, cadência A mensal). Lê
     ``ra_coortes_ativas`` (N), o ledger e os não-terminais → decide, por coorte ativa,
     se rebusca AGORA. NÃO coleta (dry-run friendly). Cada item: ``coorte``, ``acao``
     ('coletar'|'skip'), ``motivo`` (quando skip), ``date_from``/``date_to`` (quando
-    coletar), ``idade_meses``, ``n_nao_terminais``."""
+    coletar), ``idade_meses``, ``n_nao_terminais``.
+
+    ``force`` (disparo manual 1×): ignora o skip de idempotência 'ja_coletada_no_mes'
+    (re-coleta mesmo se já rodou no mês). Mantém 'fechada' (coorte aposentada de
+    propósito não re-abre num force)."""
     from src.models.fonte_coorte_coleta import FonteCoorteColeta
 
     hoje = hoje or date.today()
@@ -736,9 +740,10 @@ def planejar_coortes(session, fonte, *, hoje: Optional[date] = None) -> list:
         if row is not None and row.fechada:
             plano.append({**base, "acao": "skip", "motivo": "fechada"})
             continue
-        # Idempotência: já coletada neste mês-calendário? (re-run do cron não re-cobra)
+        # Idempotência: já coletada neste mês-calendário? (re-run do cron não re-cobra).
+        # force (manual 1×) ignora esse skip.
         uc = row.ultima_coleta_coorte if row is not None else None
-        if uc is not None and uc.year == hoje.year and uc.month == hoje.month:
+        if not force and uc is not None and uc.year == hoje.year and uc.month == hoje.month:
             plano.append({**base, "acao": "skip", "motivo": "ja_coletada_no_mes"})
             continue
         df, dt = _janela_coorte(coorte, hoje)

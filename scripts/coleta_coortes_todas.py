@@ -74,9 +74,11 @@ def _custo_coorte(volume) -> float:
     return (volume or 0) * CUSTO_POR_CASO_USD + CUSTO_START_USD
 
 
-def main(dry_run: bool) -> None:
+def main(dry_run: bool, force: bool = False) -> None:
     fontes = fontes_ra_elegiveis()
     modo = "DRY-RUN (não coleta)" if dry_run else "REAL (PAGO)"
+    if force:
+        modo += " [--force: ignora cadência/idempotência]"
     print(f"[coortes] {modo} — {len(fontes)} fonte(s) RA elegível(is)")
     custo_total = 0.0
     for fonte_id in fontes:
@@ -85,7 +87,7 @@ def main(dry_run: bool) -> None:
             if fonte is None:
                 continue
             s.expunge(fonte)
-            plano = planejar_coortes(s, fonte)
+            plano = planejar_coortes(s, fonte, force=force)
             vol = _volume_mes(s, fonte_id)
 
         # ── Rota AMOSTRA (mega): 1 run capado, sem coorte ──
@@ -98,7 +100,7 @@ def main(dry_run: bool) -> None:
                 f"vol/mês={vol}) ~US${custo_fonte:.2f}"
             )
             if not dry_run:
-                st = coletar_amostra(fonte)
+                st = coletar_amostra(fonte, force=force)
                 print(
                     f"        → novos={st['casos_novos']} atual={st['casos_atualizados']} "
                     f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']}"
@@ -134,5 +136,11 @@ def main(dry_run: bool) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Cron mensal de threads RA por coorte.")
     ap.add_argument("--dry-run", action="store_true", help="lista o plano + custo, sem coletar")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="disparo manual 1×: ignora cadência (amostra) + idempotência-do-mês "
+        "(coorte). O cron NÃO usa — o gate protege o automático.",
+    )
     args = ap.parse_args()
-    main(dry_run=args.dry_run)
+    main(dry_run=args.dry_run, force=args.force)
