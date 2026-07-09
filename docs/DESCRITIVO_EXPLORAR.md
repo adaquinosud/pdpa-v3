@@ -662,58 +662,45 @@ sondagem.
 
 ---
 
-## 19. VITRINE (a decisão do consumidor que ainda não é cliente)
+## 19. VITRINE (decisão do consumidor NOVO)
 
-A Vitrine responde a uma pergunta diferente do resto do sistema. O diagnóstico lê a relação de
-quem **já é cliente** — onde ela dói, onde a ferida mora. A Vitrine lê o que o consumidor que
-**ainda não escolheu** vê quando pesquisa a marca: as notas, o volume, a atividade recente. É a
-fachada que decide se a empresa entra ou não no **shortlist** de quem está comparando. Não é
-conduta; é **reputação de entrada**.
+A Vitrine responde a uma pergunta diferente do resto do sistema. O diagnóstico lê a relação de quem
+**já é cliente**; a Vitrine lê o que o consumidor que **ainda não escolheu** vê quando pesquisa a
+marca. É a fachada que decide se a empresa entra no **shortlist** — reputação de entrada, não conduta
+da relação. Por isso os sinais são medidos contra o **corte de mercado** (BrightLocal LCRS), não
+contra a régua interna do PDPA.
 
-Por isso os sinais são medidos contra o **corte de mercado** (pesquisa BrightLocal LCRS), não
-contra a régua interna do PDPA. O corte é o padrão do setor — a linha abaixo da qual um consumidor
-novo hesita. **Verde:** a empresa atende o padrão. **Vermelho:** fica abaixo, com o tamanho exato
-do buraco ("3,1★ abaixo do corte 4,5").
+**Vitrine ≠ diagnóstico — e a contradição é o achado.** Uma marca pode ter nota alta no Google (quem
+viveu o produto) e nota em ruína no ReclameAqui (quem precisou resolver um problema). Exemplo real:
+uma marca de resort com **4,8★ no Google** e **1,4★ no RA**. A vitrine premium e a conduta de reparo
+quebrada convivem no mesmo nome — e ler as duas juntas é o que distingue "marca desejada" de "marca
+que cuida".
 
-Vitrine e diagnóstico podem **contradizer** um ao outro na mesma empresa — e a contradição é o
-**achado**, não um erro. O caso que ilustra: uma marca de resort pode ter **4,8★ no Google** (gente
-que amou as férias avalia bem a experiência) e **1,4★ no ReclameAqui** (a mesma marca, vista pela
-lente de quem teve um problema pra resolver). A vitrine premium e a conduta de reparo em ruína
-convivem no mesmo nome. A Vitrine mostra a primeira; o diagnóstico, a segunda. Ler as duas juntas é
-o que separa "marca desejada" de "marca que cuida".
+**Os três cards:**
 
-**Os cinco sinais:**
-
-- **Reputação ReclameAqui** — a nota oficial do RA (`consumer_score`, **universo completo** da
-  empresa, não a nossa amostra). Populada automaticamente pelo **scorecard RA** (cron próprio), sem
-  disparo manual.
-- **Volume de avaliações** — quantas manifestações a **amostra** tem: **casos RA que coletamos +
-  reviews com nota de outras fontes, somados**. **Não** é o universo oficial do RA (esse aparece só
-  como *nota*, não como contagem) nem a contagem de uma fonte só. Corte de **20**: abaixo disso, uma
-  nota é estatisticamente frágil (poucos avaliadores distorcem a média). Acima, a reputação
-  "sustenta" leitura.
-- **Atividade recente (90d)** — quantas avaliações nos últimos 90 dias: o **recorte de 90 dias desse
-  mesmo conjunto** (sempre ≤ Volume). Mede se a reputação está viva ou é um perfil parado.
-- **Nota (outras fontes)** — a nota **per-review** de Google/App Store/TripAdvisor/Mercado Livre (via
-  `rating`). É **amostra coletada, não a média oficial** da fonte — rotulada assim pra não se
-  confundir com o RA oficial. Redes sociais sem estrela ficam de fora.
-- **Taxa de resposta (RA oficial)** — quanto das reclamações a empresa responde. É **informativa**
+- **RA · nota dos consumidores** — a nota que outros consumidores deram no ReclameAqui
+  (`consumerScore`, escala 0-10 → 5★), sobre as reclamações dos **últimos 6 meses**. É o sinal
+  ★-comparável ao corte de mercado. **Não** é a Reputação composta do RA (que embute
+  resposta/resolução) — é a nota-dos-consumidores, que é o que o consumidor novo de fato consulta.
+  Populada automaticamente pelo **scorecard RA** (coleta dedicada, sem disparo manual).
+- **Outras fontes · nota** — a nota por avaliação de Google/App Store/TripAdvisor/Mercado Livre (via
+  `rating`), com o **N de apoio** e a **recência 90d** embutidos ("4,8★ · 32 avaliações, 26 nos
+  últimos 90d"). É **amostra coletada, não a média oficial** da fonte — rotulada assim. Se tiver menos
+  de **20** avaliações de apoio, aparece com ressalva (**"nota frágil — poucas avaliações"**), não
+  verde/vermelho. Redes sociais sem estrela ficam de fora.
+- **Taxa de resposta (RA oficial)** — quanto das reclamações a empresa responde. **Informativa**
   (cinza), não entra no verde/vermelho: responder muito mostra presença, mas não coloca a marca no
-  shortlist. Não é um corte de entrada.
+  shortlist.
 
-**Origem do dado, sempre rotulada, nunca fundida:** "RA oficial (universo)" é o número da fonte;
-"amostra coletada" é o que medimos dos nossos casos. Números parecidos de origens diferentes aparecem
-lado a lado **sem se misturar**. Sinal sem dado → **"não medido"**, nunca 0 (a ausência do dado não é
-uma nota ruim da empresa).
+**Origem sempre rotulada, nunca fundida:** "RA · …" é o número oficial da fonte; "Outras fontes · …"
+é a amostra sob nossa lente. Sinal sem dado → **"não medido"**, nunca 0.
 
-**Sobre os cortes (VITRINE_CONFIG):** nota **4,5★** · volume **20** · recência **90 dias** · resposta
-**7 dias**. São cortes de **mercado**, herdados pelo **setor** da empresa — nunca escolhidos por
-empresa. "Calibrável por setor" é uma afinação **futura**: só se ajusta quando um setor aparecer
-sistematicamente distorcido (o padrão real de aluguel de carros pode diferir do de hotelaria). Até
-lá, o corte genérico vale pra todas e discrimina bem.
+**Cortes (VITRINE_CONFIG, calibrável por setor):** nota **4,5★** · volume mínimo **20** (hoje aplicado
+como ressalva de fragilidade na nota) · recência **90 dias**. São cortes de **mercado**, herdados pelo
+**setor** da empresa — nunca definidos pela empresa. A calibração por setor só se justifica quando um
+setor aparecer sistematicamente distorcido; até lá o corte genérico vale pra todas.
 
-**v2:** nota e volume oficiais do Google (place-level) e velocidade de resposta derivada do thread do
-RA.
+**v2:** nota/volume oficiais do Google (place-level) e velocidade de resposta via thread do RA.
 
 ---
 
