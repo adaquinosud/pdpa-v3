@@ -16,6 +16,7 @@ Read-only, db_session. Uso:
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -112,13 +113,16 @@ def _por_empresa(s, eid: int) -> None:
     mapa = _mapa_tendencia_tema(anoms, ag_filtro=None)
 
     linhas = []
+    n_promotor = 0
     for tid, t in temas.items():
+        # RAIO só conta pra tema DETRATOR (detr > prom). Tema promotor não é dor se
+        # propagando — sai da lista de urgência ("onde já encanta", não urgência).
+        if t["detr"] <= t["prom"]:
+            n_promotor += 1
+            continue
         sub_dom = max(t["sub_vol"], key=t["sub_vol"].get) if t["sub_vol"] else None
-        camadas = []
-        raio = 0
-        if t["detr"] > t["prom"]:
-            raio += PESO_DIAG
-            camadas.append("diag")
+        camadas = ["diag"]  # detrator dominante → camada diagnóstico passa (peso 1)
+        raio = PESO_DIAG
         if t["ra_detr"] > 0:
             raio += PESO_RA
             camadas.append("RA")
@@ -128,7 +132,8 @@ def _por_empresa(s, eid: int) -> None:
         sig = mapa.get(tid)
         glifo = sig["glifo"] if sig else "→"
         fator = FATOR.get(glifo, 0.4)
-        urg = round(raio * fator, 2)
+        logv = math.log1p(t["total"])  # log(1+vol): quantidade pesa sem dominar
+        urg = round(raio * fator * logv, 2)
         linhas.append(
             {
                 "nome": t["nome"],
@@ -137,21 +142,25 @@ def _por_empresa(s, eid: int) -> None:
                 "raio": raio,
                 "camadas": camadas,
                 "glifo": glifo,
-                "fator": fator,
+                "logv": round(logv, 2),
                 "urg": urg,
             }
         )
 
     linhas.sort(key=lambda x: (-x["urg"], -x["raio"], -x["vol"]))
-    print(f"temas ativos: {len(linhas)} | top 15 por urgência (raio × aceleração):\n")
+    print(
+        f"temas ativos: {len(temas)} | detratores (na lista): {len(linhas)} | "
+        f"promotores/neutros fora: {n_promotor}"
+    )
+    print("urgência = raio × aceleração × log(1+vol) · top 15:\n")
     print(
         f"  {'tema':32.32} {'subpilar':4} {'vol':>4} {'raio':>4} {'camadas':14} "
-        f"{'acel':4} {'urg':>5}"
+        f"{'acel':4} {'logv':>5} {'urg':>6}"
     )
     for x in linhas[:15]:
         print(
             f"  {x['nome']:32.32} {x['sub'] or '-':4} {x['vol']:>4} {x['raio']:>4} "
-            f"{','.join(x['camadas']) or '-':14} {x['glifo']:4} {x['urg']:>5}"
+            f"{','.join(x['camadas']) or '-':14} {x['glifo']:4} {x['logv']:>5} {x['urg']:>6}"
         )
 
 
