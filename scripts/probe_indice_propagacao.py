@@ -38,17 +38,9 @@ PESO_DIAG, PESO_RA, PESO_IA = 1, 2, 3  # raio máx 6 (IA de 4→3: não dominar 
 FATOR = {"↑↑": 1.0, "↑": 0.7, "↓": 0.1, "↓↓": 0.0}  # sem glifo → 0.4
 
 # ── Quadrantes (raio × aceleração) — limiares CALIBRÁVEIS ──
-RAIO_ALTO = 4  # raio >= isto = "alto/propagado"
+RAIO_ALTO = 3  # raio >= isto = "alto/propagado". 3 = diag+RA (dor pública) já entra
 _ACELERANDO = {"↑", "↑↑"}
 _ALIVIANDO = {"↓", "↓↓"}
-_QUADRANTE_MSG = {
-    "Crítico": "dor intensa, pública e em alta — prioridade máxima.",
-    "Acelerando": "dor subindo rápido, ainda não propagada — "
-    "janela para agir antes que se espalhe.",
-    "Crônico": "dor madura e consolidada — já propagada mas estável. Reconstrução, não contenção.",
-    "Latente": "dor contida e parada — monitorar.",
-    "Em recuperação": "dor aliviando — acompanhar, fora do alerta de urgência.",
-}
 
 
 def _quadrante(raio: int, glifo: str) -> str:
@@ -59,6 +51,31 @@ def _quadrante(raio: int, glifo: str) -> str:
     if acel:
         return "Crítico" if alto else "Acelerando"
     return "Crônico" if alto else "Latente"
+
+
+def _mensagem(quad: str, tem_ia: bool) -> str:
+    """Mensagem por quadrante. Crítico e Crônico variam por presença da camada IA
+    (a antecedência não se perde ao subir — 'já na IA' vs 'ainda não na IA')."""
+    if quad == "Crítico":
+        if tem_ia:
+            return (
+                "dor intensa, já propagada até a IA e em alta — "
+                "prioridade máxima, contenção urgente."
+            )
+        return (
+            "dor pública intensa e em alta, ainda não na IA — "
+            "prioridade máxima, janela para conter antes que se propague."
+        )
+    if quad == "Crônico":
+        if tem_ia:
+            return "dor madura e consolidada, já pune na IA — reconstrução, não contenção."
+        return "dor consolidada no público, ainda não na IA — reconstrução, não contenção."
+    return {
+        "Acelerando": "dor subindo rápido, ainda não propagada — "
+        "janela para agir antes que se espalhe.",
+        "Latente": "dor contida e parada — monitorar.",
+        "Em recuperação": "dor aliviando — acompanhar, fora do alerta de urgência.",
+    }[quad]
 
 
 def _por_empresa(s, eid: int) -> None:
@@ -187,7 +204,7 @@ def _por_empresa(s, eid: int) -> None:
             f"· [{x['quad']}]"
         )
         print(
-            f"    → {x['nome']}: {_QUADRANTE_MSG[x['quad']]} "
+            f"    → {x['nome']}: {_mensagem(x['quad'], 'IA' in x['camadas'])} "
             f"(raio {x['raio']}/{PESO_DIAG + PESO_RA + PESO_IA} · vol {x['vol']} · {x['glifo']})"
         )
 
