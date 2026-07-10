@@ -1416,11 +1416,21 @@ def _aba_temas(empresa_id, empresa_w):
 
     mapa_lastro, gargalo = _montar_mapa_lastro(n1, n2)
 
-    # Fatia 2: etiqueta de quadrante de Propagação por tema (só detratores; motor
-    # src.anomalias.propagacao). Empresa-wide → SUPRIME sob filtro de loja, como o glifo.
-    from src.anomalias.propagacao import mapa_quadrante_tema
+    # Fatia 2: etiqueta de quadrante de Propagação por tema — SÓ os ACIONÁVEIS
+    # (Crítico/Acelerando); os demais quadrantes vivem só na tela Propagação. Assim a
+    # etiqueta é um alerta pontual (se aparece, é urgente). Empresa-wide → SUPRIME sob
+    # filtro de loja, como o glifo.
+    from src.anomalias.propagacao import QUADRANTES_ACIONAVEIS, mapa_quadrante_tema
 
-    temas_quadrante = mapa_quadrante_tema(empresa_id) if ag_filtro is None else {}
+    temas_quadrante = (
+        {
+            tid: q
+            for tid, q in mapa_quadrante_tema(empresa_id).items()
+            if q["quadrante"] in QUADRANTES_ACIONAVEIS
+        }
+        if ag_filtro is None
+        else {}
+    )
 
     return {
         "n1": n1,

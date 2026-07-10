@@ -84,12 +84,21 @@ def test_render_etiqueta_quadrante(app):
                 "exemplos": [],
             },
             {
-                "label": "processo digital",
-                "tema_id": 8,
-                "total": 12,
+                "label": "demora atendimento",
+                "tema_id": 9,
+                "total": 40,
                 "promotor": 0,
                 "conversivel": 0,
-                "detrator": 12,
+                "detrator": 40,
+                "exemplos": [],
+            },
+            {
+                "label": "sinistro lento",
+                "tema_id": 8,
+                "total": 200,
+                "promotor": 0,
+                "conversivel": 0,
+                "detrator": 200,
                 "exemplos": [],
             },
         ],
@@ -100,11 +109,18 @@ def test_render_etiqueta_quadrante(app):
         mapa_lastro=[],
         transversais=[],
         gargalo_pilar=None,
-        totais={"temas": 2, "cruzamentos": 0, "acoes": 0},
+        totais={"temas": 3, "cruzamentos": 0, "acoes": 0},
         temas_em_anomalia={
-            7: {"glifo": "↑↑", "tendencia": "Tema em alta", "classe": "bg-rose-100 text-rose-700"}
+            7: {"glifo": "↑↑", "tendencia": "Tema em alta", "classe": "bg-rose-100 text-rose-700"},
+            9: {"glifo": "↑", "tendencia": "Tema em alta", "classe": "bg-rose-100 text-rose-700"},
+            8: {"glifo": "→", "tendencia": "—", "classe": "bg-slate-100"},
         },
-        temas_quadrante={7: {"quadrante": "Crítico"}},
+        # Crítico(7) e Acelerando(9) são acionáveis → etiqueta. Crônico(8) NÃO.
+        temas_quadrante={
+            7: {"quadrante": "Crítico"},
+            9: {"quadrante": "Acelerando"},
+            8: {"quadrante": "Crônico"},
+        },
         janela_dias=90,
         data_corte=None,
         filtros={"agrupamento_id": ""},
@@ -114,10 +130,6 @@ def test_render_etiqueta_quadrante(app):
     )
     with app.test_request_context():
         html = render_template("partials/explorar_temas.html", **ctx)
-    assert "↑↑ Tema em alta" in html and "🔴 Crítico" in html  # glifo + etiqueta
-    assert "rose" in html  # cor do Crítico
-    # tema 8 (sem quadrante) fica limpo — sem etiqueta
-    import re
-
-    li8 = re.search(r"processo digital.*?</li>", html, re.S).group(0)
-    assert "Crítico" not in li8 and "Latente" not in li8
+    assert "🔴 Crítico" in html and "🟠 Acelerando" in html  # acionáveis com etiqueta
+    # Crônico NÃO vira etiqueta (vive só na tela Propagação); o tema/glifo seguem
+    assert "Crônico" not in html and "sinistro lento" in html

@@ -186,19 +186,18 @@
                class="shrink-0 text-[10px] px-1 rounded {{ _an.classe }} whitespace-nowrap"
                title="Tendência detectada — ver no Monitoramento">{{ _an.glifo }} {{ _an.tendencia }}</a>
             {% endif %}
-            {# fatia 2: etiqueta do quadrante de Propagação (só detratores; empresa-wide) #}
-            {% set _q = (temas_quadrante | default({})).get(tm.tema_id) %}
-            {% if _q %}
+            {# fatia 2: etiqueta-ALERTA de quadrante — só os acionáveis (Crítico/
+               Acelerando); Crônico/Latente/Recuperação vivem só na tela Propagação. #}
             {% set _qmeta = {
-              'Crítico':        {'e':'🔴','c':'bg-rose-100 text-rose-700'},
-              'Acelerando':     {'e':'🟠','c':'bg-amber-100 text-amber-800'},
-              'Crônico':        {'e':'🟤','c':'bg-stone-100 text-stone-700'},
-              'Latente':        {'e':'⚪','c':'bg-slate-100 text-slate-600'},
-              'Em recuperação': {'e':'🟢','c':'bg-emerald-100 text-emerald-700'},
+              'Crítico':    {'e':'🔴','c':'bg-rose-100 text-rose-700'},
+              'Acelerando': {'e':'🟠','c':'bg-amber-100 text-amber-800'},
             } %}
+            {% set _q = (temas_quadrante | default({})).get(tm.tema_id) %}
+            {% set _qm = _qmeta.get(_q.quadrante) if _q else none %}
+            {% if _qm %}
             <a href="{{ url_for('ui.propagacao_empresa', empresa_id=empresa.id) }}"
-               class="shrink-0 text-[10px] px-1 rounded {{ _qmeta[_q.quadrante].c }} whitespace-nowrap"
-               title="Quadrante de Propagação — ver na tela Propagação">{{ _qmeta[_q.quadrante].e }} {{ _q.quadrante }}</a>
+               class="shrink-0 text-[10px] px-1 rounded {{ _qm.c }} whitespace-nowrap"
+               title="Quadrante de Propagação — ver na tela Propagação">{{ _qm.e }} {{ _q.quadrante }}</a>
             {% endif %}
           </span>
           <span class="shrink-0 inline-block ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700"

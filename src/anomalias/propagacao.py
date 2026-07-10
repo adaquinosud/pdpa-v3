@@ -33,6 +33,10 @@ PROPAGACAO_CONFIG: Dict[str, Any] = {
 _ACELERANDO = {"↑", "↑↑"}
 _ALIVIANDO = {"↓", "↓↓"}
 
+# Quadrantes ACIONÁVEIS: os que viram etiqueta-alerta na aba Temas (se aparece, é
+# urgente). Crônico/Latente/Em recuperação vivem só na tela Propagação.
+QUADRANTES_ACIONAVEIS = {"Crítico", "Acelerando"}
+
 # ── Aceleração: mapa tema_id → sinal (movido de src/ui; fonte única do glifo) ──
 _SEV_RANK_TENDENCIA = {"critico": 2, "atencao": 1, "normal": 0, "ok": 0}
 
