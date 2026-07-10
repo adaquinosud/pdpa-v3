@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from src.ui import _mapa_tendencia_tema
+from src.anomalias.propagacao import _mapa_tendencia_tema
 
 
 def _an(

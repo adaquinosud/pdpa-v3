@@ -1,0 +1,59 @@
+{# Aba 'propagacao' do Hub Explorar — Índice de Propagação (raio × aceleração).
+   Contexto de _aba_propagacao: quadrantes{Crítico/Acelerando/Crônico/Latente/
+   Em recuperação} (cada um lista de temas já ordenada por urgência), total. #}
+
+{% set meta = {
+  'Crítico':    {'emoji':'🔴','instr':'aja agora',      'cls':'border-rose-300 bg-rose-50',   'txt':'text-rose-800'},
+  'Acelerando': {'emoji':'🟠','instr':'janela abrindo', 'cls':'border-amber-300 bg-amber-50', 'txt':'text-amber-800'},
+  'Crônico':    {'emoji':'🟤','instr':'reconstrução',   'cls':'border-stone-300 bg-stone-50', 'txt':'text-stone-700'},
+  'Latente':    {'emoji':'⚪','instr':'monitorar',      'cls':'border-slate-200 bg-slate-50', 'txt':'text-slate-600'},
+} %}
+
+<div class="mb-4">
+  <h2 class="text-lg font-semibold text-loyall-800">Propagação</h2>
+  <p class="text-sm text-slate-500 mt-1">O <strong>raio</strong> de cada dor (quão longe propagou: diagnóstico → ReclameAqui → IA) cruzado com a <strong>aceleração</strong> (a tendência do tema). Só temas detratores — o que já encanta fica na aba Temas.</p>
+</div>
+
+{% if total == 0 %}
+<div class="text-center text-slate-400 py-10 border border-dashed border-slate-200 rounded-lg">
+  Nenhum tema detrator com sinal de propagação ainda.</div>
+{% endif %}
+
+{% for q in ['Crítico','Acelerando','Crônico','Latente'] %}
+{% set temas = quadrantes.get(q, []) %}
+{% if temas %}
+<section class="mb-4 border rounded-lg p-3 {{ meta[q].cls }}">
+  <div class="font-semibold {{ meta[q].txt }}">{{ meta[q].emoji }} {{ q }} · {{ meta[q].instr }}
+    <span class="text-xs font-normal text-slate-500">({{ temas|length }})</span></div>
+  <ul class="mt-2 divide-y divide-slate-200/60">
+    {% for t in temas %}
+    <li class="py-2">
+      <div class="flex items-center gap-2 flex-wrap text-sm">
+        <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ t.subpilar }}&tema_id={{ t.tema_id }}&origem=temas"
+           class="font-medium text-loyall-700 hover:underline">{{ t.nome }}</a>
+        <span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{{ t.subpilar }}</span>
+        <span class="text-xs text-slate-500">vol {{ t.volume }}</span>
+        <span class="text-xs text-slate-500" title="camadas que a dor atravessa">raio {{ t.raio }}/6 [{{ t.camadas|join(',') }}]</span>
+        <span class="text-xs font-bold {{ meta[q].txt }}">{{ t.glifo }}</span>
+      </div>
+      <div class="text-xs text-slate-600 italic mt-0.5">{{ t.mensagem }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endfor %}
+
+{% set recup = quadrantes.get('Em recuperação', []) %}
+{% if recup %}
+<section class="mt-6 border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
+  <div class="font-medium text-emerald-800 text-sm">🟢 Em recuperação · o que já está melhorando
+    <span class="text-xs font-normal text-emerald-600">({{ recup|length }}) — fora da fila de urgência</span></div>
+  <ul class="mt-2 space-y-1">
+    {% for t in recup %}
+    <li class="text-xs text-emerald-900">{{ t.nome }}
+      <span class="text-emerald-600">· {{ t.subpilar }} · {{ t.glifo }} · {{ t.mensagem }}</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
