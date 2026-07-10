@@ -34,8 +34,31 @@ from src.ui import _mapa_tendencia_tema  # noqa: E402
 from src.utils.db import db_session  # noqa: E402
 
 IDS_DEFAULT = [16, 17]
-PESO_DIAG, PESO_RA, PESO_IA = 1, 2, 4
+PESO_DIAG, PESO_RA, PESO_IA = 1, 2, 3  # raio máx 6 (IA de 4→3: não dominar o volume)
 FATOR = {"↑↑": 1.0, "↑": 0.7, "↓": 0.1, "↓↓": 0.0}  # sem glifo → 0.4
+
+# ── Quadrantes (raio × aceleração) — limiares CALIBRÁVEIS ──
+RAIO_ALTO = 4  # raio >= isto = "alto/propagado"
+_ACELERANDO = {"↑", "↑↑"}
+_ALIVIANDO = {"↓", "↓↓"}
+_QUADRANTE_MSG = {
+    "Crítico": "dor intensa, pública e em alta — prioridade máxima.",
+    "Acelerando": "dor subindo rápido, ainda não propagada — "
+    "janela para agir antes que se espalhe.",
+    "Crônico": "dor madura e consolidada — já propagada mas estável. Reconstrução, não contenção.",
+    "Latente": "dor contida e parada — monitorar.",
+    "Em recuperação": "dor aliviando — acompanhar, fora do alerta de urgência.",
+}
+
+
+def _quadrante(raio: int, glifo: str) -> str:
+    if glifo in _ALIVIANDO:
+        return "Em recuperação"
+    alto = raio >= RAIO_ALTO
+    acel = glifo in _ACELERANDO  # → (sem anomalia) conta como estável
+    if acel:
+        return "Crítico" if alto else "Acelerando"
+    return "Crônico" if alto else "Latente"
 
 
 def _por_empresa(s, eid: int) -> None:
@@ -134,6 +157,7 @@ def _por_empresa(s, eid: int) -> None:
         fator = FATOR.get(glifo, 0.4)
         logv = math.log1p(t["total"])  # log(1+vol): quantidade pesa sem dominar
         urg = round(raio * fator * logv, 2)
+        quad = _quadrante(raio, glifo)
         linhas.append(
             {
                 "nome": t["nome"],
@@ -142,8 +166,8 @@ def _por_empresa(s, eid: int) -> None:
                 "raio": raio,
                 "camadas": camadas,
                 "glifo": glifo,
-                "logv": round(logv, 2),
                 "urg": urg,
+                "quad": quad,
             }
         )
 
@@ -152,15 +176,19 @@ def _por_empresa(s, eid: int) -> None:
         f"temas ativos: {len(temas)} | detratores (na lista): {len(linhas)} | "
         f"promotores/neutros fora: {n_promotor}"
     )
-    print("urgência = raio × aceleração × log(1+vol) · top 15:\n")
     print(
-        f"  {'tema':32.32} {'subpilar':4} {'vol':>4} {'raio':>4} {'camadas':14} "
-        f"{'acel':4} {'logv':>5} {'urg':>6}"
+        f"urgência = raio × aceleração × log(1+vol) · raio máx {PESO_DIAG + PESO_RA + PESO_IA} "
+        f"(diag {PESO_DIAG}/RA {PESO_RA}/IA {PESO_IA}) · alto ≥ {RAIO_ALTO} · top 15:\n"
     )
-    for x in linhas[:15]:
+    for i, x in enumerate(linhas[:15], 1):
         print(
-            f"  {x['nome']:32.32} {x['sub'] or '-':4} {x['vol']:>4} {x['raio']:>4} "
-            f"{','.join(x['camadas']) or '-':14} {x['glifo']:4} {x['logv']:>5} {x['urg']:>6}"
+            f"{i:>2}. {x['nome']:30.30} {x['sub'] or '-':4} vol {x['vol']:>4} "
+            f"raio {x['raio']} [{','.join(x['camadas'])}] {x['glifo']:3} urg {x['urg']:>6} "
+            f"· [{x['quad']}]"
+        )
+        print(
+            f"    → {x['nome']}: {_QUADRANTE_MSG[x['quad']]} "
+            f"(raio {x['raio']}/{PESO_DIAG + PESO_RA + PESO_IA} · vol {x['vol']} · {x['glifo']})"
         )
 
 
