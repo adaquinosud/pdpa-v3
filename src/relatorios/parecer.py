@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -138,6 +139,92 @@ def _citacoes(s, empresa_id: int, k: int = 2) -> List[Dict[str, Any]]:
     return out
 
 
+# ── Preferência de citação: on-label + português (retoque 1) ──
+# Ordena a ESCOLHA da citação (não muda dado/volume): prefere o exemplo que (a) não
+# é espanhol e (b) compartilha raiz de palavra com o tema_label. Fallback = 1º com
+# texto (o mais central). Resolve os 2 outliers: citação em espanhol e elogio num
+# tema detrator.
+_STOPWORDS_LABEL = {
+    "de",
+    "da",
+    "do",
+    "das",
+    "dos",
+    "e",
+    "ou",
+    "a",
+    "o",
+    "as",
+    "os",
+    "no",
+    "na",
+    "nos",
+    "nas",
+    "em",
+    "um",
+    "uma",
+    "com",
+    "sem",
+    "por",
+    "para",
+    "pra",
+    "que",
+    "se",
+    "ao",
+    "mais",
+    "muito",
+    "nao",
+    "não",
+    "ja",
+    "já",
+}
+# Marcadores ES-only de alto sinal (não ocorrem em PT) — heurística leve.
+_MARCADORES_ES = {
+    "quiero",
+    "cuando",
+    "entiendo",
+    "señor",
+    "señora",
+    "usted",
+    "ustedes",
+    "también",
+    "hicieron",
+    "tengo",
+    "hacer",
+    "hacen",
+    "aplicación",
+    "además",
+    "muy",
+    "pero",
+    "gracias",
+    "cuenta",
+    "hola",
+    "través",
+    "aquí",
+}
+
+
+def _tokens_label(label: str) -> List[str]:
+    """Palavras-chave do label (sem stopword, len>=4) p/ casar raiz na citação."""
+    return [
+        w
+        for w in re.findall(r"[0-9a-zà-ÿ]+", (label or "").lower())
+        if len(w) >= 4 and w not in _STOPWORDS_LABEL
+    ]
+
+
+def _casa_label(texto: str, tokens: List[str]) -> bool:
+    """True se a citação contém a RAIZ (prefixo 5) de alguma palavra-chave do label
+    — 'cobrança' (raiz 'cobra') casa 'cobrado/cobraram'."""
+    low = texto.lower()
+    return any(tok[:5] in low for tok in tokens)
+
+
+def _parece_espanhol(texto: str) -> bool:
+    """Heurística leve: presença de marcador ES-only como palavra inteira."""
+    return bool(set(re.findall(r"[a-zà-ÿ]+", texto.lower())) & _MARCADORES_ES)
+
+
 def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]]:
     """Top-``k`` temas por valência (empresa-wide), com citação representativa
     mascarada. Base = temas nas manifestações públicas COM TEXTO, todas as fontes
@@ -152,8 +239,9 @@ def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]
     filtrar por ``agrupamento_id`` era o bug: promotores viviam só em grãos de loja
     e a coluna "onde já encanta" saía vazia.
 
-    A citação é o 1º ``exemplos_verbatim_ids`` COM texto (centroid-first → o mais
-    central) do maior contribuinte do label, ≤15 palavras. Só o mascarador de
+    A citação vem do ``exemplos_verbatim_ids`` do maior contribuinte do label,
+    ≤15 palavras, preferindo o exemplo em PORTUGUÊS que CASA o label (retoque 1);
+    fallback = o 1º com texto (centroid-first → o mais central). Só o mascarador de
     IDENTIFICADOR estruturado roda (placa/CPF/protocolo… = dado sensível de quem
     reclama). NOME de pessoa NÃO é mascarado nem pulado: é funcionário elogiado pelo
     cliente — sinal positivo, não vazamento de terceiro."""
@@ -183,18 +271,26 @@ def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]
             if vol > cur["_top"]:
                 cur["exemplos"], cur["_top"] = exemplos, vol
 
-    def _citacao(exemplos_json) -> Optional[str]:
+    def _citacao(exemplos_json, label) -> Optional[str]:
+        """Escolhe a citação: prefere PT ∧ on-label; fallback = 1º com texto (o mais
+        central). Só ordem de preferência — não muda dado nem volume."""
         try:
             ids = _json.loads(exemplos_json) if exemplos_json else []
         except (ValueError, TypeError):
             ids = []
+        cands = []  # textos exibíveis (≤15 palavras), em ordem centroid-first
         for vid in ids:
             v = s.get(Verbatim, vid)
             if v and v.texto and v.tem_texto is not False:
                 palavras = " ".join(v.texto.split()).split()
-                t = " ".join(palavras[:15]) + ("…" if len(palavras) > 15 else "")
+                cands.append(" ".join(palavras[:15]) + ("…" if len(palavras) > 15 else ""))
+        if not cands:
+            return None
+        alvo = _tokens_label(label)
+        for t in cands:  # preferência: português E casa o label
+            if not _parece_espanhol(t) and _casa_label(t, alvo):
                 return mascarar_identificadores(t)
-        return None
+        return mascarar_identificadores(cands[0])  # fallback: o mais central
 
     out: Dict[str, List[Dict[str, Any]]] = {"detrator": [], "promotor": []}
     for tipo in ("detrator", "promotor"):
@@ -203,7 +299,7 @@ def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]
             key=lambda x: -x[1]["volume"],
         )[:k]
         out[tipo] = [
-            {"nome": label, "volume": dd["volume"], "citacao": _citacao(dd["exemplos"])}
+            {"nome": label, "volume": dd["volume"], "citacao": _citacao(dd["exemplos"], label)}
             for label, dd in itens
         ]
     return out
@@ -697,7 +793,7 @@ def montar_dados(
                 ),
                 "n": ra["por_sub"].get(fer_sub, 0) if fer_sub else 0,
                 "total": ra["total"],
-                "ratio": f"{fer_agg['ratio']:.2f}" if fer_agg else "—",
+                "ratio": f"{fer_agg['ratio']:.2f}".replace(".", ",") if fer_agg else "—",
                 "detratores": fer_agg["det"] if fer_agg else 0,
                 "promotores": fer_agg["prom"] if fer_agg else 0,
             },
@@ -769,7 +865,7 @@ def montar_dados(
                 "det_pct": ferida["det_pct"] if ferida else 0,
                 "det": ferida["det"] if ferida else 0,
                 "total": ferida["total"] if ferida else 0,
-                "ratio": f"{fer_agg['ratio']:.2f}" if fer_agg else "—",
+                "ratio": f"{fer_agg['ratio']:.2f}".replace(".", ",") if fer_agg else "—",
             },
             "gap": ponto_cego,
         },

@@ -141,3 +141,48 @@ def test_temas_voz_vazio_degrada(db_session):
     db_session.commit()
     out = _temas_voz(db_session, e.id)
     assert out == {"detrator": [], "promotor": []}
+
+
+# ── retoque 1: citação on-label + preferir português ──
+
+from src.relatorios.parecer import (  # noqa: E402
+    _casa_label,
+    _parece_espanhol,
+    _tokens_label,
+)
+
+
+def test_parece_espanhol():
+    assert _parece_espanhol("quiero saber cuando resuelven esto") is True
+    assert _parece_espanhol("quero saber quando resolvem isso") is False
+
+
+def test_casa_label_raiz():
+    tokens = _tokens_label("cobrança adicional")
+    assert _casa_label("fui cobrado a mais sem aviso", tokens) is True  # cobra*
+    assert _casa_label("atendimento excelente, nota dez", tokens) is False
+
+
+def test_temas_voz_prefere_onlabel_pt(db_session):
+    """[0] espanhol, [1] PT off-label, [2] PT on-label → escolhe o on-label PT."""
+    e = _emp(db_session)
+    v_es = _vb(db_session, e, "quiero saber cuando resuelven el error de registro")
+    v_off = _vb(db_session, e, "atendimento excelente, tudo perfeito, obrigado")
+    v_on = _vb(db_session, e, "fui cobrado a mais e ninguém estorna o valor")
+    _cache(db_session, e, "Pa2", "detrator", "cobrança adicional", 40, [v_es.id, v_off.id, v_on.id])
+    db_session.commit()
+
+    cit = _temas_voz(db_session, e.id)["detrator"][0]["citacao"]
+    assert "cobrado" in cit and "quiero" not in cit and "excelente" not in cit
+
+
+def test_temas_voz_fallback_quando_nenhum_casa(db_session):
+    """Nenhum exemplo casa o label → fallback pro 1º (o mais central)."""
+    e = _emp(db_session)
+    v0 = _vb(db_session, e, "coisa genérica sem relação alguma aqui")
+    v1 = _vb(db_session, e, "outra frase qualquer distante do tema")
+    _cache(db_session, e, "Pa2", "detrator", "reembolso travado", 10, [v0.id, v1.id])
+    db_session.commit()
+
+    cit = _temas_voz(db_session, e.id)["detrator"][0]["citacao"]
+    assert cit == "coisa genérica sem relação alguma aqui"
