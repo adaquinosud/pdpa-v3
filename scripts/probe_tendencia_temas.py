@@ -22,7 +22,7 @@ from sqlalchemy import distinct, func  # noqa: E402
 from src.models.anomalia import AnomaliaDetectada  # noqa: E402
 from src.models.empresa import Empresa  # noqa: E402
 from src.models.temas import Tema, VerbatimTema  # noqa: E402
-from src.ui import _mapa_tendencia_tema  # noqa: E402
+from src.anomalias.propagacao import _mapa_tendencia_tema  # noqa: E402
 from src.utils.db import db_session  # noqa: E402
 
 IDS_DEFAULT = [16, 17]

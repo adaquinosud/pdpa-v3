@@ -1346,50 +1346,6 @@ def temas_empresa(empresa_id: int):
     return _explorar_render(empresa_id, "temas")
 
 
-_SEV_RANK_TENDENCIA = {"critico": 2, "atencao": 1, "normal": 0, "ok": 0}
-
-
-def _mapa_tendencia_tema(anoms, ag_filtro):
-    """map ``tema_id → {tendencia, direcao, magnitude, severidade, glifo, classe}``
-    a partir das ``AnomaliaDetectada`` (Rows com tipo/tema_id/tendencia/direcao/
-    magnitude/severidade).
-
-    - SUPRIME sob filtro de loja (``ag_filtro`` não-None): a anomalia tipo=tema é
-      empresa-wide; mostrar trend-da-empresa numa view de loja confunde.
-    - Múltiplas anomalias no mesmo tema → escolhe por maior severidade, desempate
-      por magnitude.
-    - Glifo: direcao ``negativa`` → ↑ (agravando, rose); ``positiva`` → ↓ (aliviando,
-      emerald). Dobra (↑↑/↓↓) quando ``severidade == 'critico'`` (proxy calibrado da
-      magnitude — o motor só marca crítico com Δ grande).
-    """
-    if ag_filtro is not None:
-        return {}
-    melhor = {}
-    for r in anoms:
-        if r.tipo != "tema" or not r.tema_id:
-            continue
-        chave = (_SEV_RANK_TENDENCIA.get(r.severidade, 0), r.magnitude or 0.0)
-        atual = melhor.get(r.tema_id)
-        if atual is None or chave > atual[0]:
-            melhor[r.tema_id] = (chave, r)
-    out = {}
-    for tid, (_chave, r) in melhor.items():
-        dobra = r.severidade == "critico"
-        if r.direcao == "negativa":
-            glifo, classe = ("↑↑" if dobra else "↑"), "bg-rose-100 text-rose-700"
-        else:
-            glifo, classe = ("↓↓" if dobra else "↓"), "bg-emerald-100 text-emerald-700"
-        out[tid] = {
-            "tendencia": r.tendencia,
-            "direcao": r.direcao,
-            "magnitude": r.magnitude,
-            "severidade": r.severidade,
-            "glifo": glifo,
-            "classe": classe,
-        }
-    return out
-
-
 def _aba_temas(empresa_id, empresa_w):
     """Contexto da aba Temas: Mapa de Lastro + cruzamentos transversais (N4) +
     ações (N5) + top temas por subpilar. Retorna None em erro (→ 404)."""
@@ -1434,6 +1390,7 @@ def _aba_temas(empresa_id, empresa_w):
             s.query(func.count(AcaoVenda.id)).filter(AcaoVenda.empresa_id == empresa_id).scalar()
         )
         # selo de anomalia: temas (por id) e cruzamentos (por label) com anomalia
+        from src.anomalias.propagacao import _mapa_tendencia_tema
         from src.models.anomalia import AnomaliaDetectada
 
         anoms = (
@@ -1604,6 +1561,31 @@ def _aba_anomalias(empresa_id, empresa_w):
     }
 
 
+@ui_bp.route("/empresas/<int:empresa_id>/propagacao")
+def propagacao_empresa(empresa_id: int):
+    """Aba Propagação do Hub Explorar (Índice de Propagação → shell in-place)."""
+    return _explorar_render(empresa_id, "propagacao")
+
+
+def _aba_propagacao(empresa_id, empresa_w):
+    """Contexto da aba Propagação: temas DETRATORES agrupados por quadrante
+    (raio × aceleração), ordenados por urgência. Empresa-wide, $0 (dado existente —
+    motor src.anomalias.propagacao). Promotores/neutros ficam fora."""
+    from src.anomalias.propagacao import analisar_propagacao
+
+    linhas = analisar_propagacao(empresa_id)
+    quadrantes = {
+        "Crítico": [],
+        "Acelerando": [],
+        "Crônico": [],
+        "Latente": [],
+        "Em recuperação": [],
+    }
+    for x in linhas:  # já vem ordenado por urgência desc → ordem preservada por grupo
+        quadrantes.setdefault(x["quadrante"], []).append(x)
+    return {"quadrantes": quadrantes, "total": len(linhas)}
+
+
 # ── Relatórios (Bloco 9 Evolução B) ──────────────────────────────────────────
 _RELATORIOS = [
     (
@@ -1692,6 +1674,7 @@ _ABA_BUILDERS = {
     "painel": _aba_painel,
     "temas": _aba_temas,
     "anomalias": _aba_anomalias,
+    "propagacao": _aba_propagacao,
     "relatorios": _aba_relatorios,
 }
 
@@ -3046,6 +3029,12 @@ _EXPLORAR_TABS = [
         "label": "Anomalias",
         "grupo": "diagnostico",
         "escopo_aceito": _ESCOPO_FULL,
+    },
+    {
+        "id": "propagacao",
+        "label": "Propagação",
+        "grupo": "diagnostico",
+        "escopo_aceito": [],  # Índice empresa-wide (anomalia/RA/IA são nível-empresa)
     },
     {
         "id": "casos",
