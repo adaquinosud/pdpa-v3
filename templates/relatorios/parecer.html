@@ -283,7 +283,41 @@
   </tr></table>
 </div>
 
-{# ═══════════ P6 · ATO 2c ═══════════ #}
+{# ═══════════ ATO 2 · A VOZ, EM DETALHE ═══════════ #}
+{% if d.ato2_voz and (d.ato2_voz.detrator or d.ato2_voz.promotor) %}
+<div class="page">
+  <div class="eyebrow">Ato 2 · a voz, em detalhe</div>
+  <h2 class="manchete">Do número<br>à palavra.</h2>
+  <div class="muted" style="font-size:8.5pt;margin-top:2mm">temas nas manifestações públicas com texto · todas as fontes</div>
+  <div class="rule"></div>
+  <table class="cols" style="margin-top:5mm"><tr>
+    <td style="vertical-align:top;padding-right:6mm;width:50%">
+      <div class="col-h" style="color:var(--crit)">Onde dói</div>
+      {% for t in d.ato2_voz.detrator %}
+      <div style="margin-top:3.5mm">
+        <div><strong>{{ t.nome }}</strong> <span class="muted">· {{ t.volume }}</span></div>
+        {% if t.citacao %}<div class="muted" style="font-size:9pt;line-height:1.35;margin-top:.6mm">“{{ t.citacao }}”</div>{% endif %}
+      </div>
+      {% else %}
+      <div class="muted" style="margin-top:3.5mm">sem tema detrator com volume relevante.</div>
+      {% endfor %}
+    </td>
+    <td style="vertical-align:top;padding-left:6mm;width:50%">
+      <div class="col-h" style="color:var(--bom)">Onde já encanta</div>
+      {% for t in d.ato2_voz.promotor %}
+      <div style="margin-top:3.5mm">
+        <div><strong>{{ t.nome }}</strong> <span class="muted">· {{ t.volume }}</span></div>
+        {% if t.citacao %}<div class="muted" style="font-size:9pt;line-height:1.35;margin-top:.6mm">“{{ t.citacao }}”</div>{% endif %}
+      </div>
+      {% else %}
+      <div class="muted" style="margin-top:3.5mm">sem tema promotor com volume relevante.</div>
+      {% endfor %}
+    </td>
+  </tr></table>
+</div>
+{% endif %}
+
+{# ═══════════ ATO 2 · A VITRINE ═══════════ #}
 <div class="page">
   <div class="eyebrow">Ato 2 · a vitrine</div>
   <h2 class="manchete">45% já pedem recomendação<br>a IAs. Eis o que elas<br>respondem sobre você.</h2>

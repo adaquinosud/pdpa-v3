@@ -19,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from src.utils.mascarar_pii import mascarar_identificadores
+
 # Fontes bundladas (Gelasio — clone métrico de Georgia, Apache) p/ o @font-face:
 # base_url passado ao WeasyPrint resolve url('Gelasio.ttf').
 FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
@@ -128,8 +130,82 @@ def _citacoes(s, empresa_id: int, k: int = 2) -> List[Dict[str, Any]]:
     out = []
     for _n, t, dt in grossos[:k]:
         disp = t if len(t) <= 280 else t[:279].rsplit(" ", 1)[0] + "…"
+        # LGPD: o PDF circula como anexo — remove identificador de terceiro do corpo
+        # (o RA só mascara o username; placa/protocolo/CPF no texto vinham crus).
+        disp = mascarar_identificadores(disp)
         fonte = f"caso {_MESES[dt.month][:3]}/{dt.year}" if dt else "ReclameAqui"
         out.append({"texto": disp, "fonte": fonte})
+    return out
+
+
+def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]]:
+    """Top-``k`` temas por valência (empresa-wide), com citação representativa
+    mascarada. Base = temas nas manifestações públicas COM TEXTO, todas as fontes
+    (o pipeline não filtra fonte; rating-only não temiza — sem texto, sem cluster).
+
+    Agrega ``TemaCache`` por ``tema_label`` somando ``volume`` cross-GRÃO e
+    cross-subpilar. Os grãos do cache são DISJUNTOS (paralelos, não rollup): cada
+    verbatim cai em UM bucket ``agrupamento_id:subpilar:tipo`` pelo seu próprio
+    agrupamento (via local); o grão ``agrupamento_id IS NULL`` é o dos verbatins
+    SEM agrupamento (ex.: RA, nível-empresa), não um rollup dos agrupamentos. Logo
+    somar todos os grãos conta cada verbatim uma vez — sem dupla contagem. NÃO
+    filtrar por ``agrupamento_id`` era o bug: promotores viviam só em grãos de loja
+    e a coluna "onde já encanta" saía vazia.
+
+    A citação é o 1º ``exemplos_verbatim_ids`` COM texto (centroid-first → o mais
+    central) do maior contribuinte do label, ≤15 palavras. Só o mascarador de
+    IDENTIFICADOR estruturado roda (placa/CPF/protocolo… = dado sensível de quem
+    reclama). NOME de pessoa NÃO é mascarado nem pulado: é funcionário elogiado pelo
+    cliente — sinal positivo, não vazamento de terceiro."""
+    import json as _json
+
+    from src.models.temas import TemaCache
+    from src.models.verbatim import Verbatim
+
+    rows = (
+        s.query(
+            TemaCache.tipo,
+            TemaCache.tema_label,
+            TemaCache.volume,
+            TemaCache.exemplos_verbatim_ids,
+        )
+        .filter(TemaCache.empresa_id == empresa_id)
+        .all()
+    )
+    # (tipo, label) → volume somado + exemplos do maior contribuinte
+    agg: Dict[tuple, Dict[str, Any]] = {}
+    for tipo, label, vol, exemplos in rows:
+        cur = agg.get((tipo, label))
+        if cur is None:
+            agg[(tipo, label)] = {"volume": vol, "exemplos": exemplos, "_top": vol}
+        else:
+            cur["volume"] += vol
+            if vol > cur["_top"]:
+                cur["exemplos"], cur["_top"] = exemplos, vol
+
+    def _citacao(exemplos_json) -> Optional[str]:
+        try:
+            ids = _json.loads(exemplos_json) if exemplos_json else []
+        except (ValueError, TypeError):
+            ids = []
+        for vid in ids:
+            v = s.get(Verbatim, vid)
+            if v and v.texto and v.tem_texto is not False:
+                palavras = " ".join(v.texto.split()).split()
+                t = " ".join(palavras[:15]) + ("…" if len(palavras) > 15 else "")
+                return mascarar_identificadores(t)
+        return None
+
+    out: Dict[str, List[Dict[str, Any]]] = {"detrator": [], "promotor": []}
+    for tipo in ("detrator", "promotor"):
+        itens = sorted(
+            ((label, dd) for (tp, label), dd in agg.items() if tp == tipo),
+            key=lambda x: -x[1]["volume"],
+        )[:k]
+        out[tipo] = [
+            {"nome": label, "volume": dd["volume"], "citacao": _citacao(dd["exemplos"])}
+            for label, dd in itens
+        ]
     return out
 
 
@@ -697,6 +773,9 @@ def montar_dados(
             },
             "gap": ponto_cego,
         },
+        # "A voz, em detalhe": temas dominantes por valência + citação mascarada.
+        # Base = todas as fontes com texto (bate com a P5); rating-only não temiza.
+        "ato2_voz": _temas_voz(s, empresa_id),
         "ato2c": {
             "stat": {"pct": 45, "fonte": "BrightLocal LCRS 2026"},
             "encaminhamentos": encaminhamentos[:4],
