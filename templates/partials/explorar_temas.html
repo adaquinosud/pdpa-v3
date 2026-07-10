@@ -180,10 +180,11 @@
           <span class="flex items-center gap-1 min-w-0">
             <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?subpilar={{ bloco.subpilar }}&tema_id={{ tm.tema_id }}&origem=temas"
                class="text-loyall-700 hover:underline truncate">{{ tm.label }}</a>
-            {% if tm.tema_id in (temas_em_anomalia | default([])) %}
+            {% set _an = (temas_em_anomalia | default({})).get(tm.tema_id) %}
+            {% if _an %}
             <a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}?tipo=tema"
-               class="shrink-0 text-[10px] px-1 rounded bg-rose-100 text-rose-700"
-               title="Tema com anomalia detectada — ver no Monitoramento">🔔</a>
+               class="shrink-0 text-[10px] px-1 rounded {{ _an.classe }} whitespace-nowrap"
+               title="Tendência detectada — ver no Monitoramento">{{ _an.glifo }} {{ _an.tendencia }}</a>
             {% endif %}
           </span>
           <span class="shrink-0 inline-block ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-loyall-100 text-loyall-700"

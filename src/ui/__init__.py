@@ -1346,6 +1346,50 @@ def temas_empresa(empresa_id: int):
     return _explorar_render(empresa_id, "temas")
 
 
+_SEV_RANK_TENDENCIA = {"critico": 2, "atencao": 1, "normal": 0, "ok": 0}
+
+
+def _mapa_tendencia_tema(anoms, ag_filtro):
+    """map ``tema_id → {tendencia, direcao, magnitude, severidade, glifo, classe}``
+    a partir das ``AnomaliaDetectada`` (Rows com tipo/tema_id/tendencia/direcao/
+    magnitude/severidade).
+
+    - SUPRIME sob filtro de loja (``ag_filtro`` não-None): a anomalia tipo=tema é
+      empresa-wide; mostrar trend-da-empresa numa view de loja confunde.
+    - Múltiplas anomalias no mesmo tema → escolhe por maior severidade, desempate
+      por magnitude.
+    - Glifo: direcao ``negativa`` → ↑ (agravando, rose); ``positiva`` → ↓ (aliviando,
+      emerald). Dobra (↑↑/↓↓) quando ``severidade == 'critico'`` (proxy calibrado da
+      magnitude — o motor só marca crítico com Δ grande).
+    """
+    if ag_filtro is not None:
+        return {}
+    melhor = {}
+    for r in anoms:
+        if r.tipo != "tema" or not r.tema_id:
+            continue
+        chave = (_SEV_RANK_TENDENCIA.get(r.severidade, 0), r.magnitude or 0.0)
+        atual = melhor.get(r.tema_id)
+        if atual is None or chave > atual[0]:
+            melhor[r.tema_id] = (chave, r)
+    out = {}
+    for tid, (_chave, r) in melhor.items():
+        dobra = r.severidade == "critico"
+        if r.direcao == "negativa":
+            glifo, classe = ("↑↑" if dobra else "↑"), "bg-rose-100 text-rose-700"
+        else:
+            glifo, classe = ("↓↓" if dobra else "↓"), "bg-emerald-100 text-emerald-700"
+        out[tid] = {
+            "tendencia": r.tendencia,
+            "direcao": r.direcao,
+            "magnitude": r.magnitude,
+            "severidade": r.severidade,
+            "glifo": glifo,
+            "classe": classe,
+        }
+    return out
+
+
 def _aba_temas(empresa_id, empresa_w):
     """Contexto da aba Temas: Mapa de Lastro + cruzamentos transversais (N4) +
     ações (N5) + top temas por subpilar. Retorna None em erro (→ 404)."""
@@ -1393,15 +1437,24 @@ def _aba_temas(empresa_id, empresa_w):
         from src.models.anomalia import AnomaliaDetectada
 
         anoms = (
-            s.query(AnomaliaDetectada.tipo, AnomaliaDetectada.tema_id, AnomaliaDetectada.chave)
+            s.query(
+                AnomaliaDetectada.tipo,
+                AnomaliaDetectada.tema_id,
+                AnomaliaDetectada.chave,
+                AnomaliaDetectada.tendencia,
+                AnomaliaDetectada.direcao,
+                AnomaliaDetectada.magnitude,
+                AnomaliaDetectada.severidade,
+            )
             .filter(AnomaliaDetectada.empresa_id == empresa_id)
             .all()
         )
-        temas_em_anomalia = {tid for tp, tid, _ in anoms if tp == "tema" and tid}
+        # Sinal de tendência por tema (map rico; vazio sob filtro de loja).
+        temas_em_anomalia = _mapa_tendencia_tema(anoms, ag_filtro)
         cruzamentos_em_anomalia = {
-            ch.split(":", 1)[1].strip()
-            for tp, _, ch in anoms
-            if tp == "cruzamento" and ch and ":" in ch
+            r.chave.split(":", 1)[1].strip()
+            for r in anoms
+            if r.tipo == "cruzamento" and r.chave and ":" in r.chave
         }
 
     mapa_lastro, gargalo = _montar_mapa_lastro(n1, n2)
