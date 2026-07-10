@@ -432,6 +432,39 @@ score (ML) e os estados estão explicados. Correção vs versão anterior: **mag
 
 ---
 
+## PROPAGAÇÃO (Índice de Propagação)
+
+**Propósito.** Responde *"quais dores tratar primeiro?"* cruzando **onde a dor chegou** (raio) com
+**para onde ela vai** (aceleração). Cada tema detrator ganha uma posição em quatro quadrantes de
+urgência — a leitura sai pronta, sem ninguém cruzar planilha.
+
+**Raio (0–6): o alcance da dor.** Soma dos pesos das camadas que o tema atravessa: **diagnóstico**
+(peso 1 — a dor existe nos verbatins, com detrator dominante), **ReclameAqui** (peso 2 — virou
+reclamação pública), **IA** (peso 3 — o assunto já contamina o que as IAs respondem sobre a marca).
+Quanto mais camadas, mais a dor se propagou. Só temas **detratores** entram; o que encanta fica na
+aba Temas.
+
+**Aceleração: a velocidade da dor.** É a tendência já detectada em Anomalias (o mesmo sinal ↑↑/↑/→/↓
+da aba Temas) — se o tema está subindo, estável ou aliviando. O motor **não recalcula**: consome a
+anomalia de tema gravada.
+
+**Os quatro quadrantes** (raio alto = já propagado; acelerando = subindo):
+- 🔴 **Crítico** (alto + subindo) — *aja agora*. Dor intensa e em alta. A mensagem distingue "já na IA"
+  (contenção urgente) de "ainda no público" (janela para conter antes que se propague).
+- 🟠 **Acelerando** (baixo + subindo) — *janela abrindo*. Dor subindo rápido, ainda não propagada:
+  agir antes que se espalhe.
+- 🟤 **Crônico** (alto + estável) — *reconstrução*. Dor madura e consolidada, já propagada mas parada:
+  é reconstrução, não contenção.
+- ⚪ **Latente** (baixo + estável) — *monitorar*. Dor contida e parada.
+- 🟢 **Em recuperação** (aliviando) — o que já está melhorando, fora da fila de urgência (rodapé).
+
+Dentro de cada quadrante os temas vêm ordenados por **urgência = raio × aceleração × log(volume)** — o
+volume pesa (533 casos importam mais que 6), mas o log evita que um tema gigante esmague o resto.
+*(Índice empresa-wide: a anomalia de tema, o ReclameAqui e a IA são nível-empresa, então a tela não
+aceita filtro de loja. Os pesos e limiares são calibráveis em um só lugar — `PROPAGACAO_CONFIG`.)*
+
+---
+
 ## 13. PLANO DE AÇÃO
 
 **Propósito.** Junta num só lugar todas as ações sugeridas — vindas de 4 motores diferentes — agrupadas
