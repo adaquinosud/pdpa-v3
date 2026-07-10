@@ -59,3 +59,65 @@ def test_mapa_desempate_por_magnitude():
     # mesma severidade → maior magnitude vence
     m = _mapa_tendencia_tema([_an("tema", 2, magnitude=4.0), _an("tema", 2, magnitude=9.0)], None)
     assert m[2]["magnitude"] == 9.0
+
+
+# ── fatia 2: etiqueta do quadrante de Propagação na aba Temas (render real) ──
+
+
+def test_render_etiqueta_quadrante(app):
+    """O partial da aba Temas rende a etiqueta de quadrante ao lado do glifo, com a
+    cor; tema sem quadrante fica limpo."""
+    from flask import render_template
+
+    bloco = {
+        "subpilar": "Pa2",
+        "nome": "Mutualidade",
+        "tripleto": None,
+        "temas": [
+            {
+                "label": "cobrança indevida",
+                "tema_id": 7,
+                "total": 533,
+                "promotor": 0,
+                "conversivel": 0,
+                "detrator": 533,
+                "exemplos": [],
+            },
+            {
+                "label": "processo digital",
+                "tema_id": 8,
+                "total": 12,
+                "promotor": 0,
+                "conversivel": 0,
+                "detrator": 12,
+                "exemplos": [],
+            },
+        ],
+    }
+    ctx = dict(
+        empresa=SimpleNamespace(id=1),
+        top_subpilar=[bloco],
+        mapa_lastro=[],
+        transversais=[],
+        gargalo_pilar=None,
+        totais={"temas": 2, "cruzamentos": 0, "acoes": 0},
+        temas_em_anomalia={
+            7: {"glifo": "↑↑", "tendencia": "Tema em alta", "classe": "bg-rose-100 text-rose-700"}
+        },
+        temas_quadrante={7: {"quadrante": "Crítico"}},
+        janela_dias=90,
+        data_corte=None,
+        filtros={"agrupamento_id": ""},
+        agrupamentos=[],
+        agrupamento_filtrado=None,
+        n1={},
+    )
+    with app.test_request_context():
+        html = render_template("partials/explorar_temas.html", **ctx)
+    assert "↑↑ Tema em alta" in html and "🔴 Crítico" in html  # glifo + etiqueta
+    assert "rose" in html  # cor do Crítico
+    # tema 8 (sem quadrante) fica limpo — sem etiqueta
+    import re
+
+    li8 = re.search(r"processo digital.*?</li>", html, re.S).group(0)
+    assert "Crítico" not in li8 and "Latente" not in li8

@@ -1416,6 +1416,12 @@ def _aba_temas(empresa_id, empresa_w):
 
     mapa_lastro, gargalo = _montar_mapa_lastro(n1, n2)
 
+    # Fatia 2: etiqueta de quadrante de Propagação por tema (só detratores; motor
+    # src.anomalias.propagacao). Empresa-wide → SUPRIME sob filtro de loja, como o glifo.
+    from src.anomalias.propagacao import mapa_quadrante_tema
+
+    temas_quadrante = mapa_quadrante_tema(empresa_id) if ag_filtro is None else {}
+
     return {
         "n1": n1,
         "mapa_lastro": mapa_lastro,
@@ -1425,6 +1431,7 @@ def _aba_temas(empresa_id, empresa_w):
         "top_subpilar": top_subpilar,
         "totais": {"temas": n_temas, "cruzamentos": n_cruz, "acoes": n_acoes},
         "temas_em_anomalia": temas_em_anomalia,
+        "temas_quadrante": temas_quadrante,
         "cruzamentos_em_anomalia": cruzamentos_em_anomalia,
         "janela_dias": get_janela_dias(),
         "data_corte": corte,
