@@ -25,7 +25,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.6-corrente-ancorada"
+PROMPT_SINTESE_VER = "v1.7-bases-declaradas"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -237,13 +237,23 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "empresa": d["empresa_nome"],
         "ferida": t["subpilar_nome"],
-        "voz_publica": {
-            "concentracao_pct": v["pct"],  # % das reclamações RA que caem no subpilar
-            "casos_no_subpilar": v["n"],
-            "casos_total": v["total"],
-            "diagnostico_detratores": v["detratores"],  # contagem all-time do subpilar
-            "diagnostico_promotores": v["promotores"],
-            "diagnostico_ratio": v["ratio"],
+        # DOIS universos DISTINTOS, cada um com sua ``base`` explícita (como o
+        # ``conduta`` faz com ``*_base``). Antes vinham juntos sob ``voz_publica``
+        # sem rótulo → o Sonnet colava ("aprofunda") e produzia número impossível
+        # (intensidade > concentração é normal: universo mais amplo). Separados +
+        # rotulados, o prompt consegue exigir a base de cada um na prosa.
+        "concentracao_ra": {
+            "pct": v["pct"],  # % das reclamações RA que caem no subpilar-ferida
+            "n_no_subpilar": v["n"],
+            "total": v["total"],
+            "base": "reclamações no ReclameAqui",  # SÓ RA
+        },
+        "intensidade_voz_total": {
+            "detratores": v["detratores"],  # contagem all-time do subpilar
+            "promotores": v["promotores"],
+            "ratio": v["ratio"],
+            # base = todas as fontes (RA + demais canais + nota-sem-texto)
+            "base": "manifestações públicas de todas as fontes",
         },
         # maturidade da base: se imatura, a conduta NÃO deve ser acusada (bug 4):
         "base_madura": d["ato2a"]["maturidade"]["madura"],
