@@ -1,6 +1,15 @@
 {# Aba 'propagacao' do Hub Explorar — Índice de Propagação (raio × aceleração).
    Contexto de _aba_propagacao: quadrantes{Crítico/Acelerando/Crônico/Latente/
-   Em recuperação} (cada um lista de temas já ordenada por urgência), total. #}
+   Em recuperação} (cada um lista de temas já ordenada por urgência), total.
+   Blocos colapsáveis (<details> nativo, zero JS): Crítico+Acelerando abertos por
+   padrão; Crônico/Latente/Em-recuperação fechados (só título + contagem). #}
+
+<style>
+  .q-det > summary { list-style: none; cursor: pointer; }
+  .q-det > summary::-webkit-details-marker { display: none; }
+  .q-det > summary .q-chev::before { content: '▸'; }
+  .q-det[open] > summary .q-chev::before { content: '▾'; }
+</style>
 
 {% set meta = {
   'Crítico':    {'emoji':'🔴','instr':'aja agora',      'cls':'border-rose-300 bg-rose-50',   'txt':'text-rose-800'},
@@ -22,9 +31,10 @@
 {% for q in ['Crítico','Acelerando','Crônico','Latente'] %}
 {% set temas = quadrantes.get(q, []) %}
 {% if temas %}
-<section class="mb-4 border rounded-lg p-3 {{ meta[q].cls }}">
-  <div class="font-semibold {{ meta[q].txt }}">{{ meta[q].emoji }} {{ q }} · {{ meta[q].instr }}
-    <span class="text-xs font-normal text-slate-500">({{ temas|length }})</span></div>
+<details class="q-det mb-4 border rounded-lg p-3 {{ meta[q].cls }}"{% if q in ['Crítico','Acelerando'] %} open{% endif %}>
+  <summary class="font-semibold {{ meta[q].txt }} flex items-center gap-1.5">
+    <span class="q-chev text-xs w-3 inline-block"></span>{{ meta[q].emoji }} {{ q }} · {{ meta[q].instr }}
+    <span class="text-xs font-normal text-slate-500">({{ temas|length }})</span></summary>
   <ul class="mt-2 divide-y divide-slate-200/60">
     {% for t in temas %}
     <li class="py-2">
@@ -40,20 +50,21 @@
     </li>
     {% endfor %}
   </ul>
-</section>
+</details>
 {% endif %}
 {% endfor %}
 
 {% set recup = quadrantes.get('Em recuperação', []) %}
 {% if recup %}
-<section class="mt-6 border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
-  <div class="font-medium text-emerald-800 text-sm">🟢 Em recuperação · o que já está melhorando
-    <span class="text-xs font-normal text-emerald-600">({{ recup|length }}) — fora da fila de urgência</span></div>
+<details class="q-det mt-6 border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
+  <summary class="font-medium text-emerald-800 text-sm flex items-center gap-1.5">
+    <span class="q-chev text-xs w-3 inline-block"></span>🟢 Em recuperação · o que já está melhorando
+    <span class="text-xs font-normal text-emerald-600">({{ recup|length }}) — fora da fila de urgência</span></summary>
   <ul class="mt-2 space-y-1">
     {% for t in recup %}
     <li class="text-xs text-emerald-900">{{ t.nome }}
       <span class="text-emerald-600">· {{ t.subpilar }} · {{ t.glifo }} · {{ t.mensagem }}</span></li>
     {% endfor %}
   </ul>
-</section>
+</details>
 {% endif %}
