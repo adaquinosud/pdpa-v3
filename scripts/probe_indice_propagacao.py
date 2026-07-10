@@ -1,0 +1,166 @@
+"""Probe read-only do Índice de Propagação (raio × aceleração) por tema.
+
+RAIO (0-7) = soma dos pesos das camadas em que o tema propaga:
+  - Diagnóstico (peso 1): detrator DOMINANTE nos verbatins do tema (detr > prom).
+  - RA (peso 2): o tema tem verbatim de fonte reclame_aqui com tipo=detrator.
+  - IA (peso 4): o SUBPILAR do tema tem detrator dominante em sonda_ia_avaliacoes
+    (projeção: o tema não existe na IA, mas o subpilar dele sim).
+ACELERAÇÃO = a anomalia de tema já gravada (reusa _mapa_tendencia_tema p/ o glifo):
+  fator ↑↑=1.0, ↑=0.7, (→/sem-anomalia)=0.4, ↓=0.1, ↓↓=0.
+URGÊNCIA = raio × fator. Ranqueia desc, top 15 por empresa.
+
+Read-only, db_session. Uso:
+    PYTHONPATH=. python3 scripts/probe_indice_propagacao.py
+    PYTHONPATH=. python3 scripts/probe_indice_propagacao.py 16 17
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from sqlalchemy import and_, func  # noqa: E402
+
+from src.models.anomalia import AnomaliaDetectada  # noqa: E402
+from src.models.empresa import Empresa  # noqa: E402
+from src.models.fonte import Fonte  # noqa: E402
+from src.models.sonda_ia import SondaIAAvaliacao  # noqa: E402
+from src.models.temas import Tema, VerbatimTema  # noqa: E402
+from src.models.verbatim import Verbatim  # noqa: E402
+from src.ui import _mapa_tendencia_tema  # noqa: E402
+from src.utils.db import db_session  # noqa: E402
+
+IDS_DEFAULT = [16, 17]
+PESO_DIAG, PESO_RA, PESO_IA = 1, 2, 4
+FATOR = {"↑↑": 1.0, "↑": 0.7, "↓": 0.1, "↓↓": 0.0}  # sem glifo → 0.4
+
+
+def _por_empresa(s, eid: int) -> None:
+    emp = s.get(Empresa, eid)
+    print(f"\n===== {emp.nome if emp else '(não encontrada)'} (id {eid}) =====")
+    if emp is None:
+        return
+
+    # (a) verbatins por (tema, subpilar, tipo, é-RA) — base do raio diag/RA + subpilar
+    rows = (
+        s.query(
+            Tema.id,
+            Tema.nome,
+            Verbatim.subpilar,
+            Verbatim.tipo,
+            (Fonte.conector_tipo == "reclame_aqui").label("eh_ra"),
+            func.count(func.distinct(Verbatim.id)),
+        )
+        .select_from(VerbatimTema)
+        .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+        .join(Tema, and_(Tema.id == VerbatimTema.tema_id, Tema.ativo.is_(True)))
+        .join(Fonte, Fonte.id == Verbatim.fonte_id)
+        .filter(
+            Verbatim.empresa_id == eid,
+            Verbatim.tem_texto.is_(True),
+            Verbatim.subpilar.isnot(None),
+        )
+        .group_by(Tema.id, Tema.nome, Verbatim.subpilar, Verbatim.tipo, "eh_ra")
+        .all()
+    )
+
+    temas: dict = {}
+    for tid, nome, sub, tipo, eh_ra, n in rows:
+        n = int(n or 0)
+        t = temas.setdefault(
+            tid, {"nome": nome, "total": 0, "detr": 0, "prom": 0, "ra_detr": 0, "sub_vol": {}}
+        )
+        t["total"] += n
+        t["sub_vol"][sub] = t["sub_vol"].get(sub, 0) + n
+        if tipo == "detrator":
+            t["detr"] += n
+            if eh_ra:
+                t["ra_detr"] += n
+        elif tipo == "promotor":
+            t["prom"] += n
+
+    # (b) IA: detrator dominante por subpilar em sonda_ia_avaliacoes
+    ia: dict = {}
+    for sub, tipo, n in (
+        s.query(SondaIAAvaliacao.subpilar, SondaIAAvaliacao.tipo, func.count())
+        .filter(SondaIAAvaliacao.empresa_id == eid)
+        .group_by(SondaIAAvaliacao.subpilar, SondaIAAvaliacao.tipo)
+    ):
+        d = ia.setdefault(sub, {"detr": 0, "prom": 0})
+        if tipo == "detrator":
+            d["detr"] += int(n or 0)
+        elif tipo == "promotor":
+            d["prom"] += int(n or 0)
+    ia_detr_dominante = {sub for sub, d in ia.items() if d["detr"] > d["prom"]}
+
+    # (c) aceleração: reusa o map da UI (mesmo glifo do template)
+    anoms = (
+        s.query(
+            AnomaliaDetectada.tipo,
+            AnomaliaDetectada.tema_id,
+            AnomaliaDetectada.chave,
+            AnomaliaDetectada.tendencia,
+            AnomaliaDetectada.direcao,
+            AnomaliaDetectada.magnitude,
+            AnomaliaDetectada.severidade,
+        )
+        .filter(AnomaliaDetectada.empresa_id == eid)
+        .all()
+    )
+    mapa = _mapa_tendencia_tema(anoms, ag_filtro=None)
+
+    linhas = []
+    for tid, t in temas.items():
+        sub_dom = max(t["sub_vol"], key=t["sub_vol"].get) if t["sub_vol"] else None
+        camadas = []
+        raio = 0
+        if t["detr"] > t["prom"]:
+            raio += PESO_DIAG
+            camadas.append("diag")
+        if t["ra_detr"] > 0:
+            raio += PESO_RA
+            camadas.append("RA")
+        if sub_dom in ia_detr_dominante:
+            raio += PESO_IA
+            camadas.append("IA")
+        sig = mapa.get(tid)
+        glifo = sig["glifo"] if sig else "→"
+        fator = FATOR.get(glifo, 0.4)
+        urg = round(raio * fator, 2)
+        linhas.append(
+            {
+                "nome": t["nome"],
+                "sub": sub_dom,
+                "vol": t["total"],
+                "raio": raio,
+                "camadas": camadas,
+                "glifo": glifo,
+                "fator": fator,
+                "urg": urg,
+            }
+        )
+
+    linhas.sort(key=lambda x: (-x["urg"], -x["raio"], -x["vol"]))
+    print(f"temas ativos: {len(linhas)} | top 15 por urgência (raio × aceleração):\n")
+    print(
+        f"  {'tema':32.32} {'subpilar':4} {'vol':>4} {'raio':>4} {'camadas':14} "
+        f"{'acel':4} {'urg':>5}"
+    )
+    for x in linhas[:15]:
+        print(
+            f"  {x['nome']:32.32} {x['sub'] or '-':4} {x['vol']:>4} {x['raio']:>4} "
+            f"{','.join(x['camadas']) or '-':14} {x['glifo']:4} {x['urg']:>5}"
+        )
+
+
+def main(ids: list[int]) -> None:
+    with db_session() as s:
+        for eid in ids:
+            _por_empresa(s, eid)
+
+
+if __name__ == "__main__":
+    args = [int(x) for x in sys.argv[1:]] if len(sys.argv) > 1 else IDS_DEFAULT
+    main(args)
