@@ -112,7 +112,9 @@ def _tema(db_session, e, ag_id, sub, tipo, label, vol):
 def test_visoes_renderiza_estrutura(client_loyall, db_session):
     e, f, a, p = _cenario(db_session)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     assert "Duas visões que se encontram" in body
     # as 3 colunas (rótulos explícitos)
     assert "Como o time se avalia" in body and "O modelo" in body and "Temas do cliente" in body
@@ -133,7 +135,9 @@ def test_visoes_agrega_e_marca_divergencia(client_loyall, db_session):
     _resp(db_session, p, "D2", "D2", "promotor", nota=4)  # time promotor, nota 4
     _tema(db_session, e, a.id, "D2", "detrator", "check-in demora", 10)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     assert "promotor" in body and "detrator" in body  # os dois lados
     assert "nota 4" in body  # média da nota do time
     assert "visões divergem" in body  # acento onde dói
@@ -156,7 +160,9 @@ def test_visoes_gauge_e_corte_sistemico_individual(client_loyall, db_session):
 
     assert _gauge_pct(0.0) == 0.0 and _gauge_pct(20.0) == 100.0  # extremos
 
-    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     # (b) os dois blocos do corte, com as frases do /quadro
     assert "BASE · SISTÊMICA" in body and "TOPO · INDIVIDUAL" in body
     assert "resolve-se uma vez" in body and "conta a conta" in body
@@ -182,22 +188,31 @@ def test_visoes_so_confronto_redireciona(client_loyall, db_session):
     db_session.add(p)
     db_session.flush()
     db_session.commit()
-    r = client_loyall.get(f"/pesquisas/{p.id}/visoes")
-    assert r.status_code == 302 and f"/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    r = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes")
+    assert (
+        r.status_code == 302
+        and f"/empresas/{p.empresa_id}/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    )
 
 
 def test_links_reciprocos_visoes(client_loyall, db_session):
     e, f, a, p = _cenario(db_session)
     db_session.commit()
-    vis = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    vis = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     assert (
         "← Confronto" in vis
         and "Quadro dos pilares →" in vis
         and "Ler a profundidade (ORIGEM)" in vis
     )
-    conf = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    conf = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "Duas visões →" in conf
-    quad = client_loyall.get(f"/pesquisas/{p.id}/quadro").get_data(as_text=True)
+    quad = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/quadro").get_data(
+        as_text=True
+    )
     assert "Duas visões →" in quad
 
 
@@ -210,7 +225,9 @@ def test_visoes_citacoes_literais_do_time(client_loyall, db_session):
     _resp(db_session, p, "D2", "D2", "promotor", texto=curto)
     _resp(db_session, p, "D1", "D1", "promotor", texto=longo)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     assert f"“{curto}”" in body  # fala literal do time, entre aspas
     assert "…" in body and ("x" * 130) not in body  # truncado ~100 chars
 
@@ -220,7 +237,9 @@ def test_visoes_sem_texto_time_so_valencia(client_loyall, db_session):
     e, f, a, p = _cenario(db_session)
     _resp(db_session, p, "D2", "D2", "promotor", nota=4, texto=None)  # nota, sem texto
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     assert "nota 4" in body
     # nenhuma citação literal do time (não há valor_texto)
     assert "“" not in body or "reclama" in body  # aspas do time ausentes
@@ -231,7 +250,9 @@ def test_visoes_responsivo_empilha_no_mobile(client_loyall, db_session):
     faz wrap — não quebra no celular (uso desktop-first, mobile = não quebrar)."""
     e, f, a, p = _cenario(db_session)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     assert "grid-cols-1 md:grid-cols-3" in body  # empilha no mobile
     assert "flex flex-wrap" in body  # nav não estoura
 
@@ -243,7 +264,9 @@ def test_visoes_radar_chartjs(client_loyall, db_session):
     _verb(db_session, e, f, "D2", "detrator")  # cliente detrator (D)
     _resp(db_session, p, "D2", "D2", "promotor")  # time promotor (D)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/visoes").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/visoes").get_data(
+        as_text=True
+    )
     assert 'id="radar-visoes"' in body and "type: 'radar'" in body
     assert "Como o time se avalia" in body and "Voz pública" in body
     # eixos = códigos dos 4 pilares; D: time promotor(3) × cliente detrator(1)

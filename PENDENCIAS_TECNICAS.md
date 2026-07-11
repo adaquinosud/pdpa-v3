@@ -351,35 +351,6 @@ Alembic ou um runner dialeto-aware quando Postgres entrar.
 
 ---
 
-## Rotas de detalhe de Pesquisa sem escopo de empresa (isolamento) — Bug B
-
-**Origem:** investigação do vazamento cross-empresa na tela de Pesquisas, 2026-07-11.
-**Status: PARCIALMENTE FECHADO — rotas de MUTAÇÃO protegidas (Fase 1); LEITURA pendente
-(Fase 2).** Prioridade média-alta — pendência de SEGURANÇA, obrigatória ANTES de
-Pesquisas abrir a cliente. Sai deste arquivo de vez só no fim da Fase 2.
-
-**Bug:** as rotas de detalhe carregavam a pesquisa por `id` via
-`obter(s, pesquisa_id) = s.get(Pesquisa, id)` **sem checar a empresa** → dava para
-abrir/editar/aprovar/apagar qualquer pesquisa de qualquer empresa pela URL, por id.
-
-**Fechado (Fase 1) — rotas de MUTAÇÃO** movidas para `/empresas/<eid>/pesquisas/<id>/…`
-com `obter(s, id, empresa_id)` validando `pesq.empresa_id != eid → 404`:
-`/validar`, `/aprovar`, `/perguntas` (adicionar), `/perguntas/<pid>` (editar),
-`/perguntas/<pid>/apagar`. (Mais `/apagar` da pesquisa inteira, que já nasceu escopada.)
-O guard vive centralizado no load (`obter` + `_guard_rascunho`) — rota nova herda.
-
-**Pendente (Fase 2) — rotas de LEITURA** ainda em `/pesquisas/<id>/…` sem escopo:
-`/revisar`, `/respostas`, `/confronto`, `/origem`, `/quadro`, `/visoes` (+ o POST
-`/classificar-respostas`). Mesmo tratamento: mover para `/empresas/<eid>/…` +
-`obter(s, id, empresa_id)`.
-
-**Contido hoje (o que resta):** todas são `@loyall_required_ui` (Loyall = admin-vê-tudo)
-→ NÃO é vazamento client-facing agora. Latente até Pesquisas abrir a cliente / surgir
-Loyall com escopo restrito. A listagem (`listar`) já filtra por empresa; o buraco
-remanescente é só o acesso por id direto nas rotas de LEITURA.
-
----
-
 ## Botão "excluir pesquisa" na UI (melhoria; fecha o Bug B naquela rota)
 
 **Origem:** limpeza das pesquisas de teste 1/2 (mal-atribuídas), 2026-07-11 — feita por

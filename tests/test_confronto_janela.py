@@ -196,5 +196,7 @@ def test_confronto_tela_sinaliza_janela(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "P1", "detrator", data=RECENTE)
     _resp(db_session, p, q, sub_class="sem_lastro", val="inativo")
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "lado cliente: últimos 6 meses" in body  # env default 180d = 6 meses

@@ -87,7 +87,7 @@ def test_gap_renderiza(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "D2", "detrator")  # cliente ruim
     _resp(db_session, p, "D2", "D2", "promotor")  # time bom → superestima
     db_session.commit()
-    r = client_loyall.get(f"/pesquisas/{p.id}/confronto")
+    r = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto")
     body = r.get_data(as_text=True)
     assert r.status_code == 200
     # rótulo claro (sem jargão): superestima → "o time acha melhor…"
@@ -98,7 +98,9 @@ def test_pendentes_avisa(client_loyall, db_session):
     e_id, f_id, p = _pesquisa(db_session)
     _resp(db_session, p, "D2", None, None, classificada=False)  # texto sem classificar
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "não classificado" in body and "Classificar comentários" in body
     assert "superestima" not in body  # não mostra gap falso
 
@@ -107,15 +109,20 @@ def test_assimetria_muda(client_loyall, db_session):
     e_id, f_id, p = _pesquisa(db_session)
     _verb(db_session, e_id, f_id, "A1", "detrator")  # cliente tem A1, mas a pesquisa
     db_session.commit()  # não tem pergunta de A1 → lacuna (não perguntado)
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "Não perguntado" in body and "A1" in body
 
 
 def test_nao_confronto_redireciona(client_loyall, db_session):
     e_id, f_id, p = _pesquisa(db_session, proposito="coleta")
     db_session.commit()
-    r = client_loyall.get(f"/pesquisas/{p.id}/confronto")
-    assert r.status_code == 302 and f"/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    r = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto")
+    assert (
+        r.status_code == 302
+        and f"/empresas/{p.empresa_id}/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    )
 
 
 def test_escopo_filtro_ok(client_loyall, db_session):
@@ -123,5 +130,7 @@ def test_escopo_filtro_ok(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "D2", "detrator")
     _resp(db_session, p, "D2", "D2", "promotor")
     db_session.commit()
-    r = client_loyall.get(f"/pesquisas/{p.id}/confronto?entidade_tipo=empresa")
+    r = client_loyall.get(
+        f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto?entidade_tipo=empresa"
+    )
     assert r.status_code == 200

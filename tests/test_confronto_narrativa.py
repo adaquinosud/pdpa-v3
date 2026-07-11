@@ -186,7 +186,9 @@ def test_secoes_na_ordem(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "A1", "detrator")  # não perguntado
     db_session.commit()
 
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     pos = [
         body.index("Pontos cegos"),
         body.index("Descompassos"),
@@ -211,7 +213,9 @@ def test_rotulos_claros_sem_jargao(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "Pa2", "detrator")
     _resp(db_session, p, q_pa2, sub_class="Pa2", val="detrator")  # consciência
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "o time acha melhor do que o cliente sente" in body
     assert "o time se cobra mais do que o cliente" in body
     assert "os dois reconhecem o problema" in body
@@ -352,7 +356,9 @@ def test_tela_mostra_temas_e_aviso(client_loyall, db_session):
     _resp(db_session, p, q_p1, sub_class="sem_lastro", val="inativo")
     _tema(db_session, e_id, a.id, "P1", "detrator", "demora", 10)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "Cliente reclama de:" in body and "demora" in body
 
     # loja → aviso, sem temas
@@ -363,7 +369,9 @@ def test_tela_mostra_temas_e_aviso(client_loyall, db_session):
     _verb(db_session, e2, f2, "P1", "detrator")
     _resp(db_session, p2, q2, sub_class="sem_lastro", val="inativo")
     db_session.commit()
-    body2 = client_loyall.get(f"/pesquisas/{p2.id}/confronto").get_data(as_text=True)
+    body2 = client_loyall.get(f"/empresas/{p2.empresa_id}/pesquisas/{p2.id}/confronto").get_data(
+        as_text=True
+    )
     assert "apenas para pesquisas por agrupamento" in body2
 
 
@@ -377,7 +385,9 @@ def test_time_nota_sem_valencia_explica(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "P1", "detrator")  # cliente detrator
     _resp(db_session, p, q, sub_class="sem_lastro", val="inativo", nota=4)  # nota + sem valência
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "nota 4.0" in body and "não apontou o problema" in body
 
 
@@ -388,7 +398,9 @@ def test_time_valencia_sem_nota_explica(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "Pa3", "promotor")  # cliente promotor
     _resp(db_session, p, q, sub_class="Pa3", val="promotor")  # valência, nota=None
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "sem nota específica" in body
 
 
@@ -399,7 +411,9 @@ def test_time_ambos_sinais(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "D2", "detrator")  # cliente detrator
     _resp(db_session, p, q, sub_class="D2", val="promotor", nota=4)  # valência + nota
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "nota 4.0" in body and "promotor" in body
 
 
@@ -415,7 +429,9 @@ def test_manchete_contagem_no_topo(client_loyall, db_session):
     _verb(db_session, e_id, f_id, "Pa3", "promotor")
     _resp(db_session, p, q2, sub_class="Pa3", val="promotor")
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "1 ponto(s) cego(s)" in body and "1 força(s)" in body
     # manchete vem ANTES do bloco de pontos cegos
     assert body.index("1 ponto(s) cego(s)") < body.index("🔴 Pontos cegos")

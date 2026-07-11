@@ -215,7 +215,7 @@ def pesquisa_gerar(empresa_id):
             "erro",
         )
         return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
-    return redirect(url_for("ui.pesquisa_revisar", pesquisa_id=pesquisa_id))
+    return redirect(url_for("ui.pesquisa_revisar", empresa_id=empresa_id, pesquisa_id=pesquisa_id))
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/apagar", methods=["POST"])
@@ -313,13 +313,15 @@ def _sugerir_subpilar(s, empresa_id, enunciado):
         return None
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/revisar")
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/revisar")
 @loyall_required_ui
-def pesquisa_revisar(pesquisa_id):
+def pesquisa_revisar(empresa_id, pesquisa_id):
     r = _require_loyall_html()
     if r:
         return r
     with db_session() as s:
+        if obter(s, pesquisa_id, empresa_id) is None:  # guard de escopo: outra empresa → 404
+            return render_template("404.html"), 404
         ctx = _ctx_revisar(s, pesquisa_id)
         if ctx is None:
             return render_template("404.html"), 404
@@ -443,9 +445,9 @@ def pesquisa_aprovar(empresa_id, pesquisa_id):
     return render_template("pesquisa/revisar.html", **ctx)
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/respostas")
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/respostas")
 @loyall_required_ui
-def pesquisa_respostas(pesquisa_id):
+def pesquisa_respostas(empresa_id, pesquisa_id):
     """Tela de RETORNO (Fase 2 · Passo 4): respostas por pergunta, com filtro de
     escopo. Leitura/agregação (retorno.py), sem escrita."""
     r = _require_loyall_html()
@@ -457,15 +459,22 @@ def pesquisa_respostas(pesquisa_id):
     eid = _int(request.args.get("entidade_id"))
     escopo = (et, eid) if et else None
     with db_session() as s:
+        if obter(s, pesquisa_id, empresa_id) is None:  # guard de escopo: outra empresa → 404
+            return render_template("404.html"), 404
         ret = retorno_pesquisa(s, pesquisa_id, escopo)
         if ret is None:
             return render_template("404.html"), 404
-    return render_template("pesquisa/respostas.html", ret=ret, escopo_sel=(et, eid))
+    return render_template(
+        "pesquisa/respostas.html", ret=ret, escopo_sel=(et, eid), empresa_id=empresa_id
+    )
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/classificar-respostas", methods=["POST"])
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/classificar-respostas",
+    methods=["POST"],
+)
 @loyall_required_ui
-def pesquisa_classificar_respostas(pesquisa_id):
+def pesquisa_classificar_respostas(empresa_id, pesquisa_id):
     """Dispara a classificação EM LOTE das Respostas de confronto (Fase 2 · 5a).
     Classifica na própria Resposta — NUNCA cria Verbatim, base do cliente intocada."""
     r = _require_loyall_html()
@@ -474,7 +483,7 @@ def pesquisa_classificar_respostas(pesquisa_id):
     from src.pesquisa.confronto import classificar_respostas_confronto
 
     with db_session() as s:
-        if obter(s, pesquisa_id) is None:
+        if obter(s, pesquisa_id, empresa_id) is None:  # guard de escopo: outra empresa → 404
             return render_template("404.html"), 404
         stats = classificar_respostas_confronto(s, pesquisa_id=pesquisa_id)
     flash(
@@ -482,7 +491,9 @@ def pesquisa_classificar_respostas(pesquisa_id):
         f"({stats['erros']} erro(s), {stats['puladas']} puladas).",
         "ok",
     )
-    return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+    return redirect(
+        url_for("ui.pesquisa_respostas", empresa_id=empresa_id, pesquisa_id=pesquisa_id)
+    )
 
 
 def _pendentes_nao_classificados(s, pesquisa_id):
@@ -504,9 +515,9 @@ def _pendentes_nao_classificados(s, pesquisa_id):
     )
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/confronto")
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/confronto")
 @loyall_required_ui
-def pesquisa_confronto(pesquisa_id):
+def pesquisa_confronto(empresa_id, pesquisa_id):
     """Tela do GAP (Fase 2 · 5b.2): cliente × colaborador por subpilar. Só p/
     proposito='confronto'. Sinaliza comentários não-classificados (não mostra gap
     falso). Leitura pura sobre gap_confronto."""
@@ -520,12 +531,14 @@ def pesquisa_confronto(pesquisa_id):
     eid = _int(request.args.get("entidade_id"))
     escopo = (et, eid) if et else None
     with db_session() as s:
-        pesq = obter(s, pesquisa_id)
+        pesq = obter(s, pesquisa_id, empresa_id)  # guard de escopo: outra empresa → 404
         if pesq is None:
             return render_template("404.html"), 404
         if pesq.proposito != "confronto":
             flash("O confronto é só para pesquisas de propósito 'confronto'.", "erro")
-            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+            return redirect(
+                url_for("ui.pesquisa_respostas", empresa_id=empresa_id, pesquisa_id=pesquisa_id)
+            )
         # Pendentes: comentários ainda não classificados (5a) → gap seria falso.
         pendentes = _pendentes_nao_classificados(s, pesquisa_id)
         ret = retorno_pesquisa(s, pesquisa_id)  # reusa só os escopos (filtro)
@@ -554,9 +567,9 @@ def pesquisa_confronto(pesquisa_id):
 _ORIGEM_ORDEM = {"essencia": 0, "significado": 1, "direcao": 2, "caminho": 3, "resultado": 4}
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/origem")
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/origem")
 @loyall_required_ui
-def pesquisa_origem(pesquisa_id):
+def pesquisa_origem(empresa_id, pesquisa_id):
     """Tela do ORIGEM (fatia 3): a que elo da cadeia generativa mora cada gap,
     medido contra a essência declarada. Só proposito='confronto'. Leitura pura
     sobre origem_analise/origem_sintese; o botão dispara gerar_origem."""
@@ -569,12 +582,14 @@ def pesquisa_origem(pesquisa_id):
     from src.pesquisa.origem import _essencia_vazia
 
     with db_session() as s:
-        pesq = obter(s, pesquisa_id)
+        pesq = obter(s, pesquisa_id, empresa_id)  # guard de escopo: outra empresa → 404
         if pesq is None:
             return render_template("404.html"), 404
         if pesq.proposito != "confronto":
             flash("O ORIGEM é só para pesquisas de propósito 'confronto'.", "erro")
-            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+            return redirect(
+                url_for("ui.pesquisa_respostas", empresa_id=empresa_id, pesquisa_id=pesquisa_id)
+            )
         emp = s.get(Empresa, pesq.empresa_id)
         essencia_vazia = emp is None or _essencia_vazia(emp)
         pendentes = _pendentes_nao_classificados(s, pesquisa_id)
@@ -626,9 +641,11 @@ def pesquisa_origem(pesquisa_id):
     return render_template("pesquisa/origem.html", **ctx)
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/origem/gerar", methods=["POST"])
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/origem/gerar", methods=["POST"]
+)
 @loyall_required_ui
-def pesquisa_origem_gerar(pesquisa_id):
+def pesquisa_origem_gerar(empresa_id, pesquisa_id):
     """Dispara gerar_origem (1 chamada LLM, sob demanda). Falha de IA → flash, não
     500 cru. Re-rodar sobrescreve. Molde do 'Classificar comentários'."""
     r = _require_loyall_html()
@@ -638,13 +655,15 @@ def pesquisa_origem_gerar(pesquisa_id):
 
     try:
         with db_session() as s:
-            if obter(s, pesquisa_id) is None:
+            if obter(s, pesquisa_id, empresa_id) is None:  # guard de escopo: outra empresa → 404
                 return render_template("404.html"), 404
             out = gerar_origem(s, pesquisa_id)
     except Exception:  # noqa: BLE001 — falha de LLM/infra não vira 500 cru
         current_app.logger.exception("falha ao rodar ORIGEM (pesquisa=%s)", pesquisa_id)
         flash("Não consegui rodar o ORIGEM agora (serviço de IA indisponível).", "erro")
-        return redirect(url_for("ui.pesquisa_origem", pesquisa_id=pesquisa_id))
+        return redirect(
+            url_for("ui.pesquisa_origem", empresa_id=empresa_id, pesquisa_id=pesquisa_id)
+        )
 
     status = out.get("status")
     if status == "ok":
@@ -653,7 +672,7 @@ def pesquisa_origem_gerar(pesquisa_id):
         flash("Cadastre missão, visão e valores da empresa primeiro.", "erro")
     elif status == "sem_gaps":
         flash("Nenhum gap para o ORIGEM ler (sem pontos cegos, descompassos ou forças).", "ok")
-    return redirect(url_for("ui.pesquisa_origem", pesquisa_id=pesquisa_id))
+    return redirect(url_for("ui.pesquisa_origem", empresa_id=empresa_id, pesquisa_id=pesquisa_id))
 
 
 # ── Quadro dos pilares (Leitura 2): topo individual × base sistêmica ─────────
@@ -717,9 +736,9 @@ def _quadro_grao(s, pesq):
     return "Loja" + ("s: " if len(nomes) > 1 else ": ") + ", ".join(nomes or ["—"])
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/quadro")
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/quadro")
 @loyall_required_ui
-def pesquisa_quadro(pesquisa_id):
+def pesquisa_quadro(empresa_id, pesquisa_id):
     """Quadro dos pilares (Leitura 2): base sistêmica (P, D) × topo individual
     (Pa, A), com o estado do confronto de cada subpilar. Leitura pura sobre
     gap_confronto. Só proposito='confronto'."""
@@ -731,12 +750,14 @@ def pesquisa_quadro(pesquisa_id):
     from src.pesquisa.retorno import retorno_pesquisa
 
     with db_session() as s:
-        pesq = obter(s, pesquisa_id)
+        pesq = obter(s, pesquisa_id, empresa_id)  # guard de escopo: outra empresa → 404
         if pesq is None:
             return render_template("404.html"), 404
         if pesq.proposito != "confronto":
             flash("O quadro dos pilares é só para pesquisas de propósito 'confronto'.", "erro")
-            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+            return redirect(
+                url_for("ui.pesquisa_respostas", empresa_id=empresa_id, pesquisa_id=pesquisa_id)
+            )
         por_sub = {g["subpilar"]: g for g in (gap_confronto(s, pesquisa_id) or [])}
         ret = retorno_pesquisa(s, pesquisa_id)
 
@@ -762,6 +783,7 @@ def pesquisa_quadro(pesquisa_id):
         ]
         ctx = {
             "pesquisa_id": pesquisa_id,
+            "empresa_id": empresa_id,
             "titulo": pesq.titulo,
             "faixas": faixas,
             "grao": _quadro_grao(s, pesq),
@@ -826,9 +848,9 @@ def _gauge_pct(ratio):
     return 100.0
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/visoes")
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/visoes")
 @loyall_required_ui
-def pesquisa_visoes(pesquisa_id):
+def pesquisa_visoes(empresa_id, pesquisa_id):
     """'Duas visões que se encontram': por pilar, a visão do TIME (valência+nota
     agregadas) × o MODELO × a voz do CLIENTE (valência + temas como citações).
     Agregado fiel (moda da valência, média da nota); o detalhe por subpilar vive
@@ -849,12 +871,14 @@ def pesquisa_visoes(pesquisa_id):
     from src.temas.janela import data_corte
 
     with db_session() as s:
-        pesq = obter(s, pesquisa_id)
+        pesq = obter(s, pesquisa_id, empresa_id)  # guard de escopo: outra empresa → 404
         if pesq is None:
             return render_template("404.html"), 404
         if pesq.proposito != "confronto":
             flash("As duas visões são só para pesquisas de propósito 'confronto'.", "erro")
-            return redirect(url_for("ui.pesquisa_respostas", pesquisa_id=pesquisa_id))
+            return redirect(
+                url_for("ui.pesquisa_respostas", empresa_id=empresa_id, pesquisa_id=pesquisa_id)
+            )
         por_sub = {g["subpilar"]: g for g in (gap_confronto(s, pesquisa_id) or [])}
         citacoes_time = _visoes_citacoes_time(s, pesquisa_id)  # falas literais do time
         # Ratio do CLIENTE por pilar (gauge) — MESMA janela do confronto (data_corte),
@@ -940,6 +964,7 @@ def pesquisa_visoes(pesquisa_id):
         ]
         ctx = {
             "pesquisa_id": pesquisa_id,
+            "empresa_id": empresa_id,
             "titulo": pesq.titulo,
             "pilares": pilares,
             "grupos": grupos,

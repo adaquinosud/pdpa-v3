@@ -150,7 +150,7 @@ def test_link_publico_aparece_quando_pronta(client_loyall, db_session):
     client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
     db_session.expire_all()
     token = obter(db_session, pid).token_publico
-    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    html = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert token and f"/p/{token}" in html
     assert "copiar link" in html
 
@@ -159,7 +159,7 @@ def test_link_publico_ausente_em_rascunho(client_loyall, db_session):
     """FURO 2: rascunho (ainda não pronta) não expõe link público."""
     e = _empresa(client_loyall, "EUIlink0")
     pid = _seed(db_session, e, [_q(1, "Como foi?")])
-    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    html = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "copiar link" not in html
 
 
@@ -185,7 +185,7 @@ def test_gerar_falha_llm_nao_da_500(client_loyall, db_session, monkeypatch):
 def test_revisar_mostra_cards(client_loyall, db_session):
     e = _empresa(client_loyall, "EUIrev")
     pid = _seed(db_session, e, [_q(1, "Como foi a retirada?", porque="interno")])
-    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    html = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "Como foi a retirada?" in html and "Aprovar" in html
     assert "Porquê (interno)" in html  # justificativa visível p/ quem revisa
 
@@ -328,11 +328,11 @@ def test_cards_controles_so_em_rascunho(client_loyall, db_session):
     """Rascunho mostra adicionar/apagar/subpilar; pronta esconde (read-only)."""
     e = _empresa(client_loyall, "EUIctrl")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
-    rasc = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    rasc = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "Adicionar pergunta" in rasc and "apagar" in rasc
     assert 'name="subpilar_alvo"' in rasc
     client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
-    pronta = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    pronta = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "Adicionar pergunta" not in pronta and 'name="subpilar_alvo"' not in pronta
 
 
@@ -343,7 +343,7 @@ def test_revisar_tem_voltar_e_validar_com_spinner(client_loyall, db_session):
     """FRENTE 1/2: revisar tem '← Pesquisas'; Validar tem spinner + rótulo do papel."""
     e = _empresa(client_loyall, "EUInavR")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
-    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    html = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "← Pesquisas" in html and f"/empresas/{e}/pesquisas" in html
     assert "Validar (checar régua)" in html  # papel claro vs Aprovar
     assert 'id="validar-loading"' in html and 'hx-indicator="#validar-loading"' in html
@@ -498,7 +498,40 @@ def test_revisar_links_mutacao_sao_empresa_escopados(client_loyall, db_session):
     """Os botões de mutação na tela de revisar apontam pra rota empresa-escopada."""
     e = _empresa(client_loyall, "EUImutLink")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
-    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    html = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert f"/empresas/{e}/pesquisas/{pid}/validar" in html
     assert f"/empresas/{e}/pesquisas/{pid}/aprovar" in html
     assert f"/empresas/{e}/pesquisas/{pid}/perguntas" in html  # adicionar + editar/apagar
+
+
+# ── Fase 2: guard de empresa nas rotas de LEITURA (eid errado na URL → 404) ───
+
+
+def test_leitura_cross_empresa_404(client_loyall, db_session):
+    """Cada rota de LEITURA com a empresa ERRADA na URL → 404. O guard (obter) 404
+    ANTES de qualquer render — vale mesmo pras telas que exigem proposito='confronto'
+    (o escopo é checado antes do propósito)."""
+    a = _empresa(client_loyall, "EUIleitA")
+    b = _empresa(client_loyall, "EUIleitB")
+    pid = _seed(db_session, a, [_q(1, "Como foi o atendimento?")])
+    gets = ["revisar", "respostas", "confronto", "origem", "quadro", "visoes"]
+    posts = ["classificar-respostas", "origem/gerar"]
+    for ep in gets:
+        assert client_loyall.get(f"/empresas/{b}/pesquisas/{pid}/{ep}").status_code == 404, ep
+    for ep in posts:
+        assert client_loyall.post(f"/empresas/{b}/pesquisas/{pid}/{ep}").status_code == 404, ep
+
+
+def test_leitura_eid_certo_funciona(client_loyall, db_session):
+    """Contraprova: com a empresa CERTA na URL, revisar abre (200)."""
+    e = _empresa(client_loyall, "EUIleitOk")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    assert client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").status_code == 200
+
+
+def test_lista_links_leitura_escopados(client_loyall, db_session):
+    """Os links da lista de Pesquisas (revisar) apontam pra rota empresa-escopada."""
+    e = _empresa(client_loyall, "EUIleitLink")
+    pid = _seed(db_session, e, [_q(1, "Como foi?")])
+    html = client_loyall.get(f"/empresas/{e}/pesquisas").get_data(as_text=True)
+    assert f"/empresas/{e}/pesquisas/{pid}/revisar" in html

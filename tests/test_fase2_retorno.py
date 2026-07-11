@@ -159,6 +159,6 @@ def test_rota_respostas(client_loyall, db_session):
     p, qs = _pesquisa(db_session, "Erota")
     _respondente(db_session, p, respostas={qs["nota"]: {"valor_nota": 5}})
     db_session.commit()
-    r = client_loyall.get(f"/pesquisas/{p.id}/respostas")
+    r = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/respostas")
     assert r.status_code == 200
     assert "Sat" in r.get_data(as_text=True)

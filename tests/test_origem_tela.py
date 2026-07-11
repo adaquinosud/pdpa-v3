@@ -85,7 +85,9 @@ def test_origem_renderiza_e_ordena_por_profundidade(client_loyall, db_session):
     _analise(db_session, p, "Pa1", "caminho", "solidez")  # meio
     db_session.add(OrigemSintese(pesquisa_id=p.id, texto="A maioria rompe na essência."))
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     assert "A maioria rompe na essência." in body  # síntese no topo
     # ordem por profundidade: Essência(P1) → Caminho(Pa1) → Resultado(D2)
     assert body.index("P1 ·") < body.index("Pa1 ·") < body.index("D2 ·")
@@ -97,9 +99,13 @@ def test_links_reciprocos(client_loyall, db_session):
     e = _empresa(db_session)
     p = _pesquisa(db_session, e)
     db_session.commit()
-    conf = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    conf = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "Ler a profundidade (ORIGEM)" in conf
-    orig = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    orig = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     assert "← Confronto" in orig
 
 
@@ -107,7 +113,9 @@ def test_gate_essencia_vazia(client_loyall, db_session):
     e = _empresa(db_session, com_essencia=False)
     p = _pesquisa(db_session, e)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     assert "Cadastre missão, visão e valores" in body
     assert 'id="origem-form"' not in body  # sem botão de rodar
     assert "Editar empresa" in body  # link pro modal
@@ -118,7 +126,9 @@ def test_gate_pendentes(client_loyall, db_session):
     p = _pesquisa(db_session, e)
     _pendente(db_session, p)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     assert "não classificado" in body
     assert 'id="origem-form"' not in body  # não roda sobre dado incompleto
 
@@ -127,7 +137,9 @@ def test_sem_analise_mostra_botao_e_explicacao(client_loyall, db_session):
     e = _empresa(db_session)
     p = _pesquisa(db_session, e)
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     assert 'id="origem-form"' in body and "Ler a profundidade (ORIGEM)" in body
     assert "profundidade" in body  # explicação do que o ORIGEM faz
     assert 'id="origem-spinner"' in body and "animate-spin" in body  # spinner no submit
@@ -137,8 +149,11 @@ def test_nao_confronto_redireciona(client_loyall, db_session):
     e = _empresa(db_session)
     p = _pesquisa(db_session, e, proposito="coleta")
     db_session.commit()
-    r = client_loyall.get(f"/pesquisas/{p.id}/origem")
-    assert r.status_code == 302 and f"/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    r = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem")
+    assert (
+        r.status_code == 302
+        and f"/empresas/{p.empresa_id}/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    )
 
 
 def test_disparo_flash_e_redirect(client_loyall, db_session, monkeypatch):
@@ -149,8 +164,11 @@ def test_disparo_flash_e_redirect(client_loyall, db_session, monkeypatch):
     monkeypatch.setattr(
         "src.pesquisa.origem.gerar_origem", lambda s, pid: {"status": "ok", "analisados": 3}
     )
-    r = client_loyall.post(f"/pesquisas/{p.id}/origem/gerar")
-    assert r.status_code == 302 and f"/pesquisas/{p.id}/origem" in r.headers["Location"]
+    r = client_loyall.post(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem/gerar")
+    assert (
+        r.status_code == 302
+        and f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem" in r.headers["Location"]
+    )
     body = client_loyall.get(r.headers["Location"]).get_data(as_text=True)
     assert "3 gap(s) analisado(s)" in body
 
@@ -162,7 +180,7 @@ def test_disparo_essencia_indisponivel_avisa(client_loyall, db_session, monkeypa
     monkeypatch.setattr(
         "src.pesquisa.origem.gerar_origem", lambda s, pid: {"status": "essencia_indisponivel"}
     )
-    r = client_loyall.post(f"/pesquisas/{p.id}/origem/gerar")
+    r = client_loyall.post(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem/gerar")
     body = client_loyall.get(r.headers["Location"]).get_data(as_text=True)
     assert "Cadastre missão, visão e valores" in body
 
@@ -180,7 +198,9 @@ def test_cadeia_de_elos_e_gerado_em(client_loyall, db_session):
     _analise(db_session, p, "Pa1", "caminho", "solidez")  # força
     db_session.add(OrigemSintese(pesquisa_id=p.id, texto="Rompe na essência."))
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     # cabeçalho + os 5 elos (inclusive os vazios: Significado, Direção)
     assert "Cadeia generativa" in body
     for elo in ("Essência", "Significado", "Direção", "Caminho", "Resultado"):
@@ -198,7 +218,9 @@ def test_cadeia_sem_gravidade_nao_marca_ruptura(client_loyall, db_session):
     p = _pesquisa(db_session, e)
     _analise(db_session, p, "Pa3", "essencia", "solidez")  # força funda, sem gravidade
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     assert "Cadeia generativa" in body
     assert "rompe aqui" not in body  # nada rompe
 
@@ -220,7 +242,9 @@ def test_cadeia_v2_chip_nome_frase_e_detalhe_agrupado(client_loyall, db_session)
         db_session, p, "Pa3", "essencia", "solidez", just="Encarna o cuidado declarado. Sólida."
     )
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     # chip com sigla + nome
     assert "P2 · Qualidade da Entrega" in body
     # frase-síntese do elo (1ª frase, derivada da justificativa)
@@ -238,7 +262,9 @@ def test_cadeia_svg_diagrama(client_loyall, db_session):
     _analise(db_session, p, "Pa1", "caminho", "solidez")  # força
     _analise(db_session, p, "D2", "resultado", "gravidade")
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     # chips-pílula por lado + sigla·nome
     assert "bg-rose-100" in body and "bg-emerald-100" in body
     assert "P1 · Calibração da Promessa" in body

@@ -102,7 +102,9 @@ def test_quadro_renderiza_estrutura_e_identidade(client_loyall, db_session):
     _verb(db_session, e, f, "Pa3", "promotor")
     _resp(db_session, p, "Pa3", "Pa3", "promotor")
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/quadro").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/quadro").get_data(
+        as_text=True
+    )
     # manchete + eyebrow (identidade dos slides)
     assert "A base é sistêmica." in body and "O topo é individual." in body
     # as 2 faixas
@@ -127,7 +129,9 @@ def test_quadro_estados_por_subpilar(client_loyall, db_session):
     _verb(db_session, e, f, "D2", "detrator")  # cliente detrator
     _resp(db_session, p, "D2", "sem_lastro", "inativo")  # time silêncio → ponto cego
     db_session.commit()
-    body = client_loyall.get(f"/pesquisas/{p.id}/quadro").get_data(as_text=True)
+    body = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/quadro").get_data(
+        as_text=True
+    )
     # D2 (Eficácia Operacional) aparece com estado ponto cego
     assert "D2" in body and "Eficácia Operacional" in body
     assert "ponto cego" in body
@@ -139,17 +143,26 @@ def test_quadro_so_confronto(client_loyall, db_session):
     e, f = _base(db_session)
     p = _pesquisa(db_session, e, proposito="coleta")
     db_session.commit()
-    r = client_loyall.get(f"/pesquisas/{p.id}/quadro")
-    assert r.status_code == 302 and f"/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    r = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/quadro")
+    assert (
+        r.status_code == 302
+        and f"/empresas/{p.empresa_id}/pesquisas/{p.id}/respostas" in r.headers["Location"]
+    )
 
 
 def test_links_reciprocos_quadro(client_loyall, db_session):
     e, f = _base(db_session)
     p = _pesquisa(db_session, e)
     db_session.commit()
-    quadro = client_loyall.get(f"/pesquisas/{p.id}/quadro").get_data(as_text=True)
+    quadro = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/quadro").get_data(
+        as_text=True
+    )
     assert "← Confronto" in quadro and "Ler a profundidade (ORIGEM)" in quadro
-    conf = client_loyall.get(f"/pesquisas/{p.id}/confronto").get_data(as_text=True)
+    conf = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/confronto").get_data(
+        as_text=True
+    )
     assert "Quadro dos pilares →" in conf
-    orig = client_loyall.get(f"/pesquisas/{p.id}/origem").get_data(as_text=True)
+    orig = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/origem").get_data(
+        as_text=True
+    )
     assert "Quadro dos pilares →" in orig

@@ -15,12 +15,12 @@
      Verbatim; classifica na própria Resposta. #}
   {% if ret.pesquisa.proposito == 'confronto' %}
   <div class="mt-2 flex items-center gap-3">
-    <form method="post" action="{{ url_for('ui.pesquisa_classificar_respostas', pesquisa_id=ret.pesquisa.id) }}">
+    <form method="post" action="{{ url_for('ui.pesquisa_classificar_respostas', empresa_id=empresa_id, pesquisa_id=ret.pesquisa.id) }}">
       <button class="text-xs px-3 py-1 rounded border border-loyall-300 hover:bg-loyall-100">
         Classificar comentários (confronto)
       </button>
     </form>
-    <a href="{{ url_for('ui.pesquisa_confronto', pesquisa_id=ret.pesquisa.id) }}"
+    <a href="{{ url_for('ui.pesquisa_confronto', empresa_id=empresa_id, pesquisa_id=ret.pesquisa.id) }}"
        class="text-sm text-loyall-600 hover:underline">ver confronto →</a>
   </div>
   {% endif %}
