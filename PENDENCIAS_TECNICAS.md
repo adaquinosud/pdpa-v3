@@ -354,23 +354,29 @@ Alembic ou um runner dialeto-aware quando Postgres entrar.
 ## Rotas de detalhe de Pesquisa sem escopo de empresa (isolamento) — Bug B
 
 **Origem:** investigação do vazamento cross-empresa na tela de Pesquisas, 2026-07-11.
-**Prioridade: média-alta** — pendência de SEGURANÇA, obrigatória ANTES de Pesquisas
-abrir a cliente.
+**Status: PARCIALMENTE FECHADO — rotas de MUTAÇÃO protegidas (Fase 1); LEITURA pendente
+(Fase 2).** Prioridade média-alta — pendência de SEGURANÇA, obrigatória ANTES de
+Pesquisas abrir a cliente. Sai deste arquivo de vez só no fim da Fase 2.
 
-**Bug:** as rotas de detalhe de pesquisa — `/pesquisas/<id>/revisar`, `/validar`,
-`/perguntas/…` (editar/apagar/adicionar), `/aprovar`, `/respostas`, `/confronto`,
-`/origem`, `/quadro`, `/visoes` — carregam a pesquisa por `id` via
-`obter(s, pesquisa_id) = s.get(Pesquisa, id)` **sem `verificar_acesso_empresa`**. Dá
-para abrir/editar/aprovar/apagar qualquer pesquisa de qualquer empresa pela URL, por id.
+**Bug:** as rotas de detalhe carregavam a pesquisa por `id` via
+`obter(s, pesquisa_id) = s.get(Pesquisa, id)` **sem checar a empresa** → dava para
+abrir/editar/aprovar/apagar qualquer pesquisa de qualquer empresa pela URL, por id.
 
-**Contido hoje:** todas são `@loyall_required_ui` (Loyall = admin-vê-tudo) → NÃO é
-vazamento client-facing agora. Latente: se Pesquisas abrir a cliente, ou surgir um
-Loyall com escopo restrito, abre/edita cross-empresa na hora. A listagem (`listar`) já
-filtra por empresa corretamente — o buraco é só no acesso por id direto.
+**Fechado (Fase 1) — rotas de MUTAÇÃO** movidas para `/empresas/<eid>/pesquisas/<id>/…`
+com `obter(s, id, empresa_id)` validando `pesq.empresa_id != eid → 404`:
+`/validar`, `/aprovar`, `/perguntas` (adicionar), `/perguntas/<pid>` (editar),
+`/perguntas/<pid>/apagar`. (Mais `/apagar` da pesquisa inteira, que já nasceu escopada.)
+O guard vive centralizado no load (`obter` + `_guard_rascunho`) — rota nova herda.
 
-**Fix (quando priorizar):** `verificar_acesso_empresa(pesq.empresa_id)` em `obter`/em
-cada rota de detalhe (ou um guard compartilhado). Ortogonal ao write path (que é fiel
-à URL — o "empresa errada" das pesquisas 1/2 foi criação na tela errada, não flip).
+**Pendente (Fase 2) — rotas de LEITURA** ainda em `/pesquisas/<id>/…` sem escopo:
+`/revisar`, `/respostas`, `/confronto`, `/origem`, `/quadro`, `/visoes` (+ o POST
+`/classificar-respostas`). Mesmo tratamento: mover para `/empresas/<eid>/…` +
+`obter(s, id, empresa_id)`.
+
+**Contido hoje (o que resta):** todas são `@loyall_required_ui` (Loyall = admin-vê-tudo)
+→ NÃO é vazamento client-facing agora. Latente até Pesquisas abrir a cliente / surgir
+Loyall com escopo restrito. A listagem (`listar`) já filtra por empresa; o buraco
+remanescente é só o acesso por id direto nas rotas de LEITURA.
 
 ---
 

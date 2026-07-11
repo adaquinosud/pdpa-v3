@@ -14,7 +14,7 @@
       <span class="flex items-center gap-2 ml-2">
         <span class="text-xs text-loyall-400">{{ q.formato }}{% if q.subpilar_alvo %} · {{ q.subpilar_alvo }}{% endif %}</span>
         {% if status == 'rascunho' and not q.gerada_por_ancora %}
-        <form hx-post="{{ url_for('ui.pesquisa_apagar_pergunta', pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
+        <form hx-post="{{ url_for('ui.pesquisa_apagar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
               hx-target="#cards" hx-swap="outerHTML" hx-confirm="Apagar esta pergunta?">
           <button class="text-xs text-rose-500 hover:text-rose-700">apagar</button>
         </form>
@@ -34,7 +34,7 @@
       {% if r.severidade == 'bloqueia' %}🔴{% else %}🟡{% endif %}
       regra {{ r.regra }} — {{ r.motivo }}
       {% if r.reescrita %}
-      <form class="inline" hx-post="{{ url_for('ui.pesquisa_editar_pergunta', pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
+      <form class="inline" hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
             hx-target="#cards" hx-swap="outerHTML">
         {% if r.regra == 4 %}
         <input type="hidden" name="opcoes_json" value="{{ r.reescrita }}">
@@ -50,7 +50,7 @@
     {# edição manual do enunciado + subpilar (só rascunho; âncora é do sistema) #}
     {% if status == 'rascunho' and not q.gerada_por_ancora %}
     <form class="mt-2 flex gap-1 items-center"
-          hx-post="{{ url_for('ui.pesquisa_editar_pergunta', pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
+          hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
           hx-target="#cards" hx-swap="outerHTML">
       <input name="enunciado" value="{{ q.enunciado }}" class="flex-1 border rounded px-2 py-1 text-xs">
       <select name="subpilar_alvo" class="border rounded px-1 py-1 text-xs">
@@ -68,7 +68,7 @@
   {% if status == 'rascunho' %}
   {# adicionar pergunta MANUAL — o subpilar é sugerido pelo classificador e editável #}
   <form class="border border-dashed rounded p-3 flex gap-1 items-center"
-        hx-post="{{ url_for('ui.pesquisa_adicionar_pergunta', pesquisa_id=pesquisa_id) }}"
+        hx-post="{{ url_for('ui.pesquisa_adicionar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id) }}"
         hx-target="#cards" hx-swap="outerHTML">
     <input name="enunciado" required placeholder="Nova pergunta…"
            class="flex-1 border rounded px-2 py-1 text-xs">

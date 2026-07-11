@@ -147,7 +147,7 @@ def test_link_publico_aparece_quando_pronta(client_loyall, db_session):
     """FURO 2: após aprovar, a tela mostra a URL /p/<token> + botão copiar."""
     e = _empresa(client_loyall, "EUIlink")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
-    client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
     db_session.expire_all()
     token = obter(db_session, pid).token_publico
     html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
@@ -213,14 +213,14 @@ def test_validar_htmx_mostra_chip(client_loyall, db_session, monkeypatch):
         }
 
     monkeypatch.setattr(ui_pesq, "validar_completo", _fake_validar)
-    html = client_loyall.post(f"/pesquisas/{pid}/validar").get_data(as_text=True)
+    html = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/validar").get_data(as_text=True)
     assert "regra 1" in html and "induz valência" in html and "aplicar reescrita" in html
 
 
 def test_aprovar_limpo_vira_pronta(client_loyall, db_session):
     e = _empresa(client_loyall, "EUIapL")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
-    resp = client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    resp = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
     assert resp.status_code == 200
     db_session.expire_all()
     assert obter(db_session, pid).status == "pronta"
@@ -230,7 +230,7 @@ def test_aprovar_bloqueado_recusa_server_side(client_loyall, db_session):
     """Mesmo POSTando direto (burlando o front), jargão R5 trava o aprovar."""
     e = _empresa(client_loyall, "EUIapB")
     pid = _seed(db_session, e, [_q(1, "Como avalia o ratio?")])
-    resp = client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    resp = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
     assert resp.status_code == 409
     db_session.expire_all()
     assert obter(db_session, pid).status == "rascunho"  # não aprovou
@@ -249,7 +249,9 @@ def test_apagar_pergunta_rascunho(client_loyall, db_session):
     e = _empresa(client_loyall, "EUIdel")
     pid = _seed(db_session, e, [_q(1, "P um"), _q(2, "P dois")])
     qid = _ids(db_session, pid)[0]
-    html = client_loyall.post(f"/pesquisas/{pid}/perguntas/{qid}/apagar").get_data(as_text=True)
+    html = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/perguntas/{qid}/apagar").get_data(
+        as_text=True
+    )
     assert "P um" not in html and "P dois" in html
     db_session.expire_all()
     restantes = obter(db_session, pid).perguntas
@@ -262,7 +264,7 @@ def test_adicionar_pergunta_com_subpilar_sugerido(client_loyall, db_session, mon
     pid = _seed(db_session, e, [_q(1, "P um")])
     monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: "D2")
     html = client_loyall.post(
-        f"/pesquisas/{pid}/perguntas",
+        f"/empresas/{e}/pesquisas/{pid}/perguntas",
         data={"enunciado": "Como foi o check-in?", "formato": "aberta"},
     ).get_data(as_text=True)
     assert "Como foi o check-in?" in html
@@ -277,7 +279,7 @@ def test_adicionar_sugestao_falha_nao_trava(client_loyall, db_session, monkeypat
     pid = _seed(db_session, e, [_q(1, "P um")])
     monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: None)
     client_loyall.post(
-        f"/pesquisas/{pid}/perguntas",
+        f"/empresas/{e}/pesquisas/{pid}/perguntas",
         data={"enunciado": "Pergunta sem subpilar?", "formato": "aberta"},
     )
     db_session.expire_all()
@@ -289,16 +291,18 @@ def test_mutacao_bloqueada_se_pronta(client_loyall, db_session, monkeypatch):
     """Depois de 'pronta', editar/apagar/criar → 409 e nada muda (fecha a brecha)."""
     e = _empresa(client_loyall, "EUIlock")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
-    client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
     db_session.expire_all()
     assert obter(db_session, pid).status == "pronta"
     qid = _ids(db_session, pid)[0]
     monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: "D2")
-    r_del = client_loyall.post(f"/pesquisas/{pid}/perguntas/{qid}/apagar")
+    r_del = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/perguntas/{qid}/apagar")
     r_add = client_loyall.post(
-        f"/pesquisas/{pid}/perguntas", data={"enunciado": "nova?", "formato": "aberta"}
+        f"/empresas/{e}/pesquisas/{pid}/perguntas", data={"enunciado": "nova?", "formato": "aberta"}
     )
-    r_edit = client_loyall.post(f"/pesquisas/{pid}/perguntas/{qid}", data={"enunciado": "mudou?"})
+    r_edit = client_loyall.post(
+        f"/empresas/{e}/pesquisas/{pid}/perguntas/{qid}", data={"enunciado": "mudou?"}
+    )
     assert r_del.status_code == 409 and r_add.status_code == 409 and r_edit.status_code == 409
     db_session.expire_all()
     pesq = obter(db_session, pid)
@@ -311,10 +315,10 @@ def test_pergunta_manual_dupla_barrada_na_regua(client_loyall, db_session):
     e = _empresa(client_loyall, "EUImanReg")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
     client_loyall.post(
-        f"/pesquisas/{pid}/perguntas",
+        f"/empresas/{e}/pesquisas/{pid}/perguntas",
         data={"enunciado": "O atendimento foi rápido e cordial?", "formato": "aberta"},
     )
-    resp = client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    resp = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
     assert resp.status_code == 409  # R3 (dupla) barra a manual
     db_session.expire_all()
     assert obter(db_session, pid).status == "rascunho"
@@ -327,7 +331,7 @@ def test_cards_controles_so_em_rascunho(client_loyall, db_session):
     rasc = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "Adicionar pergunta" in rasc and "apagar" in rasc
     assert 'name="subpilar_alvo"' in rasc
-    client_loyall.post(f"/pesquisas/{pid}/aprovar")
+    client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
     pronta = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "Adicionar pergunta" not in pronta and 'name="subpilar_alvo"' not in pronta
 
@@ -362,7 +366,7 @@ def test_validar_banner_sucesso_visivel(client_loyall, db_session, monkeypatch):
         "validar_completo",
         lambda perguntas, *a, **k: {"perguntas": [{"ordem": 1, "regras": []}]},
     )
-    html = client_loyall.post(f"/pesquisas/{pid}/validar").get_data(as_text=True)
+    html = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/validar").get_data(as_text=True)
     assert "✓ Validado — nenhum problema encontrado" in html
 
 
@@ -446,3 +450,55 @@ def test_apagar_gate_loyall(client_cliente_factory, client_loyall, db_session):
     assert resp.status_code == 403
     db_session.expire_all()
     assert obter(db_session, pid) is not None  # não apagou
+
+
+# ── Fase 1: guard de empresa nas rotas de MUTAÇÃO (eid errado na URL → 404) ───
+
+
+def test_mutacao_cross_empresa_404(client_loyall, db_session, monkeypatch):
+    """Cada rota de mutação com a empresa ERRADA na URL → 404, sem mutar. A pesquisa é
+    da empresa A; POSTar via /empresas/B/… não valida, não aprova, não edita/apaga."""
+    a = _empresa(client_loyall, "EUImutA")
+    b = _empresa(client_loyall, "EUImutB")
+    pid = _seed(db_session, a, [_q(1, "Como foi o atendimento?")])
+    qid = _ids(db_session, pid)[0]
+    monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: "D2")
+    monkeypatch.setattr(
+        ui_pesq,
+        "validar_completo",
+        lambda perguntas, *a, **k: {"perguntas": [{"ordem": 1, "regras": []}]},
+    )
+    alvos = [
+        (f"/empresas/{b}/pesquisas/{pid}/validar", {}),
+        (f"/empresas/{b}/pesquisas/{pid}/aprovar", {}),
+        (f"/empresas/{b}/pesquisas/{pid}/perguntas", {"enunciado": "x", "formato": "aberta"}),
+        (f"/empresas/{b}/pesquisas/{pid}/perguntas/{qid}", {"enunciado": "mudou?"}),
+        (f"/empresas/{b}/pesquisas/{pid}/perguntas/{qid}/apagar", {}),
+    ]
+    for url, data in alvos:
+        assert client_loyall.post(url, data=data).status_code == 404, url
+    # nada mutou: continua rascunho, 1 pergunta, enunciado intacto
+    db_session.expire_all()
+    pesq = obter(db_session, pid)
+    assert pesq.status == "rascunho"
+    assert [p.enunciado for p in pesq.perguntas] == ["Como foi o atendimento?"]
+
+
+def test_mutacao_eid_certo_funciona(client_loyall, db_session):
+    """Contraprova: com a empresa CERTA na URL, aprovar funciona (vira pronta)."""
+    e = _empresa(client_loyall, "EUImutOk")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    resp = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/aprovar")
+    assert resp.status_code == 200
+    db_session.expire_all()
+    assert obter(db_session, pid).status == "pronta"
+
+
+def test_revisar_links_mutacao_sao_empresa_escopados(client_loyall, db_session):
+    """Os botões de mutação na tela de revisar apontam pra rota empresa-escopada."""
+    e = _empresa(client_loyall, "EUImutLink")
+    pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
+    html = client_loyall.get(f"/pesquisas/{pid}/revisar").get_data(as_text=True)
+    assert f"/empresas/{e}/pesquisas/{pid}/validar" in html
+    assert f"/empresas/{e}/pesquisas/{pid}/aprovar" in html
+    assert f"/empresas/{e}/pesquisas/{pid}/perguntas" in html  # adicionar + editar/apagar

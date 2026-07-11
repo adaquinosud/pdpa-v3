@@ -82,8 +82,17 @@ def criar_rascunho(s, proposta: Dict[str, Any], criada_por: Optional[int] = None
     return pesq.id
 
 
-def obter(s, pesquisa_id: int) -> Optional[Pesquisa]:
-    return s.get(Pesquisa, pesquisa_id)
+def obter(s, pesquisa_id: int, empresa_id: Optional[int] = None) -> Optional[Pesquisa]:
+    """Carrega a pesquisa por id. Se ``empresa_id`` for dado, VALIDA o escopo: devolve
+    None quando a pesquisa não é dessa empresa (guard de isolamento — o caller trata
+    como 404, sem vazar existência, igual à rota de apagar). Sem ``empresa_id`` = load
+    simples (compat: rotas de leitura e testes que ainda não escopam)."""
+    pesq = s.get(Pesquisa, pesquisa_id)
+    if pesq is None:
+        return None
+    if empresa_id is not None and pesq.empresa_id != empresa_id:
+        return None
+    return pesq
 
 
 def listar(s, empresa_id: int) -> List[Pesquisa]:

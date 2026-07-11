@@ -326,14 +326,14 @@ def pesquisa_revisar(pesquisa_id):
     return render_template("pesquisa/revisar.html", **ctx)
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/validar", methods=["POST"])
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/validar", methods=["POST"])
 @loyall_required_ui
-def pesquisa_validar(pesquisa_id):
+def pesquisa_validar(empresa_id, pesquisa_id):
     r = _require_loyall_html()
     if r:
         return r
     with db_session() as s:
-        pesq = obter(s, pesquisa_id)
+        pesq = obter(s, pesquisa_id, empresa_id)  # guard de escopo: outra empresa → 404
         if pesq is None:
             return render_template("404.html"), 404
         from src.pesquisa.persistencia import perguntas_dict
@@ -343,9 +343,12 @@ def pesquisa_validar(pesquisa_id):
     return render_template("pesquisa/_cards.html", **ctx)
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/perguntas/<int:pergunta_id>", methods=["POST"])
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/perguntas/<int:pergunta_id>",
+    methods=["POST"],
+)
 @loyall_required_ui
-def pesquisa_editar_pergunta(pesquisa_id, pergunta_id):
+def pesquisa_editar_pergunta(empresa_id, pesquisa_id, pergunta_id):
     r = _require_loyall_html()
     if r:
         return r
@@ -356,7 +359,7 @@ def pesquisa_editar_pergunta(pesquisa_id, pergunta_id):
         "subpilar_alvo": (request.form.get("subpilar_alvo") or "").strip() or None,
     }
     with db_session() as s:
-        bloqueio = _guard_rascunho(s, pesquisa_id)
+        bloqueio = _guard_rascunho(s, pesquisa_id, empresa_id)
         if bloqueio is not None:
             return bloqueio
         if atualizar_pergunta(s, pergunta_id, **campos) is None:
@@ -365,11 +368,12 @@ def pesquisa_editar_pergunta(pesquisa_id, pergunta_id):
     return render_template("pesquisa/_cards.html", **ctx)
 
 
-def _guard_rascunho(s, pesquisa_id):
-    """Guard de mutação: só edita/apaga/cria pergunta em 'rascunho'. Depois de
-    'pronta', mexer mudaria o que o respondente vê. Devolve uma Response (404/409)
-    quando não pode mutar, ou None quando está liberado."""
-    pesq = obter(s, pesquisa_id)
+def _guard_rascunho(s, pesquisa_id, empresa_id):
+    """Guard de mutação: (1) escopo de empresa — outra empresa → 404 (não vaza
+    existência); (2) só edita/apaga/cria pergunta em 'rascunho' — depois de 'pronta',
+    mexer mudaria o que o respondente vê → 409. Devolve a Response quando não pode
+    mutar, ou None quando está liberado."""
+    pesq = obter(s, pesquisa_id, empresa_id)
     if pesq is None:
         return render_template("404.html"), 404
     if pesq.status != "rascunho":
@@ -378,15 +382,18 @@ def _guard_rascunho(s, pesquisa_id):
     return None
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/perguntas/<int:pergunta_id>/apagar", methods=["POST"])
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/perguntas/<int:pergunta_id>/apagar",
+    methods=["POST"],
+)
 @loyall_required_ui
-def pesquisa_apagar_pergunta(pesquisa_id, pergunta_id):
+def pesquisa_apagar_pergunta(empresa_id, pesquisa_id, pergunta_id):
     """Apaga uma pergunta (só rascunho). Deixa buraco na ordem. htmx → re-render #cards."""
     r = _require_loyall_html()
     if r:
         return r
     with db_session() as s:
-        bloqueio = _guard_rascunho(s, pesquisa_id)
+        bloqueio = _guard_rascunho(s, pesquisa_id, empresa_id)
         if bloqueio is not None:
             return bloqueio
         deletar_pergunta(s, pergunta_id)
@@ -394,9 +401,9 @@ def pesquisa_apagar_pergunta(pesquisa_id, pergunta_id):
     return render_template("pesquisa/_cards.html", **ctx)
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/perguntas", methods=["POST"])
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/perguntas", methods=["POST"])
 @loyall_required_ui
-def pesquisa_adicionar_pergunta(pesquisa_id):
+def pesquisa_adicionar_pergunta(empresa_id, pesquisa_id):
     """Cria uma pergunta manual (só rascunho). O subpilar vem SUGERIDO pelo
     classificador (best-effort) e é editável no dropdown. htmx → re-render #cards."""
     r = _require_loyall_html()
@@ -405,7 +412,7 @@ def pesquisa_adicionar_pergunta(pesquisa_id):
     enunciado = (request.form.get("enunciado") or "").strip()
     formato = (request.form.get("formato") or "aberta").strip()
     with db_session() as s:
-        bloqueio = _guard_rascunho(s, pesquisa_id)
+        bloqueio = _guard_rascunho(s, pesquisa_id, empresa_id)
         if bloqueio is not None:
             return bloqueio
         if enunciado:
@@ -418,14 +425,14 @@ def pesquisa_adicionar_pergunta(pesquisa_id):
     return render_template("pesquisa/_cards.html", **ctx)
 
 
-@ui_bp.route("/pesquisas/<int:pesquisa_id>/aprovar", methods=["POST"])
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/aprovar", methods=["POST"])
 @loyall_required_ui
-def pesquisa_aprovar(pesquisa_id):
+def pesquisa_aprovar(empresa_id, pesquisa_id):
     r = _require_loyall_html()
     if r:
         return r
     with db_session() as s:
-        if obter(s, pesquisa_id) is None:
+        if obter(s, pesquisa_id, empresa_id) is None:  # guard de escopo: outra empresa → 404
             return render_template("404.html"), 404
         ok, veredito = aprovar(s, pesquisa_id)  # re-valida server-side (determinístico)
         ctx = _ctx_revisar(s, pesquisa_id, veredito=veredito)
