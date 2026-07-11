@@ -348,3 +348,45 @@ CHECK nomeado, `to_char` no lugar de `strftime`, BOOLEAN nativo) e re-testar o
 schema completo num restore real. Não é dívida do bloco LG em si — é do passo de
 Produção, mas o merge do LG (migrations 030/031) a deixou visível. Avaliar
 Alembic ou um runner dialeto-aware quando Postgres entrar.
+
+---
+
+## Rotas de detalhe de Pesquisa sem escopo de empresa (isolamento) — Bug B
+
+**Origem:** investigação do vazamento cross-empresa na tela de Pesquisas, 2026-07-11.
+**Prioridade: média-alta** — pendência de SEGURANÇA, obrigatória ANTES de Pesquisas
+abrir a cliente.
+
+**Bug:** as rotas de detalhe de pesquisa — `/pesquisas/<id>/revisar`, `/validar`,
+`/perguntas/…` (editar/apagar/adicionar), `/aprovar`, `/respostas`, `/confronto`,
+`/origem`, `/quadro`, `/visoes` — carregam a pesquisa por `id` via
+`obter(s, pesquisa_id) = s.get(Pesquisa, id)` **sem `verificar_acesso_empresa`**. Dá
+para abrir/editar/aprovar/apagar qualquer pesquisa de qualquer empresa pela URL, por id.
+
+**Contido hoje:** todas são `@loyall_required_ui` (Loyall = admin-vê-tudo) → NÃO é
+vazamento client-facing agora. Latente: se Pesquisas abrir a cliente, ou surgir um
+Loyall com escopo restrito, abre/edita cross-empresa na hora. A listagem (`listar`) já
+filtra por empresa corretamente — o buraco é só no acesso por id direto.
+
+**Fix (quando priorizar):** `verificar_acesso_empresa(pesq.empresa_id)` em `obter`/em
+cada rota de detalhe (ou um guard compartilhado). Ortogonal ao write path (que é fiel
+à URL — o "empresa errada" das pesquisas 1/2 foi criação na tela errada, não flip).
+
+---
+
+## Botão "excluir pesquisa" na UI (melhoria; fecha o Bug B naquela rota)
+
+**Origem:** limpeza das pesquisas de teste 1/2 (mal-atribuídas), 2026-07-11 — feita por
+delete inline no Shell por falta de botão. **Prioridade: média.**
+
+**Necessidade:** não há rota nem botão para excluir uma pesquisa inteira (só
+`apagar_pergunta`). Resíduo de teste/erro só sai por SQL manual no Shell.
+
+**Proposta segura:** botão "excluir" por pesquisa na lista "Existentes" → rota
+**empresa-escopada** `POST /empresas/<eid>/pesquisas/<id>/apagar` com
+`verificar_acesso_empresa(pesq.empresa_id)` (o `<eid>` na URL + o guard já fecham o
+Bug B **nesta** rota) + confirmação. Delete cascata (todas as FKs → `pesquisas` são
+ON DELETE CASCADE: perguntas, escopos, respondente→resposta, origem_analise/sintese).
+**Decisão de design:** apagar pesquisa `pronta` COM respostas destrói dado de cliente —
+v1 recomendado **só rascunho** pela UI; pronta exige confirmação forte (digitar o
+título) ou fica fora da UI.
