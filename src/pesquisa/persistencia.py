@@ -95,6 +95,57 @@ def listar(s, empresa_id: int) -> List[Pesquisa]:
     )
 
 
+def contar_respostas(s, pesquisa_id: int) -> int:
+    """Nº de respostas de uma pesquisa (via respondente). Governa a proteção graduada
+    da exclusão: pronta COM respostas exige confirmação forte."""
+    from sqlalchemy import func
+
+    from src.models.respondente import Respondente, Resposta
+
+    return (
+        s.query(func.count(Resposta.id))
+        .join(Respondente, Respondente.id == Resposta.respondente_id)
+        .filter(Respondente.pesquisa_id == pesquisa_id)
+        .scalar()
+        or 0
+    )
+
+
+def apagar_pesquisa(s, pesquisa_id: int) -> Dict[str, int]:
+    """Apaga a pesquisa e TODAS as dependências, em ordem (folhas→raiz).
+
+    As FKs → ``pesquisas`` são ON DELETE CASCADE, mas o delete explícito é AUDITÁVEL
+    (conta por tabela) e não depende do enforcement de FK do banco. Devolve
+    ``{tabela: n_apagados}``. NÃO valida acesso/escopo — o caller (rota) faz o guard
+    de empresa ANTES de chamar.
+    """
+    from src.models.origem import OrigemAnalise, OrigemSintese
+    from src.models.pesquisa import PesquisaEscopo
+    from src.models.respondente import Respondente, Resposta
+
+    resp_ids = [r[0] for r in s.query(Respondente.id).filter_by(pesquisa_id=pesquisa_id)]
+    perg_ids = [r[0] for r in s.query(PesquisaPergunta.id).filter_by(pesquisa_id=pesquisa_id)]
+    d: Dict[str, int] = {}
+    if resp_ids or perg_ids:
+        d["resposta"] = (
+            s.query(Resposta)
+            .filter(Resposta.respondente_id.in_(resp_ids) | Resposta.pergunta_id.in_(perg_ids))
+            .delete(synchronize_session=False)
+        )
+    for tabela, modelo in (
+        ("respondente", Respondente),
+        ("pesquisa_perguntas", PesquisaPergunta),
+        ("origem_analise", OrigemAnalise),
+        ("origem_sintese", OrigemSintese),
+        ("pesquisa_escopos", PesquisaEscopo),
+    ):
+        d[tabela] = (
+            s.query(modelo).filter_by(pesquisa_id=pesquisa_id).delete(synchronize_session=False)
+        )
+    d["pesquisas"] = s.query(Pesquisa).filter_by(id=pesquisa_id).delete(synchronize_session=False)
+    return d
+
+
 def atualizar_pergunta(s, pergunta_id: int, **campos) -> Optional[PesquisaPergunta]:
     """Edita campos de uma pergunta (enunciado/formato/opcoes_json/subpilar_alvo/
     porque). Editar invalida o veredito em cache (revalida sob demanda)."""

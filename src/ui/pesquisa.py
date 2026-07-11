@@ -14,14 +14,16 @@ from __future__ import annotations
 
 from flask import current_app, flash, redirect, render_template, request, url_for
 
-from src.auth import get_current_user
+from src.auth import get_current_user, verificar_acesso_empresa
 from src.models.empresa import Empresa
 from src.pesquisa.geracao import gerar_pesquisa
 from src.pesquisa.juiz import validar_completo
 from src.pesquisa.persistencia import (
     adicionar_pergunta,
+    apagar_pesquisa,
     aprovar,
     atualizar_pergunta,
+    contar_respostas,
     criar_rascunho,
     deletar_pergunta,
     listar,
@@ -82,7 +84,13 @@ def pesquisas_lista(empresa_id):
         if empresa is None:
             return render_template("404.html"), 404
         pesquisas = [
-            {"id": p.id, "titulo": p.titulo, "natureza": p.natureza, "status": p.status}
+            {
+                "id": p.id,
+                "titulo": p.titulo,
+                "natureza": p.natureza,
+                "status": p.status,
+                "n_respostas": contar_respostas(s, p.id),  # governa a proteção da exclusão
+            }
             for p in listar(s, empresa_id)
         ]
         nome = empresa.nome
@@ -208,6 +216,41 @@ def pesquisa_gerar(empresa_id):
         )
         return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
     return redirect(url_for("ui.pesquisa_revisar", pesquisa_id=pesquisa_id))
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/apagar", methods=["POST"])
+@loyall_required_ui
+def pesquisa_apagar(empresa_id, pesquisa_id):
+    """Exclui uma pesquisa inteira (cascade). Rota EMPRESA-ESCOPADA: o guard de
+    empresa fecha o Bug B AQUI — a pesquisa TEM de pertencer à empresa da URL, senão
+    404 (não vaza nem apaga cross-empresa). Proteção graduada: pronta COM respostas
+    exige o título digitado (apagar destrói dado de cliente). Redireciona pra lista."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    with db_session() as s:
+        pesq = obter(s, pesquisa_id)
+        # Isolamento: a pesquisa tem de ser da empresa da URL. 404 unificado (não
+        # distingue "não existe" de "de outra empresa" — não vaza existência).
+        if pesq is None or pesq.empresa_id != empresa_id:
+            return render_template("404.html"), 404
+        erro = verificar_acesso_empresa(empresa_id)  # acesso do usuário à empresa
+        if erro:
+            return erro
+        # Confirmação forte: pronta COM respostas exige o título exato (padrão GitHub).
+        n_resp = contar_respostas(s, pesquisa_id)
+        if pesq.status != "rascunho" and n_resp > 0:
+            confirmado = (request.form.get("confirmar_titulo") or "").strip()
+            if confirmado != (pesq.titulo or "").strip():
+                flash(
+                    "Pesquisa com respostas: digite o título EXATO para confirmar a "
+                    "exclusão (é irreversível).",
+                    "erro",
+                )
+                return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
+        apagar_pesquisa(s, pesquisa_id)
+    flash("Pesquisa apagada.", "ok")
+    return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
 
 
 def _ctx_revisar(s, pesquisa_id, veredito=None):

@@ -364,3 +364,85 @@ def test_validar_banner_sucesso_visivel(client_loyall, db_session, monkeypatch):
     )
     html = client_loyall.post(f"/pesquisas/{pid}/validar").get_data(as_text=True)
     assert "✓ Validado — nenhum problema encontrado" in html
+
+
+# ── Exclusão de pesquisa (rota empresa-escopada; fecha o Bug B nesta rota) ────
+
+
+def _tornar_pronta_com_resposta(db_session, pid):
+    """Marca a pesquisa 'pronta' e semeia 1 respondente + 1 resposta → dispara a
+    confirmação forte (título) na exclusão."""
+    from src.models.respondente import Respondente, Resposta
+
+    pesq = obter(db_session, pid)
+    pesq.status = "pronta"
+    r = Respondente(pesquisa_id=pid, entidade_tipo="empresa")
+    db_session.add(r)
+    db_session.flush()
+    db_session.add(
+        Resposta(respondente_id=r.id, pergunta_id=pesq.perguntas[0].id, valor_texto="oi")
+    )
+    db_session.commit()
+
+
+def test_apagar_rascunho_simples(client_loyall, db_session):
+    """Rascunho (sem respostas) → apaga direto, redireciona pra lista, some do banco."""
+    e = _empresa(client_loyall, "EUIapg")
+    pid = _seed(db_session, e, [_q(1, "Como foi?")])
+    resp = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/apagar")
+    assert resp.status_code == 302 and f"/empresas/{e}/pesquisas" in resp.headers["Location"]
+    db_session.expire_all()
+    assert obter(db_session, pid) is None
+
+
+def test_apagar_pronta_com_respostas_exige_titulo(client_loyall, db_session):
+    """Pronta COM respostas: título errado NÃO apaga; título exato apaga (cascade)."""
+    e = _empresa(client_loyall, "EUIapgT")
+    pid = _seed(db_session, e, [_q(1, "Como foi?")])  # título da proposta é "T"
+    _tornar_pronta_com_resposta(db_session, pid)
+    # título errado → sobrevive
+    r1 = client_loyall.post(
+        f"/empresas/{e}/pesquisas/{pid}/apagar", data={"confirmar_titulo": "errado"}
+    )
+    assert r1.status_code == 302
+    db_session.expire_all()
+    assert obter(db_session, pid) is not None
+    # título exato → apaga (e leva respondente/resposta junto)
+    r2 = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/apagar", data={"confirmar_titulo": "T"})
+    assert r2.status_code == 302
+    db_session.expire_all()
+    assert obter(db_session, pid) is None
+    from src.pesquisa.persistencia import contar_respostas
+
+    assert contar_respostas(db_session, pid) == 0  # cascata levou as respostas
+
+
+def test_apagar_cross_empresa_bloqueado(client_loyall, db_session):
+    """Bug B fechado NESTA rota: pesquisa da empresa A, URL com empresa B → 404, não apaga."""
+    a = _empresa(client_loyall, "EUIapgA")
+    b = _empresa(client_loyall, "EUIapgB")
+    pid = _seed(db_session, a, [_q(1, "Como foi?")])  # pesquisa é da empresa A
+    resp = client_loyall.post(f"/empresas/{b}/pesquisas/{pid}/apagar")  # URL diz empresa B
+    assert resp.status_code == 404
+    db_session.expire_all()
+    assert obter(db_session, pid) is not None  # NÃO apagou
+
+
+def test_lista_tem_botao_excluir(client_loyall, db_session):
+    """A lista Existentes traz o botão 'excluir' apontando pra rota empresa-escopada."""
+    e = _empresa(client_loyall, "EUIapgBtn")
+    pid = _seed(db_session, e, [_q(1, "Como foi?")])
+    html = client_loyall.get(f"/empresas/{e}/pesquisas").get_data(as_text=True)
+    assert f"/empresas/{e}/pesquisas/{pid}/apagar" in html
+    assert ">excluir<" in html and "confirmarApagar" in html
+
+
+def test_apagar_gate_loyall(client_cliente_factory, client_loyall, db_session):
+    """Cliente (não-loyall) não alcança a rota de exclusão (403)."""
+    e = _empresa(client_loyall, "EUIapgGate")
+    pid = _seed(db_session, e, [_q(1, "Como foi?")])
+    cli = client_cliente_factory(empresa_id=e)
+    resp = cli.post(f"/empresas/{e}/pesquisas/{pid}/apagar")
+    assert resp.status_code == 403
+    db_session.expire_all()
+    assert obter(db_session, pid) is not None  # não apagou

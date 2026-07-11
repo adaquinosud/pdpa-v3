@@ -106,10 +106,36 @@
          class="text-loyall-500 hover:underline text-xs">respostas →</a>
       {% endif %}
       <span class="text-loyall-400">{{ p.natureza }} · {{ p.status }}</span>
+      {# Excluir (empresa-escopado): proteção graduada — rascunho/sem-respostas =
+         confirm simples; pronta COM respostas = digitar o título (o JS decide pelos
+         data-*, e a rota re-valida server-side). #}
+      <form method="post" class="inline"
+            action="{{ url_for('ui.pesquisa_apagar', empresa_id=empresa_id, pesquisa_id=p.id) }}"
+            onsubmit="return confirmarApagar(this, {{ p.n_respostas }}, '{{ p.status }}', {{ (p.titulo or '(sem título)')|tojson }})">
+        <input type="hidden" name="confirmar_titulo" value="">
+        <button type="submit" title="Excluir pesquisa"
+                class="text-rose-600 hover:text-rose-700 hover:underline text-xs">excluir</button>
+      </form>
     </span>
   </li>
   {% endfor %}
 </ul>
+<script>
+  // Proteção graduada da exclusão. Rascunho OU sem respostas → confirm simples.
+  // Pronta COM respostas → digitar o título exato (padrão GitHub) porque apaga dado
+  // de cliente; o valor vai no hidden e a ROTA re-valida (defesa em profundidade).
+  function confirmarApagar(form, nResp, status, titulo) {
+    if (status !== 'rascunho' && nResp > 0) {
+      var t = prompt('Esta pesquisa tem ' + nResp + ' resposta(s) — apagar é '
+        + 'IRREVERSÍVEL.\n\nDigite o título EXATO para confirmar:\n\n' + titulo);
+      if (t === null) return false;                       // cancelou
+      if (t.trim() !== titulo.trim()) { alert('O título não confere. Exclusão cancelada.'); return false; }
+      form.querySelector('input[name=confirmar_titulo]').value = titulo;
+      return true;
+    }
+    return confirm('Apagar a pesquisa "' + titulo + '"? Esta ação não pode ser desfeita.');
+  }
+</script>
 {% else %}
 <p class="text-sm text-loyall-400">Nenhuma pesquisa ainda.</p>
 {% endif %}
