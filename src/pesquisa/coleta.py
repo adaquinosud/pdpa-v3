@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from sqlalchemy.exc import IntegrityError
+
 from src.coletor.excel import _find_or_create_fonte, _hash_dedup
 from src.models.pessoa import Pessoa
 from src.models.pesquisa import Pesquisa
@@ -103,17 +105,31 @@ def _gravar_verbatins(
         nota = r.get("nota")
         if not texto and nota is None:
             continue  # nada a registrar
-        hash_d = _hash_dedup(fonte_id, texto, autor, nota, None, None)
-        s.add(
-            Verbatim(
-                empresa_id=pesquisa.empresa_id,
-                local_id=local_id,
-                fonte_id=fonte_id,
-                pessoa_id=pessoa_id,
-                texto=texto,  # NOT NULL: nota-only entra com ""
-                tem_texto=len(texto) >= MIN_CHARS_PARA_PROCESSAR,
-                autor=autor,
-                rating=nota,
-                hash_dedup=hash_d,
-            )
+        # Cada resposta de pesquisa-WEB é um dado ÚNICO (respondente × pergunta), NÃO um
+        # verbatim a deduplicar por conteúdo: nota-only (texto="") colapsaria no mesmo
+        # hash de rating e violaria UNIQUE(empresa_id, hash_dedup) — 500 no salvar.
+        # Um discriminador por resposta (via review_id) dá identidade única. O Excel
+        # mantém o dedup por conteúdo (re-import idempotente); só o web recebe o disc.
+        review_id = (
+            f"resp:{respondente.id}:{r['pergunta_id']}" if conector == "pesquisa_web" else None
         )
+        hash_d = _hash_dedup(fonte_id, texto, autor, nota, None, review_id)
+        verbatim = Verbatim(
+            empresa_id=pesquisa.empresa_id,
+            local_id=local_id,
+            fonte_id=fonte_id,
+            pessoa_id=pessoa_id,
+            texto=texto,  # NOT NULL: nota-only entra com ""
+            tem_texto=len(texto) >= MIN_CHARS_PARA_PROCESSAR,
+            autor=autor,
+            rating=nota,
+            hash_dedup=hash_d,
+            review_id_externo=review_id,
+        )
+        # Cinto: se um edge case futuro ainda colidir no dedup, PULA essa resposta em
+        # vez de estourar 500 — o savepoint isola, a transação externa segue íntegra.
+        try:
+            with s.begin_nested():
+                s.add(verbatim)
+        except IntegrityError:
+            continue

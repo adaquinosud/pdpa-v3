@@ -146,3 +146,50 @@ def test_rota_submit_identificado_cria_pessoa(client_loyall, db_session):
     assert ident.fonte == "pesquisa" and ident.tipo == "interno_consentido"
     resp = db_session.query(Respondente).filter_by(pesquisa_id=p.id).one()
     assert resp.pessoa_id == ident.pessoa_id
+
+
+# ── regressão: campo em branco (nota-only) não colide no hash_dedup → salva OK ─
+
+
+def _pergunta(db_session, p, ordem):
+    q = PesquisaPergunta(pesquisa_id=p.id, ordem=ordem, enunciado=f"Q{ordem}", formato="mista")
+    db_session.add(q)
+    db_session.flush()
+    return q
+
+
+def test_notaonly_mesma_submissao_duas_perguntas(client_loyall, db_session):
+    """Duas perguntas com a MESMA nota e comentário EM BRANCO na mesma submissão →
+    antes colidiam no hash_dedup (UNIQUE → 500). Agora o discriminador por resposta
+    dá identidade única → salva OK, ambas viram verbatim."""
+    p, q1 = _pesquisa_pronta(db_session, "EVazioA", "coleta", anonima=True, token="tok-va")
+    eid = p.empresa_id
+    q2 = _pergunta(db_session, p, 2)
+    db_session.commit()
+    r = client_loyall.post(
+        "/p/tok-va",
+        data={
+            f"q_{q1.id}_nota": "5",
+            f"q_{q1.id}_texto": "",
+            f"q_{q2.id}_nota": "5",
+            f"q_{q2.id}_texto": "",
+        },
+    )
+    assert r.status_code == 200 and "Obrigado" in r.get_data(as_text=True)
+    vs = db_session.query(Verbatim).filter_by(empresa_id=eid).all()
+    assert len(vs) == 2 and all(v.texto == "" and v.rating == 5 for v in vs)
+    assert len({v.hash_dedup for v in vs}) == 2  # hashes distintos (discriminador)
+    assert all(v.review_id_externo and v.review_id_externo.startswith("resp:") for v in vs)
+
+
+def test_notaonly_entre_submissoes_mesma_nota(client_loyall, db_session):
+    """Dois respondentes com a MESMA nota e comentário em branco (submissões
+    SEPARADAS) → antes o 2º colidia (500). Agora ambos salvam e coexistem."""
+    p, q = _pesquisa_pronta(db_session, "EVazioB", "coleta", anonima=True, token="tok-vb")
+    eid = p.empresa_id
+    db_session.commit()
+    r1 = client_loyall.post("/p/tok-vb", data={f"q_{q.id}_nota": "4", f"q_{q.id}_texto": ""})
+    r2 = client_loyall.post("/p/tok-vb", data={f"q_{q.id}_nota": "4", f"q_{q.id}_texto": ""})
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 2
+    assert db_session.query(Verbatim).filter_by(empresa_id=eid).count() == 2  # coexistem
