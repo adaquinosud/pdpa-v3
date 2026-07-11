@@ -551,21 +551,43 @@ def pesquisa_publica(token):
         payload = payload_publico(pesq)
         escopo = None
         respostas = []
+        faltando = []  # obrigatórios não respondidos: nota (dado central) + unidade
         for p in payload["perguntas"]:
             pid = p["id"]
-            opc = p["opcoes"]
-            if opc and opc.get("tipo") == "unidade":
+            opc = p["opcoes"] or {}
+            if opc.get("tipo") == "unidade":
                 raw = request.form.get(f"ancora_{pid}", "")
                 if ":" in raw:
                     et, eid = raw.split(":", 1)
                     escopo = (et, int(eid) if eid.isdigit() else None)
+                else:
+                    faltando.append(p["enunciado"])  # unidade obrigatória em multi-loja
                 continue
             texto = (request.form.get(f"q_{pid}_texto") or "").strip() or None
             nraw = (request.form.get(f"q_{pid}_nota") or "").strip()
             nota = int(nraw) if nraw.isdigit() else None
             opcao = (request.form.get(f"q_{pid}_opcao") or "").strip() or None
+            if opc.get("tipo") == "nota" and nota is None:
+                faltando.append(p["enunciado"])  # nota obrigatória; comentário é opcional
             if texto or nota is not None or opcao:
                 respostas.append({"pergunta_id": pid, "texto": texto, "nota": nota, "opcao": opcao})
+        # Trava server-side: nota + unidade obrigatórias; comentário opcional. Falha →
+        # devolve o form com o erro apontando as perguntas, sem gravar e sem 500.
+        if faltando:
+            return (
+                render_template(
+                    tmpl,
+                    payload=payload,
+                    token=token,
+                    anonima=pesq.anonima,
+                    erro_validacao=(
+                        "Faltou responder (obrigatório): "
+                        + "; ".join(faltando)
+                        + ". O comentário é opcional."
+                    ),
+                ),
+                400,
+            )
         if escopo is None:  # escopo fixo da pesquisa (modo 'local')
             escopo = (pesq.entidade_tipo or "empresa", pesq.entidade_id)
 

@@ -13,7 +13,13 @@
 
 {% else %}
   <h1 class="text-2xl font-semibold mb-1">{{ payload.titulo }}</h1>
-  <p class="text-sm text-loyall-500 mb-4">Suas respostas ajudam a melhorar o atendimento.</p>
+  <p class="text-sm text-loyall-500 mb-1">Suas respostas ajudam a melhorar o atendimento.</p>
+  <p class="text-xs text-loyall-400 mb-4"><span class="text-rose-500">*</span> obrigatório · o comentário é opcional</p>
+
+  {% if erro_validacao %}
+  <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 mb-4 text-sm">
+    {{ erro_validacao }}</div>
+  {% endif %}
 
   <form method="post" action="{{ url_for('ui.pesquisa_publica', token=token) }}"
         class="bg-white border border-loyall-200 rounded p-4 space-y-5">
@@ -30,12 +36,12 @@
             {% endfor %}
           </select>
         {% else %}
-          <label class="block text-sm font-medium text-loyall-700 mb-1">{{ p.enunciado }}</label>
+          <label class="block text-sm font-medium text-loyall-700 mb-1">{{ p.enunciado }}{% if opc and opc.tipo == 'nota' %}<span class="text-rose-500">*</span>{% endif %}</label>
           {% if opc and opc.tipo == 'nota' %}
             <div class="flex flex-wrap gap-3">
               {% for rot in opc.rotulos %}
                 <label class="flex items-center gap-1 text-sm">
-                  <input type="radio" name="q_{{ p.id }}_nota" value="{{ loop.index }}"> {{ rot }}
+                  <input type="radio" name="q_{{ p.id }}_nota" value="{{ loop.index }}" required> {{ rot }}
                 </label>
               {% endfor %}
             </div>

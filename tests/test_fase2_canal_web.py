@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import json
+
 from src.coletor.excel import _find_or_create_fonte  # noqa: F401  (garante o módulo)
 from src.models.empresa import Empresa
 from src.models.fonte import Fonte
@@ -193,3 +195,90 @@ def test_notaonly_entre_submissoes_mesma_nota(client_loyall, db_session):
     assert r1.status_code == 200 and r2.status_code == 200
     assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 2
     assert db_session.query(Verbatim).filter_by(empresa_id=eid).count() == 2  # coexistem
+
+
+# ── validação da resposta pública: nota + unidade obrigatórias; comentário opcional ─
+
+
+def _pergunta_nota(db_session, p, ordem=2):
+    q = PesquisaPergunta(
+        pesquisa_id=p.id,
+        ordem=ordem,
+        enunciado="Nota do atendimento",
+        formato="mista",
+        opcoes_json=json.dumps({"tipo": "nota", "rotulos": ["1", "2", "3", "4", "5"]}),
+    )
+    db_session.add(q)
+    db_session.flush()
+    return q
+
+
+def _pergunta_unidade(db_session, p, ordem=3):
+    q = PesquisaPergunta(
+        pesquisa_id=p.id,
+        ordem=ordem,
+        enunciado="Qual unidade?",
+        formato="fechada",
+        opcoes_json=json.dumps(
+            {
+                "tipo": "unidade",
+                "opcoes": [
+                    {"entidade_tipo": "local", "entidade_id": 1, "rotulo": "Loja A"},
+                    {"entidade_tipo": "local", "entidade_id": 2, "rotulo": "Loja B"},
+                ],
+            }
+        ),
+    )
+    db_session.add(q)
+    db_session.flush()
+    return q
+
+
+def test_form_nota_required_comentario_opcional(client_loyall, db_session):
+    """Client-side: a nota é required (radio) e ganha *; o comentário segue opcional."""
+    p, _q = _pesquisa_pronta(db_session, "EValReq", "confronto", token="tok-vr")
+    qn = _pergunta_nota(db_session, p)
+    db_session.commit()
+    html = client_loyall.get("/p/tok-vr").get_data(as_text=True)
+    assert f'name="q_{qn.id}_nota" value="1" required' in html  # nota obrigatória
+    assert "Seu comentário (opcional)" in html  # comentário permanece opcional
+    assert "obrigatório" in html  # legenda do *
+
+
+def test_valida_nota_unidade_ok_comentario_vazio(client_loyall, db_session):
+    """Nota + unidade preenchidas, comentário EM BRANCO → salva (200)."""
+    p, _q = _pesquisa_pronta(db_session, "EValOk", "confronto", anonima=True, token="tok-vok")
+    qn = _pergunta_nota(db_session, p)
+    qu = _pergunta_unidade(db_session, p)
+    db_session.commit()
+    r = client_loyall.post(
+        "/p/tok-vok",
+        data={f"q_{qn.id}_nota": "5", f"q_{qn.id}_texto": "", f"ancora_{qu.id}": "local:1"},
+    )
+    assert r.status_code == 200 and "Obrigado" in r.get_data(as_text=True)
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 1
+
+
+def test_valida_sem_nota_erro_amigavel(client_loyall, db_session):
+    """Sem nota → erro amigável (400) apontando a pergunta, sem gravar, sem 500."""
+    p, _q = _pesquisa_pronta(db_session, "EValN", "confronto", anonima=True, token="tok-vn")
+    qn = _pergunta_nota(db_session, p)
+    db_session.commit()
+    r = client_loyall.post("/p/tok-vn", data={f"q_{qn.id}_texto": "só comentário"})
+    body = r.get_data(as_text=True)
+    assert r.status_code == 400 and "Obrigado" not in body
+    assert "obrigatório" in body and "Nota do atendimento" in body  # aponta a pergunta
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 0  # não gravou
+
+
+def test_valida_sem_unidade_multiloja_erro(client_loyall, db_session):
+    """Multi-loja sem a âncora de unidade → erro (400) apontando 'Qual unidade?'."""
+    p, _q = _pesquisa_pronta(db_session, "EValU", "confronto", anonima=True, token="tok-vu")
+    qn = _pergunta_nota(db_session, p)
+    _pergunta_unidade(db_session, p)  # âncora obrigatória, deixada em branco no POST
+    db_session.commit()
+    r = client_loyall.post("/p/tok-vu", data={f"q_{qn.id}_nota": "4"})  # nota ok, sem unidade
+    body = r.get_data(as_text=True)
+    assert r.status_code == 400 and "Obrigado" not in body
+    assert "Qual unidade?" in body
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 0
