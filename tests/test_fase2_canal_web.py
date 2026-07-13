@@ -257,6 +257,52 @@ def test_integracao_ponta_a_ponta_responder_ate_ratio(client, db_session):
     assert db_session.query(RatioMensal).filter_by(empresa_id=e.id).count() > 0
 
 
+# ── item B: link carimbado /p/<token>?c=<código> identifica sem pedir nada ────
+
+
+def test_link_carimbado_identifica(client_loyall, db_session):
+    """?c=<código> na URL → a resposta nasce ligada à Pessoa (fonte='crm'), mesmo em
+    pesquisa ANÔNIMA (o respondente não digita nada; a empresa carimbou o link)."""
+    from src.models.pessoa import PessoaIdentificador
+    from src.models.respondente import Respondente
+
+    p, q = _pesquisa_pronta(db_session, "ECarimbo", "confronto", anonima=True, token="tok-c")
+    db_session.commit()
+    r = client_loyall.post("/p/tok-c?c=CRM-777", data={f"q_{q.id}_nota": "5"})
+    assert r.status_code == 200 and "Obrigado" in r.get_data(as_text=True)
+    ident = db_session.query(PessoaIdentificador).filter_by(fonte="crm").one()
+    assert ident.external_id == "CRM-777"
+    resp = db_session.query(Respondente).filter_by(pesquisa_id=p.id).one()
+    assert resp.pessoa_id == ident.pessoa_id  # corrente fechada sem opt-in
+
+
+def test_sem_carimbo_nem_email_fica_anonimo(client_loyall, db_session):
+    """Sem ?c= e sem e-mail → anônimo como antes (pessoa_id NULL)."""
+    from src.models.pessoa import Pessoa
+    from src.models.respondente import Respondente
+
+    p, q = _pesquisa_pronta(db_session, "EAnon2", "confronto", anonima=True, token="tok-an")
+    db_session.commit()
+    client_loyall.post("/p/tok-an", data={f"q_{q.id}_nota": "3"})
+    assert db_session.query(Pessoa).count() == 0
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).one().pessoa_id is None
+
+
+def test_carimbo_mais_email_uma_pessoa(client_loyall, db_session):
+    """?c=<código> + e-mail digitado (com consentimento) → UMA Pessoa, DUAS chaves."""
+    from src.models.pessoa import Pessoa, PessoaIdentificador
+
+    p, q = _pesquisa_pronta(db_session, "EDois", "confronto", anonima=False, token="tok-2k")
+    db_session.commit()
+    client_loyall.post(
+        "/p/tok-2k?c=CRM-42",
+        data={f"q_{q.id}_nota": "4", "email": "M@x.com", "consentimento": "on"},
+    )
+    assert db_session.query(Pessoa).count() == 1
+    fontes = {i.fonte: i.external_id for i in db_session.query(PessoaIdentificador)}
+    assert fontes == {"crm": "CRM-42", "pesquisa": "m@x.com"}
+
+
 # ── núcleo registrar_respostas ───────────────────────────────────────────────
 
 

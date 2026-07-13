@@ -33,7 +33,7 @@ from src.models.governanca import (
 from src.models.local import Local, LocalMetadado
 from src.models.origem import OrigemAnalise, OrigemSintese
 from src.models.pesquisa import Pesquisa, PesquisaEscopo, PesquisaPergunta
-from src.models.pessoa import Pessoa, PessoaIdentificador
+from src.models.pessoa import Pessoa, PessoaIdentificador, PessoaMerge
 from src.models.plano_acao import AcaoStatus
 from src.models.respondente import Respondente, Resposta
 from src.models.relatorio_cache import RelatorioCache
@@ -90,6 +90,7 @@ __all__ = [
     "PesquisaPergunta",
     "Pessoa",
     "PessoaIdentificador",
+    "PessoaMerge",
     "RelatorioCache",
     "Respondente",
     "Resposta",

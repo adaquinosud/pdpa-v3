@@ -531,7 +531,7 @@ def pesquisa_publica(token):
     """Formulário PÚBLICO de resposta (Fase 2 · Passo 2a) — sem auth. Carrega a
     pesquisa pelo ``token_publico`` (status 'pronta'); GET renderiza o form, POST
     grava via ``registrar_respostas``. Token inválido/não-pronta → erro amigável."""
-    from src.coletor.excel import _find_or_create_pessoa
+    from src.coletor.excel import _reconciliar_pessoa
     from src.models.pesquisa import Pesquisa
     from src.pesquisa.coleta import registrar_respostas
     from src.pesquisa.persistencia import payload_publico
@@ -591,19 +591,23 @@ def pesquisa_publica(token):
         if escopo is None:  # escopo fixo da pesquisa (modo 'local')
             escopo = (pesq.entidade_tipo or "empresa", pesq.entidade_id)
 
-        pessoa_id = None
+        # Identidade (itens A+B). Código do CRM carimbado no link (?c=<código>) identifica
+        # SEM pedir nada — vale até em pesquisa anônima (a empresa manda link personalizado).
+        # E-mail é opt-in do respondente (só com o consentimento marcado). As duas chaves
+        # coexistem na MESMA Pessoa. Sem ?c= e sem e-mail → anônimo como antes.
+        codigo = (request.args.get("c") or "").strip() or None
+        email = nome = None
         if not pesq.anonima:
-            email = (request.form.get("email") or "").strip().lower()
+            _email = (request.form.get("email") or "").strip().lower()
             consent = request.form.get("consentimento") in ("on", "1", "true")
-            if email and consent:
-                pessoa_id = _find_or_create_pessoa(
-                    s,
-                    email,
-                    (request.form.get("nome") or "").strip() or None,
-                    {},
-                    fonte="pesquisa",
-                    origem="pesquisa_web",
-                )
+            if _email and consent:
+                email = _email
+                nome = (request.form.get("nome") or "").strip() or None
+        pessoa_id = None
+        if codigo or email:
+            pessoa_id = _reconciliar_pessoa(
+                s, email=email, id_cliente=codigo, nome=nome, origem="pesquisa_web"
+            )
 
         registrar_respostas(s, pesq, escopo=escopo, pessoa_id=pessoa_id, respostas=respostas)
     return render_template(tmpl, obrigado=True)

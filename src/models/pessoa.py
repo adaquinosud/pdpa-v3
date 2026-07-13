@@ -92,3 +92,29 @@ class PessoaIdentificador(Base):
 
     def __repr__(self) -> str:
         return f"<PessoaIdentificador pessoa={self.pessoa_id} {self.fonte}:{self.external_id}>"
+
+
+class PessoaMerge(Base):
+    """Rastro AUDITÁVEL de cada fusão de Pessoa (reconciliação multi-chave).
+
+    Quando uma resposta traz duas chaves (e-mail + código de CRM) que já apontavam
+    para Pessoas distintas, elas são fundidas numa só. Merge sem registro do que moveu
+    é irreversível na prática (lição da fusão de temas) — aqui fica QUEM foi absorvida,
+    em QUEM, QUANDO, por qual gatilho, e os ids reassignados (verbatim/respondente).
+    Não é FK (a absorvida deixa de existir); é log imutável."""
+
+    __tablename__ = "pessoa_merges"
+    __table_args__ = (Index("idx_pessoa_merges_alvo", "pessoa_alvo_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pessoa_alvo_id: Mapped[int] = mapped_column(Integer, nullable=False)  # sobrevivente
+    pessoa_absorvida_id: Mapped[int] = mapped_column(Integer, nullable=False)  # deletada
+    gatilho: Mapped[Optional[str]] = mapped_column(String)  # origem que disparou (ex. pesquisa_web)
+    chaves_json: Mapped[Optional[str]] = mapped_column(Text)  # chaves envolvidas no gatilho
+    verbatins_reassignados: Mapped[int] = mapped_column(Integer, default=0)
+    respondentes_reassignados: Mapped[int] = mapped_column(Integer, default=0)
+    ids_json: Mapped[Optional[str]] = mapped_column(Text)  # {verbatins:[...], respondentes:[...]}
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self) -> str:
+        return f"<PessoaMerge {self.pessoa_absorvida_id}→{self.pessoa_alvo_id}>"

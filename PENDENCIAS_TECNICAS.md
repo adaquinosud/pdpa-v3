@@ -393,3 +393,40 @@ inexistentes. Latente: qualquer caminho futuro que grave verbatim com FK inváli
 propagar OU logar `current_app.logger.warning` com o verbatim pulado). Ex.: inspecionar
 `exc.orig` / a constraint, ou checar o `local_id`/`pessoa_id` antes do insert. No mínimo,
 um `log` no `except` pra o descarte não ser invisível.
+
+---
+
+## Regime LGPD do identificador: registrar a decisão do titular (tabela)
+
+**Origem:** id_cliente first-class + link carimbado, 2026-07-13. **Prioridade: média.**
+Decisão do Alexandre no fix: por ora **tudo grava `opt_in=true`** (em
+`PessoaIdentificador.atributos_json`), **sem distinguir** "identificado por registro da
+empresa" (código CRM) de "opt-in de contato" (e-mail que o respondente digitou). Falta
+uma **tabela de registro da decisão do titular** — quando consentiu/opôs-se, para qual
+finalidade, por qual base legal — separando os dois regimes. Hoje o marcador é só o
+`opt_in`/`origem`/`data` no JSON, insuficiente para atender pedido formal de titular com
+trilha. Implementar quando o LGPD-hardening entrar.
+
+---
+
+## Import interno genérico de verbatins: mesmo bug `email or idc`
+
+**Origem:** fix do id_cliente first-class na PESQUISA, 2026-07-13. **Prioridade: baixa.**
+O `_resolver_identidade` da pesquisa foi corrigido (e-mail E código = mesma Pessoa via
+`_reconciliar_pessoa`). Mas o **import interno GENÉRICO de verbatins** (`excel.py`,
+`importar_arquivo` com `interno_identificado`, ~linha 586) ainda faz
+`external_id = email_v or idc_v` — o código é **descartado quando há e-mail**, mesmo
+padrão de segunda-classe. Fora do escopo da pesquisa; consistência quando priorizar
+identidade nesse canal — reusar `_reconciliar_pessoa`.
+
+---
+
+## Backfill de id_cliente legado (fonte='pesquisa' → 'crm')
+
+**Origem:** id_cliente first-class, 2026-07-13. **Prioridade: baixa — provavelmente NADA
+a fazer.** Antes do fix, id_cliente (quando gravado) caía em `fonte='pesquisa'` (mesmo
+slot do e-mail). Depois, vai pra `fonte='crm'`. Um id_cliente **já importado** sob
+`fonte='pesquisa'` não casaria com chaves `crm` novas. Backfill: mover pra `crm` as
+`PessoaIdentificador(fonte='pesquisa')` cujo `external_id` não é e-mail (sem `@`).
+**Confirmado que não há id_cliente real importado** (dado semeado é anônimo) → não fazer
+agora; só se um import identificado tiver ocorrido antes deste fix.

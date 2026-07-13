@@ -22,12 +22,12 @@ import pandas as pd
 
 from src.coletor.excel import (
     _ALIASES_IDENTIDADE,
-    _find_or_create_pessoa,
     _ler_dataframe,
     _norm_email,
     _norm_nome,
     _parse_data,
     _parse_rating,
+    _reconciliar_pessoa,
     _texto_celula,
 )
 from src.models.pesquisa import Pesquisa
@@ -198,13 +198,11 @@ def _resolver_identidade(s, row, col_class, pesquisa, cache, stats):
             email = _norm_email(row[col])
         elif c["tipo"] == "id_cliente":
             idc = _norm_nome(row[col])
-    external_id = email or idc
-    if not external_id:
+    if not (email or idc):
         stats["sem_identidade"] += 1
         return None
-    return _find_or_create_pessoa(
-        s, external_id, None, cache, fonte="pesquisa", origem="import_excel_respostas"
-    )
+    # Item A: e-mail E código do CRM viram chaves da MESMA Pessoa (não mais 'email or idc').
+    return _reconciliar_pessoa(s, email=email, id_cliente=idc, origem="import_excel_respostas")
 
 
 def importar_respostas(

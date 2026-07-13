@@ -217,6 +217,69 @@ def test_identificado_sem_consentimento_bloqueia(db_session, tmp_path):
     assert stats["respondentes"] == 0 and stats["erros_validacao"]
 
 
+# ── item A: e-mail + id_cliente = MESMA Pessoa, duas chaves ───────────────────
+
+
+def test_email_e_id_cliente_mesma_pessoa(db_session, tmp_path):
+    """E-mail + código do CRM na mesma linha → UMA Pessoa com DUAS chaves
+    (fonte='pesquisa' p/ e-mail, fonte='crm' p/ código). Antes o código era descartado."""
+    from src.models.pessoa import PessoaIdentificador
+
+    p = _pesquisa(db_session, "Eab", "confronto", anonima=False)
+    arq = _xlsx(tmp_path, [_cols_padrao({"email": "Ana@X.com", "id_cliente": "CRM-1001"})])
+    importar_respostas(arq, p.id, consentimento=True)
+    idents = db_session.query(PessoaIdentificador).all()
+    por_fonte = {i.fonte: i.external_id for i in idents}
+    assert por_fonte.get("pesquisa") == "ana@x.com" and por_fonte.get("crm") == "CRM-1001"
+    assert len({i.pessoa_id for i in idents}) == 1  # uma só Pessoa
+
+
+def test_reconciliacao_codigo_depois_email(db_session, tmp_path):
+    """Junho: só código. Julho: código + e-mail. → a MESMA Pessoa (reconcilia pelo
+    código); o e-mail é anexado, sem criar duplicata."""
+    from src.models.pessoa import Pessoa, PessoaIdentificador
+
+    p = _pesquisa(db_session, "Erec", "confronto", anonima=False)
+    importar_respostas(
+        _xlsx(tmp_path, [_cols_padrao({"id_cliente": "C-9"})], "jun.xlsx"), p.id, consentimento=True
+    )
+    importar_respostas(
+        _xlsx(
+            tmp_path,
+            [_cols_padrao({"P1. O que achou?": "outro", "email": "j@x.com", "id_cliente": "C-9"})],
+            "jul.xlsx",
+        ),
+        p.id,
+        consentimento=True,
+    )
+    assert db_session.query(Pesquisa).count() >= 1
+    pessoas = db_session.query(Pessoa).all()
+    assert len(pessoas) == 1  # não duplicou
+    fontes = {i.fonte for i in db_session.query(PessoaIdentificador)}
+    assert fontes == {"crm", "pesquisa"}  # as duas chaves na mesma Pessoa
+
+
+def test_merge_auditavel(db_session):
+    """Duas Pessoas distintas (uma só-e-mail, outra só-código) que depois vêm juntas →
+    merge na mais antiga, com registro em PessoaMerge (auditável) e ids reassignados."""
+    from src.coletor.excel import _reconciliar_pessoa
+    from src.models.pessoa import Pessoa, PessoaMerge
+
+    # cria duas Pessoas separadas
+    id_email = _reconciliar_pessoa(db_session, email="x@y.com", origem="t")
+    id_codigo = _reconciliar_pessoa(db_session, id_cliente="K-1", origem="t")
+    db_session.flush()
+    assert id_email != id_codigo
+    # agora chega uma resposta com as DUAS chaves → funde
+    alvo = _reconciliar_pessoa(db_session, email="x@y.com", id_cliente="K-1", origem="pesquisa_web")
+    db_session.commit()
+    assert db_session.query(Pessoa).count() == 1  # fundiu
+    m = db_session.query(PessoaMerge).one()
+    assert m.pessoa_alvo_id == alvo == min(id_email, id_codigo)  # sobrevive a mais antiga
+    assert m.pessoa_absorvida_id == max(id_email, id_codigo)
+    assert m.gatilho == "pesquisa_web"
+
+
 # ── nota fora da escala é ignorada ───────────────────────────────────────────
 
 

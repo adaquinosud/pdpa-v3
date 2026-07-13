@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -414,6 +415,154 @@ def _find_or_create_pessoa(
     session.flush()
     cache[external_id] = p.id
     return p.id
+
+
+_LOG = logging.getLogger(__name__)
+
+# Namespace das chaves de identidade da PESSOA na PESQUISA (item A): e-mail (voluntário)
+# e código do CRM/ERP da empresa (o que ela já tem). Fontes distintas, mesma Pessoa.
+FONTE_EMAIL = "pesquisa"
+FONTE_CRM = "crm"
+
+
+def _ident_opt_in(fonte: str, external_id: str, origem: str) -> "PessoaIdentificador":
+    return PessoaIdentificador(
+        tipo="interno_consentido",
+        fonte=fonte,
+        external_id=external_id,
+        atributos_json=json.dumps(
+            {"opt_in": True, "origem": origem, "data": datetime.utcnow().isoformat()}
+        ),
+    )
+
+
+def _merge_pessoas(session, alvo_id: int, absorvida_id: int, *, gatilho: str, chaves: dict) -> None:
+    """Funde ``absorvida_id`` em ``alvo_id`` — reassign FKs + move identificadores + apaga
+    a órfã. AUDITÁVEL: grava PessoaMerge (quem, em quem, quando, ids movidos) e loga.
+    Merge sem registro do que moveu é irreversível na prática (lição da fusão de temas)."""
+    from src.models.pessoa import PessoaMerge
+    from src.models.respondente import Respondente
+    from src.models.verbatim import Verbatim
+
+    vids = [v.id for v in session.query(Verbatim.id).filter(Verbatim.pessoa_id == absorvida_id)]
+    rids = [
+        r.id for r in session.query(Respondente.id).filter(Respondente.pessoa_id == absorvida_id)
+    ]
+    if vids:
+        session.query(Verbatim).filter(Verbatim.id.in_(vids)).update(
+            {Verbatim.pessoa_id: alvo_id}, synchronize_session=False
+        )
+    if rids:
+        session.query(Respondente).filter(Respondente.id.in_(rids)).update(
+            {Respondente.pessoa_id: alvo_id}, synchronize_session=False
+        )
+    # Move os identificadores da absorvida que o alvo ainda não tem (evita violar o UNIQUE)
+    existentes = {
+        (i.fonte, i.external_id)
+        for i in session.query(PessoaIdentificador).filter_by(pessoa_id=alvo_id)
+    }
+    for ident in session.query(PessoaIdentificador).filter_by(pessoa_id=absorvida_id).all():
+        if (ident.fonte, ident.external_id) in existentes:
+            session.delete(ident)
+        else:
+            ident.pessoa_id = alvo_id
+    session.query(Pessoa).filter(Pessoa.id == absorvida_id).delete(synchronize_session=False)
+    session.add(
+        PessoaMerge(
+            pessoa_alvo_id=alvo_id,
+            pessoa_absorvida_id=absorvida_id,
+            gatilho=gatilho,
+            chaves_json=json.dumps(chaves),
+            verbatins_reassignados=len(vids),
+            respondentes_reassignados=len(rids),
+            ids_json=json.dumps({"verbatins": vids, "respondentes": rids}),
+        )
+    )
+    session.flush()
+    _LOG.info(
+        "pessoa merge: %s→%s gatilho=%s chaves=%s verbatins=%d respondentes=%d",
+        absorvida_id,
+        alvo_id,
+        gatilho,
+        chaves,
+        len(vids),
+        len(rids),
+    )
+
+
+def _reconciliar_pessoa(
+    session,
+    *,
+    email: Optional[str] = None,
+    id_cliente: Optional[str] = None,
+    nome: Optional[str] = None,
+    origem: str = "pesquisa",
+) -> Optional[int]:
+    """Resolve UMA Pessoa a partir de e-mail e/ou código de CRM (item A). As duas chaves
+    coexistem (``fonte='pesquisa'`` p/ e-mail, ``fonte='crm'`` p/ código): mesma pessoa,
+    duas chaves, reconcilia por qualquer uma. Sem nenhuma chave → None (anônimo).
+
+    - 0 Pessoa encontrada → cria + anexa as chaves.
+    - 1 → reusa + anexa a chave que faltar.
+    - 2 distintas → MERGE na mais antiga (menor id), auditável (``_merge_pessoas``).
+    """
+    chaves = []
+    if email:
+        chaves.append((FONTE_EMAIL, email))
+    if id_cliente:
+        chaves.append((FONTE_CRM, id_cliente))
+    if not chaves:
+        return None
+
+    achados: Dict[str, PessoaIdentificador] = {}  # pessoa_id → ident (dedup por pessoa)
+    for fonte, ext in chaves:
+        ident = (
+            session.query(PessoaIdentificador)
+            .filter_by(tipo="interno_consentido", fonte=fonte, external_id=ext)
+            .first()
+        )
+        if ident is not None:
+            achados[ident.pessoa_id] = ident
+
+    if not achados:
+        pessoa = Pessoa(tipo="interno_consentido", nome_display=nome)
+        pessoa.identificadores = [_ident_opt_in(f, e, origem) for f, e in chaves]
+        session.add(pessoa)
+        session.flush()
+        return pessoa.id
+
+    ids = sorted(achados)
+    alvo_id = ids[0]  # a mais antiga sobrevive
+    if len(ids) > 1:
+        for absorvida_id in ids[1:]:
+            _merge_pessoas(
+                session,
+                alvo_id,
+                absorvida_id,
+                gatilho=origem,
+                chaves={f: e for f, e in chaves},
+            )
+
+    # Anexa ao alvo qualquer chave do gatilho que ainda não exista (nome se estava vazio)
+    existentes = {
+        (i.fonte, i.external_id)
+        for i in session.query(PessoaIdentificador).filter_by(pessoa_id=alvo_id)
+    }
+    for fonte, ext in chaves:
+        if (fonte, ext) not in existentes:
+            session.add(_ident_opt_in_para(alvo_id, fonte, ext, origem))
+    if nome:
+        pessoa = session.get(Pessoa, alvo_id)
+        if pessoa is not None and not pessoa.nome_display:
+            pessoa.nome_display = nome
+    session.flush()
+    return alvo_id
+
+
+def _ident_opt_in_para(pessoa_id: int, fonte: str, external_id: str, origem: str):
+    ident = _ident_opt_in(fonte, external_id, origem)
+    ident.pessoa_id = pessoa_id
+    return ident
 
 
 def importar_arquivo(
