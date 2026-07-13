@@ -61,6 +61,104 @@ def test_payload_expoe_pergunta_id(db_session):
     assert payload["perguntas"][0]["id"] == q.id
 
 
+# ── classificação DETERMINÍSTICA: subpilar (pergunta) + valência (nota) ──────
+
+
+def _pergunta_sub(db_session, p, ordem, subpilar_alvo):
+    q = PesquisaPergunta(
+        pesquisa_id=p.id,
+        ordem=ordem,
+        enunciado=f"Q{ordem}",
+        formato="mista",
+        subpilar_alvo=subpilar_alvo,
+    )
+    db_session.add(q)
+    db_session.flush()
+    return q
+
+
+def _resp(pergunta_id, texto, nota):
+    return {"pergunta_id": pergunta_id, "texto": texto, "nota": nota, "opcao": None}
+
+
+def test_verbatim_nasce_com_subpilar_e_valencia(db_session):
+    """Nota-only (comentário em branco): o verbatim NÃO fica NULL — nasce com subpilar
+    da pergunta + valência da nota. Antes ficava invisível (subpilar NULL → ratio 0)."""
+    p, q0 = _pesquisa_pronta(db_session, "EDet", "coleta", token="tok-det")
+    q = _pergunta_sub(db_session, p, 2, "D1")
+    registrar_respostas(
+        db_session, p, escopo=("empresa", None), pessoa_id=None, respostas=[_resp(q.id, "", 2)]
+    )  # nota-only, nota=2
+    db_session.commit()
+    v = db_session.query(Verbatim).filter_by(rating=2).one()
+    assert v.subpilar == "D1" and v.tipo == "detrator"  # da pergunta + da nota
+    assert v.tem_texto is False  # nota-only
+    assert v.confianca == 1.0 and v.prompt_versao == "pesquisa-deterministica-v1"
+
+
+def test_valencia_segue_regua_canonica(db_session):
+    """5★ promotor · 4-3★ conversível · 2-1★ detrator (RATING_PARA_CLASSIFICACAO —
+    a MESMA do RA/Excel; comparabilidade entre canais)."""
+    p, _q = _pesquisa_pronta(db_session, "ERegua", "coleta", token="tok-reg")
+    esperado = {1: "detrator", 2: "detrator", 3: "conversivel", 4: "conversivel", 5: "promotor"}
+    qs = {n: _pergunta_sub(db_session, p, n + 1, "P1") for n in range(1, 6)}
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(qs[n].id, "", n) for n in range(1, 6)],
+    )
+    db_session.commit()
+    for n, tipo in esperado.items():
+        v = db_session.query(Verbatim).filter_by(rating=n).one()
+        assert v.tipo == tipo, f"nota {n} → {v.tipo}, esperava {tipo}"
+
+
+def test_texto_com_nota_e_determinista_e_temizavel(db_session):
+    """Comentário + nota: subpilar/tipo determinísticos (classificador de texto se
+    auto-exclui, filtra subpilar IS NULL), mas tem_texto=True → a TEMIZAÇÃO ainda pega."""
+    p, _q = _pesquisa_pronta(db_session, "ETxt", "coleta", token="tok-txt")
+    q = _pergunta_sub(db_session, p, 2, "P2")
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(q.id, "cobrança indevida na fatura", 1)],
+    )
+    db_session.commit()
+    v = db_session.query(Verbatim).filter_by(rating=1).one()
+    assert v.subpilar == "P2" and v.tipo == "detrator"  # determinístico
+    assert v.tem_texto is True and v.subpilar is not None  # classificador pula; temização não
+
+
+def test_pura_aberta_sem_nota_fica_pendente(db_session):
+    """Pergunta puramente aberta (texto, SEM nota) → subpilar/tipo NULL: sem nota a
+    valência só sai do texto, então o classificador ainda resolve (fallback preservado)."""
+    p, _q = _pesquisa_pronta(db_session, "EAberta", "coleta", token="tok-ab")
+    q = _pergunta_sub(db_session, p, 2, "D3")
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(q.id, "comentário sem nota", None)],
+    )
+    db_session.commit()
+    v = db_session.query(Verbatim).filter(Verbatim.texto == "comentário sem nota").one()
+    assert v.subpilar is None and v.tipo is None  # pendente p/ o classificador de texto
+
+
+def test_regra6_subpilar_alvo_nao_vaza_no_payload(db_session):
+    """Regra 6: o subpilar_alvo é interno — o payload público do respondente NUNCA o expõe."""
+    p, _q = _pesquisa_pronta(db_session, "ER6", "coleta", token="tok-r6")
+    _pergunta_sub(db_session, p, 2, "D1")
+    db_session.commit()
+    payload = payload_publico(p)
+    assert all("subpilar_alvo" not in pp and "subpilar" not in pp for pp in payload["perguntas"])
+
+
 # ── núcleo registrar_respostas ───────────────────────────────────────────────
 
 

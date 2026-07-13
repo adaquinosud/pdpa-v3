@@ -71,6 +71,18 @@ def registrar_respostas(
     return respondente
 
 
+def _valencia_da_nota(nota: Optional[int]) -> Optional[str]:
+    """Valência (tipo) a partir da nota, pela régua CANÔNICA do projeto
+    (``RATING_PARA_CLASSIFICACAO``: 5★ promotor · 4-3★ conversível · 2-1★ detrator) —
+    a MESMA do RA/Excel-espontâneo. Consistência entre canais: a mesma nota vale a
+    mesma valência em qualquer origem, senão o ratio deixa de ser comparável."""
+    from src.coletor.pipeline import RATING_PARA_CLASSIFICACAO
+
+    if nota is None or nota not in RATING_PARA_CLASSIFICACAO:
+        return None
+    return RATING_PARA_CLASSIFICACAO[nota][1]  # (subpilar, TIPO, confianca, justif)
+
+
 def _gravar_verbatins(
     s,
     pesquisa: Pesquisa,
@@ -79,9 +91,21 @@ def _gravar_verbatins(
     respostas: List[Dict[str, Any]],
     conector: str,
 ) -> None:
-    """Cada resposta com texto e/ou nota vira um Verbatim (reusa fonte + hash do
-    importador). Fonte 'pesquisa_web' separa o regime na origem; pessoa_id é
-    aditivo (coexiste com autor). Verbatim cru — a classificação roda no pós-coleta."""
+    """Cada resposta com texto e/ou nota vira um Verbatim.
+
+    DETERMINÍSTICO por construção — numa pesquisa, subpilar e valência JÁ são
+    conhecidos, o LLM não precisa (e não deve) adivinhar:
+      - subpilar ← ``pergunta.subpilar_alvo`` (a pesquisa é gerada dos 12 subpilares);
+      - valência (``tipo``) ← a nota, pela régua canônica (``_valencia_da_nota``).
+    Assim o verbatim nasce classificado: o classificador de texto e a redistribuição
+    de símbolos se auto-excluem (ambos filtram ``subpilar IS NULL``); a TEMIZAÇÃO
+    segue rodando no texto de quem comentou (extrai tema, que número não dá). Isto vale
+    para os DOIS canais de pesquisa (web + Excel de respostas) — a natureza é 'resposta
+    a pergunta com subpilar conhecido', não o transporte. O review ESPONTÂNEO (RA/Google/
+    Excel-de-reviews) segue por ``persistir_verbatim``, onde o subpilar é desconhecido.
+
+    Sem nota (pergunta puramente aberta) → subpilar/tipo ficam NULL e o classificador
+    de texto resolve como antes: sem nota, a valência só sai do texto."""
     from src.coletor.pipeline import MIN_CHARS_PARA_PROCESSAR
 
     autor = None
@@ -89,6 +113,9 @@ def _gravar_verbatins(
         pessoa = s.get(Pessoa, pessoa_id)
         autor = pessoa.nome_display if pessoa is not None else None
     local_id = respondente.entidade_id if respondente.entidade_tipo == "local" else None
+    # Regra 6: subpilar_alvo NUNCA sai no payload público — o mapa é montado aqui,
+    # server-side, a partir das perguntas da própria pesquisa.
+    subpilar_por_pergunta = {p.id: p.subpilar_alvo for p in pesquisa.perguntas}
 
     cache_fonte: Dict[str, int] = {}
     fonte_id = _find_or_create_fonte(
@@ -114,6 +141,10 @@ def _gravar_verbatins(
             f"resp:{respondente.id}:{r['pergunta_id']}" if conector == "pesquisa_web" else None
         )
         hash_d = _hash_dedup(fonte_id, texto, autor, nota, None, review_id)
+        # Classificação DETERMINÍSTICA: subpilar da pergunta + valência da nota. Só
+        # quando há nota (a valência vem dela); sem nota, deixa NULL p/ o classificador.
+        tipo = _valencia_da_nota(nota)
+        subpilar = subpilar_por_pergunta.get(r["pergunta_id"]) if tipo is not None else None
         verbatim = Verbatim(
             empresa_id=pesquisa.empresa_id,
             local_id=local_id,
@@ -125,6 +156,10 @@ def _gravar_verbatins(
             rating=nota,
             hash_dedup=hash_d,
             review_id_externo=review_id,
+            subpilar=subpilar,
+            tipo=tipo,
+            confianca=1.0 if tipo is not None else None,  # determinístico, não é palpite
+            prompt_versao="pesquisa-deterministica-v1" if tipo is not None else None,
         )
         # Cinto: se um edge case futuro ainda colidir no dedup, PULA essa resposta em
         # vez de estourar 500 — o savepoint isola, a transação externa segue íntegra.
