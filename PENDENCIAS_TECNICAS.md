@@ -367,3 +367,29 @@ ON DELETE CASCADE: perguntas, escopos, respondente→resposta, origem_analise/si
 **Decisão de design:** apagar pesquisa `pronta` COM respostas destrói dado de cliente —
 v1 recomendado **só rascunho** pela UI; pronta exige confirmação forte (digitar o
 título) ou fica fora da UI.
+
+---
+
+## Cinto `except IntegrityError` do dedup mascara violação de FK (dado sumindo)
+
+**Origem:** validação do seeder de respostas de pesquisa, 2026-07-13. **Prioridade:
+baixa-média** — não urgente, mas é dado sumindo sem aviso.
+
+**O quê:** o fix do dedup (commit 1579fd6) envolveu cada `Verbatim` de pesquisa-web num
+savepoint com `try: ... except IntegrityError: continue` (`src/pesquisa/coleta.py`,
+`_gravar_verbatins`) — cinto pra colisão de `hash_dedup` não virar 500. Mas o `except`
+é largo: **captura QUALQUER IntegrityError**, inclusive violação de FK. Se a âncora de
+unidade apontar pra um `local_id` inexistente, o verbatim viola a FK
+`verbatins.local_id → locais.id`, cai no `except` e é **silenciosamente descartado** —
+o respondente é criado, mas as respostas somem sem erro nem log.
+
+**Contido hoje:** em prod as âncoras são geradas a partir de `Local` reais, então o
+`local_id` sempre existe — não dispara na prática. O achado veio de seed com locais
+inexistentes. Latente: qualquer caminho futuro que grave verbatim com FK inválida
+(local/pessoa/fonte) engole o erro.
+
+**Fix (quando priorizar):** estreitar o `except` pra distinguir **colisão de dedup**
+(UNIQUE `empresa_id, hash_dedup` → pula, comportamento desejado) de **FK real** (deixar
+propagar OU logar `current_app.logger.warning` com o verbatim pulado). Ex.: inspecionar
+`exc.orig` / a constraint, ou checar o `local_id`/`pessoa_id` antes do insert. No mínimo,
+um `log` no `except` pra o descarte não ser invisível.
