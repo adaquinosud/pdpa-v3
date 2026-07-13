@@ -32,6 +32,7 @@ def registrar_respostas(
     pessoa_id: Optional[int],
     respostas: List[Dict[str, Any]],
     conector: str = "pesquisa_web",
+    data_resposta: Optional[datetime] = None,
 ) -> Respondente:
     """Cria o Respondente + grava as respostas pelo propósito da pesquisa.
 
@@ -43,6 +44,10 @@ def registrar_respostas(
             perguntas de conteúdo (a âncora de unidade já foi consumida no escopo).
         conector: conector da fonte no destino coleta (``pesquisa_web`` p/ o canal
             web; ``pesquisa_excel`` p/ o import de respostas). Separa o regime na origem.
+        data_resposta: data em que o respondente respondeu, QUANDO conhecida (import de
+            planilha de respostas passadas). ``None`` (web ao vivo) → usa o momento do
+            envio (``respondente.criado_em``). CRÍTICO no import histórico: sem ela, todo
+            o histórico colapsaria no mês do upload e a série temporal mentiria.
     """
     entidade_tipo, entidade_id = escopo
     respondente = Respondente(
@@ -66,7 +71,7 @@ def registrar_respostas(
                 )
             )
     else:  # 'coleta' → Verbatim (alimenta o diagnóstico)
-        _gravar_verbatins(s, pesquisa, respondente, pessoa_id, respostas, conector)
+        _gravar_verbatins(s, pesquisa, respondente, pessoa_id, respostas, conector, data_resposta)
 
     s.flush()
     return respondente
@@ -91,6 +96,7 @@ def _gravar_verbatins(
     pessoa_id: Optional[int],
     respostas: List[Dict[str, Any]],
     conector: str,
+    data_resposta: Optional[datetime] = None,
 ) -> None:
     """Cada resposta com texto e/ou nota vira um Verbatim.
 
@@ -114,11 +120,13 @@ def _gravar_verbatins(
         pessoa = s.get(Pessoa, pessoa_id)
         autor = pessoa.nome_display if pessoa is not None else None
     local_id = respondente.entidade_id if respondente.entidade_tipo == "local" else None
-    # Data natural da resposta = quando o respondente enviou (respondente.criado_em, já
-    # flushado). É o que o agregador mensal usa (ratios_mensais agrupa por
-    # data_criacao_original e filtra IS NOT NULL); sem ela o verbatim some do ratio. O
-    # modelo não tem default nessa coluna — o RA seta explícito, o canal pesquisa idem.
-    data_resposta = respondente.criado_em or datetime.utcnow()
+    # Data do verbatim = a data da RESPOSTA. No import de planilha histórica ela vem da
+    # planilha (data_resposta); no web ao vivo, o momento do envio (respondente.criado_em,
+    # já flushado). É o que o agregador mensal usa (ratios_mensais agrupa por
+    # data_criacao_original e filtra IS NOT NULL); sem ela o verbatim some do ratio, e com
+    # a data ERRADA (upload) o histórico colapsaria num mês só. O modelo não tem default
+    # nessa coluna — o RA seta explícito, o canal pesquisa idem.
+    data_verbatim = data_resposta or respondente.criado_em or datetime.utcnow()
     # Regra 6: subpilar_alvo NUNCA sai no payload público — o mapa é montado aqui,
     # server-side, a partir das perguntas da própria pesquisa.
     subpilar_por_pergunta = {p.id: p.subpilar_alvo for p in pesquisa.perguntas}
@@ -160,7 +168,7 @@ def _gravar_verbatins(
             tem_texto=len(texto) >= MIN_CHARS_PARA_PROCESSAR,
             autor=autor,
             rating=nota,
-            data_criacao_original=data_resposta,  # sem isto o verbatim some do ratio mensal
+            data_criacao_original=data_verbatim,  # sem isto o verbatim some do ratio mensal
             hash_dedup=hash_d,
             review_id_externo=review_id,
             subpilar=subpilar,

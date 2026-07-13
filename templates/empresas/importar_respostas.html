@@ -18,7 +18,6 @@
   <div>
     <label class="block text-xs font-medium text-loyall-600 mb-1">Pesquisa*</label>
     <select name="pesquisa_id" required id="sel-pesquisa"
-            onchange="document.getElementById('btn-modelo-resp').href='{{ url_for('ui.modelo_importar_respostas') }}?pesquisa_id='+this.value"
             class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
       <option value="">Selecione…</option>
       {% for p in pesquisas %}<option value="{{ p.id }}">{{ p.rotulo }}</option>{% endfor %}
@@ -39,11 +38,23 @@
             class="px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
       Importar respostas
     </button>
-    <a id="btn-modelo-resp" href="#"
+    <a id="btn-modelo-resp" href="{{ url_for('ui.modelo_importar_respostas') }}"
+       onclick="return baixarModelo(event)"
        class="text-sm text-loyall-500 hover:underline">Baixar modelo</a>
     <span class="htmx-indicator text-xs text-loyall-400">processando…</span>
   </div>
 
   <div id="resultado" class="pt-1"></div>
 </form>
+<script>
+  // "Baixar modelo": lê a pesquisa selecionada NO CLIQUE (robusto — não depende de um
+  // onchange ter disparado) e navega pro modelo dela. Sem seleção → avisa, não baixa "#".
+  function baixarModelo(ev) {
+    ev.preventDefault();
+    var pid = document.getElementById('sel-pesquisa').value;
+    if (!pid) { alert('Escolha a pesquisa primeiro — o modelo é gerado com as perguntas dela.'); return false; }
+    window.location = '{{ url_for("ui.modelo_importar_respostas") }}?pesquisa_id=' + encodeURIComponent(pid);
+    return false;
+  }
+</script>
 {% endblock %}

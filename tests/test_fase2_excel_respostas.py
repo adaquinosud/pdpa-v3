@@ -83,6 +83,65 @@ def test_modelo_reflete_perguntas(db_session):
     assert any(c.startswith("P3.") for c in cols)
 
 
+def test_modelo_tem_coluna_de_data(db_session):
+    """O modelo traz a coluna de data da resposta (histórico) + exemplo preenchido."""
+    p = _pesquisa(db_session, "Emoddata", anonima=False)
+    df = pd.read_excel(gerar_modelo_respostas_xlsx(p))
+    col_data = [c for c in df.columns if str(c).lower().startswith("data")]
+    assert col_data, f"sem coluna de data em {list(df.columns)}"
+    assert str(df.iloc[0][col_data[0]]).startswith("2026-05-10")  # exemplo autoexplicativo
+
+
+def test_data_da_planilha_vira_data_do_verbatim(db_session, tmp_path):
+    """A data da RESPOSTA (planilha) vira data_criacao_original — NÃO o momento do
+    upload. Sem isto o histórico colapsa no mês do upload e a série temporal mente."""
+    p = _pesquisa(db_session, "Edata", "coleta")
+    arq = _xlsx(tmp_path, [_cols_padrao({"data_resposta (AAAA-MM-DD)": "2024-03-15"})])
+    importar_respostas(arq, p.id)
+    vs = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).all()
+    assert vs and all(
+        v.data_criacao_original is not None
+        and v.data_criacao_original.year == 2024
+        and v.data_criacao_original.month == 3
+        and v.data_criacao_original.day == 15
+        for v in vs
+    )
+
+
+def test_datas_distintas_nao_colapsam(db_session, tmp_path):
+    """Duas respostas de meses diferentes na mesma planilha → dois meses distintos
+    (não caem no mesmo mês do upload). Conteúdo distinto por linha p/ isolar a data do
+    dedup-por-conteúdo do canal Excel (que colapsaria respostas de texto idêntico)."""
+    p = _pesquisa(db_session, "Edata2", "coleta")
+    arq = _xlsx(
+        tmp_path,
+        [
+            _cols_padrao(
+                {"P1. O que achou?": "resposta A", "data_resposta (AAAA-MM-DD)": "2024-01-10"}
+            ),
+            _cols_padrao(
+                {"P1. O que achou?": "resposta B", "data_resposta (AAAA-MM-DD)": "2025-08-20"}
+            ),
+        ],
+    )
+    importar_respostas(arq, p.id)
+    anos = {
+        v.data_criacao_original.year
+        for v in db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id)
+    }
+    assert anos == {2024, 2025}
+
+
+def test_sem_coluna_data_cai_no_fallback(db_session, tmp_path):
+    """Planilha sem coluna de data → verbatim ainda nasce COM data (fallback = agora),
+    nunca NULL (não some do ratio)."""
+    p = _pesquisa(db_session, "Edata3", "coleta")
+    arq = _xlsx(tmp_path, [_cols_padrao()])  # sem coluna de data
+    importar_respostas(arq, p.id)
+    vs = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).all()
+    assert vs and all(v.data_criacao_original is not None for v in vs)
+
+
 # ── confronto: wide → Resposta, mista junta nota+texto ───────────────────────
 
 

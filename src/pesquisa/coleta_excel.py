@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -25,6 +26,7 @@ from src.coletor.excel import (
     _ler_dataframe,
     _norm_email,
     _norm_nome,
+    _parse_data,
     _parse_rating,
     _texto_celula,
 )
@@ -59,6 +61,10 @@ def gerar_modelo_respostas_xlsx(pesquisa: Pesquisa) -> io.BytesIO:
         cols += ["email", "id_cliente"]
         exemplo["email"] = "maria.souza@empresa.com"
         exemplo["id_cliente"] = "CRM-1001"
+    # Data da resposta: quando o respondente respondeu (histórico). SEM ela, todo o
+    # import cai no mês do upload e a série temporal mente. Vazia → data do upload.
+    cols.append("data_resposta (AAAA-MM-DD)")
+    exemplo["data_resposta (AAAA-MM-DD)"] = "2026-05-10"
     if pesquisa.escopo_local_modo == "geral":
         cols.append("Unidade")
         pub = _opcoes_publicas((_ancora(pesquisa) or _Vazio()).opcoes_json)
@@ -99,9 +105,20 @@ def _classificar_colunas(columns: List[str], ordens_validas: set) -> Dict[str, D
             out[col] = {"tipo": "id_cliente"}
         elif norm in ("unidade", "loja", "local"):
             out[col] = {"tipo": "unidade"}
+        elif norm.startswith("data"):  # 'data', 'data_resposta', 'data_resposta (aaaa-mm-dd)'
+            out[col] = {"tipo": "data"}
         else:
             out[col] = {"tipo": None}
     return out
+
+
+def _data_resposta(row, col_class) -> Optional[datetime]:
+    """Lê a coluna de data (quando o respondente respondeu). Ausente/inválida → None
+    (o núcleo cai no fallback: data do upload)."""
+    for col, c in col_class.items():
+        if c["tipo"] == "data":
+            return _parse_data(row[col])
+    return None
 
 
 def _escopo_por_rotulo(ancora: Optional[Any]) -> Dict[str, Tuple[str, Optional[int]]]:
@@ -246,6 +263,7 @@ def importar_respostas(
                     pessoa_id=pessoa_id,
                     respostas=respostas,
                     conector="pesquisa_excel",
+                    data_resposta=_data_resposta(row, col_class),  # da planilha, não do upload
                 )
                 stats["respondentes"] += 1
                 stats["respostas"] += len(respostas)
