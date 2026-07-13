@@ -12,6 +12,7 @@ resolvido pelo chamador. ``token_publico`` e o canal web vivem na UI/persistênc
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.exc import IntegrityError
@@ -113,6 +114,11 @@ def _gravar_verbatins(
         pessoa = s.get(Pessoa, pessoa_id)
         autor = pessoa.nome_display if pessoa is not None else None
     local_id = respondente.entidade_id if respondente.entidade_tipo == "local" else None
+    # Data natural da resposta = quando o respondente enviou (respondente.criado_em, já
+    # flushado). É o que o agregador mensal usa (ratios_mensais agrupa por
+    # data_criacao_original e filtra IS NOT NULL); sem ela o verbatim some do ratio. O
+    # modelo não tem default nessa coluna — o RA seta explícito, o canal pesquisa idem.
+    data_resposta = respondente.criado_em or datetime.utcnow()
     # Regra 6: subpilar_alvo NUNCA sai no payload público — o mapa é montado aqui,
     # server-side, a partir das perguntas da própria pesquisa.
     subpilar_por_pergunta = {p.id: p.subpilar_alvo for p in pesquisa.perguntas}
@@ -154,6 +160,7 @@ def _gravar_verbatins(
             tem_texto=len(texto) >= MIN_CHARS_PARA_PROCESSAR,
             autor=autor,
             rating=nota,
+            data_criacao_original=data_resposta,  # sem isto o verbatim some do ratio mensal
             hash_dedup=hash_d,
             review_id_externo=review_id,
             subpilar=subpilar,

@@ -159,6 +159,104 @@ def test_regra6_subpilar_alvo_nao_vaza_no_payload(db_session):
     assert all("subpilar_alvo" not in pp and "subpilar" not in pp for pp in payload["perguntas"])
 
 
+def test_verbatim_nasce_com_data(db_session):
+    """O verbatim herda a data da resposta (respondente.criado_em) — sem ela o
+    agregador mensal o exclui (filtra data_criacao_original IS NOT NULL) → ratio 0."""
+    p, _q = _pesquisa_pronta(db_session, "EDataV", "coleta", token="tok-dv")
+    q = _pergunta_sub(db_session, p, 2, "D1")
+    registrar_respostas(
+        db_session, p, escopo=("empresa", None), pessoa_id=None, respostas=[_resp(q.id, "", 3)]
+    )
+    db_session.commit()
+    r = db_session.query(Respondente).filter_by(pesquisa_id=p.id).one()
+    v = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).one()
+    assert v.data_criacao_original is not None
+    assert v.data_criacao_original == r.criado_em  # data natural da resposta
+
+
+def test_integracao_ponta_a_ponta_responder_ate_ratio(client, db_session):
+    """INTEGRAÇÃO — pega os 3 bugs do dia de uma vez: responder (via /p/<token>) →
+    verbatim COMPLETO (subpilar + valência + data + local + hash, sem colisão de dedup)
+    → recomputar_ratios_mensais → ratio > 0. Se qualquer um dos três regredir (dedup
+    colide=500, subpilar NULL, data NULL), o ratio volta a zero e este teste quebra."""
+    from src.anomalias.ratios import recomputar_ratios_mensais
+    from src.models.anomalia import RatioMensal
+    from src.models.local import Local
+
+    e = Empresa(nome="EPontaAPonta")
+    db_session.add(e)
+    db_session.flush()
+    loc = Local(empresa_id=e.id, nome="Loja Única")
+    db_session.add(loc)
+    db_session.flush()
+    p = Pesquisa(
+        empresa_id=e.id,
+        natureza="externa",
+        proposito="coleta",
+        titulo="P2P",
+        status="pronta",
+        anonima=True,
+        token_publico="tok-p2p",
+        entidade_tipo="local",
+    )
+    db_session.add(p)
+    db_session.flush()
+    # âncora de unidade + 3 perguntas de nota (subpilares distintos)
+    db_session.add(
+        PesquisaPergunta(
+            pesquisa_id=p.id,
+            ordem=1,
+            enunciado="Qual unidade?",
+            formato="fechada",
+            opcoes_json=json.dumps(
+                {
+                    "tipo": "unidade",
+                    "opcoes": [
+                        {"entidade_tipo": "local", "entidade_id": loc.id, "rotulo": loc.nome}
+                    ],
+                }
+            ),
+        )
+    )
+    qids = []
+    for i, sub in enumerate(("D1", "P2", "Pa3")):
+        q = PesquisaPergunta(
+            pesquisa_id=p.id,
+            ordem=i + 2,
+            enunciado=f"Nota {sub}",
+            formato="mista",
+            subpilar_alvo=sub,
+            opcoes_json=json.dumps({"tipo": "nota", "rotulos": ["1", "2", "3", "4", "5"]}),
+        )
+        db_session.add(q)
+        db_session.flush()
+        qids.append(q.id)
+    db_session.commit()
+
+    # 5 respondentes via a rota REAL, todos nota-only (comentário em branco → nota-only,
+    # o caminho que colidia no dedup). Notas variadas p/ ratio não trivial.
+    ancora_pid = p.perguntas[0].id  # a pergunta de unidade (ordem 1)
+    for k in range(5):
+        form = {f"ancora_{ancora_pid}": f"local:{loc.id}"}
+        for j, qid in enumerate(qids):
+            form[f"q_{qid}_nota"] = str(((k + j) % 5) + 1)
+            form[f"q_{qid}_texto"] = ""
+        r = client.post("/p/tok-p2p", data=form)
+        assert r.status_code == 200, r.get_data(as_text=True)[:500]
+
+    # verbatins completos: 5 resp × 3 notas = 15, todos com subpilar/tipo/data/local/hash
+    vs = db_session.query(Verbatim).filter_by(empresa_id=e.id).all()
+    assert len(vs) == 15
+    assert all(
+        v.subpilar and v.tipo and v.data_criacao_original and v.local_id == loc.id and v.hash_dedup
+        for v in vs
+    )
+    # o núcleo: recomputa ratios → tem linha (> 0). Antes (data NULL) dava 0.
+    n = recomputar_ratios_mensais(e.id)
+    assert n > 0
+    assert db_session.query(RatioMensal).filter_by(empresa_id=e.id).count() > 0
+
+
 # ── núcleo registrar_respostas ───────────────────────────────────────────────
 
 
