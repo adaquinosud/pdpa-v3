@@ -1,6 +1,10 @@
 {% extends "base.html" %}
+{% import 'partials/_faixas.html' as fx %}
 {% block titulo %}Respostas — {{ ret.pesquisa.titulo }}{% endblock %}
 {% block conteudo %}
+{# Régua v2 é a vista padrão (coleta); a "por pergunta" (retorno_pesquisa, já em prod)
+   fica preservada como aba de conferência do dado cru. A régua vem defensiva do route:
+   se falhar, regua=None e só a aba por-pergunta aparece — a vista pronta nunca cai. #}
 <div class="max-w-3xl">
   <a href="{{ url_for('ui.pesquisas_lista', empresa_id=ret.pesquisa.empresa_id) }}"
      class="text-sm text-loyall-400 hover:underline">← Pesquisas</a>
@@ -25,7 +29,8 @@
   </div>
   {% endif %}
 
-  {# Filtro de escopo — só se houver mais de um escopo presente #}
+  {# Filtro de escopo — só se houver mais de um escopo presente. Vale para AMBAS as
+     vistas (o route passa o mesmo escopo pra régua e pro por-pergunta). #}
   {% if ret.escopos|length > 1 %}
   <form method="get" class="mt-3 flex items-center gap-2 text-sm">
     <label class="text-loyall-600">Escopo:</label>
@@ -40,14 +45,84 @@
       </option>
       {% endfor %}
     </select>
-    {# entidade_id acompanha o tipo selecionado via hidden, setado por JS #}
     <input type="hidden" name="entidade_id"
            value="{{ escopo_sel[1] if escopo_sel[1] is not none else '' }}">
   </form>
   {% endif %}
 
-  {# Por pergunta #}
-  <div class="mt-5 space-y-5">
+  {# Toggle régua × por pergunta — só quando a régua existe (coleta). Sem JS framework:
+     dois botões alternam a classe .hidden das duas seções. #}
+  {% if regua and regua.pilares %}
+  <div class="mt-4 inline-flex rounded border border-loyall-200 overflow-hidden text-sm">
+    <button type="button" id="btn-regua"
+            class="px-3 py-1 bg-loyall-700 text-white"
+            onclick="mostrarVista('regua')">Régua</button>
+    <button type="button" id="btn-pergunta"
+            class="px-3 py-1 bg-white text-loyall-600 hover:bg-loyall-100"
+            onclick="mostrarVista('pergunta')">Por pergunta</button>
+  </div>
+  {% endif %}
+
+  {# ═══ VISTA RÉGUA (v2) ═══ #}
+  {% if regua and regua.pilares %}
+  <section id="vista-regua" class="mt-4">
+    {# Contador honesto de base: cada número declara sua base. #}
+    <p class="text-xs text-loyall-500">
+      Régua: <strong>{{ regua.base_regua }}</strong> resposta(s) com nota ·
+      Temas: <strong>{{ regua.base_temas }}</strong> (só quem comentou)
+    </p>
+
+    <div class="mt-3 space-y-6">
+      {% for pil in regua.pilares %}
+      <div>
+        <h2 class="text-sm font-semibold text-loyall-700 uppercase tracking-wide">{{ pil.nome }}</h2>
+        <div class="mt-2 space-y-3">
+          {% for sp in pil.subpilares %}
+          <div class="bg-white border border-loyall-200 rounded p-4">
+            {# título = subpilar; enunciado = legenda (não título) #}
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-medium text-loyall-800">{{ sp.nome }}</p>
+                <p class="text-xs text-loyall-400 mt-0.5">{{ sp.enunciado }}</p>
+              </div>
+              {% if sp.ratio is not none %}<div>{{ fx.faixa_badge(sp.faixa) }}</div>{% endif %}
+            </div>
+
+            {# valência — detrator · conversível · promotor (contagem). O conversível
+               aparece SEMPRE (diferencial de método: ninguém trata neutro). #}
+            <div class="mt-2 flex items-center gap-4 text-xs">
+              <span><span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1"></span>{{ sp.valencia.detrator }} detrator(es)</span>
+              <span><span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></span>{{ sp.valencia.conversivel }} conversível(is)</span>
+              <span><span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>{{ sp.valencia.promotor }} promotor(es)</span>
+            </div>
+
+            {# temas do subpilar (nome · volume + citação). Vazio = em-dash esmaecido
+               (perguntado, com nota, mas ninguém escreveu) — padrão do Painel/Diagnóstico. #}
+            {% if sp.temas %}
+            <ul class="mt-3 space-y-2">
+              {% for t in sp.temas %}
+              <li class="text-sm">
+                <span class="font-medium text-loyall-700">{{ t.nome }}</span>
+                <span class="text-loyall-400 text-xs">· {{ t.volume }}</span>
+                {% if t.citacao %}<p class="text-xs text-loyall-500 italic mt-0.5">“{{ t.citacao }}”</p>{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <p class="mt-3 text-xs text-loyall-300" title="Subpilar perguntado e respondido, mas ninguém deixou comentário">— nenhum comentário neste subpilar</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ═══ VISTA POR PERGUNTA (preservada — dado cru: média + distribuição) ═══ #}
+  <section id="vista-pergunta" class="mt-4{% if regua and regua.pilares %} hidden{% endif %}">
+  <div class="space-y-5">
     {% for q in ret.perguntas %}
     <div class="bg-white border border-loyall-200 rounded p-4">
       <p class="text-sm font-medium text-loyall-700">
@@ -96,6 +171,7 @@
     </div>
     {% endfor %}
   </div>
+  </section>
 
   {# Lista de respondentes — só pesquisa identificada (anonimato por linha) #}
   {% if ret.respondentes is not none %}
@@ -113,4 +189,23 @@
   </div>
   {% endif %}
 </div>
+
+{% if regua and regua.pilares %}
+<script>
+function mostrarVista(v) {
+  var regua = document.getElementById('vista-regua');
+  var perg = document.getElementById('vista-pergunta');
+  var bR = document.getElementById('btn-regua');
+  var bP = document.getElementById('btn-pergunta');
+  var on = 'bg-loyall-700 text-white', off = 'bg-white text-loyall-600 hover:bg-loyall-100';
+  if (v === 'regua') {
+    regua.classList.remove('hidden'); perg.classList.add('hidden');
+    bR.className = 'px-3 py-1 ' + on; bP.className = 'px-3 py-1 ' + off;
+  } else {
+    perg.classList.remove('hidden'); regua.classList.add('hidden');
+    bP.className = 'px-3 py-1 ' + on; bR.className = 'px-3 py-1 ' + off;
+  }
+}
+</script>
+{% endif %}
 {% endblock %}

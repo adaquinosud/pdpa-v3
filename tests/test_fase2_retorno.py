@@ -259,3 +259,140 @@ def test_coleta_filtro_por_escopo_le_verbatim(db_session):
     ret = retorno_pesquisa(db_session, p.id, escopo=("local", l1.id))
     assert ret["total_respondentes"] == 1
     assert ret["perguntas"][0]["nota"]["media"] == 5.0  # só o local 1
+
+
+# ── Régua v2 (por subpilar, temas dentro) ───────────────────────────────────────
+
+
+def _pesquisa_coleta_subs(db_session, nome, subpilares):
+    """Pesquisa coleta com 1 pergunta por subpilar (subpilar_alvo)."""
+    e = Empresa(nome=nome)
+    db_session.add(e)
+    db_session.flush()
+    p = Pesquisa(
+        empresa_id=e.id,
+        natureza="externa",
+        proposito="coleta",
+        titulo="Sat",
+        status="pronta",
+        anonima=False,
+        entidade_tipo="empresa",
+    )
+    db_session.add(p)
+    db_session.flush()
+    qs = {}
+    for i, sub in enumerate(subpilares, start=1):
+        q = PesquisaPergunta(
+            pesquisa_id=p.id,
+            ordem=i,
+            enunciado=f"Como foi {sub}?",
+            formato="mista",
+            subpilar_alvo=sub,
+        )
+        db_session.add(q)
+        qs[sub] = q
+    db_session.flush()
+    return p, qs
+
+
+def test_regua_agrupa_por_subpilar_e_valencia(db_session):
+    """A régua estrutura por pilar→subpilar (ordem canônica) com contagem de valência —
+    o conversível aparece sempre (não escondido atrás de média)."""
+    from src.pesquisa.coleta import registrar_respostas
+    from src.pesquisa.retorno import regua_pesquisa
+
+    p, qs = _pesquisa_coleta_subs(db_session, "ERegua", ["P1", "D1"])
+    # P1: 1 promotor (5), 1 detrator (1); D1: 1 conversível (3)
+    for sub, nota in [("P1", 5), ("P1", 1), ("D1", 3)]:
+        registrar_respostas(
+            db_session,
+            p,
+            escopo=("empresa", None),
+            pessoa_id=None,
+            respostas=[{"pergunta_id": qs[sub].id, "texto": "", "nota": nota, "opcao": None}],
+        )
+    db_session.commit()
+    reg = regua_pesquisa(db_session, p.id)
+    assert reg["base_regua"] == 3  # 3 respostas com nota
+    assert reg["base_temas"] == 0  # ninguém comentou
+    # ordem canônica: P antes de D
+    assert [pil["pilar"] for pil in reg["pilares"]] == ["P", "D"]
+    p1 = reg["pilares"][0]["subpilares"][0]
+    assert p1["subpilar"] == "P1"
+    assert p1["enunciado"] == "Como foi P1?"  # enunciado é legenda
+    assert p1["valencia"]["promotor"] == 1 and p1["valencia"]["detrator"] == 1
+    assert p1["temas"] == []  # sem comentário → em-dash na tela
+
+
+def test_regua_temas_via_verbatim_da_pesquisa(db_session):
+    """Os temas vêm dos verbatins DA PESQUISA (respondente), não de outros da empresa;
+    a citação é de um verbatim da própria pesquisa; nome de pessoa preservado."""
+    from src.models.temas import Tema, VerbatimTema
+    from src.models.verbatim import Verbatim
+    from src.pesquisa.coleta import registrar_respostas
+    from src.pesquisa.retorno import regua_pesquisa
+
+    p, qs = _pesquisa_coleta_subs(db_session, "ETemas", ["P1"])
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[
+            {
+                "pergunta_id": qs["P1"].id,
+                "texto": "a atendente Larissa resolveu tudo com muita atenção e cuidado",
+                "nota": 5,
+                "opcao": None,
+            }
+        ],
+    )
+    db_session.commit()
+    v = (
+        db_session.query(Verbatim)
+        .join(Respondente, Verbatim.respondente_id == Respondente.id)
+        .filter(Respondente.pesquisa_id == p.id)
+        .one()
+    )
+    tema = Tema(empresa_id=p.empresa_id, nome="Atendimento", slug="atendimento", ativo=True)
+    db_session.add(tema)
+    db_session.flush()
+    db_session.add(VerbatimTema(verbatim_id=v.id, tema_id=tema.id, confianca=0.9, origem="llm"))
+    db_session.commit()
+
+    reg = regua_pesquisa(db_session, p.id)
+    assert reg["base_temas"] == 1
+    p1 = reg["pilares"][0]["subpilares"][0]
+    assert len(p1["temas"]) == 1
+    t = p1["temas"][0]
+    assert t["nome"] == "Atendimento" and t["volume"] == 1
+    assert "Larissa" in t["citacao"]  # nome preservado (funcionário elogiado)
+
+
+def test_regua_pula_nao_perguntado(db_session):
+    """Subpilar que a pesquisa NÃO perguntou não aparece (como o Diagnóstico); só a
+    régua tocada pela pesquisa é renderizada."""
+    from src.pesquisa.coleta import registrar_respostas
+    from src.pesquisa.retorno import regua_pesquisa
+
+    p, qs = _pesquisa_coleta_subs(db_session, "EPula", ["P1"])
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[{"pergunta_id": qs["P1"].id, "texto": "", "nota": 4, "opcao": None}],
+    )
+    db_session.commit()
+    reg = regua_pesquisa(db_session, p.id)
+    subs = [sp["subpilar"] for pil in reg["pilares"] for sp in pil["subpilares"]]
+    assert subs == ["P1"]  # só o perguntado; D/Pa/A ausentes
+
+
+def test_regua_none_para_confronto(db_session):
+    """Régua é só para coleta — confronto tem sua própria tela; retorna None."""
+    from src.pesquisa.retorno import regua_pesquisa
+
+    p, _qs = _pesquisa(db_session, "EConfReg")  # proposito confronto (default do helper)
+    db_session.commit()
+    assert regua_pesquisa(db_session, p.id) is None

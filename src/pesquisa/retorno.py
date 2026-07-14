@@ -59,6 +59,180 @@ def _por_pergunta_confronto(s, resp_ids: List[int]) -> Dict[int, List[Any]]:
     return por_pergunta
 
 
+# ── Régua v2 (tela de respostas por SUBPILAR) ────────────────────────────────────
+# A régua (4 pilares → 12 subpilares) é a ESTRUTURA; os temas moram dentro de cada
+# subpilar. A nota diz ONDE dói (todas as respostas com subpilar); o comentário diz O
+# QUÊ (só quem escreveu). Fonte LIVE sobre os verbatins DA PESQUISA (respondente_id) —
+# NÃO o TemaCache (que não conhece pesquisa e cujos grãos são disjuntos: fatiar por
+# agrupamento sumiria promotores — achado 09/jul, parecer._temas_voz). Aqui, LIVE por
+# respondente conta cada verbatim UMA vez pelo Verbatim.subpilar VIVO — imune à defasagem
+# do bucket_chave e ao problema cross-grão. Aditivo: retorno_pesquisa (por pergunta) segue
+# intacto, vira aba.
+
+_MAX_PALAVRAS_CITACAO = 15
+
+
+def _citacao_pesquisa(s, verbatim_ids: List[int]) -> Optional[str]:
+    """Citação a partir de um verbatim DA PRÓPRIA PESQUISA vinculado ao tema (não do
+    exemplo global do cache — fidelidade ao escopo). ≤15 palavras, mascara IDENTIFICADOR
+    estruturado (placa/CPF/protocolo); NOME de pessoa NÃO é mascarado (é funcionário
+    elogiado — sinal positivo, regra travada 09/jul). Pega o texto mais longo (mais
+    ilustrativo) entre os candidatos com texto."""
+    from src.utils.mascarar_pii import mascarar_identificadores
+
+    melhor = None
+    for vid in verbatim_ids:
+        v = s.get(Verbatim, vid)
+        if v and v.texto and v.tem_texto is not False:
+            palavras = " ".join(v.texto.split()).split()
+            if melhor is None or len(palavras) > melhor[0]:
+                trecho = " ".join(palavras[:_MAX_PALAVRAS_CITACAO])
+                if len(palavras) > _MAX_PALAVRAS_CITACAO:
+                    trecho += "…"
+                melhor = (len(palavras), trecho)
+    return mascarar_identificadores(melhor[1]) if melhor else None
+
+
+def regua_pesquisa(
+    s, pesquisa_id: int, escopo: Optional[Escopo] = None
+) -> Optional[Dict[str, Any]]:
+    """Régua v2: por subpilar PERGUNTADO, valência (todas as respostas com nota) +
+    enunciado como legenda + temas (só quem comentou) com citação. Só para pesquisa
+    coleta (o confronto tem sua própria tela). Devolve ``None`` se a pesquisa não existe
+    ou não é coleta — o chamador cai na vista por pergunta.
+
+    Dois vazios DISTINTOS: subpilar que a pesquisa NÃO perguntou é PULADO (como o
+    Diagnóstico); subpilar perguntado, com nota, mas sem comentário mostra os temas
+    vazios (em-dash, como o Painel). "Não medimos isso" ≠ "medimos e ninguém escreveu"."""
+    from sqlalchemy import func
+
+    from src.api.painel import (
+        NOME_PILAR,
+        NOME_SUBPILAR,
+        PILAR_DE_SUBPILAR,
+        PILARES_ORDEM,
+        SUBPILARES_ORDEM,
+        calcular_ratio,
+        faixa_ratio,
+    )
+    from src.models.temas import Tema, VerbatimTema
+
+    pesq = s.get(Pesquisa, pesquisa_id)
+    if pesq is None or pesq.proposito != "coleta":
+        return None
+
+    # Respondentes filtrados por escopo (a escada de granularidade: filtrar por conta =
+    # ler a régua daquela conta). Mesmo padrão de retorno_pesquisa.
+    q_resp = s.query(Respondente).filter(Respondente.pesquisa_id == pesquisa_id)
+    if escopo is not None:
+        q_resp = q_resp.filter(
+            Respondente.entidade_tipo == escopo[0], Respondente.entidade_id == escopo[1]
+        )
+    resp_ids = [r.id for r in q_resp.all()]
+
+    # Subpilares PERGUNTADOS (estrutura da pesquisa, independente de escopo) + enunciado.
+    enunciado_por_sub: Dict[str, str] = {}
+    for p in pesq.perguntas:
+        if p.subpilar_alvo and not p.gerada_por_ancora:
+            enunciado_por_sub.setdefault(p.subpilar_alvo, p.enunciado)
+
+    # Valência por subpilar — TODAS as respostas com subpilar (a nota diz ONDE dói).
+    valencia: Dict[str, Dict[str, int]] = {}
+    base_regua = 0
+    if resp_ids:
+        rows = (
+            s.query(Verbatim.subpilar, Verbatim.tipo, func.count(Verbatim.id))
+            .filter(Verbatim.respondente_id.in_(resp_ids), Verbatim.subpilar.isnot(None))
+            .group_by(Verbatim.subpilar, Verbatim.tipo)
+            .all()
+        )
+        for sub, tipo, n in rows:
+            d = valencia.setdefault(
+                sub, {"promotor": 0, "conversivel": 0, "detrator": 0, "inativo": 0, "total": 0}
+            )
+            if tipo in d:
+                d[tipo] += n
+            d["total"] += n
+            base_regua += n
+
+    # Temas por subpilar — LIVE via verbatim_temas, só verbatins DA PESQUISA (o comentário
+    # diz O QUÊ, só quem escreveu). Conta verbatins distintos por (subpilar, tema);
+    # acumula ids p/ a citação vir de um verbatim da própria pesquisa.
+    temas_por_sub: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    verbatins_com_tema: set = set()
+    if resp_ids:
+        rows = (
+            s.query(Verbatim.subpilar, Tema.nome, Verbatim.id)
+            .join(VerbatimTema, VerbatimTema.verbatim_id == Verbatim.id)
+            .join(Tema, Tema.id == VerbatimTema.tema_id)
+            .filter(
+                Verbatim.respondente_id.in_(resp_ids),
+                Verbatim.subpilar.isnot(None),
+                Tema.ativo.is_(True),
+            )
+            .all()
+        )
+        for sub, nome, vid in rows:
+            sub_map = temas_por_sub.setdefault(sub, {})
+            t = sub_map.setdefault(nome, {"nome": nome, "_vids": set()})
+            t["_vids"].add(vid)
+            verbatins_com_tema.add(vid)
+
+    # Montagem: pilares na ordem canônica; dentro, só subpilares PERGUNTADOS (ordem
+    # canônica). Pilar sem subpilar perguntado é omitido.
+    pilares_out: List[Dict[str, Any]] = []
+    for pil in PILARES_ORDEM:
+        subs_out: List[Dict[str, Any]] = []
+        for sub in SUBPILARES_ORDEM:
+            if PILAR_DE_SUBPILAR.get(sub) != pil or sub not in enunciado_por_sub:
+                continue
+            val = valencia.get(
+                sub, {"promotor": 0, "conversivel": 0, "detrator": 0, "inativo": 0, "total": 0}
+            )
+            ratio = calcular_ratio(val["promotor"], val["detrator"]) if val["total"] else None
+            temas = sorted(
+                (
+                    {
+                        "nome": t["nome"],
+                        "volume": len(t["_vids"]),
+                        "citacao": _citacao_pesquisa(s, list(t["_vids"])),
+                    }
+                    for t in temas_por_sub.get(sub, {}).values()
+                ),
+                key=lambda x: -x["volume"],
+            )
+            subs_out.append(
+                {
+                    "subpilar": sub,
+                    "nome": NOME_SUBPILAR.get(sub, sub),
+                    "enunciado": enunciado_por_sub[sub],
+                    "valencia": val,
+                    "ratio": ratio,
+                    "faixa": faixa_ratio(ratio) if ratio is not None else None,
+                    "temas": temas,  # [] → em-dash na tela (perguntado, sem comentário)
+                }
+            )
+        if subs_out:
+            pilares_out.append(
+                {"pilar": pil, "nome": NOME_PILAR.get(pil, pil), "subpilares": subs_out}
+            )
+
+    return {
+        "pesquisa": {
+            "id": pesq.id,
+            "empresa_id": pesq.empresa_id,
+            "titulo": pesq.titulo,
+            "proposito": pesq.proposito,
+        },
+        "total_respondentes": len(resp_ids),
+        "base_regua": base_regua,  # respostas com subpilar (a nota — todas)
+        "base_temas": len(
+            verbatins_com_tema
+        ),  # verbatins com comentário temizado (só quem escreveu)
+        "pilares": pilares_out,
+    }
+
+
 def _escala(opcoes_json: Optional[str]) -> Dict[str, Any]:
     try:
         return json.loads(opcoes_json) if opcoes_json else {}

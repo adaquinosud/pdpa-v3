@@ -453,7 +453,7 @@ def pesquisa_respostas(empresa_id, pesquisa_id):
     r = _require_loyall_html()
     if r:
         return r
-    from src.pesquisa.retorno import retorno_pesquisa
+    from src.pesquisa.retorno import regua_pesquisa, retorno_pesquisa
 
     et = (request.args.get("entidade_tipo") or "").strip() or None
     eid = _int(request.args.get("entidade_id"))
@@ -464,8 +464,19 @@ def pesquisa_respostas(empresa_id, pesquisa_id):
         ret = retorno_pesquisa(s, pesquisa_id, escopo)
         if ret is None:
             return render_template("404.html"), 404
+        # Régua v2 (aba padrão em coleta). DEFENSIVO: se a régua nova falhar, a vista por
+        # pergunta (que já está em prod) NUNCA cai — cai pra ela com regua=None.
+        try:
+            regua = regua_pesquisa(s, pesquisa_id, escopo)
+        except Exception:  # noqa: BLE001 — blindagem da vista pronta
+            current_app.logger.exception("regua_pesquisa falhou p%s", pesquisa_id)
+            regua = None
     return render_template(
-        "pesquisa/respostas.html", ret=ret, escopo_sel=(et, eid), empresa_id=empresa_id
+        "pesquisa/respostas.html",
+        ret=ret,
+        regua=regua,
+        escopo_sel=(et, eid),
+        empresa_id=empresa_id,
     )
 
 
