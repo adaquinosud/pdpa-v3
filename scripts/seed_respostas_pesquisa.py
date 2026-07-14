@@ -7,8 +7,11 @@ validação server-side, pelo hash de dedup e por tudo o que um respondente real
 Por respondente:
   - Unidade (âncora): escolhe uma das opções ao acaso.
   - Notas: valor aleatório 1..5 em CADA pergunta de nota.
-  - Comentário: ~50% de chance por pergunta (o resto vai nota-only — exercita
-    exatamente o caminho que estourava 500 antes do fix do dedup 1579fd6).
+  - Comentário: ~75% de chance por pergunta (o resto vai nota-only — exercita
+    exatamente o caminho que estourava 500 antes do fix do dedup 1579fd6). A frase é
+    sorteada do banco DO SUBPILAR daquela pergunta (não de um banco único) — assim os
+    comentários de um mesmo subpilar ficam coerentes entre si, formam cluster e viram
+    tema. As NOTAS seguem aleatórias (não é ferida plantada — só tema que se agrupe).
   - Anônimo (sem e-mail/consentimento).
 
 TRAVA DE SEGURANÇA: lê a pesquisa no banco, imprime empresa (id + nome) + título e
@@ -34,28 +37,96 @@ import sys
 
 import requests
 
-_COMENTARIOS = [
-    "Atendimento rápido e cordial.",
-    "Demorou mais do que eu esperava.",
-    "Equipe muito atenciosa, recomendo.",
-    "Poderia melhorar a comunicação.",
-    "Resolveram meu problema na hora.",
-    "Fiquei satisfeito com o serviço.",
-    "Tive dificuldade para ser atendido.",
-    "Ambiente agradável e organizado.",
-    "Preço justo pelo que oferecem.",
-    "Voltarei com certeza.",
-    "Faltou clareza nas informações.",
-    "Superou minhas expectativas.",
-]
+# Banco de comentários POR SUBPILAR (não um banco único). Linguagem genérica de relação
+# empresa-cliente — serve pra qualquer setor. 4 variações por subpilar: massa pro cluster
+# se formar, mas variando o suficiente pra não ser 1 frase repetida. A "dor" de cada
+# subpilar é coerente entre si → o clusterer forma tema em cada um dos 12.
+_COMENTARIOS_POR_SUBPILAR = {
+    "P1": [  # Calibração da Promessa
+        "não era o que tinham prometido",
+        "o serviço veio diferente do anunciado",
+        "prometeram uma coisa e entregaram outra",
+        "a realidade não bateu com o que foi vendido",
+    ],
+    "P2": [  # Qualidade da Entrega
+        "a qualidade deixou a desejar",
+        "veio com defeito",
+        "o resultado final ficou abaixo do esperado",
+        "entregaram com problemas",
+    ],
+    "P3": [  # Consistência ao Longo do Tempo
+        "cada vez é uma experiência diferente",
+        "num dia é bom, no outro é ruim",
+        "falta padrão, nunca sei o que esperar",
+        "a experiência varia demais de uma vez pra outra",
+    ],
+    "D1": [  # Acessibilidade
+        "difícil conseguir contato",
+        "ninguém atende o telefone",
+        "não consigo falar com alguém quando preciso",
+        "os canais de contato não funcionam",
+    ],
+    "D2": [  # Eficácia Operacional
+        "demorou demais pra resolver",
+        "abri chamado e nunca voltaram",
+        "o problema se arrastou por semanas",
+        "ficaram de retornar e não retornaram",
+    ],
+    "D3": [  # Proatividade Estruturada
+        "só avisaram depois do problema",
+        "ninguém me antecipou nada",
+        "fui pego de surpresa, poderiam ter avisado",
+        "esperei o problema estourar pra alguém agir",
+    ],
+    "Pa1": [  # Empatia Comercial
+        "trataram com descaso",
+        "senti que não se importaram",
+        "fui tratado com indiferença",
+        "faltou empatia no atendimento",
+    ],
+    "Pa2": [  # Mutualidade
+        "pago em dia e não recebo o mesmo em troca",
+        "cobram certinho mas não entregam",
+        "a relação é de mão única",
+        "sou cliente fiel e não vejo reciprocidade",
+    ],
+    "Pa3": [  # Comprometimento Relacional
+        "sumiram depois da venda",
+        "só ligam quando querem vender",
+        "depois que fecharam não deram mais atenção",
+        "o pós-venda é inexistente",
+    ],
+    "A1": [  # Exemplo
+        "poderiam ser referência mas decepcionam",
+        "esperava mais de uma empresa desse porte",
+        "não são o exemplo que dizem ser",
+        "para o tamanho que têm, deixam a desejar",
+    ],
+    "A2": [  # Orientação
+        "não me orientaram quando precisei",
+        "faltou orientação técnica",
+        "ninguém me explicou as opções direito",
+        "precisei me virar sozinho, sem orientação",
+    ],
+    "A3": [  # Recomendação Proativa
+        "nunca sugerem nada melhor",
+        "não indicam o que seria ideal pra mim",
+        "poderiam recomendar o que faz sentido e não fazem",
+        "faltou uma sugestão do que seria melhor pra mim",
+    ],
+}
+
+_PROB_COMENTARIO = 0.75  # ~75% das respostas com comentário (o resto nota-only)
 
 
 def _carregar_pesquisa(token: str, empresa_esperada: int):
     """Lê a pesquisa pelo token, imprime empresa + título e aplica a trava. Devolve
-    ``(pesquisa_id, titulo, [perguntas])`` onde cada pergunta é o dict de
-    ``payload_publico`` (id/formato/opcoes)."""
+    ``(pesquisa_id, titulo, [perguntas], sub_por_pergunta)`` onde cada pergunta é o dict
+    de ``payload_publico`` (id/formato/opcoes) e ``sub_por_pergunta`` mapeia
+    ``pergunta_id → subpilar_alvo`` (lido do banco: o payload público NÃO expõe o
+    subpilar_alvo — Regra 6 — mas é ele que escolhe o banco de comentário coerente)."""
     from src.models.empresa import Empresa
-    from src.models.pesquisa import Pesquisa
+    from src.models.pesquisa import Pesquisa, PesquisaPergunta
     from src.pesquisa.persistencia import payload_publico
     from src.utils.db import db_session
 
@@ -80,11 +151,19 @@ def _carregar_pesquisa(token: str, empresa_esperada: int):
             print(f"\nABORTADO: pesquisa não está 'pronta' (status={pesq.status}).")
             sys.exit(2)
         payload = payload_publico(pesq)
-        return pesq.id, pesq.titulo, payload["perguntas"]
+        sub_por_pergunta = {
+            pp.id: pp.subpilar_alvo
+            for pp in s.query(PesquisaPergunta).filter_by(pesquisa_id=pesq.id).all()
+        }
+        return pesq.id, pesq.titulo, payload["perguntas"], sub_por_pergunta
 
 
-def _monta_form(perguntas, rng: random.Random):
-    """Monta o dict de form-data de UM respondente + conta (comentarios, nota_only)."""
+def _monta_form(perguntas, sub_por_pergunta, rng: random.Random):
+    """Monta o dict de form-data de UM respondente + conta (comentarios, nota_only).
+
+    O comentário é sorteado do banco DO SUBPILAR da pergunta (``sub_por_pergunta``) — se
+    o subpilar não tiver banco (não deve acontecer com os 12), cai em nota-only em vez de
+    forçar uma frase descorrelacionada."""
     form: dict = {}
     n_coment = 0
     n_nota_only = 0
@@ -99,8 +178,9 @@ def _monta_form(perguntas, rng: random.Random):
                 form[f"ancora_{pid}"] = f"{o['entidade_tipo']}:{o['entidade_id']}"
         elif tipo == "nota":
             form[f"q_{pid}_nota"] = str(rng.randint(1, 5))
-            if rng.random() < 0.5:
-                form[f"q_{pid}_texto"] = rng.choice(_COMENTARIOS)
+            banco = _COMENTARIOS_POR_SUBPILAR.get(sub_por_pergunta.get(pid))
+            if banco and rng.random() < _PROB_COMENTARIO:
+                form[f"q_{pid}_texto"] = rng.choice(banco)  # coerente com o subpilar
                 n_coment += 1
             else:
                 form[f"q_{pid}_texto"] = ""  # nota-only (caminho do fix do dedup)
@@ -125,7 +205,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=None, help="semente do RNG (reprodutível)")
     args = ap.parse_args()
 
-    _pid, titulo, perguntas = _carregar_pesquisa(args.token, args.empresa)
+    _pid, titulo, perguntas, sub_por_pergunta = _carregar_pesquisa(args.token, args.empresa)
     n_nota = sum(1 for p in perguntas if (p.get("opcoes") or {}).get("tipo") == "nota")
     n_unidade = sum(1 for p in perguntas if (p.get("opcoes") or {}).get("tipo") == "unidade")
     print(f"  perguntas: {len(perguntas)} ({n_nota} de nota, {n_unidade} de unidade)")
@@ -139,7 +219,7 @@ def main() -> None:
     tot_nota_only = 0
     falhas = []
     for i in range(args.n):
-        form, nc, nn = _monta_form(perguntas, rng)
+        form, nc, nn = _monta_form(perguntas, sub_por_pergunta, rng)
         try:
             resp = requests.post(url, data=form, timeout=30, allow_redirects=False)
         except requests.RequestException as exc:  # rede/timeout
