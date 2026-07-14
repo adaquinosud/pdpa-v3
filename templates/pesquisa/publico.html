@@ -23,6 +23,7 @@
 
   <form method="post" action="{{ url_for('ui.pesquisa_publica', token=token) }}"
         class="bg-white border border-loyall-200 rounded p-4 space-y-5">
+    {% if codigo %}<input type="hidden" name="c" value="{{ codigo }}">{% endif %}
     {% for p in payload.perguntas %}
       {% set opc = p.opcoes %}
       <div>

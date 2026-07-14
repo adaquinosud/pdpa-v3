@@ -260,15 +260,26 @@ def test_integracao_ponta_a_ponta_responder_ate_ratio(client, db_session):
 # ── item B: link carimbado /p/<token>?c=<código> identifica sem pedir nada ────
 
 
+def test_get_carimbado_preserva_codigo_no_form(client_loyall, db_session):
+    """REGRESSÃO do bug de prod: o GET com ?c= tem de emitir o código num hidden do form
+    (senão o POST, que vai pra /p/<token> SEM query, perde o carimbo → resposta anônima)."""
+    _p, _q = _pesquisa_pronta(db_session, "ECarGet", "confronto", anonima=True, token="tok-cg")
+    db_session.commit()
+    html = client_loyall.get("/p/tok-cg?c=CRM-777").get_data(as_text=True)
+    assert 'name="c" value="CRM-777"' in html  # carregado adiante no form
+
+
 def test_link_carimbado_identifica(client_loyall, db_session):
-    """?c=<código> na URL → a resposta nasce ligada à Pessoa (fonte='crm'), mesmo em
-    pesquisa ANÔNIMA (o respondente não digita nada; a empresa carimbou o link)."""
+    """CICLO REAL do navegador: GET com ?c= → POST vai pra /p/<token> SEM query (action
+    limpa), o código viaja no hidden do FORM. A resposta nasce ligada à Pessoa (fonte
+    'crm'), mesmo em pesquisa anônima. Antes o POST lia só request.args (vazio) → anônimo."""
     from src.models.pessoa import PessoaIdentificador
     from src.models.respondente import Respondente
 
     p, q = _pesquisa_pronta(db_session, "ECarimbo", "confronto", anonima=True, token="tok-c")
     db_session.commit()
-    r = client_loyall.post("/p/tok-c?c=CRM-777", data={f"q_{q.id}_nota": "5"})
+    # POST na URL LIMPA (como o form action), com o hidden 'c' no corpo — não na query.
+    r = client_loyall.post("/p/tok-c", data={f"q_{q.id}_nota": "5", "c": "CRM-777"})
     assert r.status_code == 200 and "Obrigado" in r.get_data(as_text=True)
     ident = db_session.query(PessoaIdentificador).filter_by(fonte="crm").one()
     assert ident.external_id == "CRM-777"
@@ -294,9 +305,10 @@ def test_carimbo_mais_email_uma_pessoa(client_loyall, db_session):
 
     p, q = _pesquisa_pronta(db_session, "EDois", "confronto", anonima=False, token="tok-2k")
     db_session.commit()
+    # POST na URL limpa: 'c' no corpo (hidden do form) + e-mail digitado.
     client_loyall.post(
-        "/p/tok-2k?c=CRM-42",
-        data={f"q_{q.id}_nota": "4", "email": "M@x.com", "consentimento": "on"},
+        "/p/tok-2k",
+        data={f"q_{q.id}_nota": "4", "c": "CRM-42", "email": "M@x.com", "consentimento": "on"},
     )
     assert db_session.query(Pessoa).count() == 1
     fontes = {i.fonte: i.external_id for i in db_session.query(PessoaIdentificador)}

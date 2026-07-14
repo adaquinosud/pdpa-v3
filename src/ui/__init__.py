@@ -543,8 +543,15 @@ def pesquisa_publica(token):
             return render_template(tmpl, erro="Pesquisa não encontrada ou indisponível."), 404
 
         if request.method == "GET":
+            # Carimbo do link (?c=<código do CRM>): preservado num hidden do form → o POST
+            # (que vai pra /p/<token> SEM query-param) ainda o carrega. Sem isto o código
+            # some no envio e a resposta cai anônima.
             return render_template(
-                tmpl, payload=payload_publico(pesq), token=token, anonima=pesq.anonima
+                tmpl,
+                payload=payload_publico(pesq),
+                token=token,
+                anonima=pesq.anonima,
+                codigo=(request.args.get("c") or "").strip() or None,
             )
 
         # POST — separa a âncora (escopo) das respostas de conteúdo.
@@ -595,7 +602,9 @@ def pesquisa_publica(token):
         # SEM pedir nada — vale até em pesquisa anônima (a empresa manda link personalizado).
         # E-mail é opt-in do respondente (só com o consentimento marcado). As duas chaves
         # coexistem na MESMA Pessoa. Sem ?c= e sem e-mail → anônimo como antes.
-        codigo = (request.args.get("c") or "").strip() or None
+        # Lê o carimbo do FORM (hidden preservado do GET); fallback pra args (POST direto
+        # com ?c=). O form é o caminho real do navegador — args do POST vem vazio.
+        codigo = (request.form.get("c") or request.args.get("c") or "").strip() or None
         email = nome = None
         if not pesq.anonima:
             _email = (request.form.get("email") or "").strip().lower()
