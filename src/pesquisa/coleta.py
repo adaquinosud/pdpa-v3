@@ -164,6 +164,7 @@ def _gravar_verbatins(
             local_id=local_id,
             fonte_id=fonte_id,
             pessoa_id=pessoa_id,
+            respondente_id=respondente.id,  # fecha verbatim → respondente → pesquisa
             texto=texto,  # NOT NULL: nota-only entra com ""
             tem_texto=len(texto) >= MIN_CHARS_PARA_PROCESSAR,
             autor=autor,

@@ -61,6 +61,7 @@ class Verbatim(Base):
         Index("idx_verbatins_classif", "subpilar", "tipo"),
         Index("idx_verbatins_pessoa", "pessoa_id"),
         Index("idx_verbatins_caso", "caso_id"),
+        Index("idx_verbatins_respondente", "respondente_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -81,6 +82,14 @@ class Verbatim(Base):
     # caso (respostas/réplicas vivem em Caso.thread_json, não viram verbatim).
     # SET NULL: apagar o Caso não apaga o verbatim. Ver src/models/caso.py.
     caso_id: Mapped[Optional[int]] = mapped_column(ForeignKey("casos.id", ondelete="SET NULL"))
+    # Eixo pesquisa (frente Coleta estruturada): ADITIVO, nasce NULL. Só o verbatim
+    # nascido de resposta de pesquisa (coleta-proposito, src/pesquisa/coleta.py) aponta
+    # pro seu Respondente — review espontâneo (RA/Google/Excel) fica NULL. Fecha a
+    # corrente verbatim → respondente → pesquisa (e liga o anônimo, pessoa_id NULL, ao
+    # respondente). SET NULL: apagar o Respondente não apaga o verbatim.
+    respondente_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("respondente.id", ondelete="SET NULL")
+    )
     texto: Mapped[str] = mapped_column(Text, nullable=False)
     autor: Mapped[Optional[str]] = mapped_column(String)
     data_criacao_original: Mapped[Optional[datetime]] = mapped_column(DateTime)

@@ -356,6 +356,44 @@ def test_registrar_coleta_cria_verbatim(db_session):
     assert db_session.query(Resposta).count() == 0  # coleta NÃO vira resposta estruturada
 
 
+def test_verbatim_aponta_pro_respondente(db_session):
+    """A corrente verbatim → respondente → pesquisa fecha no 1º elo: o verbatim de
+    coleta grava respondente_id (FK), não só a substring em review_id_externo. Cada
+    resposta do MESMO respondente compartilha o mesmo respondente_id."""
+    p, q0 = _pesquisa_pronta(db_session, "ELink", "coleta", token="tok-link")
+    q1 = _pergunta_sub(db_session, p, 2, "P1")
+    r = registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(q0.id, "primeira", 5), _resp(q1.id, "segunda", 4)],
+    )
+    db_session.commit()
+    vs = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).all()
+    assert len(vs) == 2
+    # Os N verbatins do mesmo respondente compartilham o respondente_id → chega na pesquisa.
+    assert {v.respondente_id for v in vs} == {r.id}
+    assert db_session.get(Respondente, r.id).pesquisa_id == p.id
+
+
+def test_verbatim_anonimo_ainda_aponta_pro_respondente(db_session):
+    """Anônimo (pessoa_id NULL) NÃO fica órfão: o respondente_id ainda liga o verbatim
+    ao respondente (e daí à pesquisa/onda) — fundação da ficha da pessoa sem identidade."""
+    p, q = _pesquisa_pronta(db_session, "EAnon", "coleta", anonima=True, token="tok-anon")
+    r = registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(q.id, "sem identidade", 3)],
+    )
+    db_session.commit()
+    v = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).one()
+    assert v.pessoa_id is None  # anônimo
+    assert v.respondente_id == r.id  # mas NÃO órfão
+
+
 # ── rota pública ─────────────────────────────────────────────────────────────
 
 
