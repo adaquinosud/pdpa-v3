@@ -345,7 +345,7 @@ def test_revisar_tem_voltar_e_validar_com_spinner(client_loyall, db_session):
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
     html = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "← Pesquisas" in html and f"/empresas/{e}/pesquisas" in html
-    assert "Validar (checar régua)" in html  # papel claro vs Aprovar
+    assert "Revalidar todas" in html  # já valida a pesquisa inteira em lote
     assert 'id="validar-loading"' in html and 'hx-indicator="#validar-loading"' in html
 
 

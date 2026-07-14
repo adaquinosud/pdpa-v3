@@ -51,6 +51,18 @@ def _fake_llm(captura=None):
     return _fn
 
 
+def _fake_juiz(captura=None):
+    """juiz_fn fake: sem avisos (régua semântica limpa). Injetado no ciclo p/ o teste
+    não bater no LLM real. Se ``captura`` for dada, conta as chamadas."""
+
+    def _fn(system, user):
+        if captura is not None:
+            captura.append((system, user))
+        return {"perguntas": []}  # normalizado por ordem depois; [] = tudo limpo
+
+    return _fn
+
+
 def test_gera_saida_estruturada(client_loyall, db_session):
     e = _empresa(client_loyall, "EGerSaida")
     out = gerar_pesquisa(
@@ -61,6 +73,7 @@ def test_gera_saida_estruturada(client_loyall, db_session):
         n_perguntas=2,
         titulo="Retirada",
         gerar_fn=_fake_llm(),
+        juiz_fn=_fake_juiz(),
     )
     assert out["pesquisa"]["natureza"] == "externa"
     assert out["pesquisa"]["status"] == "rascunho" and out["pesquisa"]["versao"] == 1
@@ -85,6 +98,7 @@ def test_passa_pelo_validador(client_loyall, db_session):
         subpilares_alvo=["D2", "D1"],
         n_perguntas=2,
         gerar_fn=_fake_llm(),
+        juiz_fn=_fake_juiz(),
     )
     v = out["validacao"]
     assert [p["ordem"] for p in v["perguntas"]] == [q["ordem"] for q in out["perguntas"]]
@@ -103,6 +117,7 @@ def test_gerar_inclui_proposito(client_loyall, db_session):
         n_perguntas=1,
         proposito="confronto",
         gerar_fn=_fake_llm(),
+        juiz_fn=_fake_juiz(),
     )
     assert out["pesquisa"]["proposito"] == "confronto"
     padrao = gerar_pesquisa(
@@ -112,6 +127,7 @@ def test_gerar_inclui_proposito(client_loyall, db_session):
         subpilares_alvo=["D2"],
         n_perguntas=1,
         gerar_fn=_fake_llm(),
+        juiz_fn=_fake_juiz(),
     )
     assert padrao["pesquisa"]["proposito"] == "coleta"
 
@@ -149,6 +165,7 @@ def test_user_prompt_nao_vaza_direcao(client_loyall, db_session, monkeypatch):
         subpilares_alvo=["D1"],
         n_perguntas=1,
         gerar_fn=_fake_llm(captura),
+        juiz_fn=_fake_juiz(),
     )
     _system, user = captura[0]
     assert "Acessibilidade" in user  # tópico presente
@@ -166,6 +183,7 @@ def test_modo_geral_injeta_ancora(client_loyall, db_session):
         n_perguntas=1,
         escopo_local_modo="geral",
         gerar_fn=_fake_llm(),
+        juiz_fn=_fake_juiz(),
     )
     qs = out["perguntas"]
     # âncora ocupa a ordem 1; conteúdo vem depois
@@ -184,6 +202,7 @@ def test_natureza_interna_no_publico(client_loyall, db_session):
         subpilares_alvo=["Pa1"],
         n_perguntas=1,
         gerar_fn=_fake_llm(captura),
+        juiz_fn=_fake_juiz(),
     )
     assert out["pesquisa"]["natureza"] == "interna"
     assert "colaboradores" in captura[0][1]  # user prompt fala em time, não cliente
@@ -201,6 +220,7 @@ def test_prompt_reforca_regra3_e_formato_misto(client_loyall, db_session):
         subpilares_alvo=["D2"],
         n_perguntas=1,
         gerar_fn=_fake_llm(captura),
+        juiz_fn=_fake_juiz(),
     )
     system, _user = captura[0]
     low = system.lower()
@@ -226,6 +246,7 @@ def test_ancora_carrega_escopo(client_loyall, db_session):
         n_perguntas=1,
         escopo_local_modo="geral",
         gerar_fn=_fake_llm(),
+        juiz_fn=_fake_juiz(),
     )
     ancora = out["perguntas"][0]
     assert ancora["gerada_por_ancora"] is True and ancora["ordem"] == 1
@@ -254,6 +275,7 @@ def test_ancora_agrupamento_sem_locais(client_loyall, db_session):
         entidade_tipo="agrupamento",
         entidade_id=ag.id,
         gerar_fn=_fake_llm(),
+        juiz_fn=_fake_juiz(),
     )
     opc = json.loads(out["perguntas"][0]["opcoes_json"])
     assert opc["opcoes"] == [
@@ -292,7 +314,213 @@ def test_formato_misto_preservado(client_loyall, db_session):
         subpilares_alvo=["D1"],
         n_perguntas=1,
         gerar_fn=_fake,
+        juiz_fn=_fake_juiz(),
     )
     q = out["perguntas"][0]
     assert q["formato"] == "mista"
     assert json.loads(q["opcoes_json"])["tipo"] == "nota"
+
+
+# ── ciclo auto-validante (fatia 2): regen determinístico/semântico + trava ────
+
+_ESCALA = {
+    "tipo": "nota",
+    "pontos": 5,
+    "rotulos": ["Muito ruim", "Ruim", "Neutro", "Bom", "Muito bom"],
+    "ponto_medio_idx": 2,
+    "polaridade": "ascendente",
+}
+
+
+def _q(enunciado, subpilar="D2", formato="mista"):
+    return {
+        "perguntas": [
+            {
+                "enunciado": enunciado,
+                "formato": formato,
+                "subpilar_alvo": subpilar,
+                "porque": "x",
+                "opcoes": _ESCALA if formato in ("fechada", "mista") else None,
+            }
+        ]
+    }
+
+
+def _gerador_sequencia(respostas):
+    """gerar_fn que devolve, em ordem, cada dict de ``respostas`` (1 por chamada).
+    Conta as chamadas em ``.n``."""
+    estado = {"i": 0}
+
+    def _fn(system, user):
+        r = respostas[min(estado["i"], len(respostas) - 1)]
+        estado["i"] += 1
+        return r
+
+    _fn.estado = estado
+    return _fn
+
+
+def test_happy_path_uma_geracao(client_loyall, db_session):
+    """Gera limpo, juiz limpo → 1 chamada de geração, 1 do juiz, sem regen."""
+    e = _empresa(client_loyall, "EHappy")
+    ger = _gerador_sequencia([_q("Como foi sua experiência na retirada?")])
+    jui = _fake_juiz(captura=[])
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=ger,
+        juiz_fn=jui,
+    )
+    assert ger.estado["i"] == 1  # só a geração inicial (sem regen)
+    assert tem_bloqueio(out["validacao"]) is False
+
+
+def test_regenera_deterministica(client_loyall, db_session):
+    """1ª geração = pergunta-dupla (R3 bloqueia); regen devolve limpa → veredito sem
+    bloqueio, gerar_fn chamado 2× (inicial + 1 regen)."""
+    e = _empresa(client_loyall, "ERegenDet")
+    ger = _gerador_sequencia(
+        [
+            _q("Como você avalia o atendimento e o preço?"),  # R3 dupla
+            _q("Como você avalia o atendimento?"),  # limpa
+        ]
+    )
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=ger,
+        juiz_fn=_fake_juiz(),
+    )
+    assert ger.estado["i"] == 2  # gerou + regenerou
+    assert tem_bloqueio(out["validacao"]) is False
+    assert "e o preço" not in out["perguntas"][0]["enunciado"]  # a dupla saiu
+
+
+def test_regenera_semantica(client_loyall, db_session):
+    """Juiz marca R1 (induz valência) na 1ª; após regen, limpa → gerar_fn 2×, juiz 2×."""
+    e = _empresa(client_loyall, "ERegenSem")
+    ger = _gerador_sequencia(
+        [
+            _q("O quão excelente foi o atendimento?"),
+            _q("Como foi o atendimento?"),
+        ]
+    )
+    jcap = {"i": 0}
+
+    def _juiz(system, user):
+        jcap["i"] += 1
+        if jcap["i"] == 1:
+            return {
+                "perguntas": [
+                    {
+                        "ordem": 1,
+                        "regras": [
+                            {"regra": 1, "passou": False, "motivo": "induz valência positiva"}
+                        ],
+                    }
+                ]
+            }
+        return {"perguntas": []}  # 2ª: limpa
+
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=ger,
+        juiz_fn=_juiz,
+    )
+    assert ger.estado["i"] == 2 and jcap["i"] == 2  # 1 regen semântico
+    # veredito final limpo (o aviso foi corrigido)
+    assert all(not p["regras"] for p in out["validacao"]["perguntas"])
+
+
+def test_residuo_reprovado_volta_com_veredito(client_loyall, db_session):
+    """TRAVA (nunca esconder): gerar_fn SEMPRE devolve dupla → após os retries, a
+    pergunta CONTINUA presente E o veredito carrega o 🔴 (bloqueio). Não some."""
+    e = _empresa(client_loyall, "EResiduo")
+    ger = _gerador_sequencia([_q("Como você avalia o atendimento e o preço?")])  # sempre dupla
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=ger,
+        juiz_fn=_fake_juiz(),
+    )
+    assert len(out["perguntas"]) == 1  # não dropou
+    assert tem_bloqueio(out["validacao"]) is True  # o 🔴 está visível
+    assert ger.estado["i"] == 1 + 2  # inicial + MAX_DET_REGEN tentativas
+
+
+def test_count_mismatch_mantem_original(client_loyall, db_session):
+    """Regen devolve nº de perguntas ≠ reprovadas → mantém as originais (fail-safe)."""
+    e = _empresa(client_loyall, "EMismatch")
+    dupla = _q("Como você avalia o atendimento e o preço?")
+    duas = {"perguntas": dupla["perguntas"] * 2}  # regen devolve 2 (≠ 1 reprovada)
+    ger = _gerador_sequencia([dupla, duas])
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=ger,
+        juiz_fn=_fake_juiz(),
+    )
+    # a original (dupla) permanece e o veredito mostra o bloqueio (não mismapeou)
+    assert len(out["perguntas"]) == 1 and tem_bloqueio(out["validacao"]) is True
+
+
+def test_subpilar_preservado_no_regen(client_loyall, db_session):
+    """Regen de wording ecoa subpilar ERRADO → o retornado mantém o subpilar da
+    original (não deriva). (Falha de escopo é outra história — decisão 2.)"""
+    e = _empresa(client_loyall, "ESubPres")
+    ger = _gerador_sequencia(
+        [
+            _q("Como você avalia o atendimento e o preço?", subpilar="D2"),  # R3, subpilar OK
+            _q("Como você avalia o atendimento?", subpilar="P1"),  # regen tenta derivar p/ P1
+        ]
+    )
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=ger,
+        juiz_fn=_fake_juiz(),
+    )
+    assert out["perguntas"][0]["subpilar_alvo"] == "D2"  # preservado, não derivou p/ P1
+
+
+def test_erro_no_regen_nao_derruba(client_loyall, db_session):
+    """gerar_fn lança na 2ª chamada (regen) → devolve o estado atual com o veredito,
+    sem propagar exceção."""
+    e = _empresa(client_loyall, "EErroRegen")
+    estado = {"i": 0}
+
+    def _ger(system, user):
+        estado["i"] += 1
+        if estado["i"] == 1:
+            return _q("Como você avalia o atendimento e o preço?")  # dupla → dispara regen
+        raise RuntimeError("LLM caiu no regen")
+
+    out = gerar_pesquisa(
+        db_session,
+        e,
+        natureza="externa",
+        subpilares_alvo=["D2"],
+        n_perguntas=1,
+        gerar_fn=_ger,
+        juiz_fn=_fake_juiz(),
+    )
+    assert len(out["perguntas"]) == 1 and tem_bloqueio(out["validacao"]) is True  # resíduo visível

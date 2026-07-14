@@ -23,6 +23,13 @@ from typing import Any, Dict, List, Optional
 
 from src.pesquisa.blocklist import _norm, termos_proibidos
 
+# Identificadores das regras que a camada determinística (``_checar_deterministico``)
+# pode EMITIR como bloqueio. Semente da fonte-única futura: o teste anti-drift usa esta
+# lista p/ exigir que o REGUA_GUIA (prompt do gerador) mencione cada uma — se alguém
+# adicionar uma regra bloqueante aqui sem colocá-la no guia, o teste falha (alarme de
+# divergência entre as 3 representações: guia · juiz · validador).
+REGRAS_BLOQUEANTES = (3, 4, 5, "escopo")
+
 # Escala equilibrada de referência (devolvida como reescrita sugerida da R4).
 ESCALA_DEFAULT = {
     "tipo": "nota",

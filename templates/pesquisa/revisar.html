@@ -15,7 +15,7 @@
     <span id="validar-loading" class="htmx-indicator text-xs text-loyall-400">Validando…</span>
     <button hx-post="{{ url_for('ui.pesquisa_validar', empresa_id=empresa_id, pesquisa_id=pesquisa_id) }}"
             hx-target="#cards" hx-swap="outerHTML" hx-indicator="#validar-loading"
-            class="border px-3 py-1.5 rounded text-sm hover:bg-loyall-50">Validar (checar régua)</button>
+            class="border px-3 py-1.5 rounded text-sm hover:bg-loyall-50">Revalidar todas</button>
     <form method="post" action="{{ url_for('ui.pesquisa_aprovar', empresa_id=empresa_id, pesquisa_id=pesquisa_id) }}">
       <button class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm">Aprovar</button>
     </form>
