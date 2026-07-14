@@ -62,6 +62,7 @@ class Verbatim(Base):
         Index("idx_verbatins_pessoa", "pessoa_id"),
         Index("idx_verbatins_caso", "caso_id"),
         Index("idx_verbatins_respondente", "respondente_id"),
+        Index("idx_verbatins_pergunta", "pergunta_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -89,6 +90,13 @@ class Verbatim(Base):
     # respondente). SET NULL: apagar o Respondente não apaga o verbatim.
     respondente_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("respondente.id", ondelete="SET NULL")
+    )
+    # Pergunta respondida (frente Coleta estruturada): ADITIVO, nasce NULL. Só o
+    # verbatim de resposta de pesquisa (coleta-proposito) aponta pra pergunta — review
+    # espontâneo fica NULL. É o elo que a tela de respostas usa pra agregar POR PERGUNTA
+    # (retorno_pesquisa em modo coleta). SET NULL: apagar a pergunta não apaga o verbatim.
+    pergunta_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("pesquisa_perguntas.id", ondelete="SET NULL")
     )
     texto: Mapped[str] = mapped_column(Text, nullable=False)
     autor: Mapped[Optional[str]] = mapped_column(String)

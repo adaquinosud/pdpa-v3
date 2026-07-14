@@ -162,3 +162,100 @@ def test_rota_respostas(client_loyall, db_session):
     r = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas/{p.id}/respostas")
     assert r.status_code == 200
     assert "Sat" in r.get_data(as_text=True)
+
+
+# ── modo COLETA: a tela lê Verbatim (não Resposta) ──────────────────────────────
+
+
+def _pesquisa_coleta(db_session, nome, pontos=5):
+    e = Empresa(nome=nome)
+    db_session.add(e)
+    db_session.flush()
+    p = Pesquisa(
+        empresa_id=e.id,
+        natureza="externa",
+        proposito="coleta",  # → grava Verbatim, não Resposta
+        titulo="Sat",
+        status="pronta",
+        anonima=False,
+        entidade_tipo="empresa",
+    )
+    db_session.add(p)
+    db_session.flush()
+    q = PesquisaPergunta(
+        pesquisa_id=p.id,
+        ordem=1,
+        enunciado="Geral?",
+        formato="mista",
+        subpilar_alvo="P1",
+        opcoes_json=_escala(pontos),
+    )
+    db_session.add(q)
+    db_session.flush()
+    return p, q
+
+
+def test_coleta_le_verbatim_nao_resposta(db_session):
+    """O bug em prod: pesquisa coleta mostrava '0 resposta(s)' com o banco cheio — a tela
+    lia Resposta (vazia no coleta). Agora lê Verbatim via respondente_id + pergunta_id."""
+    from src.pesquisa.coleta import registrar_respostas
+
+    p, q = _pesquisa_coleta(db_session, "EColetaRet")
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[{"pergunta_id": q.id, "texto": "atendimento ótimo", "nota": 5, "opcao": None}],
+    )
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[{"pergunta_id": q.id, "texto": "", "nota": 3, "opcao": None}],  # nota-only
+    )
+    db_session.commit()
+    # Sanidade: Resposta está VAZIA (o que enganava a tela antes), Verbatim tem os dados.
+    assert db_session.query(Resposta).count() == 0
+    ret = retorno_pesquisa(db_session, p.id)
+    assert ret["total_respondentes"] == 2
+    item = ret["perguntas"][0]
+    assert item["n_respostas"] == 2  # não mais 0
+    assert item["nota"]["media"] == 4.0  # (5+3)/2
+    dist = {b["valor"]: b["n"] for b in item["nota"]["distribuicao"]}
+    assert dist[5] == 1 and dist[3] == 1
+    assert item["comentarios"] == ["atendimento ótimo"]  # nota-only (texto="") NÃO vira comentário
+
+
+def test_coleta_filtro_por_escopo_le_verbatim(db_session):
+    """O filtro de escopo continua valendo no modo coleta (via Respondente → Verbatim).
+    O escopo 'local' precisa de um Local real: Verbatim.local_id é FK — escopo apontando
+    pra local inexistente cai no cinturão de dedup e o verbatim some (como em prod não
+    acontece, o escopo vem de um local que existe)."""
+    from src.models.local import Local
+    from src.pesquisa.coleta import registrar_respostas
+
+    p, q = _pesquisa_coleta(db_session, "EColetaEscopo")
+    l1 = Local(empresa_id=p.empresa_id, nome="Unidade A")
+    l2 = Local(empresa_id=p.empresa_id, nome="Unidade B")
+    db_session.add_all([l1, l2])
+    db_session.flush()
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("local", l1.id),
+        pessoa_id=None,
+        respostas=[{"pergunta_id": q.id, "texto": "", "nota": 5, "opcao": None}],
+    )
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("local", l2.id),
+        pessoa_id=None,
+        respostas=[{"pergunta_id": q.id, "texto": "", "nota": 1, "opcao": None}],
+    )
+    db_session.commit()
+    ret = retorno_pesquisa(db_session, p.id, escopo=("local", l1.id))
+    assert ret["total_respondentes"] == 1
+    assert ret["perguntas"][0]["nota"]["media"] == 5.0  # só o local 1

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import statistics
-from collections import Counter
+from collections import Counter, namedtuple
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.models.agrupamento import Agrupamento
@@ -20,8 +20,43 @@ from src.models.local import Local
 from src.models.pesquisa import Pesquisa
 from src.models.pessoa import Pessoa
 from src.models.respondente import Respondente, Resposta
+from src.models.verbatim import Verbatim
 
 Escopo = Tuple[str, Optional[int]]
+
+# Shape mínimo que _agg_pergunta consome (valor_nota/valor_texto/valor_opcao). No modo
+# coleta, cada Verbatim é adaptado pra ele — mesma agregação, sem duplicar a lógica.
+_RespView = namedtuple("_RespView", ["valor_nota", "valor_texto", "valor_opcao"])
+
+
+def _por_pergunta_coleta(s, resp_ids: List[int]) -> Dict[int, List[Any]]:
+    """Modo coleta: as 'respostas' são Verbatim (respondente_id + pergunta_id + rating +
+    texto). Agrupa por pergunta adaptando cada verbatim ao shape de _agg_pergunta.
+    Múltipla (valor_opcao) não existe no canal coleta — grava só texto+nota — fica None
+    (gap conhecido: coleta ignora opcao; pesquisa coleta nasce de nota/mista)."""
+    por_pergunta: Dict[int, List[Any]] = {}
+    if not resp_ids:
+        return por_pergunta
+    verbatins = (
+        s.query(Verbatim)
+        .filter(Verbatim.respondente_id.in_(resp_ids), Verbatim.pergunta_id.isnot(None))
+        .all()
+    )
+    for v in verbatins:
+        por_pergunta.setdefault(v.pergunta_id, []).append(
+            # nota-only nasce com texto="" → None: não conta como comentário (só como nota).
+            _RespView(valor_nota=v.rating, valor_texto=(v.texto or None), valor_opcao=None)
+        )
+    return por_pergunta
+
+
+def _por_pergunta_confronto(s, resp_ids: List[int]) -> Dict[int, List[Any]]:
+    """Modo confronto: agrega a Resposta estruturada (como sempre foi)."""
+    por_pergunta: Dict[int, List[Any]] = {}
+    if resp_ids:
+        for r in s.query(Resposta).filter(Resposta.respondente_id.in_(resp_ids)).all():
+            por_pergunta.setdefault(r.pergunta_id, []).append(r)
+    return por_pergunta
 
 
 def _escala(opcoes_json: Optional[str]) -> Dict[str, Any]:
@@ -122,11 +157,13 @@ def retorno_pesquisa(
         for (et, eid), n in escopo_cont.items()
     ]
 
-    # Respostas dos respondentes filtrados → agrupa por pergunta.
-    por_pergunta: Dict[int, List[Resposta]] = {}
-    if resp_ids:
-        for r in s.query(Resposta).filter(Resposta.respondente_id.in_(resp_ids)).all():
-            por_pergunta.setdefault(r.pergunta_id, []).append(r)
+    # Respostas dos respondentes filtrados → agrupa por pergunta. O DESTINO da coleta
+    # decide a tabela: confronto grava Resposta; coleta grava Verbatim (já classificado).
+    # A tela lê a que de fato tem o dado — sem isso, pesquisa coleta mostrava "0 resposta".
+    if pesq.proposito == "coleta":
+        por_pergunta = _por_pergunta_coleta(s, resp_ids)
+    else:
+        por_pergunta = _por_pergunta_confronto(s, resp_ids)
     perguntas = [
         _agg_pergunta(p, por_pergunta.get(p.id, []))
         for p in pesq.perguntas
