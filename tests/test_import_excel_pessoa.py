@@ -280,3 +280,53 @@ def test_rota_modelo_interno_entrega_identidade(client_loyall):
         io.BytesIO(client_loyall.get("/importar-verbatins/modelo?interno=1").data)
     )
     assert "email" in interno.columns and "id_cliente" in interno.columns
+
+
+def test_rota_modelo_por_empresa_popula_dropdown(client_loyall, db_session):
+    """Caminho HTTP REAL: GET com empresa_id → o xlsx traz dropdown FECHADO de local
+    referenciando os locais DA EMPRESA (na aba oculta 'listas'), + trava 1-5 e data. Testa
+    o request→xlsx (não o gerador isolado) — foi o furo do bug do link."""
+    import io
+
+    from openpyxl import load_workbook
+
+    from src.models.agrupamento import Agrupamento
+    from src.models.local import Local
+
+    e = _empresa(db_session, "EDrop")
+    db_session.add_all(
+        [
+            Local(empresa_id=e, nome="Loja Centro"),
+            Local(empresa_id=e, nome="Loja Sul"),
+            Agrupamento(empresa_id=e, nome="Vendas"),
+        ]
+    )
+    db_session.commit()
+
+    r = client_loyall.get(f"/importar-verbatins/modelo?empresa_id={e}")
+    assert r.status_code == 200
+    wb = load_workbook(io.BytesIO(r.data))
+    assert "listas" in wb.sheetnames and wb["listas"].sheet_state == "hidden"
+    assert [wb["listas"][f"A{i}"].value for i in (1, 2)] == ["Loja Centro", "Loja Sul"]
+    assert wb["listas"]["B1"].value == "Vendas"
+    dvs = wb["verbatins"].data_validations.dataValidation
+    tipos = {dv.type for dv in dvs}
+    assert {"list", "whole", "date"} <= tipos  # dropdown + trava numérica + data
+    list_dv = next(dv for dv in dvs if dv.type == "list")
+    assert "listas!" in list_dv.formula1  # dropdown fechado referenciando a aba oculta
+
+
+def test_rota_modelo_empresa_sem_locais_sem_dropdown(client_loyall, db_session):
+    """Empresa nova (sem locais) → modelo ainda gerado (rating/data travados) mas SEM
+    dropdown de local — o import cai empresa-wide até cadastrar locais."""
+    import io
+
+    from openpyxl import load_workbook
+
+    e = _empresa(db_session, "ESemLocal")
+    r = client_loyall.get(f"/importar-verbatins/modelo?empresa_id={e}")
+    assert r.status_code == 200
+    wb = load_workbook(io.BytesIO(r.data))
+    tipos = [dv.type for dv in wb["verbatins"].data_validations.dataValidation]
+    assert "list" not in tipos  # sem dropdown (sem locais/agrupamentos)
+    assert "whole" in tipos and "date" in tipos  # rating/data seguem travados
