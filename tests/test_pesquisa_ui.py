@@ -187,7 +187,7 @@ def test_revisar_mostra_cards(client_loyall, db_session):
     pid = _seed(db_session, e, [_q(1, "Como foi a retirada?", porque="interno")])
     html = client_loyall.get(f"/empresas/{e}/pesquisas/{pid}/revisar").get_data(as_text=True)
     assert "Como foi a retirada?" in html and "Aprovar" in html
-    assert "Porquê (interno)" in html  # justificativa visível p/ quem revisa
+    assert "Justificativa" in html  # a justificativa da pergunta, visível p/ quem revisa
 
 
 def test_validar_htmx_mostra_chip(client_loyall, db_session, monkeypatch):
