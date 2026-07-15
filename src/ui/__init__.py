@@ -507,16 +507,36 @@ def importar_verbatins():
 @ui_bp.route("/importar-verbatins/modelo")
 @loyall_required_ui
 def modelo_import_verbatins():
-    """Baixa um .xlsx de exemplo. ``?interno=1`` inclui as colunas email/id_cliente."""
+    """Baixa um .xlsx de exemplo. ``?interno=1`` inclui email/id_cliente; ``?empresa_id=N``
+    popula os dropdowns FECHADOS de local/agrupamento com o cadastro DA EMPRESA."""
     r = _require_loyall_html()
     if r:
         return r
     from flask import send_file
 
     from src.coletor.excel import gerar_modelo_xlsx
+    from src.models.agrupamento import Agrupamento
+    from src.models.local import Local
 
     interno = request.args.get("interno") in ("1", "on", "true")
-    bio = gerar_modelo_xlsx(interno_identificado=interno)
+    empresa_raw = (request.args.get("empresa_id") or "").strip()
+    empresa_id = int(empresa_raw) if empresa_raw.isdigit() else None
+    locais = agrupamentos = None
+    if empresa_id:
+        with db_session() as s:
+            locais = [
+                n
+                for (n,) in s.query(Local.nome)
+                .filter_by(empresa_id=empresa_id)
+                .order_by(Local.nome)
+            ]
+            agrupamentos = [
+                n
+                for (n,) in s.query(Agrupamento.nome)
+                .filter_by(empresa_id=empresa_id)
+                .order_by(Agrupamento.nome)
+            ]
+    bio = gerar_modelo_xlsx(interno_identificado=interno, locais=locais, agrupamentos=agrupamentos)
     nome = "modelo_import_interno.xlsx" if interno else "modelo_import.xlsx"
     return send_file(
         bio,

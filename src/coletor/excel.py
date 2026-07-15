@@ -194,7 +194,11 @@ def prever_arquivo(caminho: Union[str, Path], interno_identificado: bool = False
     }
 
 
-def gerar_modelo_xlsx(interno_identificado: bool = False) -> io.BytesIO:
+def gerar_modelo_xlsx(
+    interno_identificado: bool = False,
+    locais: Optional[List[str]] = None,
+    agrupamentos: Optional[List[str]] = None,
+) -> io.BytesIO:
     """Gera um .xlsx de exemplo (contrato visual das colunas) para download.
 
     Normal: texto, rating, data, autor, local, agrupamento. Interno: + email,
@@ -202,7 +206,15 @@ def gerar_modelo_xlsx(interno_identificado: bool = False) -> io.BytesIO:
     CANÔNICO do detector (membro do próprio set de ``_ALIASES``), então ``_detectar_
     colunas`` casa exatamente. Inclui as colunas de GRÃO (``local``/``agrupamento``)
     que o detector já lê mas o modelo antigo não entregava — sem elas todo import
-    nascia empresa-wide, sem unidade."""
+    nascia empresa-wide, sem unidade.
+
+    ``locais``/``agrupamentos``: quando dados (do cadastro da EMPRESA selecionada),
+    viram DROPDOWN FECHADO (data validation ``list``) nas colunas ``local``/``agrupamento``
+    — o cliente escolhe da lista, não digita valor novo (o operador controla a taxonomia).
+    Lista vazia (empresa nova sem locais) → coluna SEM dropdown (import cai empresa-wide
+    até cadastrar). ``rating`` ganha trava numérica 1–5; ``data``, validação de data.
+    NOTA: o dropdown é cerca de UX no Excel — o guard de "não criar local desconhecido"
+    no BACKEND é a fatia 2 (obrigatória)."""
     cols = ["texto", "rating", "data", "autor", "local", "agrupamento"]
     rows = [
         {
@@ -254,8 +266,68 @@ def gerar_modelo_xlsx(interno_identificado: bool = False) -> io.BytesIO:
         pd.DataFrame(instr, columns=["coluna", "o que preencher"]).to_excel(
             writer, index=False, sheet_name="instruções"
         )
+        _aplicar_validacoes(writer, cols, locais or [], agrupamentos or [])
     bio.seek(0)
     return bio
+
+
+def _aplicar_validacoes(writer, cols, locais, agrupamentos):
+    """Anexa as validações nativas do Excel ao modelo (só o gerador; sem tocar o import):
+    rating→trava 1–5, data→validação de data, local/agrupamento→dropdown FECHADO a partir
+    de uma aba oculta ``listas`` (evita o limite de 255 chars do formula1 inline). Lista
+    vazia → sem dropdown na coluna (empresa nova cai empresa-wide)."""
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    ws = writer.sheets["verbatins"]
+    book = writer.book
+    ultima = 1000  # aplica às linhas 2..1000 (folga p/ o preenchimento)
+
+    def _faixa(campo: str) -> str:
+        letra = get_column_letter(cols.index(campo) + 1)
+        return f"{letra}2:{letra}{ultima}"
+
+    # rating: inteiro entre 1 e 5 (a régua)
+    dv_r = DataValidation(
+        type="whole", operator="between", formula1="1", formula2="5", allow_blank=True
+    )
+    dv_r.error, dv_r.errorTitle = "A nota deve ser um inteiro de 1 a 5.", "Rating inválido"
+    dv_r.showErrorMessage = True
+    ws.add_data_validation(dv_r)
+    dv_r.add(_faixa("rating"))
+
+    # data: precisa ser uma data (limites largos só p/ satisfazer o Excel)
+    dv_d = DataValidation(
+        type="date",
+        operator="between",
+        formula1="DATE(2000,1,1)",
+        formula2="DATE(2100,1,1)",
+        allow_blank=True,
+    )
+    dv_d.error, dv_d.errorTitle = "Preencha uma data válida.", "Data inválida"
+    dv_d.showErrorMessage = True
+    ws.add_data_validation(dv_d)
+    dv_d.add(_faixa("data"))
+
+    # local/agrupamento: dropdown FECHADO a partir da aba oculta 'listas' (col A e B).
+    listas = {"local": (locais, "A"), "agrupamento": (agrupamentos, "B")}
+    if any(vals for vals, _ in listas.values()):
+        lst = book.create_sheet("listas")
+        lst.sheet_state = "hidden"
+        for campo, (vals, coluna) in listas.items():
+            for i, nome in enumerate(vals, start=1):
+                lst[f"{coluna}{i}"] = nome
+            if not vals:
+                continue  # empresa sem esse cadastro → coluna sem dropdown
+            dv = DataValidation(
+                type="list",
+                formula1=f"listas!${coluna}$1:${coluna}${len(vals)}",
+                allow_blank=True,
+            )
+            dv.error = f"Escolha um {campo} da lista (cadastre-o na empresa antes)."
+            dv.errorTitle, dv.showErrorMessage = f"{campo.capitalize()} não cadastrado", True
+            ws.add_data_validation(dv)
+            dv.add(_faixa(campo))
 
 
 def _ler_dataframe(caminho: Path) -> pd.DataFrame:

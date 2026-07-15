@@ -5,9 +5,11 @@
   <a href="{{ url_for('ui.lista_empresas') }}" class="text-sm text-loyall-400 hover:underline">← Empresas</a>
   <h1 class="text-2xl font-semibold mt-1">Importar verbatins (CSAT / pesquisa)</h1>
   <p class="text-sm text-loyall-500 mt-1">
-    Sobe um Excel/CSV de respostas. Detecta as colunas (texto, data, nota, id, fila, origem),
-    cria os agrupamentos/locais que faltarem e dispara o processamento completo (classificação →
-    temas → diagnóstico → relatórios). A empresa já deve estar cadastrada.
+    Sobe um Excel/CSV de respostas. Detecta as colunas (texto, data, nota, local, agrupamento) e
+    dispara o processamento completo (classificação → temas → diagnóstico → relatórios).
+    Os <strong>locais e agrupamentos</strong> desta empresa são escolhidos da lista — cadastre-os
+    no cadastro da empresa <strong>antes</strong> de importar (o modelo já traz a lista da empresa
+    selecionada). Empresa nova sem locais: o import cai empresa-wide até você cadastrá-los.
   </p>
 </div>
 
@@ -61,11 +63,11 @@
             class="px-4 py-1.5 rounded border border-loyall-300 hover:bg-loyall-100 text-sm">
       Detectar colunas
     </button>
-    {# Lê o estado do checkbox NO CLIQUE (robusto: cobre toggle restaurado no load/
-       back-button, onde o onchange não dispara). Sem isso, o modelo interno baixava
-       sem email/id_cliente. #}
+    {# Lê empresa + checkbox NO CLIQUE (robusto: cobre estado restaurado no load/back-button,
+       onde o onchange não dispara). O empresa_id popula os dropdowns de local/agrupamento;
+       sem ele o modelo vem sem as listas. #}
     <a id="btn-modelo" href="{{ url_for('ui.modelo_import_verbatins') }}"
-       onclick="this.href='{{ url_for('ui.modelo_import_verbatins') }}' + (document.querySelector('input[name=interno_identificado]').checked ? '?interno=1' : '')"
+       onclick="var p=[]; var emp=document.querySelector('select[name=empresa_id]').value; if(emp)p.push('empresa_id='+emp); if(document.querySelector('input[name=interno_identificado]').checked)p.push('interno=1'); this.href='{{ url_for('ui.modelo_import_verbatins') }}'+(p.length?'?'+p.join('&'):'')"
        class="text-sm text-loyall-500 hover:underline">Baixar modelo</a>
     <span class="htmx-indicator text-xs text-loyall-400">processando…</span>
   </div>
