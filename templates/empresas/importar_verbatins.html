@@ -36,8 +36,7 @@
   <div class="border-t border-loyall-100 pt-3">
     <label class="flex items-center gap-2 text-sm">
       <input type="checkbox" name="interno_identificado" value="on"
-             onchange="document.getElementById('bloco-interno').classList.toggle('hidden', !this.checked);
-                       document.getElementById('btn-modelo').href='{{ url_for('ui.modelo_import_verbatins') }}' + (this.checked ? '?interno=1' : '')">
+             onchange="document.getElementById('bloco-interno').classList.toggle('hidden', !this.checked)">
       <span class="font-medium">Base interna identificada</span>
     </label>
     <p class="text-xs text-loyall-500 mt-1">
@@ -62,7 +61,11 @@
             class="px-4 py-1.5 rounded border border-loyall-300 hover:bg-loyall-100 text-sm">
       Detectar colunas
     </button>
+    {# Lê o estado do checkbox NO CLIQUE (robusto: cobre toggle restaurado no load/
+       back-button, onde o onchange não dispara). Sem isso, o modelo interno baixava
+       sem email/id_cliente. #}
     <a id="btn-modelo" href="{{ url_for('ui.modelo_import_verbatins') }}"
+       onclick="this.href='{{ url_for('ui.modelo_import_verbatins') }}' + (document.querySelector('input[name=interno_identificado]').checked ? '?interno=1' : '')"
        class="text-sm text-loyall-500 hover:underline">Baixar modelo</a>
     <span class="htmx-indicator text-xs text-loyall-400">processando…</span>
   </div>

@@ -184,3 +184,16 @@ def test_rota_modelo_download(client_loyall):
     ri = client_loyall.get("/importar-verbatins/modelo?interno=1")
     assert ri.status_code == 200
     assert "modelo_import_interno.xlsx" in ri.headers.get("Content-Disposition", "")
+
+
+def test_rota_modelo_interno_entrega_identidade(client_loyall):
+    """Contrato da ROTA (não só do gerador): ?interno=1 devolve email/id_cliente; sem o
+    param, não. O teste antigo só via o filename — por isso o bug do link passou."""
+    import io
+
+    normal = pd.read_excel(io.BytesIO(client_loyall.get("/importar-verbatins/modelo").data))
+    assert "email" not in normal.columns and "id_cliente" not in normal.columns
+    interno = pd.read_excel(
+        io.BytesIO(client_loyall.get("/importar-verbatins/modelo?interno=1").data)
+    )
+    assert "email" in interno.columns and "id_cliente" in interno.columns
