@@ -46,50 +46,8 @@
   {% if d.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ d.ultima_geracao.strftime('%d/%m %H:%M') }}</span>{% endif %}
 </div>
 
-{# ── Mapa de Lastro ── #}
-<h3 class="text-sm font-semibold text-loyall-700 mb-1">Mapa de Lastro {{ glossario_i('pilar') }}</h3>
-<p class="text-xs text-loyall-500 mb-2">Jornada sequencial P→D→Pa→A — resolva o gargalo {{ glossario_i('gargalo') }} antes de investir nos pilares seguintes.</p>
-<div class="flex flex-wrap items-stretch gap-2 mb-4">
-  {% for p in d.pilares %}
-  {% set fc = fclass[p.faixa] %}
-  <div class="flex-1 min-w-[190px] border rounded-lg p-3 {% if p.gargalo %}border-rose-400 ring-1 ring-rose-200{% else %}border-loyall-200{% endif %}">
-    <div class="flex items-center justify-between">
-      <span class="font-semibold text-loyall-800">{{ p.nome }}</span>
-      {% if p.gargalo %}<span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">🚩 gargalo</span>{% endif %}
-    </div>
-    <div class="mt-1 text-sm">
-      <span class="text-loyall-500">Ratio P/D:</span>
-      <span class="font-bold text-loyall-800">{{ '%.2f'|format(p.ratio) }}</span>
-      <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ p.faixa }}</span>
-    </div>
-    {% if p.total %}
-    {# Tradução do ratio em linguagem simples (CP-ratio-palavras), discreta sob o número. #}
-    <div class="text-xs text-loyall-400">{{ ratio_em_palavras(p.ratio) }}</div>
-    {% endif %}
-    {% if p.historico_quarters %}
-    {# Histórico de ratio dos últimos 4 quarters (CP-ratio-historico); clicável → drawer. #}
-    <div class="text-xs text-loyall-400 flex flex-wrap gap-x-2" title="Ratio P/D por trimestre (ponderado por volume), mais antigo → mais recente · clique para detalhar">
-      {% for h in p.historico_quarters %}<button type="button"
-        hx-get="{{ url_for('ui.painel_quarter_detalhe', empresa_id=empresa.id) }}?pilar={{ p.pilar }}&quarter={{ h.chave }}&agrupamento_id={{ filtros.agrupamento_id }}&local_id={{ filtros.local_id }}"
-        hx-target="body" hx-swap="beforeend"
-        title="{{ h.total }} verbatins no {{ h.q }} (todos os tipos)"
-        class="inline-flex flex-col items-center leading-tight hover:text-loyall-700 hover:underline cursor-pointer"><span>{{ h.q }}·{{ '%.2f'|format(h.ratio) }}</span><span class="text-loyall-300 tabular-nums">{{ h.total }}</span></button>{% endfor %}
-    </div>
-    {% endif %}
-    <div class="text-xs text-loyall-400"><span title="Confiança por volume" class="cursor-help">{{ selo_emoji(p.total) }}</span> {{ p.total }} verbatins</div>
-    <div class="mt-2 pt-2 border-t border-loyall-100 space-y-0.5">
-      {% for sp in p.subpilares %}
-      {% set sfc = fclass[sp.faixa] %}
-      <div class="flex items-center justify-between text-xs text-loyall-600">
-        <span>{{ sp.subpilar }} · {{ sp.nome }}</span>
-        <span class="font-semibold {{ sfc.text }}">{{ '%.2f'|format(sp.ratio) }}</span>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% if not loop.last %}<div class="self-center text-loyall-300 text-xl">→</div>{% endif %}
-  {% endfor %}
-</div>
+{# ── Mapa de Lastro ── (partial compartilhado com a tela de respostas v2) #}
+{% with pilares = d.pilares %}{% include 'partials/_mapa_lastro.html' %}{% endwith %}
 
 {# ── Banner: leituras não geradas ── #}
 {% if not d.tem_leituras %}

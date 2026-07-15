@@ -396,3 +396,38 @@ def test_regua_none_para_confronto(db_session):
     p, _qs = _pesquisa(db_session, "EConfReg")  # proposito confronto (default do helper)
     db_session.commit()
     assert regua_pesquisa(db_session, p.id) is None
+
+
+def test_regua_mapa_lastro_agrega_por_pilar_e_gargalo(db_session):
+    """O Mapa de Lastro agrega ratio por pilar no recorte da pesquisa e marca o gargalo
+    pela regra canônica sequencial (primeiro crítico). P crítico (0.33) + D saudável
+    → gargalo = Precisão."""
+    from src.pesquisa.coleta import registrar_respostas
+    from src.pesquisa.retorno import regua_pesquisa
+
+    p, qs = _pesquisa_coleta_subs(db_session, "EMapa", ["P1", "D1"])
+    # P1: 1 promotor (5) + 3 detratores (1) → ratio 0.33 (crítico)
+    for nota in [5, 1, 1, 1]:
+        registrar_respostas(
+            db_session,
+            p,
+            escopo=("empresa", None),
+            pessoa_id=None,
+            respostas=[{"pergunta_id": qs["P1"].id, "texto": "", "nota": nota, "opcao": None}],
+        )
+    # D1: 3 promotores (5) → ratio 9.99 (excelente)
+    for _ in range(3):
+        registrar_respostas(
+            db_session,
+            p,
+            escopo=("empresa", None),
+            pessoa_id=None,
+            respostas=[{"pergunta_id": qs["D1"].id, "texto": "", "nota": 5, "opcao": None}],
+        )
+    db_session.commit()
+    mapa = {pil["pilar"]: pil for pil in regua_pesquisa(db_session, p.id)["mapa_lastro"]}
+    assert list(mapa) == ["P", "D"]  # ordem canônica, só os perguntados
+    assert mapa["P"]["ratio"] == 0.33 and mapa["P"]["faixa"] == "critico"
+    assert mapa["P"]["gargalo"] is True  # primeiro crítico
+    assert mapa["D"]["ratio"] == 9.99 and mapa["D"]["gargalo"] is False
+    assert mapa["P"]["total"] == 4 and mapa["P"]["subpilares"][0]["subpilar"] == "P1"

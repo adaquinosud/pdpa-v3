@@ -229,8 +229,71 @@ def regua_pesquisa(
         "base_temas": len(
             verbatins_com_tema
         ),  # verbatins com comentário temizado (só quem escreveu)
+        "mapa_lastro": _mapa_lastro_pesquisa(valencia),  # 4 cards P→D→Pa→A + gargalo
         "pilares": pilares_out,
     }
+
+
+def _mapa_lastro_pesquisa(valencia: Dict[str, Dict[str, int]]) -> List[Dict[str, Any]]:
+    """Mapa de Lastro (4 cards P→D→Pa→A) no recorte da pesquisa: ratio por pilar/subpilar
+    agregado sobre a ``valencia`` já contada (verbatins DA PESQUISA, escopo respeitado) +
+    gargalo pela regra canônica ``gargalo_sequencial`` (mesma do Diagnóstico corrigido).
+    Só pilares/subpilares COM volume (total>0) — como o Diagnóstico. Sem historico_quarters
+    (a pesquisa não tem — o {% if %} do partial some sozinho). Alimenta o partial
+    compartilhado ``partials/_mapa_lastro.html``."""
+    from src.api.painel import (
+        NOME_PILAR,
+        NOME_SUBPILAR,
+        PILAR_DE_SUBPILAR,
+        PILARES_ORDEM,
+        SUBPILARES_ORDEM,
+        calcular_ratio,
+        faixa_ratio,
+        gargalo_sequencial,
+    )
+
+    # agg no shape que a regra canônica consome (só prom/det importam).
+    agg = {
+        sub: {"prom": v["promotor"], "det": v["detrator"]}
+        for sub, v in valencia.items()
+        if v["total"] > 0
+    }
+    gargalo = gargalo_sequencial(agg)
+
+    def _sub_card(sub: str) -> Dict[str, Any]:
+        r = calcular_ratio(valencia[sub]["promotor"], valencia[sub]["detrator"])
+        return {
+            "subpilar": sub,
+            "nome": NOME_SUBPILAR.get(sub, sub),
+            "ratio": r,
+            "faixa": faixa_ratio(r),
+        }
+
+    mapa: List[Dict[str, Any]] = []
+    for pil in PILARES_ORDEM:
+        subs = [
+            sub
+            for sub in SUBPILARES_ORDEM
+            if PILAR_DE_SUBPILAR.get(sub) == pil and valencia.get(sub, {}).get("total", 0) > 0
+        ]
+        if not subs:
+            continue
+        prom = sum(valencia[s]["promotor"] for s in subs)
+        det = sum(valencia[s]["detrator"] for s in subs)
+        total = sum(valencia[s]["total"] for s in subs)
+        ratio = calcular_ratio(prom, det)
+        mapa.append(
+            {
+                "pilar": pil,
+                "nome": NOME_PILAR.get(pil, pil),
+                "ratio": ratio,
+                "faixa": faixa_ratio(ratio),
+                "total": total,
+                "gargalo": pil == gargalo,
+                "subpilares": [_sub_card(s) for s in subs],
+            }
+        )
+    return mapa
 
 
 def _escala(opcoes_json: Optional[str]) -> Dict[str, Any]:
