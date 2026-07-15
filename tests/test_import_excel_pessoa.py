@@ -105,7 +105,8 @@ def test_interno_cria_pessoa_e_compartilha(db_session, tmp_path):
     assert por_email["Outra"] != por_email["Adorei"]
     # identificador correto
     ident = db_session.query(PessoaIdentificador).filter_by(external_id="joao@x.com").one()
-    assert ident.tipo == "interno_consentido" and ident.fonte == "excel"
+    # email agora vai pra fonte 'pesquisa' (mesmo namespace da pesquisa-PDPA) — não 'excel'
+    assert ident.tipo == "interno_consentido" and ident.fonte == "pesquisa"
     assert json.loads(ident.atributos_json)["opt_in"] is True
     # fonte interna
     f = db_session.get(Fonte, vs[0].fonte_id)
@@ -144,6 +145,88 @@ def test_interno_reimport_nao_duplica_pessoa(db_session, tmp_path):
     importar_arquivo(arq, empresa_id=e, interno_identificado=True, consentimento=True)  # re-import
     assert db_session.query(Pessoa).count() == 1  # UNIQUE garante idempotência
     assert db_session.query(PessoaIdentificador).filter_by(external_id="a@x.com").count() == 1
+
+
+# ── Frente 2: identidade unificada (import cruza com a pesquisa-PDPA) ─────────
+
+
+def test_import_colapsa_com_pessoa_da_pesquisa(db_session, tmp_path):
+    """O ponto da Frente 2: o mesmo id_cliente do CSAT importado e de uma pesquisa-PDPA
+    viram a MESMA Pessoa (fonte 'crm' compartilhada) — cruza fontes por pessoa."""
+    from src.coletor.excel import _reconciliar_pessoa
+
+    e = _empresa(db_session, "ECross")
+    # simula uma resposta de pesquisa que já criou a Pessoa por id_cliente
+    pid_pesq = _reconciliar_pessoa(
+        db_session, id_cliente="CRM-99", nome="Cliente X", origem="pesquisa_web"
+    )
+    db_session.commit()
+    # importa um CSAT com o MESMO id_cliente
+    arq = _csv(tmp_path, [{"texto": "importado", "id_cliente": "CRM-99", "autor": "X"}])
+    importar_arquivo(arq, empresa_id=e, interno_identificado=True, consentimento=True)
+    v = db_session.query(Verbatim).filter_by(empresa_id=e).one()
+    assert v.pessoa_id == pid_pesq  # colapsou na Pessoa da pesquisa
+    assert (
+        db_session.query(PessoaIdentificador).filter_by(fonte="crm", external_id="CRM-99").count()
+        == 1
+    )
+
+
+def test_import_email_colapsa_com_pesquisa(db_session, tmp_path):
+    """Mesmo email (fonte 'pesquisa', normalizado lower nos dois canais) colapsa também."""
+    from src.coletor.excel import _reconciliar_pessoa
+
+    e = _empresa(db_session, "ECrossMail")
+    pid = _reconciliar_pessoa(db_session, email="ana@x.com", origem="pesquisa_web")
+    db_session.commit()
+    arq = _csv(tmp_path, [{"texto": "oi", "email": "Ana@X.com", "autor": "Ana"}])  # case diferente
+    importar_arquivo(arq, empresa_id=e, interno_identificado=True, consentimento=True)
+    v = db_session.query(Verbatim).filter_by(empresa_id=e).one()
+    assert v.pessoa_id == pid  # mesma Pessoa (email normalizado igual)
+
+
+def test_import_multichave_funde_pessoas(db_session, tmp_path):
+    """Linha com email+id_cliente que já apontavam pra Pessoas distintas → funde numa só;
+    a stat pessoas_merges registra a fusão (auditoria)."""
+    from src.coletor.excel import _reconciliar_pessoa
+
+    e = _empresa(db_session, "EMerge")
+    pa = _reconciliar_pessoa(db_session, email="dupla@x.com", origem="pesquisa_web")
+    pb = _reconciliar_pessoa(db_session, id_cliente="CRM-7", origem="pesquisa_web")
+    db_session.commit()
+    assert pa != pb  # começam separadas
+    arq = _csv(
+        tmp_path,
+        [{"texto": "eu", "email": "dupla@x.com", "id_cliente": "CRM-7", "autor": "D"}],
+    )
+    stats = importar_arquivo(arq, empresa_id=e, interno_identificado=True, consentimento=True)
+    assert stats["pessoas_merges"] == 1  # fundiu 1 par pré-existente
+    v = db_session.query(Verbatim).filter_by(empresa_id=e).one()
+    id_email = (
+        db_session.query(PessoaIdentificador)
+        .filter_by(fonte="pesquisa", external_id="dupla@x.com")
+        .one()
+    )
+    id_crm = db_session.query(PessoaIdentificador).filter_by(fonte="crm", external_id="CRM-7").one()
+    assert id_email.pessoa_id == id_crm.pessoa_id == v.pessoa_id
+
+
+def test_import_nunca_funde_por_nome(db_session, tmp_path):
+    """Duas linhas com o MESMO autor mas id_cliente diferentes → 2 Pessoas distintas.
+    Nome é só rótulo de exibição, NUNCA chave de fusão."""
+    e = _empresa(db_session, "ENome")
+    arq = _csv(
+        tmp_path,
+        [
+            {"texto": "a", "id_cliente": "CRM-A", "autor": "Maria Souza"},
+            {"texto": "b", "id_cliente": "CRM-B", "autor": "Maria Souza"},
+        ],
+    )
+    stats = importar_arquivo(arq, empresa_id=e, interno_identificado=True, consentimento=True)
+    assert stats["pessoas_merges"] == 0
+    assert stats["pessoas_vinculadas"] == 2  # duas Pessoas distintas
+    vs = db_session.query(Verbatim).filter_by(empresa_id=e).all()
+    assert len({v.pessoa_id for v in vs}) == 2  # não fundiu por nome
 
 
 # ── Modelo para download (Tarefa 5) ──────────────────────────────────────────

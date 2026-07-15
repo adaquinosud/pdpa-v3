@@ -62,8 +62,8 @@
       <li>{{ stats.ignorados }} ignorados (sem texto nem nota)</li>
       {% if stats.erros %}<li class="text-rose-600">{{ stats.erros }} com erro de linha</li>{% endif %}
       <li>{{ stats.agrupamentos_criados }} agrupamentos + {{ stats.locais_criados }} locais criados</li>
-      {% if stats.pessoas_criadas or stats.sem_identidade %}
-      <li>{{ stats.pessoas_criadas }} pessoas (interno consentido){% if stats.sem_identidade %} · {{ stats.sem_identidade }} linha(s) sem identidade{% endif %}</li>
+      {% if stats.pessoas_vinculadas or stats.sem_identidade %}
+      <li>{{ stats.pessoas_vinculadas }} pessoas vinculadas (interno consentido){% if stats.pessoas_merges %} · <strong>{{ stats.pessoas_merges }}</strong> fundida(s) com cliente já existente{% endif %}{% if stats.sem_identidade %} · {{ stats.sem_identidade }} linha(s) sem identidade{% endif %}</li>
       {% endif %}
     </ul>
     {% if stats.pos_coleta_disparado %}

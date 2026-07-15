@@ -404,53 +404,6 @@ def _find_or_create_fonte(
     return cache[key]
 
 
-def _find_or_create_pessoa(
-    session,
-    external_id: str,
-    nome: Optional[str],
-    cache: Dict[str, int],
-    *,
-    fonte: str = "excel",
-    origem: str = "import_excel_interno",
-) -> int:
-    """Get-or-create da Pessoa interna por chave declarada (email|id_cliente|contato).
-
-    INTRA-fonte por chave declarada — NÃO é merge entre fontes. O
-    ``UNIQUE(tipo,fonte,external_id)`` da PessoaIdentificador garante idempotência
-    (mesma chave → mesma Pessoa). Registra o opt-in em ``atributos_json`` (marcador
-    do regime LGPD). ``fonte``/``origem`` parametrizados → reuso pelo canal web
-    (fonte='pesquisa')."""
-    if external_id in cache:
-        return cache[external_id]
-    ident = (
-        session.query(PessoaIdentificador)
-        .filter_by(tipo="interno_consentido", fonte=fonte, external_id=external_id)
-        .first()
-    )
-    if ident is not None:
-        cache[external_id] = ident.pessoa_id
-        return ident.pessoa_id
-    p = Pessoa(tipo="interno_consentido", nome_display=nome)
-    p.identificadores = [
-        PessoaIdentificador(
-            tipo="interno_consentido",
-            fonte=fonte,
-            external_id=external_id,
-            atributos_json=json.dumps(
-                {
-                    "opt_in": True,
-                    "origem": origem,
-                    "data": datetime.utcnow().isoformat(),
-                }
-            ),
-        )
-    ]
-    session.add(p)
-    session.flush()
-    cache[external_id] = p.id
-    return p.id
-
-
 _LOG = logging.getLogger(__name__)
 
 # Namespace das chaves de identidade da PESSOA na PESQUISA (item A): e-mail (voluntário)
@@ -670,15 +623,19 @@ def importar_arquivo(
         "colunas_detectadas": colunas,
         "agrupamentos_criados": 0,
         "locais_criados": 0,
-        "pessoas_criadas": 0,
+        "pessoas_vinculadas": 0,  # Pessoas DISTINTAS ligadas (criadas OU reusadas)
+        "pessoas_merges": 0,  # linhas que fundiram 2 Pessoas pré-existentes (email+crm)
         "sem_identidade": 0,
     }
 
     with db_session() as session:
+        from src.models.pessoa import PessoaMerge
+
         cache_agr: Dict[str, int] = {}
         cache_loc: Dict[str, int] = {}
         cache_fonte: Dict[str, int] = {}
-        cache_pessoa: Dict[str, int] = {}
+        pessoas_vinc: set[int] = set()  # ids distintos vinculados (conta honesta)
+        merges_antes = session.query(PessoaMerge).count()  # p/ o delta de fusões
 
         # Fonte padrão do arquivo (find-or-create por nome → dedup idempotente no
         # reimport). Se a rota passou um fonte_id explícito, ele é o default.
@@ -757,20 +714,25 @@ def importar_arquivo(
                             session, empresa_id, nome_fonte, cache_fonte, conector_f, auth_f
                         )
 
-                # Pessoa (só modo interno consentido): chave = email; fallback
-                # id_cliente. Sem nenhum dos dois → verbatim sem Pessoa (não quebra).
+                # Pessoa (só modo interno consentido): MESMO caminho da pesquisa-PDPA
+                # (_reconciliar_pessoa) — email→fonte 'pesquisa', id_cliente→fonte 'crm',
+                # multi-chave + merge auditável. Assim o mesmo email/id_cliente do CSAT e
+                # de uma pesquisa colapsam na MESMA Pessoa (cruza fontes por pessoa). NUNCA
+                # funde por nome (autor é só rótulo). Sem chave → verbatim sem Pessoa.
                 pessoa_id_row = None
                 if interno_identificado:
                     email_v = _norm_email(row[c_email]) if c_email else None
                     idc_v = _norm_nome(row[c_id_cliente]) if c_id_cliente else None
-                    external_id = email_v or idc_v
-                    if external_id:
-                        antes = len(cache_pessoa)
-                        pessoa_id_row = _find_or_create_pessoa(
-                            session, external_id, autor, cache_pessoa
+                    if email_v or idc_v:
+                        pessoa_id_row = _reconciliar_pessoa(
+                            session,
+                            email=email_v,
+                            id_cliente=idc_v,
+                            nome=autor,
+                            origem="import_excel",
                         )
-                        if len(cache_pessoa) > antes:
-                            stats["pessoas_criadas"] += 1
+                        if pessoa_id_row is not None:
+                            pessoas_vinc.add(pessoa_id_row)
                     else:
                         stats["sem_identidade"] += 1
 
@@ -814,6 +776,12 @@ def importar_arquivo(
                 stats["importados"] += 1
             except Exception:  # noqa: BLE001 — linha problemática não derruba o lote
                 stats["erros"] += 1
+
+        # Contas de identidade (dentro do `with`, antes do commit): Pessoas DISTINTAS
+        # vinculadas + delta de fusões (linhas que fundiram email+crm de 2 Pessoas
+        # pré-existentes — auditoria "fundi N clientes que já existiam").
+        stats["pessoas_vinculadas"] = len(pessoas_vinc)
+        stats["pessoas_merges"] = session.query(PessoaMerge).count() - merges_antes
 
     # Gatilho pós-coleta (force=True, limiar=1) — APÓS o commit, pra a thread ver
     # os verbatins. Roda classificação→temas→detecção→…→leitura em daemon-thread.
