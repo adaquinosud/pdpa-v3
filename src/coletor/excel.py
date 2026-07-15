@@ -197,29 +197,63 @@ def prever_arquivo(caminho: Union[str, Path], interno_identificado: bool = False
 def gerar_modelo_xlsx(interno_identificado: bool = False) -> io.BytesIO:
     """Gera um .xlsx de exemplo (contrato visual das colunas) para download.
 
-    Normal: texto, rating, autor, data. Interno: + email, id_cliente. Duas linhas
-    de exemplo. As colunas batem com os aliases que ``_detectar_colunas`` casa."""
-    cols = ["texto", "rating", "autor", "data"]
+    Normal: texto, rating, data, autor, local, agrupamento. Interno: + email,
+    id_cliente. Duas linhas de exemplo + aba de instruções. Cada cabeçalho é o NOME
+    CANÔNICO do detector (membro do próprio set de ``_ALIASES``), então ``_detectar_
+    colunas`` casa exatamente. Inclui as colunas de GRÃO (``local``/``agrupamento``)
+    que o detector já lê mas o modelo antigo não entregava — sem elas todo import
+    nascia empresa-wide, sem unidade."""
+    cols = ["texto", "rating", "data", "autor", "local", "agrupamento"]
     rows = [
         {
             "texto": "Atendimento rápido e cordial",
             "rating": 5,
-            "autor": "Maria Souza",
             "data": "2026-06-01",
+            "autor": "Maria Souza",
+            "local": "Loja Centro",
+            "agrupamento": "Vendas",
         },
         {
             "texto": "Demorou para resolver meu problema",
             "rating": 2,
-            "autor": "João Lima",
             "data": "2026-06-02",
+            "autor": "João Lima",
+            "local": "Loja Shopping",
+            "agrupamento": "Suporte",
         },
     ]
     if interno_identificado:
-        cols = ["texto", "rating", "autor", "data", "email", "id_cliente"]
+        cols = cols + ["email", "id_cliente"]
         rows[0].update({"email": "maria.souza@empresa.com", "id_cliente": "CRM-1001"})
         rows[1].update({"email": "joao.lima@empresa.com", "id_cliente": "CRM-1002"})
+
+    # Aba de instruções (o import lê SEMPRE a 1ª aba — os dados; esta é a 2ª, só ajuda).
+    instr = [
+        ("texto", "O comentário / resposta aberta."),
+        ("rating", "A nota, de 1 a 5."),
+        (
+            "data",
+            "A data da RESPOSTA (não a do import). Sem ela o histórico colapsa no mês do upload.",
+        ),
+        ("autor", "Nome ou rótulo de quem respondeu (opcional)."),
+        (
+            "local",
+            "A unidade/loja/filial — dá o GRÃO. Cria o local/agrupamento que faltar.",
+        ),
+        ("agrupamento", "Fila/categoria/departamento do local (opcional)."),
+    ]
+    if interno_identificado:
+        instr += [
+            ("email", "E-mail do respondente (identidade consentida) — cria a Pessoa."),
+            ("id_cliente", "Código do cliente no CRM (identidade consentida) — cria a Pessoa."),
+        ]
+
     bio = io.BytesIO()
-    pd.DataFrame(rows, columns=cols).to_excel(bio, index=False)
+    with pd.ExcelWriter(bio, engine="openpyxl") as writer:
+        pd.DataFrame(rows, columns=cols).to_excel(writer, index=False, sheet_name="verbatins")
+        pd.DataFrame(instr, columns=["coluna", "o que preencher"]).to_excel(
+            writer, index=False, sheet_name="instruções"
+        )
     bio.seek(0)
     return bio
 

@@ -150,12 +150,30 @@ def test_interno_reimport_nao_duplica_pessoa(db_session, tmp_path):
 
 
 def test_modelo_xlsx_colunas_por_modo():
-    """Normal: sem identidade. Interno: + email/id_cliente. Contrato visual."""
+    """Normal: base + grão (local/agrupamento). Interno: + email/id_cliente. Contrato
+    visual — cada cabeçalho é nome canônico que o detector casa."""
+    from src.coletor.excel import _aliases_efetivos
+
     normal = pd.read_excel(gerar_modelo_xlsx(interno_identificado=False))
-    assert list(normal.columns) == ["texto", "rating", "autor", "data"]
+    assert list(normal.columns) == ["texto", "rating", "data", "autor", "local", "agrupamento"]
     assert len(normal) >= 1
     interno = pd.read_excel(gerar_modelo_xlsx(interno_identificado=True))
     assert "email" in interno.columns and "id_cliente" in interno.columns
+    # cada cabeçalho do modelo é um nome que a detecção reconhece (canônico ∈ seu alias)
+    for modo, df in ((False, normal), (True, interno)):
+        aliases = _aliases_efetivos(modo)
+        for col in df.columns:
+            assert col in aliases[col], f"cabeçalho {col!r} não casa o detector"
+
+
+def test_modelo_xlsx_import_le_primeira_aba():
+    """A 2ª aba (instruções) não atrapalha: o import lê SEMPRE a 1ª aba (os dados)."""
+    from src.coletor.excel import _detectar_colunas
+
+    df = pd.read_excel(gerar_modelo_xlsx(interno_identificado=True))  # 1ª aba
+    cols = _detectar_colunas(list(df.columns), interno=True)
+    # detecta grão + identidade a partir dos cabeçalhos do modelo
+    assert cols["local"] and cols["agrupamento"] and cols["email"] and cols["id_cliente"]
 
 
 def test_rota_modelo_download(client_loyall):
