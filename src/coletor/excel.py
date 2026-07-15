@@ -401,7 +401,11 @@ def _norm_email(valor: Any) -> Optional[str]:
     return s or None
 
 
-def _find_or_create_agrupamento(session, empresa_id: int, nome: str, cache: Dict[str, int]) -> int:
+def _find_or_create_agrupamento(
+    session, empresa_id: int, nome: str, cache: Dict[str, int], criar: bool = True
+) -> Optional[int]:
+    """``criar=False`` = lookup-only (guard do import de verbatim, Fatia 2): não existe →
+    ``None`` (não cria). O cadastro de agrupamento é frente própria (excel_cadastro)."""
     key = nome.lower()
     if key in cache:
         return cache[key]
@@ -411,6 +415,8 @@ def _find_or_create_agrupamento(session, empresa_id: int, nome: str, cache: Dict
         .first()
     )
     if ag is None:
+        if not criar:
+            return None
         ag = Agrupamento(empresa_id=empresa_id, nome=nome)
         session.add(ag)
         session.flush()
@@ -419,8 +425,15 @@ def _find_or_create_agrupamento(session, empresa_id: int, nome: str, cache: Dict
 
 
 def _find_or_create_local(
-    session, empresa_id: int, nome: str, agrupamento_id: Optional[int], cache: Dict[str, int]
-) -> int:
+    session,
+    empresa_id: int,
+    nome: str,
+    agrupamento_id: Optional[int],
+    cache: Dict[str, int],
+    criar: bool = True,
+) -> Optional[int]:
+    """``criar=False`` = lookup-only (guard do import de verbatim, Fatia 2): não existe →
+    ``None`` (não cria). Locais nascem no cadastro da empresa, não no import."""
     key = nome.lower()
     if key in cache:
         return cache[key]
@@ -430,6 +443,8 @@ def _find_or_create_local(
         .first()
     )
     if loc is None:  # cria; existente é REUSADO sem mover de agrupamento
+        if not criar:
+            return None
         loc = Local(empresa_id=empresa_id, nome=nome, agrupamento_id=agrupamento_id)
         session.add(loc)
         session.flush()
@@ -693,8 +708,11 @@ def importar_arquivo(
         "ignorados": 0,
         "total": len(df),
         "colunas_detectadas": colunas,
-        "agrupamentos_criados": 0,
-        "locais_criados": 0,
+        # Fatia 2: o import de verbatim NÃO cria local/agrupamento (nascem no cadastro da
+        # empresa). Local preenchido-mas-inexistente PULA a linha (corrigível: cadastra +
+        # reimporta). Contadores de "criados" viraram contadores de "desconhecido".
+        "linhas_local_desconhecido": 0,  # linhas puladas (guard ON)
+        "linhas_agrupamento_desconhecido": 0,  # informativo (grão é o local; não pula)
         "pessoas_vinculadas": 0,  # Pessoas DISTINTAS ligadas (criadas OU reusadas)
         "pessoas_merges": 0,  # linhas que fundiram 2 Pessoas pré-existentes (email+crm)
         "sem_identidade": 0,
@@ -703,6 +721,10 @@ def importar_arquivo(
     with db_session() as session:
         from src.models.pessoa import PessoaMerge
 
+        # Guard do local (Fatia 2): só vale se a empresa JÁ tem locais cadastrados. Empresa
+        # nova (0 locais) → guard OFF, local desconhecido cai empresa-wide (senão o 1º import
+        # nunca acontece). Empresa COM locais → local desconhecido PULA a linha.
+        empresa_tem_locais = session.query(Local).filter_by(empresa_id=empresa_id).count() > 0
         cache_agr: Dict[str, int] = {}
         cache_loc: Dict[str, int] = {}
         cache_fonte: Dict[str, int] = {}
@@ -758,26 +780,32 @@ def importar_arquivo(
                 review_id = _norm_nome(row[c_rid]) if c_rid else None
 
                 # Escopo por linha (coluna tem prioridade sobre o param file-level).
-                agr_id = None
-                if c_agr:
-                    nome_agr = _norm_nome(row[c_agr])
-                    if nome_agr:
-                        antes = len(cache_agr)
-                        agr_id = _find_or_create_agrupamento(
-                            session, empresa_id, nome_agr, cache_agr
-                        )
-                        if len(cache_agr) > antes:
-                            stats["agrupamentos_criados"] += 1
+                # GUARD (Fatia 2): não cria local/agrupamento. Local preenchido-e-inexistente
+                # PULA a linha (empresa COM locais); empresa nova (sem locais) cai empresa-wide.
                 row_local_id = local_id
                 if c_local:
                     nome_loc = _norm_nome(row[c_local])
-                    if nome_loc:
-                        antes = len(cache_loc)
-                        row_local_id = _find_or_create_local(
-                            session, empresa_id, nome_loc, agr_id, cache_loc
+                    if nome_loc:  # preenchido (vazio = empresa-wide legítimo, não entra aqui)
+                        loc_id = _find_or_create_local(
+                            session, empresa_id, nome_loc, None, cache_loc, criar=False
                         )
-                        if len(cache_loc) > antes:
-                            stats["locais_criados"] += 1
+                        if loc_id is not None:
+                            row_local_id = loc_id  # local conhecido → grão certo
+                        elif empresa_tem_locais:
+                            stats["linhas_local_desconhecido"] += 1  # guard ON → pula (b)
+                            continue
+                        # else: empresa nova (0 locais) → empresa-wide (row_local_id fica None)
+                # Agrupamento: só informativo (o grão é o local; local reusado já traz o seu
+                # agrupamento do cadastro). Não cria, não pula — conta desconhecido p/ simetria.
+                if c_agr:
+                    nome_agr = _norm_nome(row[c_agr])
+                    if nome_agr and (
+                        _find_or_create_agrupamento(
+                            session, empresa_id, nome_agr, cache_agr, criar=False
+                        )
+                        is None
+                    ):
+                        stats["linhas_agrupamento_desconhecido"] += 1
                 row_fonte_id = fonte_default_id
                 if c_fonte:
                     nome_fonte = _norm_nome(row[c_fonte])

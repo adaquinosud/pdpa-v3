@@ -61,7 +61,12 @@
       <li>{{ stats.duplicados }} duplicados (pulados)</li>
       <li>{{ stats.ignorados }} ignorados (sem texto nem nota)</li>
       {% if stats.erros %}<li class="text-rose-600">{{ stats.erros }} com erro de linha</li>{% endif %}
-      <li>{{ stats.agrupamentos_criados }} agrupamentos + {{ stats.locais_criados }} locais criados</li>
+      {% if stats.linhas_local_desconhecido %}
+      <li class="text-amber-700"><strong>{{ stats.linhas_local_desconhecido }}</strong> linha(s) com local desconhecido — puladas (cadastre o local e reimporte)</li>
+      {% endif %}
+      {% if stats.linhas_agrupamento_desconhecido %}
+      <li class="text-amber-600">{{ stats.linhas_agrupamento_desconhecido }} linha(s) com agrupamento desconhecido (o grão é o local; sem efeito)</li>
+      {% endif %}
       {% if stats.pessoas_vinculadas or stats.sem_identidade %}
       <li>{{ stats.pessoas_vinculadas }} pessoas vinculadas (interno consentido){% if stats.pessoas_merges %} · <strong>{{ stats.pessoas_merges }}</strong> fundida(s) com cliente já existente{% endif %}{% if stats.sem_identidade %} · {{ stats.sem_identidade }} linha(s) sem identidade{% endif %}</li>
       {% endif %}

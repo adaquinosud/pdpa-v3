@@ -330,3 +330,75 @@ def test_rota_modelo_empresa_sem_locais_sem_dropdown(client_loyall, db_session):
     tipos = [dv.type for dv in wb["verbatins"].data_validations.dataValidation]
     assert "list" not in tipos  # sem dropdown (sem locais/agrupamentos)
     assert "whole" in tipos and "date" in tipos  # rating/data seguem travados
+
+
+# ── Fatia 2: guard do backend (import não cria local/agrupamento desconhecido) ─
+
+
+def test_guard_local_desconhecido_pula(db_session, tmp_path):
+    """Empresa COM locais: local preenchido-e-inexistente PULA a linha + conta no aviso;
+    NÃO cria o local (corrigível: cadastra + reimporta no grão certo)."""
+    from src.models.local import Local
+
+    e = _empresa(db_session, "EGuard")
+    db_session.add(Local(empresa_id=e, nome="Loja Centro"))
+    db_session.commit()
+    arq = _csv(
+        tmp_path,
+        [
+            {"texto": "boa", "rating": 5, "local": "Loja Centro"},  # conhecido → entra
+            {"texto": "ruim", "rating": 2, "local": "Loja Fantasma"},  # desconhecido → pula
+        ],
+    )
+    stats = importar_arquivo(arq, empresa_id=e)
+    assert stats["importados"] == 1 and stats["linhas_local_desconhecido"] == 1
+    v = db_session.query(Verbatim).filter_by(empresa_id=e).one()
+    loc = db_session.query(Local).filter_by(empresa_id=e, nome="Loja Centro").one()
+    assert v.local_id == loc.id  # a linha conhecida entrou no grão
+    assert db_session.query(Local).filter_by(empresa_id=e).count() == 1  # não criou o fantasma
+
+
+def test_guard_empresa_nova_cai_empresa_wide(db_session, tmp_path):
+    """Empresa nova (0 locais): guard OFF — local preenchido cai empresa-wide (importa,
+    não pula, não cria) — senão o 1º import nunca aconteceria."""
+    from src.models.local import Local
+
+    e = _empresa(db_session, "ENova")
+    arq = _csv(tmp_path, [{"texto": "oi", "rating": 4, "local": "Qualquer"}])
+    stats = importar_arquivo(arq, empresa_id=e)
+    assert stats["importados"] == 1 and stats["linhas_local_desconhecido"] == 0
+    v = db_session.query(Verbatim).filter_by(empresa_id=e).one()
+    assert v.local_id is None  # empresa-wide
+    assert db_session.query(Local).filter_by(empresa_id=e).count() == 0  # nada criado
+
+
+def test_guard_local_vazio_empresa_wide(db_session, tmp_path):
+    """Local VAZIO (mesmo com a empresa tendo locais) = empresa-wide legítimo — não pula."""
+    from src.models.local import Local
+
+    e = _empresa(db_session, "EVazio")
+    db_session.add(Local(empresa_id=e, nome="Loja X"))
+    db_session.commit()
+    arq = _csv(tmp_path, [{"texto": "sem local", "rating": 3, "local": ""}])
+    stats = importar_arquivo(arq, empresa_id=e)
+    assert stats["importados"] == 1 and stats["linhas_local_desconhecido"] == 0
+    v = db_session.query(Verbatim).filter_by(empresa_id=e).one()
+    assert v.local_id is None  # empresa-wide
+
+
+def test_guard_agrupamento_desconhecido_nao_pula(db_session, tmp_path):
+    """Agrupamento desconhecido NÃO pula (o grão é o local) — só conta no aviso; não cria."""
+    from src.models.agrupamento import Agrupamento
+    from src.models.local import Local
+
+    e = _empresa(db_session, "EAgr")
+    db_session.add(Local(empresa_id=e, nome="Loja Y"))
+    db_session.commit()
+    arq = _csv(
+        tmp_path,
+        [{"texto": "ok", "rating": 5, "local": "Loja Y", "agrupamento": "Fantasma"}],
+    )
+    stats = importar_arquivo(arq, empresa_id=e)
+    assert stats["importados"] == 1  # local conhecido → entra (não pula por agrupamento)
+    assert stats["linhas_agrupamento_desconhecido"] == 1
+    assert db_session.query(Agrupamento).filter_by(empresa_id=e).count() == 0  # não criou

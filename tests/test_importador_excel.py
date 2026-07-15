@@ -28,6 +28,13 @@ def _csv(tmp_path, rows, nome="t.csv"):
 
 def test_importa_mapeia_7_campos(client_loyall, db_session, tmp_path):
     e = _empresa(client_loyall, "imp7")
+    # Fatia 2: o import NÃO cria local/agrupamento — nascem no cadastro da empresa. Pré-cadastro
+    # do local que a planilha referencia, pra o import achar e ligar (fluxo real).
+    ag = Agrupamento(empresa_id=e["id"], nome="Suporte N1")
+    db_session.add(ag)
+    db_session.flush()
+    db_session.add(Local(empresa_id=e["id"], nome="CSC Campinas", agrupamento_id=ag.id))
+    db_session.commit()
     p = _csv(
         tmp_path,
         [
@@ -43,7 +50,7 @@ def test_importa_mapeia_7_campos(client_loyall, db_session, tmp_path):
         ],
     )
     stats = importar_arquivo(p, e["id"], disparar_pos=False)
-    assert stats["importados"] == 1
+    assert stats["importados"] == 1 and stats["linhas_local_desconhecido"] == 0
     cols = stats["colunas_detectadas"]
     for campo in ("texto", "data", "rating", "review_id", "agrupamento", "local", "fonte"):
         assert cols[campo] is not None, campo
@@ -53,9 +60,8 @@ def test_importa_mapeia_7_campos(client_loyall, db_session, tmp_path):
     assert v.texto == "demorou demais" and v.tem_texto is True
     assert v.rating == 5 and v.review_id_externo == "TCK-001"
     assert v.data_criacao_original is not None
-    ag = db_session.query(Agrupamento).filter_by(empresa_id=e["id"], nome="Suporte N1").one()
     loc = db_session.query(Local).filter_by(empresa_id=e["id"], nome="CSC Campinas").one()
-    assert v.local_id == loc.id and loc.agrupamento_id == ag.id  # local ligado ao agrupamento
+    assert v.local_id == loc.id and loc.agrupamento_id == ag.id  # ligado ao local cadastrado
     assert db_session.get(Fonte, v.fonte_id).url == "CSAT SD"  # fonte da coluna, não a default
 
 
@@ -84,23 +90,29 @@ def test_dedup_por_review_id(client_loyall, db_session, tmp_path):
     assert s2["importados"] == 0 and s2["duplicados"] == 2  # reimport idempotente
 
 
-def test_resolve_or_create_e_reuso_sem_mover(client_loyall, db_session, tmp_path):
+def test_reusa_local_existente_sem_criar_nem_mover(client_loyall, db_session, tmp_path):
+    """Fatia 2: o import REUSA o local cadastrado (case-insensitive) sem mover de
+    agrupamento e SEM criar nada — agrupamento desconhecido (Fila B) não é criado, só
+    contado no aviso (o grão é o local)."""
     e = _empresa(client_loyall, "imprc")
-    p1 = _csv(tmp_path, [{"texto": "a", "fila": "Fila A", "origem": "Loja L"}], "p1.csv")
-    importar_arquivo(p1, e["id"], disparar_pos=False)
-    db_session.expire_all()
-    loc = db_session.query(Local).filter_by(empresa_id=e["id"], nome="Loja L").one()
-    ag_a = db_session.query(Agrupamento).filter_by(empresa_id=e["id"], nome="Fila A").one()
-    assert loc.agrupamento_id == ag_a.id
+    ag_a = Agrupamento(empresa_id=e["id"], nome="Fila A")
+    db_session.add(ag_a)
+    db_session.flush()
+    db_session.add(Local(empresa_id=e["id"], nome="Loja L", agrupamento_id=ag_a.id))
+    db_session.commit()
 
-    # mesmo local (case-insensitive) sob OUTRA fila → reusa sem mover; cria Fila B
+    # mesmo local (case-insensitive) sob OUTRA fila (Fila B, não cadastrada)
     p2 = _csv(tmp_path, [{"texto": "b", "fila": "Fila B", "origem": "LOJA L"}], "p2.csv")
-    importar_arquivo(p2, e["id"], disparar_pos=False)
+    stats = importar_arquivo(p2, e["id"], disparar_pos=False)
     db_session.expire_all()
     locs = db_session.query(Local).filter_by(empresa_id=e["id"]).all()
     assert len(locs) == 1  # não duplicou o local
     assert locs[0].agrupamento_id == ag_a.id  # continua em Fila A (não moveu)
-    assert db_session.query(Agrupamento).filter_by(empresa_id=e["id"], nome="Fila B").count() == 1
+    # Fila B (desconhecida) NÃO foi criada — só contada
+    assert db_session.query(Agrupamento).filter_by(empresa_id=e["id"], nome="Fila B").count() == 0
+    assert stats["linhas_agrupamento_desconhecido"] == 1
+    v = db_session.query(Verbatim).filter_by(empresa_id=e["id"]).one()
+    assert v.local_id == locs[0].id  # verbatim no grão do local cadastrado
 
 
 def test_fonte_find_or_create(client_loyall, db_session, tmp_path):
