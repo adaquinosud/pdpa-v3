@@ -118,7 +118,7 @@
          data-*, e a rota re-valida server-side). #}
       <form method="post" class="inline"
             action="{{ url_for('ui.pesquisa_apagar', empresa_id=empresa_id, pesquisa_id=p.id) }}"
-            onsubmit="return confirmarApagar(this, {{ p.n_respostas }}, '{{ p.status }}', {{ (p.titulo or '(sem título)')|tojson }})">
+            onsubmit="return confirmarApagar(this, {{ p.total_respostas }}, '{{ p.status }}', {{ (p.titulo or '(sem título)')|tojson }})">
         <input type="hidden" name="confirmar_titulo" value="">
         <button type="submit" title="Excluir pesquisa"
                 class="text-rose-600 hover:text-rose-700 hover:underline text-xs">excluir</button>

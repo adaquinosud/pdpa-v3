@@ -24,7 +24,6 @@ from src.pesquisa.persistencia import (
     aprovar,
     atualizar_pergunta,
     contar_respondentes,
-    contar_respostas,
     criar_rascunho,
     deletar_pergunta,
     listar,
@@ -91,10 +90,9 @@ def pesquisas_lista(empresa_id):
                 "titulo": p.titulo,
                 "natureza": p.natureza,
                 "status": p.status,
-                "n_respostas": contar_respostas(s, p.id),  # governa a proteção da exclusão
                 "total_respostas": contar_respondentes(
                     s, p.id
-                ),  # nº de quem respondeu (2 propósitos)
+                ),  # nº de quem respondeu (2 propósitos) — governa também a proteção da exclusão
                 "tem_pendente": tem_pendente_processamento(
                     s, p.id
                 ),  # texto sem embedding → pós-coleta
@@ -246,7 +244,9 @@ def pesquisa_apagar(empresa_id, pesquisa_id):
         if erro:
             return erro
         # Confirmação forte: pronta COM respostas exige o título exato (padrão GitHub).
-        n_resp = contar_respostas(s, pesquisa_id)
+        # contar_respondentes (não contar_respostas, que é 0 na coleta → deixava apagar
+        # pesquisa de coleta cheia sem a confirmação forte).
+        n_resp = contar_respondentes(s, pesquisa_id)
         if pesq.status != "rascunho" and n_resp > 0:
             confirmado = (request.form.get("confirmar_titulo") or "").strip()
             if confirmado != (pesq.titulo or "").strip():

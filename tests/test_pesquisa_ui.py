@@ -421,6 +421,31 @@ def test_apagar_pronta_com_respostas_exige_titulo(client_loyall, db_session):
     assert contar_respostas(db_session, pid) == 0  # cascata levou as respostas
 
 
+def test_apagar_coleta_com_respondentes_exige_titulo(client_loyall, db_session):
+    """Fix coleta-blind: pesquisa de COLETA com respondentes (mas Resposta=0, pois coleta
+    grava Verbatim) AINDA exige a confirmação forte — antes contar_respostas=0 deixava
+    apagar direto. A proteção agora usa contar_respondentes."""
+    from src.models.respondente import Respondente
+    from src.pesquisa.persistencia import contar_respondentes, contar_respostas
+
+    e = _empresa(client_loyall, "EUIapgColeta")
+    pid = _seed(db_session, e, [_q(1, "Como foi?")])  # título "T"
+    pesq = obter(db_session, pid)
+    pesq.status = "pronta"
+    db_session.add(Respondente(pesquisa_id=pid, entidade_tipo="empresa"))  # coleta: sem Resposta
+    db_session.commit()
+    assert contar_respostas(db_session, pid) == 0 and contar_respondentes(db_session, pid) == 1
+
+    # título errado → NÃO apaga (proteção dispara agora)
+    client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/apagar", data={"confirmar_titulo": "errado"})
+    db_session.expire_all()
+    assert obter(db_session, pid) is not None  # sobreviveu
+    # título exato → apaga
+    client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/apagar", data={"confirmar_titulo": "T"})
+    db_session.expire_all()
+    assert obter(db_session, pid) is None
+
+
 def test_apagar_cross_empresa_bloqueado(client_loyall, db_session):
     """Bug B fechado NESTA rota: pesquisa da empresa A, URL com empresa B → 404, não apaga."""
     a = _empresa(client_loyall, "EUIapgA")
