@@ -638,7 +638,16 @@ def pesquisa_publica(token):
                 s, email=email, id_cliente=codigo, nome=nome, origem="pesquisa_web"
             )
 
-        registrar_respostas(s, pesq, escopo=escopo, pessoa_id=pessoa_id, respostas=respostas)
+        # Canal WEB: trava de reenvio — mesma pessoa identificada reenviando = substitui a
+        # anterior (Excel histórico não passa o flag → mantém trajetória).
+        registrar_respostas(
+            s,
+            pesq,
+            escopo=escopo,
+            pessoa_id=pessoa_id,
+            respostas=respostas,
+            substituir_reenvio=True,
+        )
     return render_template(tmpl, obrigado=True)
 
 

@@ -33,6 +33,7 @@ def registrar_respostas(
     respostas: List[Dict[str, Any]],
     conector: str = "pesquisa_web",
     data_resposta: Optional[datetime] = None,
+    substituir_reenvio: bool = False,
 ) -> Respondente:
     """Cria o Respondente + grava as respostas pelo propósito da pesquisa.
 
@@ -48,7 +49,36 @@ def registrar_respostas(
             planilha de respostas passadas). ``None`` (web ao vivo) → usa o momento do
             envio (``respondente.criado_em``). CRÍTICO no import histórico: sem ela, todo
             o histórico colapsaria no mês do upload e a série temporal mentiria.
+        substituir_reenvio: trava de REENVIO (só canal WEB). Cada onda é uma pesquisa
+            nova, então mesma pessoa IDENTIFICADA respondendo a mesma pesquisa = reenvio
+            (ela corrigiu) → o novo SUBSTITUI o anterior. No Excel (histórico) é ``False``:
+            duas linhas da mesma pessoa são momentos legítimos, mantém as duas.
     """
+    # Trava de reenvio (web, identificado): apaga o(s) respondente(s) anterior(es) de
+    # (pesquisa, pessoa) ANTES de gravar o novo. Mesma transação → atômico (se o insert
+    # abaixo falhar, o rollback restaura o antigo). Anônimo (pessoa_id NULL) = sem trava.
+    if substituir_reenvio and pessoa_id is not None:
+        old_ids = [
+            r_id
+            for (r_id,) in s.query(Respondente.id).filter(
+                Respondente.pesquisa_id == pesquisa.id,
+                Respondente.pessoa_id == pessoa_id,
+            )
+        ]
+        if old_ids:
+            # ORDEM: verbatins ANTES do respondente. Verbatim.respondente_id é SET NULL —
+            # apagar o respondente primeiro orfanaria os verbatins VIVOS (respondente_id
+            # NULL, ainda contando no diagnóstico). Apagar o verbatim cascateia
+            # verbatim_temas/embeddings/reclassificações (FK CASCADE).
+            s.query(Verbatim).filter(Verbatim.respondente_id.in_(old_ids)).delete(
+                synchronize_session=False
+            )
+            # Apagar o respondente cascateia a Resposta (confronto) — FK CASCADE.
+            s.query(Respondente).filter(Respondente.id.in_(old_ids)).delete(
+                synchronize_session=False
+            )
+            s.flush()
+
     entidade_tipo, entidade_id = escopo
     respondente = Respondente(
         pesquisa_id=pesquisa.id,

@@ -574,3 +574,153 @@ def test_valida_sem_unidade_multiloja_erro(client_loyall, db_session):
     assert r.status_code == 400 and "Obrigado" not in body
     assert "Qual unidade?" in body
     assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 0
+
+
+# ── Trava de reenvio (canal WEB, identificado) ───────────────────────────────
+
+
+def test_reenvio_web_identificado_substitui(db_session):
+    """Web + pessoa identificada: reenviar SUBSTITUI — apaga o respondente anterior + seus
+    verbatins (e temas/embeddings via cascade), sem deixar órfão; grava o novo."""
+    from src.models.temas import Tema, VerbatimEmbedding, VerbatimTema
+
+    p, q = _pesquisa_pronta(db_session, "EReenvio", "coleta", token="tok-re")
+    pessoa = Pessoa(tipo="interno_consentido", nome_display="Ana")
+    db_session.add(pessoa)
+    db_session.flush()
+
+    # 1º envio (nota 2)
+    r1 = registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=pessoa.id,
+        respostas=[_resp(q.id, "resposta antiga", 2)],
+        substituir_reenvio=True,
+    )
+    db_session.commit()
+    v1 = db_session.query(Verbatim).filter_by(respondente_id=r1.id).one()
+    # temiza + embedda o verbatim antigo (prova o cascade)
+    tema = Tema(empresa_id=p.empresa_id, nome="T", slug="t", ativo=True)
+    db_session.add(tema)
+    db_session.flush()
+    db_session.add(VerbatimTema(verbatim_id=v1.id, tema_id=tema.id, confianca=0.9, origem="llm"))
+    db_session.add(VerbatimEmbedding(verbatim_id=v1.id, modelo="m", vetor=b"\x00\x01"))
+    db_session.commit()
+    # Expunge os objetos antigos: o SQLite REUSA o PK após o delete (id=1 de novo), e o
+    # identity map colidiria com r1/v1 stale (em Postgres/prod ids não se reusam → n/a).
+    db_session.expunge(r1)
+    db_session.expunge(v1)
+
+    # 2º envio (nota 5) — substitui
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=pessoa.id,
+        respostas=[_resp(q.id, "resposta nova", 5)],
+        substituir_reenvio=True,
+    )
+    db_session.commit()
+
+    # 1 respondente e 1 verbatim — o NOVO venceu (rating 5, texto novo); antigo apagado.
+    # Asserções por CONTEÚDO/contagem (não por id — o SQLite reusa o PK).
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 1
+    vs = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).all()
+    assert len(vs) == 1 and vs[0].rating == 5 and vs[0].texto == "resposta nova"
+    assert vs[0].respondente_id is not None  # ligado ao respondente novo
+    # os filhos do verbatim ANTIGO foram apagados no cascade (só ele tinha; o novo não):
+    assert db_session.query(VerbatimTema).count() == 0
+    assert db_session.query(VerbatimEmbedding).count() == 0
+    # nenhum verbatim órfão (respondente_id NULL)
+    assert db_session.query(Verbatim).filter(Verbatim.respondente_id.is_(None)).count() == 0
+
+
+def test_reenvio_web_anonimo_nao_substitui(db_session):
+    """Anônimo (pessoa_id NULL): sem chave pra saber quem é → N respondentes, sem trava."""
+    p, q = _pesquisa_pronta(db_session, "EAnonRe", "coleta", anonima=True, token="tok-an")
+    for nota in (2, 5, 3):
+        registrar_respostas(
+            db_session,
+            p,
+            escopo=("empresa", None),
+            pessoa_id=None,
+            respostas=[_resp(q.id, "", nota)],
+            substituir_reenvio=True,
+        )
+    db_session.commit()
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 3
+
+
+def test_reenvio_excel_mantem_todas(db_session):
+    """Excel histórico (substituir_reenvio=False): mesma pessoa em 2 momentos = trajetória,
+    mantém as duas (não substitui)."""
+    p, q = _pesquisa_pronta(db_session, "EExcelRe", "coleta", token="tok-ex")
+    pessoa = Pessoa(tipo="interno_consentido", nome_display="Beto")
+    db_session.add(pessoa)
+    db_session.flush()
+    for nota in (2, 5):
+        registrar_respostas(
+            db_session,
+            p,
+            escopo=("empresa", None),
+            pessoa_id=pessoa.id,
+            respostas=[_resp(q.id, "", nota)],
+            conector="pesquisa_excel",  # sem o flag
+        )
+    db_session.commit()
+    assert (
+        db_session.query(Respondente).filter_by(pesquisa_id=p.id, pessoa_id=pessoa.id).count() == 2
+    )
+
+
+def test_reenvio_atomico_insert_falha_preserva_antigo(db_session):
+    """Atomicidade: se o insert do novo falhar (aqui: escopo inválido viola o CHECK), o
+    rollback restaura o antigo — não perde os dois."""
+    import pytest
+
+    p, q = _pesquisa_pronta(db_session, "EAtom", "coleta", token="tok-at")
+    pessoa = Pessoa(tipo="interno_consentido", nome_display="Cris")
+    db_session.add(pessoa)
+    db_session.flush()
+    r1 = registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=pessoa.id,
+        respostas=[_resp(q.id, "", 2)],
+        substituir_reenvio=True,
+    )
+    db_session.commit()
+
+    with pytest.raises(Exception):
+        registrar_respostas(
+            db_session,
+            p,
+            escopo=("INVALIDO", None),
+            pessoa_id=pessoa.id,  # viola o CHECK
+            respostas=[_resp(q.id, "", 5)],
+            substituir_reenvio=True,
+        )
+    db_session.rollback()
+    # o delete do antigo rolou junto no rollback → antigo preservado
+    assert db_session.get(Respondente, r1.id) is not None
+    assert db_session.query(Respondente).filter_by(pesquisa_id=p.id).count() == 1
+
+
+def test_rota_reenvio_carimbado_substitui(client_loyall, db_session):
+    """Rota real /p/<token>: mesma pessoa (carimbo ?c=) responde 2x → substitui (1
+    respondente). Prova a fiação web → substituir_reenvio=True."""
+    p, q = _pesquisa_pronta(db_session, "ERotaRe", "coleta", anonima=False, token="tok-rr")
+    db_session.commit()
+    for nota in ("2", "5"):
+        r = client_loyall.post(
+            "/p/tok-rr?c=CRM-77",
+            data={f"q_{q.id}_texto": "", f"q_{q.id}_nota": nota, "c": "CRM-77"},
+        )
+        assert r.status_code == 200
+    # 1 respondente (o reenvio substituiu), e a resposta que ficou é a última (nota 5)
+    resps = db_session.query(Respondente).filter_by(pesquisa_id=p.id).all()
+    assert len(resps) == 1
+    vs = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).all()
+    assert len(vs) == 1 and vs[0].rating == 5  # última venceu
