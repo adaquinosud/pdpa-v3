@@ -1279,11 +1279,97 @@ def test_gargalo_de_agg():
     from src.governanca.metricas import gargalo_de_agg
 
     agg = {
-        "P1": {"prom": 10, "det": 40, "conv": 0, "total": 50, "ratio": 0.25},  # P baixo
-        "D1": {"prom": 50, "det": 5, "conv": 0, "total": 55, "ratio": 9.99},  # D alto
+        "P1": {"prom": 10, "det": 40, "conv": 0, "total": 50, "ratio": 0.25},  # P crítico
+        "D1": {"prom": 50, "det": 5, "conv": 0, "total": 55, "ratio": 9.99},  # D saudável
     }
     g, r = gargalo_de_agg(agg)
-    assert g == "P"  # menor ratio = gargalo
+    assert g == "P"  # P é o primeiro (e único) crítico
+
+
+def _agg_pilares(**pilar_ratio):
+    """agg de 1 subpilar por pilar com o ratio-alvo (via det=100, prom=round(r*100));
+    r>=9.99 satura (det=0). Só prom/det importam pra regra do gargalo."""
+    from src.api.painel import calcular_ratio
+
+    cod = {"P": "P1", "D": "D1", "Pa": "Pa1", "A": "A1"}
+    agg = {}
+    for pil, r in pilar_ratio.items():
+        if r >= 9.99:
+            prom, det = 50, 0  # calcular_ratio(_,0)=9.99
+        else:
+            prom, det = round(r * 100), 100
+        agg[cod[pil]] = {
+            "prom": prom,
+            "det": det,
+            "conv": 0,
+            "total": prom + det,
+            "ratio": calcular_ratio(prom, det),
+        }
+    return agg
+
+
+def test_gargalo_sequencial_club_med():
+    """PROVA Club Med (ratios de prod): P0.86 fraco · D0.34 crítico · Pa9.99 · A5.91.
+    Regra VELHA (min) = D (0.34 é o menor). Regra NOVA = D (primeiro crítico; P a 0.86
+    é fraco, mas o crítico tem precedência). Tem que continuar Disponibilidade."""
+    from src.api.painel import gargalo_sequencial
+    from src.diagnostico.leituras import _gargalo
+    from src.governanca.metricas import gargalo_de_agg
+
+    agg = _agg_pilares(P=0.86, D=0.34, Pa=9.99, A=5.91)
+    assert gargalo_sequencial(agg) == "D"  # regra nova → Disponibilidade
+    assert _gargalo(agg) == "D"  # delega
+    assert gargalo_de_agg(agg)[0] == "D"  # delega
+
+
+def test_gargalo_sequencial_divergente():
+    """Onde min e sequencial DIVERGEM: P crítico 0.4 (primeiro) + A crítico 0.2 (menor,
+    último). min apontaria A; sequencial aponta P — o primeiro elo quebrado trava a
+    jornada, não o de menor ratio no fim dela."""
+    from src.api.painel import gargalo_sequencial
+
+    agg = _agg_pilares(P=0.4, D=3.0, Pa=3.0, A=0.2)
+    assert gargalo_sequencial(agg) == "P"  # não "A" (que é o menor)
+
+
+def test_gargalo_critico_tem_precedencia_sobre_fraco_anterior():
+    """Crítico manda sobre posição: P fraco 0.8 (antes) + D crítico 0.3 → D. O fraco
+    anterior NÃO assume enquanto houver crítico depois."""
+    from src.api.painel import gargalo_sequencial
+
+    agg = _agg_pilares(P=0.8, D=0.3, Pa=3.0, A=3.0)
+    assert gargalo_sequencial(agg) == "D"
+
+
+def test_gargalo_primeiro_fraco_quando_sem_critico():
+    """Sem nenhum crítico: assume o primeiro FRACO na ordem (Pa fraco 0.9, apesar de A
+    também fraco 0.7 depois)."""
+    from src.api.painel import gargalo_sequencial
+
+    agg = _agg_pilares(P=2.0, D=3.0, Pa=0.9, A=0.7)
+    assert gargalo_sequencial(agg) == "Pa"
+
+
+def test_gargalo_all_healthy_none():
+    """Nada abaixo de 1.0 → None (empresa saudável não tem gargalo; não inventar)."""
+    from src.api.painel import gargalo_sequencial
+    from src.governanca.metricas import gargalo_de_agg
+
+    agg = _agg_pilares(P=2.0, D=3.0, Pa=9.99, A=5.0)
+    assert gargalo_sequencial(agg) is None
+    assert gargalo_de_agg(agg) == (None, None)
+
+
+def test_gargalo_pilar_sem_pd_nao_conta():
+    """Pilar só com conversíveis (prom=det=0) não tem sinal P/D → não é gargalo, mesmo
+    que calcular_ratio(0,0)=0.0 pareça crítico."""
+    from src.api.painel import gargalo_sequencial
+
+    agg = {
+        "P1": {"prom": 0, "det": 0, "conv": 20, "total": 20, "ratio": 0.0},  # só conv
+        "D1": {"prom": 2, "det": 5, "conv": 0, "total": 7, "ratio": 0.4},  # crítico real
+    }
+    assert gargalo_sequencial(agg) == "D"  # P não conta (sem P/D)
 
 
 def test_compor_ordem_fixa_prefixo():

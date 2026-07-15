@@ -138,21 +138,12 @@ def resolver_escopo(s, modelo, empresa_id: int, ag_id=None, local_id=None) -> Di
 
 
 def _gargalo(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
-    """Pilar de menor ratio (agregado) entre os com volume — gargalo do Lastro."""
-    from src.api.painel import calcular_ratio
+    """Gargalo do Lastro — delega à regra canônica SEQUENCIAL (primeiro crítico na
+    ordem P→D→Pa→A; senão primeiro fraco; senão None). Fonte única em painel.py —
+    a regra antiga de "menor ratio" contradizia o cabeçalho sequencial do Lastro."""
+    from src.api.painel import gargalo_sequencial
 
-    por_pilar: Dict[str, Dict[str, int]] = {}
-    for sub, d in agg.items():
-        p = _pilar_de(sub)
-        x = por_pilar.setdefault(p, {"prom": 0, "det": 0})
-        x["prom"] += d["prom"]
-        x["det"] += d["det"]
-    ratios = {
-        p: calcular_ratio(x["prom"], x["det"])
-        for p, x in por_pilar.items()
-        if (x["prom"] + x["det"]) > 0
-    }
-    return min(ratios, key=ratios.get) if ratios else None
+    return gargalo_sequencial(agg)
 
 
 def loja_qualifica(s, empresa_id: int, local_id: int) -> bool:

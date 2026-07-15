@@ -296,24 +296,16 @@ def ordenar_acoes_cenario(agg, subpilares_alta):
 
 
 def gargalo_de_agg(agg):
-    """Pilar de MENOR ratio (entre os com volume) no agg — o gargalo do Lastro.
-    Retorna (pilar, ratio) ou (None, None)."""
-    from src.api.painel import PILAR_DE_SUBPILAR, calcular_ratio
+    """Gargalo do Lastro (pilar, ratio) — delega à regra canônica SEQUENCIAL de
+    painel.py (primeiro crítico na ordem P→D→Pa→A; senão primeiro fraco; senão None).
+    Fonte única: antes tinha uma 2ª cópia da regra "menor ratio", que voltaria a
+    divergir do Lastro se corrigíssemos só a de leituras.py."""
+    from src.api.painel import gargalo_sequencial, ratios_por_pilar
 
-    pil = {}
-    for sub, d in agg.items():
-        p = PILAR_DE_SUBPILAR.get(sub)
-        if not p:
-            continue
-        a = pil.setdefault(p, {"prom": 0, "det": 0, "total": 0})
-        a["prom"] += d["prom"]
-        a["det"] += d["det"]
-        a["total"] += d["total"]
-    ratios = {p: calcular_ratio(a["prom"], a["det"]) for p, a in pil.items() if a["total"] > 0}
-    if not ratios:
+    g = gargalo_sequencial(agg)
+    if g is None:
         return None, None
-    g = min(ratios, key=ratios.get)
-    return g, ratios[g]
+    return g, ratios_por_pilar(agg)[g]
 
 
 def compor_cenario(agg, subpilares_ordenados, n):

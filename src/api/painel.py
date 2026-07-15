@@ -434,6 +434,47 @@ def faixa_ratio(ratio: float) -> str:
     return FAIXAS_RATIO[-1][1]  # inalcançável: o último limite é inf
 
 
+def ratios_por_pilar(agg: Dict[str, Dict[str, Any]]) -> Dict[str, float]:
+    """Ratio P/D agregado por pilar, só para os pilares COM volume (prom+det>0).
+
+    Volume = prom+det (não ``total``): pilar só com conversíveis/inativos não tem
+    sinal P/D — ``calcular_ratio(0,0)`` daria 0.0 e o faria falso-crítico. ``agg`` =
+    ``{subpilar: {prom, det, …}}`` (saída de ``agregar_subpilares``)."""
+    por: Dict[str, Dict[str, int]] = {}
+    for sub, d in agg.items():
+        p = PILAR_DE_SUBPILAR.get(sub)
+        if not p:
+            continue
+        x = por.setdefault(p, {"prom": 0, "det": 0})
+        x["prom"] += d["prom"]
+        x["det"] += d["det"]
+    return {
+        p: calcular_ratio(x["prom"], x["det"]) for p, x in por.items() if (x["prom"] + x["det"]) > 0
+    }
+
+
+def gargalo_sequencial(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
+    """Gargalo do Lastro — regra SEQUENCIAL em duas camadas (definição de método).
+
+    A jornada P→D→Pa→A trava no primeiro elo QUEBRADO. O crítico tem PRECEDÊNCIA
+    sobre a posição (é a quebra que trava tudo); só na ausência de crítico o primeiro
+    fraco assume. Dentro de cada camada, o primeiro na ordem canônica:
+
+    1. primeiro pilar (com volume) CRÍTICO — ``ratio < 0.5``;
+    2. senão, primeiro pilar FRACO — ``0.5 ≤ ratio < 1.0``;
+    3. senão (nada abaixo de 1.0), ``None`` — nada quebrado, não há gargalo.
+
+    Limiares vêm de ``FAIXAS_RATIO`` (fonte única). Substitui a regra ANTIGA de
+    "menor ratio" (posicional-agnóstica), que contradizia o cabeçalho sequencial do
+    Lastro (ex.: Aconselhamento, último pilar, virava gargalo por ter o menor ratio)."""
+    ratios = ratios_por_pilar(agg)
+    criticos = [p for p in PILARES_ORDEM if p in ratios and ratios[p] < 0.5]
+    if criticos:
+        return criticos[0]
+    fracos = [p for p in PILARES_ORDEM if p in ratios and ratios[p] < 1.0]
+    return fracos[0] if fracos else None
+
+
 # ── Métricas consolidadas (Manual Cap. 4) ─────────────────────────────
 
 
