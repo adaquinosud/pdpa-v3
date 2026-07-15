@@ -101,6 +101,13 @@
     <a href="{{ url_for('ui.pesquisa_revisar', empresa_id=empresa_id, pesquisa_id=p.id) }}"
        class="text-loyall-700 hover:underline">{{ p.titulo or "(sem título)" }}</a>
     <span class="flex items-center gap-3">
+      {# Total de respostas (quem respondeu) — sempre visível. Selo condicional de pendência
+         de pós-coleta (verbatim com texto ainda sem embedding/tema). #}
+      <span class="text-loyall-400">{{ p.total_respostas }} resposta(s)</span>
+      {% if p.tem_pendente %}
+      <span class="text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 text-[11px]"
+            title="Há respostas com comentário ainda sem processar (temas). Dispare 'Reprocessar empresa' ou aguarde a rotina noturna.">⏳ aguardando processamento</span>
+      {% endif %}
       {% if p.status == 'pronta' %}
       <a href="{{ url_for('ui.pesquisa_respostas', empresa_id=empresa_id, pesquisa_id=p.id) }}"
          class="text-loyall-500 hover:underline text-xs">respostas →</a>

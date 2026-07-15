@@ -724,3 +724,77 @@ def test_rota_reenvio_carimbado_substitui(client_loyall, db_session):
     assert len(resps) == 1
     vs = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id).all()
     assert len(vs) == 1 and vs[0].rating == 5  # última venceu
+
+
+# ── Lista de pesquisas: total de respostas + selo de pendência de pós-coleta ──
+
+
+def test_total_respostas_conta_respondentes(db_session):
+    """Total = quem respondeu (Respondente), nos 2 propósitos — não Resposta (que é 0 na
+    coleta) nem verbatim (que é por-pergunta)."""
+    from src.pesquisa.persistencia import contar_respondentes
+
+    p, q = _pesquisa_pronta(db_session, "ETotal", "coleta", token="tok-tot")
+    for nota in (4, 5):
+        registrar_respostas(
+            db_session,
+            p,
+            escopo=("empresa", None),
+            pessoa_id=None,
+            respostas=[_resp(q.id, "comentario com bastante texto aqui", nota)],
+        )
+    db_session.commit()
+    assert contar_respondentes(db_session, p.id) == 2  # 2 pessoas (não 2×perguntas)
+
+
+def test_pendencia_texto_sem_embedding(db_session):
+    """Pendente = verbatim com texto sem embedding do MODELO_PADRAO; some ao embeddar."""
+    from src.models.temas import VerbatimEmbedding
+    from src.pesquisa.persistencia import tem_pendente_processamento
+    from src.temas.embeddings import MODELO_PADRAO
+
+    p, q = _pesquisa_pronta(db_session, "EPend", "coleta", token="tok-pe")
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(q.id, "comentario com bastante texto aqui", 4)],
+    )
+    db_session.commit()
+    assert tem_pendente_processamento(db_session, p.id) is True  # texto sem embedding
+    v = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id, tem_texto=True).one()
+    db_session.add(VerbatimEmbedding(verbatim_id=v.id, modelo=MODELO_PADRAO, vetor=b"\x00"))
+    db_session.commit()
+    assert tem_pendente_processamento(db_session, p.id) is False  # embeddado → processado
+
+
+def test_pendencia_ignora_rating_only(db_session):
+    """Rating-only (sem texto) nunca temiza → não conta como pendente."""
+    from src.pesquisa.persistencia import tem_pendente_processamento
+
+    p, q = _pesquisa_pronta(db_session, "ERO", "coleta", token="tok-ro")
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(q.id, "", 3)],  # nota-only
+    )
+    db_session.commit()
+    assert tem_pendente_processamento(db_session, p.id) is False
+
+
+def test_lista_mostra_total_e_selo(client_loyall, db_session):
+    """A tela de pesquisas mostra o total e o selo de pendência quando há texto sem embedding."""
+    p, q = _pesquisa_pronta(db_session, "EListaUI", "coleta", token="tok-li")
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=None,
+        respostas=[_resp(q.id, "comentario com bastante texto aqui", 4)],
+    )
+    db_session.commit()
+    html = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas").get_data(as_text=True)
+    assert "1 resposta(s)" in html and "aguardando processamento" in html

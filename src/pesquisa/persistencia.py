@@ -120,6 +120,47 @@ def contar_respostas(s, pesquisa_id: int) -> int:
     )
 
 
+def contar_respondentes(s, pesquisa_id: int) -> int:
+    """Total de RESPOSTAS = quem respondeu (Respondente). Funciona pros DOIS propósitos —
+    coleta (grava Verbatim) e confronto (grava Resposta) — ao contrário de
+    ``contar_respostas`` (só Resposta → 0 na coleta). É o número honesto pra tela."""
+    from sqlalchemy import func
+
+    from src.models.respondente import Respondente
+
+    return (
+        s.query(func.count(Respondente.id)).filter(Respondente.pesquisa_id == pesquisa_id).scalar()
+        or 0
+    )
+
+
+def tem_pendente_processamento(s, pesquisa_id: int) -> bool:
+    """True se a pesquisa tem verbatim COM TEXTO ainda sem embedding do MODELO_PADRAO —
+    aguardando o pós-coleta (temas). Marcador honesto de "coletado, não processado":
+    respostas-com-nota nascem classificadas (subpilar não-NULL), então ``subpilar_null``
+    daria ~0 e enganaria; o embedding faltando é o sinal real. Rating-only (sem texto)
+    nunca temiza → não conta como pendente."""
+    from src.models.respondente import Respondente
+    from src.models.temas import VerbatimEmbedding
+    from src.models.verbatim import Verbatim
+    from src.temas.embeddings import MODELO_PADRAO
+
+    tem_embedding = s.query(VerbatimEmbedding.verbatim_id).filter(
+        VerbatimEmbedding.modelo == MODELO_PADRAO
+    )
+    pendente = (
+        s.query(Verbatim.id)
+        .join(Respondente, Respondente.id == Verbatim.respondente_id)
+        .filter(
+            Respondente.pesquisa_id == pesquisa_id,
+            Verbatim.tem_texto.is_(True),
+            ~Verbatim.id.in_(tem_embedding),
+        )
+        .first()
+    )
+    return pendente is not None
+
+
 def apagar_pesquisa(s, pesquisa_id: int) -> Dict[str, int]:
     """Apaga a pesquisa e TODAS as dependências, em ordem (folhas→raiz).
 

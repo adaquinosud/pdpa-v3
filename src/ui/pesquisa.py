@@ -23,11 +23,13 @@ from src.pesquisa.persistencia import (
     apagar_pesquisa,
     aprovar,
     atualizar_pergunta,
+    contar_respondentes,
     contar_respostas,
     criar_rascunho,
     deletar_pergunta,
     listar,
     obter,
+    tem_pendente_processamento,
 )
 from src.pesquisa.validador import tem_bloqueio
 from src.ui import _require_loyall_html, loyall_required_ui, ui_bp
@@ -90,6 +92,12 @@ def pesquisas_lista(empresa_id):
                 "natureza": p.natureza,
                 "status": p.status,
                 "n_respostas": contar_respostas(s, p.id),  # governa a proteção da exclusão
+                "total_respostas": contar_respondentes(
+                    s, p.id
+                ),  # nº de quem respondeu (2 propósitos)
+                "tem_pendente": tem_pendente_processamento(
+                    s, p.id
+                ),  # texto sem embedding → pós-coleta
             }
             for p in listar(s, empresa_id)
         ]
