@@ -233,12 +233,19 @@ def regua_recorte(
                 {"pilar": pil, "nome": NOME_PILAR.get(pil, pil), "subpilares": subs_out}
             )
 
+    # Gargalo tag nos pilares (reusa o gargalo já computado pro Mapa) — a régua detalhada
+    # colapsa por pilar e abre o do gargalo por padrão (não recalcula, fonte única).
+    mapa = _mapa_lastro_pesquisa(valencia)
+    gargalo_pilar = next((c["pilar"] for c in mapa if c.get("gargalo")), None)
+    for pil_out in pilares_out:
+        pil_out["gargalo"] = pil_out["pilar"] == gargalo_pilar
+
     return {
         "base_regua": base_regua,  # respostas com subpilar (a nota — todas)
         "base_temas": len(
             verbatins_com_tema
         ),  # verbatins com comentário temizado (só quem escreveu)
-        "mapa_lastro": _mapa_lastro_pesquisa(valencia),  # 4 cards P→D→Pa→A + gargalo
+        "mapa_lastro": mapa,  # 4 cards P→D→Pa→A + gargalo
         "pilares": pilares_out,
     }
 

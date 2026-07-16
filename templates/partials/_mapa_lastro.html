@@ -13,7 +13,7 @@
 <div class="flex flex-wrap items-stretch gap-2 mb-4">
   {% for p in pilares %}
   {% set fc = fx.FCLASS[p.faixa] %}
-  <div class="flex-1 min-w-[190px] border rounded-lg p-3 {% if p.gargalo %}border-rose-400 ring-1 ring-rose-200{% else %}border-loyall-200{% endif %}">
+  <div class="flex-1 min-w-[150px] border rounded-lg p-3 {% if p.gargalo %}border-rose-400 ring-1 ring-rose-200{% else %}border-loyall-200{% endif %}">
     <div class="flex items-center justify-between">
       <span class="font-semibold text-loyall-800">{{ p.nome }}</span>
       {% if p.gargalo %}<span class="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">🚩 gargalo</span>{% endif %}
@@ -41,9 +41,9 @@
     <div class="mt-2 pt-2 border-t border-loyall-100 space-y-0.5">
       {% for sp in p.subpilares %}
       {% set sfc = fx.FCLASS[sp.faixa] %}
-      <div class="flex items-center justify-between text-xs text-loyall-600">
-        <span>{{ sp.subpilar }} · {{ sp.nome }}</span>
-        <span class="font-semibold {{ sfc.text }}">{{ '%.2f'|format(sp.ratio) }}</span>
+      <div class="flex items-center justify-between gap-1 text-xs text-loyall-600">
+        <span class="truncate" title="{{ sp.subpilar }} · {{ sp.nome }}">{{ sp.subpilar }} · {{ sp.nome }}</span>
+        <span class="font-semibold shrink-0 {{ sfc.text }}">{{ '%.2f'|format(sp.ratio) }}</span>
       </div>
       {% endfor %}
     </div>

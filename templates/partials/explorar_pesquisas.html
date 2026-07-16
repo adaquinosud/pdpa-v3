@@ -9,23 +9,31 @@
   <form method="get" action="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}">
     <input type="hidden" name="tab" value="pesquisas">
     <div class="bg-white border border-loyall-200 rounded p-4">
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-sm font-medium text-loyall-700">Pesquisas de coleta</p>
-        <button class="text-sm px-3 py-1 rounded bg-loyall-700 text-white hover:bg-loyall-800">
+        <button type="submit" class="text-sm px-3 py-1 rounded bg-loyall-700 text-white hover:bg-loyall-800">
           Aplicar
         </button>
       </div>
       {% if pesquisas.lista %}
-      <div class="space-y-1.5 max-h-72 overflow-y-auto">
-        {% for p in pesquisas.lista %}
-        <label class="flex items-center gap-2 text-sm text-loyall-700 cursor-pointer">
-          <input type="checkbox" name="pesquisas" value="{{ p.id }}"
-                 {% if p.marcada %}checked{% endif %}>
-          <span>{{ p.titulo }}</span>
-          <span class="text-xs text-loyall-400">· {{ p.total }} resposta(s){% if p.status != 'pronta' %} · {{ p.status }}{% endif %}</span>
-        </label>
-        {% endfor %}
-      </div>
+      {# Lista compacta: colapsável (<details> nativo). Recolhida quando já há recorte
+         aplicado (o consolidado é o foco); aberta quando nada aplicado (pra selecionar).
+         Recolher NÃO perde a seleção — os checkboxes seguem no DOM e vão no submit. #}
+      <details{% if not pesquisas.aplicado %} open{% endif %}>
+        <summary class="cursor-pointer select-none text-sm text-loyall-600 hover:text-loyall-800">
+          {{ pesquisas.lista|length }} pesquisa(s){% if pesquisas.selecionadas %} · {{ pesquisas.selecionadas|length }} marcada(s){% endif %}
+        </summary>
+        <div class="mt-2 space-y-1.5 max-h-72 overflow-y-auto">
+          {% for p in pesquisas.lista %}
+          <label class="flex items-center gap-2 text-sm text-loyall-700 cursor-pointer">
+            <input type="checkbox" name="pesquisas" value="{{ p.id }}"
+                   {% if p.marcada %}checked{% endif %}>
+            <span>{{ p.titulo }}</span>
+            <span class="text-xs text-loyall-400">· {{ p.total }} resposta(s){% if p.status != 'pronta' %} · {{ p.status }}{% endif %}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </details>
       {% else %}
       <p class="text-sm text-loyall-400">Nenhuma pesquisa de coleta nesta empresa.</p>
       {% endif %}
