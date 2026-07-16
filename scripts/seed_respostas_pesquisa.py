@@ -12,14 +12,19 @@ Por respondente:
     sorteada do banco DO SUBPILAR daquela pergunta (não de um banco único) — assim os
     comentários de um mesmo subpilar ficam coerentes entre si, formam cluster e viram
     tema. As NOTAS seguem aleatórias (não é ferida plantada — só tema que se agrupe).
-  - Anônimo (sem e-mail/consentimento).
+  - Identidade: por padrão anônimo (sem ?c=/email). Com ``--pct-identificados N`` (0-100),
+    N%% dos respondentes postam IDENTIFICADOS carimbando ``c=<id_cliente>`` no form (o mesmo
+    mecanismo do link ?c= real → passa por ``_reconciliar_pessoa`` → vira Pessoa). Os 6 IDs
+    de cruzamento fixos (CRUZA-01..05, TESTE-CRUZA) entram primeiro — os mesmos de um Excel a
+    importar, pra provar o cross-fonte na tela de pessoa. Trava de reenvio do endpoint: 1
+    resposta por pessoa/pesquisa (o volume extra dos CRUZA vem do Excel, não de repetir POST).
 
 TRAVA DE SEGURANÇA: lê a pesquisa no banco, imprime empresa (id + nome) + título e
 ABORTA se a empresa não for a esperada (default 18) — evita gerar lixo em empresa real.
 
 Uso (Render Shell ou local):
     python scripts/seed_respostas_pesquisa.py --token <token> --n 20 \
-        --base-url https://pdpa-web.onrender.com
+        --pct-identificados 80 --base-url https://pdpa-web.onrender.com
 
 Depois de gerar:
   (a) É preciso rodar o PÓS-COLETA — o verbatim de pesquisa-web nasce CRU (sem
@@ -118,6 +123,31 @@ _COMENTARIOS_POR_SUBPILAR = {
 
 _PROB_COMENTARIO = 0.75  # ~75% das respostas com comentário (o resto nota-only)
 
+# IDs de cruzamento FIXOS (os mesmos de um Excel a importar) — sempre que houver cota de
+# identificados, estes entram PRIMEIRO e garantidos. O cross-fonte (pesquisa + Excel) da
+# MESMA pessoa se prova na tela de pessoa; o volume extra deles vem do Excel (o endpoint
+# real tem trava de reenvio: 1 resposta por pessoa/pesquisa).
+_FIXOS_CRUZA = ["CRUZA-01", "CRUZA-02", "CRUZA-03", "CRUZA-04", "CRUZA-05", "TESTE-CRUZA"]
+
+
+def _planeja_identidades(n: int, pct_identificados: int, rng: random.Random):
+    """Decide, para cada um dos ``n`` respondentes, um ``id_cliente`` (identificado, carimbado
+    como ``?c=`` no POST) ou ``None`` (anônimo, comportamento de hoje).
+
+    ``n_ident = round(n * pct/100)``. Os IDs FIXOS de cruzamento entram primeiro (todos os 6
+    quando a cota comporta; senão os primeiros que couberem); o resto dos identificados usa
+    ``PESQ-2xx`` gerados. A lista é embaralhada (RNG semeado) pra não agrupar os identificados
+    no começo. ``pct=0`` → tudo ``None`` (idêntico ao seeder original)."""
+    pct = max(0, min(100, pct_identificados))
+    n_ident = round(n * pct / 100)
+    fixos = _FIXOS_CRUZA[:n_ident]  # todos os 6 quando n_ident >= 6
+    extras = [f"PESQ-{201 + i}" for i in range(max(0, n_ident - len(fixos)))]
+    codigos = fixos + extras  # len == n_ident, todos distintos
+    ids = codigos + [None] * (n - n_ident)
+    if n_ident:  # pct=0 → não toca o RNG (stream idêntico ao seeder original)
+        rng.shuffle(ids)
+    return ids
+
 
 def _carregar_pesquisa(token: str, empresa_esperada: int):
     """Lê a pesquisa pelo token, imprime empresa + título e aplica a trava. Devolve
@@ -203,23 +233,43 @@ def main() -> None:
     )
     ap.add_argument("--empresa", type=int, default=18, help="empresa esperada (trava)")
     ap.add_argument("--seed", type=int, default=None, help="semente do RNG (reprodutível)")
+    ap.add_argument(
+        "--pct-identificados",
+        type=int,
+        default=0,
+        help="0-100: %% de respondentes IDENTIFICADOS (?c=<id_cliente>). Default 0 = tudo "
+        "anônimo (comportamento original). Os 6 IDs de cruzamento entram primeiro.",
+    )
     args = ap.parse_args()
 
     _pid, titulo, perguntas, sub_por_pergunta = _carregar_pesquisa(args.token, args.empresa)
     n_nota = sum(1 for p in perguntas if (p.get("opcoes") or {}).get("tipo") == "nota")
     n_unidade = sum(1 for p in perguntas if (p.get("opcoes") or {}).get("tipo") == "unidade")
+    rng = random.Random(args.seed)
+    identidades = _planeja_identidades(args.n, args.pct_identificados, rng)
+    n_ident_plan = sum(1 for c in identidades if c is not None)
+    fixos_no_plano = [c for c in _FIXOS_CRUZA if c in identidades]
     print(f"  perguntas: {len(perguntas)} ({n_nota} de nota, {n_unidade} de unidade)")
     print(f"  vai gerar: {args.n} respondentes → {args.base_url}/p/{args.token}")
+    print(f"  identidade: {n_ident_plan} identificados (?c=) · {args.n - n_ident_plan} anônimos")
+    if fixos_no_plano:
+        print(
+            f"  IDs cruzamento: {', '.join(fixos_no_plano)} (1 resposta cada — volume vem do Excel)"
+        )
     print("──────────────────────────────────────────────────────\n")
 
-    rng = random.Random(args.seed)
     url = f"{args.base_url.rstrip('/')}/p/{args.token}"
     ok = 0
+    ok_ident = 0
+    ok_anon = 0
     tot_coment = 0
     tot_nota_only = 0
     falhas = []
     for i in range(args.n):
         form, nc, nn = _monta_form(perguntas, sub_por_pergunta, rng)
+        codigo = identidades[i]
+        if codigo:  # carimbo ?c= no form (mesmo caminho do link carimbado real)
+            form["c"] = codigo
         try:
             resp = requests.post(url, data=form, timeout=30, allow_redirects=False)
         except requests.RequestException as exc:  # rede/timeout
@@ -227,6 +277,8 @@ def main() -> None:
             continue
         if resp.status_code == 200:
             ok += 1
+            ok_ident += 1 if codigo else 0
+            ok_anon += 0 if codigo else 1
             tot_coment += nc
             tot_nota_only += nn
         else:
@@ -234,6 +286,8 @@ def main() -> None:
 
     print("── RELATÓRIO ─────────────────────────────────────────")
     print(f"  respondentes OK    : {ok}/{args.n}")
+    print(f"    identificados    : {ok_ident}  (viram Pessoa via ?c=<id_cliente>)")
+    print(f"    anônimos         : {ok_anon}")
     print(f"  verbatins (notas)  : {ok * n_nota}  (cada respondente = {n_nota} notas)")
     print(f"    com comentário   : {tot_coment}")
     print(f"    nota-only (vazio): {tot_nota_only}")
