@@ -1,0 +1,55 @@
+{% import 'partials/_faixas.html' as fx -%}
+{# Régua detalhada — por subpilar: nome + (enunciado) + valência + (temas | verbatins crus).
+   PARTIAL COMPARTILHADO: a tela de respostas v2 (pesquisa) e a tela de pessoa (Fatia 2) usam
+   o MESMO. Consome `pilares` (regua.pilares) + flags `com_enunciado`/`com_temas`. Pesquisa:
+   ambos True (enunciado como legenda + temas). Pessoa: ambos False (sem legenda; verbatins
+   crus no lugar dos temas — Fatia 2). Cores de `_faixas.html`. #}
+<div class="mt-3 space-y-6">
+  {% for pil in pilares %}
+  <div>
+    <h2 class="text-sm font-semibold text-loyall-700 uppercase tracking-wide">{{ pil.nome }}</h2>
+    <div class="mt-2 space-y-3">
+      {% for sp in pil.subpilares %}
+      <div class="bg-white border border-loyall-200 rounded p-4">
+        {# título = subpilar; enunciado = legenda (só pesquisa) #}
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-medium text-loyall-800">{{ sp.nome }}</p>
+            {% if com_enunciado %}<p class="text-xs text-loyall-400 mt-0.5">{{ sp.enunciado }}</p>{% endif %}
+          </div>
+          {% if sp.ratio is not none %}<div>{{ fx.faixa_badge(sp.faixa) }}</div>{% endif %}
+        </div>
+
+        {# valência — detrator · conversível · promotor (contagem). O conversível
+           aparece SEMPRE (diferencial de método: ninguém trata neutro). #}
+        <div class="mt-2 flex items-center gap-4 text-xs">
+          <span><span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1"></span>{{ sp.valencia.detrator }} detrator(es)</span>
+          <span><span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></span>{{ sp.valencia.conversivel }} conversível(is)</span>
+          <span><span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>{{ sp.valencia.promotor }} promotor(es)</span>
+        </div>
+
+        {% if com_temas %}
+        {# temas do subpilar (nome · volume + citação). Vazio = em-dash esmaecido
+           (perguntado, com nota, mas ninguém escreveu) — padrão do Painel/Diagnóstico. #}
+        {% if sp.temas %}
+        <ul class="mt-3 space-y-2">
+          {% for t in sp.temas %}
+          <li class="text-sm">
+            <span class="font-medium text-loyall-700">{{ t.nome }}</span>
+            <span class="text-loyall-400 text-xs">· {{ t.volume }}</span>
+            {% if t.citacao %}<p class="text-xs text-loyall-500 italic mt-0.5">“{{ t.citacao }}”</p>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mt-3 text-xs text-loyall-300" title="Subpilar perguntado e respondido, mas ninguém deixou comentário">— nenhum comentário neste subpilar</p>
+        {% endif %}
+        {% else %}
+        {# Fatia 2 (pessoa): verbatins crus por subpilar entram aqui. #}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
