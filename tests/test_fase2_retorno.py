@@ -564,3 +564,151 @@ def test_rota_pessoa_diagnostico(client_loyall, db_session):
     assert "Ana Lima" in html and "comentario da ana" in html and "Mapa de Lastro" in html
     # pessoa inexistente → 404
     assert client_loyall.get(f"/empresas/{e.id}/pessoas/999999/diagnostico").status_code == 404
+
+
+# ── Fatia A: motor do recorte por N pesquisas (consolidado + pessoas + recorte) ──
+
+
+def _resp(db_session, p, sub_q, nota, *, pessoa_id=None, texto=""):
+    """Um respondente na pesquisa p com 1 verbatim (subpilar via pergunta, valência via nota)."""
+    from src.pesquisa.coleta import registrar_respostas
+
+    registrar_respostas(
+        db_session,
+        p,
+        escopo=("empresa", None),
+        pessoa_id=pessoa_id,
+        respostas=[{"pergunta_id": sub_q.id, "texto": texto, "nota": nota, "opcao": None}],
+    )
+
+
+def test_regua_pesquisas_consolida_n_pesquisas(db_session):
+    """N pesquisas → um consolidado: os subpilares de TODAS entram (camada comum = subpilar),
+    total_respondentes soma, SEM enunciado (perguntas diferem entre pesquisas)."""
+    from src.pesquisa.retorno import regua_pesquisas
+
+    e = Empresa(nome="EConsolida")
+    db_session.add(e)
+    db_session.flush()
+    # p1 pergunta P1; p2 pergunta D1 (perguntas diferentes — camada comum é o subpilar)
+    p1, q1 = _pesquisa_coleta_subs(db_session, "EC-P1", ["P1"])
+    p2, q2 = _pesquisa_coleta_subs(db_session, "EC-D1", ["D1"])
+    for pp in (p1, p2):  # reamarra à mesma empresa (o helper cria uma por pesquisa)
+        pp.empresa_id = e.id
+    db_session.flush()
+    _resp(db_session, p1, q1["P1"], 5)
+    _resp(db_session, p1, q1["P1"], 1)
+    _resp(db_session, p2, q2["D1"], 3)
+    db_session.commit()
+
+    rec = regua_pesquisas(db_session, e.id, [p1.id, p2.id])
+    assert rec["total_respondentes"] == 3
+    assert sorted(rec["pesquisa_ids"]) == sorted([p1.id, p2.id])
+    subs = {sp["subpilar"] for pil in rec["pilares"] for sp in pil["subpilares"]}
+    assert subs == {"P1", "D1"}  # ambas as pesquisas consolidadas
+    assert [pil["pilar"] for pil in rec["pilares"]] == ["P", "D"]  # ordem canônica
+    p1_sp = next(sp for pil in rec["pilares"] for sp in pil["subpilares"] if sp["subpilar"] == "P1")
+    assert "enunciado" not in p1_sp  # com_enunciado=False
+    assert p1_sp["valencia"]["promotor"] == 1 and p1_sp["valencia"]["detrator"] == 1
+    assert rec["mapa_lastro"]  # Mapa presente
+
+
+def test_regua_pesquisas_guard_empresa_e_vazio(db_session):
+    """Guard de escopo: pesquisa de OUTRA empresa é descartada; nenhuma marcada → núcleo vazio."""
+    from src.pesquisa.retorno import regua_pesquisas
+
+    ea = Empresa(nome="EA")
+    eb = Empresa(nome="EB")
+    db_session.add_all([ea, eb])
+    db_session.flush()
+    pa, qa = _pesquisa_coleta_subs(db_session, "EA-P1", ["P1"])
+    pb, qb = _pesquisa_coleta_subs(db_session, "EB-P1", ["P1"])
+    pa.empresa_id = ea.id
+    pb.empresa_id = eb.id
+    db_session.flush()
+    _resp(db_session, pa, qa["P1"], 5)
+    _resp(db_session, pb, qb["P1"], 1)
+    db_session.commit()
+
+    # pede as duas, mas no escopo da empresa A → só pa entra (pb é de eb, descartada)
+    rec = regua_pesquisas(db_session, ea.id, [pa.id, pb.id])
+    assert rec["pesquisa_ids"] == [pa.id]
+    assert rec["total_respondentes"] == 1
+    # nada marcado → vazio (a tela mostra só a lista de seleção)
+    vazio = regua_pesquisas(db_session, ea.id, [])
+    assert vazio["pesquisa_ids"] == [] and vazio["total_respondentes"] == 0
+    assert vazio["pilares"] == []
+
+
+def test_pessoas_das_pesquisas_identificadas_e_anonimas(db_session):
+    """Lista as pessoas das pesquisas: identificadas ordenadas por volume desc (nome ·
+    nº verbatins · nº pesquisas), anônimas num bloco (contagem de respondentes + verbatins)."""
+    from src.pesquisa.retorno import pessoas_das_pesquisas
+
+    e = Empresa(nome="EPessoas")
+    db_session.add(e)
+    db_session.flush()
+    p1, q1 = _pesquisa_coleta_subs(db_session, "EP-1", ["P1"])
+    p2, q2 = _pesquisa_coleta_subs(db_session, "EP-2", ["D1"])
+    for pp in (p1, p2):
+        pp.empresa_id = e.id
+    db_session.flush()
+    ana = Pessoa(tipo="interno_consentido", nome_display="Ana")
+    bruno = Pessoa(tipo="interno_consentido", nome_display="Bruno")
+    db_session.add_all([ana, bruno])
+    db_session.flush()
+    # Ana: 2 verbatins em p1 + 1 em p2 → 3 verbatins, 2 pesquisas
+    _resp(db_session, p1, q1["P1"], 5, pessoa_id=ana.id)
+    _resp(db_session, p1, q1["P1"], 4, pessoa_id=ana.id)
+    _resp(db_session, p2, q2["D1"], 2, pessoa_id=ana.id)
+    # Bruno: 1 verbatim em p1 → 1 verbatim, 1 pesquisa
+    _resp(db_session, p1, q1["P1"], 3, pessoa_id=bruno.id)
+    # 2 respondentes anônimos em p1 (1 verbatim cada)
+    _resp(db_session, p1, q1["P1"], 1, pessoa_id=None)
+    _resp(db_session, p1, q1["P1"], 1, pessoa_id=None)
+    db_session.commit()
+
+    rec = pessoas_das_pesquisas(db_session, e.id, [p1.id, p2.id])
+    ids = rec["identificadas"]
+    assert [d["nome"] for d in ids] == ["Ana", "Bruno"]  # ordenado por volume desc
+    assert ids[0]["n_verbatins"] == 3 and ids[0]["n_pesquisas"] == 2
+    assert ids[1]["n_verbatins"] == 1 and ids[1]["n_pesquisas"] == 1
+    assert rec["anonimos"] == {"respondentes": 2, "verbatins": 2}  # bloco, não some do total
+
+
+def test_regua_pessoa_recorte_por_pesquisas(db_session):
+    """regua_pessoa: sem resp_ids = cross-fonte TOTAL (a pura); com resp_ids = só os verbatins
+    da pessoa naquelas pesquisas (o funil recorta a tela de pessoa — filtra em cima, filtra
+    embaixo)."""
+    from src.pesquisa.retorno import regua_pessoa
+
+    e = Empresa(nome="ERecorte")
+    db_session.add(e)
+    db_session.flush()
+    p1, q1 = _pesquisa_coleta_subs(db_session, "ER-1", ["P1"])
+    p2, q2 = _pesquisa_coleta_subs(db_session, "ER-2", ["D1"])
+    for pp in (p1, p2):
+        pp.empresa_id = e.id
+    db_session.flush()
+    ana = Pessoa(tipo="interno_consentido", nome_display="Ana")
+    db_session.add(ana)
+    db_session.flush()
+    _resp(db_session, p1, q1["P1"], 5, pessoa_id=ana.id)  # P1 via p1
+    _resp(db_session, p2, q2["D1"], 1, pessoa_id=ana.id)  # D1 via p2
+    db_session.commit()
+
+    # sem resp_ids → total cross-fonte (P1 + D1)
+    total = regua_pessoa(db_session, e.id, ana.id)
+    subs_total = {sp["subpilar"] for pil in total["pilares"] for sp in pil["subpilares"]}
+    assert subs_total == {"P1", "D1"} and total["total_verbatins"] == 2
+
+    # recorte por p1 → só P1 (o verbatim de p2 fica de fora)
+    resp_ids_p1 = [
+        r for (r,) in db_session.query(Respondente.id).filter(Respondente.pesquisa_id == p1.id)
+    ]
+    rec = regua_pessoa(db_session, e.id, ana.id, resp_ids=resp_ids_p1)
+    subs_rec = {sp["subpilar"] for pil in rec["pilares"] for sp in pil["subpilares"]}
+    assert subs_rec == {"P1"} and rec["total_verbatins"] == 1
+
+    # recorte vazio (nenhuma pesquisa daquela pessoa) → None (404)
+    assert regua_pessoa(db_session, e.id, ana.id, resp_ids=[]) is None

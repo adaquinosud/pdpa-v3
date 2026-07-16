@@ -317,12 +317,19 @@ def _fontes_da_pessoa(s, empresa_id: int, pessoa_id: int) -> List[str]:
     return sorted(labels)
 
 
-def regua_pessoa(s, empresa_id: int, pessoa_id: int) -> Optional[Dict[str, Any]]:
+def regua_pessoa(
+    s, empresa_id: int, pessoa_id: int, resp_ids: Optional[List[int]] = None
+) -> Optional[Dict[str, Any]]:
     """Régua v2 (recorte = PESSOA) — caller de ``regua_recorte``: filtro por
     ``pessoa_id == X`` (CROSS-FONTE: pesquisa + import + reviews) escopado à empresa,
     subpilares COM-DADO (a pessoa não tem perguntas), SEM temas (poucos verbatins),
     verbatins CRUS mascarados no lugar. ``None`` se a pessoa não tem verbatim nesta empresa
-    (guard de escopo → 404)."""
+    (guard de escopo → 404).
+
+    ``resp_ids`` (opcional): recorte por pesquisas — se dado, restringe ao subconjunto de
+    verbatins da pessoa cujo ``respondente_id`` está na lista (a tela de pessoa RECORTADA
+    pelo funil; "o que filtra em cima, filtra embaixo"). ``None`` = cross-fonte TOTAL (a
+    tela de pessoa pura, inalterada). Lista vazia → nenhum verbatim → ``None`` (404)."""
     from sqlalchemy import and_, func
 
     from src.models.pessoa import Pessoa
@@ -331,6 +338,8 @@ def regua_pessoa(s, empresa_id: int, pessoa_id: int) -> Optional[Dict[str, Any]]
     if pessoa is None:
         return None
     filtro = and_(Verbatim.pessoa_id == pessoa_id, Verbatim.empresa_id == empresa_id)
+    if resp_ids is not None:
+        filtro = and_(filtro, Verbatim.respondente_id.in_(resp_ids))
     total = s.query(func.count(Verbatim.id)).filter(filtro).scalar() or 0
     if total == 0:
         return None  # pessoa sem verbatim nesta empresa → escopo não confere
@@ -352,6 +361,109 @@ def regua_pessoa(s, empresa_id: int, pessoa_id: int) -> Optional[Dict[str, Any]]
         },
         "total_verbatins": total,
         **nucleo,
+    }
+
+
+def _resp_ids_das_pesquisas(
+    s, empresa_id: int, pesquisa_ids: List[int]
+) -> Tuple[List[int], List[int]]:
+    """(pesquisa_ids válidos DESTA empresa, resp_ids de todos os respondentes deles). Guard
+    de escopo: pesquisas de outra empresa são descartadas — o recorte nunca vaza empresa."""
+    if not pesquisa_ids:
+        return [], []
+    validos = [
+        pid
+        for (pid,) in s.query(Pesquisa.id).filter(
+            Pesquisa.id.in_(pesquisa_ids), Pesquisa.empresa_id == empresa_id
+        )
+    ]
+    if not validos:
+        return [], []
+    resp_ids = [r for (r,) in s.query(Respondente.id).filter(Respondente.pesquisa_id.in_(validos))]
+    return validos, resp_ids
+
+
+def regua_pesquisas(s, empresa_id: int, pesquisa_ids: List[int]) -> Dict[str, Any]:
+    """Régua v2 (recorte = N PESQUISAS consolidadas) — caller de ``regua_recorte``: junta os
+    respondentes de todas as pesquisas selecionadas (da empresa) e roda o motor. SEM enunciado
+    (pesquisas diferentes têm perguntas diferentes; a camada comum é o subpilar), subpilares
+    COM-DADO (não 'perguntados' — a estrutura difere entre pesquisas), COM temas (há volume).
+    Nenhuma pesquisa marcada / sem respondente → núcleo vazio (a tela mostra só a seleção)."""
+    validos, resp_ids = _resp_ids_das_pesquisas(s, empresa_id, pesquisa_ids)
+    nucleo = regua_recorte(
+        s,
+        filtro_verbatim=Verbatim.respondente_id.in_(resp_ids),
+        ativo=bool(resp_ids),
+        subpilares_fonte="com-dado",
+        com_temas=True,
+        com_enunciado=False,
+    )
+    return {
+        "pesquisa_ids": validos,
+        "total_respondentes": len(resp_ids),
+        **nucleo,
+    }
+
+
+def pessoas_das_pesquisas(s, empresa_id: int, pesquisa_ids: List[int]) -> Dict[str, Any]:
+    """Pessoas que responderam as pesquisas selecionadas (da empresa). Identificadas
+    (``pessoa_id`` não-nulo): lista de ``{pessoa_id, nome, n_verbatins, n_pesquisas}``
+    ordenada por nº de verbatins desc — clicável no funil. Anônimas (``pessoa_id`` nulo,
+    sem como abrir): um bloco consolidado ``{respondentes, verbatins}``.
+
+    ``n_pesquisas`` (NÃO 'fontes'): no universo pesquisa a fonte é por-pesquisa, então o
+    número honesto é de quantas das pesquisas selecionadas a pessoa participou — o cross-fonte
+    TOTAL é a tela de pessoa pura, acessada à parte."""
+    from sqlalchemy import distinct, func
+
+    validos, _ = _resp_ids_das_pesquisas(s, empresa_id, pesquisa_ids)
+    vazio = {"identificadas": [], "anonimos": {"respondentes": 0, "verbatins": 0}}
+    if not validos:
+        return vazio
+
+    # Um GROUP BY sobre os verbatins das pesquisas selecionadas: nº verbatins + nº pesquisas
+    # distintas por pessoa. pessoa_id NULL colapsa num só grupo (todos os anônimos juntos).
+    rows = (
+        s.query(
+            Verbatim.pessoa_id,
+            func.count(Verbatim.id),
+            func.count(distinct(Respondente.pesquisa_id)),
+        )
+        .join(Respondente, Respondente.id == Verbatim.respondente_id)
+        .filter(Respondente.pesquisa_id.in_(validos))
+        .group_by(Verbatim.pessoa_id)
+        .all()
+    )
+    identificadas: List[Dict[str, Any]] = []
+    anon_verbatins = 0
+    for pessoa_id, n_verb, n_pesq in rows:
+        if pessoa_id is None:
+            anon_verbatins += n_verb
+        else:
+            identificadas.append(
+                {"pessoa_id": pessoa_id, "n_verbatins": n_verb, "n_pesquisas": n_pesq}
+            )
+    # nomes numa tacada (evita N+1)
+    ids = [d["pessoa_id"] for d in identificadas]
+    nomes = (
+        {p.id: (p.nome_display or "(sem nome)") for p in s.query(Pessoa).filter(Pessoa.id.in_(ids))}
+        if ids
+        else {}
+    )
+    for d in identificadas:
+        d["nome"] = nomes.get(d["pessoa_id"], "(sem nome)")
+    identificadas.sort(key=lambda d: (-d["n_verbatins"], d["nome"]))
+
+    # nº de respondentes anônimos (distinct — não é o de verbatins): "N respondentes anônimos".
+    n_anon = (
+        s.query(func.count(distinct(Respondente.id)))
+        .filter(Respondente.pesquisa_id.in_(validos), Respondente.pessoa_id.is_(None))
+        .scalar()
+        or 0
+    )
+    return {
+        "identificadas": identificadas,
+        "anonimos": {"respondentes": n_anon, "verbatins": anon_verbatins},
     }
 
 
