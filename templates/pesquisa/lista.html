@@ -116,9 +116,15 @@
       {# Excluir (empresa-escopado): proteção graduada — rascunho/sem-respostas =
          confirm simples; pronta COM respostas = digitar o título (o JS decide pelos
          data-*, e a rota re-valida server-side). #}
+      {# Dados em data-* (escapados pelo Jinja no contexto de atributo) — o handler lê de
+         this.dataset, NUNCA interpola JS dentro do onsubmit (aspas do tojson estouravam
+         o atributo e matavam o handler → apagava sem confirmar / não apagava a pronta). #}
       <form method="post" class="inline"
             action="{{ url_for('ui.pesquisa_apagar', empresa_id=empresa_id, pesquisa_id=p.id) }}"
-            onsubmit="return confirmarApagar(this, {{ p.total_respostas }}, '{{ p.status }}', {{ (p.titulo or '(sem título)')|tojson }})">
+            data-nresp="{{ p.total_respostas }}"
+            data-status="{{ p.status }}"
+            data-titulo="{{ p.titulo or '(sem título)' }}"
+            onsubmit="return confirmarApagar(this)">
         <input type="hidden" name="confirmar_titulo" value="">
         <button type="submit" title="Excluir pesquisa"
                 class="text-rose-600 hover:text-rose-700 hover:underline text-xs">excluir</button>
@@ -131,7 +137,10 @@
   // Proteção graduada da exclusão. Rascunho OU sem respostas → confirm simples.
   // Pronta COM respostas → digitar o título exato (padrão GitHub) porque apaga dado
   // de cliente; o valor vai no hidden e a ROTA re-valida (defesa em profundidade).
-  function confirmarApagar(form, nResp, status, titulo) {
+  function confirmarApagar(form) {
+    var nResp = Number(form.dataset.nresp) || 0;
+    var status = form.dataset.status;
+    var titulo = form.dataset.titulo;
     if (status !== 'rascunho' && nResp > 0) {
       var t = prompt('Esta pesquisa tem ' + nResp + ' resposta(s) — apagar é '
         + 'IRREVERSÍVEL.\n\nDigite o título EXATO para confirmar:\n\n' + titulo);
