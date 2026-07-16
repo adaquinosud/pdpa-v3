@@ -147,7 +147,14 @@
     <ul class="text-sm space-y-1">
       {% for r in ret.respondentes %}
       <li class="flex justify-between">
-        <span>{{ r.nome }}</span><span class="text-loyall-400 text-xs">{{ r.escopo }}</span>
+        {# Identificado (com pessoa_id) → link pro diagnóstico da pessoa; anônimo fica sem. #}
+        {% if r.pessoa_id %}
+        <a href="{{ url_for('ui.pessoa_diagnostico', empresa_id=empresa_id, pessoa_id=r.pessoa_id) }}"
+           class="text-loyall-700 hover:underline">{{ r.nome }} →</a>
+        {% else %}
+        <span>{{ r.nome }}</span>
+        {% endif %}
+        <span class="text-loyall-400 text-xs">{{ r.escopo }}</span>
       </li>
       {% else %}
       <li class="text-loyall-400">Nenhum respondente ainda.</li>

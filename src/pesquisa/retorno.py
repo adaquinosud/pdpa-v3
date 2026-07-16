@@ -101,6 +101,7 @@ def regua_recorte(
     subpilares_fonte: str,
     com_temas: bool,
     com_enunciado: bool,
+    com_verbatins: bool = False,
     enunciado_por_sub: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """NÚCLEO GENÉRICO da régua v2 — recorte por pesquisa OU pessoa (Fatia 2). Opera sobre
@@ -112,6 +113,8 @@ def regua_recorte(
       estrutura da pesquisa) vs ``'com-dado'`` (os subpilares que TÊM valência — a pessoa).
     - ``com_temas``: agrega temas por subpilar (pesquisa) ou não (pessoa: poucos verbatins).
     - ``com_enunciado``: inclui o enunciado como legenda do subpilar (só pesquisa).
+    - ``com_verbatins``: anexa os TEXTOS crus (mascarados) por subpilar — a pessoa mostra os
+      comentários dela crus no lugar dos temas. Mutuamente exclusivo com ``com_temas``.
 
     Devolve o núcleo (``base_regua``, ``base_temas``, ``mapa_lastro``, ``pilares``); o caller
     acrescenta os metadados do recorte (pesquisa/pessoa)."""
@@ -167,6 +170,22 @@ def regua_recorte(
             t["_vids"].add(vid)
             verbatins_com_tema.add(vid)
 
+    # Verbatins CRUS por subpilar (só quando com_verbatins — a pessoa). Texto mascarado
+    # (identificador estruturado de terceiro; NOME preservado — regra travada 09/jul).
+    crus_por_sub: Dict[str, List[Dict[str, Any]]] = {}
+    if ativo and com_verbatins:
+        from src.utils.mascarar_pii import mascarar_identificadores
+
+        rows = (
+            s.query(Verbatim.subpilar, Verbatim.texto, Verbatim.tipo, Verbatim.rating)
+            .filter(filtro_verbatim, Verbatim.subpilar.isnot(None), Verbatim.tem_texto.is_(True))
+            .all()
+        )
+        for sub, texto, tipo, rating in rows:
+            crus_por_sub.setdefault(sub, []).append(
+                {"texto": mascarar_identificadores(texto), "tipo": tipo, "rating": rating}
+            )
+
     # Subpilares visíveis: 'perguntados' (estrutura da pesquisa) vs 'com-dado' (a pessoa).
     if subpilares_fonte == "perguntados":
         visiveis = set(enunciado_por_sub)
@@ -206,6 +225,8 @@ def regua_recorte(
                     ),
                     key=lambda x: -x["volume"],
                 )
+            if com_verbatins:
+                sub_dict["verbatins"] = crus_por_sub.get(sub, [])
             subs_out.append(sub_dict)
         if subs_out:
             pilares_out.append(
@@ -268,6 +289,68 @@ def regua_pesquisa(
             "proposito": pesq.proposito,
         },
         "total_respondentes": len(resp_ids),
+        **nucleo,
+    }
+
+
+def _fontes_da_pessoa(s, empresa_id: int, pessoa_id: int) -> List[str]:
+    """Rótulos das fontes de onde vêm os verbatins da pessoa nesta empresa (sem inventar —
+    só o que existe). Agrupa o ``conector_tipo`` da Fonte em nomes amigáveis."""
+    from src.models.fonte import Fonte
+
+    rotulo = {
+        "pesquisa_web": "pesquisa",
+        "pesquisa_excel": "pesquisa",
+        "excel_manual": "import",
+        "excel_interno": "import",
+        "google": "reviews",
+        "reclame_aqui": "reviews",
+    }
+    labels: set = set()
+    for (ct,) in (
+        s.query(Fonte.conector_tipo)
+        .join(Verbatim, Verbatim.fonte_id == Fonte.id)
+        .filter(Verbatim.pessoa_id == pessoa_id, Verbatim.empresa_id == empresa_id)
+        .distinct()
+    ):
+        labels.add(rotulo.get(ct, ct or "?"))
+    return sorted(labels)
+
+
+def regua_pessoa(s, empresa_id: int, pessoa_id: int) -> Optional[Dict[str, Any]]:
+    """Régua v2 (recorte = PESSOA) — caller de ``regua_recorte``: filtro por
+    ``pessoa_id == X`` (CROSS-FONTE: pesquisa + import + reviews) escopado à empresa,
+    subpilares COM-DADO (a pessoa não tem perguntas), SEM temas (poucos verbatins),
+    verbatins CRUS mascarados no lugar. ``None`` se a pessoa não tem verbatim nesta empresa
+    (guard de escopo → 404)."""
+    from sqlalchemy import and_, func
+
+    from src.models.pessoa import Pessoa
+
+    pessoa = s.get(Pessoa, pessoa_id)
+    if pessoa is None:
+        return None
+    filtro = and_(Verbatim.pessoa_id == pessoa_id, Verbatim.empresa_id == empresa_id)
+    total = s.query(func.count(Verbatim.id)).filter(filtro).scalar() or 0
+    if total == 0:
+        return None  # pessoa sem verbatim nesta empresa → escopo não confere
+
+    nucleo = regua_recorte(
+        s,
+        filtro_verbatim=filtro,
+        ativo=True,
+        subpilares_fonte="com-dado",
+        com_temas=False,
+        com_enunciado=False,
+        com_verbatins=True,
+    )
+    return {
+        "pessoa": {
+            "id": pessoa.id,
+            "nome": pessoa.nome_display or "(sem nome)",
+            "fontes": _fontes_da_pessoa(s, empresa_id, pessoa_id),
+        },
+        "total_verbatins": total,
         **nucleo,
     }
 
@@ -462,6 +545,7 @@ def retorno_pesquisa(
                 {
                     "nome": nome,
                     "escopo": _rotulo_escopo(s, r.entidade_tipo, r.entidade_id, cache_rot),
+                    "pessoa_id": r.pessoa_id,  # link p/ a tela da pessoa (None = anônimo, sem link)
                 }
             )
 

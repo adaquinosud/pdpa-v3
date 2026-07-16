@@ -431,3 +431,136 @@ def test_regua_mapa_lastro_agrega_por_pilar_e_gargalo(db_session):
     assert mapa["P"]["gargalo"] is True  # primeiro crítico
     assert mapa["D"]["ratio"] == 9.99 and mapa["D"]["gargalo"] is False
     assert mapa["P"]["total"] == 4 and mapa["P"]["subpilares"][0]["subpilar"] == "P1"
+
+
+# ── Fatia 2: diagnóstico por PESSOA (recorte cross-fonte, sem temas) ──────────
+
+
+def test_regua_pessoa_cross_fonte_verbatins_crus(db_session):
+    """O recorte por pessoa pega verbatins de TODAS as fontes (pesquisa + import), agrupa
+    por subpilar COM-DADO, mostra verbatins CRUS mascarados (sem temas) + o Mapa."""
+    from src.models.fonte import Fonte
+    from src.models.pessoa import Pessoa
+    from src.models.verbatim import Verbatim
+    from src.pesquisa.retorno import regua_pessoa
+
+    e = Empresa(nome="EPessoaX")
+    db_session.add(e)
+    db_session.flush()
+    pessoa = Pessoa(tipo="interno_consentido", nome_display="Maria Souza")
+    db_session.add(pessoa)
+    db_session.flush()
+    f_pesq = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="pesquisa_web",
+        url="P",
+    )
+    f_imp = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="excel_interno",
+        url="I",
+    )
+    db_session.add_all([f_pesq, f_imp])
+    db_session.flush()
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f_pesq.id,
+            pessoa_id=pessoa.id,
+            texto="atendimento otimo",
+            tem_texto=True,
+            subpilar="P1",
+            tipo="promotor",
+            rating=5,
+            hash_dedup="hp",
+        )
+    )
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f_imp.id,
+            pessoa_id=pessoa.id,
+            texto="produto com defeito, protocolo 123.456.789-00",
+            tem_texto=True,
+            subpilar="D1",
+            tipo="detrator",
+            rating=1,
+            hash_dedup="hi",
+        )
+    )
+    db_session.commit()
+
+    rec = regua_pessoa(db_session, e.id, pessoa.id)
+    assert rec is not None and rec["pessoa"]["nome"] == "Maria Souza"
+    assert set(rec["pessoa"]["fontes"]) == {"pesquisa", "import"}  # cross-fonte
+    assert rec["total_verbatins"] == 2
+    subs = {sp["subpilar"] for pil in rec["pilares"] for sp in pil["subpilares"]}
+    assert subs == {"P1", "D1"}  # só os com-dado
+    p1 = next(sp for pil in rec["pilares"] for sp in pil["subpilares"] if sp["subpilar"] == "P1")
+    assert "temas" not in p1 and p1["verbatins"][0]["texto"] == "atendimento otimo"
+    assert p1["verbatins"][0]["tipo"] == "promotor"
+    d1 = next(sp for pil in rec["pilares"] for sp in pil["subpilares"] if sp["subpilar"] == "D1")
+    assert "123.456.789-00" not in d1["verbatins"][0]["texto"]  # identificador mascarado
+    assert rec["mapa_lastro"]  # Mapa de Lastro presente
+
+
+def test_regua_pessoa_escopo_404(db_session):
+    """Pessoa sem verbatim NESTA empresa → None (a rota vira 404)."""
+    from src.models.pessoa import Pessoa
+    from src.pesquisa.retorno import regua_pessoa
+
+    e = Empresa(nome="EVazia")
+    db_session.add(e)
+    db_session.flush()
+    pessoa = Pessoa(tipo="interno_consentido", nome_display="Zé")
+    db_session.add(pessoa)
+    db_session.commit()
+    assert regua_pessoa(db_session, e.id, pessoa.id) is None
+
+
+def test_rota_pessoa_diagnostico(client_loyall, db_session):
+    """A rota /empresas/<id>/pessoas/<pessoa_id>/diagnostico mostra o verbatim cru; pessoa
+    sem verbatim → 404."""
+    from src.models.fonte import Fonte
+    from src.models.pessoa import Pessoa
+    from src.models.verbatim import Verbatim
+
+    e = Empresa(nome="ERota")
+    db_session.add(e)
+    db_session.flush()
+    pessoa = Pessoa(tipo="interno_consentido", nome_display="Ana Lima")
+    db_session.add(pessoa)
+    db_session.flush()
+    f = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="pesquisa_web",
+        url="P",
+    )
+    db_session.add(f)
+    db_session.flush()
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            pessoa_id=pessoa.id,
+            texto="comentario da ana",
+            tem_texto=True,
+            subpilar="P1",
+            tipo="promotor",
+            rating=5,
+            hash_dedup="ha",
+        )
+    )
+    db_session.commit()
+    html = client_loyall.get(f"/empresas/{e.id}/pessoas/{pessoa.id}/diagnostico").get_data(
+        as_text=True
+    )
+    assert "Ana Lima" in html and "comentario da ana" in html and "Mapa de Lastro" in html
+    # pessoa inexistente → 404
+    assert client_loyall.get(f"/empresas/{e.id}/pessoas/999999/diagnostico").status_code == 404

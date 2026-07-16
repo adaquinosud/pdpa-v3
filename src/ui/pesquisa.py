@@ -488,6 +488,24 @@ def pesquisa_respostas(empresa_id, pesquisa_id):
     )
 
 
+@ui_bp.route("/empresas/<int:empresa_id>/pessoas/<int:pessoa_id>/diagnostico")
+@loyall_required_ui
+def pessoa_diagnostico(empresa_id, pessoa_id):
+    """Diagnóstico por PESSOA (recorte fino CROSS-FONTE) — reusa o motor da régua v2
+    (regua_pessoa → regua_recorte). Mapa de Lastro + valência por subpilar + verbatins
+    crus (sem temas). Guard de escopo: pessoa sem verbatim nesta empresa → 404."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.pesquisa.retorno import regua_pessoa
+
+    with db_session() as s:
+        rec = regua_pessoa(s, empresa_id, pessoa_id)
+        if rec is None:  # pessoa inexistente ou sem verbatim nesta empresa
+            return render_template("404.html"), 404
+    return render_template("pesquisa/pessoa_diagnostico.html", rec=rec, empresa_id=empresa_id)
+
+
 @ui_bp.route(
     "/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/classificar-respostas",
     methods=["POST"],
