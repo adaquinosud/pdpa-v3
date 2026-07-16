@@ -1,0 +1,100 @@
+{# Aba "Pesquisas" — recorte por N pesquisas (funil até a pessoa). Três níveis:
+   N1 seleção (checkbox + Aplicar, form GET → ?pesquisas=…) · N2 consolidado (Mapa +
+   régua, partials COMPARTILHADOS reusados) · N3 pessoas (identificadas clicáveis +
+   bloco anônimo). Consome `pesquisas` (builder _explorar_pesquisas) + `eh_loyall`
+   (gate do link de pessoa — a tela de pessoa é loyall-only). #}
+<div class="max-w-3xl">
+
+  {# ── N1: seleção de pesquisas ─────────────────────────────────────────── #}
+  <form method="get" action="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}">
+    <input type="hidden" name="tab" value="pesquisas">
+    <div class="bg-white border border-loyall-200 rounded p-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm font-medium text-loyall-700">Pesquisas de coleta</p>
+        <button class="text-sm px-3 py-1 rounded bg-loyall-700 text-white hover:bg-loyall-800">
+          Aplicar
+        </button>
+      </div>
+      {% if pesquisas.lista %}
+      <div class="space-y-1.5 max-h-72 overflow-y-auto">
+        {% for p in pesquisas.lista %}
+        <label class="flex items-center gap-2 text-sm text-loyall-700 cursor-pointer">
+          <input type="checkbox" name="pesquisas" value="{{ p.id }}"
+                 {% if p.marcada %}checked{% endif %}>
+          <span>{{ p.titulo }}</span>
+          <span class="text-xs text-loyall-400">· {{ p.total }} resposta(s){% if p.status != 'pronta' %} · {{ p.status }}{% endif %}</span>
+        </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-loyall-400">Nenhuma pesquisa de coleta nesta empresa.</p>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if not pesquisas.aplicado %}
+  <p class="mt-4 text-sm text-loyall-400">
+    Marque uma ou mais pesquisas e clique em <strong>Aplicar</strong> para ver o consolidado.
+  </p>
+  {% else %}
+    {% set c = pesquisas.consolidado %}
+
+    {# ── N2: consolidado das pesquisas aplicadas ────────────────────────── #}
+    {% if c.pilares %}
+    <div class="mt-6">
+      <p class="text-xs text-loyall-500">
+        Consolidado de <strong>{{ c.pesquisa_ids|length }}</strong> pesquisa(s) ·
+        <strong>{{ c.total_respondentes }}</strong> respondente(s) ·
+        Régua: <strong>{{ c.base_regua }}</strong> com nota ·
+        Temas: <strong>{{ c.base_temas }}</strong> (só quem comentou)
+      </p>
+      {% if c.mapa_lastro %}
+      <div class="mt-4">
+        {% with pilares = c.mapa_lastro %}{% include 'partials/_mapa_lastro.html' %}{% endwith %}
+      </div>
+      {% endif %}
+      {# régua sem enunciado (pesquisas diferentes → perguntas diferentes) + com temas #}
+      {% with pilares = c.pilares, com_enunciado = False, com_temas = True %}
+      {% include 'partials/_regua_detalhada.html' %}
+      {% endwith %}
+    </div>
+    {% else %}
+    <p class="mt-6 text-sm text-loyall-400">
+      As pesquisas selecionadas ainda não têm respostas com nota.
+    </p>
+    {% endif %}
+
+    {# ── N3: pessoas das pesquisas selecionadas ─────────────────────────── #}
+    {% set ps = pesquisas.pessoas %}
+    <div class="mt-6 bg-white border border-loyall-200 rounded p-4">
+      <p class="text-sm font-medium text-loyall-700 mb-2">
+        Pessoas <span class="text-loyall-400 font-normal">· {{ ps.identificadas|length }} identificada(s)</span>
+      </p>
+      {% if ps.identificadas %}
+      <ul class="text-sm space-y-1">
+        {% for d in ps.identificadas %}
+        <li class="flex justify-between items-center gap-3">
+          {% if eh_loyall %}
+          <a href="{{ url_for('ui.pessoa_diagnostico', empresa_id=empresa.id, pessoa_id=d.pessoa_id) }}"
+             class="text-loyall-700 hover:underline">{{ d.nome }} →</a>
+          {% else %}
+          <span class="text-loyall-700">{{ d.nome }}</span>
+          {% endif %}
+          <span class="text-xs text-loyall-400 whitespace-nowrap">
+            {{ d.n_verbatins }} verbatim(s) · {{ d.n_pesquisas }} pesquisa(s)
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-loyall-400">Nenhuma pessoa identificada nas pesquisas selecionadas.</p>
+      {% endif %}
+      {% if ps.anonimos.respondentes %}
+      <p class="mt-3 pt-3 border-t border-loyall-100 text-sm text-loyall-500">
+        + <strong>{{ ps.anonimos.respondentes }}</strong> respondente(s) anônimo(s)
+        ({{ ps.anonimos.verbatins }} verbatim(s)) — sem como abrir individualmente
+      </p>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>

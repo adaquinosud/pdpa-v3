@@ -3077,6 +3077,9 @@ _EXPLORAR_TABS = [
     {"id": "comparar", "label": "Comparar", "grupo": "explorar", "escopo_aceito": _ESCOPO_FULL},
     {"id": "evolucao", "label": "Evolução", "grupo": "explorar", "escopo_aceito": _ESCOPO_FULL},
     {"id": "temas", "label": "Temas", "grupo": "explorar", "escopo_aceito": _ESCOPO_FULL},
+    # Recorte por pesquisas (funil até a pessoa): escopo = seleção de pesquisas, não
+    # local/agrupamento → escopo_aceito=[] (ignora o chip, como Vitrine/Casos).
+    {"id": "pesquisas", "label": "Pesquisas", "grupo": "explorar", "escopo_aceito": []},
     # Verbatins NÃO mostra período no header: a API de listagem ignora período
     # relativo (usa date-pickers absolutos data_de/data_ate, filtro próprio da
     # aba). Mostrar período aqui faria o chip prometer um recorte não aplicado.
@@ -4970,6 +4973,36 @@ def _ultima_geracao(s, modelo, empresa_id, ag_id):
     return q.scalar()
 
 
+def _explorar_pesquisas(s, empresa_id, pesquisa_ids):
+    """Aba "Pesquisas" (recorte por N pesquisas — funil até a pessoa). Três níveis num
+    contexto só: N1 a lista de seleção (só COLETA — confronto não tem régua), N2 o
+    consolidado (regua_pesquisas), N3 as pessoas (pessoas_das_pesquisas). Sem nenhuma
+    marcada → só a lista (N2/N3 = None; a tela mostra a seleção e espera o "Aplicar")."""
+    from src.pesquisa.persistencia import contar_respondentes, listar
+    from src.pesquisa.retorno import pessoas_das_pesquisas, regua_pesquisas
+
+    sel = set(pesquisa_ids)
+    lista = [
+        {
+            "id": p.id,
+            "titulo": p.titulo,
+            "status": p.status,
+            "total": contar_respondentes(s, p.id),
+            "marcada": p.id in sel,
+        }
+        for p in listar(s, empresa_id)
+        if p.proposito == "coleta"
+    ]
+    aplicado = bool(pesquisa_ids)
+    return {
+        "lista": lista,
+        "selecionadas": pesquisa_ids,
+        "aplicado": aplicado,
+        "consolidado": regua_pesquisas(s, empresa_id, pesquisa_ids) if aplicado else None,
+        "pessoas": pessoas_das_pesquisas(s, empresa_id, pesquisa_ids) if aplicado else None,
+    }
+
+
 def _explorar_contexto(empresa_id, tab):
     """Monta o contexto comum (empresa, agrupamentos, filtros, dados da tab)."""
     filtros, ag_id, corte = _explorar_filtros()
@@ -5076,6 +5109,12 @@ def _explorar_contexto(empresa_id, tab):
             )
     planos = _explorar_planos(empresa_id, ag_id, request.args) if tab == "planos" else None
     ia = _explorar_ia(empresa_id, ag_id, filtros) if tab == "ia" else None
+    pesquisas = None
+    if tab == "pesquisas":
+        # Recorte por N pesquisas (funil): a seleção viaja no querystring (?pesquisas=…),
+        # default nenhuma → N2/N3 vazios (só a lista de seleção).
+        pesquisa_ids = [int(x) for x in request.args.getlist("pesquisas") if x.isdigit()]
+        pesquisas = _explorar_pesquisas(s, empresa_id, pesquisa_ids)
     # Escopo declarativo (CP-A): quais dimensões o header mostra como <select>
     # nesta aba; o chip usa a mesma lista p/ exibir só o que a aba aceita. Os
     # valores vêm do escopo GLOBAL (filtros base), não sobrescritos pelo builder.
@@ -5111,6 +5150,7 @@ def _explorar_contexto(empresa_id, tab):
         "planos": planos,
         "leaderboard": leaderboard,
         "ia": ia,
+        "pesquisas": pesquisas,
     }
     # Abas migradas (Painel/Verbatins/Temas/Anomalias/Relatórios): o builder
     # dedicado monta o contexto da aba e sobrescreve as chaves específicas

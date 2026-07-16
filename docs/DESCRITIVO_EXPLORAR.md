@@ -737,6 +737,31 @@ setor aparecer sistematicamente distorcido; até lá o corte genérico vale pra 
 
 ---
 
+## 20. PESQUISAS (recorte por pesquisas — funil até a pessoa)
+
+**Propósito.** Ler a régua consolidada de **um conjunto escolhido de pesquisas** e descer daí até a
+**pessoa**. O escopo desta aba NÃO é loja/agrupamento (ignora o chip de escopo do topo) — é a **seleção
+de pesquisas**. Universo: só pesquisas de **coleta** da empresa (confronto tem tela própria e não gera
+régua). Fonte: `_explorar_pesquisas` (ui) + `regua_pesquisas`/`pessoas_das_pesquisas` (retorno).
+
+**Três níveis de profundidade:**
+- **N1 — seleção.** Lista das pesquisas de coleta com checkbox. Default: **nenhuma marcada** (evita
+  jogar todo o volume de cara). O botão **Aplicar** dispara o consolidado (a seleção viaja na URL,
+  `?pesquisas=…` — compartilhável e sobrevive a refresh).
+- **N2 — consolidado.** A régua das pesquisas aplicadas: **Mapa de Lastro** (4 pilares + gargalo) +
+  régua por **subpilar** + **temas** + valência. SEM as perguntas (enunciado) — pesquisas diferentes
+  têm perguntas diferentes; a camada comum é o subpilar. Mesmo motor e mesmos cartões do Diagnóstico.
+- **N3 — pessoas.** Quem respondeu as pesquisas aplicadas. **Identificadas** (com identidade): lista
+  clicável, ordenada por volume de verbatins, com nome · nº verbatins · **nº pesquisas** (de quantas
+  das selecionadas a pessoa participou — no universo pesquisa a fonte é por-pesquisa; a visão cross-fonte
+  TOTAL do indivíduo é a **tela de pessoa** pura, aberta à parte). **Anônimas**: um bloco consolidado
+  ("N respondentes anônimos") — entram na conta, mas não há como abrir um anônimo.
+
+**Da pessoa pra dentro.** Clicar numa pessoa identificada abre a **tela de pessoa** (o diagnóstico
+cross-fonte dela). O link é visível só para Loyall (a tela de pessoa é restrita).
+
+---
+
 ## As 6 Perspectivas (do Plano de Ação)
 
 As 6 frentes de negócio em que toda ação cai. Ações **Estruturais** já nascem com a perspectiva escolhida
