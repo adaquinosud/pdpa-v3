@@ -9,6 +9,7 @@
   <p class="text-sm text-loyall-500 mt-1">
     <strong>{{ rec.total_verbatins }}</strong> verbatim(s)
     {% if rec.pessoa.fontes %}· de: {{ rec.pessoa.fontes | join(', ') }}{% endif %}
+    {% if recorte_n %}· <span class="text-loyall-600">recorte por {{ recorte_n }} pesquisa(s)</span>{% endif %}
   </p>
 
   {% if rec.pilares %}

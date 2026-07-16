@@ -293,9 +293,17 @@ def regua_pesquisa(
     }
 
 
-def _fontes_da_pessoa(s, empresa_id: int, pessoa_id: int) -> List[str]:
+def _fontes_da_pessoa(
+    s, empresa_id: int, pessoa_id: int, resp_ids: Optional[List[int]] = None
+) -> List[str]:
     """Rótulos das fontes de onde vêm os verbatins da pessoa nesta empresa (sem inventar —
-    só o que existe). Agrupa o ``conector_tipo`` da Fonte em nomes amigáveis."""
+    só o que existe). Agrupa o ``conector_tipo`` da Fonte em nomes amigáveis.
+
+    ``resp_ids`` (opcional): quando a tela é RECORTADA por pesquisas, restringe as fontes
+    aos verbatins do recorte — senão o header mentiria ("import") sobre uma fonte que ficou
+    de fora do recorte. ``None`` = todas as fontes da pessoa (a tela pura)."""
+    from sqlalchemy import and_
+
     from src.models.fonte import Fonte
 
     rotulo = {
@@ -306,11 +314,14 @@ def _fontes_da_pessoa(s, empresa_id: int, pessoa_id: int) -> List[str]:
         "google": "reviews",
         "reclame_aqui": "reviews",
     }
+    filtro = and_(Verbatim.pessoa_id == pessoa_id, Verbatim.empresa_id == empresa_id)
+    if resp_ids is not None:
+        filtro = and_(filtro, Verbatim.respondente_id.in_(resp_ids))
     labels: set = set()
     for (ct,) in (
         s.query(Fonte.conector_tipo)
         .join(Verbatim, Verbatim.fonte_id == Fonte.id)
-        .filter(Verbatim.pessoa_id == pessoa_id, Verbatim.empresa_id == empresa_id)
+        .filter(filtro)
         .distinct()
     ):
         labels.add(rotulo.get(ct, ct or "?"))
@@ -357,8 +368,11 @@ def regua_pessoa(
         "pessoa": {
             "id": pessoa.id,
             "nome": pessoa.nome_display or "(sem nome)",
-            "fontes": _fontes_da_pessoa(s, empresa_id, pessoa_id),
+            # fontes respeitam o recorte (senão o header mentiria sobre import/reviews
+            # que ficaram de fora das pesquisas selecionadas).
+            "fontes": _fontes_da_pessoa(s, empresa_id, pessoa_id, resp_ids=resp_ids),
         },
+        "recortado": resp_ids is not None,
         "total_verbatins": total,
         **nucleo,
     }

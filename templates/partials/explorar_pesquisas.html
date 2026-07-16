@@ -75,7 +75,8 @@
         {% for d in ps.identificadas %}
         <li class="flex justify-between items-center gap-3">
           {% if eh_loyall %}
-          <a href="{{ url_for('ui.pessoa_diagnostico', empresa_id=empresa.id, pessoa_id=d.pessoa_id) }}"
+          {# carimba as pesquisas selecionadas → tela de pessoa RECORTADA (coerência de recorte) #}
+          <a href="{{ url_for('ui.pessoa_diagnostico', empresa_id=empresa.id, pessoa_id=d.pessoa_id, pesquisas=pesquisas.selecionadas) }}"
              class="text-loyall-700 hover:underline">{{ d.nome }} →</a>
           {% else %}
           <span class="text-loyall-700">{{ d.nome }}</span>

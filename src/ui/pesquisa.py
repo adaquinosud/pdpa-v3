@@ -497,13 +497,23 @@ def pessoa_diagnostico(empresa_id, pessoa_id):
     r = _require_loyall_html()
     if r:
         return r
-    from src.pesquisa.retorno import regua_pessoa
+    from src.pesquisa.retorno import _resp_ids_das_pesquisas, regua_pessoa
 
+    # Recorte opcional por pesquisas (funil da aba Explorar → ?pesquisas=…). Sem o
+    # param = cross-fonte TOTAL (a tela de pessoa pura). "Filtra em cima, filtra embaixo."
+    pesquisa_ids = [int(x) for x in request.args.getlist("pesquisas") if x.isdigit()]
     with db_session() as s:
-        rec = regua_pessoa(s, empresa_id, pessoa_id)
-        if rec is None:  # pessoa inexistente ou sem verbatim nesta empresa
+        recorte_n = None
+        resp_ids = None
+        if pesquisa_ids:
+            validos, resp_ids = _resp_ids_das_pesquisas(s, empresa_id, pesquisa_ids)
+            recorte_n = len(validos)
+        rec = regua_pessoa(s, empresa_id, pessoa_id, resp_ids=resp_ids)
+        if rec is None:  # pessoa inexistente ou sem verbatim (no recorte) nesta empresa
             return render_template("404.html"), 404
-    return render_template("pesquisa/pessoa_diagnostico.html", rec=rec, empresa_id=empresa_id)
+    return render_template(
+        "pesquisa/pessoa_diagnostico.html", rec=rec, empresa_id=empresa_id, recorte_n=recorte_n
+    )
 
 
 @ui_bp.route(

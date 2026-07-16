@@ -712,3 +712,62 @@ def test_regua_pessoa_recorte_por_pesquisas(db_session):
 
     # recorte vazio (nenhuma pesquisa daquela pessoa) → None (404)
     assert regua_pessoa(db_session, e.id, ana.id, resp_ids=[]) is None
+
+
+def test_regua_pessoa_recorte_header_nao_mente_sobre_fontes(db_session):
+    """Fatia C: recortada por pesquisas, o header só lista as fontes DO RECORTE — o
+    verbatim de import (fora do recorte) não pode aparecer como fonte, senão mente."""
+    from src.models.fonte import Fonte
+    from src.models.pessoa import Pessoa
+    from src.models.verbatim import Verbatim
+    from src.pesquisa.retorno import regua_pessoa
+
+    e = Empresa(nome="EHeader")
+    db_session.add(e)
+    db_session.flush()
+    ana = Pessoa(tipo="interno_consentido", nome_display="Ana")
+    db_session.add(ana)
+    db_session.flush()
+    # verbatim de PESQUISA (com respondente) + verbatim de IMPORT (sem respondente)
+    p1, q1 = _pesquisa_coleta_subs(db_session, "EH-p1", ["P1"])
+    p1.empresa_id = e.id
+    db_session.flush()
+    _resp(db_session, p1, q1["P1"], 5, pessoa_id=ana.id)
+    f_imp = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="excel_interno",
+        url="I",
+    )
+    db_session.add(f_imp)
+    db_session.flush()
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f_imp.id,
+            pessoa_id=ana.id,
+            respondente_id=None,  # import não tem respondente
+            texto="produto com defeito",
+            tem_texto=True,
+            subpilar="D1",
+            tipo="detrator",
+            rating=1,
+            hash_dedup="hi",
+        )
+    )
+    db_session.commit()
+
+    # pura: cross-fonte total → pesquisa + import
+    pura = regua_pessoa(db_session, e.id, ana.id)
+    assert pura["recortado"] is False
+    assert set(pura["pessoa"]["fontes"]) == {"pesquisa", "import"} and pura["total_verbatins"] == 2
+
+    # recortada por p1: só o verbatim de pesquisa → fonte só "pesquisa" (import fora)
+    resp_ids = [
+        r for (r,) in db_session.query(Respondente.id).filter(Respondente.pesquisa_id == p1.id)
+    ]
+    rec = regua_pessoa(db_session, e.id, ana.id, resp_ids=resp_ids)
+    assert rec["recortado"] is True
+    assert rec["pessoa"]["fontes"] == ["pesquisa"]  # import NÃO aparece
+    assert rec["total_verbatins"] == 1

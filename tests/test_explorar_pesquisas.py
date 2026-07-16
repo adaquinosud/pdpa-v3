@@ -83,3 +83,23 @@ def test_aba_pesquisas_aplicada_mostra_consolidado_e_pessoas(client_loyall, db_s
 
 def ana_id(db_session):
     return db_session.query(Pessoa).filter_by(nome_display="Ana Recorte").one().id
+
+
+def test_tela_pessoa_recortada_pelas_pesquisas(client_loyall, db_session):
+    """Fatia C: a tela de pessoa com ?pesquisas= mostra só os verbatins daquelas pesquisas
+    (recorte coerente) + nota no header; sem o param = cross-fonte total (a pura)."""
+    e, p1, p2 = _cenario(db_session)
+    aid = ana_id(db_session)
+
+    # pura: Ana respondeu p1 (P1) e p2 (D1) → os dois subpilares
+    pura = client_loyall.get(f"/empresas/{e.id}/pessoas/{aid}/diagnostico").get_data(as_text=True)
+    assert "Precisão" in pura and "Disponibilidade" in pura  # P1 + D1
+    assert "recorte por" not in pura  # sem nota de recorte
+
+    # recortada por p1: só P1 (o D1 de p2 fica de fora) + nota "recorte por 1 pesquisa(s)"
+    rec = client_loyall.get(
+        f"/empresas/{e.id}/pessoas/{aid}/diagnostico?pesquisas={p1.id}"
+    ).get_data(as_text=True)
+    assert "recorte por 1 pesquisa(s)" in rec
+    assert "Precisão" in rec  # P1 presente
+    assert "Disponibilidade" not in rec  # D1 (de p2) fora do recorte
