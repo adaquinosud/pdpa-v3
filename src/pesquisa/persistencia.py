@@ -161,6 +161,31 @@ def tem_pendente_processamento(s, pesquisa_id: int) -> bool:
     return pendente is not None
 
 
+def fontes_com_pendencia(s, empresa_id: int) -> set:
+    """Variante POR FONTE do 'pendente de processamento': set dos ``fonte_id`` da empresa
+    com ao menos um verbatim COM TEXTO ainda sem embedding do MODELO_PADRAO (aguardando
+    pós-coleta/temas). Mesma regra do selo por-pesquisa, mas agrupada por ``Verbatim.fonte_id``
+    (sem join em Respondente) — assim pega TAMBÉM o import (excel_interno = verbatim solto,
+    respondente_id NULL, mas fonte_id setado), que o helper por-pesquisa perde."""
+    from src.models.temas import VerbatimEmbedding
+    from src.models.verbatim import Verbatim
+    from src.temas.embeddings import MODELO_PADRAO
+
+    tem_embedding = s.query(VerbatimEmbedding.verbatim_id).filter(
+        VerbatimEmbedding.modelo == MODELO_PADRAO
+    )
+    return {
+        fid
+        for (fid,) in s.query(Verbatim.fonte_id)
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.tem_texto.is_(True),
+            ~Verbatim.id.in_(tem_embedding),
+        )
+        .distinct()
+    }
+
+
 def apagar_pesquisa(s, pesquisa_id: int) -> Dict[str, int]:
     """Apaga a pesquisa e TODAS as dependências, em ordem (folhas→raiz).
 

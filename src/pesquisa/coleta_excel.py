@@ -121,10 +121,10 @@ def _aplicar_validacoes_respostas(writer, cols, notas_cols, unidade_col, rotulos
         letra = get_column_letter(cols.index(col) + 1)
         return f"{letra}2:{letra}{ultima}"
 
-    if notas_cols:  # trava 1-5 nas colunas de nota; *t. (comentário) ficam livres
-        dv_n = DataValidation(
-            type="whole", operator="between", formula1="1", formula2="5", allow_blank=True
-        )
+    if notas_cols:  # dropdown 1-5 nas colunas de nota; *t. (comentário) ficam livres
+        # Lista INLINE (não referência a aba) → validação PADRÃO (não x14) e o dropdown
+        # renderiza inclusive no Numbers. allow_blank: linha sem essa nota é permitida.
+        dv_n = DataValidation(type="list", formula1='"1,2,3,4,5"', allow_blank=True)
         dv_n.error, dv_n.errorTitle = "A nota deve ser um inteiro de 1 a 5.", "Nota inválida"
         dv_n.showErrorMessage = True
         ws.add_data_validation(dv_n)

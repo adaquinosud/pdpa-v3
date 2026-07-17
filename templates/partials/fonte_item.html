@@ -24,6 +24,10 @@
   {% else %}
     <span class="px-2 py-0.5 rounded bg-loyall-200 text-loyall-700">inativo</span>
   {% endif %}
+  {% if f.pendente %}
+  <span class="text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 text-[11px]"
+        title="Há verbatins com texto ainda sem processar (temas). Dispare 'Reprocessar empresa' ou aguarde a rotina noturna.">⏳ aguardando processamento</span>
+  {% endif %}
   {% if f.ultima_coleta %}
     <span class="text-loyall-400" title="Última coleta">{{ f.ultima_coleta.strftime('%Y-%m-%d') }}</span>
   {% endif %}

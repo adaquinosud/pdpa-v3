@@ -140,6 +140,7 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ultima_coleta=f.ultima_coleta,
         criada_em=f.criada_em,
         observacao=f.observacao,
+        pendente=False,  # pós-coleta pendente (verbatim texto sem embedding) — set no loader
     )
 
 
@@ -779,6 +780,18 @@ def _carregar_detalhe_empresa(empresa_id: int):
         ags_w = [_wrap_agrupamento(a, locais_por_ag.get(a.id, [])) for a in ags_db]
         fontes_empresa_w = [_wrap_fonte(f) for f in fontes_empresa_db]
         fontes_all_w = [_wrap_fonte(f) for f in fontes_db]
+
+        # Selo "aguardando processamento" POR FONTE (mesma regra do selo por-pesquisa,
+        # agrupada por fonte → pega também o import). Marca todo wrapper renderizado:
+        # bloco "Fontes da empresa" + fontes dentro de cada local (partial compartilhado).
+        from src.pesquisa.persistencia import fontes_com_pendencia
+
+        fontes_pendentes = fontes_com_pendencia(s, empresa_id)
+        for _w in fontes_empresa_w + fontes_all_w:
+            _w.pendente = _w.id in fontes_pendentes
+        for _loc in locais_w_all:
+            for _w in _loc.fontes:
+                _w.pendente = _w.id in fontes_pendentes
 
         locais_ativos = sum(1 for loc in locais_w_all if loc.status == "ativo")
         fontes_ativas_n = sum(1 for f in fontes_db if f.ativo)
