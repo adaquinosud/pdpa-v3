@@ -190,32 +190,29 @@ def test_revisar_mostra_cards(client_loyall, db_session):
     assert "Justificativa" in html  # a justificativa da pergunta, visível p/ quem revisa
 
 
-def test_validar_htmx_mostra_chip(client_loyall, db_session, monkeypatch):
+def test_validar_htmx_mostra_chip(client_loyall, db_session):
+    """O 🟡 semeado na validação da geração é carregado no cache do advisory; /validar
+    reusa (cache-hit, sem LLM) e renderiza na seção Sugestões com botão de texto."""
     e = _empresa(client_loyall, "EUIval")
-    pid = _seed(db_session, e, [_q(1, "O quanto foi excelente?")])
-
-    def _fake_validar(perguntas, juiz_fn=None):
-        return {
-            "perguntas": [
+    prop = _proposta(e, [_q(1, "O quanto foi excelente?")])
+    prop["validacao"]["perguntas"] = [
+        {
+            "ordem": 1,
+            "regras": [
                 {
-                    "ordem": 1,
-                    "regras": [
-                        {
-                            "regra": 1,
-                            "passou": False,
-                            "severidade": "avisa",
-                            "motivo": "induz valência",
-                            "reescrita": "Como foi?",
-                        }
-                    ],
+                    "regra": 1,
+                    "passou": False,
+                    "severidade": "avisa",
+                    "motivo": "induz valência",
+                    "reescrita": "Como foi?",
                 }
-            ]
+            ],
         }
-
-    monkeypatch.setattr(ui_pesq, "validar_completo", _fake_validar)
+    ]
+    pid = criar_rascunho(db_session, prop)
+    db_session.commit()
     html = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/validar").get_data(as_text=True)
-    # Mensagem acionável (não mais "regra N"): regra não-mapeada cai no motivo cru.
-    assert "induz valência" in html and "aplicar reescrita" in html
+    assert "induz valência" in html and "aplicar texto sugerido" in html
 
 
 def test_aprovar_limpo_vira_pronta(client_loyall, db_session):
@@ -358,17 +355,13 @@ def test_gerar_lista_tem_voltar_empresa(client_loyall, db_session):
     assert f'href="/empresas/{e}"' in html  # detalhe_empresa
 
 
-def test_validar_banner_sucesso_visivel(client_loyall, db_session, monkeypatch):
-    """FRENTE 2b: caso limpo → banner de sucesso destacado (não passa batido)."""
+def test_validar_banner_sucesso_visivel(client_loyall, db_session):
+    """FRENTE 2b: caso limpo → banner de sucesso destacado (não passa batido). Cache
+    semeado (advisory=[]) + determinístico limpo → veredito vazio, sem tocar o LLM."""
     e = _empresa(client_loyall, "EUIvalok")
     pid = _seed(db_session, e, [_q(1, "Como foi o atendimento?")])
-    monkeypatch.setattr(
-        ui_pesq,
-        "validar_completo",
-        lambda perguntas, *a, **k: {"perguntas": [{"ordem": 1, "regras": []}]},
-    )
     html = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/validar").get_data(as_text=True)
-    assert "✓ Validado — nenhum problema encontrado" in html
+    assert "✓ Validado — nada bloqueia a aprovação" in html
 
 
 # ── Exclusão de pesquisa (rota empresa-escopada; fecha o Bug B nesta rota) ────
@@ -489,11 +482,7 @@ def test_mutacao_cross_empresa_404(client_loyall, db_session, monkeypatch):
     pid = _seed(db_session, a, [_q(1, "Como foi o atendimento?")])
     qid = _ids(db_session, pid)[0]
     monkeypatch.setattr(ui_pesq, "_sugerir_subpilar", lambda s, eid, en: "D2")
-    monkeypatch.setattr(
-        ui_pesq,
-        "validar_completo",
-        lambda perguntas, *a, **k: {"perguntas": [{"ordem": 1, "regras": []}]},
-    )
+    # /validar não é alcançado (obter → 404 antes) — sem mock do juiz.
     alvos = [
         (f"/empresas/{b}/pesquisas/{pid}/validar", {}),
         (f"/empresas/{b}/pesquisas/{pid}/aprovar", {}),

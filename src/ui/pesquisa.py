@@ -5,9 +5,10 @@ Loyall/admin only. Sem coleta (Fase 2). O aprovar RE-VALIDA server-side: recusa
 se houver violação 🔴, não confia no front.
 
 Registradas no ``ui_bp`` (importado no fim de ``src/ui/__init__.py``). Os símbolos
-de geração/validação são referenciados pelo namespace deste módulo, então testes
-podem monkeypatchar ``src.ui.pesquisa.gerar_pesquisa`` / ``validar_completo`` para
-não tocar a rede.
+de geração são referenciados pelo namespace deste módulo, então testes podem
+monkeypatchar ``src.ui.pesquisa.gerar_pesquisa`` para não tocar a rede; o juiz da
+validação é mockado via ``src.pesquisa.llm.gerar_via_llm`` (chamado por
+``validar_pesquisa_cacheado``).
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from flask import current_app, flash, redirect, render_template, request, url_fo
 from src.auth import get_current_user, verificar_acesso_empresa
 from src.models.empresa import Empresa
 from src.pesquisa.geracao import gerar_pesquisa
-from src.pesquisa.juiz import validar_completo
 from src.pesquisa.persistencia import (
     adicionar_pergunta,
     apagar_pesquisa,
@@ -346,10 +346,13 @@ def pesquisa_validar(empresa_id, pesquisa_id):
         pesq = obter(s, pesquisa_id, empresa_id)  # guard de escopo: outra empresa → 404
         if pesq is None:
             return render_template("404.html"), 404
-        from src.pesquisa.persistencia import perguntas_dict
+        from src.pesquisa.persistencia import validar_pesquisa_cacheado
 
-        veredito = validar_completo(perguntas_dict(pesq))
+        # Determinístico fresco (🔴) + juiz LLM CACHEADO por conteúdo (🟡) — não oscila;
+        # falha de LLM não quebra a tela (devolve só o 🔴 + flag).
+        veredito, advisory_indisponivel = validar_pesquisa_cacheado(s, pesq)
         ctx = _ctx_revisar(s, pesquisa_id, veredito=veredito)
+        ctx["advisory_indisponivel"] = advisory_indisponivel
     return render_template("pesquisa/_cards.html", **ctx)
 
 

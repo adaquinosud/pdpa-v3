@@ -119,7 +119,10 @@ def avaliar_perguntas(
     if juiz_fn is None:
         from src.pesquisa.llm import gerar_via_llm
 
-        juiz_fn = gerar_via_llm
+        # temperature=0 → juiz estável entre chamadas (item 1c). Wrap preserva a
+        # assinatura (system, user) usada pelos fakes injetados nos testes.
+        def juiz_fn(system, user):
+            return gerar_via_llm(system, user, temperature=0)
 
     bruto = juiz_fn(REGUA_JUIZ, _montar_user(avaliaveis))
     sem = _normalizar_veredito(bruto, avaliaveis)

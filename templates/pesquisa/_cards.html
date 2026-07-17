@@ -1,10 +1,15 @@
 <div id="cards" class="space-y-3 max-w-3xl">
   {% if validou and tem_bloqueio %}
   <div class="rounded border border-rose-300 bg-rose-50 text-rose-700 px-3 py-2 text-sm font-medium">
-    🔴 Há perguntas que bloqueiam. Corrija antes de aprovar.</div>
+    ⚠ Há perguntas em “Precisa corrigir”. Resolva-as antes de aprovar.</div>
   {% elif validou %}
   <div class="rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-3 py-2 text-sm font-medium">
-    ✓ Validado — nenhum problema encontrado.</div>
+    ✓ Validado — nada bloqueia a aprovação.</div>
+  {% endif %}
+  {% if advisory_indisponivel|default(false) %}
+  <div class="rounded border border-amber-200 bg-amber-50 text-amber-700 px-3 py-1.5 text-xs">
+    💡 Sugestões de qualidade indisponíveis agora (o revisor automático não respondeu).
+    Os bloqueios acima seguem válidos.</div>
   {% endif %}
 
   {% for q in perguntas %}
@@ -31,27 +36,37 @@
     {# Mensagem ACIONÁVEL (o que fazer), não "regra N". Fallback = motivo cru. #}
     {% set _acionavel = {
       3: 'Pergunta com dois assuntos — divida em uma pergunta por assunto.',
-      4: 'Sem escala de nota — defina uma escala de 1 a 5 (ou clique “aplicar reescrita”).',
+      4: 'Sem escala de nota — defina uma escala de 1 a 5 (ou aplique a escala sugerida).',
       5: 'Tem termo interno no texto ao cliente — reescreva em linguagem do respondente.',
       'escopo': 'Fora do escopo de subpilares — troque o subpilar no seletor abaixo.',
     } %}
-    {% for r in q.regras %}
-    <div class="mt-2 text-xs rounded px-2 py-1
-         {% if r.severidade == 'bloqueia' %}bg-red-50 text-red-700{% else %}bg-amber-50 text-amber-700{% endif %}">
-      {% if r.severidade == 'bloqueia' %}🔴{% else %}🟡{% endif %}
-      {{ _acionavel.get(r.regra, r.motivo) }}
+    {# Item 3 · duas seções por severidade: 🔴 obrigatório (trava aprovação) vs 🟡 sugestão.
+       Cabeçalho só renderiza se o grupo tiver regra. #}
+    {% set _bloq = q.regras | selectattr('severidade', 'equalto', 'bloqueia') | list %}
+    {% set _avisa = q.regras | selectattr('severidade', 'equalto', 'avisa') | list %}
+    {% for _lista, _titulo, _bg, _txt, _emoji in [
+        (_bloq, '⚠ Precisa corrigir', 'bg-red-50', 'text-red-700', '🔴'),
+        (_avisa, '💡 Sugestões (opcional)', 'bg-amber-50', 'text-amber-700', '🟡')] %}
+    {% if _lista %}
+    <div class="mt-2 text-[11px] font-semibold uppercase tracking-wider {{ _txt }}">{{ _titulo }}</div>
+    {% for r in _lista %}
+    <div class="mt-1 text-xs rounded px-2 py-1 {{ _bg }} {{ _txt }}">
+      {{ _emoji }} {{ _acionavel.get(r.regra, r.motivo) }}
       {% if r.reescrita %}
       <form class="inline" hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
             hx-target="#cards" hx-swap="outerHTML">
         {% if r.regra == 4 %}
         <input type="hidden" name="opcoes_json" value="{{ r.reescrita }}">
+        <button class="underline ml-1">aplicar escala sugerida</button>
         {% else %}
         <input type="hidden" name="enunciado" value="{{ r.reescrita }}">
+        <button class="underline ml-1">aplicar texto sugerido</button>
         {% endif %}
-        <button class="underline ml-1">aplicar reescrita</button>
       </form>
       {% endif %}
     </div>
+    {% endfor %}
+    {% endif %}
     {% endfor %}
 
     {# edição manual do enunciado + subpilar (só rascunho; âncora é do sistema) #}

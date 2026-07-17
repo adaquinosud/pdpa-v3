@@ -10,12 +10,109 @@ Sem Flask aqui — funções puras sobre a sessão, testáveis isoladamente.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 import secrets
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.models.pesquisa import Pesquisa, PesquisaPergunta
 from src.pesquisa.validador import ESCALA_DEFAULT, tem_bloqueio, validar_perguntas
+
+_log = logging.getLogger(__name__)
+
+
+def _com_escala_padrao(formato: Optional[str], opcoes_json: Optional[str]) -> Optional[str]:
+    """Pergunta de NOTA (fechada/mista) sem opcoes_json → ESCALA_DEFAULT (método: escala
+    1-5, não variável). Explícito sobrepõe; aberta segue sem escala. Fonte única usada
+    pelo add manual E pela geração — simetriza o nascimento (não mais R4 espúrio)."""
+    if opcoes_json is None and formato in ("fechada", "mista"):
+        return json.dumps(ESCALA_DEFAULT)
+    return opcoes_json
+
+
+def hash_conteudo_pergunta(
+    enunciado: Optional[str],
+    formato: Optional[str],
+    subpilar_alvo: Optional[str],
+    opcoes_json: Optional[str],
+) -> str:
+    """Hash do CONTEÚDO que muda o veredito do juiz — exatamente o que ``_montar_user``
+    (juiz.py) manda ao LLM: enunciado + formato + subpilar_alvo + opcoes_json. Base do
+    cache do advisory: mesmo conteúdo → mesmo 🟡, sem nova chamada LLM."""
+    base = "\x1f".join(
+        str(x if x is not None else "") for x in (enunciado, formato, subpilar_alvo, opcoes_json)
+    )
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
+
+
+def _advisory_cacheado(raw: Optional[str], h: str) -> Optional[List[Dict[str, Any]]]:
+    """Lê o advisory (🟡) do cache validacao_json se o hash bater; senão None (miss →
+    recalcula). Tolera a forma LEGADA (lista de regras, sem hash) → sempre miss."""
+    if not raw:
+        return None
+    try:
+        obj = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if isinstance(obj, dict) and obj.get("hash") == h:
+        return obj.get("advisory") or []
+    return None
+
+
+def validar_pesquisa_cacheado(s, pesquisa, juiz_fn=None) -> Tuple[Dict[str, Any], bool]:
+    """Validação da tela com o juiz LLM CACHEADO por conteúdo (item 1).
+
+    - Determinístico (🔴) SEMPRE fresco — puro, não oscila.
+    - Advisory (🟡) reusa o cache ``validacao_json`` quando o hash do conteúdo bate;
+      recomputa SÓ as perguntas que mudaram (batch), gravando o novo {hash, advisory}.
+    - Falha do LLM não quebra a tela: devolve só o determinístico + flag ``indisponivel``.
+
+    Returns ``(veredito, advisory_indisponivel)``."""
+    from src.pesquisa.juiz import avaliar_perguntas
+
+    perguntas = list(pesquisa.perguntas)
+    dicts = [_pergunta_dict(p) for p in perguntas]
+    det = {v["ordem"]: v["regras"] for v in validar_perguntas(dicts)["perguntas"]}
+
+    advisory: Dict[Any, List[Dict[str, Any]]] = {}
+    stale: List[Tuple[PesquisaPergunta, Dict[str, Any], str]] = []
+    for p, d in zip(perguntas, dicts):
+        if p.gerada_por_ancora:  # âncora: juiz não avalia
+            advisory[p.ordem] = []
+            continue
+        h = hash_conteudo_pergunta(
+            d["enunciado"], d["formato"], d["subpilar_alvo"], d["opcoes_json"]
+        )
+        cache = _advisory_cacheado(p.validacao_json, h)
+        if cache is not None:
+            advisory[p.ordem] = cache
+        else:
+            stale.append((p, d, h))
+
+    indisponivel = False
+    if stale:  # só as mudadas vão ao LLM (uma chamada em lote)
+        try:
+            sem = avaliar_perguntas([d for _p, d, _h in stale], juiz_fn)
+            sem_ord = {v["ordem"]: v["regras"] for v in sem["perguntas"]}
+            for p, d, h in stale:
+                regras = sem_ord.get(d["ordem"], [])
+                advisory[p.ordem] = regras
+                p.validacao_json = json.dumps({"hash": h, "advisory": regras})
+            s.flush()
+        except Exception:  # noqa: BLE001 — LLM/rede não pode quebrar a tela (item 1d)
+            _log.exception("juiz LLM indisponível na validação (pesquisa=%s)", pesquisa.id)
+            indisponivel = True
+            for p, d, _h in stale:
+                advisory[p.ordem] = []  # sem sugestões agora; o 🔴 segue firme
+
+    veredito = {
+        "perguntas": [
+            {"ordem": p.ordem, "regras": det.get(p.ordem, []) + advisory.get(p.ordem, [])}
+            for p in perguntas
+        ]
+    }
+    return veredito, indisponivel
 
 
 def _pergunta_dict(p: PesquisaPergunta) -> Dict[str, Any]:
@@ -64,7 +161,19 @@ def criar_rascunho(s, proposta: Dict[str, Any], criada_por: Optional[int] = None
         v["ordem"]: v["regras"] for v in proposta.get("validacao", {}).get("perguntas", [])
     }
     for q in proposta["perguntas"]:
-        regras = veredito_por_ordem.get(q["ordem"])
+        ancora = bool(q.get("gerada_por_ancora", False))
+        # Item 2 · escala simétrica no NASCIMENTO — roda ANTES de semear o hash do cache,
+        # senão a 1ª Revalidar mostraria R4 (🔴) e um 🟡 fantasma sobre opcoes_json None.
+        opcoes = (
+            q.get("opcoes_json")
+            if ancora
+            else _com_escala_padrao(q["formato"], q.get("opcoes_json"))
+        )
+        # Item 1 · semeia o cache do advisory: hash sobre o conteúdo FINAL + só os 🟡 do
+        # veredito da geração (o 🔴 determinístico é sempre recalculado fresco).
+        regras = veredito_por_ordem.get(q["ordem"]) or []
+        avisa = [r for r in regras if r.get("severidade") == "avisa"]
+        h = hash_conteudo_pergunta(q["enunciado"], q["formato"], q.get("subpilar_alvo"), opcoes)
         s.add(
             PesquisaPergunta(
                 pesquisa_id=pesq.id,
@@ -73,9 +182,9 @@ def criar_rascunho(s, proposta: Dict[str, Any], criada_por: Optional[int] = None
                 porque=q.get("porque"),
                 formato=q["formato"],
                 subpilar_alvo=q.get("subpilar_alvo"),
-                opcoes_json=q.get("opcoes_json"),
-                gerada_por_ancora=bool(q.get("gerada_por_ancora", False)),
-                validacao_json=json.dumps(regras) if regras is not None else None,
+                opcoes_json=opcoes,
+                gerada_por_ancora=ancora,
+                validacao_json=json.dumps({"hash": h, "advisory": avisa}),
             )
         )
     s.flush()
@@ -263,8 +372,7 @@ def adicionar_pergunta(
     if pesq is None:
         return None
     fmt = formato if formato in ("aberta", "fechada", "mista") else "aberta"
-    if opcoes_json is None and fmt in ("fechada", "mista"):
-        opcoes_json = json.dumps(ESCALA_DEFAULT)
+    opcoes_json = _com_escala_padrao(fmt, opcoes_json)
     proxima = max((p.ordem for p in pesq.perguntas), default=0) + 1
     nova = PesquisaPergunta(
         ordem=proxima,
