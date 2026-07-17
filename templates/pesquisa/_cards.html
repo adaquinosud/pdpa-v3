@@ -28,11 +28,18 @@
     <div class="text-xs text-loyall-500 mt-1"><span class="uppercase tracking-wider">Justificativa:</span> {{ q.porque }}</div>
     {% endif %}
 
+    {# Mensagem ACIONÁVEL (o que fazer), não "regra N". Fallback = motivo cru. #}
+    {% set _acionavel = {
+      3: 'Pergunta com dois assuntos — divida em uma pergunta por assunto.',
+      4: 'Sem escala de nota — defina uma escala de 1 a 5 (ou clique “aplicar reescrita”).',
+      5: 'Tem termo interno no texto ao cliente — reescreva em linguagem do respondente.',
+      'escopo': 'Fora do escopo de subpilares — troque o subpilar no seletor abaixo.',
+    } %}
     {% for r in q.regras %}
     <div class="mt-2 text-xs rounded px-2 py-1
          {% if r.severidade == 'bloqueia' %}bg-red-50 text-red-700{% else %}bg-amber-50 text-amber-700{% endif %}">
       {% if r.severidade == 'bloqueia' %}🔴{% else %}🟡{% endif %}
-      regra {{ r.regra }} — {{ r.motivo }}
+      {{ _acionavel.get(r.regra, r.motivo) }}
       {% if r.reescrita %}
       <form class="inline" hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
             hx-target="#cards" hx-swap="outerHTML">
@@ -49,12 +56,25 @@
 
     {# edição manual do enunciado + subpilar (só rascunho; âncora é do sistema) #}
     {% if status == 'rascunho' and not q.gerada_por_ancora %}
+    {# subpilar_alvo pode vir INVÁLIDO do classificador (ex.: 'sem_lastro' — comum ao
+       espelhar pesquisas do cliente): não é opção do dropdown. Em vez de renderizar vazio
+       (o usuário não vê que falta pilar), mostramos uma opção ⚠ selecionada + aviso. #}
+    {% set _codes = subpilares | map(attribute=0) | list %}
+    {% set _sub_invalido = q.subpilar_alvo and q.subpilar_alvo not in _codes %}
+    {% if _sub_invalido %}
+    <p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+      ⚠ Esta pergunta não tem um pilar válido — escolha um no seletor abaixo.</p>
+    {% endif %}
     <form class="mt-2 flex gap-1 items-center"
           hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
           hx-target="#cards" hx-swap="outerHTML">
       <input name="enunciado" value="{{ q.enunciado }}" class="flex-1 border rounded px-2 py-1 text-xs">
-      <select name="subpilar_alvo" class="border rounded px-1 py-1 text-xs">
-        <option value="">(sem subpilar)</option>
+      <select name="subpilar_alvo" class="border rounded px-1 py-1 text-xs{% if _sub_invalido %} border-amber-400 text-amber-700{% endif %}">
+        {% if _sub_invalido %}
+        {# preserva o valor inválido (não zera à toa) mas mostra que precisa escolher #}
+        <option value="{{ q.subpilar_alvo }}" selected>⚠ Sem pilar definido — escolha um</option>
+        {% endif %}
+        <option value=""{% if not q.subpilar_alvo %} selected{% endif %}>(sem subpilar)</option>
         {% for code, nome in subpilares %}
         <option value="{{ code }}"{% if code == q.subpilar_alvo %} selected{% endif %}>{{ code }} · {{ nome }}</option>
         {% endfor %}

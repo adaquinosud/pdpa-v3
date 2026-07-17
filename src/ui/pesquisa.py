@@ -362,11 +362,14 @@ def pesquisa_editar_pergunta(empresa_id, pesquisa_id, pergunta_id):
     r = _require_loyall_html()
     if r:
         return r
+    # Só os campos que o form REALMENTE mandou (o de reescrita manda só opcoes_json; o de
+    # edição manual manda enunciado + subpilar_alvo). Campo presente-mas-vazio → None
+    # (limpa) — permite trocar/limpar o subpilar a partir de 'sem_lastro'. Campo ausente
+    # não é tocado (a reescrita não apaga o subpilar).
     campos = {
-        "enunciado": (request.form.get("enunciado") or "").strip() or None,
-        "formato": (request.form.get("formato") or "").strip() or None,
-        "opcoes_json": (request.form.get("opcoes_json") or "").strip() or None,
-        "subpilar_alvo": (request.form.get("subpilar_alvo") or "").strip() or None,
+        campo: ((request.form.get(campo) or "").strip() or None)
+        for campo in ("enunciado", "formato", "opcoes_json", "subpilar_alvo")
+        if campo in request.form
     }
     with db_session() as s:
         bloqueio = _guard_rascunho(s, pesquisa_id, empresa_id)

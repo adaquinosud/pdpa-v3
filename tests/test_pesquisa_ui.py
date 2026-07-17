@@ -214,7 +214,8 @@ def test_validar_htmx_mostra_chip(client_loyall, db_session, monkeypatch):
 
     monkeypatch.setattr(ui_pesq, "validar_completo", _fake_validar)
     html = client_loyall.post(f"/empresas/{e}/pesquisas/{pid}/validar").get_data(as_text=True)
-    assert "regra 1" in html and "induz valência" in html and "aplicar reescrita" in html
+    # Mensagem acionável (não mais "regra N"): regra não-mapeada cai no motivo cru.
+    assert "induz valência" in html and "aplicar reescrita" in html
 
 
 def test_aprovar_limpo_vira_pronta(client_loyall, db_session):

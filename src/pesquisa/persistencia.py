@@ -198,13 +198,20 @@ def apagar_pesquisa(s, pesquisa_id: int) -> Dict[str, int]:
 
 def atualizar_pergunta(s, pergunta_id: int, **campos) -> Optional[PesquisaPergunta]:
     """Edita campos de uma pergunta (enunciado/formato/opcoes_json/subpilar_alvo/
-    porque). Editar invalida o veredito em cache (revalida sob demanda)."""
+    porque). Só toca os campos PRESENTES em ``campos`` — o caller inclui apenas o que o
+    form mandou (o form de reescrita manda só opcoes_json; o de edição manda enunciado +
+    subpilar_alvo). Campo presente com ``None`` LIMPA o valor — é o que permite trocar/
+    limpar o subpilar a partir de um estado inválido (ex.: 'sem_lastro'). Exceção:
+    ``enunciado`` (obrigatório/NOT NULL) nunca é zerado. Editar invalida o veredito."""
     p = s.get(PesquisaPergunta, pergunta_id)
     if p is None:
         return None
     for campo in ("enunciado", "formato", "opcoes_json", "subpilar_alvo", "porque"):
-        if campo in campos and campos[campo] is not None:
-            setattr(p, campo, campos[campo])
+        if campo not in campos:
+            continue
+        if campo == "enunciado" and not campos[campo]:
+            continue  # enunciado é obrigatório — não zera
+        setattr(p, campo, campos[campo])
     p.validacao_json = None  # cache do veredito fica obsoleto após edição
     p.validado_em = None
     s.flush()
