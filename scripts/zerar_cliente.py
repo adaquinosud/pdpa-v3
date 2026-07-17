@@ -91,6 +91,10 @@ PLANO: list[tuple[str, str, str]] = [
     ("reputação de fonte (vitrine)", "fonte_reputacao", _DIRETO),
     ("ledger de coorte mensal (RA)", "fonte_coorte_coleta", _DIRETO),
     ("batches de classificação", "classificacao_batches", _DIRETO),
+    # Visão Financeira C-Level: dados do cliente por empresa (input corrente + fotos
+    # imutáveis). Independentes de FK entre si — direto por empresa_id.
+    ("visão financeira: input", "visao_financeira_input", _DIRETO),
+    ("visão financeira: snapshots", "visao_financeira_snapshot", _DIRETO),
     # Motor de Pesquisa: filhas antes das mães. Coleta (Fase 2) antes de
     # perguntas/pesquisas — resposta → respondente → pesquisa_perguntas → pesquisas.
     ("respostas de pesquisa", "resposta", _FILHO_RESPONDENTE),

@@ -76,6 +76,16 @@ def create_app() -> Flask:
 
     app.add_template_filter(render_md_leve, "md_leve")
 
+    # R$ pt-BR (Visão Financeira): 1234567.5 → "R$ 1.234.568" (sem centavos, milhar
+    # com ponto). Valores grandes de projeção — centavos poluem a leitura C-Level.
+    @app.template_filter("moeda")
+    def _moeda(valor):  # noqa: ANN001, ANN202
+        try:
+            n = round(float(valor))
+        except (ValueError, TypeError):
+            return "—"
+        return "R$ " + f"{n:,.0f}".replace(",", ".")
+
     # ⓘ do glossário (CP-glossario-plugar-ui): {{ glossario_i('ratio') }} nas telas.
     # Lê do cadastro (glossario_termo) por slug; 1 query/request via flask.g.
     from src.ui import glossario_i as _glossario_i

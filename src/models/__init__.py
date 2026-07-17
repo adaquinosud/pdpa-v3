@@ -56,6 +56,7 @@ from src.models.temas import (
 from src.models.usuario import Usuario
 from src.models.verbatim import Verbatim
 from src.models.verbatim_reclassificacao import VerbatimReclassificacao
+from src.models.visao_financeira import VisaoFinanceiraInput, VisaoFinanceiraSnapshot
 
 __all__ = [
     "AcaoStatus",
@@ -108,4 +109,6 @@ __all__ = [
     "Usuario",
     "Verbatim",
     "VerbatimReclassificacao",
+    "VisaoFinanceiraInput",
+    "VisaoFinanceiraSnapshot",
 ]

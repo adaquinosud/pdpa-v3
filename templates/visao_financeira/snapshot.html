@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Snapshot {{ meta.nome }} — {{ empresa_nome }}{% endblock %}
+
+{% set faixa_cor = {
+  'critico':   'bg-rose-100 text-rose-700 border-rose-300',
+  'fraco':     'bg-orange-100 text-orange-700 border-orange-300',
+  'atencao':   'bg-amber-100 text-amber-700 border-amber-300',
+  'bom':       'bg-emerald-100 text-emerald-700 border-emerald-300',
+  'excelente': 'bg-emerald-200 text-emerald-800 border-emerald-400',
+} %}
+
+{% block conteudo %}
+<a href="{{ url_for('ui.visao_financeira', empresa_id=empresa_id) }}"
+   class="text-sm text-loyall-400 hover:underline">← Visão Financeira</a>
+<h1 class="text-xl font-semibold mb-1 mt-1">Snapshot “{{ meta.nome }}”</h1>
+<div class="rounded border border-loyall-200 bg-loyall-50 text-loyall-600 px-3 py-1.5 text-xs mb-5 max-w-3xl">
+  📸 Foto imutável de {{ meta.gerado_em.strftime('%d/%m/%Y %H:%M') if meta.gerado_em else foto.gerado_em }}
+  {% if meta.gerado_por %}· {{ meta.gerado_por }}{% endif %} —
+  exatamente o que a tela mostrava no instante. Recompute posterior da régua não altera nada aqui.</div>
+
+<div class="max-w-3xl space-y-6">
+  {# ratios de termo congelados #}
+  <section>
+    <h2 class="font-medium mb-2 text-sm">Régua no instante</h2>
+    <div class="flex flex-wrap gap-2">
+      {% for t in ['retencao', 'expansao', 'entrada'] if t in foto.termos_ratio %}
+      {% set r = foto.termos_ratio[t] %}
+      <span class="text-xs rounded px-2 py-1 border {{ faixa_cor.get(r.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}">
+        {{ nome_termo[t] }}: {{ '%.2f'|format(r.ratio) }} · {{ r.faixa }}</span>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# os 5 números informados #}
+  <section>
+    <h2 class="font-medium mb-2 text-sm">Números informados</h2>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+      <div class="border rounded px-2 py-1.5"><div class="text-loyall-400">Receita rec. mensal</div>{{ foto.inputs.receita_recorrente_base|moeda }}</div>
+      <div class="border rounded px-2 py-1.5"><div class="text-loyall-400">Churn (% a.a.)</div>{{ foto.inputs.churn_atual }}%</div>
+      <div class="border rounded px-2 py-1.5"><div class="text-loyall-400">Expansão (% a.a.)</div>{{ foto.inputs.taxa_expansao }}%</div>
+      <div class="border rounded px-2 py-1.5"><div class="text-loyall-400">CAC</div>{{ foto.inputs.cac|moeda }}</div>
+      <div class="border rounded px-2 py-1.5"><div class="text-loyall-400">Volume/ano</div>{{ foto.inputs.volume_aquisicao|round|int }}</div>
+    </div>
+  </section>
+
+  {# cenários congelados — reusa o mesmo partial, alimentado pela FOTO #}
+  <section>
+    <h2 class="font-medium mb-2 text-sm">Cenários no instante</h2>
+    {% set camada2 = {'cenarios': foto.cenarios, 'vitrine': foto.cenarios.vitrine_posicao} %}
+    {% include "visao_financeira/_resultado.html" %}
+  </section>
+</div>
+{% endblock %}

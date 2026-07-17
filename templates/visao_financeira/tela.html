@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block titulo %}Visão Financeira — {{ empresa_nome }}{% endblock %}
+
+{% set faixa_cor = {
+  'critico':   'bg-rose-100 text-rose-700 border-rose-300',
+  'fraco':     'bg-orange-100 text-orange-700 border-orange-300',
+  'atencao':   'bg-amber-100 text-amber-700 border-amber-300',
+  'bom':       'bg-emerald-100 text-emerald-700 border-emerald-300',
+  'excelente': 'bg-emerald-200 text-emerald-800 border-emerald-400',
+} %}
+{% set leitura = {
+  'critico':   'elo no vermelho — a relação está rompendo.',
+  'fraco':     'sob pressão — mais detratores do que a base sustenta.',
+  'atencao':   'equilíbrio instável — zona de atenção.',
+  'bom':       'saudável — a base sustenta a relação.',
+  'excelente': 'forte — relação sólida.',
+} %}
+
+{% block conteudo %}
+<a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa_id) }}"
+   class="text-sm text-loyall-400 hover:underline">← Empresa</a>
+<h1 class="text-xl font-semibold mb-1 mt-1">Visão Financeira — {{ empresa_nome }}</h1>
+<p class="text-sm text-loyall-500 mb-6 max-w-3xl">
+  A tela projeta, por termo da equação da receita, os cenários que os <strong>números do
+  cliente</strong> desenham. A régua relacional posiciona a empresa <em>entre</em> os
+  cenários — não calcula perda. <span class="text-loyall-400">Tela interna (Loyall).</span></p>
+
+{# ══════ CAMADA 1 · Régua da exposição (sempre visível, sem input) ══════ #}
+<section class="mb-8">
+  <h2 class="font-medium mb-1">1 · Régua da exposição</h2>
+  <p class="text-xs text-loyall-500 mb-3 max-w-3xl">
+    Trajetória do ratio P/D por termo (últimos quarters). Retenção e Expansão são
+    <strong>exposição relacional</strong>; Entrada é a <strong>régua de entrada</strong>
+    (ratio-CX + reputação Vitrine) — naturezas distintas.</p>
+
+  {% if traj.series %}
+  <div class="space-y-3 max-w-3xl">
+    {% for t in ['retencao', 'expansao', 'entrada'] if t in traj.series %}
+    {% set pts = traj.series[t] %}
+    {% set atual = pts[-1] %}
+    <div class="border rounded p-3 {% if exposto == t %}ring-2 ring-rose-300 border-rose-200{% endif %}">
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="font-medium">{{ nome_termo[t] }}</span>
+          {% if exposto == t %}<span class="ml-2 text-[11px] bg-rose-100 text-rose-700 border border-rose-300 rounded px-1.5 py-0.5">termo mais exposto agora</span>{% endif %}
+          <div class="text-[11px] text-loyall-400">{{ natureza_termo[t] }}</div>
+        </div>
+        <span class="text-xs rounded px-2 py-0.5 border {{ faixa_cor.get(atual.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}">
+          {{ '%.2f'|format(atual.ratio) }} · {{ atual.faixa }}</span>
+      </div>
+      {# trajetória: um chip por quarter, colorido pela faixa #}
+      <div class="flex flex-wrap items-center gap-1 mt-2">
+        {% for p in pts %}
+        <span class="text-[11px] rounded px-1.5 py-0.5 border {{ faixa_cor.get(p.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}"
+              title="{{ p.total }} verbatins">{{ p.ano }}{{ p.q }} · {{ '%.2f'|format(p.ratio) }}</span>
+        {% if not loop.last %}<span class="text-loyall-300">→</span>{% endif %}
+        {% endfor %}
+      </div>
+      <div class="text-xs text-loyall-600 mt-2">{{ nome_termo[t] }} — {{ leitura.get(atual.faixa, '') }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-sm text-loyall-400 border rounded p-3 max-w-3xl">
+    Ainda não há série mensal de ratios para esta empresa — a régua aparece quando houver
+    ao menos dois quarters com dado. (Rode o recompute de ratios.)</p>
+  {% endif %}
+</section>
+
+{# ══════ CAMADA 2 · Cenários pelos números (5 inputs, operador) ══════ #}
+<section class="mb-8 max-w-3xl">
+  <h2 class="font-medium mb-1">2 · Cenários pelos números</h2>
+  <p class="text-xs text-loyall-500 mb-3">
+    Os 5 números que você informar desenham 3 cenários por frente (banda ±20% fixa,
+    horizonte 12 meses). Todo R$ vem <strong>com base nos números que você informou</strong>.</p>
+
+  <form class="grid grid-cols-2 md:grid-cols-5 gap-3 border rounded p-4 bg-loyall-50 mb-3"
+        hx-post="{{ url_for('ui.visao_financeira_inputs', empresa_id=empresa_id) }}"
+        hx-target="#resultado" hx-swap="outerHTML">
+    <label class="text-xs">Receita recorrente mensal (R$)
+      <input name="receita_recorrente_base" inputmode="decimal" required
+             value="{{ inputs.receita_recorrente_base if inputs else '' }}"
+             class="w-full border rounded px-2 py-1 mt-0.5"></label>
+    <label class="text-xs">Churn atual (% ao ano)
+      <input name="churn_atual" inputmode="decimal" required
+             value="{{ inputs.churn_atual if inputs else '' }}"
+             class="w-full border rounded px-2 py-1 mt-0.5"></label>
+    <label class="text-xs">Taxa de expansão (% ao ano)
+      <input name="taxa_expansao" inputmode="decimal" required
+             value="{{ inputs.taxa_expansao if inputs else '' }}"
+             class="w-full border rounded px-2 py-1 mt-0.5"></label>
+    <label class="text-xs">CAC (R$/cliente)
+      <input name="cac" inputmode="decimal" required
+             value="{{ inputs.cac if inputs else '' }}"
+             class="w-full border rounded px-2 py-1 mt-0.5"></label>
+    <label class="text-xs">Volume de aquisição (clientes/ano)
+      <input name="volume_aquisicao" inputmode="decimal" required
+             value="{{ inputs.volume_aquisicao if inputs else '' }}"
+             class="w-full border rounded px-2 py-1 mt-0.5"></label>
+    <div class="col-span-2 md:col-span-5">
+      <button class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm">Calcular cenários</button>
+    </div>
+  </form>
+
+  {% include "visao_financeira/_resultado.html" %}
+</section>
+
+{# ══════ SNAPSHOTS ══════ #}
+<section class="max-w-3xl">
+  <h2 class="font-medium mb-1">Snapshots</h2>
+  <p class="text-xs text-loyall-500 mb-3">
+    Congela a foto imutável do instante (ratios + cenários + números + data). Recompute
+    futuro da régua não altera um snapshot salvo. O botão de salvar fica junto dos
+    cenários acima (aparece assim que você calcula).</p>
+
+  {% if snapshots %}
+  <ul class="divide-y border rounded">
+    {% for sn in snapshots %}
+    <li class="px-3 py-2 flex items-center justify-between text-sm">
+      <a href="{{ url_for('ui.visao_financeira_snapshot_reabrir', empresa_id=empresa_id, snap_id=sn.id) }}"
+         class="text-loyall-700 hover:underline">{{ sn.nome }}</a>
+      <span class="text-xs text-loyall-400">
+        {{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}
+        {% if sn.gerado_por %}· {{ sn.gerado_por }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-sm text-loyall-400">Nenhum snapshot ainda.</p>
+  {% endif %}
+</section>
+{% endblock %}

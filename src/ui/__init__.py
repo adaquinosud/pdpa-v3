@@ -5912,3 +5912,6 @@ from src.ui import pesquisa as _pesquisa_routes  # noqa: E402,F401
 
 # Rotas dos Casos (ReclameAqui — sequência viva). Mesmo padrão: import no fim.
 from src.ui import casos as _casos_routes  # noqa: E402,F401
+
+# Visão Financeira C-Level (tela interna, Nível A). Mesmo padrão: import no fim.
+from src.ui import visao_financeira as _visao_financeira_routes  # noqa: E402,F401

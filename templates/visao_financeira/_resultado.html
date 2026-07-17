@@ -1,0 +1,93 @@
+{# Partial da Camada 2 (alvo do htmx). SEMPRE um elemento com id=resultado (hx-swap
+   outerHTML). Rótulos de cenário: conservador=favorável, provável=informado,
+   exposto=adverso. Deixado na mesa = distância provável→favorável (o que os números
+   dizem estar disponível), nunca perda causal. #}
+<div id="resultado">
+{% if erro %}
+  <div class="rounded border border-rose-300 bg-rose-50 text-rose-700 px-3 py-2 text-sm">⚠ {{ erro }}</div>
+{% elif camada2 %}
+  {% set c = camada2.cenarios %}
+  {% set vit_txt = {
+    'forte': 'reputação forte → entrada posicionada no cenário conservador',
+    'neutra': 'reputação neutra → entrada no cenário provável',
+    'fraca': 'reputação fraca → entrada no cenário exposto',
+  } %}
+  {% if salvo %}
+  <div class="rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-3 py-1.5 text-xs mb-3">
+    ✓ Números salvos. Cenários abaixo — <strong>com base nos números que você informou</strong>.</div>
+  {% endif %}
+
+  <div class="text-[11px] text-loyall-500 mb-2">
+    Horizonte {{ c.horizonte_meses }} meses · banda ±{{ c.banda_pct }}% (fixa) ·
+    valores <strong>com base nos números que você informou</strong>.</div>
+
+  {# ── as 3 frentes ── #}
+  {% set frentes = [
+      ('retencao', 'Retenção', c.frentes.retencao, 'churn ±' ~ c.banda_pct ~ '%'),
+      ('expansao', 'Expansão', c.frentes.expansao, 'taxa de expansão ±' ~ c.banda_pct ~ '%'),
+      ('aquisicao', 'Aquisição', c.frentes.aquisicao, 'CAC ±' ~ c.banda_pct ~ '%')] %}
+  <div class="space-y-3">
+  {% for key, nome, fr, banda_lbl in frentes %}
+    <div class="border rounded p-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="font-medium text-sm">{{ nome }}</span>
+        <span class="text-[11px] text-loyall-400">varia {{ banda_lbl }}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        {% for cen, rot in [('conservador','conservador'),('provavel','provável'),('exposto','exposto')] %}
+        <div class="rounded px-2 py-1.5 {% if cen=='provavel' %}bg-loyall-100 border border-loyall-200{% else %}bg-loyall-50{% endif %}">
+          <div class="text-[10px] uppercase tracking-wider text-loyall-400">{{ rot }}</div>
+          <div class="text-sm font-medium">{{ fr.cenarios[cen]|moeda }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if key == 'aquisicao' %}
+      <div class="text-[11px] text-loyall-500 mt-2">
+        {{ vit_txt.get(camada2.vitrine, '') }}.
+        Despesa de aquisição real (presente/DRE): <strong>{{ fr.despesa_real|moeda }}</strong>
+        — <span class="text-loyall-400">à parte do deixado na mesa (futuro não-realizado).</span></div>
+      <div class="text-xs mt-1 text-loyall-500">Deixado na mesa —
+        <span class="italic">estimativa</span> ancorada no <strong>sinal da Vitrine</strong>
+        (não num número seu), logo mais grossa que as frentes acima:
+        <strong class="text-loyall-600">≈ {{ fr.deixado_na_mesa|moeda }}</strong>
+        <span class="text-loyall-400">(excesso evitável vs entrada saudável)</span></div>
+      {% else %}
+      <div class="text-xs mt-2">Deixado na mesa (provável → favorável):
+        <strong class="text-loyall-800">{{ fr.deixado_na_mesa|moeda }}</strong></div>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+
+  {# ── síntese ── #}
+  <div class="border rounded p-3 mt-3 bg-loyall-50">
+    <div class="text-sm font-medium mb-2">Síntese — Receita futura = Retenção + Expansão − Despesa de aquisição</div>
+    <div class="grid grid-cols-3 gap-2 text-center mb-2">
+      {% for cen, rot in [('conservador','conservador'),('provavel','provável'),('exposto','exposto')] %}
+      <div class="rounded px-2 py-1.5 {% if cen=='provavel' %}bg-white border border-loyall-200{% else %}bg-white/60{% endif %}">
+        <div class="text-[10px] uppercase tracking-wider text-loyall-400">{{ rot }}</div>
+        <div class="text-sm font-semibold">{{ c.sintese.receita_futura[cen]|moeda }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="text-xs text-loyall-600">Despesa de aquisição (presente): {{ c.sintese.despesa_aquisicao|moeda }}</div>
+    <div class="text-sm mt-1">Total deixado na mesa (Σ das 3 frentes):
+      <strong class="text-loyall-900">≈ {{ c.sintese.total_deixado_na_mesa|moeda }}</strong>
+      <span class="text-[11px] text-loyall-400">(inclui a estimativa da Aquisição, ancorada em sinal)</span></div>
+  </div>
+
+  {% if permite_salvar|default(false) %}
+  {# Snapshot dentro do partial: aparece assim que há cenário calculado (o alvo do
+     htmx é este #resultado). POST normal (redirect) — atualiza a lista na tela. #}
+  <form method="post" action="{{ url_for('ui.visao_financeira_snapshot', empresa_id=empresa_id) }}"
+        class="flex items-center gap-2 mt-4 pt-3 border-t">
+    <input name="nome" required placeholder="Nome do snapshot (ex. teste-jul)"
+           class="flex-1 border rounded px-2 py-1.5 text-sm">
+    <button class="border border-loyall-300 px-3 py-1.5 rounded text-sm hover:bg-loyall-50 whitespace-nowrap">
+      📸 Salvar snapshot</button>
+  </form>
+  {% endif %}
+{% else %}
+  <p class="text-sm text-loyall-400 border rounded p-3">Informe os 5 números acima para ver os cenários.</p>
+{% endif %}
+</div>
