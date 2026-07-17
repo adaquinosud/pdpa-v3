@@ -15,7 +15,7 @@ import secrets
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.models.pesquisa import Pesquisa, PesquisaPergunta
-from src.pesquisa.validador import tem_bloqueio, validar_perguntas
+from src.pesquisa.validador import ESCALA_DEFAULT, tem_bloqueio, validar_perguntas
 
 
 def _pergunta_dict(p: PesquisaPergunta) -> Dict[str, Any]:
@@ -225,18 +225,28 @@ def adicionar_pergunta(
     enunciado: str,
     formato: str = "aberta",
     subpilar_alvo: Optional[str] = None,
+    opcoes_json: Optional[str] = None,
 ) -> Optional[PesquisaPergunta]:
     """Cria uma pergunta MANUAL no fim da lista (ordem = max+1, sem re-sequenciar).
-    ``gerada_por_ancora=False``. Sem veredito em cache (revalida sob demanda)."""
+    ``gerada_por_ancora=False``. Sem veredito em cache (revalida sob demanda).
+
+    Pergunta de NOTA (fechada/mista) nasce com a ESCALA PADRÃO 1-5 (decisão de método:
+    5★ promotor / 4-3★ conversível / 2-1★ detrator — não há escala variável). Assim o
+    aviso 'sem escala' (R4) nunca dispara no caminho normal — a pergunta nasce válida
+    nessa dimensão. ``opcoes_json`` explícito sobrepõe (ex.: legado/geração)."""
     pesq = s.get(Pesquisa, pesquisa_id)
     if pesq is None:
         return None
+    fmt = formato if formato in ("aberta", "fechada", "mista") else "aberta"
+    if opcoes_json is None and fmt in ("fechada", "mista"):
+        opcoes_json = json.dumps(ESCALA_DEFAULT)
     proxima = max((p.ordem for p in pesq.perguntas), default=0) + 1
     nova = PesquisaPergunta(
         ordem=proxima,
         enunciado=enunciado,
-        formato=formato if formato in ("aberta", "fechada", "mista") else "aberta",
+        formato=fmt,
         subpilar_alvo=subpilar_alvo,
+        opcoes_json=opcoes_json,
         gerada_por_ancora=False,
     )
     pesq.perguntas.append(nova)  # via relationship → sincroniza a coleção + seta o FK
