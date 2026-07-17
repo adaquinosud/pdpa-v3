@@ -7,10 +7,11 @@
   <div class="rounded border border-rose-300 bg-rose-50 text-rose-700 px-3 py-2 text-sm">⚠ {{ erro }}</div>
 {% elif camada2 %}
   {% set c = camada2.cenarios %}
+  {# vocabulário alinhado ao card "Reputação de entrada" do Bloco 1 (mesma lente). #}
   {% set vit_txt = {
-    'forte': 'reputação forte → entrada posicionada no cenário conservador',
-    'neutra': 'reputação neutra → entrada no cenário provável',
-    'fraca': 'reputação fraca → entrada no cenário exposto',
+    'forte': 'reputação de entrada forte → posicionada no cenário conservador',
+    'neutra': 'reputação de entrada neutra → cenário provável',
+    'fraca': 'reputação de entrada fraca → cenário exposto',
   } %}
   {% if salvo %}
   <div class="rounded border border-emerald-300 bg-emerald-50 text-emerald-700 px-3 py-1.5 text-xs mb-3">

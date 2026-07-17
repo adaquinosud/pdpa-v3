@@ -42,13 +42,20 @@ TERMO_PILARES: Dict[str, tuple] = {
 NOME_TERMO = {
     "retencao": "Retenção",
     "expansao": "Expansão",
-    "entrada": "Entrada / Aquisição",
+    # 3º termo, lente A: os 4 pilares agregados = saúde da relação de quem JÁ é cliente
+    # (NÃO é "entrada" — entrada é a lente B, a reputação Vitrine). O número é ratio-CX
+    # puro; a Vitrine não entra nele (por isso o rótulo perdeu o "+Vitrine").
+    "entrada": "Relação com quem já é cliente",
 }
 NATUREZA_TERMO = {
     "retencao": "exposição relacional (quem já é cliente)",
     "expansao": "exposição relacional (quem já é cliente)",
-    "entrada": "régua de entrada (ratio-CX + Vitrine)",
+    "entrada": "saúde relacional geral · os 4 pilares agregados",
 }
+# 3º termo, lente B (reputação de entrada, quem AINDA NÃO é cliente): rótulos do card
+# alimentado por ``vitrine_leitura``. Fica ao lado da lente A, mesmo termo, outra lente.
+NOME_LENTE_ENTRADA = "Reputação de entrada"
+NATUREZA_LENTE_ENTRADA = "quem ainda não é cliente · nota RA/amostra vs corte de mercado (4,5★)"
 
 
 # ── Camada 1 · trajetória dos termos ──────────────────────────────────
@@ -156,6 +163,49 @@ def vitrine_posicao(s, empresa_id: int) -> str:
     if "verde" in status:
         return "forte"
     return "neutra"
+
+
+def vitrine_leitura(s, empresa_id: int) -> Dict[str, Any]:
+    """Leitura da lente B (reputação de entrada) para o CARD do Bloco 1 — não altera
+    ``vitrine_posicao`` nem a lógica de cálculo. Devolve ``{"posicao", "sinais"}``:
+    ``posicao`` é o retorno canônico de ``vitrine_posicao`` (fonte única, sem drift);
+    ``sinais`` são os sinais de nota (``nota_ra``, ``rating_amostra``) de
+    ``_explorar_vitrine`` — cada um com valor/corte/status — pra renderizar o card."""
+    from src.ui import _explorar_vitrine
+
+    vit = _explorar_vitrine(s, empresa_id)
+    sinais = [sig for sig in vit.sinais if sig.get("chave") in ("nota_ra", "rating_amostra")]
+    return {"posicao": vitrine_posicao(s, empresa_id), "sinais": sinais}
+
+
+# Faixa do ratio-CX (lente A) → força relacional, p/ comparar com a posição da Vitrine.
+_FAIXA_FORCA = {
+    "excelente": "forte",
+    "bom": "forte",
+    "atencao": "neutra",
+    "fraco": "fraca",
+    "critico": "fraca",
+}
+
+
+def divergencia_lentes(faixa_relacao: Optional[str], posicao_vitrine: str) -> Optional[str]:
+    """Frase determinística (sem LLM) quando as DUAS lentes do 3º termo divergem em
+    oposto estrito: relação forte × entrada fraca, ou o inverso. Descreve SINAL, não
+    crava causa (reputação boa remove obstáculo, não garante aquisição). Concordância
+    ou qualquer lente neutra → ``None`` (sem frase)."""
+    a = _FAIXA_FORCA.get(faixa_relacao or "", "neutra")
+    b = posicao_vitrine
+    if a == "forte" and b == "fraca":
+        return (
+            "Seus clientes atuais valorizam a relação, mas a reputação pública pode "
+            "afastar quem ainda não chegou."
+        )
+    if a == "fraca" and b == "forte":
+        return (
+            "Sua reputação pública está forte, mas a relação com quem já está dentro "
+            "se desgasta."
+        )
+    return None
 
 
 # ── Camada 2 · cenários pelos números (pura, testável) ────────────────

@@ -17,12 +17,16 @@ from flask import flash, redirect, render_template, request, url_for
 from src.auth import get_current_user
 from src.financeiro.visao import (
     INPUT_CAMPOS,
+    NATUREZA_LENTE_ENTRADA,
     NATUREZA_TERMO,
+    NOME_LENTE_ENTRADA,
     NOME_TERMO,
     calcular_cenarios,
+    divergencia_lentes,
     montar_foto,
     termo_mais_exposto,
     trajetoria_termos,
+    vitrine_leitura,
     vitrine_posicao,
 )
 from src.models.empresa import Empresa
@@ -92,6 +96,12 @@ def visao_financeira(empresa_id):
         nome = empresa.nome
         traj = trajetoria_termos(s, empresa_id)
         exposto = termo_mais_exposto(s, empresa_id)
+        # Lente B (reputação de entrada) — computada SEMPRE, mesmo sem input (o Bloco 1
+        # roda sem número). A divergência compara a faixa da relação (lente A, o termo
+        # 'entrada' = 4 pilares) com a posição da Vitrine (lente B).
+        vit = vitrine_leitura(s, empresa_id)
+        faixa_relacao = (traj.get("atual", {}).get("entrada") or {}).get("faixa")
+        divergencia = divergencia_lentes(faixa_relacao, vit["posicao"])
         reg = (
             s.query(VisaoFinanceiraInput)
             .filter(VisaoFinanceiraInput.empresa_id == empresa_id)
@@ -113,6 +123,10 @@ def visao_financeira(empresa_id):
         exposto=exposto,
         nome_termo=NOME_TERMO,
         natureza_termo=NATUREZA_TERMO,
+        nome_lente_entrada=NOME_LENTE_ENTRADA,
+        natureza_lente_entrada=NATUREZA_LENTE_ENTRADA,
+        vitrine=vit,
+        divergencia=divergencia,
         inputs=inputs,
         camada2=camada2,
         permite_salvar=True,
@@ -222,6 +236,12 @@ def visao_financeira_snapshot_reabrir(empresa_id, snap_id):
             "gerado_em": sn.gerado_em,
             "gerado_por": sn.gerado_por,
         }
+    # Divergência CONGELADA: reconstruída da própria foto (faixa da relação em
+    # termos_ratio['entrada'] + posição da Vitrine em cenarios.vitrine_posicao) — sem
+    # schema novo. Só há posição Vitrine na foto se houve input no instante.
+    faixa_rel = (foto.get("termos_ratio", {}).get("entrada") or {}).get("faixa")
+    pos_vit = (foto.get("cenarios") or {}).get("vitrine_posicao")
+    divergencia = divergencia_lentes(faixa_rel, pos_vit) if pos_vit else None
     return render_template(
         "visao_financeira/snapshot.html",
         empresa_id=empresa_id,
@@ -229,4 +249,7 @@ def visao_financeira_snapshot_reabrir(empresa_id, snap_id):
         foto=foto,
         meta=meta,
         nome_termo=NOME_TERMO,
+        vitrine_posicao_foto=pos_vit,
+        nome_lente_entrada=NOME_LENTE_ENTRADA,
+        divergencia=divergencia,
     )

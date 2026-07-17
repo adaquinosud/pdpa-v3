@@ -10,11 +10,16 @@ from src.api.painel import calcular_ratio
 from src.financeiro.visao import (
     BANDA,
     HORIZONTE_MESES,
+    NATUREZA_TERMO,
+    NOME_TERMO,
     calcular_cenarios,
+    divergencia_lentes,
     termo_mais_exposto,
     trajetoria_termos,
+    vitrine_leitura,
 )
 from src.models.anomalia import RatioMensal
+from src.models.fonte_reputacao import FonteReputacao
 from src.models.verbatim import Verbatim
 from src.models.visao_financeira import VisaoFinanceiraInput, VisaoFinanceiraSnapshot
 
@@ -253,3 +258,66 @@ def test_tela_gating_interno(client_cliente_factory, client_loyall):
     cli = client_cliente_factory(eid)
     r = cli.get(f"/empresas/{eid}/visao-financeira")
     assert r.status_code == 403
+
+
+# ── Duas lentes do 3º termo (fix de rótulo) ───────────────────────────
+
+
+def test_rotulo_entrada_perdeu_vitrine_falso():
+    # o número do 3º termo é ratio-CX puro — o rótulo não pode prometer "+Vitrine"
+    assert NOME_TERMO["entrada"] == "Relação com quem já é cliente"
+    assert "Vitrine" not in NATUREZA_TERMO["entrada"]
+
+
+def test_divergencia_lentes_dispara_e_silencia():
+    p1 = divergencia_lentes("excelente", "fraca")
+    assert p1 and "pode afastar quem ainda não chegou" in p1
+    p2 = divergencia_lentes("critico", "forte")
+    assert p2 and "se desgasta" in p2
+    # concordam ou alguma neutra → sem frase
+    assert divergencia_lentes("excelente", "forte") is None
+    assert divergencia_lentes("atencao", "fraca") is None
+    assert divergencia_lentes(None, "fraca") is None
+
+
+def _seed_relacao_forte(db_session, eid, lid, agid):
+    # 4 pilares fortes em 2 quarters → termo 'entrada' (ratio-CX) excelente
+    for sub in ("P1", "D1", "Pa1", "A1"):
+        _rm(db_session, eid, lid, agid, sub, "2026-01", 20, 1)
+        _rm(db_session, eid, lid, agid, sub, "2026-04", 22, 1)
+
+
+def test_vitrine_leitura_estrutura(client_loyall, db_session):
+    eid, *_ = _empresa(client_loyall)
+    leit = vitrine_leitura(db_session, eid)
+    assert leit["posicao"] in ("forte", "fraca", "neutra")
+    assert isinstance(leit["sinais"], list)
+
+
+def test_tela_bloco1_duas_lentes_sem_input(client_loyall, db_session):
+    eid, lid, agid, _fid = _empresa(client_loyall)
+    _seed_relacao_forte(db_session, eid, lid, agid)
+    db_session.commit()
+    body = client_loyall.get(f"/empresas/{eid}/visao-financeira").get_data(as_text=True)
+    assert "Relação com quem já é cliente" in body
+    assert "Reputação de entrada" in body
+    assert "3º termo" in body
+
+
+def test_tela_divergencia_relacao_forte_reputacao_fraca(client_loyall, db_session):
+    # reproduz o caso Club Med: relação interna forte + reputação pública fraca
+    eid, lid, agid, fid = _empresa(client_loyall)
+    _seed_relacao_forte(db_session, eid, lid, agid)
+    db_session.add(
+        FonteReputacao(
+            fonte_id=fid,
+            empresa_id=eid,
+            provedor="reclame_aqui",
+            consumer_score=6.0,  # ÷2 = 3,0★ < corte 4,5 → nota_ra vermelho → Vitrine fraca
+            coletado_em=datetime.utcnow(),
+        )
+    )
+    db_session.commit()
+    assert vitrine_leitura(db_session, eid)["posicao"] == "fraca"
+    body = client_loyall.get(f"/empresas/{eid}/visao-financeira").get_data(as_text=True)
+    assert "pode afastar quem ainda não chegou" in body

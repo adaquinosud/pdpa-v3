@@ -15,6 +15,17 @@
   'bom':       'saudável — a base sustenta a relação.',
   'excelente': 'forte — relação sólida.',
 } %}
+{# Lente B (reputação de entrada / Vitrine): cor e rótulo por posição. #}
+{% set vit_cor = {
+  'forte':  'bg-emerald-100 text-emerald-700 border-emerald-300',
+  'neutra': 'bg-loyall-100 text-loyall-600 border-loyall-200',
+  'fraca':  'bg-rose-100 text-rose-700 border-rose-300',
+} %}
+{% set vit_label = {
+  'forte':  'reputação forte',
+  'neutra': 'reputação neutra / não medida',
+  'fraca':  'reputação fraca',
+} %}
 
 {% block conteudo %}
 <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa_id) }}"
@@ -26,39 +37,89 @@
   cenários — não calcula perda. <span class="text-loyall-400">Tela interna (Loyall).</span></p>
 
 {# ══════ CAMADA 1 · Régua da exposição (sempre visível, sem input) ══════ #}
+{% macro carta_relacional(t, pts, exposto, nome_termo, natureza_termo, faixa_cor, leitura, moldura) -%}
+  {% set atual = pts[-1] %}
+  <div class="border rounded p-3 {{ moldura }} {% if exposto == t and not moldura %}ring-2 ring-rose-300 border-rose-200{% endif %}">
+    <div class="flex items-start justify-between gap-2">
+      <div class="min-w-0">
+        <span class="font-medium">{{ nome_termo[t] }}</span>
+        {% if exposto == t and not moldura %}<span class="ml-2 text-[11px] bg-rose-100 text-rose-700 border border-rose-300 rounded px-1.5 py-0.5">termo mais exposto agora</span>{% endif %}
+        <div class="text-[11px] text-loyall-400">{{ natureza_termo[t] }}</div>
+      </div>
+      <span class="shrink-0 text-xs rounded px-2 py-0.5 border {{ faixa_cor.get(atual.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}">
+        {{ '%.2f'|format(atual.ratio) }} · {{ atual.faixa }}</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-1 mt-2">
+      {% for p in pts %}
+      <span class="text-[11px] rounded px-1.5 py-0.5 border {{ faixa_cor.get(p.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}"
+            title="{{ p.total }} verbatins">{{ p.ano }}{{ p.q }} · {{ '%.2f'|format(p.ratio) }}</span>
+      {% if not loop.last %}<span class="text-loyall-300">→</span>{% endif %}
+      {% endfor %}
+    </div>
+    <div class="text-xs text-loyall-600 mt-2">{{ nome_termo[t] }} — {{ leitura.get(atual.faixa, '') }}</div>
+  </div>
+{%- endmacro %}
+
 <section class="mb-8">
   <h2 class="font-medium mb-1">1 · Régua da exposição</h2>
   <p class="text-xs text-loyall-500 mb-3 max-w-3xl">
-    Trajetória do ratio P/D por termo (últimos quarters). Retenção e Expansão são
-    <strong>exposição relacional</strong>; Entrada é a <strong>régua de entrada</strong>
-    (ratio-CX + reputação Vitrine) — naturezas distintas.</p>
+    Três termos da equação. <strong>Retenção</strong> e <strong>Expansão</strong> são
+    exposição relacional (quem já é cliente). O <strong>3º termo</strong> aparece por
+    <strong>duas lentes do mesmo ângulo de entrada</strong>: a relação com quem já é
+    cliente (os 4 pilares) e a reputação de entrada (Vitrine — quem ainda não é cliente).
+    São medidas de fontes distintas; podem divergir sem se contradizer.</p>
 
   {% if traj.series %}
   <div class="space-y-3 max-w-3xl">
-    {% for t in ['retencao', 'expansao', 'entrada'] if t in traj.series %}
-    {% set pts = traj.series[t] %}
-    {% set atual = pts[-1] %}
-    <div class="border rounded p-3 {% if exposto == t %}ring-2 ring-rose-300 border-rose-200{% endif %}">
-      <div class="flex items-center justify-between">
-        <div>
-          <span class="font-medium">{{ nome_termo[t] }}</span>
-          {% if exposto == t %}<span class="ml-2 text-[11px] bg-rose-100 text-rose-700 border border-rose-300 rounded px-1.5 py-0.5">termo mais exposto agora</span>{% endif %}
-          <div class="text-[11px] text-loyall-400">{{ natureza_termo[t] }}</div>
-        </div>
-        <span class="text-xs rounded px-2 py-0.5 border {{ faixa_cor.get(atual.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}">
-          {{ '%.2f'|format(atual.ratio) }} · {{ atual.faixa }}</span>
-      </div>
-      {# trajetória: um chip por quarter, colorido pela faixa #}
-      <div class="flex flex-wrap items-center gap-1 mt-2">
-        {% for p in pts %}
-        <span class="text-[11px] rounded px-1.5 py-0.5 border {{ faixa_cor.get(p.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}"
-              title="{{ p.total }} verbatins">{{ p.ano }}{{ p.q }} · {{ '%.2f'|format(p.ratio) }}</span>
-        {% if not loop.last %}<span class="text-loyall-300">→</span>{% endif %}
-        {% endfor %}
-      </div>
-      <div class="text-xs text-loyall-600 mt-2">{{ nome_termo[t] }} — {{ leitura.get(atual.faixa, '') }}</div>
-    </div>
+    {# Termos 1 e 2 — trajetória relacional #}
+    {% for t in ['retencao', 'expansao'] if t in traj.series %}
+    {{ carta_relacional(t, traj.series[t], exposto, nome_termo, natureza_termo, faixa_cor, leitura, '') }}
     {% endfor %}
+
+    {# 3º termo — UMA moldura, DUAS lentes (relação existente + reputação de entrada) #}
+    <div class="border-2 rounded-lg p-3 {% if exposto == 'entrada' %}ring-2 ring-rose-300 border-rose-200{% else %}border-loyall-200{% endif %} bg-loyall-50/50">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] uppercase tracking-wider text-loyall-400">3º termo · um ângulo, duas lentes</span>
+        {% if exposto == 'entrada' %}<span class="text-[11px] bg-rose-100 text-rose-700 border border-rose-300 rounded px-1.5 py-0.5">termo mais exposto agora</span>{% endif %}
+      </div>
+      <div class="grid md:grid-cols-2 gap-3">
+        {# lente A · relação com quem já é cliente (os 4 pilares, o ratio-CX) #}
+        {% if 'entrada' in traj.series %}
+        {{ carta_relacional('entrada', traj.series['entrada'], exposto, nome_termo, natureza_termo, faixa_cor, leitura, 'bg-white') }}
+        {% endif %}
+
+        {# lente B · reputação de entrada (Vitrine — quem ainda não é cliente) #}
+        <div class="border rounded p-3 bg-white">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <span class="font-medium">{{ nome_lente_entrada }}</span>
+              <div class="text-[11px] text-loyall-400">{{ natureza_lente_entrada }}</div>
+            </div>
+            <span class="shrink-0 text-xs rounded px-2 py-0.5 border {{ vit_cor.get(vitrine.posicao, vit_cor['neutra']) }}">
+              {{ vit_label.get(vitrine.posicao, vitrine.posicao) }}</span>
+          </div>
+          <div class="mt-2 space-y-1">
+            {% for sig in vitrine.sinais %}
+            <div class="text-[11px] flex items-center justify-between">
+              <span class="text-loyall-500">{{ sig.label }}</span>
+              <span class="{% if sig.status == 'vermelho' %}text-rose-600{% elif sig.status == 'verde' %}text-emerald-600{% else %}text-loyall-400{% endif %}">
+                {% if sig.valor is not none %}{{ sig.valor }}{{ sig.unidade }}{% if sig.corte %} <span class="text-loyall-400">(corte {{ sig.corte }}{{ sig.unidade }})</span>{% endif %}{% else %}não medido{% endif %}</span>
+            </div>
+            {% endfor %}
+            {% if not vitrine.sinais %}
+            <div class="text-[11px] text-loyall-400">Sem sinal de reputação coletado ainda.</div>
+            {% endif %}
+          </div>
+          <div class="text-xs text-loyall-600 mt-2">Reputação de entrada — {{ vit_label.get(vitrine.posicao, '') }} para quem ainda não é cliente.</div>
+        </div>
+      </div>
+
+      {# frase de divergência — só quando as duas lentes se opõem (determinística) #}
+      {% if divergencia %}
+      <div class="mt-3 text-xs rounded px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800">
+        ⚖ {{ divergencia }}</div>
+      {% endif %}
+    </div>
   </div>
   {% else %}
   <p class="text-sm text-loyall-400 border rounded p-3 max-w-3xl">

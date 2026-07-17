@@ -22,13 +22,23 @@
   {# ratios de termo congelados #}
   <section>
     <h2 class="font-medium mb-2 text-sm">Régua no instante</h2>
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       {% for t in ['retencao', 'expansao', 'entrada'] if t in foto.termos_ratio %}
       {% set r = foto.termos_ratio[t] %}
       <span class="text-xs rounded px-2 py-1 border {{ faixa_cor.get(r.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}">
         {{ nome_termo[t] }}: {{ '%.2f'|format(r.ratio) }} · {{ r.faixa }}</span>
       {% endfor %}
+      {# lente B congelada: só a posição da Vitrine estava na foto (nota crua é live). #}
+      {% if vitrine_posicao_foto %}
+      {% set vit_cor = {'forte':'bg-emerald-100 text-emerald-700 border-emerald-300','neutra':'bg-loyall-100 text-loyall-600 border-loyall-200','fraca':'bg-rose-100 text-rose-700 border-rose-300'} %}
+      <span class="text-xs rounded px-2 py-1 border {{ vit_cor.get(vitrine_posicao_foto, vit_cor['neutra']) }}">
+        {{ nome_lente_entrada }}: {{ vitrine_posicao_foto }}</span>
+      {% endif %}
     </div>
+    {% if divergencia %}
+    <div class="mt-2 text-xs rounded px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 max-w-2xl">
+      ⚖ {{ divergencia }}</div>
+    {% endif %}
   </section>
 
   {# os 5 números informados #}
