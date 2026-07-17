@@ -24,6 +24,7 @@ from src.pesquisa.persistencia import (
     aprovar,
     atualizar_pergunta,
     contar_respondentes,
+    criar_pesquisa_vazia,
     criar_rascunho,
     deletar_pergunta,
     listar,
@@ -224,6 +225,24 @@ def pesquisa_gerar(empresa_id):
     return redirect(url_for("ui.pesquisa_revisar", empresa_id=empresa_id, pesquisa_id=pesquisa_id))
 
 
+@ui_bp.route("/empresas/<int:empresa_id>/pesquisas/em-branco", methods=["POST"])
+@loyall_required_ui
+def pesquisa_criar_vazia(empresa_id):
+    """Cria uma pesquisa em BRANCO (sem geração LLM) e leva pra revisão — o usuário
+    adiciona as perguntas dele (espelhar cliente). Caminho ADICIONAL ao gerar."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    titulo = (request.form.get("titulo") or "").strip()
+    natureza = (request.form.get("natureza") or "externa").strip()
+    user = get_current_user()
+    with db_session() as s:
+        pid = criar_pesquisa_vazia(
+            s, empresa_id, natureza=natureza, titulo=titulo, criada_por=getattr(user, "id", None)
+        )
+    return redirect(url_for("ui.pesquisa_revisar", empresa_id=empresa_id, pesquisa_id=pid))
+
+
 @ui_bp.route("/empresas/<int:empresa_id>/pesquisas/<int:pesquisa_id>/apagar", methods=["POST"])
 @loyall_required_ui
 def pesquisa_apagar(empresa_id, pesquisa_id):
@@ -261,7 +280,7 @@ def pesquisa_apagar(empresa_id, pesquisa_id):
     return redirect(url_for("ui.pesquisas_lista", empresa_id=empresa_id))
 
 
-def _ctx_revisar(s, pesquisa_id, veredito=None):
+def _ctx_revisar(s, pesquisa_id, veredito=None, tocada_id=None):
     pesq = obter(s, pesquisa_id)
     if pesq is None:
         return None
@@ -278,6 +297,9 @@ def _ctx_revisar(s, pesquisa_id, veredito=None):
             "subpilar_alvo": p.subpilar_alvo,
             "gerada_por_ancora": p.gerada_por_ancora,
             "regras": veredito_por_ordem.get(p.ordem, []),
+            # "✓ aplicado" efêmero: só no render da ação que tocou esta pergunta;
+            # some no próximo render (Revalidar/etc. não passam tocada_id).
+            "salvo": p.id == tocada_id,
         }
         for p in pesq.perguntas
     ]
@@ -380,7 +402,7 @@ def pesquisa_editar_pergunta(empresa_id, pesquisa_id, pergunta_id):
             return bloqueio
         if atualizar_pergunta(s, pergunta_id, **campos) is None:
             return render_template("404.html"), 404
-        ctx = _ctx_revisar(s, pesquisa_id)
+        ctx = _ctx_revisar(s, pesquisa_id, tocada_id=pergunta_id)  # "✓ aplicado" nesta
     return render_template("pesquisa/_cards.html", **ctx)
 
 
@@ -453,7 +475,10 @@ def pesquisa_aprovar(empresa_id, pesquisa_id):
         ok, veredito = aprovar(s, pesquisa_id)  # re-valida server-side (determinístico)
         ctx = _ctx_revisar(s, pesquisa_id, veredito=veredito)
     if not ok:
-        flash("Há perguntas que bloqueiam (🔴) — corrija antes de aprovar.", "erro")
+        if veredito.get("sem_perguntas"):
+            flash("Adicione ao menos uma pergunta antes de aprovar.", "erro")
+        else:
+            flash("Há perguntas em “Precisa corrigir” — resolva-as antes de aprovar.", "erro")
         return render_template("pesquisa/revisar.html", **ctx), 409
     flash("Pesquisa aprovada (pronta).", "ok")
     return render_template("pesquisa/revisar.html", **ctx)

@@ -388,8 +388,9 @@ def adicionar_pergunta(
 
 
 def deletar_pergunta(s, pergunta_id: int) -> bool:
-    """Apaga uma pergunta. DEIXA o buraco na ordem (não re-sequencia — decisão do
-    brief). Returns False se a pergunta não existe."""
+    """Apaga uma pergunta e RE-SEQUENCIA a ordem das restantes (1..N pela ordem atual) —
+    espelhar cliente (apagar/recriar) não deixa buraco. ``ordem`` NÃO entra no hash do
+    cache do juiz → renumerar não invalida o advisory. Returns False se não existe."""
     p = s.get(PesquisaPergunta, pergunta_id)
     if p is None:
         return False
@@ -399,7 +400,39 @@ def deletar_pergunta(s, pergunta_id: int) -> bool:
     else:
         s.delete(p)
     s.flush()
+    if pesq is not None:  # renumera 1..N na ordem atual (sem buraco)
+        for i, q in enumerate(sorted(pesq.perguntas, key=lambda x: x.ordem), start=1):
+            if q.ordem != i:
+                q.ordem = i
+        s.flush()
     return True
+
+
+def criar_pesquisa_vazia(
+    s,
+    empresa_id: int,
+    *,
+    natureza: str = "externa",
+    proposito: str = "coleta",
+    titulo: str = "",
+    criada_por: Optional[int] = None,
+) -> int:
+    """Cria uma pesquisa em BRANCO (rascunho, ZERO perguntas) — SEM passar pela geração
+    LLM. Escopo empresa; o usuário adiciona as perguntas dele na revisão. Caminho
+    ADICIONAL: não substitui gerar_pesquisa/criar_rascunho."""
+    pesq = Pesquisa(
+        empresa_id=empresa_id,
+        natureza=natureza if natureza in ("externa", "interna") else "externa",
+        proposito=proposito if proposito in ("coleta", "confronto") else "coleta",
+        titulo=titulo or "",
+        entidade_tipo="empresa",
+        status="rascunho",
+        versao=1,
+        criada_por=criada_por,
+    )
+    s.add(pesq)
+    s.flush()
+    return pesq.id
 
 
 def aprovar(s, pesquisa_id: int) -> Tuple[bool, Dict[str, Any]]:
@@ -411,6 +444,10 @@ def aprovar(s, pesquisa_id: int) -> Tuple[bool, Dict[str, Any]]:
     pesq = s.get(Pesquisa, pesquisa_id)
     if pesq is None:
         return False, {"perguntas": []}
+    # Guard: precisa de ≥1 pergunta DE CONTEÚDO (a âncora de unidade sozinha não conta)
+    # — pesquisa em branco não publica vazia.
+    if not any(not p.gerada_por_ancora for p in pesq.perguntas):
+        return False, {"perguntas": [], "sem_perguntas": True}
     veredito = validar_perguntas(perguntas_dict(pesq))
     if tem_bloqueio(veredito):
         return False, veredito

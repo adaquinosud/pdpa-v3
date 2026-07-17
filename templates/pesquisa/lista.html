@@ -79,6 +79,17 @@
     <span id="btn-gerar-label">Gerar pesquisa</span>
   </button>
 </form>
+
+{# Caminho ADICIONAL: pesquisa em branco (sem geração LLM) — espelhar as perguntas do
+   cliente do zero. Nasce com zero perguntas e abre direto na revisão. #}
+<form method="post" action="{{ url_for('ui.pesquisa_criar_vazia', empresa_id=empresa_id) }}"
+      class="mt-2 flex items-center gap-2 max-w-2xl">
+  <input name="titulo" placeholder="Título (opcional)"
+         class="flex-1 border border-loyall-200 rounded px-2 py-1.5 text-sm">
+  <button class="border border-loyall-300 px-3 py-1.5 rounded text-sm hover:bg-loyall-50 whitespace-nowrap">
+    Começar em branco
+  </button>
+</form>
 <script>
   function escopoSel(tipo) {
     document.getElementById('sel-agrupamento').classList.toggle('hidden', tipo !== 'agrupamento');

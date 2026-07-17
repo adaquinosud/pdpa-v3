@@ -181,8 +181,8 @@ def test_adicionar_pergunta_ordem_max_mais_um(client_loyall, db_session):
     assert nova.subpilar_alvo == "D2"
 
 
-def test_deletar_pergunta_deixa_buraco(client_loyall, db_session):
-    """Apagar a ordem 1 NÃO re-sequencia — a ordem 2 permanece 2 (buraco)."""
+def test_deletar_pergunta_resequencia(client_loyall, db_session):
+    """Apagar a ordem 1 RE-SEQUENCIA — a ordem 2 vira 1 (sem buraco)."""
     e = _empresa(client_loyall, "EDel")
     pid = criar_rascunho(db_session, _proposta(e, [_q(1, "P1"), _q(2, "P2")]))
     db_session.flush()
@@ -191,5 +191,5 @@ def test_deletar_pergunta_deixa_buraco(client_loyall, db_session):
     assert deletar_pergunta(db_session, id_ordem1) is True
     db_session.flush()
     restantes = obter(db_session, pid).perguntas
-    assert [p.ordem for p in restantes] == [2]  # buraco: não virou [1]
+    assert [p.ordem for p in restantes] == [1]  # re-sequenciado
     assert deletar_pergunta(db_session, 999999) is False  # inexistente

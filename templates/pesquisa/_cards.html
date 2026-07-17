@@ -17,6 +17,7 @@
     <div class="flex items-start justify-between">
       <div class="font-medium">{{ q.ordem }}. {{ q.enunciado }}</div>
       <span class="flex items-center gap-2 ml-2">
+        {% if q.salvo %}<span class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">✓ aplicado</span>{% endif %}
         <span class="text-xs text-loyall-400">{{ q.formato }}{% if q.subpilar_alvo %} · {{ q.subpilar_alvo }}{% endif %}</span>
         {% if status == 'rascunho' and not q.gerada_por_ancora %}
         <form hx-post="{{ url_for('ui.pesquisa_apagar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
@@ -84,7 +85,12 @@
           hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
           hx-target="#cards" hx-swap="outerHTML">
       <input name="enunciado" value="{{ q.enunciado }}" class="flex-1 border rounded px-2 py-1 text-xs">
-      <select name="subpilar_alvo" class="border rounded px-1 py-1 text-xs{% if _sub_invalido %} border-amber-400 text-amber-700{% endif %}">
+      {# subpilar AUTO-SAVE: muda → POSTa o form inteiro (inclui o enunciado atual, que
+         NÃO se perde) via htmx nativo. Sem onchange interpolado (aprendizado da sessão). #}
+      <select name="subpilar_alvo"
+              hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
+              hx-trigger="change" hx-target="#cards" hx-swap="outerHTML" hx-include="closest form"
+              class="border rounded px-1 py-1 text-xs{% if _sub_invalido %} border-amber-400 text-amber-700{% endif %}">
         {% if _sub_invalido %}
         {# preserva o valor inválido (não zera à toa) mas mostra que precisa escolher #}
         <option value="{{ q.subpilar_alvo }}" selected>⚠ Sem pilar definido — escolha um</option>
@@ -94,13 +100,16 @@
         <option value="{{ code }}"{% if code == q.subpilar_alvo %} selected{% endif %}>{{ code }} · {{ nome }}</option>
         {% endfor %}
       </select>
-      <button class="border px-2 rounded text-xs hover:bg-loyall-50">Salvar</button>
+      <button class="border px-2 rounded text-xs hover:bg-loyall-50">Salvar texto</button>
     </form>
     {% endif %}
   </div>
   {% endfor %}
 
   {% if status == 'rascunho' %}
+  {% if not perguntas %}
+  <div class="text-center text-loyall-400 text-sm py-2">Nenhuma pergunta ainda — comece adicionando a primeira.</div>
+  {% endif %}
   {# adicionar pergunta MANUAL — o subpilar é sugerido pelo classificador e editável #}
   <form class="border border-dashed rounded p-3 flex gap-1 items-center"
         hx-post="{{ url_for('ui.pesquisa_adicionar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id) }}"
@@ -112,7 +121,7 @@
       <option value="fechada">fechada</option>
       <option value="mista">mista</option>
     </select>
-    <button class="bg-loyall-600 text-white px-3 py-1 rounded text-xs">Adicionar pergunta</button>
+    <button class="bg-loyall-600 text-white px-3 py-1 rounded text-xs">{% if perguntas %}Adicionar pergunta{% else %}Adicionar primeira pergunta{% endif %}</button>
   </form>
   {% endif %}
 </div>

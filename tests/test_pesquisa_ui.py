@@ -243,7 +243,7 @@ def _ids(db_session, pid):
 
 
 def test_apagar_pergunta_rascunho(client_loyall, db_session):
-    """Apaga por card (htmx → #cards). Deixa buraco na ordem (não re-sequencia)."""
+    """Apaga por card (htmx → #cards). Re-sequencia a ordem (sem buraco)."""
     e = _empresa(client_loyall, "EUIdel")
     pid = _seed(db_session, e, [_q(1, "P um"), _q(2, "P dois")])
     qid = _ids(db_session, pid)[0]
@@ -253,7 +253,7 @@ def test_apagar_pergunta_rascunho(client_loyall, db_session):
     assert "P um" not in html and "P dois" in html
     db_session.expire_all()
     restantes = obter(db_session, pid).perguntas
-    assert [p.ordem for p in restantes] == [2]  # buraco preservado
+    assert [p.ordem for p in restantes] == [1]  # re-sequencia (sem buraco)
 
 
 def test_adicionar_pergunta_com_subpilar_sugerido(client_loyall, db_session, monkeypatch):
