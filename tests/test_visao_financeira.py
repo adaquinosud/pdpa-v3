@@ -12,8 +12,15 @@ from src.financeiro.visao import (
     HORIZONTE_MESES,
     NATUREZA_TERMO,
     NOME_TERMO,
+    barra_pct,
     calcular_cenarios,
     divergencia_lentes,
+    elo_travado_por_termo,
+    leitura_reputacao,
+    leitura_termo,
+    reputacao_estado,
+    rotulo_faixa,
+    tendencia,
     termo_mais_exposto,
     trajetoria_termos,
     vitrine_leitura,
@@ -173,7 +180,7 @@ def test_tela_abre_sem_input(client_loyall, db_session):
     r = client_loyall.get(f"/empresas/{eid}/visao-financeira")
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "Régua da exposição" in body and "Cenários pelos números" in body
+    assert "A saúde da sua receita, hoje" in body and "Quanto isso vale em dinheiro" in body
 
 
 def test_inputs_salva_e_calcula(client_loyall, db_session):
@@ -184,8 +191,8 @@ def test_inputs_salva_e_calcula(client_loyall, db_session):
     )
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    assert "com base nos números que você informou" in body
-    assert "Total deixado na mesa" in body
+    assert "os cenários abaixo partem deles" in body
+    assert "Total que dá para recuperar melhorando" in body
     assert "R$" in body
     # upsert: segunda gravação NÃO cria linha nova
     client_loyall.post(
@@ -231,8 +238,8 @@ def test_snapshot_congela_e_reabre_imutavel(client_loyall, db_session):
     reab = client_loyall.get(f"/empresas/{eid}/visao-financeira/snapshot/{snap.id}").get_data(
         as_text=True
     )
-    assert "Foto imutável" in reab
-    assert "64.000" in reab
+    assert "Exatamente o que a tela mostrava" in reab
+    assert "64 mil" in reab  # R$ abreviado; original intacto apesar da mutação p/ 99999
     db_session.refresh(snap)
     import json
 
@@ -299,9 +306,10 @@ def test_tela_bloco1_duas_lentes_sem_input(client_loyall, db_session):
     _seed_relacao_forte(db_session, eid, lid, agid)
     db_session.commit()
     body = client_loyall.get(f"/empresas/{eid}/visao-financeira").get_data(as_text=True)
-    assert "Relação com quem já é cliente" in body
-    assert "Reputação de entrada" in body
-    assert "3º termo" in body
+    # língua de CEO (anexo): as duas lentes da Aquisição
+    assert "Como você trata quem já é cliente" in body
+    assert "Sua reputação para quem ainda não te conhece" in body
+    assert "conquistar novos clientes, vista por dois lados" in body
 
 
 def test_tela_divergencia_relacao_forte_reputacao_fraca(client_loyall, db_session):
@@ -320,4 +328,90 @@ def test_tela_divergencia_relacao_forte_reputacao_fraca(client_loyall, db_sessio
     db_session.commit()
     assert vitrine_leitura(db_session, eid)["posicao"] == "fraca"
     body = client_loyall.get(f"/empresas/{eid}/visao-financeira").get_data(as_text=True)
+    # nível 1 (bloco): a divergência relação×reputação segue viva (discreta)
     assert "pode afastar quem ainda não chegou" in body
+    # nível 2 (dentro da reputação): sem split RA×avaliações aqui (só RA medido) → sem ⚖
+
+
+# ── Língua de CEO — helpers de apresentação ───────────────────────────
+
+
+def test_rotulo_e_leitura_por_faixa():
+    assert rotulo_faixa("critico") == "Frágil"
+    assert rotulo_faixa("atencao") == "Atenção"
+    assert rotulo_faixa("excelente") == "Forte"
+    # verbatim do anexo onde ele ilustra; fallback por rótulo no resto
+    assert leitura_termo("retencao", "critico") == (
+        "Mais clientes saindo insatisfeitos do que a base aguenta."
+    )
+    assert "merece atenção" in leitura_termo("expansao", "atencao")
+
+
+def test_barra_pct_monotonica_e_limitada():
+    assert barra_pct(0.1) < barra_pct(0.8) < barra_pct(1.5) < barra_pct(3) < barra_pct(9.99)
+    assert 0 <= barra_pct(0.0) <= 100 and barra_pct(9.99) == 100
+
+
+def test_tendencia_direcao():
+    up = [{"ratio": 1.0}, {"ratio": 3.0}]
+    down = [{"ratio": 3.0}, {"ratio": 1.0}]
+    flat = [{"ratio": 2.0}, {"ratio": 2.02}]
+    assert tendencia(up) == "melhorou"
+    assert tendencia(down) == "piorou"
+    assert tendencia(flat) == "estável"
+    assert tendencia([{"ratio": 2.0}]) == "estável"
+
+
+def test_reputacao_estado_dividida():
+    mistas = [
+        {"chave": "nota_ra", "status": "vermelho"},
+        {"chave": "rating_amostra", "status": "verde"},
+    ]
+    assert reputacao_estado(mistas)["rotulo"] == "Dividida"
+    ambas_verde = [{"status": "verde"}, {"status": "verde"}]
+    assert reputacao_estado(ambas_verde)["rotulo"] == "Forte"
+    ambas_verm = [{"status": "vermelho"}, {"status": "vermelho"}]
+    assert reputacao_estado(ambas_verm)["rotulo"] == "Frágil"
+    assert reputacao_estado([])["rotulo"] == "Sem dados"
+
+
+def test_leitura_reputacao_direcao_do_split():
+    ra_baixo = [
+        {"chave": "nota_ra", "status": "vermelho"},
+        {"chave": "rating_amostra", "status": "verde"},
+    ]
+    ra_alto = [
+        {"chave": "nota_ra", "status": "verde"},
+        {"chave": "rating_amostra", "status": "vermelho"},
+    ]
+    entrada = leitura_reputacao(ra_baixo)
+    perman = leitura_reputacao(ra_alto)
+    assert entrada and "a cara que o cliente novo vê" in entrada
+    assert perman and "segurar quem entra" in perman  # risco de permanência
+    # sem split → sem frase
+    assert leitura_reputacao([{"chave": "nota_ra", "status": "verde"}]) is None
+
+
+def test_elo_travado_por_termo_mapeia_pilar(client_loyall, db_session):
+    eid, lid, agid, fid = _empresa(client_loyall)
+    # P crítico → elo travado da Retenção = P (Precisão); Expansão sem travado
+    _vb(db_session, eid, fid, "P1", "promotor", 1)
+    _vb(db_session, eid, fid, "P1", "detrator", 9)
+    for sp in ("D1", "Pa1", "A1"):
+        _vb(db_session, eid, fid, sp, "promotor", 9)
+        _vb(db_session, eid, fid, sp, "detrator", 1)
+    db_session.commit()
+    elo = elo_travado_por_termo(db_session, eid)
+    assert elo["retencao"] == "P"
+    assert elo["expansao"] is None
+
+
+def test_moeda_abrev_filtro(app):
+    with app.test_request_context():
+        from flask import render_template_string
+
+        out = render_template_string(
+            "{{ 110400000|moeda_abrev }}|{{ 350000|moeda_abrev }}|"
+            "{{ 6000000|moeda_abrev }}|{{ 64000|moeda_abrev }}"
+        )
+    assert out == "R$ 110,4 mi|R$ 350 mil|R$ 6 mi|R$ 64 mil"

@@ -19,6 +19,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 from src.api.painel import (
+    NOME_PILAR,
     PILAR_DE_SUBPILAR,
     PILARES_ORDEM,
     _quarter_de,
@@ -206,6 +207,155 @@ def divergencia_lentes(faixa_relacao: Optional[str], posicao_vitrine: str) -> Op
             "se desgasta."
         )
     return None
+
+
+# ── Língua de CEO (anexo visao-financeira-referencia-visual) ──────────
+# Voz e apresentação travadas 1:1 do anexo aprovado. O número cru some da tela
+# visível (fica só em title/tooltip): vira barra + cor + rótulo em palavra.
+
+TITULO_TERMO = {"retencao": "Retenção", "expansao": "Expansão", "entrada": "Aquisição"}
+SUBTITULO_TERMO = {
+    "retencao": "manter quem já é cliente",
+    "expansao": "fazer quem já é cliente comprar mais",
+    "entrada": "conquistar novos clientes, vista por dois lados",
+}
+# faixa técnica → rótulo em palavra (língua de CEO).
+ROTULO_FAIXA = {
+    "critico": "Frágil",
+    "fraco": "Frágil",
+    "atencao": "Atenção",
+    "bom": "Forte",
+    "excelente": "Forte",
+}
+# Leitura de fallback por rótulo (Atenção = decisão do Alexandre). Sobreposta pelas
+# leituras verbatim do anexo nas células que ele ilustra (LEITURA_TERMO).
+LEITURA_FAIXA = {
+    "Frágil": "Mais sinais de perda do que a base sustenta.",
+    "Atenção": "Sinais mistos — merece atenção antes de virar problema.",
+    "Forte": "Sólido — há espaço para crescer com a base atual.",
+}
+LEITURA_TERMO = {
+    ("retencao", "Frágil"): "Mais clientes saindo insatisfeitos do que a base aguenta.",
+    ("expansao", "Forte"): "Quem fica, valoriza — há espaço para crescer com a base atual.",
+}
+
+
+def rotulo_faixa(faixa: Optional[str]) -> str:
+    return ROTULO_FAIXA.get(faixa or "", "Atenção")
+
+
+def leitura_termo(termo: str, faixa: Optional[str]) -> str:
+    """Leitura em língua de CEO: verbatim do anexo onde ele ilustra (termo, rótulo);
+    senão o fallback por rótulo. Data-driven — acompanha a faixa real."""
+    rot = rotulo_faixa(faixa)
+    return LEITURA_TERMO.get((termo, rot)) or LEITURA_FAIXA[rot]
+
+
+def barra_pct(ratio: float) -> int:
+    """Ratio → % de preenchimento da barra (apresentação). Interpola por banda de
+    faixa (Frágil fica curto, Forte quase cheio) — casa com as proporções do anexo,
+    sem expor o número. Bandas alinhadas a FAIXAS_RATIO."""
+    bandas = [(0, 0.5, 4, 20), (0.5, 1, 20, 40), (1, 2, 40, 60), (2, 5, 60, 85), (5, 9.99, 85, 100)]
+    for lo, hi, plo, phi in bandas:
+        if ratio < hi:
+            frac = (ratio - lo) / (hi - lo) if hi > lo else 1.0
+            return int(round(plo + frac * (phi - plo)))
+    return 100
+
+
+def sparkline_pontos(pts: List[Dict[str, Any]], w: int = 70, h: int = 24, pad: int = 4) -> str:
+    """Série de ratios → pontos 'x,y x,y …' de um sparkline SVG (70×24, y invertido)."""
+    ratios = [p["ratio"] for p in pts]
+    n = len(ratios)
+    if n == 0:
+        return ""
+    if n == 1:
+        ym = round(h / 2, 1)
+        return f"{pad},{ym} {w - pad},{ym}"
+    lo, hi = min(ratios), max(ratios)
+    span = (hi - lo) or 1.0
+    step = (w - 2 * pad) / (n - 1)
+    return " ".join(
+        f"{round(pad + i * step, 1)},{round(h - pad - (r - lo) / span * (h - 2 * pad), 1)}"
+        for i, r in enumerate(ratios)
+    )
+
+
+def tendencia(pts: List[Dict[str, Any]]) -> str:
+    """Direção da série em palavra: 'piorou' | 'estável' | 'melhorou' (1º vs último,
+    com deadband relativo pra não chamar ruído de tendência)."""
+    ratios = [p["ratio"] for p in pts]
+    if len(ratios) < 2:
+        return "estável"
+    d = ratios[-1] - ratios[0]
+    if abs(d) < max(0.15, 0.08 * (abs(ratios[0]) or 1.0)):
+        return "estável"
+    return "melhorou" if d > 0 else "piorou"
+
+
+def reputacao_estado(sinais: List[Dict[str, Any]]) -> Dict[str, str]:
+    """Rótulo da lente B (reputação) a partir das DUAS fontes (RA + avaliações):
+    ambas acima do mercado → Forte; ambas abaixo → Frágil; MISTAS → Dividida; nenhuma
+    medida → Sem dados. Apresentação — não altera ``vitrine_posicao`` (que segue
+    posicionando o cenário do Bloco 2)."""
+    st = [s.get("status") for s in sinais]
+    medidos = [x for x in st if x in ("verde", "vermelho")]
+    if not medidos:
+        return {"rotulo": "Sem dados", "cor": "neutra", "pct": 5}
+    verdes = medidos.count("verde")
+    vermelhos = medidos.count("vermelho")
+    if verdes and vermelhos:
+        return {"rotulo": "Dividida", "cor": "atencao", "pct": 45}
+    if vermelhos:
+        return {"rotulo": "Frágil", "cor": "critico", "pct": 20}
+    return {"rotulo": "Forte", "cor": "bom", "pct": 90}
+
+
+def leitura_reputacao(sinais: List[Dict[str, Any]]) -> Optional[str]:
+    """Frase ⚖ do anexo quando as DUAS fontes de reputação divergem (split). Direção
+    importa: RA baixo + avaliações alto → risco de ENTRADA (verbatim do anexo); RA
+    alto + avaliações baixo → risco de PERMANÊNCIA (frase do Alexandre). Sem split →
+    None (aí só as duas fontes com 'acima/abaixo do mercado')."""
+    ra = next((s for s in sinais if s.get("chave") == "nota_ra"), None)
+    rev = next((s for s in sinais if s.get("chave") == "rating_amostra"), None)
+    if not ra or not rev:
+        return None
+    if ra.get("status") == "vermelho" and rev.get("status") == "verde":
+        return (
+            "Quem te avalia depois de usar, gosta. Quem chega com um problema para "
+            "resolver, não encontra resposta — e essa é a cara que o cliente novo vê "
+            "primeiro."
+        )
+    if ra.get("status") == "verde" and rev.get("status") == "vermelho":
+        return (
+            "Quem pesquisa antes de chegar encontra resposta — mas quem usa no dia a "
+            "dia se decepciona. O risco aqui não é atrair, é segurar quem entra."
+        )
+    return None
+
+
+def elo_travado_por_termo(s, empresa_id: int) -> Dict[str, Optional[str]]:
+    """Elo travado (pilar) de CADA termo — reusa ``gargalo_sequencial`` sobre um sub-agg
+    só com os subpilares do termo (Retenção=P,D; Expansão=Pa,A; Aquisição=4 pilares).
+    Devolve ``{termo: pilar|None}`` — não altera a lógica do gargalo."""
+    from src.diagnostico.leituras import agregar_subpilares
+
+    agg = agregar_subpilares(s, empresa_id)
+    out: Dict[str, Optional[str]] = {}
+    for termo, pilares in TERMO_PILARES.items():
+        sub_agg = {sub: d for sub, d in agg.items() if PILAR_DE_SUBPILAR.get(sub) in pilares}
+        out[termo] = gargalo_sequencial(sub_agg)
+    return out
+
+
+def pilares_do_termo_nome(termo: str) -> str:
+    """'Precisão e Disponibilidade' etc. — p/ o texto da mecânica no drill."""
+    nomes = [NOME_PILAR[p] for p in TERMO_PILARES[termo] if p in NOME_PILAR]
+    if len(nomes) <= 1:
+        return nomes[0] if nomes else ""
+    if len(nomes) == 2:
+        return f"{nomes[0]} e {nomes[1]}"
+    return ", ".join(nomes[:-1]) + f" e {nomes[-1]}"
 
 
 # ── Camada 2 · cenários pelos números (pura, testável) ────────────────

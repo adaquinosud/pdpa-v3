@@ -1,0 +1,25 @@
+{# Drill "por que [termo] está assim?" — <details> nativo, fechado por padrão. Recebe
+   `drill_t` (termo) via contexto. LINHA TRAVADA: descreve mecânica + elo travado +
+   ponte pro Diagnóstico/Planos; NUNCA vincula ação a R$ (o R$ fica no Bloco 2). #}
+<details style="margin-top:10px;">
+  <summary style="font-size:12px;color:#185FA5;cursor:pointer;">▸ Por que a {{ titulo_termo[drill_t] }} está assim?</summary>
+  <div style="font-size:13px;color:#5F5E5A;line-height:1.6;margin-top:8px;">
+    {% if drill_t == 'entrada' %}
+      {# Aquisição tem DUAS lentes — o drill contempla as duas (não só os 4 pilares). #}
+      A Aquisição tem dois lados. <strong>Como você trata quem já é cliente</strong> depende de
+      {{ pilares_do_termo_nome('entrada') }} —
+      {% if elo['entrada'] %}hoje {{ nome_pilar[elo['entrada']] }} é o elo travado, o que puxa indicação e recompra para baixo.{% else %}hoje nenhum elo está travado, a base é bem cuidada.{% endif %}
+      {% set rep = reputacao_estado(vitrine.sinais) %}
+      <strong>Sua reputação pública</strong> está {{ rep.rotulo|lower }}{% if rep.rotulo == 'Dividida' %} — uma fonte acima e outra abaixo do mercado{% endif %}, e é a primeira cara que o cliente novo vê.
+    {% else %}
+      A {{ titulo_termo[drill_t] }} depende de {{ pilares_do_termo_nome(drill_t) }}.
+      {% if elo[drill_t] %}Hoje {{ nome_pilar[elo[drill_t]] }} é o elo travado — é o que puxa este número.{% else %}Nenhum elo está travado hoje — o termo se sustenta.{% endif %}
+    {% endif %}
+    <div style="margin-top:8px;display:flex;gap:14px;">
+      <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa_id, tab='diagnostico') }}"
+         style="font-size:12px;color:#185FA5;text-decoration:none;">ver no diagnóstico →</a>
+      <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa_id, tab='planos') }}"
+         style="font-size:12px;color:#185FA5;text-decoration:none;">planos de ação →</a>
+    </div>
+  </div>
+</details>

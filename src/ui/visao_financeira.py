@@ -15,14 +15,19 @@ from datetime import datetime
 from flask import flash, redirect, render_template, request, url_for
 
 from src.auth import get_current_user
+from src.api.painel import NOME_PILAR
 from src.financeiro.visao import (
     INPUT_CAMPOS,
     NATUREZA_LENTE_ENTRADA,
     NATUREZA_TERMO,
     NOME_LENTE_ENTRADA,
     NOME_TERMO,
+    SUBTITULO_TERMO,
+    TERMO_PILARES,
+    TITULO_TERMO,
     calcular_cenarios,
     divergencia_lentes,
+    elo_travado_por_termo,
     montar_foto,
     termo_mais_exposto,
     trajetoria_termos,
@@ -102,6 +107,7 @@ def visao_financeira(empresa_id):
         vit = vitrine_leitura(s, empresa_id)
         faixa_relacao = (traj.get("atual", {}).get("entrada") or {}).get("faixa")
         divergencia = divergencia_lentes(faixa_relacao, vit["posicao"])
+        elo = elo_travado_por_termo(s, empresa_id)  # {termo: pilar|None} p/ o drill "por que"
         reg = (
             s.query(VisaoFinanceiraInput)
             .filter(VisaoFinanceiraInput.empresa_id == empresa_id)
@@ -123,10 +129,15 @@ def visao_financeira(empresa_id):
         exposto=exposto,
         nome_termo=NOME_TERMO,
         natureza_termo=NATUREZA_TERMO,
+        titulo_termo=TITULO_TERMO,
+        subtitulo_termo=SUBTITULO_TERMO,
         nome_lente_entrada=NOME_LENTE_ENTRADA,
         natureza_lente_entrada=NATUREZA_LENTE_ENTRADA,
         vitrine=vit,
         divergencia=divergencia,
+        elo=elo,
+        termo_pilares=TERMO_PILARES,
+        nome_pilar=NOME_PILAR,
         inputs=inputs,
         camada2=camada2,
         permite_salvar=True,
@@ -249,6 +260,7 @@ def visao_financeira_snapshot_reabrir(empresa_id, snap_id):
         foto=foto,
         meta=meta,
         nome_termo=NOME_TERMO,
+        titulo_termo=TITULO_TERMO,
         vitrine_posicao_foto=pos_vit,
         nome_lente_entrada=NOME_LENTE_ENTRADA,
         divergencia=divergencia,

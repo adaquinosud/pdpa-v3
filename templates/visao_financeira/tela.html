@@ -1,193 +1,149 @@
 {% extends "base.html" %}
-{% block titulo %}Visão Financeira — {{ empresa_nome }}{% endblock %}
+{% block titulo %}Visão financeira — {{ empresa_nome }}{% endblock %}
 
-{% set faixa_cor = {
-  'critico':   'bg-rose-100 text-rose-700 border-rose-300',
-  'fraco':     'bg-orange-100 text-orange-700 border-orange-300',
-  'atencao':   'bg-amber-100 text-amber-700 border-amber-300',
-  'bom':       'bg-emerald-100 text-emerald-700 border-emerald-300',
-  'excelente': 'bg-emerald-200 text-emerald-800 border-emerald-400',
-} %}
-{% set leitura = {
-  'critico':   'elo no vermelho — a relação está rompendo.',
-  'fraco':     'sob pressão — mais detratores do que a base sustenta.',
-  'atencao':   'equilíbrio instável — zona de atenção.',
-  'bom':       'saudável — a base sustenta a relação.',
-  'excelente': 'forte — relação sólida.',
-} %}
-{# Lente B (reputação de entrada / Vitrine): cor e rótulo por posição. #}
-{% set vit_cor = {
-  'forte':  'bg-emerald-100 text-emerald-700 border-emerald-300',
-  'neutra': 'bg-loyall-100 text-loyall-600 border-loyall-200',
-  'fraca':  'bg-rose-100 text-rose-700 border-rose-300',
-} %}
-{% set vit_label = {
-  'forte':  'reputação forte',
-  'neutra': 'reputação neutra / não medida',
-  'fraca':  'reputação fraca',
+{# Cores por rótulo em palavra (anexo). O número cru some da tela (fica em title). #}
+{% set cor_rotulo = {
+  'Frágil':    {'barra':'#E24B4A','texto':'#A32D2D'},
+  'Atenção':   {'barra':'#EF9F27','texto':'#854F0B'},
+  'Forte':     {'barra':'#639922','texto':'#3B6D11'},
+  'Dividida':  {'barra':'#EF9F27','texto':'#854F0B'},
+  'Sem dados': {'barra':'#B4B2A9','texto':'#888780'},
 } %}
 
 {% block conteudo %}
-<a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa_id) }}"
-   class="text-sm text-loyall-400 hover:underline">← Empresa</a>
-<h1 class="text-xl font-semibold mb-1 mt-1">Visão Financeira — {{ empresa_nome }}</h1>
-<p class="text-sm text-loyall-500 mb-6 max-w-3xl">
-  A tela projeta, por termo da equação da receita, os cenários que os <strong>números do
-  cliente</strong> desenham. A régua relacional posiciona a empresa <em>entre</em> os
-  cenários — não calcula perda. <span class="text-loyall-400">Tela interna (Loyall).</span></p>
-
-{# ══════ CAMADA 1 · Régua da exposição (sempre visível, sem input) ══════ #}
-{% macro carta_relacional(t, pts, exposto, nome_termo, natureza_termo, faixa_cor, leitura, moldura) -%}
-  {% set atual = pts[-1] %}
-  <div class="border rounded p-3 {{ moldura }} {% if exposto == t and not moldura %}ring-2 ring-rose-300 border-rose-200{% endif %}">
-    <div class="flex items-start justify-between gap-2">
-      <div class="min-w-0">
-        <span class="font-medium">{{ nome_termo[t] }}</span>
-        {% if exposto == t and not moldura %}<span class="ml-2 text-[11px] bg-rose-100 text-rose-700 border border-rose-300 rounded px-1.5 py-0.5">termo mais exposto agora</span>{% endif %}
-        <div class="text-[11px] text-loyall-400">{{ natureza_termo[t] }}</div>
-      </div>
-      <span class="shrink-0 text-xs rounded px-2 py-0.5 border {{ faixa_cor.get(atual.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}">
-        {{ '%.2f'|format(atual.ratio) }} · {{ atual.faixa }}</span>
-    </div>
-    <div class="flex flex-wrap items-center gap-1 mt-2">
-      {% for p in pts %}
-      <span class="text-[11px] rounded px-1.5 py-0.5 border {{ faixa_cor.get(p.faixa, 'bg-loyall-100 text-loyall-600 border-loyall-200') }}"
-            title="{{ p.total }} verbatins">{{ p.ano }}{{ p.q }} · {{ '%.2f'|format(p.ratio) }}</span>
-      {% if not loop.last %}<span class="text-loyall-300">→</span>{% endif %}
-      {% endfor %}
-    </div>
-    <div class="text-xs text-loyall-600 mt-2">{{ nome_termo[t] }} — {{ leitura.get(atual.faixa, '') }}</div>
+<div style="max-width:680px;font-family:system-ui,-apple-system,sans-serif;color:#2C2C2A;">
+  <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa_id) }}"
+     style="font-size:13px;color:#888780;text-decoration:none;">← Empresa</a>
+  <div style="margin:0.5rem 0 0;">
+    <div style="font-size:20px;font-weight:500;">Visão financeira — {{ empresa_nome }}</div>
+    <div style="font-size:15px;color:#5F5E5A;line-height:1.6;margin-top:4px;">Onde a força (ou a fraqueza) da sua relação com clientes está mexendo na receita — e quanto disso ainda dá para recuperar. <span style="color:#888780;">Tela interna (Loyall).</span></div>
   </div>
-{%- endmacro %}
 
-<section class="mb-8">
-  <h2 class="font-medium mb-1">1 · Régua da exposição</h2>
-  <p class="text-xs text-loyall-500 mb-3 max-w-3xl">
-    Três termos da equação. <strong>Retenção</strong> e <strong>Expansão</strong> são
-    exposição relacional (quem já é cliente). O <strong>3º termo</strong> aparece por
-    <strong>duas lentes do mesmo ângulo de entrada</strong>: a relação com quem já é
-    cliente (os 4 pilares) e a reputação de entrada (Vitrine — quem ainda não é cliente).
-    São medidas de fontes distintas; podem divergir sem se contradizer.</p>
+  {# ═══════════ 1 · A saúde da sua receita, hoje ═══════════ #}
+  <div style="font-size:13px;color:#888780;margin:1.5rem 0 0.75rem;text-transform:uppercase;letter-spacing:0.04em;">1 · A saúde da sua receita, hoje</div>
+  <div style="font-size:14px;color:#5F5E5A;line-height:1.6;margin-bottom:1rem;">Sua receita futura tem três fontes: manter quem já é cliente, fazê-los comprar mais, e conquistar novos. Veja como cada uma está — e para onde vem indo.</div>
 
   {% if traj.series %}
-  <div class="space-y-3 max-w-3xl">
-    {# Termos 1 e 2 — trajetória relacional #}
+    {# Retenção e Expansão — trajetória relacional #}
     {% for t in ['retencao', 'expansao'] if t in traj.series %}
-    {{ carta_relacional(t, traj.series[t], exposto, nome_termo, natureza_termo, faixa_cor, leitura, '') }}
+    {% set pts = traj.series[t] %}{% set atual = pts[-1] %}
+    {% set rot = rotulo_faixa(atual.faixa) %}{% set c = cor_rotulo[rot] %}
+    <div style="background:#fff;border:0.5px solid #D3D1C7;border-radius:12px;padding:1rem 1.25rem;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+        <div style="font-size:16px;font-weight:500;">{{ titulo_termo[t] }} <span style="font-size:13px;color:#5F5E5A;font-weight:400;">— {{ subtitulo_termo[t] }}</span></div>
+        {% if exposto == t %}<span style="font-size:11px;background:#FCEBEB;color:#A32D2D;padding:3px 8px;border-radius:6px;white-space:nowrap;">ponto mais frágil hoje</span>{% endif %}
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;" title="ratio {{ '%.2f'|format(atual.ratio) }}">
+        <div style="flex:1;height:8px;background:#F1EFE8;border-radius:4px;overflow:hidden;"><div style="width:{{ barra_pct(atual.ratio) }}%;height:100%;background:{{ c.barra }};"></div></div>
+        <span style="font-size:13px;font-weight:500;color:{{ c.texto }};min-width:56px;">{{ rot }}</span>
+        <svg width="70" height="24" viewBox="0 0 70 24"><polyline points="{{ sparkline_pontos(pts) }}" fill="none" stroke="{{ c.barra }}" stroke-width="1.5"/></svg>
+        <span style="font-size:12px;color:#5F5E5A;">{{ tendencia(pts) }}</span>
+      </div>
+      <div style="font-size:13px;color:#5F5E5A;margin-top:10px;">{{ leitura_termo(t, atual.faixa) }}</div>
+      {% set drill_t = t %}{% include "visao_financeira/_drill.html" %}
+    </div>
     {% endfor %}
 
-    {# 3º termo — UMA moldura, DUAS lentes (relação existente + reputação de entrada) #}
-    <div class="border-2 rounded-lg p-3 {% if exposto == 'entrada' %}ring-2 ring-rose-300 border-rose-200{% else %}border-loyall-200{% endif %} bg-loyall-50/50">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] uppercase tracking-wider text-loyall-400">3º termo · um ângulo, duas lentes</span>
-        {% if exposto == 'entrada' %}<span class="text-[11px] bg-rose-100 text-rose-700 border border-rose-300 rounded px-1.5 py-0.5">termo mais exposto agora</span>{% endif %}
-      </div>
-      <div class="grid md:grid-cols-2 gap-3">
-        {# lente A · relação com quem já é cliente (os 4 pilares, o ratio-CX) #}
+    {# Aquisição — duas lentes #}
+    <div style="border:0.5px solid #B4B2A9;border-radius:12px;padding:0.5rem 0.75rem 0.75rem;background:#F1EFE8;margin-bottom:12px;">
+      <div style="font-size:12px;color:#888780;text-transform:uppercase;letter-spacing:0.04em;padding:6px 6px 10px;">Aquisição — {{ subtitulo_termo['entrada'] }}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        {# lente A · relação com quem já é cliente (ratio-CX dos 4 pilares) #}
         {% if 'entrada' in traj.series %}
-        {{ carta_relacional('entrada', traj.series['entrada'], exposto, nome_termo, natureza_termo, faixa_cor, leitura, 'bg-white') }}
-        {% endif %}
-
-        {# lente B · reputação de entrada (Vitrine — quem ainda não é cliente) #}
-        <div class="border rounded p-3 bg-white">
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <span class="font-medium">{{ nome_lente_entrada }}</span>
-              <div class="text-[11px] text-loyall-400">{{ natureza_lente_entrada }}</div>
-            </div>
-            <span class="shrink-0 text-xs rounded px-2 py-0.5 border {{ vit_cor.get(vitrine.posicao, vit_cor['neutra']) }}">
-              {{ vit_label.get(vitrine.posicao, vitrine.posicao) }}</span>
+        {% set ptsA = traj.series['entrada'] %}{% set atualA = ptsA[-1] %}
+        {% set rotA = rotulo_faixa(atualA.faixa) %}{% set cA = cor_rotulo[rotA] %}
+        <div style="background:#fff;border:0.5px solid #D3D1C7;border-radius:10px;padding:0.85rem 1rem;">
+          <div style="font-size:14px;font-weight:500;">Como você trata quem já é cliente</div>
+          <div style="font-size:12px;color:#888780;margin-top:2px;">vira indicação e recompra</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:10px;" title="ratio {{ '%.2f'|format(atualA.ratio) }}">
+            <div style="flex:1;height:8px;background:#F1EFE8;border-radius:4px;overflow:hidden;"><div style="width:{{ barra_pct(atualA.ratio) }}%;height:100%;background:{{ cA.barra }};"></div></div>
+            <span style="font-size:13px;font-weight:500;color:{{ cA.texto }};">{{ rotA }}</span>
           </div>
-          <div class="mt-2 space-y-1">
+          <div style="font-size:12px;color:#5F5E5A;margin-top:8px;">{{ leitura_termo('entrada', atualA.faixa) }}</div>
+        </div>
+        {% endif %}
+        {# lente B · reputação para quem ainda não é cliente (Vitrine, 2 fontes) #}
+        {% set rep = reputacao_estado(vitrine.sinais) %}{% set cB = cor_rotulo[rep.rotulo] %}
+        <div style="background:#fff;border:0.5px solid #D3D1C7;border-radius:10px;padding:0.85rem 1rem;">
+          <div style="font-size:14px;font-weight:500;">Sua reputação para quem ainda não te conhece</div>
+          <div style="font-size:12px;color:#888780;margin-top:2px;">o que aparece quando pesquisam sua marca</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+            <div style="flex:1;height:8px;background:#F1EFE8;border-radius:4px;overflow:hidden;"><div style="width:{{ rep.pct }}%;height:100%;background:{{ cB.barra }};"></div></div>
+            <span style="font-size:13px;font-weight:500;color:{{ cB.texto }};">{{ rep.rotulo }}</span>
+          </div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;">
             {% for sig in vitrine.sinais %}
-            <div class="text-[11px] flex items-center justify-between">
-              <span class="text-loyall-500">{{ sig.label }}</span>
-              <span class="{% if sig.status == 'vermelho' %}text-rose-600{% elif sig.status == 'verde' %}text-emerald-600{% else %}text-loyall-400{% endif %}">
-                {% if sig.valor is not none %}{{ sig.valor }}{{ sig.unidade }}{% if sig.corte %} <span class="text-loyall-400">(corte {{ sig.corte }}{{ sig.unidade }})</span>{% endif %}{% else %}não medido{% endif %}</span>
+            {% set nm = 'Reclame Aqui' if sig.chave == 'nota_ra' else 'Avaliações (Google/apps)' %}
+            {% set mercado = 'abaixo do mercado' if sig.status == 'vermelho' else ('acima do mercado' if sig.status == 'verde' else 'sem dados') %}
+            {% set cm = '#A32D2D' if sig.status == 'vermelho' else ('#3B6D11' if sig.status == 'verde' else '#888780') %}
+            <div style="display:flex;justify-content:space-between;font-size:12px;">
+              <span style="color:#5F5E5A;">{{ nm }}</span>
+              <span style="color:{{ cm }};font-weight:500;">{% if sig.valor is not none %}{{ sig.valor }}{{ sig.unidade }} · {% endif %}{{ mercado }}</span>
             </div>
             {% endfor %}
-            {% if not vitrine.sinais %}
-            <div class="text-[11px] text-loyall-400">Sem sinal de reputação coletado ainda.</div>
-            {% endif %}
+            {% if not vitrine.sinais %}<div style="font-size:12px;color:#888780;">Sem sinal de reputação coletado ainda.</div>{% endif %}
           </div>
-          <div class="text-xs text-loyall-600 mt-2">Reputação de entrada — {{ vit_label.get(vitrine.posicao, '') }} para quem ainda não é cliente.</div>
         </div>
       </div>
 
-      {# frase de divergência — só quando as duas lentes se opõem (determinística) #}
+      {# Hierarquia das duas divergências: relação×reputação (nível do bloco) fica
+         discreta acima; o split RA×avaliações (dentro da reputação) fica proeminente. #}
       {% if divergencia %}
-      <div class="mt-3 text-xs rounded px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800">
-        ⚖ {{ divergencia }}</div>
+      <div style="font-size:11px;color:#888780;line-height:1.5;margin-top:10px;padding:0 6px;">{{ divergencia }}</div>
       {% endif %}
+      {% set lr = leitura_reputacao(vitrine.sinais) %}
+      {% if lr %}
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:10px 12px;background:#FAEEDA;border-radius:8px;">
+        <span style="font-size:13px;color:#854F0B;line-height:1.5;">⚖ {{ lr }}</span>
+      </div>
+      {% endif %}
+      {% set drill_t = 'entrada' %}{% include "visao_financeira/_drill.html" %}
     </div>
-  </div>
   {% else %}
-  <p class="text-sm text-loyall-400 border rounded p-3 max-w-3xl">
-    Ainda não há série mensal de ratios para esta empresa — a régua aparece quando houver
-    ao menos dois quarters com dado. (Rode o recompute de ratios.)</p>
+  <div style="font-size:14px;color:#888780;background:#fff;border:0.5px solid #D3D1C7;border-radius:12px;padding:1rem 1.25rem;">Ainda não há série mensal de ratios para esta empresa — a saúde aparece quando houver dado. (Rode o recompute de ratios.)</div>
   {% endif %}
-</section>
 
-{# ══════ CAMADA 2 · Cenários pelos números (5 inputs, operador) ══════ #}
-<section class="mb-8 max-w-3xl">
-  <h2 class="font-medium mb-1">2 · Cenários pelos números</h2>
-  <p class="text-xs text-loyall-500 mb-3">
-    Os 5 números que você informar desenham 3 cenários por frente (banda ±20% fixa,
-    horizonte 12 meses). Todo R$ vem <strong>com base nos números que você informou</strong>.</p>
+  {# ═══════════ 2 · Quanto isso vale em dinheiro ═══════════ #}
+  <div style="font-size:13px;color:#888780;margin:1.75rem 0 0.75rem;text-transform:uppercase;letter-spacing:0.04em;">2 · Quanto isso vale em dinheiro</div>
+  <div style="font-size:14px;color:#5F5E5A;line-height:1.6;margin-bottom:1rem;">Com os cinco números do seu negócio, cada fonte de receita vira três cenários ao longo de 12 meses. Todos os valores partem dos números que você informou.</div>
 
-  <form class="grid grid-cols-2 md:grid-cols-5 gap-3 border rounded p-4 bg-loyall-50 mb-3"
+  <form style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;background:#F1EFE8;border-radius:12px;padding:1rem 1.25rem;margin-bottom:12px;"
         hx-post="{{ url_for('ui.visao_financeira_inputs', empresa_id=empresa_id) }}"
         hx-target="#resultado" hx-swap="outerHTML">
-    <label class="text-xs">Receita recorrente mensal (R$)
-      <input name="receita_recorrente_base" inputmode="decimal" required
-             value="{{ inputs.receita_recorrente_base if inputs else '' }}"
-             class="w-full border rounded px-2 py-1 mt-0.5"></label>
-    <label class="text-xs">Churn atual (% ao ano)
-      <input name="churn_atual" inputmode="decimal" required
-             value="{{ inputs.churn_atual if inputs else '' }}"
-             class="w-full border rounded px-2 py-1 mt-0.5"></label>
-    <label class="text-xs">Taxa de expansão (% ao ano)
-      <input name="taxa_expansao" inputmode="decimal" required
-             value="{{ inputs.taxa_expansao if inputs else '' }}"
-             class="w-full border rounded px-2 py-1 mt-0.5"></label>
-    <label class="text-xs">CAC (R$/cliente)
-      <input name="cac" inputmode="decimal" required
-             value="{{ inputs.cac if inputs else '' }}"
-             class="w-full border rounded px-2 py-1 mt-0.5"></label>
-    <label class="text-xs">Volume de aquisição (clientes/ano)
-      <input name="volume_aquisicao" inputmode="decimal" required
-             value="{{ inputs.volume_aquisicao if inputs else '' }}"
-             class="w-full border rounded px-2 py-1 mt-0.5"></label>
-    <div class="col-span-2 md:col-span-5">
-      <button class="bg-loyall-600 text-white px-3 py-1.5 rounded text-sm">Calcular cenários</button>
+    {% for campo, rot in [
+        ('receita_recorrente_base','Receita recorrente mensal (R$)'),
+        ('churn_atual','Churn atual (% ao ano)'),
+        ('taxa_expansao','Taxa de expansão (% ao ano)'),
+        ('cac','CAC (R$/cliente)'),
+        ('volume_aquisicao','Volume de aquisição (clientes/ano)')] %}
+    <label style="font-size:11px;color:#5F5E5A;">{{ rot }}
+      <input name="{{ campo }}" inputmode="decimal" required
+             value="{{ inputs[campo] if inputs else '' }}"
+             style="width:100%;border:0.5px solid #D3D1C7;border-radius:6px;padding:5px 7px;margin-top:3px;box-sizing:border-box;">
+    </label>
+    {% endfor %}
+    <div style="grid-column:1/-1;">
+      <button style="background:#3B6D11;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;">Calcular</button>
     </div>
   </form>
 
   {% include "visao_financeira/_resultado.html" %}
-</section>
 
-{# ══════ SNAPSHOTS ══════ #}
-<section class="max-w-3xl">
-  <h2 class="font-medium mb-1">Snapshots</h2>
-  <p class="text-xs text-loyall-500 mb-3">
-    Congela a foto imutável do instante (ratios + cenários + números + data). Recompute
-    futuro da régua não altera um snapshot salvo. O botão de salvar fica junto dos
-    cenários acima (aparece assim que você calcula).</p>
-
+  {# ═══════════ Snapshots ═══════════ #}
+  <div style="font-size:13px;color:#888780;margin:1.75rem 0 0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Fotos salvas</div>
+  <div style="font-size:12px;color:#888780;line-height:1.6;margin-bottom:0.75rem;">📸 Salvar esta foto — guarda exatamente esta tela, com data, para comparar daqui a alguns meses e mostrar que o sinal apareceu antes do resultado. O botão fica junto dos cenários acima (aparece quando você calcula).</div>
   {% if snapshots %}
-  <ul class="divide-y border rounded">
+  <div style="background:#fff;border:0.5px solid #D3D1C7;border-radius:12px;overflow:hidden;">
     {% for sn in snapshots %}
-    <li class="px-3 py-2 flex items-center justify-between text-sm">
-      <a href="{{ url_for('ui.visao_financeira_snapshot_reabrir', empresa_id=empresa_id, snap_id=sn.id) }}"
-         class="text-loyall-700 hover:underline">{{ sn.nome }}</a>
-      <span class="text-xs text-loyall-400">
-        {{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}
-        {% if sn.gerado_por %}· {{ sn.gerado_por }}{% endif %}</span>
-    </li>
+    <a href="{{ url_for('ui.visao_financeira_snapshot_reabrir', empresa_id=empresa_id, snap_id=sn.id) }}"
+       style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;font-size:13px;color:#2C2C2A;text-decoration:none;{% if not loop.first %}border-top:0.5px solid #D3D1C7;{% endif %}">
+      <span style="color:#185FA5;">{{ sn.nome }}</span>
+      <span style="font-size:12px;color:#888780;">{{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}{% if sn.gerado_por %} · {{ sn.gerado_por }}{% endif %}</span>
+    </a>
     {% endfor %}
-  </ul>
+  </div>
   {% else %}
-  <p class="text-sm text-loyall-400">Nenhum snapshot ainda.</p>
+  <div style="font-size:13px;color:#888780;">Nenhuma foto salva ainda.</div>
   {% endif %}
-</section>
+</div>
 {% endblock %}

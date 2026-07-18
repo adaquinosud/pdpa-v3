@@ -86,6 +86,38 @@ def create_app() -> Flask:
             return "—"
         return "R$ " + f"{n:,.0f}".replace(",", ".")
 
+    # R$ abreviado (língua de CEO): 110400000 → "R$ 110,4 mi"; 350000 → "R$ 350 mil";
+    # 6000000 → "R$ 6 mi". mi com até 2 casas (zeros à direita caem), mil inteiro.
+    @app.template_filter("moeda_abrev")
+    def _moeda_abrev(valor):  # noqa: ANN001, ANN202
+        try:
+            v = float(valor)
+        except (ValueError, TypeError):
+            return "—"
+        av = abs(v)
+        if av >= 1_000_000:
+            s = f"{v / 1_000_000:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+            return f"R$ {s} mi"
+        if av >= 1_000:
+            return "R$ " + f"{round(v / 1_000):,.0f}".replace(",", ".") + " mil"
+        return "R$ " + f"{round(v):,.0f}".replace(",", ".")
+
+    # Helpers de apresentação da Visão Financeira (língua de CEO) — puros, chamados
+    # direto no template. O número cru some da tela; vira barra/rótulo/sparkline.
+    from src.financeiro import visao as _visao
+
+    for _fn in (
+        _visao.barra_pct,
+        _visao.sparkline_pontos,
+        _visao.tendencia,
+        _visao.rotulo_faixa,
+        _visao.leitura_termo,
+        _visao.reputacao_estado,
+        _visao.leitura_reputacao,
+        _visao.pilares_do_termo_nome,
+    ):
+        app.add_template_global(_fn, _fn.__name__)
+
     # ⓘ do glossário (CP-glossario-plugar-ui): {{ glossario_i('ratio') }} nas telas.
     # Lê do cadastro (glossario_termo) por slug; 1 query/request via flask.g.
     from src.ui import glossario_i as _glossario_i
