@@ -762,6 +762,161 @@ cross-fonte dela). O link é visível só para Loyall (a tela de pessoa é restr
 
 ---
 
+## Telas fora do Explorar
+
+Estas telas internas não fazem parte do funil do Explorar — são telas próprias do sistema, usadas no dia
+a dia de operação (importação, criação de pesquisa, leitura financeira, identidade). Estão descritas aqui
+porque o time que opera a ferramenta precisa delas; se alguma migrar para dentro do Explorar, a descrição
+já está pronta.
+
+---
+
+## VISÃO FINANCEIRA
+
+**Propósito.** Traduzir a relação com o cliente em linguagem de receita, para uma conversa executiva.
+Mostra, por fonte de receita, onde a relação está sob risco e quanto ainda dá para recuperar — sem
+prometer número. Tela interna (Loyall): o operador conduz, tipicamente ao lado do cliente. Fonte:
+`visao_financeira` (ui/visao_financeira) + o motor `trajetoria_termos`/`calcular_cenarios`/`vitrine_leitura`/`elo_travado_por_termo` (financeiro/visao).
+
+**Duas camadas.**
+*Camada 1 — a saúde da receita hoje (sem digitar nada).* Três fontes de receita, cada uma com estado
+(barra + cor + palavra: Frágil / Atenção / Forte) e tendência (mini-gráfico + piorou / estável /
+melhorou):
+- **Retenção** — manter quem já é cliente (movida por Precisão + Disponibilidade).
+- **Expansão** — fazer quem já é cliente comprar mais (Parceria + Aconselhamento).
+- **Aquisição** — conquistar novos, vista por duas lentes: *como você trata quem já é cliente* (os 4
+  pilares, vira indicação) e *sua reputação para quem ainda não te conhece* (a Vitrine). As duas podem
+  divergir sem se contradizer — base forte e reputação fraca é um achado, não um erro.
+Esta camada já tem valor sem nenhum input — é o sinal aparecendo antes da DRE.
+
+*Camada 2 — quanto vale em dinheiro (5 números do operador).* Receita recorrente mensal, churn, taxa de
+expansão, CAC, volume de aquisição. Com eles, cada fonte vira três cenários (se melhorar / cenário atual
+/ se piorar) numa banda fixa de ±20%, horizonte de 12 meses. **Dá para recuperar melhorando** = a
+distância entre o cenário atual e o favorável — nunca uma perda afirmada. Retenção e Expansão saem duras
+dos números informados; a **Aquisição é estimativa** (rótulo `≈`), ancorada no sinal de reputação, não
+num número digitado. A **despesa de aquisição real** (CAC × volume) aparece à parte, como custo presente
+— não entra no "dá para recuperar".
+
+**Por que está assim (segundo nível).** Cada fonte abre um "▸ Por que está assim?" que explica a mecânica
+— qual pilar move a fonte, qual é o elo travado — e leva ao Diagnóstico e aos Planos de Ação. Explica o
+porquê do número; nunca promete "faça X e recupere R$ Y".
+
+**Salvar foto.** Congela o estado atual (estados, cenários, números, data) como foto imutável.
+Reprocessar os dados depois não altera uma foto salva — serve para comparar no tempo e mostrar que o
+sinal apareceu antes do resultado.
+
+**Trava de autoria.** Todo valor em R$ carrega que **parte dos números que o operador informou** (a tela
+mostra "Todos os valores partem dos números que você informou"). A ferramenta diz *onde* dói; os números
+do cliente dizem *quanto*.
+
+---
+
+## IMPORTAR VERBATINS
+
+**Propósito.** Trazer para o sistema uma massa de manifestações soltas do cliente (CSV / reviews /
+respostas de CSAT), ancoradas na **empresa**. Cada linha vira um verbatim cru; a classificação em
+subpilar acontece **depois**, no pós-coleta assíncrono — não no momento do import. É o canal para volume
+que não veio de uma pesquisa estruturada. Fonte: `importar_verbatins` (ui) + `importar_arquivo`
+(coletor/excel); a classificação roda no pós-coleta (`disparar_pos_coleta_async`, coletor/orquestrador).
+
+**Como usa.** Baixe o modelo .xlsx da empresa, preencha, envie. O modelo já vem com colunas travadas para
+evitar dado sujo: **nota** de 1 a 5, **unidade** (local) por dropdown dos locais cadastrados, **data**
+validada. Colunas de texto (o verbatim, o autor) são livres. Depois do envio, o pipeline classifica e os
+temas rodam — até lá a fonte exibe o selo de pendência.
+
+**Regras que protegem o dado.** Local desconhecido não é criado na hora — a linha é pulada com aviso
+(cadastre o local antes e reimporte). O guard vale numa empresa que já tem locais; numa empresa ainda sem
+locais, o import cai no nível da empresa. A identidade cruza com as outras fontes pela mesma régua (ver
+Pessoa / Identidade): funde por chave única (e-mail ou id_cliente), nunca por nome.
+
+---
+
+## IMPORTAR RESPOSTAS
+
+**Propósito.** Trazer as respostas de **uma pesquisa específica** em lote — o irmão offline do link
+público. Diferente do Importar Verbatins: aqui as respostas são ancoradas na **pesquisa**, e o subpilar
+de cada uma vem do **mapeamento da pergunta** (`subpilar_alvo`), não da IA. Fonte: `importar_respostas`
+(ui) + `importar_respostas`/`gerar_modelo_respostas_xlsx` (pesquisa/coleta_excel).
+
+**Como usa.** Baixe o modelo .xlsx da pesquisa — ele vem em formato largo, uma coluna por pergunta. Cada
+nota vem como **dropdown de seleção (1 a 5)**, a unidade por dropdown, e há colunas de identidade
+(**e-mail / id_cliente / nome**). Preencha e envie: cada linha vira um respondente ligado à pesquisa, com
+os subpilares exatos das perguntas. Aparece na aba Pesquisas do Explorar como qualquer resposta do link.
+
+**Quando usar cada porta.** Importar Verbatins = massa solta, classificada depois pela IA. Importar
+Respostas = respostas de uma pesquisa mapeada, o subpilar já vem da pergunta. As duas cruzam identidade
+pela mesma régua.
+
+---
+
+## CRIAR E REVISAR PESQUISA
+
+**Propósito.** Montar uma pesquisa própria dentro do sistema — as perguntas, o mapeamento de cada uma
+para um subpilar, e a validação de qualidade antes de ir a campo. É o caminho para espelhar a pesquisa
+que o cliente já usa. Fonte: `pesquisas_lista`/`pesquisa_criar_vazia`/`pesquisa_aprovar` (ui/pesquisa) +
+`criar_rascunho`/`criar_pesquisa_vazia`/`aprovar`/`validar_pesquisa_cacheado` (pesquisa/persistencia) +
+`tem_bloqueio` (pesquisa/validador).
+
+**Dois caminhos de criação.**
+- **Geração assistida** — o sistema propõe as perguntas a partir do objetivo.
+- **Pesquisa em branco** — começa vazia ("Começar em branco"), você transcreve as próprias perguntas uma
+  a uma. É o caminho para reproduzir a pesquisa do cliente.
+
+**Cada pergunta é um card.** Mostra o enunciado, o formato, o subpilar mapeado, e a validação. A validação
+tem **duas camadas separadas**:
+- **Precisa corrigir** (🔴) — trava a publicação: falta de subpilar, escala ausente numa pergunta de
+  nota. São regras objetivas; enquanto houver uma, a pesquisa não é aprovada.
+- **Sugestões** (🟡) — recomendações de qualidade que orientam sem travar.
+A validação é **estável**: não muda de veredito sem a pergunta mudar.
+
+**Editar.** O subpilar salva sozinho ao trocar (sem perder o enunciado); o texto da pergunta tem "Salvar
+texto" próprio. Cada ação mostra um "✓ aplicado". Apagar uma pergunta renumera as demais.
+
+**Aprovar.** Gera o link público da pesquisa. Exige ao menos uma pergunta de conteúdo (a âncora de
+unidade sozinha não conta).
+
+---
+
+## PESSOA / IDENTIDADE
+
+**Propósito.** O sistema reconhece a **mesma pessoa** através de fontes diferentes (pesquisa, importação,
+reviews) e reúne a voz dela num diagnóstico próprio. É o topo do PDPA operando: sair do agregado e entrar
+no indivíduo. Fonte: `pessoa_diagnostico` (ui/pesquisa); `Pessoa`/`PessoaIdentificador`/`PessoaMerge`
+(models/pessoa); fusão `_merge_pessoas` (coletor/excel); régua cross-fonte via `pessoas_das_pesquisas`
+(pesquisa/retorno).
+
+**Como a identidade funde.** Por **chave única** de identificador — e-mail ou id_cliente —, nunca por
+nome. Quando duas chaves distintas apontam para pessoas separadas que são a mesma (ex.: e-mail e código de
+CRM), elas são fundidas, e toda fusão é auditável. O nome é só rótulo de exibição: vale a regra "primeiro
+nome vence" (uma importação não sobrescreve um nome já existente — só preenche uma Pessoa ainda sem nome).
+A normalização é idêntica entre os canais, então a mesma chave colapsa a pessoa cross-fonte.
+
+**Identificada sem nome ≠ anônima.** Uma pessoa reconhecida pela chave mas sem nome entra na lista de
+**identificadas** rotulada **"(sem nome)"** — continua clicável, com diagnóstico próprio (é falta de
+rótulo, não de identidade). **Anônimo** é outra coisa: respondente **sem Pessoa** (ou com Pessoa
+tokenizada), que entra só na contagem e não dá para abrir.
+
+**Tela de pessoa.** Abre o diagnóstico cross-fonte do indivíduo — a régua dele, somando todas as fontes
+onde ele aparece. Restrita a Loyall. Acessível pela aba Pesquisas (N3) ou direto. No texto exibido,
+identificadores estruturados de terceiros (CPF, placa, protocolo, e-mail, telefone) são mascarados; o
+**nome é preservado** (regra travada — só identificadores determinísticos são mascarados, nunca nomes).
+
+---
+
+## SELO DE PENDÊNCIA POR FONTE
+
+**Propósito.** No detalhe da empresa, cada fonte mostra se há material **aguardando processamento** — para
+o operador distinguir o que já está diagnosticado do que ainda espera o pipeline. Fonte:
+`tem_pendente_processamento`/`fontes_com_pendencia` (pesquisa/persistencia); embedding `MODELO_PADRAO`
+(temas/embeddings).
+
+**Como lê.** O selo "⏳ aguardando processamento" aparece na fonte quando ela tem verbatim com texto ainda
+sem embedding do modelo padrão. É por **fonte** — aparece em toda ocorrência daquela fonte, porque a
+pendência é da fonte, não do lugar onde é exibida. Pega inclusive o material de importação, que não passa
+por respondente. Some quando o pipeline drena.
+
+---
+
 ## As 6 Perspectivas (do Plano de Ação)
 
 As 6 frentes de negócio em que toda ação cai. Ações **Estruturais** já nascem com a perspectiva escolhida
