@@ -232,11 +232,15 @@ ROTULO_FAIXA = {
 LEITURA_FAIXA = {
     "Frágil": "Mais sinais de perda do que a base sustenta.",
     "Atenção": "Sinais mistos — merece atenção antes de virar problema.",
-    "Forte": "Sólido — há espaço para crescer com a base atual.",
+    # Neutro: "há espaço para crescer" é voz da Expansão (só no override dela) — não
+    # pode vazar em Retenção/relação-existente quando caem no fallback de Forte.
+    "Forte": "Sólido — a base se sustenta.",
 }
 LEITURA_TERMO = {
     ("retencao", "Frágil"): "Mais clientes saindo insatisfeitos do que a base aguenta.",
     ("expansao", "Forte"): "Quem fica, valoriza — há espaço para crescer com a base atual.",
+    # Lente A do bloco Aquisição (relação com quem já é cliente) — verbatim do anexo.
+    ("entrada", "Forte"): "Sua base é bem cuidada.",
 }
 
 

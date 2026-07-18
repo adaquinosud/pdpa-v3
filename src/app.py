@@ -86,8 +86,9 @@ def create_app() -> Flask:
             return "—"
         return "R$ " + f"{n:,.0f}".replace(",", ".")
 
-    # R$ abreviado (língua de CEO): 110400000 → "R$ 110,4 mi"; 350000 → "R$ 350 mil";
-    # 6000000 → "R$ 6 mi". mi com até 2 casas (zeros à direita caem), mil inteiro.
+    # R$ abreviado (língua de CEO): 1104000000 → "R$ 1,1 bi"; 110400000 → "R$ 110,4 mi";
+    # 350000 → "R$ 350 mil"; 6000000 → "R$ 6 mi". bi/mi com até 2 casas (zeros à direita
+    # caem), mil inteiro. Cobre tela + síntese + snapshot (todos usam este filtro).
     @app.template_filter("moeda_abrev")
     def _moeda_abrev(valor):  # noqa: ANN001, ANN202
         try:
@@ -95,9 +96,10 @@ def create_app() -> Flask:
         except (ValueError, TypeError):
             return "—"
         av = abs(v)
-        if av >= 1_000_000:
-            s = f"{v / 1_000_000:.2f}".rstrip("0").rstrip(".").replace(".", ",")
-            return f"R$ {s} mi"
+        for corte, sufixo in ((1_000_000_000, "bi"), (1_000_000, "mi")):
+            if av >= corte:
+                s = f"{v / corte:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+                return f"R$ {s} {sufixo}"
         if av >= 1_000:
             return "R$ " + f"{round(v / 1_000):,.0f}".replace(",", ".") + " mil"
         return "R$ " + f"{round(v):,.0f}".replace(",", ".")

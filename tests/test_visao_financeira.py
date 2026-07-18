@@ -411,7 +411,17 @@ def test_moeda_abrev_filtro(app):
         from flask import render_template_string
 
         out = render_template_string(
-            "{{ 110400000|moeda_abrev }}|{{ 350000|moeda_abrev }}|"
+            "{{ 1104000000|moeda_abrev }}|{{ 110400000|moeda_abrev }}|{{ 350000|moeda_abrev }}|"
             "{{ 6000000|moeda_abrev }}|{{ 64000|moeda_abrev }}"
         )
-    assert out == "R$ 110,4 mi|R$ 350 mil|R$ 6 mi|R$ 64 mil"
+    assert out == "R$ 1,1 bi|R$ 110,4 mi|R$ 350 mil|R$ 6 mi|R$ 64 mil"
+
+
+def test_leitura_lente_relacao_nao_vaza_expansao():
+    # a lente A (relação com quem já é cliente = termo 'entrada') em Forte fala da
+    # relação, não da Expansão ("crescer").
+    assert leitura_termo("entrada", "excelente") == "Sua base é bem cuidada."
+    assert "crescer" not in leitura_termo("entrada", "excelente")
+    # o "crescer" só vive no override da Expansão
+    assert "crescer" in leitura_termo("expansao", "bom")
+    assert "crescer" not in leitura_termo("retencao", "bom")
