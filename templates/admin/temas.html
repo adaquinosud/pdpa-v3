@@ -68,7 +68,12 @@
           <a href="{{ url_for('ui.verbatins_empresa', empresa_id=empresa.id) }}?tema_id={{ t.id }}"
              class="text-xs text-loyall-600 hover:underline mr-3">ver verbatins</a>
           {% if t.ativo and t.volume > 0 %}
-          <button type="button" onclick="abrirMergeModal({{ t.id }}, '{{ t.nome|e }}')"
+          {# nome em data-* (escapado pelo Jinja no contexto de atributo) — o handler lê
+             de this.dataset, NUNCA interpola texto livre dentro de literal JS (apóstrofo
+             no nome fechava a string → SyntaxError → modal não abria). Padrão do 701a8a1. #}
+          <button type="button"
+                  data-tema-id="{{ t.id }}" data-tema-nome="{{ t.nome }}"
+                  onclick="abrirMergeModal(this.dataset.temaId, this.dataset.temaNome)"
                   class="text-xs text-rose-700 hover:underline">merge…</button>
           {% endif %}
         </td>
