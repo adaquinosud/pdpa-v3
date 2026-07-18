@@ -26,6 +26,7 @@ from src.financeiro.visao import (
     TERMO_PILARES,
     TITULO_TERMO,
     calcular_cenarios,
+    comparar_fotos,
     divergencia_lentes,
     elo_travado_por_termo,
     montar_foto,
@@ -264,4 +265,92 @@ def visao_financeira_snapshot_reabrir(empresa_id, snap_id):
         vitrine_posicao_foto=pos_vit,
         nome_lente_entrada=NOME_LENTE_ENTRADA,
         divergencia=divergencia,
+    )
+
+
+def _fmt_data(iso):
+    """ISO → 'dd/mm/aaaa HH:MM' (fallback: string crua se não parsear)."""
+    try:
+        return datetime.fromisoformat(iso).strftime("%d/%m/%Y %H:%M")
+    except (ValueError, TypeError):
+        return str(iso or "")
+
+
+def _foto_atual(s, empresa_id):
+    """'Estado atual' no MESMO formato da foto (reusa montar_foto, sem persistir).
+    Sem input salvo → foto parcial (só Camada 1); o delta de R$ degrada com nota."""
+    agora = datetime.utcnow().isoformat()
+    traj = trajetoria_termos(s, empresa_id)
+    reg = (
+        s.query(VisaoFinanceiraInput).filter(VisaoFinanceiraInput.empresa_id == empresa_id).first()
+    )
+    if reg is not None:
+        vit = vitrine_posicao(s, empresa_id)
+        cen = calcular_cenarios(_input_dict(reg), vit)
+        return montar_foto(_input_dict(reg), traj["atual"], cen, agora)
+    return {
+        "gerado_em": agora,
+        "inputs": None,
+        "termos_ratio": traj.get("atual", {}),
+        "cenarios": None,
+    }
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/visao-financeira/comparar")
+@loyall_required_ui
+def visao_financeira_comparar(empresa_id):
+    """v2 — compara duas fotos (ou uma foto × estado atual) e mostra o delta. A antece-
+    dência vira demonstração. Determinístico. Normaliza p/ ordem cronológica (antes→
+    depois). Separa relação × inputs quando os números mudaram (trava da honestidade)."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    a_raw = (request.args.get("a") or "").strip()
+    b_raw = (request.args.get("b") or "atual").strip()
+    with db_session() as s:
+        empresa = s.get(Empresa, empresa_id)
+        if empresa is None:
+            return render_template("404.html"), 404
+        nome = empresa.nome
+        sn_objs = (
+            s.query(VisaoFinanceiraSnapshot)
+            .filter(VisaoFinanceiraSnapshot.empresa_id == empresa_id)
+            .order_by(VisaoFinanceiraSnapshot.gerado_em.desc())
+            .all()
+        )
+        snaps = [{"id": sn.id, "nome": sn.nome, "gerado_em": sn.gerado_em} for sn in sn_objs]
+        by_id = {sn.id: sn for sn in sn_objs}
+
+        def _resolver(raw, default_recente):
+            if raw == "atual":
+                return _foto_atual(s, empresa_id), "atual"
+            if raw.isdigit() and int(raw) in by_id:
+                return json.loads(by_id[int(raw)].foto_json), str(int(raw))
+            if default_recente and sn_objs:
+                return json.loads(sn_objs[0].foto_json), str(sn_objs[0].id)
+            return None, None
+
+        foto_a, sel_a = _resolver(a_raw, default_recente=True)  # A default = foto mais recente
+        foto_b, sel_b = _resolver(b_raw, default_recente=False)  # B default = estado atual
+
+        delta = data_antes = data_depois = None
+        if foto_a is not None and foto_b is not None:
+            # normaliza cronologicamente (ISO ordena no tempo; 'atual' = agora = mais recente)
+            if (foto_a.get("gerado_em") or "") <= (foto_b.get("gerado_em") or ""):
+                antes, depois = foto_a, foto_b
+            else:
+                antes, depois = foto_b, foto_a
+            data_antes = _fmt_data(antes.get("gerado_em"))
+            data_depois = _fmt_data(depois.get("gerado_em"))
+            delta = comparar_fotos(antes, depois, data_antes, data_depois)
+    return render_template(
+        "visao_financeira/comparar.html",
+        empresa_id=empresa_id,
+        empresa_nome=nome,
+        snapshots=snaps,
+        sel_a=sel_a,
+        sel_b=sel_b,
+        delta=delta,
+        data_antes=data_antes,
+        data_depois=data_depois,
     )

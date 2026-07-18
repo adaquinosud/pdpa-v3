@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block titulo %}Comparar fotos — {{ empresa_nome }}{% endblock %}
+
+{% set cor_rotulo = {
+  'Frágil':'#A32D2D','Atenção':'#854F0B','Forte':'#3B6D11','Dividida':'#854F0B','Sem dados':'#888780',
+} %}
+{% set seta_dir = {'melhorou':'↗','piorou':'↘','estavel':'→'} %}
+{% set cor_dir = {'melhorou':'#3B6D11','piorou':'#A32D2D','estavel':'#888780'} %}
+
+{% block conteudo %}
+<div style="max-width:680px;font-family:system-ui,-apple-system,sans-serif;color:#2C2C2A;">
+  <a href="{{ url_for('ui.visao_financeira', empresa_id=empresa_id) }}"
+     style="font-size:13px;color:#888780;text-decoration:none;">← Visão financeira</a>
+  <div style="font-size:20px;font-weight:500;margin:6px 0 2px;">Comparar fotos</div>
+  <div style="font-size:14px;color:#5F5E5A;line-height:1.6;margin-bottom:1rem;">O que mudou entre dois momentos — onde o sinal apareceu antes do resultado.</div>
+
+  {# ── seletor duplo (GET, resubmete ao trocar) ── #}
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#F1EFE8;border-radius:12px;padding:12px 14px;margin-bottom:1rem;font-size:13px;">
+    <span>comparar</span>
+    <select name="a" onchange="this.form.submit()" style="border:0.5px solid #D3D1C7;border-radius:6px;padding:5px 8px;">
+      {% for sn in snapshots %}
+      <option value="{{ sn.id }}"{% if sel_a == sn.id|string %} selected{% endif %}>{{ sn.nome }} · {{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}</option>
+      {% endfor %}
+    </select>
+    <span>com</span>
+    <select name="b" onchange="this.form.submit()" style="border:0.5px solid #D3D1C7;border-radius:6px;padding:5px 8px;">
+      <option value="atual"{% if sel_b == 'atual' %} selected{% endif %}>estado atual</option>
+      {% for sn in snapshots %}
+      <option value="{{ sn.id }}"{% if sel_b == sn.id|string %} selected{% endif %}>{{ sn.nome }} · {{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button style="background:#3B6D11;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;">Comparar</button></noscript>
+  </form>
+
+  {% if not snapshots %}
+  <div style="font-size:13px;color:#888780;background:#fff;border:0.5px solid #D3D1C7;border-radius:12px;padding:1rem 1.25rem;">Salve ao menos uma foto na Visão Financeira para poder comparar.</div>
+  {% elif not delta %}
+  <div style="font-size:13px;color:#888780;background:#fff;border:0.5px solid #D3D1C7;border-radius:12px;padding:1rem 1.25rem;">Selecione a foto A para comparar.</div>
+  {% else %}
+  <div style="font-size:12px;color:#888780;margin-bottom:10px;">antes <strong>{{ data_antes }}</strong> → depois <strong>{{ data_depois }}</strong></div>
+
+  {# ══ O QUE MUDOU NA RELAÇÃO (estados dos termos — puro, sem número do cliente) ══ #}
+  <div style="font-size:13px;color:#888780;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">O que mudou na relação</div>
+  {% for t in delta.termos %}
+  <div style="background:#fff;border:0.5px solid #D3D1C7;border-radius:12px;padding:0.85rem 1.1rem;margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <span style="font-size:15px;font-weight:500;">{{ t.titulo }}</span>
+      {% if t.ausente %}
+      <span style="font-size:12px;color:#888780;">sem dado numa das fotos</span>
+      {% else %}
+      <span style="font-size:13px;">
+        <span style="color:{{ cor_rotulo.get(t.estado_a,'#888780') }};font-weight:500;">{{ t.estado_a }}</span>
+        <span style="color:{{ cor_dir[t.direcao] }};margin:0 4px;">{{ seta_dir[t.direcao] }}</span>
+        <span style="color:{{ cor_rotulo.get(t.estado_b,'#888780') }};font-weight:500;">{{ t.estado_b }}</span>
+      </span>
+      {% endif %}
+    </div>
+    {% if t.leitura %}<div style="font-size:13px;color:#5F5E5A;line-height:1.5;margin-top:6px;">{{ t.leitura }}</div>
+    {% elif not t.ausente %}<div style="font-size:12px;color:#888780;margin-top:6px;">estável — sem mudança de estado.</div>{% endif %}
+  </div>
+  {% endfor %}
+
+  {# ══ VARIAÇÃO EM DINHEIRO (separada — a nota adapta à honestidade input×relação) ══ #}
+  <div style="font-size:13px;color:#888780;text-transform:uppercase;letter-spacing:0.04em;margin:1.25rem 0 8px;">Variação em dinheiro</div>
+
+  {% if delta.inputs_mudados is none %}
+  <div style="background:#F1EFE8;color:#5F5E5A;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:10px;">Uma das fotos não tem os cinco números — a variação de R$ não está disponível. Acima está o delta da relação.</div>
+  {% elif delta.inputs_iguais %}
+  <div style="background:#EAF3E0;color:#3B6D11;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:10px;">Mesmos cinco números nas duas fotos. O movimento da relação está nos estados acima; a régua relacional, por projeto, não alimenta o R$ — então Retenção e Expansão não variam aqui, e só a Aquisição pode mexer (pela reputação de entrada).</div>
+  {% else %}
+  <div style="background:#FAEEDA;color:#854F0B;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;margin-bottom:10px;">
+    ⚠ Os seus números mudaram entre as fotos — a variação de R$ abaixo <strong>não é efeito só da relação</strong>; ela mistura régua e números. O que mudou na relação está nos cards acima.
+    {% set _money = ['receita_recorrente_base', 'cac'] %}
+    {% set _pct = ['churn_atual', 'taxa_expansao'] %}
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;">
+      {% for m in delta.inputs_mudados %}
+      <div style="font-size:12px;">· <strong>{{ m.rotulo }}</strong>:
+        {% if m.campo in _money %}{{ m.de|moeda_abrev }} → {{ m.para|moeda_abrev }}
+        {% elif m.campo in _pct %}{{ m.de }}% → {{ m.para }}%
+        {% else %}{{ m.de|round|int }} → {{ m.para|round|int }}{% endif %}</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if delta.sintese %}
+  {% for t in delta.termos if not t.ausente and t.delta_provavel is not none %}
+  <div style="background:#fff;border:0.5px solid #D3D1C7;border-radius:10px;padding:0.7rem 1.1rem;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:13px;">{{ t.titulo }}</span>
+    <span style="font-size:13px;">
+      <span style="color:#888780;">cenário atual</span>
+      <strong style="color:{{ '#3B6D11' if t.delta_provavel >= 0 else '#A32D2D' }};" title="{{ t.delta_provavel|moeda }}">{{ '+' if t.delta_provavel >= 0 else '−' }}{{ (t.delta_provavel if t.delta_provavel >= 0 else -t.delta_provavel)|moeda_abrev }}</strong>
+      <span style="color:#888780;margin-left:8px;">· recuperar</span>
+      <strong title="{{ t.delta_deixado|moeda }}">{{ '+' if t.delta_deixado >= 0 else '−' }}{{ (t.delta_deixado if t.delta_deixado >= 0 else -t.delta_deixado)|moeda_abrev }}</strong>
+    </span>
+  </div>
+  {% endfor %}
+  <div style="background:#F1EFE8;border-radius:12px;padding:0.9rem 1.1rem;margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:14px;font-weight:500;">No total (cenário atual)</span>
+    <span style="font-size:15px;font-weight:500;color:{{ '#3B6D11' if delta.sintese.delta_total_provavel >= 0 else '#A32D2D' }};" title="{{ delta.sintese.delta_total_provavel|moeda }}">{{ '+' if delta.sintese.delta_total_provavel >= 0 else '−' }}{{ (delta.sintese.delta_total_provavel if delta.sintese.delta_total_provavel >= 0 else -delta.sintese.delta_total_provavel)|moeda_abrev }}</span>
+  </div>
+  {% else %}
+  <div style="font-size:12px;color:#888780;">Sem cenários nas duas fotos — variação de R$ indisponível.</div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -14,8 +14,11 @@ from src.financeiro.visao import (
     NOME_TERMO,
     barra_pct,
     calcular_cenarios,
+    comparar_fotos,
     divergencia_lentes,
     elo_travado_por_termo,
+    inputs_diff,
+    leitura_delta,
     leitura_reputacao,
     leitura_termo,
     reputacao_estado,
@@ -425,3 +428,197 @@ def test_leitura_lente_relacao_nao_vaza_expansao():
     # o "crescer" só vive no override da Expansão
     assert "crescer" in leitura_termo("expansao", "bom")
     assert "crescer" not in leitura_termo("retencao", "bom")
+
+
+# ── v2 · comparação de fotos ──────────────────────────────────────────
+
+
+def _foto(gerado_em, inputs, termos, cenarios=None):
+    return {
+        "gerado_em": gerado_em,
+        "inputs": inputs,
+        "termos_ratio": termos,
+        "cenarios": cenarios,
+    }
+
+
+def _cenarios(prov, deixa):
+    """cenários mínimos: só o que comparar_fotos lê (provável + deixado + síntese)."""
+    fr = {
+        f: {"cenarios": {"provavel": prov}, "deixado_na_mesa": deixa}
+        for f in ("retencao", "expansao", "aquisicao")
+    }
+    return {
+        "frentes": fr,
+        "sintese": {"receita_futura": {"provavel": prov}, "total_deixado_na_mesa": deixa},
+    }
+
+
+def test_inputs_diff():
+    a = {k: 1.0 for k in INP}
+    assert inputs_diff(a, dict(a)) == []
+    b = {**a, "churn_atual": 15.0}
+    d = inputs_diff(a, b)
+    assert d and d[0]["campo"] == "churn_atual" and d[0]["de"] == 1.0 and d[0]["para"] == 15.0
+    assert inputs_diff(None, a) is None  # não-comparável (foto sem inputs)
+
+
+def test_leitura_delta_descreve_sem_causa():
+    p = leitura_delta("Retenção", "piorou", "Atenção", "Frágil", "01/03", "01/06")
+    assert p == "A Retenção piorou de Atenção para Frágil entre 01/03 e 01/06."
+    assert "por causa" not in p and "porque" not in p
+    # estável e mesmo estado → silêncio
+    assert leitura_delta("Expansão", "estavel", "Forte", "Forte", "a", "b") is None
+
+
+def test_comparar_fotos_delta_e_separacao():
+    inp = {k: 1.0 for k in INP}
+    termos_a = {t: {"ratio": 1.5, "faixa": "atencao"} for t in ("retencao", "expansao", "entrada")}
+    termos_b = {t: {"ratio": 0.3, "faixa": "critico"} for t in ("retencao", "expansao", "entrada")}
+    fa = _foto("2026-03-01T09:00", inp, termos_a, _cenarios(100.0, 10.0))
+    fb = _foto("2026-06-01T09:00", dict(inp), termos_b, _cenarios(90.0, 25.0))
+    d = comparar_fotos(fa, fb, "01/03/2026", "01/06/2026")
+    ret = next(x for x in d["termos"] if x["termo"] == "retencao")
+    assert (
+        ret["estado_a"] == "Atenção" and ret["estado_b"] == "Frágil" and ret["direcao"] == "piorou"
+    )
+    assert ret["delta_provavel"] == -10.0 and ret["delta_deixado"] == 15.0
+    assert "piorou de Atenção para Frágil" in ret["leitura"]
+    assert d["sintese"]["delta_total_provavel"] == -10.0
+    assert d["inputs_iguais"] is True and d["inputs_mudados"] == []
+
+
+def test_comparar_fotos_degrada_sem_cenarios_e_termo_ausente():
+    termos_a = {"retencao": {"ratio": 2.0, "faixa": "bom"}}  # só 1 termo
+    termos_b = {
+        "retencao": {"ratio": 2.0, "faixa": "bom"},
+        "expansao": {"ratio": 3.0, "faixa": "bom"},
+    }
+    fa = _foto("2026-01-01T00:00", None, termos_a, None)  # sem inputs, sem cenários
+    fb = _foto("2026-02-01T00:00", None, termos_b, None)
+    d = comparar_fotos(fa, fb, "a", "b")
+    exp = next(x for x in d["termos"] if x["termo"] == "expansao")
+    assert exp["ausente"] is True  # faltava na foto A
+    ret = next(x for x in d["termos"] if x["termo"] == "retencao")
+    assert ret["delta_provavel"] is None  # sem cenários → degrada
+    assert d["sintese"] is None and d["inputs_mudados"] is None
+
+
+def _snap_row(db_session, eid, nome, dt, foto):
+    import json
+
+    sn = VisaoFinanceiraSnapshot(
+        empresa_id=eid, nome=nome, gerado_em=dt, foto_json=json.dumps(foto)
+    )
+    db_session.add(sn)
+    db_session.commit()
+    return sn
+
+
+def test_comparar_rota_inputs_iguais_sem_aviso(client_loyall, db_session):
+    from datetime import datetime
+
+    eid, *_ = _empresa(client_loyall)
+    inp = {k: 1.0 for k in INP}
+    ta = {t: {"ratio": 1.5, "faixa": "atencao"} for t in ("retencao", "expansao", "entrada")}
+    tb = {t: {"ratio": 0.3, "faixa": "critico"} for t in ("retencao", "expansao", "entrada")}
+    s1 = _snap_row(
+        db_session,
+        eid,
+        "mar",
+        datetime(2026, 3, 1, 9, 0),
+        _foto("2026-03-01T09:00:00", inp, ta, _cenarios(100.0, 10.0)),
+    )
+    s2 = _snap_row(
+        db_session,
+        eid,
+        "jun",
+        datetime(2026, 6, 1, 9, 0),
+        _foto("2026-06-01T09:00:00", dict(inp), tb, _cenarios(90.0, 25.0)),
+    )
+    body = client_loyall.get(
+        f"/empresas/{eid}/visao-financeira/comparar?a={s1.id}&b={s2.id}"
+    ).get_data(as_text=True)
+    assert "O que mudou na relação" in body
+    assert "piorou de Atenção para Frágil" in body
+    assert "Mesmos cinco números nas duas fotos" in body
+    assert "seus números mudaram" not in body
+
+
+def test_comparar_rota_inputs_diferentes_avisa_e_separa(client_loyall, db_session):
+    from datetime import datetime
+
+    eid, *_ = _empresa(client_loyall)
+    ta = {t: {"ratio": 1.5, "faixa": "atencao"} for t in ("retencao", "expansao", "entrada")}
+    inp_a = {**{k: 1.0 for k in INP}, "receita_recorrente_base": 10000.0}
+    inp_b = {**{k: 1.0 for k in INP}, "receita_recorrente_base": 20000.0}
+    s1 = _snap_row(
+        db_session,
+        eid,
+        "mar",
+        datetime(2026, 3, 1, 9, 0),
+        _foto("2026-03-01T09:00:00", inp_a, ta, _cenarios(100.0, 10.0)),
+    )
+    s2 = _snap_row(
+        db_session,
+        eid,
+        "jun",
+        datetime(2026, 6, 1, 9, 0),
+        _foto("2026-06-01T09:00:00", inp_b, ta, _cenarios(180.0, 10.0)),
+    )
+    body = client_loyall.get(
+        f"/empresas/{eid}/visao-financeira/comparar?a={s1.id}&b={s2.id}"
+    ).get_data(as_text=True)
+    assert "seus números mudaram" in body
+    assert "Receita recorrente mensal" in body  # lista o input que mudou
+
+
+def test_comparar_rota_normaliza_ordem_cronologica(client_loyall, db_session):
+    from datetime import datetime
+
+    eid, *_ = _empresa(client_loyall)
+    t = {x: {"ratio": 1.5, "faixa": "atencao"} for x in ("retencao", "expansao", "entrada")}
+    inp = {k: 1.0 for k in INP}
+    old = _snap_row(
+        db_session,
+        eid,
+        "velha",
+        datetime(2026, 1, 10, 9, 0),
+        _foto("2026-01-10T09:00:00", inp, t, _cenarios(100.0, 10.0)),
+    )
+    new = _snap_row(
+        db_session,
+        eid,
+        "nova",
+        datetime(2026, 6, 10, 9, 0),
+        _foto("2026-06-10T09:00:00", dict(inp), t, _cenarios(100.0, 10.0)),
+    )
+    # escolhe A=nova, B=velha (invertido) → deve normalizar antes=velha
+    body = client_loyall.get(
+        f"/empresas/{eid}/visao-financeira/comparar?a={new.id}&b={old.id}"
+    ).get_data(as_text=True)
+    assert "antes <strong>10/01/2026 09:00</strong>" in body
+
+
+def test_comparar_rota_snapshot_vs_atual_default(client_loyall, db_session):
+    from datetime import datetime
+
+    eid, lid, agid, _fid = _empresa(client_loyall)
+    _rm(db_session, eid, lid, agid, "P1", "2026-01", 3, 1)
+    _rm(db_session, eid, lid, agid, "P1", "2026-04", 4, 1)
+    inp = {k: 1.0 for k in INP}
+    t = {x: {"ratio": 2.0, "faixa": "bom"} for x in ("retencao", "expansao", "entrada")}
+    _snap_row(
+        db_session,
+        eid,
+        "foto",
+        datetime(2026, 3, 1, 9, 0),
+        _foto("2026-03-01T09:00:00", inp, t, _cenarios(100.0, 10.0)),
+    )
+    db_session.commit()
+    # sem args: A default = snapshot mais recente, B default = estado atual
+    r = client_loyall.get(f"/empresas/{eid}/visao-financeira/comparar")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "O que mudou na relação" in body
+    assert "estado atual" in body

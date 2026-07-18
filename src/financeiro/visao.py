@@ -479,3 +479,115 @@ INPUT_CAMPOS = (
     "cac",
     "volume_aquisicao",
 )
+
+
+# ── v2 · comparação de fotos (delta determinístico, sem LLM) ──────────
+# Termo → frente correspondente no dict de cenários ('entrada' relacional ↔ 'aquisicao').
+FRENTE_DE_TERMO = {"retencao": "retencao", "expansao": "expansao", "entrada": "aquisicao"}
+ROTULO_INPUT = {
+    "receita_recorrente_base": "Receita recorrente mensal",
+    "churn_atual": "Churn atual",
+    "taxa_expansao": "Taxa de expansão",
+    "cac": "CAC",
+    "volume_aquisicao": "Volume de aquisição",
+}
+
+
+def _direcao(ratio_a: float, ratio_b: float) -> str:
+    """'melhorou' | 'piorou' | 'estavel' entre dois ratios (deadband relativo — não
+    chama ruído de mudança). Mesma régua do ``tendencia`` intra-foto."""
+    d = ratio_b - ratio_a
+    if abs(d) < max(0.15, 0.08 * (abs(ratio_a) or 1.0)):
+        return "estavel"
+    return "melhorou" if d > 0 else "piorou"
+
+
+def inputs_diff(inputs_a: Optional[Dict], inputs_b: Optional[Dict]) -> Optional[list]:
+    """Diferença dos 5 inputs entre duas fotos: ``[]`` se iguais, lista
+    ``[{campo, rotulo, de, para}]`` se diferem, ``None`` se não-comparável (alguma foto
+    sem inputs — ex.: 'estado atual' sem número salvo). Trava da honestidade: input
+    mudou ⇒ o R$ NÃO é efeito só da relação."""
+    if not inputs_a or not inputs_b:
+        return None
+    out = []
+    for campo in INPUT_CAMPOS:
+        va, vb = inputs_a.get(campo), inputs_b.get(campo)
+        if va != vb:
+            out.append({"campo": campo, "rotulo": ROTULO_INPUT[campo], "de": va, "para": vb})
+    return out
+
+
+def leitura_delta(
+    titulo: str, direcao: str, estado_a: str, estado_b: str, data_a: str, data_b: str
+) -> Optional[str]:
+    """Frase determinística do delta de UM termo. Descreve o movimento (estado/direção)
+    entre as duas datas; NUNCA afirma causa nem promete. Sem mudança → ``None``."""
+    if estado_a != estado_b:
+        verbo = {"piorou": "piorou", "melhorou": "melhorou"}.get(direcao, "mudou")
+        return f"A {titulo} {verbo} de {estado_a} para {estado_b} entre {data_a} e {data_b}."
+    if direcao == "melhorou":
+        return f"A {titulo} melhorou dentro de {estado_a} entre {data_a} e {data_b}."
+    if direcao == "piorou":
+        return f"A {titulo} recuou dentro de {estado_a} entre {data_a} e {data_b}."
+    return None  # estável e mesmo estado → silêncio
+
+
+def comparar_fotos(fa: Dict, fb: Dict, data_a: str, data_b: str) -> Dict[str, Any]:
+    """Delta entre duas fotos JÁ em ordem cronológica (fa=antes, fb=depois). Puro,
+    determinístico. Degrada com elegância: termo ausente numa foto → linha marcada
+    ``ausente``; sem cenários numa foto → deltas de R$ ``None``. ``data_*`` = datas já
+    formatadas p/ a leitura."""
+    tr_a = fa.get("termos_ratio") or {}
+    tr_b = fb.get("termos_ratio") or {}
+    cen_a = (fa.get("cenarios") or {}).get("frentes") or {}
+    cen_b = (fb.get("cenarios") or {}).get("frentes") or {}
+
+    linhas = []
+    for t in ("retencao", "expansao", "entrada"):
+        ra, rb = tr_a.get(t), tr_b.get(t)
+        if not ra or not rb:
+            linhas.append({"termo": t, "titulo": TITULO_TERMO[t], "ausente": True})
+            continue
+        ea, eb = rotulo_faixa(ra.get("faixa")), rotulo_faixa(rb.get("faixa"))
+        direcao = _direcao(ra.get("ratio", 0.0), rb.get("ratio", 0.0))
+        f = FRENTE_DE_TERMO[t]
+        dprov = ddeix = None
+        if f in cen_a and f in cen_b:
+            dprov = round(cen_b[f]["cenarios"]["provavel"] - cen_a[f]["cenarios"]["provavel"], 2)
+            ddeix = round(cen_b[f]["deixado_na_mesa"] - cen_a[f]["deixado_na_mesa"], 2)
+        linhas.append(
+            {
+                "termo": t,
+                "titulo": TITULO_TERMO[t],
+                "ausente": False,
+                "estado_a": ea,
+                "estado_b": eb,
+                "faixa_a": ra.get("faixa"),
+                "faixa_b": rb.get("faixa"),
+                "direcao": direcao,
+                "delta_provavel": dprov,
+                "delta_deixado": ddeix,
+                "leitura": leitura_delta(TITULO_TERMO[t], direcao, ea, eb, data_a, data_b),
+            }
+        )
+
+    sa = (fa.get("cenarios") or {}).get("sintese")
+    sb = (fb.get("cenarios") or {}).get("sintese")
+    sintese = None
+    if sa and sb:
+        sintese = {
+            "delta_total_provavel": round(
+                sb["receita_futura"]["provavel"] - sa["receita_futura"]["provavel"], 2
+            ),
+            "delta_total_deixado": round(
+                sb["total_deixado_na_mesa"] - sa["total_deixado_na_mesa"], 2
+            ),
+        }
+
+    diff = inputs_diff(fa.get("inputs"), fb.get("inputs"))
+    return {
+        "termos": linhas,
+        "sintese": sintese,
+        "inputs_mudados": diff,  # [] iguais · lista diferem · None não-comparável
+        "inputs_iguais": diff == [],  # True só quando comparável E iguais
+    }

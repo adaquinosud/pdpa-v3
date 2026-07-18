@@ -130,7 +130,10 @@
   {% include "visao_financeira/_resultado.html" %}
 
   {# ═══════════ Snapshots ═══════════ #}
-  <div style="font-size:13px;color:#888780;margin:1.75rem 0 0.75rem;text-transform:uppercase;letter-spacing:0.04em;">Fotos salvas</div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin:1.75rem 0 0.75rem;">
+    <span style="font-size:13px;color:#888780;text-transform:uppercase;letter-spacing:0.04em;">Fotos salvas</span>
+    {% if snapshots %}<a href="{{ url_for('ui.visao_financeira_comparar', empresa_id=empresa_id) }}" style="font-size:12px;color:#185FA5;text-decoration:none;">comparar fotos →</a>{% endif %}
+  </div>
   <div style="font-size:12px;color:#888780;line-height:1.6;margin-bottom:0.75rem;">📸 Salvar esta foto — guarda exatamente esta tela, com data, para comparar daqui a alguns meses e mostrar que o sinal apareceu antes do resultado. O botão fica junto dos cenários acima (aparece quando você calcula).</div>
   {% if snapshots %}
   <div style="background:#fff;border:0.5px solid #D3D1C7;border-radius:12px;overflow:hidden;">
