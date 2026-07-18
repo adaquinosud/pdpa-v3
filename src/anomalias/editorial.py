@@ -478,6 +478,7 @@ def _chamar_sonnet(
     prompt_path: Optional[Path] = None,
     *,
     parse_fn: Optional[Callable[[str], Any]] = None,
+    cachear: bool = False,
 ) -> Dict[str, Any]:
     """Chama o Sonnet com o payload de negócio. Returns dict (7 chaves) + tokens.
 
@@ -492,11 +493,20 @@ def _chamar_sonnet(
     parse = parse_fn or _parse_label_json
     system_prompt = Path(prompt_path or LEITURA_PROMPT_PATH).read_text(encoding="utf-8")
     client = _get_client()
+    # Prompt caching (só ``cachear=True``): o TEXTO do system é idêntico — apenas
+    # embrulhado num bloco com cache_control p/ o prefixo fixo (rubrica) ser lido a
+    # 0,1× nas chamadas seguintes da janela. Aplicado só onde o system ≥1024 tok
+    # (mínimo do Sonnet): anomalia (leitura_anomalia) e parecer (parecer_sintese).
+    system_arg = (
+        [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
+        if cachear
+        else system_prompt
+    )
     resp = client.messages.create(
         model=SONNET_MODEL,
         # 1300: 7 seções verbosas em PT; 700 truncava o JSON no meio.
         max_tokens=1300,
-        system=system_prompt,
+        system=system_arg,
         messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
     )
     raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
@@ -517,7 +527,8 @@ def gerar_leitura(
     ``confianca`` (autoritativa, do payload), ``dados_hash``, tokens."""
     from src.utils.db import db_session
 
-    gerar = gerar_fn or _chamar_sonnet
+    # leitura de anomalia usa leitura_anomalia_v1.md (≥1024 tok) → prompt caching.
+    gerar = gerar_fn or (lambda p: _chamar_sonnet(p, cachear=True))
     builders = {
         "indicador": montar_payload_indicador,
         "tema": montar_payload_tema,

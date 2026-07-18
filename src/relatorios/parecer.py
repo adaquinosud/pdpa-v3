@@ -515,7 +515,10 @@ def sintetizar_parecer(
         from src.sonda_ia.classificador import _extrair_json_aninhado
 
         def gerar_fn(payload):  # noqa: E731
-            return _chamar_sonnet(payload, PROMPT_SINTESE, parse_fn=_extrair_json_aninhado)
+            # parecer_sintese_v1.md (≥1024 tok) → prompt caching (texto do system idêntico).
+            return _chamar_sonnet(
+                payload, PROMPT_SINTESE, parse_fn=_extrair_json_aninhado, cachear=True
+            )
 
     data = gerar_fn(facts)
     # 6b: guard das frases ANCORADAS — (a) núcleo (nucleo_kw) + (b) âncora (ferida).

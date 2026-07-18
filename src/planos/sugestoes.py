@@ -48,10 +48,13 @@ def _chamar_sonnet(payload: Dict[str, Any], prompt_path: Optional[Path] = None) 
 
     system_prompt = Path(prompt_path or PROMPT_PATH).read_text(encoding="utf-8")
     client = _get_client()
+    # Prompt caching: sugestao_estrutural_v1.md (≥1024 tok) é o único prompt aqui. O
+    # TEXTO do system é idêntico — só embrulhado num bloco com cache_control (prefixo
+    # fixo lido a 0,1× nas chamadas seguintes da janela; alto fan-out por-subpilar×loja).
     resp = client.messages.create(
         model=SONNET_MODEL,
         max_tokens=MAX_TOKENS,
-        system=system_prompt,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
     )
     raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
