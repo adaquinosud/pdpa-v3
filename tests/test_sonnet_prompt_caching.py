@@ -76,13 +76,14 @@ def test_editorial_parecer_prompt_cacheia_byte_identico(rec):
 # ── deixados de fora (system < 1024 tok) — string pura, sem cache_control ──
 
 
-def test_editorial_diagnostico_nao_cacheia(rec):
+def test_editorial_diagnostico_cacheia_byte_identico(rec):
+    # medido em 1362 tok (count_tokens) → cacheável; o caller passa cachear=True.
     from src.anomalias import editorial
     from src.diagnostico.leituras import PROMPT_PATH as DIAG
 
-    editorial._chamar_sonnet({"a": 1}, prompt_path=DIAG, cachear=False)
-    assert isinstance(rec["system"], str)
-    assert rec["system"] == Path(DIAG).read_text(encoding="utf-8")
+    editorial._chamar_sonnet({"a": 1}, prompt_path=DIAG, cachear=True)
+    _bloco_cacheado(rec["system"], DIAG)
+    assert rec["messages"][0]["content"] == json.dumps({"a": 1}, ensure_ascii=False)
 
 
 def test_editorial_casos_default_nao_cacheia(rec):

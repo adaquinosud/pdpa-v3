@@ -281,7 +281,11 @@ def gerar_e_persistir_diagnostico(
     from src.models.diagnostico import LeituraDiagnostico
     from src.utils.db import db_session
 
-    gerar = gerar_fn or (lambda payload: _chamar_sonnet(payload, prompt_path=PROMPT_PATH))
+    # leitura_diagnostico_v1.md medido em 1362 tok (count_tokens, ≥1024) → prompt
+    # caching. Vale empresa E por-loja (mesmo prompt, alto fan-out). Texto idêntico.
+    gerar = gerar_fn or (
+        lambda payload: _chamar_sonnet(payload, prompt_path=PROMPT_PATH, cachear=True)
+    )
     ag_ef = None if local_id is not None else agrupamento_id  # escopos exclusivos
 
     pulados = 0

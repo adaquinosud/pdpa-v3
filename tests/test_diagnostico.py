@@ -157,8 +157,9 @@ def test_regenerar_subpilar_rota(client_loyall, db_session, monkeypatch):
     """Rota de regen pontual força a regeneração só do subpilar pedido (Sonnet mockado)."""
     import src.anomalias.editorial as editorial
 
+    # mock tolera o kwarg cachear (o caller default do diagnóstico passa cachear=True)
     monkeypatch.setattr(
-        editorial, "_chamar_sonnet", lambda payload, prompt_path=None: _fake(payload)
+        editorial, "_chamar_sonnet", lambda payload, prompt_path=None, **kw: _fake(payload)
     )
 
     e, a, loc, f = _ctx(client_loyall, "regsp")
