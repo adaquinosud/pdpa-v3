@@ -44,6 +44,7 @@ class ContatoEmpresa(Base):
         UniqueConstraint("empresa_id", "pessoa_id", name="uq_empresa_contato"),
         Index("idx_empresa_contatos_empresa", "empresa_id"),
         Index("idx_empresa_contatos_pessoa", "pessoa_id"),
+        Index("idx_empresa_contatos_lote", "import_lote_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -56,6 +57,11 @@ class ContatoEmpresa(Base):
     local_id: Mapped[Optional[int]] = mapped_column(ForeignKey("locais.id", ondelete="SET NULL"))
     status: Mapped[str] = mapped_column(
         String, nullable=False, server_default="ativo", default="ativo"
+    )
+    # Onda 2: lote que CRIOU este vínculo (NULL = pré-Onda 2). Desfazer apaga os
+    # contatos criados pelo lote (Pessoa por checagem de vazio).
+    import_lote_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("importacao_lotes.id", ondelete="SET NULL")
     )
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -77,6 +83,7 @@ class ContatoAtributo(Base):
         UniqueConstraint("empresa_id", "pessoa_id", "chave", name="uq_contato_atributo"),
         Index("idx_contato_atributos_seg", "empresa_id", "chave"),
         Index("idx_contato_atributos_pessoa", "pessoa_id"),
+        Index("idx_contato_atributos_lote", "import_lote_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -90,6 +97,11 @@ class ContatoAtributo(Base):
     valor_atual: Mapped[Optional[str]] = mapped_column(String)
     valor_anterior: Mapped[Optional[str]] = mapped_column(String)
     data_mudanca: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    # Onda 2: ÚLTIMO lote que escreveu este atributo. Desfazer reverte ao valor_anterior
+    # (ou apaga se o lote o criou); se um lote posterior reescreveu, não pertence mais.
+    import_lote_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("importacao_lotes.id", ondelete="SET NULL")
+    )
 
     def __repr__(self) -> str:
         return f"<ContatoAtributo p{self.pessoa_id} {self.chave}={self.valor_atual}>"

@@ -116,6 +116,10 @@ PLANO: list[tuple[str, str, str]] = [
     ("sonda IA: leituras", "sonda_ia_leituras", _DIRETO),
     ("sonda IA: respostas", "sonda_ia_respostas", _DIRETO),
     ("sonda IA: execuções", "sonda_ia_execucoes", _DIRETO),
+    # Lotes de import (Onda 2): as linhas que o referenciam (verbatins, respondente,
+    # contatos, atributos) já caíram acima; a FK é SET NULL de todo jeito. Antes de
+    # casos p/ manter casos como último item (verbatins.caso_id → casos).
+    ("lotes de import", "importacao_lotes", _DIRETO),
     # casos RA depois de verbatins: verbatins.caso_id → casos (filho antes do pai).
     ("casos ReclameAqui", "casos", _DIRETO),
 ]

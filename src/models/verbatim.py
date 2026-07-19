@@ -63,6 +63,7 @@ class Verbatim(Base):
         Index("idx_verbatins_caso", "caso_id"),
         Index("idx_verbatins_respondente", "respondente_id"),
         Index("idx_verbatins_pergunta", "pergunta_id"),
+        Index("idx_verbatins_lote", "import_lote_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -97,6 +98,12 @@ class Verbatim(Base):
     # (retorno_pesquisa em modo coleta). SET NULL: apagar a pergunta não apaga o verbatim.
     pergunta_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("pesquisa_perguntas.id", ondelete="SET NULL")
+    )
+    # Onda 2: lote de import que CRIOU este verbatim (NULL = coleta/scraping/pré-Onda 2).
+    # Desfazer o lote apaga por este predicado indexado; CASCADE leva embeddings/temas/
+    # reclassificações, e a pós-coleta recompõe os agregados.
+    import_lote_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("importacao_lotes.id", ondelete="SET NULL")
     )
     texto: Mapped[str] = mapped_column(Text, nullable=False)
     autor: Mapped[Optional[str]] = mapped_column(String)

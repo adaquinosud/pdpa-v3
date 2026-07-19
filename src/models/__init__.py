@@ -26,6 +26,7 @@ from src.models.fonte import Fonte
 from src.models.fonte_coorte_coleta import FonteCoorteColeta
 from src.models.fonte_reputacao import FonteReputacao
 from src.models.glossario_termo import GlossarioTermo
+from src.models.importacao import ImportacaoLote
 from src.models.governanca import (
     GiniConcentracao,
     PrevisibilidadeCalculation,
@@ -82,6 +83,7 @@ __all__ = [
     "Fonte",
     "FonteReputacao",
     "GlossarioTermo",
+    "ImportacaoLote",
     "GiniConcentracao",
     "LeituraDiagnostico",
     "PrevisibilidadeCalculation",

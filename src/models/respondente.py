@@ -45,6 +45,7 @@ class Respondente(Base):
         ),
         Index("idx_respondente_pesquisa", "pesquisa_id"),
         Index("idx_respondente_pessoa", "pessoa_id"),
+        Index("idx_respondente_lote", "import_lote_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -55,6 +56,11 @@ class Respondente(Base):
     # Escopo: mesmo vocabulário da Pesquisa (entidade_tipo/entidade_id).
     entidade_tipo: Mapped[str] = mapped_column(String, nullable=False)
     entidade_id: Mapped[Optional[int]] = mapped_column(Integer)  # NULL p/ empresa
+    # Onda 2: lote de import que CRIOU este respondente (NULL = web/pré-Onda 2). Desfazer
+    # o lote apaga por este predicado indexado.
+    import_lote_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("importacao_lotes.id", ondelete="SET NULL")
+    )
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     respostas: Mapped[List["Resposta"]] = relationship(
