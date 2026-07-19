@@ -18,6 +18,7 @@ from src.models.chat_cache import ChatCache
 from src.models.classificacao_batch import ClassificacaoBatch
 from src.models.classifier_metric import ClassifierMetric
 from src.models.coleta_execucao import ColetaExecucao
+from src.models.contato import ContatoAtributo, ContatoEmpresa, PesquisaConvite
 from src.models.diagnostico import LeituraDiagnostico
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
@@ -73,6 +74,9 @@ __all__ = [
     "ClassificacaoBatch",
     "ClassifierMetric",
     "ColetaExecucao",
+    "ContatoAtributo",
+    "ContatoEmpresa",
+    "PesquisaConvite",
     "Empresa",
     "EventoManutencao",
     "Fonte",

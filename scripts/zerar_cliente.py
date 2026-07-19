@@ -103,6 +103,12 @@ PLANO: list[tuple[str, str, str]] = [
     ("escopos de pesquisa", "pesquisa_escopos", _FILHO_PESQUISAS),
     ("análise ORIGEM", "origem_analise", _FILHO_PESQUISAS),
     ("síntese ORIGEM", "origem_sintese", _FILHO_PESQUISAS),
+    # Base de contatos (Onda 1): vínculo/atributos por-empresa + convites por-pessoa.
+    # A Pessoa em si é GLOBAL (fica em GLOBAIS_IGNORADAS) — só o elo por-empresa cai.
+    # Convites ANTES de pesquisas (FK pesquisa_id).
+    ("convites de pesquisa", "pesquisa_convites", _DIRETO),
+    ("atributos de contato", "contato_atributos", _DIRETO),
+    ("vínculos de contato", "empresa_contatos", _DIRETO),
     ("pesquisas", "pesquisas", _DIRETO),
     ("verbatins", "verbatins", _DIRETO),
     # Reputação em IA (sonda_ia_*): filhas antes das mães; independentes de verbatins.
