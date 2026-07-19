@@ -13,6 +13,7 @@ mista) → o parser extrai a ordem e resolve ``pergunta_id`` via ``pesquisa.perg
 from __future__ import annotations
 
 import io
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -271,7 +272,12 @@ def _resolver_identidade(s, row, col_class, pesquisa, cache, stats):
 
 
 def importar_respostas(
-    caminho: Union[str, Path], pesquisa_id: int, *, consentimento: bool = False
+    caminho: Union[str, Path],
+    pesquisa_id: int,
+    *,
+    consentimento: bool = False,
+    autor_id: Optional[int] = None,
+    arquivo_nome: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Importa um Excel WIDE de respostas para a pesquisa ``pesquisa_id``. Cada
     linha → 1 Respondente + suas respostas (destino pelo propósito da pesquisa)."""
@@ -310,6 +316,18 @@ def importar_respostas(
             }
         escopo_por_rotulo = _escopo_por_rotulo(_ancora(pesq))
 
+        # Onda 2: lote desfazível — carimba cada Respondente/Verbatim deste import.
+        from src.models.importacao import ImportacaoLote
+
+        lote = ImportacaoLote(
+            empresa_id=pesq.empresa_id,
+            tipo="respostas",
+            arquivo_nome=arquivo_nome or Path(caminho).name,
+            autor_id=autor_id,
+        )
+        s.add(lote)
+        s.flush()
+
         cache_pessoa: Dict[str, int] = {}
         for _, row in df.iterrows():
             try:
@@ -327,10 +345,16 @@ def importar_respostas(
                     respostas=respostas,
                     conector="pesquisa_excel",
                     data_resposta=_data_resposta(row, col_class),  # da planilha, não do upload
+                    lote_id=lote.id,
                 )
                 stats["respondentes"] += 1
                 stats["respostas"] += len(respostas)
             except Exception:  # noqa: BLE001 — linha problemática não derruba o lote
                 stats["erros"] += 1
+
+        lote.contadores_json = json.dumps(
+            {k: stats[k] for k in ("respondentes", "respostas", "ignorados", "erros", "total")}
+        )
+        stats["lote_id"] = lote.id
 
     return stats

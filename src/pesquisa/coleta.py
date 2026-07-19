@@ -34,6 +34,7 @@ def registrar_respostas(
     conector: str = "pesquisa_web",
     data_resposta: Optional[datetime] = None,
     substituir_reenvio: bool = False,
+    lote_id: Optional[int] = None,
 ) -> Respondente:
     """Cria o Respondente + grava as respostas pelo propósito da pesquisa.
 
@@ -85,6 +86,7 @@ def registrar_respostas(
         pessoa_id=pessoa_id,
         entidade_tipo=entidade_tipo,
         entidade_id=entidade_id,
+        import_lote_id=lote_id,  # Onda 2: carimba o lote (import); web passa None
     )
     s.add(respondente)
     s.flush()
@@ -101,7 +103,9 @@ def registrar_respostas(
                 )
             )
     else:  # 'coleta' → Verbatim (alimenta o diagnóstico)
-        _gravar_verbatins(s, pesquisa, respondente, pessoa_id, respostas, conector, data_resposta)
+        _gravar_verbatins(
+            s, pesquisa, respondente, pessoa_id, respostas, conector, data_resposta, lote_id
+        )
 
     s.flush()
     return respondente
@@ -127,6 +131,7 @@ def _gravar_verbatins(
     respostas: List[Dict[str, Any]],
     conector: str,
     data_resposta: Optional[datetime] = None,
+    lote_id: Optional[int] = None,
 ) -> None:
     """Cada resposta com texto e/ou nota vira um Verbatim.
 
@@ -207,6 +212,7 @@ def _gravar_verbatins(
             tipo=tipo,
             confianca=1.0 if tipo is not None else None,  # determinístico, não é palpite
             prompt_versao="pesquisa-deterministica-v1" if tipo is not None else None,
+            import_lote_id=lote_id,  # Onda 2: carimba o lote (import de respostas)
         )
         # Cinto: se um edge case futuro ainda colidir no dedup, PULA essa resposta em
         # vez de estourar 500 — o savepoint isola, a transação externa segue íntegra.

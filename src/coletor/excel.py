@@ -648,6 +648,8 @@ def importar_arquivo(
     disparar_pos: bool = False,
     interno_identificado: bool = False,
     consentimento: bool = False,
+    autor_id: Optional[int] = None,
+    arquivo_nome: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Importa Excel/CSV para Verbatim crus (sem classificação). ``local_id``/
     ``fonte_id`` são fallback file-level (a coluna da linha tem prioridade).
@@ -730,6 +732,18 @@ def importar_arquivo(
         cache_fonte: Dict[str, int] = {}
         pessoas_vinc: set[int] = set()  # ids distintos vinculados (conta honesta)
         merges_antes = session.query(PessoaMerge).count()  # p/ o delta de fusões
+
+        # Onda 2: lote desfazível — carimba cada Verbatim novo deste import.
+        from src.models.importacao import ImportacaoLote
+
+        lote = ImportacaoLote(
+            empresa_id=empresa_id,
+            tipo="verbatins",
+            arquivo_nome=arquivo_nome or caminho.name,
+            autor_id=autor_id,
+        )
+        session.add(lote)
+        session.flush()
 
         # Fonte padrão do arquivo (find-or-create por nome → dedup idempotente no
         # reimport). Se a rota passou um fonte_id explícito, ele é o default.
@@ -868,6 +882,7 @@ def importar_arquivo(
                         confianca=conf_h,
                         justificativa=just_h,
                         prompt_versao=pv_h,
+                        import_lote_id=lote.id,  # Onda 2: carimba o lote (import de verbatins)
                     )
                 )
                 if review_id:
@@ -882,6 +897,11 @@ def importar_arquivo(
         # pré-existentes — auditoria "fundi N clientes que já existiam").
         stats["pessoas_vinculadas"] = len(pessoas_vinc)
         stats["pessoas_merges"] = session.query(PessoaMerge).count() - merges_antes
+
+        lote.contadores_json = json.dumps(
+            {k: stats[k] for k in ("importados", "duplicados", "erros", "ignorados", "total")}
+        )
+        stats["lote_id"] = lote.id
 
     # Gatilho pós-coleta (force=True, limiar=1) — APÓS o commit, pra a thread ver
     # os verbatins. Roda classificação→temas→detecção→…→leitura em daemon-thread.

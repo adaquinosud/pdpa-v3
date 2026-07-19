@@ -202,10 +202,12 @@ def _convidar(
     id_cliente: Optional[str],
     nome: Optional[str],
     local_id: Optional[int],
+    lote_id: Optional[int] = None,
 ) -> Optional[int]:
     """Cria/reusa a Pessoa "convidado" pela chave (REUSA ``_reconciliar_pessoa``) e
     faz upsert do vínculo por-empresa. Sem chave → None (linha ignorada). Import é
-    UPSERT: presente no arquivo = ``ativo`` (reativa contato antes inativado)."""
+    UPSERT: presente no arquivo = ``ativo`` (reativa contato antes inativado). O
+    ``lote_id`` carimba só o vínculo NOVO (desfazer apaga os criados pelo lote)."""
     pessoa_id = _reconciliar_pessoa(
         session, email=email, id_cliente=id_cliente, nome=nome, origem="contato"
     )
@@ -217,7 +219,11 @@ def _convidar(
     if vinculo is None:
         session.add(
             ContatoEmpresa(
-                empresa_id=empresa_id, pessoa_id=pessoa_id, local_id=local_id, status="ativo"
+                empresa_id=empresa_id,
+                pessoa_id=pessoa_id,
+                local_id=local_id,
+                status="ativo",
+                import_lote_id=lote_id,
             )
         )
     else:
@@ -234,15 +240,29 @@ def importar_contatos(
     *,
     atributos_marcados: Optional[List[str]] = None,
     marcar_ausentes_inativo: bool = False,
+    autor_id: Optional[int] = None,
+    arquivo_nome: Optional[str] = None,
 ) -> Dict[str, Any]:
     """CHOKE POINT do import de contatos (UPSERT). Para cada linha com chave: convida
     (Pessoa + vínculo) e grava os atributos MARCADOS presentes. ``atributos_marcados``
     default vazio = nada vira atributo. ``marcar_ausentes_inativo`` (checkbox opcional
-    "base completa") marca ``inativo`` os contatos ATIVOS não tocados — NUNCA apaga."""
+    "base completa") marca ``inativo`` os contatos ATIVOS não tocados — NUNCA apaga.
+    Onda 2: cria um ImportacaoLote e carimba vínculos/atributos novos (desfazível)."""
+    from src.models.importacao import ImportacaoLote
+
     atributos_marcados = atributos_marcados or []
     df = _ler_dataframe(Path(caminho))
     fixas, _extras = _detectar_fixas(list(df.columns))
     marcados = [c for c in atributos_marcados if c in df.columns]
+
+    lote = ImportacaoLote(
+        empresa_id=empresa_id,
+        tipo="contatos",
+        arquivo_nome=arquivo_nome or Path(caminho).name,
+        autor_id=autor_id,
+    )
+    session.add(lote)
+    session.flush()
 
     cache_local: Dict[str, int] = {}
     tocados: set[int] = set()
@@ -285,6 +305,7 @@ def importar_contatos(
             id_cliente=id_cliente,
             nome=nome,
             local_id=local_id,
+            lote_id=lote.id,
         )
         if pessoa_id is None:
             stats["ignorados_sem_chave"] += 1
@@ -293,7 +314,9 @@ def importar_contatos(
         stats["criados" if novo else "atualizados"] += 1
 
         for col in marcados:
-            desfecho = upsert_atributo(session, empresa_id, pessoa_id, col, row[col])
+            desfecho = upsert_atributo(
+                session, empresa_id, pessoa_id, col, row[col], lote_id=lote.id
+            )
             if desfecho in ("criado", "mudou"):
                 stats["atributos_gravados"] += 1
 
@@ -311,4 +334,9 @@ def importar_contatos(
         for v in ausentes:
             v.status = "inativo"
         stats["inativados"] = len(ausentes)
+
+    import json
+
+    lote.contadores_json = json.dumps({k: v for k, v in stats.items()})
+    stats["lote_id"] = lote.id
     return stats

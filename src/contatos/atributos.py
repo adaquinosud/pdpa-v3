@@ -65,7 +65,14 @@ def _norm_valor(valor: object) -> Optional[str]:
     return s
 
 
-def upsert_atributo(session, empresa_id: int, pessoa_id: int, chave: str, valor: object) -> str:
+def upsert_atributo(
+    session,
+    empresa_id: int,
+    pessoa_id: int,
+    chave: str,
+    valor: object,
+    lote_id: Optional[int] = None,
+) -> str:
     """Grava/atualiza UM atributo de (empresa, pessoa) com a regra inline:
 
     - valor vazio → ``'ignorado_vazio'`` (não toca — coluna presente mas célula vazia
@@ -95,6 +102,7 @@ def upsert_atributo(session, empresa_id: int, pessoa_id: int, chave: str, valor:
                 valor_atual=novo,
                 valor_anterior=None,
                 data_mudanca=datetime.utcnow(),
+                import_lote_id=lote_id,  # Onda 2: lote que criou o atributo
             )
         )
         return "criado"
@@ -103,4 +111,5 @@ def upsert_atributo(session, empresa_id: int, pessoa_id: int, chave: str, valor:
     attr.valor_anterior = attr.valor_atual
     attr.valor_atual = novo
     attr.data_mudanca = datetime.utcnow()
+    attr.import_lote_id = lote_id  # último lote que escreveu (dono do revert)
     return "mudou"
