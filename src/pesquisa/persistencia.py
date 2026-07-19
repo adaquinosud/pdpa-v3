@@ -248,11 +248,22 @@ def tem_pendente_processamento(s, pesquisa_id: int) -> bool:
     aguardando o pós-coleta (temas). Marcador honesto de "coletado, não processado":
     respostas-com-nota nascem classificadas (subpilar não-NULL), então ``subpilar_null``
     daria ~0 e enganaria; o embedding faltando é o sinal real. Rating-only (sem texto)
-    nunca temiza → não conta como pendente."""
+    nunca temiza → não conta como pendente.
+
+    Corte #4: só True quando o TOTAL pendente da EMPRESA (dona da pesquisa) ``>= limiar``
+    — mesmo gate da cauda. Abaixo disso o material acumula de propósito → selo apagado."""
+    from src.models.pesquisa import Pesquisa
     from src.models.respondente import Respondente
     from src.models.temas import VerbatimEmbedding
     from src.models.verbatim import Verbatim
     from src.temas.embeddings import MODELO_PADRAO
+    from src.temas.pos_coleta import contar_pendente_cauda, limiar_efetivo
+
+    pesq = s.get(Pesquisa, pesquisa_id)
+    if pesq is None:
+        return False
+    if contar_pendente_cauda(pesq.empresa_id) < limiar_efetivo(pesq.empresa_id):
+        return False  # empresa abaixo do limiar → cauda não vai rodar → selo apagado
 
     tem_embedding = s.query(VerbatimEmbedding.verbatim_id).filter(
         VerbatimEmbedding.modelo == MODELO_PADRAO
@@ -275,24 +286,30 @@ def fontes_com_pendencia(s, empresa_id: int) -> set:
     com ao menos um verbatim COM TEXTO ainda sem embedding do MODELO_PADRAO (aguardando
     pós-coleta/temas). Mesma regra do selo por-pesquisa, mas agrupada por ``Verbatim.fonte_id``
     (sem join em Respondente) — assim pega TAMBÉM o import (excel_interno = verbatim solto,
-    respondente_id NULL, mas fonte_id setado), que o helper por-pesquisa perde."""
+    respondente_id NULL, mas fonte_id setado), que o helper por-pesquisa perde.
+
+    Corte #4: só acende quando o TOTAL pendente da empresa ``>= limiar`` — ou seja, quando
+    a cauda vai mesmo rodar na próxima. Abaixo do limiar o material acumula de propósito
+    (não travou) → set vazio, selo apagado."""
+    from sqlalchemy import func
+
     from src.models.temas import VerbatimEmbedding
     from src.models.verbatim import Verbatim
     from src.temas.embeddings import MODELO_PADRAO
+    from src.temas.pos_coleta import limiar_efetivo
 
     tem_embedding = s.query(VerbatimEmbedding.verbatim_id).filter(
         VerbatimEmbedding.modelo == MODELO_PADRAO
     )
-    return {
-        fid
-        for (fid,) in s.query(Verbatim.fonte_id)
-        .filter(
-            Verbatim.empresa_id == empresa_id,
-            Verbatim.tem_texto.is_(True),
-            ~Verbatim.id.in_(tem_embedding),
-        )
-        .distinct()
-    }
+    base = s.query(Verbatim).filter(
+        Verbatim.empresa_id == empresa_id,
+        Verbatim.tem_texto.is_(True),
+        ~Verbatim.id.in_(tem_embedding),
+    )
+    total = base.with_entities(func.count(Verbatim.id)).scalar() or 0
+    if total < limiar_efetivo(empresa_id):
+        return set()
+    return {fid for (fid,) in base.with_entities(Verbatim.fonte_id).distinct()}
 
 
 def apagar_pesquisa(s, pesquisa_id: int) -> Dict[str, int]:

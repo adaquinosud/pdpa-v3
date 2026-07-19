@@ -96,13 +96,15 @@ def pendencias_pos_coleta(empresa_id: int) -> Dict[str, Any]:
     }
 
 
-def deve_reprocessar(pend: Dict[str, Any]) -> bool:
-    """Gate por pendência: desfecho é exceção (≥1 dispara — foi a dor dos 204);
-    o resto é por volume (subpilar + embeddings ≥ THRESHOLD)."""
+def deve_reprocessar(pend: Dict[str, Any], limiar: int = THRESHOLD_VOLUME) -> bool:
+    """Gate por pendência de VOLUME (corte #4): ``subpilar_null + embeddings_faltando ≥
+    limiar``. Após o split, a cabeça zera subpilar_null/desfecho_null — mantê-los aqui é
+    rede de segurança (classificação/desfecho que falhou volta a disparar). ``limiar`` =
+    o mesmo da empresa (alinha o catch-up do watchdog ao gate da coleta)."""
     if pend.get("desfecho_null", 0) >= 1:
         return True
     volume = pend.get("subpilar_null", 0) + pend.get("embeddings_faltando", 0)
-    return volume >= THRESHOLD_VOLUME
+    return volume >= limiar
 
 
 def _tem_pendencia(pend: Dict[str, Any]) -> bool:
@@ -126,7 +128,7 @@ def pos_coleta_watchdog(
     """
     from src.models.empresa import Empresa
     from src.temas.limpeza import _regenerar_cache_por_vinculos
-    from src.temas.pos_coleta import _marcar_pos_coleta_status, executar_pos_coleta
+    from src.temas.pos_coleta import _marcar_pos_coleta_status, executar_pos_coleta, limiar_efetivo
     from src.utils.db import db_session
 
     agora = agora or datetime.utcnow()
@@ -147,24 +149,29 @@ def pos_coleta_watchdog(
     for eid in empresa_ids:
         stats["varridas"] += 1
         pend = pendencias_pos_coleta(eid)
+        lim = limiar_efetivo(eid)
 
-        if not _tem_pendencia(pend):
-            _marcar_pos_coleta_status(eid, "completo", pend, agora=agora)
-            stats["limpas"] += 1
-            continue
-
-        # 'rodando' que sobreviveu ao cooldown = processo morreu no meio.
+        # 'rodando' que sobreviveu ao cooldown = cauda que morreu no meio — mesmo DEPOIS
+        # de embedar (falha em temas/ratios/ações não deixa pendência de contagem). Sinal
+        # residual do corte #4: interrompida SEMPRE re-roda, antes do guard de pendência.
         with db_session() as s:
             emp = s.get(Empresa, eid)
             if emp is None:
                 continue
             iniciado, status = emp.pos_coleta_iniciado_em, emp.pos_coleta_status
-        if status == "rodando" and iniciado and iniciado <= limite_cooldown:
-            _marcar_pos_coleta_status(eid, "interrompido", pend, agora=agora)
-            stats["interrompidas"] += 1
-        elif iniciado and iniciado > limite_cooldown:
+        interrompida = status == "rodando" and iniciado is not None and iniciado <= limite_cooldown
+
+        if not interrompida and not _tem_pendencia(pend):
+            _marcar_pos_coleta_status(eid, "completo", pend, agora=agora)
+            stats["limpas"] += 1
+            continue
+        # 'rodando' DENTRO do cooldown = pode estar rodando agora → não mexe.
+        if not interrompida and iniciado is not None and iniciado > limite_cooldown:
             stats["puladas_cooldown"] += 1
             continue
+        if interrompida:
+            _marcar_pos_coleta_status(eid, "interrompido", pend, agora=agora)
+            stats["interrompidas"] += 1
 
         # SEM wrap externo de _lock_empresa: executar_pos_coleta → classificar_pendentes
         # → _classificar_pendentes_batch já pega o MESMO advisory lock (namespace+eid)
@@ -175,10 +182,12 @@ def pos_coleta_watchdog(
         # continua garantida pelo lock interno (anti-duplo-submit) + o cooldown 6h acima
         # (anti watchdog-vs-watchdog). O downstream é idempotente/skip-por-hash.
         _marcar_pos_coleta_status(eid, "rodando", pend, agora=agora)
-        if deve_reprocessar(pend):
-            executar_pos_coleta(eid, limiar=1, force=True)
+        # interrompida OU pendência de volume (≥ limiar da empresa) → re-roda a cauda
+        # inteira (force; idempotente/hash-skip). Só cache defasado → alinhamento leve, $0.
+        if interrompida or deve_reprocessar(pend, limiar=lim):
+            executar_pos_coleta(eid, force=True)
             stats["retomadas"] += 1
-        else:  # só cache defasado → alinhamento leve, sem LLM
+        else:
             _regenerar_cache_por_vinculos(eid)
             stats["cache_alinhado"] += 1
         _marcar_pos_coleta_status(eid, "completo", pendencias_pos_coleta(eid), agora=agora)

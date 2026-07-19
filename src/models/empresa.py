@@ -70,6 +70,10 @@ class Empresa(Base):
     pos_coleta_iniciado_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     pos_coleta_concluido_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     pos_coleta_pendencias_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Corte #4: limiar de material pendente (verbatim sem embedding) p/ rodar a CAUDA
+    # cara do pós-coleta. NULL = usa o default do código (LIMIAR_NOVOS_DEFAULT). A cabeça
+    # barata (classificação) roda sempre, independente disto.
+    pos_coleta_limiar: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

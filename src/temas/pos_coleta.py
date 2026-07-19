@@ -28,7 +28,9 @@ from src.temas.cruzamento import (
 from src.temas.embeddings import embed_verbatins_pendentes
 from src.temas.pipeline import processar_empresa
 
-LIMIAR_NOVOS_DEFAULT = 50
+# Corte #4: default BAIXO (10, não 50). Barra os 0-9 (empresa de baixo volume) e deixa
+# as ativas atualizarem. Override por empresa em ``empresas.pos_coleta_limiar``.
+LIMIAR_NOVOS_DEFAULT = 10
 CUSTO_USD_POR_CLASSIFICACAO = 0.0005  # Haiku, estimativa
 
 # Marcador terminal de falha de classificação (CP-fix-classificador). Gravado em
@@ -97,6 +99,47 @@ def contar_novos(empresa_id: int) -> int:
             )
             .scalar()
         )
+
+
+def contar_pendente_cauda(empresa_id: int) -> int:
+    """Material que a CAUDA ainda não consumiu = verbatins com texto SEM embedding do
+    MODELO_PADRAO. É o sinal do gate da cauda (corte #4): inclui o que entrou nesta
+    rodada (já classificado pela cabeça) + o deferido de coletas pequenas. NÃO olha
+    ``subpilar_null`` (a cabeça classifica sempre → sempre 0) nem ``desfecho_null``."""
+    from sqlalchemy import func
+
+    from src.models.temas import VerbatimEmbedding
+    from src.models.verbatim import Verbatim
+    from src.temas.embeddings import MODELO_PADRAO
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        tem_emb = s.query(VerbatimEmbedding.verbatim_id).filter(
+            VerbatimEmbedding.modelo == MODELO_PADRAO
+        )
+        return (
+            s.query(func.count(Verbatim.id))
+            .filter(
+                Verbatim.empresa_id == empresa_id,
+                Verbatim.tem_texto.is_(True),
+                ~Verbatim.id.in_(tem_emb),
+            )
+            .scalar()
+            or 0
+        )
+
+
+def limiar_efetivo(empresa_id: int, limiar_param: Optional[int] = None) -> int:
+    """Limiar da cauda: param explícito > coluna por-empresa > default do código."""
+    if limiar_param is not None:
+        return limiar_param
+    from src.models.empresa import Empresa
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        emp = s.get(Empresa, empresa_id)
+        v = getattr(emp, "pos_coleta_limiar", None) if emp else None
+    return v if v is not None else LIMIAR_NOVOS_DEFAULT
 
 
 def classificar_pendentes(
@@ -833,13 +876,20 @@ def _classificar_casos_ra(empresa_id: int) -> Dict[str, int]:
 def executar_pos_coleta(
     empresa_id: int,
     *,
-    limiar: int = LIMIAR_NOVOS_DEFAULT,
+    limiar: Optional[int] = None,
     force: bool = False,
     limite: Optional[int] = None,
     callback_progresso: Optional[Any] = None,
     aplicar_janela: bool = True,
 ) -> ResumoPosColeta:
-    """Orquestra o pós-coleta. Pula se ``novos < limiar`` e não ``force``.
+    """Orquestra o pós-coleta em CABEÇA (sempre) + CAUDA (gateada) — corte #4.
+
+    CABEÇA (barata, bounded pelo que entrou): classifica verbatins novos + desfecho RA
+    dos casos novos. Roda SEMPRE — o dado novo nunca fica sem classificar.
+    CAUDA (cara/all-time/superlinear): embeddings → temas → cruzamentos → ações →
+    ratios → anomalias → editorial. Só roda se ``pendente_cauda ≥ limiar`` OU ``force``.
+    ``limiar=None`` → ``limiar_efetivo`` (coluna por-empresa ou default). ``pendente_cauda``
+    = verbatins com texto SEM embedding (o material que a cauda ainda não consumiu).
 
     ``limite`` (opcional) cap o número de verbatins pendentes **classificados**
     nesta execução (repassado a ``classificar_pendentes``). As etapas seguintes
@@ -852,25 +902,35 @@ def executar_pos_coleta(
     de dados antigos), passe ``False`` — só assim o cache de TODOS os buckets é
     regenerado; senão buckets fora da janela ficam com volume defasado.
     """
-    from src.temas.watchdog import deve_reprocessar, pendencias_pos_coleta
+    from src.temas.watchdog import pendencias_pos_coleta
 
-    r = ResumoPosColeta(empresa_id=empresa_id, limiar=limiar)
-    r.novos = contar_novos(empresa_id)
-    pend = pendencias_pos_coleta(empresa_id)
-    # Gate por PENDÊNCIA, não só por "novos": mesmo com 0 novos a classificar, se há
-    # desfecho/embeddings/temas pendentes (daemon morreu no meio), re-entra e conclui.
-    # Foi o buraco dos 204 casos sem desfecho: classificação terminava, novos=0, e o
-    # gate antigo pulava tudo → desfecho ficava NULL pra sempre.
-    if not force and r.novos < limiar and not deve_reprocessar(pend):
-        r.motivo_skip = f"poucos novos ({r.novos} < {limiar}) e sem pendência — pulando"
-        return r
+    lim = limiar_efetivo(empresa_id, limiar)
+    r = ResumoPosColeta(empresa_id=empresa_id, limiar=lim)
+    r.novos = contar_novos(empresa_id)  # o que entrou (relatório)
+    _marcar_pos_coleta_status(empresa_id, "rodando", pendencias_pos_coleta(empresa_id))
 
-    r.executou = True
-    _marcar_pos_coleta_status(empresa_id, "rodando", pend)
+    # ── CABEÇA (SEMPRE) — processa o dado novo; barata, bounded pelo que entrou ──
     cs = classificar_pendentes(empresa_id, limite=limite)
     r.classificados = cs["classificados"]
     r.classif_falhas = cs["falhas"]
+    # desfecho RA dos casos novos (era o passo 14) — sobe pra cabeça. Só ambíguo custa
+    # Sonnet; determinístico = $0. Rodando sempre, ``desfecho_null`` nunca acumula.
+    _casos_ra = _classificar_casos_ra(empresa_id)
+    custo_cabeca = (
+        r.classificados * CUSTO_USD_POR_CLASSIFICACAO
+        + _casos_ra["in"] / 1e6 * 3.0
+        + _casos_ra["out"] / 1e6 * 15.0
+    )
 
+    # ── GATE DA CAUDA — só o caro. Não olha subpilar_null/desfecho_null (na cabeça) ──
+    pendente = contar_pendente_cauda(empresa_id)
+    if not force and pendente < lim:
+        r.motivo_skip = f"cauda pulada (pendente {pendente} < {lim}) — cabeça processou o novo"
+        r.custo_estimado_usd = round(custo_cabeca, 4)
+        _marcar_pos_coleta_status(empresa_id, "completo", pendencias_pos_coleta(empresa_id))
+        return r
+
+    r.executou = True  # a cauda rodou
     emb = embed_verbatins_pendentes(empresa_id)
     r.embeddings_gerados = int(emb.get("gerados", 0))
 
@@ -932,17 +992,14 @@ def executar_pos_coleta(
     r.sugestoes_geradas = ms["sugestoes"]
     r.sugestoes_pulados = ms["pulados"]
 
-    # ── F3.1: desfecho dos casos ReclameAqui (só desfecho IS NULL) ──
-    _casos_ra = _classificar_casos_ra(empresa_id)
-
-    custo = r.classificados * CUSTO_USD_POR_CLASSIFICACAO
+    # desfecho RA já foi classificado na CABEÇA (custo em custo_cabeca).
+    custo = custo_cabeca  # classificação + desfecho (cabeça)
     custo += rp.custo_usd_acumulado
     custo += rsem.input_tokens / 1e6 * 1.0 + rsem.output_tokens / 1e6 * 5.0
     custo += ra.input_tokens / 1e6 * 3.0 + ra.output_tokens / 1e6 * 15.0
     custo += md["in"] / 1e6 * 3.0 + md["out"] / 1e6 * 15.0
     custo += mp["in"] / 1e6 * 3.0 + mp["out"] / 1e6 * 15.0
     custo += ms["in"] / 1e6 * 3.0 + ms["out"] / 1e6 * 15.0
-    custo += _casos_ra["in"] / 1e6 * 3.0 + _casos_ra["out"] / 1e6 * 15.0  # F3.1 desfecho (Sonnet)
 
     # ── Escopo loja (Bloco 9 / CP-A5): diagnóstico + sugestões por loja ≥30 ──
     from src.diagnostico.leituras import lojas_qualificadas

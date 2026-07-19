@@ -761,7 +761,10 @@ def test_pendencia_texto_sem_embedding(db_session):
         pessoa_id=None,
         respostas=[_resp(q.id, "comentario com bastante texto aqui", 4)],
     )
-    db_session.commit()
+    from src.models.empresa import Empresa
+
+    db_session.query(Empresa).filter_by(id=p.empresa_id).update({"pos_coleta_limiar": 1})
+    db_session.commit()  # corte #4: selo só ≥ limiar
     assert tem_pendente_processamento(db_session, p.id) is True  # texto sem embedding
     v = db_session.query(Verbatim).filter_by(empresa_id=p.empresa_id, tem_texto=True).one()
     db_session.add(VerbatimEmbedding(verbatim_id=v.id, modelo=MODELO_PADRAO, vetor=b"\x00"))
@@ -795,6 +798,9 @@ def test_lista_mostra_total_e_selo(client_loyall, db_session):
         pessoa_id=None,
         respostas=[_resp(q.id, "comentario com bastante texto aqui", 4)],
     )
-    db_session.commit()
+    from src.models.empresa import Empresa
+
+    db_session.query(Empresa).filter_by(id=p.empresa_id).update({"pos_coleta_limiar": 1})
+    db_session.commit()  # corte #4: selo só ≥ limiar; aqui 1 pendente já acende
     html = client_loyall.get(f"/empresas/{p.empresa_id}/pesquisas").get_data(as_text=True)
     assert "1 resposta(s)" in html and "aguardando processamento" in html

@@ -86,8 +86,18 @@ def test_fonte_texto_sem_embedding_e_pendente(db_session):
     """Import solto (excel_interno, respondente_id NULL) com texto sem embedding = pendente."""
     e, f = _empresa_fonte(db_session, "Epend")
     _verbatim(db_session, e, f)
+    e.pos_coleta_limiar = 1  # corte #4: selo só ≥ limiar; aqui 1 pendente já acende
     db_session.commit()
     assert f.id in fontes_com_pendencia(db_session, e.id)
+
+
+def test_fonte_pendente_abaixo_do_limiar_nao_acende(db_session):
+    """Corte #4: material acumulando abaixo do limiar não é 'travado' → selo apagado."""
+    e, f = _empresa_fonte(db_session, "Eabaixo")
+    _verbatim(db_session, e, f)  # 1 pendente
+    e.pos_coleta_limiar = 5  # 1 < 5 → cauda não vai rodar → selo apagado
+    db_session.commit()
+    assert fontes_com_pendencia(db_session, e.id) == set()
 
 
 def test_fonte_com_embedding_nao_pendente(db_session):
@@ -112,6 +122,7 @@ def test_rating_only_nao_pendente(db_session):
 def test_detalhe_empresa_mostra_selo_por_fonte(client_loyall, db_session):
     e, f = _empresa_fonte(db_session, "Edet")
     _verbatim(db_session, e, f)  # texto sem embedding → pendente
+    e.pos_coleta_limiar = 1  # corte #4: selo só ≥ limiar
     db_session.commit()
     html = client_loyall.get(f"/empresas/{e.id}").get_data(as_text=True)
     assert "aguardando processamento" in html

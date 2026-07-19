@@ -165,16 +165,16 @@ class _Sentinel(Exception):
 
 
 def test_gate_pula_quando_limpo(db_session, monkeypatch):
-    """Empresa limpa, novos=0, sem force → PULA (nem chega na classificação)."""
+    """Empresa limpa (0 pendente) → cabeça no-op, CAUDA pulada (corte #4)."""
     from src.temas import pos_coleta as pc
 
     e = _empresa(db_session, "gpula")
     db_session.commit()
-    monkeypatch.setattr(
-        pc, "classificar_pendentes", lambda *a, **k: (_ for _ in ()).throw(_Sentinel())
-    )
+    # a cabeça (classificação) roda sempre agora; é a CAUDA que pula. Empresa sem
+    # verbatim → pendente=0 → cauda pulada; processar_empresa não pode ser chamado.
+    monkeypatch.setattr(pc, "processar_empresa", lambda *a, **k: (_ for _ in ()).throw(_Sentinel()))
     r = pc.executar_pos_coleta(e.id, limiar=5, force=False)
-    assert not r.executou and "pulando" in r.motivo_skip
+    assert not r.executou and "cauda pulada" in r.motivo_skip
 
 
 def test_gate_nao_pula_com_desfecho_pendente(db_session, monkeypatch):

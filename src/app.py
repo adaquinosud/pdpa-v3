@@ -792,7 +792,7 @@ def _register_cli_commands(app: Flask) -> None:
         temas-extrair legado. Custa LLM (classificação + rotulagem + Sonnet).
         """
         from src.models.empresa import Empresa
-        from src.temas.pos_coleta import LIMIAR_NOVOS_DEFAULT, executar_pos_coleta
+        from src.temas.pos_coleta import executar_pos_coleta
         from src.utils.db import db_session as _db_session
 
         with _db_session() as s:
@@ -806,7 +806,8 @@ def _register_cli_commands(app: Flask) -> None:
             empresa_id = emp.id
             empresa_nome = emp.nome
 
-        lim = limiar if limiar is not None else LIMIAR_NOVOS_DEFAULT
+        # --limiar não passado → executar_pos_coleta resolve por empresa (coluna) ou default.
+        lim = limiar if limiar is not None else "auto (por-empresa/default)"
 
         def _prog(chave, label, vol):
             click.echo(f"[pos-coleta]   {chave:28s} → {label!r} (vol={vol})")
@@ -816,7 +817,7 @@ def _register_cli_commands(app: Flask) -> None:
             f"force={force} limite={limite if limite is not None else 'todos'}"
         )
         r = executar_pos_coleta(
-            empresa_id, limiar=lim, force=force, limite=limite, callback_progresso=_prog
+            empresa_id, limiar=limiar, force=force, limite=limite, callback_progresso=_prog
         )
         if not r.executou:
             click.echo(f"[pos-coleta] {r.motivo_skip}")

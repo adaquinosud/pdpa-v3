@@ -125,16 +125,29 @@ def test_classificar_pendentes_chunk_commit_retomavel(client_loyall, db_session,
 
 
 def test_executar_pula_abaixo_do_limiar(client_loyall, db_session, monkeypatch):
+    # corte #4: a CABEÇA (classificação) roda sempre; a CAUDA cara é que pula abaixo
+    # do limiar. Mocka a cabeça (sem rede) e garante que a cauda não é chamada.
     e, a, loc, f = _ctx(client_loyall, "skip")
     _verb(db_session, e["id"], f["id"], loc["id"], "só um novo")  # 1 < 50
 
+    cabeca = {"classif": 0}
+
+    def _classif(*a, **k):
+        cabeca["classif"] += 1
+        return {"classificados": 1, "falhas": 0}
+
+    monkeypatch.setattr("src.temas.pos_coleta.classificar_pendentes", _classif)
+    monkeypatch.setattr(
+        "src.temas.pos_coleta._classificar_casos_ra", lambda *a, **k: {"in": 0, "out": 0}
+    )
+
     def _nao_chamar(*a, **k):
-        raise AssertionError("etapa pesada não deveria rodar abaixo do limiar")
+        raise AssertionError("cauda não deveria rodar abaixo do limiar")
 
     monkeypatch.setattr("src.temas.pos_coleta.processar_empresa", _nao_chamar)
     r = executar_pos_coleta(e["id"], limiar=50)
-    assert r.executou is False
-    assert "poucos novos" in r.motivo_skip
+    assert cabeca["classif"] == 1  # a cabeça RODOU (classificou o novo)
+    assert r.executou is False and "cauda pulada" in r.motivo_skip
 
 
 def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypatch):
