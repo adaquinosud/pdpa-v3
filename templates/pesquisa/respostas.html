@@ -140,26 +140,33 @@
   </div>
   </section>
 
-  {# Lista de respondentes — só pesquisa identificada (anonimato por linha) #}
+  {# Respondentes — só pesquisa identificada. Padrão N3: identificados clicáveis +
+     anônimos consolidados numa linha. Anônimo = SEM Pessoa; "(sem nome)" é
+     identificado e clicável (§7). A tela é loyall-only (rota @loyall_required_ui). #}
   {% if ret.respondentes is not none %}
   <div class="mt-6 bg-white border border-loyall-200 rounded p-4">
-    <p class="text-sm font-medium text-loyall-700 mb-2">Respondentes</p>
+    <p class="text-sm font-medium text-loyall-700 mb-2">
+      Respondentes
+      <span class="text-loyall-400 font-normal">· {{ ret.respondentes.identificados|length }} identificado(s)</span>
+    </p>
+    {% if ret.respondentes.identificados %}
     <ul class="text-sm space-y-1">
-      {% for r in ret.respondentes %}
-      <li class="flex justify-between">
-        {# Identificado (com pessoa_id) → link pro diagnóstico da pessoa; anônimo fica sem. #}
-        {% if r.pessoa_id %}
+      {% for r in ret.respondentes.identificados %}
+      <li class="flex justify-between items-center gap-3">
         <a href="{{ url_for('ui.pessoa_diagnostico', empresa_id=empresa_id, pessoa_id=r.pessoa_id) }}"
            class="text-loyall-700 hover:underline">{{ r.nome }} →</a>
-        {% else %}
-        <span>{{ r.nome }}</span>
-        {% endif %}
-        <span class="text-loyall-400 text-xs">{{ r.escopo }}</span>
+        <span class="text-loyall-400 text-xs whitespace-nowrap">{{ r.escopo }}</span>
       </li>
-      {% else %}
-      <li class="text-loyall-400">Nenhum respondente ainda.</li>
       {% endfor %}
     </ul>
+    {% else %}
+    <p class="text-sm text-loyall-400">Nenhum respondente identificado.</p>
+    {% endif %}
+    {% if ret.respondentes.anonimos %}
+    <p class="mt-3 pt-3 border-t border-loyall-100 text-sm text-loyall-500">
+      + <strong>{{ ret.respondentes.anonimos }}</strong> respondente(s) anônimo(s) — sem como abrir individualmente
+    </p>
+    {% endif %}
   </div>
   {% endif %}
 </div>

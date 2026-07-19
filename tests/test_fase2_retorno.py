@@ -124,18 +124,26 @@ def test_filtro_por_escopo(db_session):
     assert so1["perguntas"][0]["nota"]["media"] == 5.0
 
 
-def test_anonimato_por_linha(db_session):
-    # identificada: lista respondentes; anônimo por linha quando sem pessoa
+def test_respondentes_identificados_e_anonimos_consolidados(db_session):
+    # Padrão N3: identificados listados/clicáveis; anônimos num bloco consolidado.
+    # §7: "anônimo" = SEM Pessoa; Pessoa sem nome é IDENTIFICADA como "(sem nome)".
     p, qs = _pesquisa(db_session, "Eident", anonima=False)
-    pess = Pessoa(tipo="interno_consentido", nome_display="Ana")
-    db_session.add(pess)
+    ana = Pessoa(tipo="interno_consentido", nome_display="Ana")
+    sem_nome = Pessoa(tipo="interno_consentido", nome_display=None)  # tokenizada/sem rótulo
+    db_session.add_all([ana, sem_nome])
     db_session.flush()
-    _respondente(db_session, p, pessoa_id=pess.id, respostas={qs["nota"]: {"valor_nota": 5}})
+    _respondente(db_session, p, pessoa_id=ana.id, respostas={qs["nota"]: {"valor_nota": 5}})
+    _respondente(db_session, p, pessoa_id=sem_nome.id, respostas={qs["nota"]: {"valor_nota": 3}})
     _respondente(db_session, p, pessoa_id=None, respostas={qs["nota"]: {"valor_nota": 4}})
+    _respondente(db_session, p, pessoa_id=None, respostas={qs["nota"]: {"valor_nota": 2}})
     db_session.commit()
     ret = retorno_pesquisa(db_session, p.id)
-    nomes = sorted(r["nome"] for r in ret["respondentes"])
-    assert nomes == ["Ana", "anônimo"]
+    ident = ret["respondentes"]["identificados"]
+    # "(sem nome)" ENTRA em identificados e mantém pessoa_id (clicável), não vira anônimo
+    assert sorted(r["nome"] for r in ident) == ["(sem nome)", "Ana"]
+    assert all(r["pessoa_id"] is not None for r in ident)
+    # os 2 sem Pessoa colapsam num único contador consolidado
+    assert ret["respondentes"]["anonimos"] == 2
 
 
 def test_anonima_nao_lista_respondentes(db_session):

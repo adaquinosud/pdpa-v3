@@ -661,8 +661,13 @@ def retorno_pesquisa(
         if not p.gerada_por_ancora
     ]
 
-    # Lista de respondentes — só em pesquisa identificada; anonimato POR LINHA.
-    respondentes_out: Optional[List[Dict[str, Any]]] = None
+    # Lista de respondentes — só em pesquisa identificada. Mesmo padrão do N3
+    # (aba Pesquisas do Explorar): IDENTIFICADOS listados/clicáveis + ANÔNIMOS num
+    # bloco consolidado (uma linha "N respondentes anônimos"), em vez de N linhas.
+    # §7 (trava): "anônimo" = SEM Pessoa (pessoa_id NULL). Pessoa identificada por
+    # chave mas sem rótulo é IDENTIFICADA como "(sem nome)" e É clicável — nunca cai
+    # em anônimo.
+    respondentes_out: Optional[Dict[str, Any]] = None
     if not pesq.anonima:
         pessoa_ids = [r.pessoa_id for r in respondentes if r.pessoa_id]
         pessoas = (
@@ -670,17 +675,22 @@ def retorno_pesquisa(
             if pessoa_ids
             else {}
         )
-        respondentes_out = []
+        identificados: List[Dict[str, Any]] = []
+        n_anon = 0
         for r in respondentes:
-            pp = pessoas.get(r.pessoa_id) if r.pessoa_id else None
-            nome = pp.nome_display if (pp and pp.nome_display) else "anônimo"
-            respondentes_out.append(
+            if r.pessoa_id is None:
+                n_anon += 1
+                continue
+            pp = pessoas.get(r.pessoa_id)
+            nome = pp.nome_display if (pp and pp.nome_display) else "(sem nome)"
+            identificados.append(
                 {
                     "nome": nome,
                     "escopo": _rotulo_escopo(s, r.entidade_tipo, r.entidade_id, cache_rot),
-                    "pessoa_id": r.pessoa_id,  # link p/ a tela da pessoa (None = anônimo, sem link)
+                    "pessoa_id": r.pessoa_id,  # link p/ a tela da pessoa (sempre clicável)
                 }
             )
+        respondentes_out = {"identificados": identificados, "anonimos": n_anon}
 
     return {
         "pesquisa": {
