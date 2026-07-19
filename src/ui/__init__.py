@@ -485,12 +485,15 @@ def importar_verbatins():
         if acao == "confirmar":
             from src.coletor.excel import importar_arquivo
 
+            _u = get_current_user()
             stats = importar_arquivo(
                 tmp_path,
                 empresa_id=empresa_id,
                 disparar_pos=True,
                 interno_identificado=interno,
                 consentimento=consentimento,
+                autor_id=_u.id if _u else None,
+                arquivo_nome=arquivo.filename,
             )
             return render_template(part, stats=stats, empresa_id=empresa_id)
         from src.coletor.excel import prever_arquivo
@@ -776,7 +779,14 @@ def importar_respostas():
         arquivo.save(str(tmp_path))
         from src.pesquisa.coleta_excel import importar_respostas as _importar
 
-        stats = _importar(tmp_path, pesquisa_id, consentimento=consentimento)
+        _u = get_current_user()
+        stats = _importar(
+            tmp_path,
+            pesquisa_id,
+            consentimento=consentimento,
+            autor_id=_u.id if _u else None,
+            arquivo_nome=arquivo.filename,
+        )
         return render_template(part, stats=stats)
     except (FileNotFoundError, ValueError) as exc:
         return render_template(part, erro=str(exc))
@@ -895,7 +905,11 @@ def contatos_importar(empresa_id: int):
             destino.unlink(missing_ok=True)
             return render_template("contatos/resultado.html", empresa_id=empresa_id, erro=str(exc))
         return render_template(
-            "contatos/preview.html", empresa_id=empresa_id, prev=prev, token=token
+            "contatos/preview.html",
+            empresa_id=empresa_id,
+            prev=prev,
+            token=token,
+            arquivo_nome=arquivo.filename,
         )
 
     # etapa == "confirmar"
@@ -909,6 +923,7 @@ def contatos_importar(empresa_id: int):
         )
     marcados = request.form.getlist("atributo")
     marcar_inativo = request.form.get("marcar_inativo") in ("on", "1", "true")
+    _u = get_current_user()
     try:
         with db_session() as s:
             stats = importar_contatos(
@@ -917,6 +932,8 @@ def contatos_importar(empresa_id: int):
                 empresa_id,
                 atributos_marcados=marcados,
                 marcar_ausentes_inativo=marcar_inativo,
+                autor_id=_u.id if _u else None,
+                arquivo_nome=request.form.get("arquivo_nome"),
             )
     except (FileNotFoundError, ValueError) as exc:
         return render_template("contatos/resultado.html", empresa_id=empresa_id, erro=str(exc))
@@ -1038,6 +1055,103 @@ def contatos_distribuir_exportar(empresa_id: int):
     return send_file(
         bio, as_attachment=True, download_name=f"convites_{pid}.xlsx", mimetype=_XLSX_MIME
     )
+
+
+# ── Lotes de import desfazíveis (Onda 2) ─────────────────────────────────────
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/importacoes")
+@loyall_required_ui
+def importacoes_lista(empresa_id: int):
+    """Lista os lotes de import da empresa (data, tipo, arquivo, autor, contagens,
+    status) com ação de desfazer."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.models.importacao import ImportacaoLote
+    from src.models.usuario import Usuario
+
+    with db_session() as s:
+        emp = s.get(Empresa, empresa_id)
+        if emp is None:
+            return render_template("404.html"), 404
+        rows = (
+            s.query(ImportacaoLote, Usuario.nome)
+            .outerjoin(Usuario, Usuario.id == ImportacaoLote.autor_id)
+            .filter(ImportacaoLote.empresa_id == empresa_id)
+            .order_by(ImportacaoLote.criado_em.desc())
+            .all()
+        )
+        lotes = [
+            SimpleNamespace(
+                id=lote.id,
+                tipo=lote.tipo,
+                arquivo_nome=lote.arquivo_nome or "—",
+                autor=autor or "—",
+                status=lote.status,
+                criado_em=lote.criado_em,
+                contadores=json.loads(lote.contadores_json) if lote.contadores_json else {},
+            )
+            for lote, autor in rows
+        ]
+        empresa = SimpleNamespace(id=emp.id, nome=emp.nome)
+    return render_template("importacoes/lista.html", empresa=empresa, lotes=lotes)
+
+
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/importacoes/<int:lote_id>/desfazer", methods=["GET", "POST"]
+)
+@loyall_required_ui
+def importacoes_desfazer(empresa_id: int, lote_id: int):
+    """Confirmação forte (digitar o nº do lote ou DESFAZER) + execução do desfazer.
+    A parte destrutiva roda na transação; o recálculo barato roda após o commit."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.importacao.desfazer import (
+        desfazer_lote,
+        recompute_apos_desfazer,
+        resumo_lote,
+    )
+    from src.models.importacao import ImportacaoLote
+
+    if request.method == "GET":
+        with db_session() as s:
+            lote = s.get(ImportacaoLote, lote_id)
+            if lote is None or lote.empresa_id != empresa_id:
+                return render_template("404.html"), 404
+            resumo = resumo_lote(s, lote_id)
+        return render_template("importacoes/desfazer.html", empresa_id=empresa_id, resumo=resumo)
+
+    confirmacao = (request.form.get("confirmacao") or "").strip()
+    if confirmacao != str(lote_id) and confirmacao.upper() != "DESFAZER":
+        with db_session() as s:
+            resumo = resumo_lote(s, lote_id)
+        return (
+            render_template(
+                "importacoes/desfazer.html",
+                empresa_id=empresa_id,
+                resumo=resumo,
+                erro="Confirmação não confere — digite o número do lote ou DESFAZER.",
+            ),
+            400,
+        )
+    try:
+        with db_session() as s:
+            lote = s.get(ImportacaoLote, lote_id)
+            if lote is None or lote.empresa_id != empresa_id:
+                return render_template("404.html"), 404
+            resultado = desfazer_lote(s, lote_id)
+    except ValueError as exc:
+        return (
+            render_template("importacoes/resultado.html", empresa_id=empresa_id, erro=str(exc)),
+            400,
+        )
+    # Recálculo barato/síncrono FORA da transação destrutiva (vê os deletes commitados);
+    # o caro/LLM foi agendado via reprocessar_em dentro do desfazer.
+    if resultado["tipo"] in ("verbatins", "respostas"):
+        recompute_apos_desfazer(empresa_id)
+    return render_template("importacoes/resultado.html", empresa_id=empresa_id, resultado=resultado)
 
 
 def _carregar_detalhe_empresa(empresa_id: int):

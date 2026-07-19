@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block titulo %}Desfazer lote #{{ resumo.id }}{% endblock %}
+{% block conteudo %}
+<div class="max-w-2xl mx-auto py-6 space-y-5">
+  <a href="{{ url_for('ui.importacoes_lista', empresa_id=empresa_id) }}"
+     class="text-sm text-loyall-400 hover:underline">← Lotes de import</a>
+  <h1 class="text-2xl font-semibold">Desfazer import — lote #{{ resumo.id }}</h1>
+
+  {% if resumo.status != 'ativo' %}
+    <div class="bg-loyall-100 text-loyall-600 rounded p-3 text-sm">Este lote já foi desfeito.</div>
+  {% else %}
+    <div class="bg-white border border-loyall-200 rounded p-4 text-sm space-y-1">
+      <p><b>Tipo:</b> {{ resumo.tipo }} · <b>Arquivo:</b> {{ resumo.arquivo_nome or '—' }}</p>
+      {% if resumo.tipo in ('verbatins', 'respostas') %}
+        <p><b>{{ resumo.verbatins }}</b> verbatim(s){% if resumo.tipo == 'respostas' %} · <b>{{ resumo.respondentes }}</b> respondente(s){% endif %} serão apagados.</p>
+      {% else %}
+        <p><b>{{ resumo.contatos }}</b> contato(s) e <b>{{ resumo.atributos }}</b> atributo(s) do lote.</p>
+      {% endif %}
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded p-4 text-sm space-y-2">
+      <p class="font-semibold">⚠️ Leia antes de desfazer</p>
+      {% if resumo.em_diagnostico %}
+      <p>Este lote tem <b>{{ resumo.classificados }}</b> verbatim(s) já classificado(s), usados em <b>{{ resumo.temas_afetados }}</b> tema(s). Desfazer <b>apaga tudo</b> e recalcula o diagnóstico: ratios e temas na hora; ações e leituras no próximo processamento noturno.</p>
+      {% else %}
+      <p>Nada deste lote entrou em diagnóstico ainda — o desfazer é limpo.</p>
+      {% endif %}
+      <ul class="list-disc ml-5 text-xs">
+        <li>Contatos que <b>nunca responderam</b> são apagados; quem <b>respondeu</b> tem só o vínculo inativado (a voz é preservada).</li>
+        <li>Atributos setados pelo lote voltam ao valor anterior.</li>
+        <li>Fusões de pessoas feitas durante imports <b>não são desfeitas</b>.</li>
+        <li>Snapshots de meses anteriores não são reescritos.</li>
+      </ul>
+    </div>
+
+    {% if erro %}<div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 text-sm">{{ erro }}</div>{% endif %}
+
+    <form method="post" action="{{ url_for('ui.importacoes_desfazer', empresa_id=empresa_id, lote_id=resumo.id) }}"
+          class="bg-white border border-loyall-200 rounded p-4 space-y-3">
+      <label class="block text-sm">Para confirmar, digite o número do lote (<b>{{ resumo.id }}</b>) ou <b>DESFAZER</b>:</label>
+      <input type="text" name="confirmacao" autocomplete="off"
+             class="w-full px-3 py-2 border border-loyall-200 rounded text-sm" placeholder="{{ resumo.id }}">
+      <button type="submit" class="px-5 py-2 rounded bg-rose-600 hover:bg-rose-500 text-white text-sm">
+        Desfazer este lote</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

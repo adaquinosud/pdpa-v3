@@ -10,6 +10,7 @@
   {% if eh_loyall %}
   <li><a href="{{ url_for('ui.pesquisas_lista', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">Pesquisas</a></li>
   <li><a href="{{ url_for('ui.contatos_lista', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">👥 Contatos</a></li>
+  <li><a href="{{ url_for('ui.importacoes_lista', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">↩︎ Lotes de import</a></li>
   <li><a href="{{ url_for('ui.visao_financeira', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200">💰 Visão Financeira</a></li>
   <li><a href="{{ url_for('ui.admin_temas', empresa_id=empresa.id) }}" class="block px-2 py-1 rounded hover:bg-loyall-200 text-xs">Temas (admin)</a></li>
   {% endif %}
