@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block titulo %}Distribuir — {{ empresa.nome }}{% endblock %}
+{% block conteudo %}
+<div class="max-w-3xl mx-auto py-6 space-y-6">
+  <div>
+    <a href="{{ url_for('ui.contatos_lista', empresa_id=empresa.id) }}"
+       class="text-sm text-loyall-400 hover:underline">← Contatos</a>
+    <h1 class="text-2xl font-semibold">Distribuir pesquisa</h1>
+    <p class="text-sm text-loyall-500">PDPA gera o link por pessoa e exporta a planilha — o envio é você quem faz.</p>
+  </div>
+
+  {% if banner %}
+  <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded p-3 text-sm">
+    Recorte de {{ banner.recorte }} contato(s): <b>{{ banner.novos }}</b> convite(s) novo(s) gerado(s).
+    Total de convidados nesta pesquisa: <b>{{ banner.total }}</b>.
+  </div>
+  {% endif %}
+
+  <form method="get" action="{{ url_for('ui.contatos_distribuir', empresa_id=empresa.id) }}"
+        class="bg-white border border-loyall-200 rounded p-4 flex items-end gap-3">
+    <div class="flex-1">
+      <label class="block text-sm font-medium mb-1">Pesquisa (publicada)</label>
+      <select name="pesquisa_id" class="w-full px-3 py-2 border border-loyall-200 rounded text-sm">
+        <option value="">Selecione…</option>
+        {% for p in pesquisas %}
+          <option value="{{ p.id }}" {% if pesq_sel and pesq_sel.id == p.id %}selected{% endif %}>{{ p.titulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="px-4 py-2 rounded bg-loyall-200 hover:bg-loyall-300 text-sm">Abrir</button>
+  </form>
+
+  {% if pesq_sel %}
+  <div class="bg-white border border-loyall-200 rounded p-4 space-y-4">
+    <h2 class="text-sm font-semibold">Recorte — {{ pesq_sel.titulo }}</h2>
+    <form method="post" action="{{ url_for('ui.contatos_distribuir_gerar', empresa_id=empresa.id) }}"
+          class="flex flex-wrap items-end gap-3">
+      <input type="hidden" name="pesquisa_id" value="{{ pesq_sel.id }}">
+      <div>
+        <label class="block text-xs text-loyall-500 mb-1">Atributo</label>
+        <input list="chaves" name="chave" placeholder="ex.: plano"
+               class="px-3 py-2 border border-loyall-200 rounded text-sm">
+        <datalist id="chaves">{% for k in chaves %}<option value="{{ k }}">{% endfor %}</datalist>
+      </div>
+      <div>
+        <label class="block text-xs text-loyall-500 mb-1">Valor</label>
+        <input name="valor" placeholder="ex.: premium"
+               class="px-3 py-2 border border-loyall-200 rounded text-sm">
+      </div>
+      <div>
+        <label class="block text-xs text-loyall-500 mb-1">Unidade</label>
+        <select name="local_id" class="px-3 py-2 border border-loyall-200 rounded text-sm">
+          <option value="">Todas</option>
+          {% for l in locais %}<option value="{{ l.id }}">{{ l.nome }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="px-4 py-2 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
+        Gerar convites</button>
+    </form>
+    <p class="text-xs text-loyall-400">Recorte sobre contatos ATIVOS. Sem filtro = todos os ativos.</p>
+    <a href="{{ url_for('ui.contatos_distribuir_exportar', empresa_id=empresa.id, pesquisa_id=pesq_sel.id) }}"
+       class="inline-block text-sm text-loyall-600 hover:underline">⬇ Exportar planilha (nome, email, link)</a>
+  </div>
+
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <h2 class="text-sm font-semibold mb-2">Quem faltou ({{ faltou|length }})</h2>
+    {% if faltou %}
+    <table class="w-full text-sm">
+      <thead class="text-loyall-500 text-left"><tr><th class="py-1">Nome</th><th class="py-1">E-mail</th></tr></thead>
+      <tbody>
+        {% for f in faltou %}<tr class="border-t border-loyall-100"><td class="py-1">{{ f.nome or '—' }}</td><td class="py-1">{{ f.email or '—' }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-loyall-400">Ninguém convidado ainda, ou todos já responderam.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

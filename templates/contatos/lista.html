@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block titulo %}Contatos — {{ empresa.nome }}{% endblock %}
+{% block conteudo %}
+<div class="max-w-5xl mx-auto py-6 space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{{ url_for('ui.detalhe_empresa', empresa_id=empresa.id) }}"
+         class="text-sm text-loyall-400 hover:underline">← {{ empresa.nome }}</a>
+      <h1 class="text-2xl font-semibold">Base de contatos</h1>
+      <p class="text-sm text-loyall-500">{{ contatos|length }} contato(s) · {{ ativos }} ativo(s)</p>
+    </div>
+    <a href="{{ url_for('ui.contatos_distribuir', empresa_id=empresa.id) }}"
+       class="px-4 py-2 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
+      Distribuir pesquisa →</a>
+  </div>
+
+  <div class="bg-white border border-loyall-200 rounded p-4">
+    <h2 class="text-sm font-semibold mb-2">Importar contatos</h2>
+    <form method="post" enctype="multipart/form-data"
+          action="{{ url_for('ui.contatos_importar', empresa_id=empresa.id) }}"
+          class="flex flex-wrap items-center gap-3">
+      <input type="hidden" name="etapa" value="preview">
+      <input type="file" name="arquivo" accept=".xlsx,.xls,.csv" required
+             class="text-sm border border-loyall-200 rounded px-2 py-1">
+      <button type="submit"
+              class="px-4 py-2 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
+        Pré-visualizar</button>
+      <a href="{{ url_for('ui.contatos_modelo', empresa_id=empresa.id) }}"
+         class="text-sm text-loyall-600 hover:underline">Baixar modelo</a>
+    </form>
+    <p class="text-xs text-loyall-400 mt-2">Chave: e-mail ou id_cliente. O import é UPSERT — nunca apaga.</p>
+  </div>
+
+  <div class="bg-white border border-loyall-200 rounded overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-loyall-50 text-loyall-500 text-left">
+        <tr>
+          <th class="px-3 py-2">Nome</th><th class="px-3 py-2">E-mail</th>
+          <th class="px-3 py-2">id_cliente</th><th class="px-3 py-2">Unidade</th>
+          <th class="px-3 py-2">Atributos</th><th class="px-3 py-2">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contatos %}
+        <tr class="border-t border-loyall-100 {% if c.status != 'ativo' %}text-loyall-400{% endif %}">
+          <td class="px-3 py-2">{{ c.nome or '—' }}</td>
+          <td class="px-3 py-2">{{ c.email or '—' }}</td>
+          <td class="px-3 py-2">{{ c.id_cliente or '—' }}</td>
+          <td class="px-3 py-2">{{ c.unidade or '—' }}</td>
+          <td class="px-3 py-2">
+            {% for k, v in c.atributos.items() %}
+              <span class="inline-block bg-loyall-100 text-loyall-700 rounded px-1.5 py-0.5 text-xs mr-1">{{ k }}={{ v }}</span>
+            {% else %}—{% endfor %}
+          </td>
+          <td class="px-3 py-2">{{ c.status }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="px-3 py-6 text-center text-loyall-400">Nenhum contato ainda. Importe uma planilha.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

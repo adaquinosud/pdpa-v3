@@ -547,21 +547,68 @@ def modelo_import_verbatins():
     )
 
 
+def _aplicar_correcao_identidade(s, pessoa_id, *, nome, email, codigo):
+    """Convite (identidade PINADA): o token é a verdade de quem foi convidado.
+    Nome digitado CORRIGE ``nome_display`` (direito de correção do titular). E-mail/
+    código digitados ACRESCENTAM identificador à MESMA Pessoa — nunca reconciliam p/
+    outra. Se a chave digitada já pertence a OUTRA Pessoa, NÃO vincula e conta o
+    conflito (fica visível no resultado; não some num log). Retorna nº de conflitos."""
+    from src.coletor.excel import FONTE_CRM, FONTE_EMAIL, _ident_opt_in_para
+    from src.models.pessoa import Pessoa, PessoaIdentificador
+
+    if nome:
+        pessoa = s.get(Pessoa, pessoa_id)
+        if pessoa is not None:
+            pessoa.nome_display = nome
+    conflitos = 0
+    for fonte, valor in ((FONTE_EMAIL, email), (FONTE_CRM, codigo)):
+        if not valor:
+            continue
+        dono = (
+            s.query(PessoaIdentificador)
+            .filter_by(tipo="interno_consentido", fonte=fonte, external_id=valor)
+            .first()
+        )
+        if dono is None:
+            s.add(_ident_opt_in_para(pessoa_id, fonte, valor, "pesquisa_web"))
+        elif dono.pessoa_id != pessoa_id:
+            conflitos += 1  # chave de outra Pessoa — não sobrescreve
+    return conflitos
+
+
 @ui_bp.route("/p/<token>", methods=["GET", "POST"])
 def pesquisa_publica(token):
-    """Formulário PÚBLICO de resposta (Fase 2 · Passo 2a) — sem auth. Carrega a
-    pesquisa pelo ``token_publico`` (status 'pronta'); GET renderiza o form, POST
-    grava via ``registrar_respostas``. Token inválido/não-pronta → erro amigável."""
+    """Formulário PÚBLICO de resposta (Fase 2 · Passo 2a) — sem auth. Resolve o token
+    de duas formas que CONVIVEM: convite por-pessoa (``PesquisaConvite.token``) primeiro,
+    senão link por-pesquisa (``Pesquisa.token_publico``). Via convite, o form vem com
+    nome/email PRÉ-PREENCHIDOS e editáveis. GET renderiza; POST grava via
+    ``registrar_respostas``. Token inválido/não-pronta → erro amigável."""
+    from datetime import datetime
+
     from src.coletor.excel import _reconciliar_pessoa
+    from src.contatos.distribuicao import _email_da_pessoa
+    from src.models.contato import PesquisaConvite
     from src.models.pesquisa import Pesquisa
+    from src.models.pessoa import Pessoa
     from src.pesquisa.coleta import registrar_respostas
     from src.pesquisa.persistencia import payload_publico
 
     tmpl = "pesquisa/publico.html"
     with db_session() as s:
-        pesq = s.query(Pesquisa).filter_by(token_publico=token).first()
+        convite = s.query(PesquisaConvite).filter_by(token=token).first()
+        if convite is not None:
+            pesq = s.get(Pesquisa, convite.pesquisa_id)
+        else:
+            pesq = s.query(Pesquisa).filter_by(token_publico=token).first()
         if pesq is None or pesq.status != "pronta":
             return render_template(tmpl, erro="Pesquisa não encontrada ou indisponível."), 404
+
+        # Prefill (só via convite): nome/email conhecidos do titular, editáveis.
+        nome_prefill = email_prefill = None
+        if convite is not None:
+            _p = s.get(Pessoa, convite.pessoa_id)
+            nome_prefill = _p.nome_display if _p is not None else None
+            email_prefill = _email_da_pessoa(s, convite.pessoa_id)
 
         if request.method == "GET":
             # Carimbo do link (?c=<código do CRM>): preservado num hidden do form → o POST
@@ -573,6 +620,8 @@ def pesquisa_publica(token):
                 token=token,
                 anonima=pesq.anonima,
                 codigo=(request.args.get("c") or "").strip() or None,
+                nome_prefill=nome_prefill,
+                email_prefill=email_prefill,
             )
 
         # POST — separa a âncora (escopo) das respostas de conteúdo.
@@ -608,6 +657,9 @@ def pesquisa_publica(token):
                     payload=payload,
                     token=token,
                     anonima=pesq.anonima,
+                    codigo=(request.form.get("c") or "").strip() or None,
+                    nome_prefill=nome_prefill,
+                    email_prefill=email_prefill,
                     erro_validacao=(
                         "Faltou responder (obrigatório): "
                         + "; ".join(faltando)
@@ -630,11 +682,31 @@ def pesquisa_publica(token):
         if not pesq.anonima:
             _email = (request.form.get("email") or "").strip().lower()
             consent = request.form.get("consentimento") in ("on", "1", "true")
-            if _email and consent:
+            # Via convite o titular já foi convidado nominalmente (identidade consentida);
+            # sem convite, o e-mail digitado ainda exige o checkbox de consentimento.
+            if _email and (consent or convite is not None):
                 email = _email
                 nome = (request.form.get("nome") or "").strip() or None
+
         pessoa_id = None
-        if codigo or email:
+        aviso = None
+        if convite is not None:
+            # O TOKEN é a verdade de quem foi convidado — sempre carimba o convite
+            # (alimenta o "quem faltou" mesmo em pesquisa anônima). Identidade só é
+            # PINADA/corrigida quando a pesquisa NÃO é anônima (respeita o anonimato).
+            convite.respondido_em = datetime.utcnow()
+            if not pesq.anonima:
+                pessoa_id = convite.pessoa_id
+                nome_corr = (request.form.get("nome") or "").strip() or None
+                conflitos = _aplicar_correcao_identidade(
+                    s, pessoa_id, nome=nome_corr, email=email, codigo=codigo
+                )
+                if conflitos:
+                    aviso = (
+                        f"{conflitos} dado(s) que você informou já pertencem a outro "
+                        "cadastro e não foram vinculados a este contato."
+                    )
+        elif codigo or email:
             pessoa_id = _reconciliar_pessoa(
                 s, email=email, id_cliente=codigo, nome=nome, origem="pesquisa_web"
             )
@@ -649,7 +721,7 @@ def pesquisa_publica(token):
             respostas=respostas,
             substituir_reenvio=True,
         )
-    return render_template(tmpl, obrigado=True)
+    return render_template(tmpl, obrigado=True, aviso=aviso)
 
 
 def _pesquisas_prontas_opcoes(s):
@@ -737,6 +809,234 @@ def modelo_importar_respostas():
         as_attachment=True,
         download_name=f"modelo_respostas_{pid}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+# ── Base de contatos + distribuição de pesquisa (Onda 1) ─────────────────────
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/contatos")
+@loyall_required_ui
+def contatos_lista(empresa_id: int):
+    """Base de contatos da empresa (lista + entrada do import + link p/ distribuir)."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.contatos.consulta import listar_contatos
+
+    with db_session() as s:
+        emp = s.get(Empresa, empresa_id)
+        if emp is None:
+            return render_template("404.html"), 404
+        contatos = listar_contatos(s, empresa_id)
+        empresa = SimpleNamespace(id=emp.id, nome=emp.nome)
+    ativos = sum(1 for c in contatos if c["status"] == "ativo")
+    return render_template("contatos/lista.html", empresa=empresa, contatos=contatos, ativos=ativos)
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/contatos/modelo")
+@loyall_required_ui
+def contatos_modelo(empresa_id: int):
+    """Baixa o modelo .xlsx da base de contatos (unidade = dropdown dos locais)."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from flask import send_file
+
+    from src.contatos.importar import gerar_modelo_contatos_xlsx
+
+    with db_session() as s:
+        locais = [
+            loc.nome for loc in s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome)
+        ]
+    bio = gerar_modelo_contatos_xlsx(locais=locais)
+    return send_file(
+        bio, as_attachment=True, download_name="modelo_contatos.xlsx", mimetype=_XLSX_MIME
+    )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/contatos/importar", methods=["POST"])
+@loyall_required_ui
+def contatos_importar(empresa_id: int):
+    """Wizard de import em 2 passos, sem estado no servidor além do arquivo temporário:
+    ``etapa=preview`` salva o arquivo e mostra mapeamento + contagens; ``etapa=confirmar``
+    relê o mesmo arquivo (pelo token = basename) e faz o upsert com os atributos marcados."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    import tempfile
+    import uuid
+    from pathlib import Path
+
+    from src.contatos.importar import importar_contatos, prever_contatos
+
+    tmpdir = Path(tempfile.gettempdir()) / "pdpa_contatos"
+    tmpdir.mkdir(exist_ok=True)
+    etapa = request.form.get("etapa", "preview")
+
+    if etapa == "preview":
+        arquivo = request.files.get("arquivo")
+        if arquivo is None or not arquivo.filename:
+            return render_template(
+                "contatos/resultado.html",
+                empresa_id=empresa_id,
+                erro="Selecione um arquivo (.xlsx/.xls/.csv).",
+            )
+        suffix = Path(arquivo.filename).suffix or ".xlsx"
+        token = f"{uuid.uuid4().hex}{suffix}"
+        destino = tmpdir / token
+        arquivo.save(str(destino))
+        try:
+            with db_session() as s:
+                prev = prever_contatos(s, destino, empresa_id)
+        except (FileNotFoundError, ValueError) as exc:
+            destino.unlink(missing_ok=True)
+            return render_template("contatos/resultado.html", empresa_id=empresa_id, erro=str(exc))
+        return render_template(
+            "contatos/preview.html", empresa_id=empresa_id, prev=prev, token=token
+        )
+
+    # etapa == "confirmar"
+    token = Path(request.form.get("token", "")).name  # só o basename (anti path-traversal)
+    destino = tmpdir / token
+    if not token or not destino.exists():
+        return render_template(
+            "contatos/resultado.html",
+            empresa_id=empresa_id,
+            erro="Sessão de import expirada. Reenvie o arquivo.",
+        )
+    marcados = request.form.getlist("atributo")
+    marcar_inativo = request.form.get("marcar_inativo") in ("on", "1", "true")
+    try:
+        with db_session() as s:
+            stats = importar_contatos(
+                s,
+                destino,
+                empresa_id,
+                atributos_marcados=marcados,
+                marcar_ausentes_inativo=marcar_inativo,
+            )
+    except (FileNotFoundError, ValueError) as exc:
+        return render_template("contatos/resultado.html", empresa_id=empresa_id, erro=str(exc))
+    finally:
+        destino.unlink(missing_ok=True)
+    return render_template("contatos/resultado.html", empresa_id=empresa_id, stats=stats)
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/contatos/distribuir")
+@loyall_required_ui
+def contatos_distribuir(empresa_id: int):
+    """Recorte da base + geração de links + export + 'quem faltou' de uma pesquisa."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.contatos.consulta import chaves_de_atributo
+    from src.contatos.distribuicao import quem_faltou
+    from src.models.pesquisa import Pesquisa
+
+    pid = request.args.get("pesquisa_id", "")
+    with db_session() as s:
+        emp = s.get(Empresa, empresa_id)
+        if emp is None:
+            return render_template("404.html"), 404
+        pesquisas = [
+            SimpleNamespace(id=p.id, titulo=p.titulo)
+            for p in s.query(Pesquisa)
+            .filter_by(empresa_id=empresa_id, status="pronta")
+            .order_by(Pesquisa.titulo)
+        ]
+        chaves = chaves_de_atributo(s, empresa_id)
+        locais = [
+            SimpleNamespace(id=loc.id, nome=loc.nome)
+            for loc in s.query(Local).filter_by(empresa_id=empresa_id).order_by(Local.nome)
+        ]
+        faltou: list = []
+        pesq_sel = None
+        if pid.isdigit():
+            p = s.get(Pesquisa, int(pid))
+            if p is not None and p.empresa_id == empresa_id:
+                faltou = quem_faltou(s, p.id)
+                pesq_sel = SimpleNamespace(id=p.id, titulo=p.titulo)
+        empresa = SimpleNamespace(id=emp.id, nome=emp.nome)
+    banner = None
+    if request.args.get("novos") is not None:
+        banner = {
+            "novos": request.args.get("novos"),
+            "recorte": request.args.get("recorte"),
+            "total": request.args.get("total"),
+        }
+    return render_template(
+        "contatos/distribuir.html",
+        empresa=empresa,
+        pesquisas=pesquisas,
+        chaves=chaves,
+        locais=locais,
+        pesq_sel=pesq_sel,
+        faltou=faltou,
+        banner=banner,
+    )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/contatos/distribuir/gerar", methods=["POST"])
+@loyall_required_ui
+def contatos_distribuir_gerar(empresa_id: int):
+    """Aplica o recorte (ativos + atributo/unidade) e gera os convites (token opaco)."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from src.contatos.distribuicao import gerar_convites, recorte
+    from src.models.pesquisa import Pesquisa
+
+    pid = request.form.get("pesquisa_id", "")
+    if not pid.isdigit():
+        return redirect(url_for("ui.contatos_distribuir", empresa_id=empresa_id))
+    chave = (request.form.get("chave") or "").strip() or None
+    valor = (request.form.get("valor") or "").strip() or None
+    local_raw = request.form.get("local_id", "")
+    filtros = {chave: valor} if chave and valor else None
+    local_ids = [int(local_raw)] if local_raw.isdigit() else None
+    with db_session() as s:
+        pesq = s.get(Pesquisa, int(pid))
+        if pesq is None or pesq.empresa_id != empresa_id:
+            return render_template("404.html"), 404
+        ids = recorte(s, empresa_id, filtros_atributo=filtros, local_ids=local_ids)
+        res = gerar_convites(s, pesq, ids)
+    return redirect(
+        url_for(
+            "ui.contatos_distribuir",
+            empresa_id=empresa_id,
+            pesquisa_id=pid,
+            novos=res["novos"],
+            recorte=len(ids),
+            total=res["total_convidados"],
+        )
+    )
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/contatos/distribuir/exportar")
+@loyall_required_ui
+def contatos_distribuir_exportar(empresa_id: int):
+    """Exporta a planilha do recorte convidado (nome, email, link) — o cliente dispara."""
+    r = _require_loyall_html()
+    if r:
+        return r
+    from flask import send_file
+
+    from src.contatos.distribuicao import exportar_convites_xlsx
+    from src.models.pesquisa import Pesquisa
+
+    pid = request.args.get("pesquisa_id", "")
+    if not pid.isdigit():
+        return render_template("404.html"), 404
+    with db_session() as s:
+        pesq = s.get(Pesquisa, int(pid))
+        if pesq is None or pesq.empresa_id != empresa_id:
+            return render_template("404.html"), 404
+        bio = exportar_convites_xlsx(s, pesq, request.host_url)
+    return send_file(
+        bio, as_attachment=True, download_name=f"convites_{pid}.xlsx", mimetype=_XLSX_MIME
     )
 
 

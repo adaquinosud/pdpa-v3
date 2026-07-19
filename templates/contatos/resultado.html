@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block titulo %}Import de contatos{% endblock %}
+{% block conteudo %}
+<div class="max-w-2xl mx-auto py-6 space-y-4">
+  <h1 class="text-2xl font-semibold">Import de contatos</h1>
+  {% if erro %}
+    <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 text-sm">{{ erro }}</div>
+  {% else %}
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded p-4 text-sm space-y-1">
+      <p><b>{{ stats.criados }}</b> criado(s) · <b>{{ stats.atualizados }}</b> atualizado(s) · <b>{{ stats.ignorados_sem_chave }}</b> ignorado(s) sem chave</p>
+      <p><b>{{ stats.atributos_gravados }}</b> atributo(s) gravado(s)/alterado(s)</p>
+      {% if stats.unidades_nao_casadas %}<p class="text-amber-700">{{ stats.unidades_nao_casadas }} unidade(s) não casada(s) com o cadastro — ficaram sem unidade.</p>{% endif %}
+      {% if stats.inativados %}<p>{{ stats.inativados }} contato(s) ausente(s) marcado(s) como inativo.</p>{% endif %}
+    </div>
+  {% endif %}
+  <a href="{{ url_for('ui.contatos_lista', empresa_id=empresa_id) }}"
+     class="text-sm text-loyall-600 hover:underline">← Voltar aos contatos</a>
+</div>
+{% endblock %}

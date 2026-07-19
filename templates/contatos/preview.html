@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block titulo %}Pré-visualizar import{% endblock %}
+{% block conteudo %}
+<div class="max-w-3xl mx-auto py-6 space-y-5">
+  <a href="{{ url_for('ui.contatos_lista', empresa_id=empresa_id) }}"
+     class="text-sm text-loyall-400 hover:underline">← Contatos</a>
+  <h1 class="text-2xl font-semibold">Pré-visualização</h1>
+
+  {% if prev.erros %}
+    <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded p-3 text-sm">
+      {% for e in prev.erros %}<p>{{ e }}</p>{% endfor %}
+    </div>
+    <a href="{{ url_for('ui.contatos_lista', empresa_id=empresa_id) }}"
+       class="text-sm text-loyall-600 hover:underline">Voltar e reenviar</a>
+  {% else %}
+    <div class="grid grid-cols-4 gap-3 text-center">
+      <div class="bg-emerald-50 rounded p-3"><div class="text-2xl font-semibold text-emerald-700">{{ prev.criar }}</div><div class="text-xs text-loyall-500">criar</div></div>
+      <div class="bg-sky-50 rounded p-3"><div class="text-2xl font-semibold text-sky-700">{{ prev.atualizar }}</div><div class="text-xs text-loyall-500">atualizar</div></div>
+      <div class="bg-loyall-100 rounded p-3"><div class="text-2xl font-semibold text-loyall-600">{{ prev.ignorar_sem_chave }}</div><div class="text-xs text-loyall-500">ignorar (sem chave)</div></div>
+      <div class="bg-loyall-50 rounded p-3"><div class="text-2xl font-semibold text-loyall-600">{{ prev.total }}</div><div class="text-xs text-loyall-500">linhas</div></div>
+    </div>
+
+    {% if prev.avisos_sensiveis %}
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded p-3 text-sm">
+      <p class="font-medium">Colunas com possível dado sensível (LGPD) — bloqueadas para atributo:</p>
+      <ul class="list-disc ml-5 mt-1">
+        {% for a in prev.avisos_sensiveis %}<li>{{ a.coluna }} — {{ a.categoria }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('ui.contatos_importar', empresa_id=empresa_id) }}"
+          class="bg-white border border-loyall-200 rounded p-4 space-y-4">
+      <input type="hidden" name="etapa" value="confirmar">
+      <input type="hidden" name="token" value="{{ token }}">
+
+      <div>
+        <p class="text-sm font-medium mb-2">Quais colunas extras viram atributo? (tudo desmarcado por padrão)</p>
+        {% set sensiveis = prev.avisos_sensiveis | map(attribute='coluna') | list %}
+        {% for col in prev.extras %}
+          <label class="flex items-center gap-2 text-sm py-0.5 {% if col in sensiveis %}text-amber-700{% endif %}">
+            <input type="checkbox" name="atributo" value="{{ col }}" {% if col in sensiveis %}disabled{% endif %}>
+            {{ col }}{% if col in sensiveis %} <span class="text-xs">(sensível — bloqueado)</span>{% endif %}
+          </label>
+        {% else %}
+          <p class="text-sm text-loyall-400">Nenhuma coluna extra além das fixas.</p>
+        {% endfor %}
+      </div>
+
+      <label class="flex items-start gap-2 text-sm border-t border-loyall-100 pt-3">
+        <input type="checkbox" name="marcar_inativo" value="on" class="mt-0.5">
+        <span>Esta é a base <b>completa</b>: marcar como <b>inativo</b> os contatos ausentes deste arquivo (nunca apaga).</span>
+      </label>
+
+      <button type="submit"
+              class="px-5 py-2 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 text-sm">
+        Confirmar import</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
