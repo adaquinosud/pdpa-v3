@@ -186,9 +186,9 @@ def test_gerar_e_persistir_acoes(client_loyall, db_session):
     assert json.loads(cruz_acao.pressupostos_json) == ["p1"]
     assert cruz_acao.impacto_quant_json is None  # R$ é pendência
 
-    # idempotente
+    # idempotente via HASH-SKIP: 2ª coleta sem mudança → 0 chamadas LLM, tudo mantido
     r2 = gerar_e_persistir_acoes(e["id"], top_pontuais=5, gerar_fn=_fake_gerar)
-    assert r2.acoes_geradas == 2
+    assert r2.mantidas == 2 and r2.acoes_geradas == 0 and r2.chamadas_llm == 0
     assert db_session.query(AcaoVenda).filter_by(empresa_id=e["id"]).count() == 2
 
 
@@ -203,3 +203,45 @@ def test_gerar_descarta_impacto_invalido(client_loyall, db_session):
     assert r.acoes_geradas == 0
     assert r.descartadas == 1
     assert db_session.query(AcaoVenda).filter_by(empresa_id=e["id"]).count() == 0
+
+
+def test_hash_skip_regenera_so_o_que_muda_e_poda(client_loyall, db_session):
+    """#2: 2ª coleta sem mudança não chama LLM; muda 1 tema → só ele regenera;
+    tema que sai de alvo → linha podada (sem delete-all)."""
+    e, a, loc, f = _ctx(client_loyall, "skip")
+    _tema_com_vinculos(db_session, e["id"], f["id"], loc["id"], "fila", f"{a['id']}:D2:detrator", 4)
+    _tema_com_vinculos(db_session, e["id"], f["id"], loc["id"], "app", f"{a['id']}:P1:detrator", 3)
+
+    chamadas: list = []
+
+    def contando(ctx):
+        chamadas.append(ctx["label"])
+        return _fake_gerar(ctx)
+
+    # run 1 — gera as duas
+    r1 = gerar_e_persistir_acoes(e["id"], top_pontuais=5, gerar_fn=contando)
+    assert r1.acoes_geradas == 2 and r1.chamadas_llm == 2
+    assert db_session.query(AcaoVenda).filter_by(empresa_id=e["id"]).count() == 2
+
+    # run 2 — nada mudou → 0 LLM, tudo mantido
+    chamadas.clear()
+    r2 = gerar_e_persistir_acoes(e["id"], top_pontuais=5, gerar_fn=contando)
+    assert r2.chamadas_llm == 0 and r2.mantidas == 2 and chamadas == []
+
+    # muda o conteúdo de UM tema (nova voz em 'fila' → volume/exemplos mudam → hash muda)
+    vv = _verbatim(db_session, e["id"], f["id"], loc["id"], "fila-voz-nova")
+    fila_id = db_session.query(Tema).filter_by(empresa_id=e["id"], nome="fila").one().id
+    _link(db_session, vv.id, fila_id, f"{a['id']}:D2:detrator")
+    chamadas.clear()
+    r3 = gerar_e_persistir_acoes(e["id"], top_pontuais=5, gerar_fn=contando)
+    assert r3.chamadas_llm == 1 and r3.mantidas == 1 and chamadas == ["fila"]
+    assert db_session.query(AcaoVenda).filter_by(empresa_id=e["id"]).count() == 2
+
+    # 'app' sai de alvo (desativado) → poda; 'fila' inalterado desde run3 → mantido
+    db_session.query(Tema).filter_by(empresa_id=e["id"], nome="app").update({"ativo": False})
+    db_session.commit()
+    chamadas.clear()
+    r4 = gerar_e_persistir_acoes(e["id"], top_pontuais=5, gerar_fn=contando)
+    assert r4.podadas == 1 and r4.mantidas == 1 and r4.chamadas_llm == 0
+    labels = {x.tema_label for x in db_session.query(AcaoVenda).filter_by(empresa_id=e["id"])}
+    assert labels == {"fila"}

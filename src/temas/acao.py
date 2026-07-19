@@ -6,7 +6,8 @@ Para cada alvo (cruzamento N4 ou tema pontual de alto volume), o Claude
 quando houver o input — ver PENDENCIAS_TECNICAS.md.
 
 Função pública: ``gerar_e_persistir_acoes(empresa_id, ...) -> ResumoAcoes``.
-Idempotente: zera ``acoes_venda`` da empresa antes de regravar.
+Hash-skip: só (re)gera o alvo cujo conteúdo (contexto do LLM + prompt + modelo) mudou;
+mantém o resto sem chamar o Sonnet e poda alvos que sumiram (sem delete-all).
 
 ``gerar_fn`` é injetável (testes) — default chama o Sonnet curado.
 """
@@ -32,7 +33,9 @@ CUSTO_USD_POR_ACAO = 0.006
 class ResumoAcoes:
     empresa_id: int
     alvos: int = 0
-    acoes_geradas: int = 0
+    acoes_geradas: int = 0  # (re)geradas de fato (LLM chamado e válido)
+    mantidas: int = 0  # hash bateu → alvo pulado, linha mantida, SEM LLM
+    podadas: int = 0  # linhas de alvos que sumiram (não são mais alvo)
     descartadas: int = 0
     chamadas_llm: int = 0
     input_tokens: int = 0
@@ -41,6 +44,32 @@ class ResumoAcoes:
         default_factory=lambda: {"alto": 0, "medio": 0, "baixo": 0}
     )
     detalhes: List[Dict[str, Any]] = field(default_factory=list)
+
+
+def _prompt_fp() -> str:
+    """Fingerprint do prompt de ação — muda se acao_venda_v1.md mudar (entra no hash)."""
+    import hashlib
+
+    return hashlib.sha256(ACAO_PROMPT_PATH.read_bytes()).hexdigest()[:12]
+
+
+def _dados_hash(contexto: Dict[str, Any]) -> str:
+    """Hash de CONTEÚDO da ação: o contexto EXATO que vai ao LLM + fingerprint do prompt
+    + modelo. Cobre tudo que muda a ação (o LLM só vê contexto + prompt). Canônico
+    (sort_keys) — mesmo padrão de diagnóstico/sugestões."""
+    import hashlib
+
+    base = {"ctx": contexto, "prompt": _prompt_fp(), "modelo": SONNET_MODEL}
+    return hashlib.sha256(
+        json.dumps(base, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+    ).hexdigest()[:32]
+
+
+def _identidade(empresa_id: int, tema_label: str, tipo_alvo: str) -> str:
+    """Identidade da ação (qual linha comparar) — igual ao hash_escopo já persistido."""
+    import hashlib
+
+    return hashlib.sha256(f"{empresa_id}|{tema_label}|{tipo_alvo}".encode("utf-8")).hexdigest()[:32]
 
 
 def _carregar_alvos(empresa_id: int, top_pontuais: int = 23) -> List[Dict[str, Any]]:
@@ -126,6 +155,9 @@ def _contexto_labels(
         clausula = filtro_janela(data_corte(empresa_id, s))
         if clausula is not None:
             q = q.filter(clausula)
+        # Ordem determinística: os exemplos entram no dados_hash — sem ORDER BY os 3
+        # reps podiam variar entre coletas SEM dado novo → hash instável, skip inútil.
+        q = q.order_by(Verbatim.data_criacao_original.desc(), Verbatim.id.desc())
         rows = q.all()
     volume = len(rows)
     buckets = sorted({st for bc, _ in rows if (st := _subpilar_tipo(bc or ""))})
@@ -168,14 +200,45 @@ def _gerar_acao_llm(
         return None, "", None, None, 0, 0
 
 
-def gerar_acoes(
+def _montar_item(empresa_id: int, alvo: Dict[str, Any], setor: Optional[str]) -> Dict[str, Any]:
+    """Contexto (payload do LLM) + identidade + dados_hash de UM alvo — só DB, $0 LLM."""
+    volume, buckets, tipos, reps = _contexto_labels(empresa_id, alvo["labels"])
+    contexto: Dict[str, Any] = {
+        "label": alvo["tema_label"],
+        "tipo_alvo": alvo["tipo_alvo"],
+        "buckets": buckets,
+        "tipos": tipos,
+        "volume": volume,
+        "setor": setor,
+        "exemplos": reps,
+    }
+    if alvo["tipo_alvo"] == "cruzamento":
+        contexto["membros"] = alvo["labels"]
+    return {
+        "alvo": alvo,
+        "contexto": contexto,
+        "ident": _identidade(empresa_id, alvo["tema_label"], alvo["tipo_alvo"]),
+        "dh": _dados_hash(contexto),
+        "buckets": buckets,
+        "volume": volume,
+    }
+
+
+def gerar_e_persistir_acoes(
     empresa_id: int,
     *,
     top_pontuais: int = 23,
     gerar_fn: Optional[Callable] = None,
+    skip_unchanged: bool = True,
 ) -> ResumoAcoes:
-    """Gera ações N5 (sem persistir). ``gerar_fn`` injetável p/ testes."""
+    """Gera e grava ações N5 com HASH-SKIP (fim do delete-all + regenera-tudo).
+
+    Por coleta: monta o contexto+dados_hash de cada alvo (só DB); reconcilia contra as
+    linhas existentes — hash bate → mantém (sem LLM); difere/novo → (re)gera; alvo que
+    sumiu → poda. Sem estado meio-apagado: falha de LLM num alvo não zera os outros.
+    ``skip_unchanged=False`` força regenerar todos (mesma semântica antiga)."""
     from src.models.empresa import Empresa
+    from src.models.temas import AcaoVenda
     from src.utils.db import db_session
 
     gerar = gerar_fn or _gerar_acao_llm
@@ -184,87 +247,83 @@ def gerar_acoes(
         setor = emp.setor if emp else None
 
     alvos = _carregar_alvos(empresa_id, top_pontuais=top_pontuais)
-    resumo = ResumoAcoes(empresa_id=empresa_id, alvos=len(alvos))
-    for alvo in alvos:
-        volume, buckets, tipos, reps = _contexto_labels(empresa_id, alvo["labels"])
-        contexto: Dict[str, Any] = {
-            "label": alvo["tema_label"],
-            "tipo_alvo": alvo["tipo_alvo"],
-            "buckets": buckets,
-            "tipos": tipos,
-            "volume": volume,
-            "setor": setor,
-            "exemplos": reps,
-        }
-        if alvo["tipo_alvo"] == "cruzamento":
-            contexto["membros"] = alvo["labels"]
+    itens = [_montar_item(empresa_id, alvo, setor) for alvo in alvos]
+    resumo = ResumoAcoes(empresa_id=empresa_id, alvos=len(itens))
 
-        acao, impacto, justif, pressup, it, ot = gerar(contexto)
+    # 1) reconcílio: poda alvos que sumiram; decide manter vs (re)gerar
+    idents_atuais = {it["ident"] for it in itens}
+    regen: List[Dict[str, Any]] = []
+    with db_session() as s:
+        existentes = {
+            r.hash_escopo: r.dados_hash
+            for r in s.query(AcaoVenda).filter(AcaoVenda.empresa_id == empresa_id)
+        }
+        pq = s.query(AcaoVenda).filter(AcaoVenda.empresa_id == empresa_id)
+        if idents_atuais:  # sem alvos → poda TODAS (nenhuma ação deve sobrar)
+            pq = pq.filter(AcaoVenda.hash_escopo.notin_(idents_atuais))
+        resumo.podadas = int(pq.delete(synchronize_session=False) or 0)
+    for it in itens:
+        if skip_unchanged and existentes.get(it["ident"]) == it["dh"]:
+            resumo.mantidas += 1
+        else:
+            regen.append(it)
+
+    # 2) LLM só p/ os que mudaram/novos (fora da sessão — rede)
+    gerados: List[Dict[str, Any]] = []
+    for it in regen:
+        acao, impacto, justif, pressup, itk, otk = gerar(it["contexto"])
         resumo.chamadas_llm += 1
-        resumo.input_tokens += it
-        resumo.output_tokens += ot
+        resumo.input_tokens += itk
+        resumo.output_tokens += otk
         if not acao or impacto not in IMPACTOS_VALIDOS:
             resumo.descartadas += 1
+            it["_falhou"] = True
             continue
         resumo.distribuicao[impacto] += 1
+        it["_acao"] = (acao, impacto, justif, pressup)
+        gerados.append(it)
         resumo.detalhes.append(
             {
-                "tipo_alvo": alvo["tipo_alvo"],
-                "cruzamento_id": alvo["cruzamento_id"],
-                "tema_label": alvo["tema_label"],
+                "tipo_alvo": it["alvo"]["tipo_alvo"],
+                "cruzamento_id": it["alvo"]["cruzamento_id"],
+                "tema_label": it["alvo"]["tema_label"],
                 "acao": acao,
                 "impacto_qualitativo": impacto,
                 "justificativa": justif,
                 "pressupostos": pressup,
-                "buckets": buckets,
-                "volume": volume,
+                "buckets": it["buckets"],
+                "volume": it["volume"],
             }
         )
-    resumo.acoes_geradas = len(resumo.detalhes)
-    return resumo
+    resumo.acoes_geradas = len(gerados)
 
-
-def gerar_e_persistir_acoes(
-    empresa_id: int,
-    *,
-    top_pontuais: int = 23,
-    gerar_fn: Optional[Callable] = None,
-) -> ResumoAcoes:
-    """Gera e grava ações N5. Idempotente: zera ``acoes_venda`` da empresa antes."""
-    import hashlib
-
-    from src.models.temas import AcaoVenda
-    from src.utils.db import db_session
-
-    resumo = gerar_acoes(empresa_id, top_pontuais=top_pontuais, gerar_fn=gerar_fn)
-
+    # 3) persistir: upsert dos (re)gerados; apagar linha de regen que FALHOU (sem stale)
     with db_session() as s:
-        s.query(AcaoVenda).filter(AcaoVenda.empresa_id == empresa_id).delete(
-            synchronize_session=False
-        )
-    with db_session() as s:
-        for d in resumo.detalhes:
-            hash_escopo = hashlib.sha256(
-                f"{empresa_id}|{d['tema_label']}|{d['tipo_alvo']}".encode("utf-8")
-            ).hexdigest()[:32]
-            s.add(
-                AcaoVenda(
-                    empresa_id=empresa_id,
-                    agrupamento_id=None,
-                    tema_label=d["tema_label"],
-                    cruzamento_id=d["cruzamento_id"],
-                    acao_texto=d["acao"],
-                    impacto_qualitativo=d["impacto_qualitativo"],
-                    justificativa=d["justificativa"],
-                    pressupostos_json=(
-                        json.dumps(d["pressupostos"], ensure_ascii=False)
-                        if d["pressupostos"] is not None
-                        else None
-                    ),
-                    impacto_quant_json=None,  # R$ — pendência (LTV setorial)
-                    origem_modelo=SONNET_MODEL,
-                    custo_usd=CUSTO_USD_POR_ACAO,
-                    hash_escopo=hash_escopo,
-                )
+        for it in regen:
+            row = (
+                s.query(AcaoVenda)
+                .filter(AcaoVenda.empresa_id == empresa_id, AcaoVenda.hash_escopo == it["ident"])
+                .first()
             )
+            if it.get("_falhou"):
+                if row is not None:
+                    s.delete(row)  # alvo mudou mas geração falhou → não deixa ação velha
+                continue
+            acao, impacto, justif, pressup = it["_acao"]
+            if row is None:
+                row = AcaoVenda(empresa_id=empresa_id, hash_escopo=it["ident"])
+                s.add(row)
+            row.agrupamento_id = None
+            row.tema_label = it["alvo"]["tema_label"]
+            row.cruzamento_id = it["alvo"]["cruzamento_id"]
+            row.acao_texto = acao
+            row.impacto_qualitativo = impacto
+            row.justificativa = justif
+            row.pressupostos_json = (
+                json.dumps(pressup, ensure_ascii=False) if pressup is not None else None
+            )
+            row.impacto_quant_json = None  # R$ — pendência (LTV setorial)
+            row.origem_modelo = SONNET_MODEL
+            row.custo_usd = CUSTO_USD_POR_ACAO
+            row.dados_hash = it["dh"]
     return resumo

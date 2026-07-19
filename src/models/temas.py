@@ -259,7 +259,12 @@ class AcaoVenda(Base):
     origem_modelo: Mapped[Optional[str]] = mapped_column(String)
     custo_usd: Mapped[Optional[float]] = mapped_column(Float)
     gerado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    hash_escopo: Mapped[str] = mapped_column(String, nullable=False)
+    hash_escopo: Mapped[str] = mapped_column(
+        String, nullable=False
+    )  # identidade: empresa|label|tipo
+    # Hash de CONTEÚDO (contexto do LLM + fingerprint do prompt + modelo). Nasce NULL em
+    # linhas antigas → 1ª coleta pós-deploy regenera; depois pula o alvo cujo hash não muda.
+    dados_hash: Mapped[Optional[str]] = mapped_column(String)
 
     empresa: Mapped["Empresa"] = relationship("Empresa")
     agrupamento: Mapped[Optional["Agrupamento"]] = relationship("Agrupamento")
