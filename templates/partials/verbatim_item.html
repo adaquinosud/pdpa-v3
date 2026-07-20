@@ -32,6 +32,10 @@
     </span>
   </div>
 
+  {% if v.pergunta_enunciado %}
+  <p class="text-xs text-loyall-400 italic mb-1" title="Pergunta respondida">{{ v.pergunta_enunciado }}</p>
+  {% endif %}
+
   {% if v.tem_texto %}
   <p class="text-sm text-loyall-900 verbatim-texto" data-id="{{ v.id }}">
     {% if v.texto|length > 300 %}

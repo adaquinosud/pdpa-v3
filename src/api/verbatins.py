@@ -165,13 +165,20 @@ def _aplicar_filtros_listagem(q, empresa_id: int, s):
 
 
 def _serialize_verbatim(
-    v: Verbatim, ag_map: dict, local_map: dict, fonte_map: dict
+    v: Verbatim, ag_map: dict, local_map: dict, fonte_map: dict, pergunta_map: dict = None
 ) -> Dict[str, Any]:
-    """Serializa Verbatim com nomes resolvidos (sem N+1 queries no loop)."""
+    """Serializa Verbatim com nomes resolvidos (sem N+1 queries no loop).
+
+    ``pergunta_map`` (pergunta_id → enunciado): quando dado, o card mostra a pergunta
+    como contexto acima do texto (FIX 2 — só apresentação; ``texto`` fica intacto).
+    Verbatim sem ``pergunta_id`` (review/RA/import solto) → ``pergunta_enunciado`` None."""
     fonte = fonte_map.get(v.fonte_id, {})
     return {
         "id": v.id,
         "empresa_id": v.empresa_id,
+        "pergunta_enunciado": (
+            pergunta_map.get(v.pergunta_id) if (pergunta_map and v.pergunta_id) else None
+        ),
         "local_id": v.local_id,
         "local_nome": local_map.get(v.local_id) if v.local_id else None,
         "agrupamento_id": fonte.get("agrupamento_id_via_local"),
@@ -267,8 +274,22 @@ def listar_verbatins_da_empresa(empresa_id: int):
             }
             for f in fontes_db
         }
+        # FIX 2: enunciado da pergunta p/ o card (verbatins de pesquisa) — sem N+1.
+        from src.models.pesquisa import PesquisaPergunta
 
-        payload = [_serialize_verbatim(v, ag_map, local_map, fonte_map) for v in verbatins]
+        perg_ids = {v.pergunta_id for v in verbatins if v.pergunta_id}
+        pergunta_map = (
+            {
+                p.id: p.enunciado
+                for p in s.query(PesquisaPergunta).filter(PesquisaPergunta.id.in_(perg_ids))
+            }
+            if perg_ids
+            else {}
+        )
+
+        payload = [
+            _serialize_verbatim(v, ag_map, local_map, fonte_map, pergunta_map) for v in verbatins
+        ]
 
     return jsonify(
         {

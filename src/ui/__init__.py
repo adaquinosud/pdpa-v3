@@ -2513,7 +2513,14 @@ def _carregar_verbatim_para_template(verbatim_id: int):
         }
         local_map = {local.id: local.nome} if local else {}
         ag_map = {ag.id: ag.nome} if ag else {}
-        v_dict = _serialize_verbatim(v_db, ag_map, local_map, fonte_map)
+        pergunta_map = {}
+        if v_db.pergunta_id:
+            from src.models.pesquisa import PesquisaPergunta
+
+            _perg = s.get(PesquisaPergunta, v_db.pergunta_id)
+            if _perg is not None:
+                pergunta_map = {_perg.id: _perg.enunciado}
+        v_dict = _serialize_verbatim(v_db, ag_map, local_map, fonte_map, pergunta_map)
         historico_db = (
             s.query(VerbatimReclassificacao)
             .filter_by(verbatim_id=verbatim_id)
