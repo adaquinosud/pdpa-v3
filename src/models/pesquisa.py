@@ -108,6 +108,11 @@ class PesquisaPergunta(Base):
     formato: Mapped[str] = mapped_column(String, nullable=False)  # aberta|fechada|mista
     # NN p/ nota/fechada (pré-mapeia a valência sem classificador); intenção p/ texto.
     subpilar_alvo: Mapped[Optional[str]] = mapped_column(String)
+    # Tema DECLARADO pelo operador (§6.7): assunto curto que toda resposta a esta pergunta
+    # recebe DIRETO (vínculo verbatim_temas origem='manual' + bucket derivado), sem
+    # embedding/clustering. NULL = pergunta sem tema (segue válida). Sugerido pelo LLM
+    # (geração/juiz) e ajustável na tela.
+    tema_declarado: Mapped[Optional[str]] = mapped_column(String)
     opcoes_json: Mapped[Optional[str]] = mapped_column(Text)  # schema da escala
     regua_valencia_json: Mapped[Optional[str]] = mapped_column(Text)  # override; default herdado
     gerada_por_ancora: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
