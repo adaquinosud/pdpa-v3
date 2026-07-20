@@ -87,6 +87,7 @@ Responda APENAS com JSON válido, no formato:
   {"enunciado": "<texto da pergunta ao respondente>",
    "formato": "aberta" | "fechada" | "mista",
    "subpilar_alvo": "<código do subpilar, ex. D2>",
+   "tema_declarado": "<assunto CURTO da pergunta, 1-4 palavras, ex. 'Atendimento telefônico'>",
    "porque": "<justificativa diagnóstica interna>",
    "opcoes": {"tipo":"nota","pontos":5,
               "rotulos":["Muito ruim","Ruim","Neutro","Bom","Muito bom"],

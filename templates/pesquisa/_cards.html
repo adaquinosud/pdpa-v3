@@ -100,6 +100,12 @@
         <option value="{{ code }}"{% if code == q.subpilar_alvo %} selected{% endif %}>{{ code }} · {{ nome }}</option>
         {% endfor %}
       </select>
+      {# tema DECLARADO (§6.7): auto-save no blur (change), inclui o form inteiro. #}
+      <input name="tema_declarado" value="{{ q.tema_declarado or '' }}" placeholder="tema (assunto)"
+             title="Tema declarado — toda resposta a esta pergunta recebe este tema"
+             hx-post="{{ url_for('ui.pesquisa_editar_pergunta', empresa_id=empresa_id, pesquisa_id=pesquisa_id, pergunta_id=q.id) }}"
+             hx-trigger="change" hx-target="#cards" hx-swap="outerHTML" hx-include="closest form"
+             class="border rounded px-2 py-1 text-xs w-40">
       <button class="border px-2 rounded text-xs hover:bg-loyall-50">Salvar texto</button>
     </form>
     {% endif %}

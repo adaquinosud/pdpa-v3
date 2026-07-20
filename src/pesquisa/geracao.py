@@ -126,6 +126,7 @@ def _normalizar(
                 "porque": (p.get("porque") or "").strip() or None,
                 "formato": formato,
                 "subpilar_alvo": p.get("subpilar_alvo"),
+                "tema_declarado": (p.get("tema_declarado") or "").strip() or None,
                 "opcoes_json": json.dumps(opcoes) if opcoes else None,
                 "gerada_por_ancora": False,
             }

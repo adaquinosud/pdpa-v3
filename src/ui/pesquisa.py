@@ -295,6 +295,7 @@ def _ctx_revisar(s, pesquisa_id, veredito=None, tocada_id=None):
             "porque": p.porque,
             "formato": p.formato,
             "subpilar_alvo": p.subpilar_alvo,
+            "tema_declarado": p.tema_declarado,
             "gerada_por_ancora": p.gerada_por_ancora,
             "regras": veredito_por_ordem.get(p.ordem, []),
             # "✓ aplicado" efêmero: só no render da ação que tocou esta pergunta;
@@ -393,7 +394,7 @@ def pesquisa_editar_pergunta(empresa_id, pesquisa_id, pergunta_id):
     # não é tocado (a reescrita não apaga o subpilar).
     campos = {
         campo: ((request.form.get(campo) or "").strip() or None)
-        for campo in ("enunciado", "formato", "opcoes_json", "subpilar_alvo")
+        for campo in ("enunciado", "formato", "opcoes_json", "subpilar_alvo", "tema_declarado")
         if campo in request.form
     }
     with db_session() as s:
