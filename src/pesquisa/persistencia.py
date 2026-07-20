@@ -17,6 +17,7 @@ import secrets
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.models.pesquisa import Pesquisa, PesquisaPergunta
+from src.pesquisa.tema_sugestao import sugerir_tema
 from src.pesquisa.validador import ESCALA_DEFAULT, tem_bloqueio, validar_perguntas
 
 _log = logging.getLogger(__name__)
@@ -182,7 +183,9 @@ def criar_rascunho(s, proposta: Dict[str, Any], criada_por: Optional[int] = None
                 porque=q.get("porque"),
                 formato=q["formato"],
                 subpilar_alvo=q.get("subpilar_alvo"),
-                tema_declarado=(q.get("tema_declarado") or "").strip() or None,
+                # Tema da geração; se veio vazio, a heurística sugere do enunciado.
+                tema_declarado=(q.get("tema_declarado") or "").strip()
+                or sugerir_tema(q["enunciado"]),
                 opcoes_json=opcoes,
                 gerada_por_ancora=ancora,
                 validacao_json=json.dumps({"hash": h, "advisory": avisa}),
@@ -371,6 +374,10 @@ def atualizar_pergunta(s, pergunta_id: int, **campos) -> Optional[PesquisaPergun
         if campo == "enunciado" and not campos[campo]:
             continue  # enunciado é obrigatório — não zera
         setattr(p, campo, campos[campo])
+    # Heurística: editou o enunciado e o tema ficou vazio → sugere (ponto de partida,
+    # editável). Não sobrescreve tema preenchido; sem LLM.
+    if "enunciado" in campos and not (p.tema_declarado or "").strip():
+        p.tema_declarado = sugerir_tema(p.enunciado)
     p.validacao_json = None  # cache do veredito fica obsoleto após edição
     p.validado_em = None
     s.flush()
@@ -404,6 +411,8 @@ def adicionar_pergunta(
         enunciado=enunciado,
         formato=fmt,
         subpilar_alvo=subpilar_alvo,
+        # Heurística sem LLM: sugere o tema do enunciado (ponto de partida, editável).
+        tema_declarado=sugerir_tema(enunciado),
         opcoes_json=opcoes_json,
         gerada_por_ancora=False,
     )
