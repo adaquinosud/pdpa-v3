@@ -31,6 +31,13 @@
     </ul>
     {% if preview.interno %}
       <p class="text-[11px] text-loyall-500 mt-2">Modo interno identificado — criará pessoas consentidas por email/id_cliente.</p>
+    {% elif preview.identidade_no_arquivo %}
+      <div class="mt-3 bg-amber-50 border border-amber-200 text-amber-800 rounded p-2 text-xs">
+        ⚠️ Seu arquivo tem coluna de <strong>email/id_cliente</strong>, mas o modo
+        <strong>interno identificado</strong> está desmarcado — essas colunas serão
+        <strong>ignoradas</strong> e nenhuma pessoa será vinculada. Para ligar à Pessoa,
+        marque o modo interno identificado (com consentimento) e reenvie.
+      </div>
     {% endif %}
     {% if preview.erros_validacao %}
       <div class="mt-3 bg-rose-50 border border-rose-200 text-rose-700 rounded p-2 text-xs">

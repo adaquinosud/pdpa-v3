@@ -38,7 +38,7 @@
   <div class="border-t border-loyall-100 pt-3">
     <label class="flex items-center gap-2 text-sm">
       <input type="checkbox" name="interno_identificado" value="on"
-             onchange="document.getElementById('bloco-interno').classList.toggle('hidden', !this.checked)">
+             onchange="document.getElementById('bloco-interno').classList.toggle('hidden', !this.checked); document.getElementById('modelo-label').textContent = this.checked ? 'Baixar modelo (com email e id_cliente)' : 'Baixar modelo (sem identidade)'">
       <span class="font-medium">Base interna identificada</span>
     </label>
     <p class="text-xs text-loyall-500 mt-1">
@@ -68,7 +68,7 @@
        sem ele o modelo vem sem as listas. #}
     <a id="btn-modelo" href="{{ url_for('ui.modelo_import_verbatins') }}"
        onclick="var p=[]; var emp=document.querySelector('select[name=empresa_id]').value; if(emp)p.push('empresa_id='+emp); if(document.querySelector('input[name=interno_identificado]').checked)p.push('interno=1'); this.href='{{ url_for('ui.modelo_import_verbatins') }}'+(p.length?'?'+p.join('&'):'')"
-       class="text-sm text-loyall-500 hover:underline">Baixar modelo</a>
+       class="text-sm text-loyall-500 hover:underline"><span id="modelo-label">Baixar modelo (sem identidade)</span></a>
     <span class="htmx-indicator text-xs text-loyall-400">processando…</span>
   </div>
 
