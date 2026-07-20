@@ -189,7 +189,11 @@ def _gravar_verbatins(
         review_id = (
             f"resp:{respondente.id}:{r['pergunta_id']}" if conector == "pesquisa_web" else None
         )
-        hash_d = _hash_dedup(fonte_id, texto, autor, nota, None, review_id)
+        # pergunta_id no hash (FIX): mesma resposta ("Bom") a perguntas DIFERENTES é dado
+        # distinto — sem isto o Excel (review_id None) colapsa no ramo de conteúdo e perde
+        # a 2ª. No web o ramo rid: vence (no-op). Não entra respondente.id → re-import
+        # idempotente. Outros canais (verbatim solto/RA) não passam pergunta → intactos.
+        hash_d = _hash_dedup(fonte_id, texto, autor, nota, None, review_id, r["pergunta_id"])
         # Classificação DETERMINÍSTICA: subpilar da pergunta + valência da nota. Só
         # quando há nota (a valência vem dela); sem nota, deixa NULL p/ o classificador.
         tipo = _valencia_da_nota(nota)

@@ -161,16 +161,24 @@ def _hash_dedup(
     rating: Optional[int],
     data_iso: Optional[str],
     review_id: Optional[str],
+    pergunta_id: Optional[int] = None,
 ) -> str:
     """Hash de dedup robusto. Texto → fórmula histórica; com review_id → por id;
-    rating-only sem id → rating+data+autor (evita colisão de notas distintas)."""
+    rating-only sem id → rating+data+autor (evita colisão de notas distintas).
+
+    ``pergunta_id`` (só o canal de RESPOSTA DE PESQUISA passa): discrimina o ramo de
+    conteúdo por pergunta — a MESMA resposta ("Bom") a perguntas DIFERENTES é dado
+    distinto, não duplicata. Default None → verbatim solto/RA/pipeline (sem pergunta)
+    ficam com o hash histórico, intactos. Não entra ``respondente.id`` → re-import
+    do Excel segue idempotente."""
+    q = f"|q:{pergunta_id}" if pergunta_id is not None else ""
     if review_id:
         base = f"{fonte_id}|rid:{review_id}"
     elif texto:
-        base = f"{fonte_id}|{autor or ''}|{texto[:200]}"
+        base = f"{fonte_id}|{autor or ''}|{texto[:200]}{q}"
     else:
         r = rating if rating is not None else ""
-        base = f"{fonte_id}|{autor or ''}|rating:{r}|data:{data_iso or ''}"
+        base = f"{fonte_id}|{autor or ''}|rating:{r}|data:{data_iso or ''}{q}"
     return hashlib.sha256(base.encode()).hexdigest()
 
 
@@ -185,12 +193,18 @@ def prever_arquivo(caminho: Union[str, Path], interno_identificado: bool = False
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
     df = _ler_dataframe(caminho)
     colunas = _detectar_colunas(list(df.columns), interno=interno_identificado)
+    # FIX 3b: detecta identidade SEMPRE (independe do modo) — se o arquivo tem
+    # email/id_cliente mas o modo interno está desligado, o import ignoraria em
+    # silêncio. O flag alimenta o aviso no preview. NÃO altera o mapeamento do import.
+    cols_id = _detectar_colunas(list(df.columns), interno=True)
+    identidade_no_arquivo = bool(cols_id.get("email") or cols_id.get("id_cliente"))
     return {
         "colunas_detectadas": colunas,
         "erros_validacao": _validar(colunas, interno_identificado),
         "total": len(df),
         "headers": [str(c) for c in df.columns],
         "interno": interno_identificado,
+        "identidade_no_arquivo": identidade_no_arquivo,
     }
 
 
