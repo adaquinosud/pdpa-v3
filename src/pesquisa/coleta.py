@@ -165,6 +165,18 @@ def _gravar_verbatins(
     # Regra 6: subpilar_alvo NUNCA sai no payload público — o mapa é montado aqui,
     # server-side, a partir das perguntas da própria pesquisa.
     subpilar_por_pergunta = {p.id: p.subpilar_alvo for p in pesquisa.perguntas}
+    # Tema DECLARADO (§6.7): assunto por pergunta → vínculo direto por resposta.
+    tema_por_pergunta = {p.id: (p.tema_declarado or None) for p in pesquisa.perguntas}
+    # agrupamento_id p/ o bucket do vínculo declarado: local → seu agrupamento; escopo
+    # agrupamento → o próprio id; empresa → None. Escopo é fixo por respondente (1 lookup).
+    agrupamento_id = None
+    if respondente.entidade_tipo == "local" and local_id is not None:
+        from src.models.local import Local
+
+        _loc = s.get(Local, local_id)
+        agrupamento_id = _loc.agrupamento_id if _loc is not None else None
+    elif respondente.entidade_tipo == "agrupamento":
+        agrupamento_id = respondente.entidade_id
 
     cache_fonte: Dict[str, int] = {}
     fonte_id = _find_or_create_fonte(
@@ -225,3 +237,22 @@ def _gravar_verbatins(
                 s.add(verbatim)
         except IntegrityError:
             continue
+
+        # Tema DECLARADO (§6.7): só com nota (subpilar+tipo definidos → bucket completo).
+        # Vínculo origem='manual' + bucket derivado — sobrevive ao pipeline e flui p/ a
+        # Família B (Plano de Ação, Cruzamentos, anomalias) sem tocar consumidor nenhum.
+        tema_decl = tema_por_pergunta.get(r["pergunta_id"])
+        if tema_decl and tipo is not None:
+            from src.temas.persistencia import persistir_temas_de_verbatim
+
+            # Formato espelha src/temas/pipeline._bucket_chave (agrup:subpilar:tipo);
+            # o parser da Família B (_subpilar_tipo) faz split(":").
+            bucket = f"{agrupamento_id if agrupamento_id is not None else 'NULL'}:{subpilar}:{tipo}"
+            persistir_temas_de_verbatim(
+                s,
+                verbatim.id,
+                pesquisa.empresa_id,
+                [{"nome": tema_decl, "confianca": 1.0}],
+                origem="manual",
+                bucket_chave=bucket,
+            )

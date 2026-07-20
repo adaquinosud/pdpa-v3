@@ -48,12 +48,17 @@ def persistir_temas_de_verbatim(
     empresa_id: int,
     temas_extraidos: List[Dict[str, Any]],
     origem: str = "llm",
+    bucket_chave: Optional[str] = None,
 ) -> List[int]:
     """Para cada tema extraído: UPSERT no catálogo + INSERT em verbatim_temas
     se ainda não existir. Devolve tema_ids vinculados (existentes ou novos).
 
     Idempotente: rodar 2x para o mesmo verbatim+temas não duplica nada
     (graças à UNIQUE(verbatim_id, tema_id)).
+
+    ``bucket_chave`` (tema DECLARADO, §6.7): quando dado, o vínculo nasce com o bucket
+    ``agrupamento:subpilar:tipo`` preenchido — é o que faz a Família B (Plano de Ação,
+    Cruzamentos, anomalias) enxergá-lo. Default None → caminho LLM/extração, intacto.
     """
     if origem not in {"llm", "manual", "merge"}:
         raise ValueError(f"origem inválida: {origem!r}")
@@ -81,6 +86,7 @@ def persistir_temas_de_verbatim(
             confianca=confianca,
             origem=origem,
             evidencia_curta=(t.get("evidencia_curta") or "").strip()[:200] or None,
+            bucket_chave=bucket_chave,
         )
         session.add(vt)
         session.flush()

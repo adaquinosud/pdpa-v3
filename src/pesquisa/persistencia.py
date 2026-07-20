@@ -182,6 +182,7 @@ def criar_rascunho(s, proposta: Dict[str, Any], criada_por: Optional[int] = None
                 porque=q.get("porque"),
                 formato=q["formato"],
                 subpilar_alvo=q.get("subpilar_alvo"),
+                tema_declarado=(q.get("tema_declarado") or "").strip() or None,
                 opcoes_json=opcoes,
                 gerada_por_ancora=ancora,
                 validacao_json=json.dumps({"hash": h, "advisory": avisa}),
@@ -357,7 +358,14 @@ def atualizar_pergunta(s, pergunta_id: int, **campos) -> Optional[PesquisaPergun
     p = s.get(PesquisaPergunta, pergunta_id)
     if p is None:
         return None
-    for campo in ("enunciado", "formato", "opcoes_json", "subpilar_alvo", "porque"):
+    for campo in (
+        "enunciado",
+        "formato",
+        "opcoes_json",
+        "subpilar_alvo",
+        "porque",
+        "tema_declarado",
+    ):
         if campo not in campos:
             continue
         if campo == "enunciado" and not campos[campo]:
@@ -472,6 +480,18 @@ def aprovar(s, pesquisa_id: int) -> Tuple[bool, Dict[str, Any]]:
     pesq.versao = pesq.versao or 1
     if not pesq.token_publico:  # âncora estável da URL pública /p/<token>
         pesq.token_publico = secrets.token_urlsafe(12)
+    # Tema DECLARADO (§6.7): materializa o Tema da EMPRESA já no approval — aparece no
+    # catálogo com 0 respostas e ganha id estável; o vínculo por resposta vem depois
+    # (coleta._gravar_verbatins). resolve-or-create idempotente por slug.
+    from src.temas.persistencia import upsert_tema_por_slug
+
+    for p in pesq.perguntas:
+        nome = (p.tema_declarado or "").strip()
+        if nome:
+            try:
+                upsert_tema_por_slug(s, pesq.empresa_id, nome)
+            except ValueError:
+                pass  # slug vazio → ignora (pergunta segue válida sem tema)
     s.flush()
     return True, veredito
 
