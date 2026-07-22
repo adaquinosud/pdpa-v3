@@ -24,7 +24,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -74,7 +74,29 @@ class PessoaIdentificador(Base):
             "tipo IN ('publico','interno_consentido')",
             name="ck_pessoa_identificador_tipo",
         ),
-        UniqueConstraint("tipo", "fonte", "external_id", name="uq_pessoa_identificador_natural"),
+        # §7 (travada): e-mail/handle = chave GLOBAL (empresa_id NULL, único no mundo);
+        # crm/id_cliente = chave POR EMPRESA (empresa_id preenchido, único só dentro dela).
+        # Dois índices PARCIAIS resolvem a semântica de NULL sem depender de PG15
+        # (NULLS NOT DISTINCT): o global não inclui empresa_id (só linhas NULL).
+        Index(
+            "uq_ident_global",
+            "tipo",
+            "fonte",
+            "external_id",
+            unique=True,
+            sqlite_where=text("empresa_id IS NULL"),
+            postgresql_where=text("empresa_id IS NULL"),
+        ),
+        Index(
+            "uq_ident_empresa",
+            "tipo",
+            "fonte",
+            "external_id",
+            "empresa_id",
+            unique=True,
+            sqlite_where=text("empresa_id IS NOT NULL"),
+            postgresql_where=text("empresa_id IS NOT NULL"),
+        ),
         Index("idx_pessoa_identificador_pessoa", "pessoa_id"),
     )
 
@@ -85,6 +107,8 @@ class PessoaIdentificador(Base):
     tipo: Mapped[str] = mapped_column(String, nullable=False)
     fonte: Mapped[str] = mapped_column(String, nullable=False)  # google, crm, pesquisa…
     external_id: Mapped[str] = mapped_column(String, nullable=False)
+    # §7: NULL = chave global (e-mail/handle); preenchida = chave por-empresa (crm).
+    empresa_id: Mapped[Optional[int]] = mapped_column(ForeignKey("empresas.id", ondelete="CASCADE"))
     # handle/URL (público) | contato/opt-in/finalidade (interno) — convenção _json
     atributos_json: Mapped[Optional[str]] = mapped_column(Text)
 
