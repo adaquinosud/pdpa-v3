@@ -109,6 +109,10 @@ PLANO: list[tuple[str, str, str]] = [
     ("convites de pesquisa", "pesquisa_convites", _DIRETO),
     ("atributos de contato", "contato_atributos", _DIRETO),
     ("vínculos de contato", "empresa_contatos", _DIRETO),
+    # Identidade POR EMPRESA (§5.5): só os CRM/id_cliente DESTA empresa (empresa_id
+    # preenchido). Os e-mails globais (empresa_id NULL) NÃO casam com `= :eid` e
+    # sobrevivem — e-mail é chave GLOBAL. A Pessoa em si segue em GLOBAIS_IGNORADAS.
+    ("identificadores CRM da empresa", "pessoa_identificador", _DIRETO),
     ("pesquisas", "pesquisas", _DIRETO),
     ("verbatins", "verbatins", _DIRETO),
     # Reputação em IA (sonda_ia_*): filhas antes das mães; independentes de verbatins.
@@ -131,16 +135,17 @@ MANTIDAS = ["empresas", "locais", "locais_metadados", "agrupamentos", "fontes", 
 # Lista EXPLÍCITA para o teste de cobertura: PLANO ∪ MANTIDAS ∪ GLOBAIS_IGNORADAS deve
 # cobrir TODAS as tabelas. Se uma derivada nova surgir e ninguém classificá-la, o teste
 # falha — em vez de o wipe deixar dados órfãos achando que limpou tudo.
-# `pessoa`/`pessoa_identificador`/`pessoa_merges`: eixo individual, sem empresa_id (acima
-# da linha por-empresa). O wipe apaga os `verbatins` da empresa (PLANO), mas as Pessoas em
-# si são globais e não derivam de uma empresa — limpeza de Pessoa órfã (e o rastro de
-# merge) é lifecycle do eixo individual (futuro), não do wipe por cliente.
+# `pessoa`/`pessoa_merges`: eixo individual GLOBAL — a Pessoa não deriva de uma empresa;
+# limpeza de Pessoa órfã (e o rastro de merge) é lifecycle do eixo individual (futuro),
+# não do wipe por cliente. `pessoa_identificador` NÃO está mais aqui: seus CRM (empresa_id
+# preenchido) são por-empresa e entram no PLANO; os e-mails globais (empresa_id NULL)
+# sobrevivem ao filtro `= :eid`. A tabela ficaria em dois baldes — o teste de cobertura só
+# exige que cada tabela apareça em ALGUM balde, então PLANO basta.
 GLOBAIS_IGNORADAS = [
     "glossario_termo",
     "classifier_metrics",
     "eventos_manutencao",
     "pessoa",
-    "pessoa_identificador",
     "pessoa_merges",
 ]
 
