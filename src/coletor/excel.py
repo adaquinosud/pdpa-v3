@@ -513,11 +513,15 @@ FONTE_EMAIL = "pesquisa"
 FONTE_CRM = "crm"
 
 
-def _ident_opt_in(fonte: str, external_id: str, origem: str) -> "PessoaIdentificador":
+def _ident_opt_in(
+    fonte: str, external_id: str, origem: str, empresa_id: Optional[int] = None
+) -> "PessoaIdentificador":
+    # §7: empresa_id NULL = chave GLOBAL (e-mail/handle); preenchida = chave POR EMPRESA (crm).
     return PessoaIdentificador(
         tipo="interno_consentido",
         fonte=fonte,
         external_id=external_id,
+        empresa_id=empresa_id,
         atributos_json=json.dumps(
             {"opt_in": True, "origem": origem, "data": datetime.utcnow().isoformat()}
         ),
@@ -544,13 +548,15 @@ def _merge_pessoas(session, alvo_id: int, absorvida_id: int, *, gatilho: str, ch
         session.query(Respondente).filter(Respondente.id.in_(rids)).update(
             {Respondente.pessoa_id: alvo_id}, synchronize_session=False
         )
-    # Move os identificadores da absorvida que o alvo ainda não tem (evita violar o UNIQUE)
+    # Move os identificadores da absorvida que o alvo ainda não tem (evita violar o UNIQUE).
+    # A chave inclui empresa_id (§5.5): o CRM da empresa A e o da B são identificadores
+    # distintos, não colidem ao fundir por e-mail.
     existentes = {
-        (i.fonte, i.external_id)
+        (i.fonte, i.external_id, i.empresa_id)
         for i in session.query(PessoaIdentificador).filter_by(pessoa_id=alvo_id)
     }
     for ident in session.query(PessoaIdentificador).filter_by(pessoa_id=absorvida_id).all():
-        if (ident.fonte, ident.external_id) in existentes:
+        if (ident.fonte, ident.external_id, ident.empresa_id) in existentes:
             session.delete(ident)
         else:
             ident.pessoa_id = alvo_id
@@ -585,36 +591,47 @@ def _reconciliar_pessoa(
     id_cliente: Optional[str] = None,
     nome: Optional[str] = None,
     origem: str = "pesquisa",
+    empresa_id: Optional[int] = None,
 ) -> Optional[int]:
-    """Resolve UMA Pessoa a partir de e-mail e/ou código de CRM (item A). As duas chaves
-    coexistem (``fonte='pesquisa'`` p/ e-mail, ``fonte='crm'`` p/ código): mesma pessoa,
-    duas chaves, reconcilia por qualquer uma. Sem nenhuma chave → None (anônimo).
+    """Resolve UMA Pessoa a partir de e-mail e/ou código de CRM (item A). Sem nenhuma
+    chave → None (anônimo).
+
+    §7 (travada): **e-mail é chave GLOBAL** (``fonte='pesquisa'`` — a mesma
+    ``maria@gmail.com`` é sempre a mesma pessoa, reconcilia entre empresas); **id_cliente
+    é chave POR EMPRESA** (``fonte='crm'`` — CRM-1001 na empresa A e na B são pessoas
+    DIFERENTES, não fundem). Por isso a busca do e-mail ignora empresa e a do CRM filtra
+    ``empresa_id``. ``empresa_id`` é OBRIGATÓRIO quando há ``id_cliente`` (todos os 4
+    call-sites o têm); sem ele o CRM cairia como global — o bug que esta frente conserta.
 
     - 0 Pessoa encontrada → cria + anexa as chaves.
     - 1 → reusa + anexa a chave que faltar.
     - 2 distintas → MERGE na mais antiga (menor id), auditável (``_merge_pessoas``).
     """
-    chaves = []
+    chaves = []  # (fonte, external_id, empresa_scope) — None = global (e-mail)
     if email:
-        chaves.append((FONTE_EMAIL, email))
+        chaves.append((FONTE_EMAIL, email, None))
     if id_cliente:
-        chaves.append((FONTE_CRM, id_cliente))
+        chaves.append((FONTE_CRM, id_cliente, empresa_id))
     if not chaves:
         return None
 
     achados: Dict[str, PessoaIdentificador] = {}  # pessoa_id → ident (dedup por pessoa)
-    for fonte, ext in chaves:
-        ident = (
-            session.query(PessoaIdentificador)
-            .filter_by(tipo="interno_consentido", fonte=fonte, external_id=ext)
-            .first()
+    for fonte, ext, emp in chaves:
+        q = session.query(PessoaIdentificador).filter_by(
+            tipo="interno_consentido", fonte=fonte, external_id=ext
         )
+        q = (
+            q.filter(PessoaIdentificador.empresa_id.is_(None))
+            if emp is None
+            else q.filter(PessoaIdentificador.empresa_id == emp)
+        )
+        ident = q.first()
         if ident is not None:
             achados[ident.pessoa_id] = ident
 
     if not achados:
         pessoa = Pessoa(tipo="interno_consentido", nome_display=nome)
-        pessoa.identificadores = [_ident_opt_in(f, e, origem) for f, e in chaves]
+        pessoa.identificadores = [_ident_opt_in(f, e, origem, emp) for f, e, emp in chaves]
         session.add(pessoa)
         session.flush()
         return pessoa.id
@@ -628,17 +645,19 @@ def _reconciliar_pessoa(
                 alvo_id,
                 absorvida_id,
                 gatilho=origem,
-                chaves={f: e for f, e in chaves},
+                chaves={f: e for f, e, _ in chaves},
             )
 
-    # Anexa ao alvo qualquer chave do gatilho que ainda não exista (nome se estava vazio)
+    # Anexa ao alvo qualquer chave do gatilho que ainda não exista (nome se estava vazio).
+    # Chave inclui empresa_scope (§5.5): o CRM desta empresa é anexado mesmo que o alvo já
+    # tenha o CRM de OUTRA empresa com o mesmo código.
     existentes = {
-        (i.fonte, i.external_id)
+        (i.fonte, i.external_id, i.empresa_id)
         for i in session.query(PessoaIdentificador).filter_by(pessoa_id=alvo_id)
     }
-    for fonte, ext in chaves:
-        if (fonte, ext) not in existentes:
-            session.add(_ident_opt_in_para(alvo_id, fonte, ext, origem))
+    for fonte, ext, emp in chaves:
+        if (fonte, ext, emp) not in existentes:
+            session.add(_ident_opt_in_para(alvo_id, fonte, ext, origem, emp))
     if nome:
         pessoa = session.get(Pessoa, alvo_id)
         if pessoa is not None and not pessoa.nome_display:
@@ -647,8 +666,10 @@ def _reconciliar_pessoa(
     return alvo_id
 
 
-def _ident_opt_in_para(pessoa_id: int, fonte: str, external_id: str, origem: str):
-    ident = _ident_opt_in(fonte, external_id, origem)
+def _ident_opt_in_para(
+    pessoa_id: int, fonte: str, external_id: str, origem: str, empresa_id: Optional[int] = None
+):
+    ident = _ident_opt_in(fonte, external_id, origem, empresa_id)
     ident.pessoa_id = pessoa_id
     return ident
 
@@ -858,6 +879,7 @@ def importar_arquivo(
                             id_cliente=idc_v,
                             nome=autor,
                             origem="import_excel",
+                            empresa_id=empresa_id,
                         )
                         if pessoa_id_row is not None:
                             pessoas_vinc.add(pessoa_id_row)

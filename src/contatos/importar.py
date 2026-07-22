@@ -132,16 +132,27 @@ def _chave_linha(row: pd.Series, fixas: Dict[str, Optional[str]]) -> tuple:
     return email, id_cliente, nome
 
 
-def _pessoa_por_chave(session, email: Optional[str], id_cliente: Optional[str]) -> Optional[int]:
-    """Lookup READ-ONLY da Pessoa por qualquer chave (sem criar). Usado no preview."""
-    for fonte, ext in ((FONTE_EMAIL, email), (FONTE_CRM, id_cliente)):
+def _pessoa_por_chave(
+    session, email: Optional[str], id_cliente: Optional[str], empresa_id: Optional[int] = None
+) -> Optional[int]:
+    """Lookup READ-ONLY da Pessoa por qualquer chave (sem criar). Usado no preview.
+    §7: e-mail é global; CRM é por-empresa — o lookup do CRM filtra ``empresa_id`` (senão
+    o preview acharia a Pessoa de OUTRA empresa com o mesmo código)."""
+    for fonte, ext, emp in (
+        (FONTE_EMAIL, email, None),
+        (FONTE_CRM, id_cliente, empresa_id),
+    ):
         if not ext:
             continue
-        ident = (
-            session.query(PessoaIdentificador)
-            .filter_by(tipo="interno_consentido", fonte=fonte, external_id=ext)
-            .first()
+        q = session.query(PessoaIdentificador).filter_by(
+            tipo="interno_consentido", fonte=fonte, external_id=ext
         )
+        q = (
+            q.filter(PessoaIdentificador.empresa_id.is_(None))
+            if emp is None
+            else q.filter(PessoaIdentificador.empresa_id == emp)
+        )
+        ident = q.first()
         if ident is not None:
             return ident.pessoa_id
     return None
@@ -171,7 +182,7 @@ def prever_contatos(session, caminho: Union[str, Path], empresa_id: int) -> Dict
             if not email and not id_cliente:
                 ignorar += 1
                 continue
-            pessoa_id = _pessoa_por_chave(session, email, id_cliente)
+            pessoa_id = _pessoa_por_chave(session, email, id_cliente, empresa_id)
             ja_contato = pessoa_id is not None and (
                 session.query(ContatoEmpresa)
                 .filter_by(empresa_id=empresa_id, pessoa_id=pessoa_id)
@@ -209,7 +220,12 @@ def _convidar(
     UPSERT: presente no arquivo = ``ativo`` (reativa contato antes inativado). O
     ``lote_id`` carimba só o vínculo NOVO (desfazer apaga os criados pelo lote)."""
     pessoa_id = _reconciliar_pessoa(
-        session, email=email, id_cliente=id_cliente, nome=nome, origem="contato"
+        session,
+        email=email,
+        id_cliente=id_cliente,
+        nome=nome,
+        origem="contato",
+        empresa_id=empresa_id,
     )
     if pessoa_id is None:
         return None
@@ -290,7 +306,7 @@ def importar_contatos(
                 if local_id is None:
                     stats["unidades_nao_casadas"] += 1
 
-        pid_existente = _pessoa_por_chave(session, email, id_cliente)
+        pid_existente = _pessoa_por_chave(session, email, id_cliente, empresa_id)
         novo = pid_existente is None or (
             session.query(ContatoEmpresa)
             .filter_by(empresa_id=empresa_id, pessoa_id=pid_existente)

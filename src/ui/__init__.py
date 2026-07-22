@@ -550,12 +550,15 @@ def modelo_import_verbatins():
     )
 
 
-def _aplicar_correcao_identidade(s, pessoa_id, *, nome, email, codigo):
+def _aplicar_correcao_identidade(s, pessoa_id, *, nome, email, codigo, empresa_id):
     """Convite (identidade PINADA): o token é a verdade de quem foi convidado.
     Nome digitado CORRIGE ``nome_display`` (direito de correção do titular). E-mail/
     código digitados ACRESCENTAM identificador à MESMA Pessoa — nunca reconciliam p/
     outra. Se a chave digitada já pertence a OUTRA Pessoa, NÃO vincula e conta o
-    conflito (fica visível no resultado; não some num log). Retorna nº de conflitos."""
+    conflito (fica visível no resultado; não some num log). Retorna nº de conflitos.
+
+    §7: e-mail é chave global (empresa_id NULL); código de CRM é por-empresa (o conflito
+    e o vínculo respeitam o escopo — CRM-1001 da empresa A não colide com o da B)."""
     from src.coletor.excel import FONTE_CRM, FONTE_EMAIL, _ident_opt_in_para
     from src.models.pessoa import Pessoa, PessoaIdentificador
 
@@ -564,18 +567,22 @@ def _aplicar_correcao_identidade(s, pessoa_id, *, nome, email, codigo):
         if pessoa is not None:
             pessoa.nome_display = nome
     conflitos = 0
-    for fonte, valor in ((FONTE_EMAIL, email), (FONTE_CRM, codigo)):
+    for fonte, valor, emp in ((FONTE_EMAIL, email, None), (FONTE_CRM, codigo, empresa_id)):
         if not valor:
             continue
-        dono = (
-            s.query(PessoaIdentificador)
-            .filter_by(tipo="interno_consentido", fonte=fonte, external_id=valor)
-            .first()
+        q = s.query(PessoaIdentificador).filter_by(
+            tipo="interno_consentido", fonte=fonte, external_id=valor
         )
+        q = (
+            q.filter(PessoaIdentificador.empresa_id.is_(None))
+            if emp is None
+            else q.filter(PessoaIdentificador.empresa_id == emp)
+        )
+        dono = q.first()
         if dono is None:
-            s.add(_ident_opt_in_para(pessoa_id, fonte, valor, "pesquisa_web"))
+            s.add(_ident_opt_in_para(pessoa_id, fonte, valor, "pesquisa_web", emp))
         elif dono.pessoa_id != pessoa_id:
-            conflitos += 1  # chave de outra Pessoa — não sobrescreve
+            conflitos += 1  # chave de outra Pessoa (nesta empresa, p/ CRM) — não sobrescreve
     return conflitos
 
 
@@ -702,7 +709,12 @@ def pesquisa_publica(token):
                 pessoa_id = convite.pessoa_id
                 nome_corr = (request.form.get("nome") or "").strip() or None
                 conflitos = _aplicar_correcao_identidade(
-                    s, pessoa_id, nome=nome_corr, email=email, codigo=codigo
+                    s,
+                    pessoa_id,
+                    nome=nome_corr,
+                    email=email,
+                    codigo=codigo,
+                    empresa_id=pesq.empresa_id,
                 )
                 if conflitos:
                     aviso = (
@@ -711,7 +723,12 @@ def pesquisa_publica(token):
                     )
         elif codigo or email:
             pessoa_id = _reconciliar_pessoa(
-                s, email=email, id_cliente=codigo, nome=nome, origem="pesquisa_web"
+                s,
+                email=email,
+                id_cliente=codigo,
+                nome=nome,
+                origem="pesquisa_web",
+                empresa_id=pesq.empresa_id,
             )
 
         # Canal WEB: trava de reenvio — mesma pessoa identificada reenviando = substitui a

@@ -267,7 +267,12 @@ def _resolver_identidade(s, row, col_class, pesquisa, cache, stats):
     # Item A: e-mail E código do CRM viram chaves da MESMA Pessoa. Nome = rótulo de
     # exibição (primeiro nome vence — o reconciliador só preenche Pessoa sem nome).
     return _reconciliar_pessoa(
-        s, email=email, id_cliente=idc, nome=nome, origem="import_excel_respostas"
+        s,
+        email=email,
+        id_cliente=idc,
+        nome=nome,
+        origem="import_excel_respostas",
+        empresa_id=pesquisa.empresa_id,
     )
 
 
