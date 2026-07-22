@@ -73,10 +73,16 @@ def gerar_convites(session, pesquisa, pessoa_ids: List[int]) -> Dict[str, Any]:
 
 
 def _email_da_pessoa(session, pessoa_id: int) -> Optional[str]:
-    ident = (
-        session.query(PessoaIdentificador).filter_by(pessoa_id=pessoa_id, fonte=FONTE_EMAIL).first()
-    )
-    return ident.external_id if ident else None
+    """E-mail global da pessoa, SÓ se NÃO-ambíguo (§5.5): a pessoa tem 1 e-mail → retorna;
+    ≥2 e-mails distintos (deu e-mails diferentes por empresa) → None (nunca inventa
+    procedência — o export mostra a nota de reimportar, jamais o e-mail de outro tenant)."""
+    emails = {
+        e
+        for (e,) in session.query(PessoaIdentificador.external_id).filter_by(
+            pessoa_id=pessoa_id, fonte=FONTE_EMAIL
+        )
+    }
+    return next(iter(emails)) if len(emails) == 1 else None
 
 
 def _linhas_convites(session, pesquisa_id: int) -> List[Dict[str, Any]]:
@@ -94,7 +100,7 @@ def _linhas_convites(session, pesquisa_id: int) -> List[Dict[str, Any]]:
             {
                 "pessoa_id": c.pessoa_id,
                 "nome": nome or "",
-                "email": _email_da_pessoa(session, c.pessoa_id) or "",
+                "email": _email_da_pessoa(session, c.pessoa_id),  # None = ambíguo (§5.5)
                 "token": c.token,
                 "respondido_em": c.respondido_em,
             }
@@ -106,8 +112,14 @@ def exportar_convites_xlsx(session, pesquisa, base_url: str) -> io.BytesIO:
     """Planilha do recorte convidado: nome, email, link individualizado. É o que o
     cliente usa para disparar (PDPA não envia). Link = ``<base_url>/p/<token>``."""
     base = base_url.rstrip("/")
+    # §7: e-mail ambíguo (None) NUNCA sai como e-mail de outro tenant — vai uma nota
+    # acionável no lugar (o arquivo SAI do sistema, então a regra é mais estrita aqui).
     linhas = [
-        {"nome": r["nome"], "email": r["email"], "link": f"{base}/p/{r['token']}"}
+        {
+            "nome": r["nome"],
+            "email": r["email"] or "— (reimporte os contatos desta empresa)",
+            "link": f"{base}/p/{r['token']}",
+        }
         for r in _linhas_convites(session, pesquisa.id)
     ]
     bio = io.BytesIO()

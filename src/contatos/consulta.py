@@ -10,8 +10,14 @@ from src.models.local import Local
 from src.models.pessoa import Pessoa, PessoaIdentificador
 
 
-def _identificadores(session, pessoa_ids: List[int]) -> Dict[int, Dict[str, str]]:
-    """{pessoa_id: {'email':…, 'id_cliente':…}} — 1ª chave de cada fonte por pessoa."""
+def _identificadores(session, pessoa_ids: List[int], empresa_id: int) -> Dict[int, Dict[str, str]]:
+    """{pessoa_id: {'email':…, 'id_cliente':…}} escopado por empresa (§5.5):
+
+    - id_cliente: SÓ o CRM DESTA empresa (empresa_id == corrente). Nunca o CRM de
+      outro tenant — id_cliente é chave POR EMPRESA.
+    - email: é chave GLOBAL; mostra só se a pessoa tem UM e-mail (não-ambíguo). Se deu
+      e-mails distintos por empresa (≥2), oculta — não inventa procedência.
+    """
     out: Dict[int, Dict[str, str]] = {}
     if not pessoa_ids:
         return out
@@ -20,12 +26,15 @@ def _identificadores(session, pessoa_ids: List[int]) -> Dict[int, Dict[str, str]
         .filter(PessoaIdentificador.pessoa_id.in_(pessoa_ids))
         .all()
     )
+    emails: Dict[int, set] = {}
     for i in rows:
-        d = out.setdefault(i.pessoa_id, {})
-        if i.fonte == FONTE_EMAIL and "email" not in d:
-            d["email"] = i.external_id
-        elif i.fonte == FONTE_CRM and "id_cliente" not in d:
-            d["id_cliente"] = i.external_id
+        if i.fonte == FONTE_EMAIL:
+            emails.setdefault(i.pessoa_id, set()).add(i.external_id)
+        elif i.fonte == FONTE_CRM and i.empresa_id == empresa_id:
+            out.setdefault(i.pessoa_id, {})["id_cliente"] = i.external_id
+    for pid, es in emails.items():
+        if len(es) == 1:  # ≥2 e-mails distintos → oculto (ambíguo)
+            out.setdefault(pid, {})["email"] = next(iter(es))
     return out
 
 
@@ -44,7 +53,7 @@ def listar_contatos(
         q = q.filter(ContatoEmpresa.status == "ativo")
     rows = q.all()
     pessoa_ids = [c.pessoa_id for c, _, _ in rows]
-    idents = _identificadores(session, pessoa_ids)
+    idents = _identificadores(session, pessoa_ids, empresa_id)
 
     attrs: Dict[int, Dict[str, str]] = {}
     if pessoa_ids:
