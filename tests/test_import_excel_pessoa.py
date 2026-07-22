@@ -156,9 +156,10 @@ def test_import_colapsa_com_pessoa_da_pesquisa(db_session, tmp_path):
     from src.coletor.excel import _reconciliar_pessoa
 
     e = _empresa(db_session, "ECross")
-    # simula uma resposta de pesquisa que já criou a Pessoa por id_cliente
+    # simula uma resposta de pesquisa que já criou a Pessoa por id_cliente (CRM é chave
+    # POR EMPRESA — §5.5 —, então o seed carrega a MESMA empresa do import).
     pid_pesq = _reconciliar_pessoa(
-        db_session, id_cliente="CRM-99", nome="Cliente X", origem="pesquisa_web"
+        db_session, id_cliente="CRM-99", nome="Cliente X", origem="pesquisa_web", empresa_id=e
     )
     db_session.commit()
     # importa um CSAT com o MESMO id_cliente
@@ -191,8 +192,10 @@ def test_import_multichave_funde_pessoas(db_session, tmp_path):
     from src.coletor.excel import _reconciliar_pessoa
 
     e = _empresa(db_session, "EMerge")
+    # e-mail é chave GLOBAL; CRM é POR EMPRESA (§5.5) — o CRM pré-existente nasce na
+    # empresa do import, senão o lookup escopado não o reencontraria pra fundir.
     pa = _reconciliar_pessoa(db_session, email="dupla@x.com", origem="pesquisa_web")
-    pb = _reconciliar_pessoa(db_session, id_cliente="CRM-7", origem="pesquisa_web")
+    pb = _reconciliar_pessoa(db_session, id_cliente="CRM-7", origem="pesquisa_web", empresa_id=e)
     db_session.commit()
     assert pa != pb  # começam separadas
     arq = _csv(
