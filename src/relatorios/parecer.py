@@ -100,6 +100,24 @@ def _conc_ra(s, empresa_id: int) -> Dict[str, Any]:
     return {"por_sub": por_sub, "total": sum(por_sub.values())}
 
 
+def _janela_ra(s, empresa_id: int):
+    """Janela (min, max) de ``Caso.criado_em_origem`` dos casos de fonte RA — declara
+    o PERÍODO da coleta ao lado do total. Derivada do DADO (nunca hardcoded); vale p/
+    qualquer empresa. (None, None) se não houver caso RA com data."""
+    from sqlalchemy import func
+
+    from src.models.caso import Caso
+    from src.models.fonte import Fonte
+
+    mn, mx = (
+        s.query(func.min(Caso.criado_em_origem), func.max(Caso.criado_em_origem))
+        .join(Fonte, Fonte.id == Caso.fonte_id)
+        .filter(Caso.empresa_id == empresa_id, Fonte.conector_tipo == "reclame_aqui")
+        .one()
+    )
+    return mn, mx
+
+
 def _citacoes(s, empresa_id: int, k: int = 2) -> List[Dict[str, Any]]:
     """Citações reais curadas: detratores RA de casos com a CAUSA NÃO RESOLVIDA,
     texto ESPESSO (>200 chars — carrega fato concreto). Ordena do mais espesso
@@ -596,6 +614,7 @@ def montar_dados(
 
         agg = agregar_subpilares(s, empresa_id)
         ra = _conc_ra(s, empresa_id)
+        ra_ini, ra_fim = _janela_ra(s, empresa_id)  # período da coleta RA (do dado)
         # A FERIDA = subpilar de MAIOR concentração de reclamações RA (a dor mais
         # concentrada, def. da pauta '62% moram na Mutualidade') — NÃO o de maior %
         # detrator, que elegia bucket minúsculo 100%-detrator. Fallback (sem RA):
@@ -796,6 +815,10 @@ def montar_dados(
                 ),
                 "n": ra["por_sub"].get(fer_sub, 0) if fer_sub else 0,
                 "total": ra["total"],
+                # Janela da coleta RA (derivada de Caso.criado_em_origem) — declara o
+                # período ao lado do total. None quando não há caso RA com data.
+                "janela_ini": ra_ini.strftime("%d/%m/%Y") if ra_ini else None,
+                "janela_fim": ra_fim.strftime("%d/%m/%Y") if ra_fim else None,
                 "ratio": f"{fer_agg['ratio']:.2f}".replace(".", ",") if fer_agg else "—",
                 "detratores": fer_agg["det"] if fer_agg else 0,
                 "promotores": fer_agg["prom"] if fer_agg else 0,

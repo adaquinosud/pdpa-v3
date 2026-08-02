@@ -159,7 +159,7 @@
   <table class="tese-grid">
     <tr>
       <td class="k"><div class="kl">A voz pública</div><div class="kn">{{ d.tese.voz.pct }}%</div></td>
-      <td class="v">das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}). No diagnóstico geral, o ratio é <strong>{{ d.tese.voz.ratio }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
+      <td class="v">das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}). No diagnóstico geral, o ratio é <strong>{{ d.tese.voz.ratio }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
     </tr>
     <tr>
       <td class="k"><div class="kl">A conduta</div><div class="kn">{% if d.ato2a.maturidade.madura %}{{ d.tese.conduta.resolve }}%{% else %}{{ d.tese.conduta.responde }}%{% endif %}</div></td>

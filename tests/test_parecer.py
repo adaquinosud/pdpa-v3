@@ -116,6 +116,71 @@ def test_montar_dados_completo(db_session):
     assert "A tese" in _render(d) and e.nome in _render(d)
 
 
+def test_parecer_declara_janela_da_coleta(db_session):
+    """O total de casos RA sai com o PERÍODO da coleta, derivado de
+    Caso.criado_em_origem (min..max), nunca hardcoded."""
+    from datetime import datetime
+
+    e = _empresa(db_session, "janela")
+    f = _fonte(db_session, e)
+    db_session.add(
+        Caso(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="J1",
+            criado_em_origem=datetime(2026, 6, 23, 10, 20),
+        )
+    )
+    db_session.add(
+        Caso(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            origem_id="J2",
+            criado_em_origem=datetime(2026, 7, 9, 10, 42),
+        )
+    )
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            texto="cobrança errada e ninguém resolveu",
+            tem_texto=True,
+            subpilar="Pa2",
+            tipo="detrator",
+            hash_dedup="hj",
+        )
+    )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    assert d["tese"]["voz"]["janela_ini"] == "23/06/2026"
+    assert d["tese"]["voz"]["janela_fim"] == "09/07/2026"
+    assert "registrados entre 23/06/2026 e 09/07/2026" in _render(d)
+
+
+def test_parecer_sem_data_omite_janela(db_session):
+    """Sem data conhecida (min/max None), a janela some — não inventa período."""
+    e = _empresa(db_session, "semdata")
+    f = _fonte(db_session, e)
+    db_session.add(Caso(empresa_id=e.id, fonte_id=f.id, origem_id="S1"))  # sem criado_em_origem
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            texto="cobrança errada e ninguém resolveu",
+            tem_texto=True,
+            subpilar="Pa2",
+            tipo="detrator",
+            hash_dedup="hs",
+        )
+    )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    assert d["tese"]["voz"]["janela_ini"] is None and d["tese"]["voz"]["janela_fim"] is None
+    assert "registrados entre" not in _render(d)
+
+
 def test_sintetizar_parecer_cacheia(db_session):
     from src.relatorios.parecer import montar_dados as _md
     from src.relatorios.parecer import sintetizar_parecer
