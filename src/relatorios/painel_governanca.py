@@ -14,7 +14,7 @@ from typing import Any, Dict
 
 def montar_dados(empresa_id: int) -> Dict[str, Any]:
     from src.api.painel import NOME_PILAR, NOME_SUBPILAR, PILAR_DE_SUBPILAR
-    from src.diagnostico.leituras import agregar_subpilares
+    from src.diagnostico.leituras import _gargalo, agregar_subpilares
     from src.governanca.leitura import (
         cobertura_governanca,
         distribuicao_previsibilidade,
@@ -70,10 +70,12 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
     # GARGALO + seu Proximity. DINÂMICA — lê o gargalo real da empresa (não fixa
     # "Precisão"/"3"). Fallback p/ excelência quando não há pilar com lastro. ──
     eyebrow = "Painel de Governança · PDPA"
-    gp_pilar = None
-    if pilares:
-        com_val = {p: dd["valor"] for p, dd in pilares.items() if dd["valor"] is not None}
-        gp_pilar = min(com_val, key=com_val.get) if com_val else None
+    # Gargalo CANÔNICO (§7 gargalo_sequencial), NÃO "menor Proximity": o pilar que
+    # trava a jornada sequencial P→D→Pa→A. Se a regra não aponta pilar (nada
+    # crítico/fraco) OU o pilar-gargalo não tem Proximity para exibir, cai no ramo de
+    # excelência (fallback abaixo, já existente).
+    gp = _gargalo(agg)
+    gp_pilar = gp if (gp is not None and (pilares.get(gp) or {}).get("valor") is not None) else None
     if gp_pilar is not None:
         _gnome = NOME_PILAR.get(gp_pilar, gp_pilar)
         capa = {

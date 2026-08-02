@@ -1680,11 +1680,14 @@ def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
 # ── B6.6 CP-5: tela dedicada de temas ─────────────────────────────────
 
 
-def _montar_mapa_lastro(n1, n2):
+def _montar_mapa_lastro(n1, n2, gargalo):
     """Mapa de Lastro: 4 pilares (ratio+faixa) com seus subpilares + gargalo.
 
     Reusa os dados de painel_nivel1 (pilares) e painel_nivel2 (matriz de
-    subpilares). Gargalo = pilar de menor ratio entre os com volume > 0.
+    subpilares). O ``gargalo`` (pilar ou None) é a regra CANÔNICA sequencial
+    (§7 gargalo_sequencial), computada pelo caller a partir do agg — NÃO o
+    "menor ratio" antigo, que contradizia o cabeçalho sequencial do Lastro e
+    marcava um falso gargalo quando nenhum pilar estava crítico/fraco.
     """
     from src.api.painel import PILARES_ORDEM
 
@@ -1692,8 +1695,6 @@ def _montar_mapa_lastro(n1, n2):
     subs_por_pilar = {}
     for cell in n2.get("matriz", []):
         subs_por_pilar.setdefault(cell["pilar"], []).append(cell)
-    candidatos = [(p["pilar"], p["ratio"]) for p in n1.get("pilares", []) if p.get("total", 0) > 0]
-    gargalo = min(candidatos, key=lambda x: x[1])[0] if candidatos else None
 
     mapa = []
     for pid in PILARES_ORDEM:
@@ -1714,7 +1715,7 @@ def _montar_mapa_lastro(n1, n2):
                 "subpilares": subs_por_pilar.get(pid, []),
             }
         )
-    return mapa, gargalo
+    return mapa
 
 
 def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
@@ -1921,8 +1922,14 @@ def _aba_temas(empresa_id, empresa_w):
             for r in anoms
             if r.tipo == "cruzamento" and r.chave and ":" in r.chave
         }
+        # Gargalo canônico (§7 gargalo_sequencial) — MESMO agg all-time que a aba
+        # Diagnóstico usa (_gargalo), não o "menor ratio" local antigo. Escopo =
+        # filtro de agrupamento da aba, como na Diagnóstico.
+        from src.diagnostico.leituras import _gargalo, agregar_subpilares
 
-    mapa_lastro, gargalo = _montar_mapa_lastro(n1, n2)
+        gargalo = _gargalo(agregar_subpilares(s, empresa_id, ag_filtro))
+
+    mapa_lastro = _montar_mapa_lastro(n1, n2, gargalo)
 
     # Fatia 2: etiqueta de quadrante de Propagação por tema — SÓ os ACIONÁVEIS
     # (Crítico/Acelerando); os demais quadrantes vivem só na tela Propagação. Assim a
