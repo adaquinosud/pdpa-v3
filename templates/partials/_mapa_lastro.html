@@ -9,7 +9,8 @@
    só são referenciados DENTRO desse bloco). Globais: ratio_em_palavras, selo_emoji,
    glossario_i. Cores de `_faixas.html` (fx.FCLASS) — mesmos valores do fclass inline. #}
 <h3 class="text-sm font-semibold text-loyall-700 mb-1">Mapa de Lastro {{ glossario_i('pilar') }}</h3>
-<p class="text-xs text-loyall-500 mb-2">Jornada sequencial P→D→Pa→A — resolva o gargalo {{ glossario_i('gargalo') }} antes de investir nos pilares seguintes.</p>
+{% set _tem_gargalo = pilares | selectattr('gargalo') | list | length > 0 %}
+<p class="text-xs text-loyall-500 mb-2">{% if _tem_gargalo %}Jornada sequencial P→D→Pa→A — resolva o gargalo {{ glossario_i('gargalo') }} antes de investir nos pilares seguintes.{% else %}Jornada sequencial P→D→Pa→A. Nenhum pilar em faixa crítica ou fraca — a jornada não tem elo travado. A leitura fina está nos subpilares.{% endif %}</p>
 <div class="flex flex-wrap items-stretch gap-2 mb-4">
   {% for p in pilares %}
   {% set fc = fx.FCLASS[p.faixa] %}
