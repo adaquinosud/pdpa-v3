@@ -1443,6 +1443,29 @@ def test_painel_governanca_pdf_monta_e_renderiza(app, db_session, usuario_loyall
     assert "em formação" in html  # cobertura no PDF
 
 
+def test_painel_governanca_capa_usa_gargalo_canonico_nao_min(app, db_session):
+    """Frente 2: a capa-choque escolhe o pilar pela regra CANÔNICA (gargalo_sequencial),
+    não pelo 'menor Proximity'. Empresa toda saudável (P1 só promotores → nada
+    crítico/fraco) → gargalo=None → capa cai no ramo de excelência (Ouro), NÃO inventa
+    'Precisão em NN/100' como o min antigo faria."""
+    from src.diagnostico.leituras import _gargalo, agregar_subpilares
+    from src.governanca.metricas import recalcular_governanca
+    from src.relatorios.painel_governanca import montar_dados
+
+    e, fonte = _empresa_fonte(db_session)
+    loja = Local(empresa_id=e.id, nome="Saudavel")
+    db_session.add(loja)
+    db_session.commit()
+    _verbs(db_session, e, fonte, loja, "P1", "promotor", 30, "sp")  # ratio 9.99 → sem gargalo
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    assert _gargalo(agregar_subpilares(db_session, e.id, None)) is None  # pré-condição
+    capa = montar_dados(e.id)["capa"]["numero"]
+    assert "Ouro" in capa  # ramo de excelência (fallback), não a capa de pilar-gargalo
+    assert "/100" not in capa
+
+
 # ── CP-LG-3.1: Heatmap loja×subpilar de detratores ─────────────────────────
 def test_heatmap_detratores_top_n_e_celulas(db_session):
     from src.governanca.leitura import heatmap_detratores
