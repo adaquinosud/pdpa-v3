@@ -106,7 +106,13 @@
       <span class="text-sm text-loyall-400">/ 10</span>
     </div>
     <div class="text-xs text-{{ ig_cls }}-700 mt-1 capitalize">{{ n1.indice_geral_faixa }}</div>
-    <div class="text-xs text-loyall-400 mt-2">Saúde da relação {{ n1.filtros_descricao }}. Pilar travado puxa o índice para baixo.</div>
+    {# Pior pilar = min ratio entre volume>0 (o MESMO que calcular_indice_geral usa).
+       A frase final é auto-verificável (executivo faz pior×2 = índice), então só aparece
+       quando o pior pilar É o binding: pior*2 == indice_geral (senão a média ponderada é
+       o teto e a conta não fecharia). Sem pilar com volume → some. #}
+    {% set _com_vol = n1.pilares | selectattr('total') | list %}
+    {% set _pior = (_com_vol | min(attribute='ratio')) if _com_vol else none %}
+    <div class="text-xs text-loyall-400 mt-2">Não é média — é o pior pilar que define o teto. O Lastro é sequência: um elo fraco limita o conjunto, mesmo com os outros fortes.{% if _pior and (_pior.ratio * 2) | round(2) == n1.indice_geral %} Aqui, {{ _pior.nome }} em {{ ('%.2f'|format(_pior.ratio))|replace('.', ',') }} é o teto.{% endif %}</div>
   </div>
   {# Proximity do escopo ativo (CP-LG-4): loja → "da Loja"; senão "Geral" #}
   {% set prox_cls = {'distante':'rose','medio':'amber','proximo':'emerald'}.get(proximity.faixa, 'slate') %}
