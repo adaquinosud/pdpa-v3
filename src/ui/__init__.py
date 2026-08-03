@@ -1549,11 +1549,36 @@ def _aba_painel(empresa_id, empresa_w):
             proximity_pilares_escopo(s, empresa_id, escopo_tipo, escopo_id)
         )
         proximity["binding_pilar_nome"] = NOME_PILAR.get(_bind, _bind) if _bind else None
+        # Previsibilidade — estado p/ a copy por-variante. `estado` ∈ {sem_dado, erratico,
+        # medio, estavel}. Guard T1: no escopo empresa, 70,0 default (sem dispersão medível)
+        # vira 'sem_dado' — o card não apresenta um default como medição.
+        from src.api.painel import CONCENTRACAO_MIN_LOJAS_LEITURA
+        from src.governanca.metricas import calcular_faixa_previsibilidade
+
         if escopo_tipo == "loja":
             pv = previsibilidade_loja(s, empresa_id, escopo_id)
             previsib = {"valor": pv["valor"], "faixa": pv["faixa"], "fonte": "loja"}
+            previsib["estado"] = "sem_dado" if pv["valor"] is None else pv["faixa"]
         else:
-            previsib = {"valor": n1.get("previsibilidade"), "faixa": None, "fonte": "empresa"}
+            _pv = n1.get("previsibilidade")
+            _faixa = calcular_faixa_previsibilidade(_pv)  # hoje None no card empresa — liga aqui
+            previsib = {"valor": _pv, "faixa": _faixa, "fonte": "empresa"}
+            previsib["estado"] = "sem_dado" if not n1.get("previsibilidade_medida") else _faixa
+        # Concentração — estado p/ a copy. Guard T2: < piso de lojas medidas → 'poucas_lojas'
+        # (top-5 é a maioria das lojas, leitura de concentração é trivial). Senão, a faixa.
+        _cp = n1.get("concentracao_detratores")
+        _cn = n1.get("concentracao_n_lojas", 0)
+        _c_estado = (
+            "poucas_lojas"
+            if (_cp is None or _cn < CONCENTRACAO_MIN_LOJAS_LEITURA)
+            else n1.get("concentracao_faixa")
+        )
+        concentracao = {
+            "pct": _cp,
+            "faixa": n1.get("concentracao_faixa"),
+            "n_lojas": _cn,
+            "estado": _c_estado,
+        }
         # Gini (CP-LG-3) só existe p/ empresa/agrupamento — N/A em loja única.
         gini = gini_escopo(s, empresa_id, escopo_tipo, escopo_id) if escopo_tipo != "loja" else None
         # Selo de excelência (CP-LG-6) — só no escopo loja.
@@ -1588,6 +1613,7 @@ def _aba_painel(empresa_id, empresa_w):
         "escopo_tipo": escopo_tipo,
         "proximity": proximity,
         "previsib": previsib,
+        "concentracao": concentracao,
         "gini": gini,
         "selo": selo,
     }

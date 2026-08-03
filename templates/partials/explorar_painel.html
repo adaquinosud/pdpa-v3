@@ -124,10 +124,10 @@
       <span class="text-sm text-loyall-400">/ 100</span>
     </div>
     <div class="text-xs text-{{ prox_cls }}-700 mt-1 capitalize">{{ proximity.faixa }}</div>
-    <div class="text-xs text-loyall-400 mt-2">Distância da excelência consolidada (ratio 9.0). É o pilar mais distante que fixa o conjunto — não a média.{% if proximity.binding_pilar_nome %} Aqui, {{ proximity.binding_pilar_nome }}.{% endif %}</div>
+    <div class="text-xs text-loyall-400 mt-2">Distância até a excelência (ratio 9,0). Começar baixo é o normal — o que importa é a evolução, não o valor absoluto. Hoje: {{ '%.0f'|format(proximity.valor) }}{% if proximity.binding_pilar_nome %}, puxado por {{ proximity.binding_pilar_nome }}{% endif %}.</div>
     {% else %}
     <div class="mt-1 text-loyall-300 text-3xl font-bold" title="Volume insuficiente (&lt; 10 verbatins/subpilar)">—</div>
-    <div class="text-xs text-loyall-400 mt-1">sem dado — volume insuficiente.</div>
+    <div class="text-xs text-loyall-400 mt-1">Ainda não há volume suficiente por subpilar para medir a distância até a excelência.</div>
     {% endif %}
   </div>
 
@@ -149,26 +149,33 @@
     {% endif %}
   </div>
   {% else %}
+  {% set prev_cls = {'erratico':'rose','medio':'amber','estavel':'emerald'}.get(previsib.faixa, 'slate') %}
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Previsibilidade {{ glossario_i('previsibilidade') }}</div>
+    {% if previsib.estado == 'sem_dado' %}
+    <div class="mt-1 text-loyall-300 text-3xl font-bold">—</div>
+    <div class="text-xs text-loyall-400 mt-1">Ainda não há histórico suficiente para medir consistência.</div>
+    {% else %}
     <div class="flex items-baseline gap-2 mt-1">
-      <span class="text-3xl font-bold text-loyall-800">{{ '%.0f'|format(n1.previsibilidade) }}</span>
+      <span class="text-3xl font-bold text-{{ prev_cls }}-600">{{ '%.0f'|format(n1.previsibilidade) }}</span>
       <span class="text-sm text-loyall-400">/ 100</span>
     </div>
-    <div class="text-xs text-loyall-400 mt-2">Consistência da experiência {{ n1.filtros_descricao }}. Baixa = experiência de loteria.</div>
+    <div class="text-xs text-{{ prev_cls }}-700 mt-1 capitalize">{{ previsib.faixa }}</div>
+    <div class="text-xs text-loyall-400 mt-2">{% if previsib.estado == 'erratico' %}A experiência varia muito entre lojas e meses — o cliente não sabe o que vai encontrar. É problema de padronização, não de capacidade.{% elif previsib.estado == 'medio' %}A experiência oscila entre lojas e meses. Padronizar o que já funciona é o caminho mais curto.{% else %}A experiência é consistente entre lojas e no tempo — o que for corrigido tende a se manter.{% endif %}</div>
+    {% endif %}
   </div>
   {% endif %}
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Concentração (top-5) {{ glossario_i('concentracao-detratores', align='right') }}</div>
-    {% if n1.concentracao_detratores is not none %}
-    <div class="flex items-baseline gap-2 mt-1">
-      <span class="text-3xl font-bold text-{{ conc_cls }}-600">{{ '%.0f'|format(n1.concentracao_detratores) }}%</span>
-    </div>
-    <div class="text-xs text-{{ conc_cls }}-700 mt-1 capitalize">{{ n1.concentracao_faixa }}</div>
-    <div class="text-xs text-loyall-400 mt-2">Onde dói {{ n1.filtros_descricao }}. Alta = problema cirúrgico em poucas lojas. Baixa = problema sistêmico.</div>
-    {% else %}
+    {% if concentracao.estado == 'poucas_lojas' %}
     <div class="mt-1 text-loyall-300 text-3xl font-bold">—</div>
-    <div class="text-xs text-loyall-400 mt-1">Onde dói. Indisponível: precisa ≥ 5 lojas com volume mínimo.</div>
+    <div class="text-xs text-loyall-400 mt-1">Poucas lojas com dado suficiente — ainda não dá para dizer se a dor está concentrada ou espalhada.</div>
+    {% else %}
+    <div class="flex items-baseline gap-2 mt-1">
+      <span class="text-3xl font-bold text-{{ conc_cls }}-600">{{ '%.0f'|format(concentracao.pct) }}%</span>
+    </div>
+    <div class="text-xs text-{{ conc_cls }}-700 mt-1 capitalize">{{ concentracao.faixa }}</div>
+    <div class="text-xs text-loyall-400 mt-2">{% if concentracao.estado == 'cirurgico' %}{{ '%.0f'|format(concentracao.pct) }}% da dor vem das 5 lojas de pior experiência. Intervenção cirúrgica em poucos pontos resolve a maior parte.{% elif concentracao.estado == 'misto' %}{{ '%.0f'|format(concentracao.pct) }}% da dor vem das 5 piores lojas — parte é local, parte é do processo. Vale atacar os dois.{% else %}Só {{ '%.0f'|format(concentracao.pct) }}% da dor vem das 5 piores lojas — está espalhada pela rede. Corrigir processo, não unidade.{% endif %}</div>
     {% endif %}
   </div>
 
@@ -185,10 +192,10 @@
       <span class="cursor-help" title="Gini corrigido por viés-de-n ({{ gini.total_lojas }} lojas); bruto {{ '%.2f'|format(gini.gini_bruto) }}">{{ '%.2f'|format(gini.gini_corrigido) }} / 1.00</span>
       · <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=concentracao&agrupamento_id={{ filtros.agrupamento_id }}" class="underline hover:text-loyall-600">ver aba</a>
     </div>
-    <div class="text-xs text-loyall-400 mt-2">Quão concentrados os detratores estão entre as lojas.</div>
+    <div class="text-xs text-loyall-400 mt-2">{% if gini.faixa == 'baixa' %}A dor é parecida em todas as lojas — não há um grupo que já acerte. A causa é do processo.{% elif gini.faixa == 'media' %}A dor é desigual entre as lojas. Há unidades que sofrem menos — vale entender o que fazem diferente.{% else %}A dor está muito concentrada em poucas lojas. A maioria já acerta — procure o que essas fazem e replique.{% endif %}</div>
     {% else %}
     <div class="mt-1 text-loyall-300 text-3xl font-bold">—</div>
-    <div class="text-xs text-loyall-400 mt-1">sem dado — &lt; 5 lojas medidas.</div>
+    <div class="text-xs text-loyall-400 mt-1">Poucas lojas com dado para comparar distribuição.</div>
     {% endif %}
   </div>
   {% endif %}
@@ -206,7 +213,7 @@
       <span class="text-loyall-300">·</span>
       <span title="Consistência: meses com verbatim na janela">Regularidade {{ (100 * n1.engajamento_componentes.consistencia) | round | int }}%</span>
     </div>
-    <div class="text-xs text-loyall-400 mt-2">Pré-condição operacional. Sem volume/diversidade/regularidade, os demais indicadores são especulativos.</div>
+    <div class="text-xs text-loyall-400 mt-2">Não mede a relação — mede se há dado para confiar nos outros números. {% if n1.engajamento_selo == 'alta' %}Aqui há base suficiente.{% else %}Ainda é pouco: colete mais fontes antes de decidir.{% endif %}</div>
   </div>
 </div>
 

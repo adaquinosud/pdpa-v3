@@ -760,6 +760,48 @@ def faixa_concentracao(pct: Optional[float]) -> str:
     return "sistemico"
 
 
+# ── Guards de LEITURA dos cards (T1/T2) — queries à parte, cálculo INTOCADO ──────
+CONCENTRACAO_MIN_LOJAS_LEITURA = 10  # abaixo disto o top-5 é a maioria das lojas → trivial
+
+
+def previsibilidade_medida(empresa_id: int, s, base_query_args: Dict[str, Any]) -> bool:
+    """Há dispersão MEDÍVEL em ≥1 eixo? (≥2 lojas com ≥5 verbatins OU ≥3 meses com ≥3 —
+    as MESMAS condições de calcular_previsibilidade:616,621). Distingue previsibilidade
+    medida do default 70,0 (var_locais=var_temporal=0). NÃO toca o cálculo."""
+    q_loc = (
+        s.query(Verbatim.local_id, func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.local_id.isnot(None))
+        .group_by(Verbatim.local_id)
+    )
+    n_lojas = sum(
+        1 for _, c in _apply_query_args(q_loc, empresa_id, s, base_query_args).all() if c >= 5
+    )
+    if n_lojas >= 2:
+        return True
+    mes_expr = fmt_ano_mes(Verbatim.data_criacao_original)
+    q_mes = (
+        s.query(mes_expr, func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.data_criacao_original.isnot(None))
+        .group_by(mes_expr)
+    )
+    n_meses = sum(
+        1 for _, c in _apply_query_args(q_mes, empresa_id, s, base_query_args).all() if c >= 3
+    )
+    return n_meses >= 3
+
+
+def concentracao_n_lojas(empresa_id: int, s, base_query_args: Dict[str, Any]) -> int:
+    """Nº de lojas com ≥5 verbatins (mesma base/piso de calcular_concentracao_detratores:730).
+    O cálculo só devolve o pct; esta contagem alimenta o guard T2 (top-5 trivial com poucas
+    lojas). NÃO toca o cálculo."""
+    q = (
+        s.query(Verbatim.local_id, func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.local_id.isnot(None))
+        .group_by(Verbatim.local_id)
+    )
+    return sum(1 for _, c in _apply_query_args(q, empresa_id, s, base_query_args).all() if c >= 5)
+
+
 # ── Texto descritivo do escopo (Bloco 5 hotfix UI) ────────────────────
 
 # Mapa amigável de conector → nome legível para a descrição do escopo.
@@ -1012,7 +1054,9 @@ def painel_nivel1(empresa_id: int):
         pct_conv = (conversiveis / verbatins_classificados) if verbatins_classificados else 0.0
 
         previsibilidade = calcular_previsibilidade(empresa_id, s, filtros_query, pct_conv)
+        previsib_medida = previsibilidade_medida(empresa_id, s, filtros_query)  # guard T1
         concentracao_pct = calcular_concentracao_detratores(empresa_id, s, filtros_query)
+        conc_n_lojas = concentracao_n_lojas(empresa_id, s, filtros_query)  # guard T2
         # Engajamento (CP-E1): 4º indicador — pré-condição operacional (volume/
         # diversidade/consistência) + selo de confiança por volume.
         engaj = engajamento_escopo(empresa_id, s, filtros_query)
@@ -1068,8 +1112,10 @@ def painel_nivel1(empresa_id: int):
             "indice_geral": indice_geral,
             "indice_geral_faixa": faixa_indice_geral(indice_geral),
             "previsibilidade": previsibilidade,
+            "previsibilidade_medida": previsib_medida,  # guard T1 (default 70,0 vs medido)
             "concentracao_detratores": concentracao_pct,
             "concentracao_faixa": faixa_concentracao(concentracao_pct),
+            "concentracao_n_lojas": conc_n_lojas,  # guard T2 (top-5 trivial c/ poucas lojas)
             # Engajamento (CP-E1): índice 0-100 + componentes + selo de confiança.
             "indice_engajamento": engaj["indice"],
             "engajamento_componentes": engaj["componentes"],
