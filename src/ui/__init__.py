@@ -4699,6 +4699,8 @@ def _explorar_vitrine(s, empresa_id):
         n_recente=None,
         universo=None,
         fragil=False,
+        data_snapshot=None,
+        estilo_neutro=False,
     ):
         """status: verde/vermelho/nao_medido/aguardando/info/fragil; gap só com
         valor+corte. ``n_base`` = N de apoio; ``n_recente`` = M nos 90d; ``universo`` =
@@ -4728,6 +4730,10 @@ def _explorar_vitrine(s, empresa_id):
             "n_base": n_base,
             "n_recente": n_recente,
             "universo": universo,
+            "data_snapshot": data_snapshot,
+            # display-only: pinta o card de neutro SEM mexer no `status` (que segue
+            # alimentando o veredito de reputação a jusante). Ver o call-site de nota_ra.
+            "estilo_neutro": estilo_neutro,
         }
 
     # Nota dos consumidores (RA): consumer_score = consumerScore (a nota que outros
@@ -4740,11 +4746,24 @@ def _explorar_vitrine(s, empresa_id):
             "nota_ra",
             "RA · nota dos consumidores",
             nota_ra,
+            # VEREDITO × DISPLAY — separados DE PROPÓSITO (decisão 2026-08-03):
+            # - O corte 4,5★ SEGUE valendo para o STATUS (vermelho/verde), que alimenta o
+            #   veredito INTERNO de reputação (vitrine_posicao / leitura_reputacao /
+            #   reputacao_estado). É o que sustenta a divergência "relação forte × reputação
+            #   fraca" (Manual cap.15) — e o RA é o canal de REPARO, o lado "cuida mal".
+            # - MAS esse corte é RECONHECIDAMENTE NÃO calibrado p/ a escala 0-10 do RA (até
+            #   RA1000, 8,8→4,4★, cairia < 4,5). Por isso `estilo_neutro` neutraliza SÓ o
+            #   CARD (sem verde/vermelho, sem "ABAIXO DO CORTE"): não se exibe cru ao cliente
+            #   um veredito de régua incomensurável — falso e verificável em 5s por uma
+            #   empresa RA1000. A inconsistência é CONHECIDA e DATADA, não esquecida;
+            #   resolvida na frente futura "corte por fonte" ({"estrela":4.5,"reclame_aqui":<cal>}).
             cfg["nota_corte"],
             "★",
-            "RA oficial · o que outros consumidores deram (0-10 → 5★)",
+            "leitura do perfil RA · o que outros consumidores deram (0-10 → 5★)",
             aguardando=(nota_ra is None),  # sem perfil OU score ausente = lacuna nossa
             universo=ra_universo,  # complaints6Months (apoio, 6 meses), NÃO a amostra
+            data_snapshot=(rep.coletado_em if rep else None),  # data do snapshot RA
+            estilo_neutro=True,  # SÓ display neutro; status/veredito seguem ativos (ver acima)
         ),
         _sinal(
             "rating_amostra",
@@ -4764,13 +4783,15 @@ def _explorar_vitrine(s, empresa_id):
         ),
         _sinal(
             "resposta_ra",
-            "Taxa de resposta (RA oficial)",
+            # NÃO "RA oficial": o valor é leitura da janela RECENTE do perfil (via actor,
+            # scrapeComplaints=False) e sobe monotônico p/ ~100% — NÃO é o índice oficial
+            # de resposta do site (que pode divergir). Rótulo sem autoridade indevida.
+            "Taxa de resposta · perfil RA",
             (rep.response_rate if rep else None),
             None,  # sem corte de taxa; a velocidade (7d) é v2
             "%",
-            "RA oficial",
+            "leitura do perfil RA · janela recente (não o índice oficial do site)",
             obs="velocidade de resposta (7d) fica para o v2",
-            # RA oficial: sem valor = lacuna nossa (aguardando perfil), não 'não medido'
             aguardando=(rep is None or rep.response_rate is None),
         ),
     ]

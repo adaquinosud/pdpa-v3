@@ -97,6 +97,40 @@ def test_vitrine_nota_solida_verde(db_session):
     assert rat["n_base"] == 22 and rat["n_recente"] == 18
 
 
+def test_vitrine_nota_ra_display_neutro_mas_veredito_ativo(app, db_session):
+    """(b) DISPLAY × VEREDITO separados de propósito. nota_ra RUIM (8,4→4,2★ < 4,5):
+    o STATUS segue 'vermelho' e alimenta o veredito a jusante (vitrine_posicao='fraca'),
+    MAS o CARD sai NEUTRO — sem 'abaixo do corte' — porque o corte 4,5★ não é calibrado
+    p/ a escala 0-10 do RA. Trava em código que a separação é deliberada, não bug."""
+    from flask import render_template
+
+    from src.financeiro.visao import vitrine_posicao
+
+    e, f = _base(db_session)
+    db_session.add(
+        FonteReputacao(
+            fonte_id=f.id,
+            empresa_id=e.id,
+            provedor="reclame_aqui",
+            consumer_score=8.4,  # 8.4/2 = 4.2★ < 4.5 → status vermelho
+            raw_json='{"complaints6Months": 6414}',
+        )
+    )
+    db_session.commit()
+
+    nota = _sig(ui._explorar_vitrine(db_session, e.id), "nota_ra")
+    # VEREDITO intacto: status/gap ativos, corte real, e o jusante segue 'fraca'
+    assert nota["status"] == "vermelho" and nota["gap"] == 0.3 and nota["corte"] == 4.5
+    assert nota["estilo_neutro"] is True
+    assert vitrine_posicao(db_session, e.id) == "fraca"  # downstream NÃO neutralizado
+
+    # DISPLAY neutro: apesar do status vermelho, o card não pinta "abaixo do corte"
+    v = ui._explorar_vitrine(db_session, e.id)
+    with app.test_request_context():
+        html = render_template("partials/explorar_vitrine.html", vitrine=v)
+    assert "abaixo do corte" not in html  # o selo vermelho do RA foi neutralizado
+
+
 def test_vitrine_amostra_minima_vira_nao_medido(db_session):
     """N < amostra_min (5): sem número → 'não medido', não uma nota "boa"."""
     e, f = _base(db_session)

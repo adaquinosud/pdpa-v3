@@ -25,7 +25,8 @@
   } %}
   <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
     {% for sig in v.sinais %}
-    {% set c = cor[sig.status] %}
+    {# estilo_neutro: pinta neutro SÓ o card, sem mexer no status (que segue no veredito) #}
+    {% set c = cor['info'] if sig.estilo_neutro else cor[sig.status] %}
     <div class="border {{ c.bd }} {{ c.bg }} rounded-lg px-3 py-3 min-w-0">
       <div class="flex items-center justify-between gap-2">
         <div class="text-xs text-loyall-500 truncate" title="{{ sig.label }}">{{ sig.label }}</div>
@@ -36,13 +37,13 @@
       </div>
       {# Apoio, sem SOMAR fontes: universo oficial (Reputação RA) OU N + M-90d (Nota outras fontes) #}
       {% if sig.universo %}
-      <div class="text-[11px] text-loyall-400 mt-0.5">sobre {{ "{:,}".format(sig.universo).replace(",", ".") }} reclamações · últimos 6 meses</div>
+      <div class="text-[11px] text-loyall-400 mt-0.5">sobre {{ "{:,}".format(sig.universo).replace(",", ".") }} reclamações · últimos 6 meses{% if sig.data_snapshot %} · coletado {{ sig.data_snapshot.strftime('%d/%m/%Y') }}{% endif %}</div>
       {% elif sig.n_base %}
       <div class="text-[11px] text-loyall-400 mt-0.5">{{ sig.n_base }} avaliações{% if sig.n_recente %}, {{ sig.n_recente }} nos últimos 90d{% endif %}</div>
       {% endif %}
-      {% if sig.status == 'vermelho' and sig.gap %}
+      {% if sig.status == 'vermelho' and sig.gap and not sig.estilo_neutro %}
       <div class="text-xs text-rose-600 mt-0.5">{{ sig.gap }}{{ sig.unidade }} abaixo do corte de mercado {{ sig.corte }}{{ sig.unidade }}</div>
-      {% elif sig.status == 'verde' and sig.corte %}
+      {% elif sig.status == 'verde' and sig.corte and not sig.estilo_neutro %}
       <div class="text-xs text-emerald-600 mt-0.5">≥ corte de mercado {{ sig.corte }}{{ sig.unidade }}</div>
       {% elif sig.status == 'fragil' %}
       <div class="text-xs text-amber-600 mt-0.5">nota frágil — poucas avaliações (&lt; {{ v.config.volume_min }})</div>
