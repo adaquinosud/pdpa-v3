@@ -124,7 +124,7 @@
       <span class="text-sm text-loyall-400">/ 100</span>
     </div>
     <div class="text-xs text-{{ prox_cls }}-700 mt-1 capitalize">{{ proximity.faixa }}</div>
-    <div class="text-xs text-loyall-400 mt-2">Distância da excelência consolidada (ratio 9.0). O pilar gargalo puxa para baixo.</div>
+    <div class="text-xs text-loyall-400 mt-2">Distância da excelência consolidada (ratio 9.0). É o pilar mais distante que fixa o conjunto — não a média.{% if proximity.binding_pilar_nome %} Aqui, {{ proximity.binding_pilar_nome }}.{% endif %}</div>
     {% else %}
     <div class="mt-1 text-loyall-300 text-3xl font-bold" title="Volume insuficiente (&lt; 10 verbatins/subpilar)">—</div>
     <div class="text-xs text-loyall-400 mt-1">sem dado — volume insuficiente.</div>

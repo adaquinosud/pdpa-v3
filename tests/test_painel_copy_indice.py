@@ -67,6 +67,58 @@ def test_sem_pilar_com_volume_nao_quebra_e_omite_frase():
 
 def test_copy_antiga_fora_e_nova_no_template_real():
     tpl = Path("templates/partials/explorar_painel.html").read_text(encoding="utf-8")
+    # Índice Geral (item 1)
     assert "Pilar travado puxa o índice para baixo" not in tpl  # vocabulário de gargalo fora
     assert "é o pior pilar que define o teto" in tpl  # copy nova presente
     assert "(_pior.ratio * 2) | round(2) == n1.indice_geral" in tpl  # a condicional derivada
+    # Proximity Geral (item 2)
+    assert "O pilar gargalo puxa para baixo" not in tpl  # vocabulário de gargalo fora
+    assert "É o pilar mais distante que fixa o conjunto — não a média." in tpl
+    assert "proximity.binding_pilar_nome" in tpl  # nomeia o binding (condicional)
+
+
+# ── Item 2 · Proximity Geral: binding = MENOR PROXIMITY (não menor ratio) ──────
+
+_SNIPPET2 = (
+    "Distância da excelência consolidada (ratio 9.0). É o pilar mais distante que "
+    "fixa o conjunto — não a média."
+    "{% if proximity.binding_pilar_nome %} Aqui, {{ proximity.binding_pilar_nome }}.{% endif %}"
+)
+
+
+def _render2(proximity):
+    return Environment().from_string(_SNIPPET2).render(proximity=proximity)
+
+
+def test_binding_proximity_pega_menor_proximity():
+    from src.ui import _pilar_binding_proximity
+
+    # D tem a MENOR proximity (20) → binda D. O helper vê proximity, não ratio.
+    prox = {"P": {"valor": 35.0}, "D": {"valor": 20.0}, "Pa": {"valor": 48.0}}
+    assert _pilar_binding_proximity(prox) == "D"
+
+
+def test_binding_proximity_ignora_pilar_null():
+    from src.ui import _pilar_binding_proximity
+
+    # um pilar (talvez o de menor ratio) com proximity NULL não entra no min.
+    prox = {"P": {"valor": None}, "D": {"valor": 30.0}, "Pa": {"valor": 45.0}}
+    assert _pilar_binding_proximity(prox) == "D"
+
+
+def test_binding_proximity_todos_null_sem_binding():
+    from src.ui import _pilar_binding_proximity
+
+    assert _pilar_binding_proximity({"P": {"valor": None}, "D": {"valor": None}}) is None
+
+
+def test_proximity_nomeia_binding_quando_ha():
+    html = _render2({"binding_pilar_nome": "Precisão"})
+    assert "É o pilar mais distante que fixa o conjunto — não a média." in html
+    assert "Aqui, Precisão." in html  # NOME do binding derivado
+
+
+def test_proximity_omite_nome_quando_null():
+    # todos os pilares sem proximity (nenhum subpilar acima do piso) → não nomeia
+    html = _render2({"binding_pilar_nome": None})
+    assert "não a média." in html and "Aqui," not in html

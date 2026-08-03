@@ -1489,6 +1489,16 @@ def painel_empresa(empresa_id: int):
     return _explorar_render(empresa_id, "painel")
 
 
+def _pilar_binding_proximity(prox_por_pilar):
+    """Pilar que BINDA o Proximity Geral = o de MENOR proximity entre os NÃO-NULL —
+    o mesmo `min(proximity_pilar)` de `linhas_proximity_escopo` (metricas.py). É o
+    pilar a nomear no card (não o de menor ratio: a proximity do pilar é média
+    ponderada dos subpilares acima do piso, agregação distinta do ratio). None se
+    todos os pilares têm proximity NULL (sem binding derivável → não nomear)."""
+    validos = {p: d["valor"] for p, d in prox_por_pilar.items() if d.get("valor") is not None}
+    return min(validos, key=validos.get) if validos else None
+
+
 def _aba_painel(empresa_id, empresa_w):
     """Contexto da aba Painel Executivo. Retorna None em erro dos endpoints
     (→ 404 no shell)."""
@@ -1530,6 +1540,15 @@ def _aba_painel(empresa_id, empresa_w):
 
     with db_session() as s:
         proximity = proximity_escopo(s, empresa_id, escopo_tipo, escopo_id)
+        # Pilar que fixa a distância (menor proximity, o binding do min) p/ a copy do
+        # card. Nome CORRETO (não o de menor ratio); None → a frase final some.
+        from src.api.painel import NOME_PILAR
+        from src.governanca.leitura import proximity_pilares_escopo
+
+        _bind = _pilar_binding_proximity(
+            proximity_pilares_escopo(s, empresa_id, escopo_tipo, escopo_id)
+        )
+        proximity["binding_pilar_nome"] = NOME_PILAR.get(_bind, _bind) if _bind else None
         if escopo_tipo == "loja":
             pv = previsibilidade_loja(s, empresa_id, escopo_id)
             previsib = {"valor": pv["valor"], "faixa": pv["faixa"], "fonte": "loja"}
