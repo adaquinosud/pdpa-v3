@@ -57,6 +57,10 @@ class Fonte(Base):
     # ilimitado no coletor (0 = sem cap). Não são mais editáveis pela tela.
     ra_janela_meses: Mapped[Optional[int]] = mapped_column(Integer)
     ra_max_casos: Mapped[Optional[int]] = mapped_column(Integer)
+    # MODO de coleta RA: 'padrao' = só a abertura da reclamação (SEM interações/thread)
+    # → imutável, sem re-visita, sem OOM, LATEST+cap p/ qualquer porte. 'completo' = +
+    # a conversa (comportamento atual). Default 'padrao'. NULL é tratado como 'padrao'.
+    ra_modo: Mapped[Optional[str]] = mapped_column(String, server_default="padrao")
     ultima_coleta: Mapped[Optional[datetime]] = mapped_column(DateTime)
     criada_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

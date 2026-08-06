@@ -478,6 +478,7 @@ def test_planejar_coortes_respeita_ledger(db_session):
 
     e, f = _empresa_fonte(db_session)
     f.ra_coortes_ativas = 3
+    f.ra_modo = "completo"  # exercita a rota COORTE (não a padrão)
     # scorecard PEQUENO (≤400) → rota COORTE (senão, sem scorecard, cairia em mega)
     db_session.add(
         FonteReputacao(
@@ -540,6 +541,7 @@ def test_planejar_coortes_force_ignora_idempotencia(db_session):
     from src.models.fonte_reputacao import FonteReputacao
 
     e, f = _empresa_fonte(db_session)
+    f.ra_modo = "completo"  # exercita a rota COORTE (não a padrão)
     db_session.add(  # scorecard pequeno → rota coorte
         FonteReputacao(
             fonte_id=f.id,
@@ -602,6 +604,7 @@ def test_planejar_coortes_mega_vira_amostra(db_session):
     from src.models.fonte_reputacao import FonteReputacao
 
     e, f = _empresa_fonte(db_session)
+    f.ra_modo = "completo"  # exercita a rota MEGA (não a padrão, que curto-circuita antes)
     for i in range(2):  # 2 leituras grandes → média > 400 → mega
         db_session.add(
             FonteReputacao(
@@ -1060,3 +1063,80 @@ def test_cadencia_force_bypassa(db_session, monkeypatch):
     _patch_actor(monkeypatch, [_reclamacao("FC1")])
     stats = ra.coletar_threads(f, force=True)
     assert stats["pulado_cadencia"] is False and stats["casos_novos"] == 1
+
+
+# ── MODO PADRÃO (ra_modo): abertura sem thread ────────────────────────────────
+
+
+def test_ra_modo_padrao_omite_interactions(db_session, monkeypatch):
+    """Fonte padrão (ra_modo NULL→padrao): run_input SEM interações (payload leve)."""
+    e, f = _empresa_fonte(db_session)
+    cap = _capturar_input(monkeypatch, [_reclamacao("P2")])
+    ra.coletar_threads(f)
+    assert cap["includeInteractions"] is False
+
+
+def test_ra_modo_completo_pede_interactions(db_session, monkeypatch):
+    """ra_modo='completo' volta a trazer a thread (comportamento atual)."""
+    e, f = _empresa_fonte(db_session)
+    f.ra_modo = "completo"
+    db_session.commit()
+    cap = _capturar_input(monkeypatch, [_reclamacao("C2")])
+    ra.coletar_threads(f)
+    assert cap["includeInteractions"] is True
+
+
+def test_ra_padrao_nao_apaga_thread_existente(db_session, monkeypatch):
+    """Guard anti-clobber: um run PADRÃO (interactions vazio) NÃO apaga a thread/hash
+    já coletados nem zera o desfecho maduro; fatos de lifecycle atualizam."""
+    e, f = _empresa_fonte(db_session)
+    f.ra_modo = "completo"
+    db_session.commit()
+    _patch_actor(
+        monkeypatch,
+        [_reclamacao("G1", status="ANSWERED", evaluated=True, score=9, interactions=_THREAD)],
+    )
+    ra.coletar_threads(f)
+    caso = db_session.query(Caso).filter_by(origem_id="G1").one()
+    caso.desfecho = "resolvido"  # simula classificação madura
+    db_session.commit()
+    hash_antigo = caso.hash_thread
+    assert caso.thread_json not in (None, "[]", "")
+
+    f.ra_modo = "padrao"
+    db_session.commit()
+    _patch_actor(monkeypatch, [_reclamacao("G1", status="ANSWERED", evaluated=True, score=9)])
+    ra.coletar_threads(f, force=True)
+    caso = db_session.query(Caso).filter_by(origem_id="G1").one()
+    assert caso.thread_json not in (None, "[]", "")  # thread PRESERVADA
+    assert caso.hash_thread == hash_antigo  # hash PRESERVADO
+    assert caso.desfecho == "resolvido"  # desfecho NÃO zerado
+    assert caso.evaluated is True and caso.score == 9  # lifecycle atualiza
+
+
+def test_ra_completo_thread_cheia_atualiza_normalmente(db_session, monkeypatch):
+    """O guard só protege o incoming VAZIO: thread nova cheia atualiza (não é bloqueada)."""
+    e, f = _empresa_fonte(db_session)
+    _patch_actor(monkeypatch, [_reclamacao("G2")])  # 1ª coleta sem thread
+    ra.coletar_threads(f)
+    _patch_actor(monkeypatch, [_reclamacao("G2", status="ANSWERED", interactions=_THREAD)])
+    ra.coletar_threads(f, force=True)
+    caso = db_session.query(Caso).filter_by(origem_id="G2").one()
+    assert caso.thread_json not in (None, "[]", "") and caso.thread_mudou_em is not None
+
+
+def test_planejar_padrao_curto_circuita_amostra(db_session):
+    """ra_modo=padrao → rota AMOSTRA (LATEST+cap) p/ qualquer porte: 1 item, não coortes."""
+    e, f = _empresa_fonte(db_session)  # padrao (NULL)
+    f.ra_coortes_ativas = 3
+    f.ra_max_casos = 400
+    db_session.commit()
+    assert ra.planejar_coortes(db_session, f) == [{"acao": "amostra", "cap": 400}]
+
+
+def test_planejar_padrao_respeita_coortes_zero(db_session):
+    """A trava n<=0 (threads OFF) continua valendo no modo padrão."""
+    e, f = _empresa_fonte(db_session)
+    f.ra_coortes_ativas = 0
+    db_session.commit()
+    assert ra.planejar_coortes(db_session, f) == []

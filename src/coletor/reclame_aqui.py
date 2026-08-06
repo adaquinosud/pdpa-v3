@@ -205,12 +205,21 @@ def _upsert_caso(
             return "novo_com_verbatim" if criou_verbatim else "novo_sem_descricao"
 
         # Existente → atualiza os fatos mutáveis + thread; NÃO recria verbatim.
+        # GUARD anti-clobber (modo padrão): um run sem thread (interactions vazio,
+        # thread_json="[]") NÃO pode apagar a conversa/hash já coletados de um caso que
+        # tem thread — nem disparar o falso "hash mudou" que zeraria o desfecho maduro.
+        # Data-driven (independe do modo): vale para qualquer coleta com thread vazio.
+        _vazio = norm.get("thread_json") in (None, "[]", "")
+        _tinha_thread = caso.thread_json not in (None, "[]", "")
+        preservar_thread = _vazio and _tinha_thread
         for c in campos:
+            if c == "thread_json" and preservar_thread:
+                continue  # mantém a conversa já coletada
             setattr(caso, c, norm.get(c))
         caso.ultima_coleta = agora
         # Backfilla a coorte em casos pré-Fatia-3 re-tocados (criado_em_origem estável).
         caso.coorte_ano_mes = _coorte_ano_mes(caso.criado_em_origem)
-        if norm["hash_thread"] != caso.hash_thread:
+        if not preservar_thread and norm["hash_thread"] != caso.hash_thread:
             caso.hash_thread = norm["hash_thread"]
             caso.thread_mudou_em = agora
             # Thread mudou → a classificação de desfecho ficou obsoleta. Zera pra
@@ -415,7 +424,9 @@ def coletar_threads(
     run_input = {
         "companies": [empresa_param],
         "scrapeComplaints": True,
-        "includeInteractions": True,
+        # MODO PADRÃO (default): só a abertura, SEM a thread — payload pequeno, sem OOM.
+        # 'completo' traz as interações (comportamento atual). NULL → padrao → False.
+        "includeInteractions": (fonte.ra_modo or "padrao") == "completo",
         "includeCompanyProfile": False,  # scorecard vem do modo A
         "statusFilter": ["LATEST"],
         "maxComplaintsPerCompany": cap,
@@ -722,6 +733,11 @@ def planejar_coortes(session, fonte, *, hoje: Optional[date] = None, force: bool
     n = fonte.ra_coortes_ativas if fonte.ra_coortes_ativas is not None else 1
     if n <= 0:
         return []
+    # MODO PADRÃO (default): só a abertura (imutável) → sem re-visita, sem OOM, sem
+    # coorte. Rota AMOSTRA (LATEST+cap, sem data) p/ QUALQUER porte — pula a rota mega
+    # e não gera plano de coorte. O 'completo' segue pela lógica de coorte/mega abaixo.
+    if (fonte.ra_modo or "padrao") == "padrao":
+        return [{"acao": "amostra", "cap": fonte.ra_max_casos or AMOSTRA_CAP_DEFAULT}]
     # MEGA (Fatia 4d): o crawl não cabe no deadline → rota AMOSTRA (LATEST+cap, sem
     # data, sem coorte). ra_coortes_ativas vira on/off (n>0 = amostra on). O número de
     # coortes não se aplica à amostra (é 1 sample deslizante).
