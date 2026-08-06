@@ -185,6 +185,25 @@ def test_coletar_usa_defaults_sem_override(db_session, monkeypatch):
     assert cap["statusFilter"] == ["LATEST"]  # volume do mês manda (sem cap fantasma)
 
 
+def test_coletar_threads_reporta_custo_por_retornada(db_session, monkeypatch):
+    """Trilha de custo (frente ra-custo-repeticao): custo = retornadas × 2,5¢ + 0,5¢.
+    1 retornada → (1×0,025 + 0,005)×100 = 3¢."""
+    e, f = _empresa_fonte(db_session)
+    _patch_actor(monkeypatch, [_reclamacao("CUSTO1")])
+    stats = ra.coletar_threads(f)
+    assert stats["casos_novos"] == 1
+    assert stats["custo_apify_centavos"] == 3
+
+
+def test_coletar_scorecard_reporta_custo(db_session, monkeypatch):
+    """Scorecard reporta o próprio custo (perfil + start = US$0,055 → 6¢) p/ a trilha."""
+    e, f = _empresa_fonte(db_session)
+    _patch_actor(monkeypatch, [_EMPRESA_RECORD])
+    stats = ra.coletar_scorecard(f)
+    assert stats["reputacao"] is True
+    assert stats["custo_apify_centavos"] == 6
+
+
 def test_coletar_cria_caso_e_verbatim(db_session, monkeypatch):
     e, f = _empresa_fonte(db_session)
     _patch_actor(monkeypatch, [_reclamacao("C1")])

@@ -142,6 +142,28 @@ def test_aberturas_duplo_clique_barra(client_loyall: FlaskClient, db_session):
     assert "andamento" in r.get_data(as_text=True)
 
 
+def test_coletar_fonte_direto_grava_custo(db_session):
+    """A trilha de custo: o coletor reporta custo_apify_centavos nas stats →
+    _coletar_fonte_direto grava no ColetaExecucao (sem Apify, coletor_override)."""
+    from src.coletor.orquestrador import _coletar_fonte_direto
+
+    emp = _empresa(db_session, "Custo trilha")
+    fid = _fonte_ra(db_session, emp)
+    _coletar_fonte_direto(
+        fid,
+        coletor_override=lambda fonte: {
+            "casos_novos": 3,
+            "casos_atualizados": 0,
+            "custo_apify_centavos": 8,
+        },
+    )
+    db_session.expire_all()
+    exe = db_session.query(ColetaExecucao).filter_by(fonte_id=fid).one()
+    assert exe.status == "concluido"
+    assert exe.custo_apify_centavos == 8
+    assert exe.coletados == 3  # dual-schema: casos_novos+atualizados
+
+
 def test_disparar_local_fire_and_forget_retorna_202(client_loyall: FlaskClient, db_session):
     emp = _empresa(db_session, "FAF Local")
     loc = Local(empresa_id=emp, nome="Loja 1")

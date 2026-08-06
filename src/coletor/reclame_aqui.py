@@ -357,6 +357,9 @@ def coletar_scorecard(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
             stats["erros"] += 1
             print(f"[reclame_aqui] scorecard erro fonte {fonte_id}: {type(exc).__name__}: {exc}")
 
+    if stats.get("reputacao"):
+        # Custo do modo A (perfil + start) — trilha por disparo manual.
+        stats["custo_apify_centavos"] = round(CUSTO_SCORECARD_USD * 100)
     print(
         f"[reclame_aqui] scorecard fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"reputacao={stats['reputacao']} erros={stats['erros']}"
@@ -460,6 +463,13 @@ def coletar_threads(
             stats["abandonados"] = exp["abandonados"]
             stats["nao_rastreado"] = exp["nao_rastreado"]
 
+    # Custo REAL do run (trilha em ColetaExecucao, só no caminho on-demand): o PPE
+    # cobra por reclamação RETORNADA (= novos + atualizados; abandonados/nao_rastreado
+    # são casos pré-existentes re-tocados, não vêm no dataset), + a taxa fixa de start.
+    _retornadas = stats["casos_novos"] + stats["casos_atualizados"]
+    stats["custo_apify_centavos"] = round(
+        (_retornadas * CUSTO_POR_CASO_USD + CUSTO_START_USD) * 100
+    )
     print(
         f"[reclame_aqui] threads fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['casos_novos']} atualizados={stats['casos_atualizados']} "

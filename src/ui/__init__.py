@@ -87,8 +87,16 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     # senão → COORTE (coortes × complaints30Days). complaints30Days = latest (display).
     compl_30d = None
     eh_mega = False
+    ra_gasto_manual_centavos = None  # trilha de gasto por disparo MANUAL (mês corrente)
+    ra_coletas_manuais_mes = 0
+    ra_dias_desde_coleta = None  # p/ o confirm consciente de frescor do botão
     if eh_ra:
+        from datetime import datetime as _dt
+
+        from sqlalchemy import func as _func
+
         from src.coletor.reclame_aqui import _e_mega
+        from src.models.coleta_execucao import ColetaExecucao
         from src.models.fonte_reputacao import FonteReputacao
 
         with db_session() as _s:
@@ -108,6 +116,26 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
             # scorecard, mas na TELA sem dado → 'aguardando', não 'amostra').
             if compl_30d is not None:
                 eh_mega = _e_mega(_s, f.id)  # média das últimas N leituras > limiar
+            # Gasto MANUAL do mês: só disparos on-demand criam ColetaExecucao (o cron
+            # não) → o número é honestamente "disparos manuais", não o total.
+            _ini_mes = _dt.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            _cent, _n = (
+                _s.query(
+                    _func.coalesce(_func.sum(ColetaExecucao.custo_apify_centavos), 0),
+                    _func.count(ColetaExecucao.id),
+                )
+                .filter(
+                    ColetaExecucao.fonte_id == f.id,
+                    ColetaExecucao.custo_apify_centavos.isnot(None),
+                    ColetaExecucao.iniciado_em >= _ini_mes,
+                )
+                .one()
+            )
+            ra_gasto_manual_centavos = int(_cent or 0)
+            ra_coletas_manuais_mes = int(_n or 0)
+            ra_dias_desde_coleta = (
+                (_dt.utcnow() - f.ultima_coleta).days if f.ultima_coleta else None
+            )
     ra_amostra_n = (f.ra_max_casos or AMOSTRA_CAP_DEFAULT) if eh_ra else None
     if threads_off:
         ra_custo_threads_mes = 0.0  # threads desligadas → custo zero
@@ -162,6 +190,10 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ra_cap_alerta_botao=RA_CAP_ALERTA_BOTAO,  # acima → aviso de rota (item 6)
         ra_vol_semana=ra_vol_semana,  # inflow semanal (mensagem de cap recomendado)
         ra_cap_recomendado=ra_cap_recomendado,  # sugestão de cap p/ cadência semanal
+        # ── frente ra-custo-repeticao: confirm consciente + trilha de gasto manual ──
+        ra_dias_desde_coleta=ra_dias_desde_coleta,  # p/ o confirm do botão de aberturas
+        ra_gasto_manual_centavos=ra_gasto_manual_centavos,  # Σ custo dos disparos manuais/mês
+        ra_coletas_manuais_mes=ra_coletas_manuais_mes,  # nº de disparos manuais no mês
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
         # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
         # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).

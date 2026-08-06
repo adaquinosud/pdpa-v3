@@ -262,3 +262,61 @@ def test_card_cap_recomendado_sem_scorecard(client_loyall, db_session):
     f = _fonte_ra(client_loyall, db_session)
     r = client_loyall.get(f"/ui/fontes/{f.id}/editar")
     assert "sem scorecard" in r.get_data(as_text=True)
+
+
+# ── frente ra-custo-repeticao: confirm consciente de frescor + gasto manual ──
+
+
+def test_confirm_repeticao_quando_coleta_recente(client_loyall, db_session):
+    """Coleta recente (≤7d) → o hx-confirm alerta que virá o MESMO lote e re-cobra."""
+    f = _fonte_ra(client_loyall, db_session)
+    fo = db_session.get(Fonte, f.id)
+    fo.ultima_coleta = datetime.utcnow()  # hoje
+    db_session.commit()
+    r = client_loyall.get(f"/ui/fontes/{f.id}/row")
+    assert "MESMO lote" in r.get_data(as_text=True)
+
+
+def test_confirm_normal_sem_coleta_recente(client_loyall, db_session):
+    """Sem coleta recente → confirm normal (só o custo), sem o alerta de repetição."""
+    f = _fonte_ra(client_loyall, db_session)  # ultima_coleta None
+    body = client_loyall.get(f"/ui/fontes/{f.id}/row").get_data(as_text=True)
+    assert "MESMO lote" not in body
+    assert "Coletar ~250 aberturas" in body
+
+
+def test_card_gasto_manual_exibido(client_loyall, db_session):
+    """Gasto por disparo MANUAL do mês (só ColetaExecucao, não o cron): soma + conta."""
+    from src.models.coleta_execucao import ColetaExecucao
+
+    f = _fonte_ra(client_loyall, db_session)
+    db_session.add_all(
+        [
+            ColetaExecucao(
+                empresa_id=f.empresa_id,
+                fonte_id=f.id,
+                status="concluido",
+                iniciado_em=datetime.utcnow(),
+                custo_apify_centavos=626,
+            ),
+            ColetaExecucao(
+                empresa_id=f.empresa_id,
+                fonte_id=f.id,
+                status="concluido",
+                iniciado_em=datetime.utcnow(),
+                custo_apify_centavos=626,
+            ),
+        ]
+    )
+    db_session.commit()
+    body = client_loyall.get(f"/ui/fontes/{f.id}/row").get_data(as_text=True)
+    assert "disparos manuais: 2 este mês" in body
+    assert "US$ 12.52" in body
+
+
+def test_card_gasto_manual_ausente_sem_coletas(client_loyall, db_session):
+    """Sem execução no mês → a linha de gasto manual não aparece."""
+    f = _fonte_ra(client_loyall, db_session)
+    assert "disparos manuais" not in client_loyall.get(f"/ui/fontes/{f.id}/row").get_data(
+        as_text=True
+    )

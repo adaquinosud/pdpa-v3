@@ -40,6 +40,7 @@
         {%- else %}completo · {{ f.ra_coortes_ativas }} coorte{{ 's' if f.ra_coortes_ativas != 1 }} · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads {% if f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês ({{ f.ra_coortes_ativas }}×{{ f.ra_threads_volume_mes }}/mês){% else %}<span class="text-loyall-400">aguardando 1º scorecard</span>{% endif %}{% endif %}
       {%- elif f.ra_padrao_off %}<span class="text-loyall-400">coleta off</span> · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem
       {%- else %}abertura, cap {{ f.ra_cap_efetivo }} · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · ~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }}/coleta{% endif %}
+      {%- if f.ra_coletas_manuais_mes and f.ra_coletas_manuais_mes > 0 %} · <span class="text-loyall-400" title="Só conta disparos pelo botão (o cron não entra). Não é o gasto total da fonte.">disparos manuais: {{ f.ra_coletas_manuais_mes }} este mês (~US$ {{ '%.2f'|format(f.ra_gasto_manual_centavos / 100) }})</span>{% endif %}
     </span>
   {% endif %}
   <div class="flex items-center gap-2">
@@ -51,7 +52,7 @@
     {% if f.eh_ra and f.ra_modo != 'completo' and f.ra_cap_efetivo and f.ra_cap_efetivo > 0 %}
     <button hx-post="{{ url_for('ui.htmx_disparar_aberturas', fonte_id=f.id) }}"
             hx-target="#fonte-{{ f.id }}-result" hx-swap="innerHTML"
-            hx-confirm="Coletar ~{{ f.ra_cap_efetivo }} aberturas (~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }})? Gera custo Apify imediato."
+            hx-confirm="{% if f.ra_dias_desde_coleta is not none and f.ra_dias_desde_coleta <= 7 %}Última coleta há {{ f.ra_dias_desde_coleta }} dia(s). O LATEST re-baixa o MESMO lote e re-cobra ~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }} (~{{ f.ra_cap_efetivo }} casos). Coletar assim?{% else %}Coletar ~{{ f.ra_cap_efetivo }} aberturas (~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }})? Gera custo Apify imediato.{% endif %}"
             class="text-loyall-700 hover:underline">coletar aberturas</button>
     {% endif %}
     {% endif %}

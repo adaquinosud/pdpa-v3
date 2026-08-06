@@ -386,6 +386,8 @@ def _coletar_fonte_direto(fonte_id: int, *, coletor_override=None) -> Dict[str, 
             exe.novos = stats.get("novos", stats.get("casos_novos", 0))
             exe.duplicados = stats.get("duplicados", stats.get("casos_atualizados", 0))
             exe.erros = stats.get("erros", 0)
+            # Trilha de custo (só quando o coletor reporta — RA hoje; outros ficam NULL).
+            exe.custo_apify_centavos = stats.get("custo_apify_centavos")
             if stats.get("falhou_apify"):
                 exe.status = "erro"
                 exe.mensagem_erro = "Apify falhou (falhou_apify=true)"
