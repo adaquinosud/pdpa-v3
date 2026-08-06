@@ -130,6 +130,11 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         if not eh_ra or (ra_cap_efetivo or 0) <= 0
         else round(ra_cap_efetivo * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
     )
+    # Cap RECOMENDADO (mensagem ao lado do campo, não valida/preenche): inflow semanal
+    # × margem 1,4 (folga p/ semana ruim), arredondado a múltiplo de 50. Sem scorecard
+    # (compl_30d None) → sem número. 4.3 = semanas/mês.
+    ra_vol_semana = round(compl_30d / 4.3) if (eh_ra and compl_30d) else None
+    ra_cap_recomendado = round(compl_30d / 4.3 * 1.4 / 50) * 50 if (eh_ra and compl_30d) else None
     return SimpleNamespace(
         id=f.id,
         empresa_id=f.empresa_id,
@@ -155,6 +160,8 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ra_custo_por_coleta=ra_custo_por_coleta,  # US$ por coleta (uma vez) no padrão
         ra_cap_piso=RA_CAP_PISO,  # mín editável (input min=)
         ra_cap_alerta_botao=RA_CAP_ALERTA_BOTAO,  # acima → aviso de rota (item 6)
+        ra_vol_semana=ra_vol_semana,  # inflow semanal (mensagem de cap recomendado)
+        ra_cap_recomendado=ra_cap_recomendado,  # sugestão de cap p/ cadência semanal
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
         # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
         # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).
@@ -3457,6 +3464,66 @@ def htmx_disparar_fonte(fonte_id: int):
     disparar_coleta_fonte_async(fonte_id, empresa_id)
     return (
         "<div class='text-loyall-700 text-xs'>🔄 Coletando… acompanhe o status na lista.</div>",
+        202,
+    )
+
+
+@ui_bp.route("/ui/fontes/<int:fonte_id>/aberturas", methods=["POST"])
+@loyall_required_ui
+def htmx_disparar_aberturas(fonte_id: int):
+    """Botão 'coletar aberturas' (frente card-cap): dispara a rota AMOSTRA (só a
+    abertura, LATEST+cap) + pós-coleta numa daemon-thread, retorna 202 na hora.
+    Só p/ fonte RA modo padrão. Guards ANTES de spawnar: cap 0 (não coletar) e cap
+    >RA_CAP_ALERTA_BOTAO (manda pro cron — o worker web arrisca OOM) recusam;
+    em_andamento/cooldown-15min barram o duplo-clique. O ``force=True`` do dispatch
+    ignora só o cooldown de 7d (o clique é teste)."""
+    from src.coletor.orquestrador import (
+        COOLDOWN_MINUTOS,
+        disparar_aberturas_fonte_async,
+        em_cooldown,
+        execucao_em_andamento,
+    )
+    from src.coletor.reclame_aqui import AMOSTRA_CAP_DEFAULT, RA_CAP_ALERTA_BOTAO, RA_CAP_PISO
+
+    with db_session() as s:
+        f = s.get(Fonte, fonte_id)
+        if f is None:
+            return ("<div class='text-red-600 text-xs'>Fonte não encontrada.</div>", 404)
+        erro = _check_acesso(f.empresa_id)
+        if erro:
+            return erro
+        if f.conector_tipo != "reclame_aqui" or (f.ra_modo or "padrao") == "completo":
+            return (
+                "<div class='text-red-600 text-xs'>Coleta de aberturas só p/ fonte "
+                "ReclameAqui em modo padrão.</div>",
+                400,
+            )
+        cap = f.ra_max_casos if f.ra_max_casos is not None else AMOSTRA_CAP_DEFAULT
+        empresa_id = f.empresa_id
+
+    if cap <= 0:
+        return (
+            f"<div class='text-amber-700 text-xs'>Cap = 0 (não coletar). "
+            f"Defina um cap ≥ {RA_CAP_PISO} para coletar aberturas.</div>"
+        )
+    if cap > RA_CAP_ALERTA_BOTAO:
+        return (
+            f"<div class='text-amber-700 text-xs'>Cap alto ({cap}): dispare pelo cron, "
+            f"não pelo botão (o worker web arrisca estourar a memória).</div>"
+        )
+    if execucao_em_andamento("fonte", fonte_id):
+        return "<div class='text-amber-700 text-xs'>⏳ Coleta em andamento</div>"
+    ult = em_cooldown("fonte", fonte_id)
+    if ult is not None:
+        return (
+            f"<div class='text-amber-700 text-xs'>⏳ Cooldown {COOLDOWN_MINUTOS} min. "
+            f"Última: {ult.isoformat()[:16]}</div>"
+        )
+
+    disparar_aberturas_fonte_async(fonte_id, empresa_id)
+    return (
+        "<div class='text-loyall-700 text-xs'>🔄 Coletando aberturas… "
+        "acompanhe o status na lista.</div>",
         202,
     )
 

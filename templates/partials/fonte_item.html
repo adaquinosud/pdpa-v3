@@ -47,7 +47,13 @@
     <button hx-post="{{ url_for('ui.htmx_disparar_fonte', fonte_id=f.id) }}"
             hx-target="#fonte-{{ f.id }}-result" hx-swap="innerHTML"
             hx-confirm="Disparar coleta Apify de '{{ f.conector_tipo }}'? Gera custo Apify imediato."
-            class="text-loyall-700 hover:underline">disparar</button>
+            class="text-loyall-700 hover:underline">{% if f.eh_ra %}scorecard{% else %}disparar{% endif %}</button>
+    {% if f.eh_ra and f.ra_modo != 'completo' and f.ra_cap_efetivo and f.ra_cap_efetivo > 0 %}
+    <button hx-post="{{ url_for('ui.htmx_disparar_aberturas', fonte_id=f.id) }}"
+            hx-target="#fonte-{{ f.id }}-result" hx-swap="innerHTML"
+            hx-confirm="Coletar ~{{ f.ra_cap_efetivo }} aberturas (~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }})? Gera custo Apify imediato."
+            class="text-loyall-700 hover:underline">coletar aberturas</button>
+    {% endif %}
     {% endif %}
     <button hx-patch="{{ url_for('ui.htmx_inativar_fonte', fonte_id=f.id) }}"
             hx-target="#fonte-{{ f.id }}" hx-swap="outerHTML"

@@ -274,6 +274,34 @@ def disparar_coleta_fonte_async(fonte_id: int, empresa_id: int, app=None) -> Non
     )
 
 
+def _coletar_aberturas_e_pos(fonte_id: int, empresa_id: int) -> None:
+    """Coleta ABERTURAS de UMA fonte RA (rota amostra, LATEST+cap, ``force=True`` —
+    o clique é teste, roda agora, ignora o cooldown de 7d) e encadeia o pós-coleta.
+    Roda DENTRO da daemon-thread do dispatch on-demand. ``force=True`` no coletar_amostra
+    pula só o cooldown de cadência; o guard de 15min do handler já barrou o duplo-clique."""
+    from src.coletor.reclame_aqui import coletar_amostra
+
+    stats = _coletar_fonte_direto(
+        fonte_id, coletor_override=lambda fonte: coletar_amostra(fonte, force=True)
+    )
+    if not stats.get("falhou_apify"):
+        from src.temas.pos_coleta import executar_pos_coleta
+
+        executar_pos_coleta(empresa_id, limiar=1, force=True)
+
+
+def disparar_aberturas_fonte_async(fonte_id: int, empresa_id: int, app=None) -> None:
+    """Fire-and-forget da coleta de ABERTURAS de UMA fonte RA padrão pela tela.
+    Coleta (rota amostra) + pós-coleta numa daemon-thread; o request retorna na hora.
+    No-op em TESTING. O cap ≤2000 (checado no handler) mantém a cauda dentro do
+    orçamento de RAM do worker web (o daemon-thread é o vetor de OOM p/ volume grande)."""
+    _rodar_async(
+        lambda: _coletar_aberturas_e_pos(fonte_id, empresa_id),
+        app=app,
+        label=f"aberturas-fonte-{fonte_id}",
+    )
+
+
 def disparar_coleta_local_async(local_id: int, app=None) -> None:
     """Fire-and-forget de UM local (CP-5b): ``coletar_local`` (loopa as fontes +
     dispara pós-coleta) numa daemon-thread. ``force=True`` — cooldown/lock já foram
@@ -285,9 +313,15 @@ def disparar_coleta_local_async(local_id: int, app=None) -> None:
     )
 
 
-def _coletar_fonte_direto(fonte_id: int) -> Dict[str, Any]:
+def _coletar_fonte_direto(fonte_id: int, *, coletor_override=None) -> Dict[str, Any]:
     """Versão interna sem HTTP — chama o coletor e atualiza ColetaExecucao.
-    Reusa a mesma máquina de estado do endpoint REST."""
+    Reusa a mesma máquina de estado do endpoint REST.
+
+    ``coletor_override`` (callable ``fonte -> stats``): usa esse coletor em vez do
+    roteamento por conector. É como o botão de ABERTURAS injeta ``coletar_amostra``
+    (rota amostra), sem passar pelo roteamento genérico que mandaria RA pro scorecard.
+    Herda o timeout-por-fonte, o registro de ColetaExecucao (→ spinner do pollColetas)
+    e o carimbo de ultima_coleta."""
     from src.api.coleta import _roteamento_coletores
     from src.models.coleta_execucao import ColetaExecucao
     from src.models.fonte import Fonte
@@ -298,7 +332,7 @@ def _coletar_fonte_direto(fonte_id: int) -> Dict[str, Any]:
         fonte = s.get(Fonte, fonte_id)
         if fonte is None:
             return {"erro": "fonte não encontrada", "fonte_id": fonte_id}
-        coletor_fn = roteamento.get(fonte.conector_tipo)
+        coletor_fn = coletor_override or roteamento.get(fonte.conector_tipo)
         if coletor_fn is None:
             return {"erro": f"conector não suportado: {fonte.conector_tipo}", "fonte_id": fonte_id}
         s.expunge(fonte)
@@ -344,9 +378,13 @@ def _coletar_fonte_direto(fonte_id: int) -> Dict[str, Any]:
         exe = s.get(ColetaExecucao, execucao_id)
         if exe is not None:
             exe.concluido_em = _agora()
-            exe.coletados = stats.get("coletados", 0)
-            exe.novos = stats.get("novos", 0)
-            exe.duplicados = stats.get("duplicados", 0)
+            # Dual-schema: coletor genérico usa coletados/novos/duplicados; a rota
+            # amostra (aberturas) usa casos_novos/casos_atualizados — mapeia ambos.
+            exe.coletados = stats.get(
+                "coletados", stats.get("casos_novos", 0) + stats.get("casos_atualizados", 0)
+            )
+            exe.novos = stats.get("novos", stats.get("casos_novos", 0))
+            exe.duplicados = stats.get("duplicados", stats.get("casos_atualizados", 0))
             exe.erros = stats.get("erros", 0)
             if stats.get("falhou_apify"):
                 exe.status = "erro"
