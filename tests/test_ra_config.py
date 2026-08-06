@@ -4,7 +4,11 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
+
 from src.models.fonte import Fonte
+from src.models.fonte_reputacao import FonteReputacao
 
 
 def _empresa_local(client_loyall):
@@ -224,3 +228,37 @@ def test_config_cap_ignorada_em_fonte_nao_ra(client_loyall, db_session):
     # não-RA: o save NÃO escreve os campos (guard). ra_max_casos fica None; ra_modo
     # fica no server_default ('padrao'), NÃO é sobrescrito p/ 'completo'.
     assert f2.ra_max_casos is None and f2.ra_modo != "completo"
+
+
+# ── frente ra-botao-aberturas (C): mensagem de cap recomendado ao lado do campo ──
+
+
+def _scorecard(db_session, fonte, complaints_30d):
+    db_session.add(
+        FonteReputacao(
+            fonte_id=fonte.id,
+            empresa_id=fonte.empresa_id,
+            provedor="reclame_aqui",
+            coletado_em=datetime.utcnow(),
+            raw_json=json.dumps({"complaints30Days": complaints_30d}),
+        )
+    )
+    db_session.commit()
+
+
+def test_card_cap_recomendado_com_scorecard(client_loyall, db_session):
+    """Com volume (complaints30Days), o card sugere cap = inflow_semanal × 1,4 (~400 p/ 1200)."""
+    f = _fonte_ra(client_loyall, db_session)
+    _scorecard(db_session, f, 1200)
+    r = client_loyall.get(f"/ui/fontes/{f.id}/editar")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "1200/mês" in body
+    assert "Recomendado ~400" in body
+
+
+def test_card_cap_recomendado_sem_scorecard(client_loyall, db_session):
+    """Sem scorecard, a mensagem não inventa número — pede rodar o scorecard."""
+    f = _fonte_ra(client_loyall, db_session)
+    r = client_loyall.get(f"/ui/fontes/{f.id}/editar")
+    assert "sem scorecard" in r.get_data(as_text=True)

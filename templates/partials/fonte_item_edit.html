@@ -40,6 +40,11 @@
                oninput="recalcRA(this)" class="w-16 px-1 py-0.5 border border-loyall-300 rounded">
       </label>
       <span class="text-[10px] text-loyall-400">0 = não coletar · mín {{ f.ra_cap_piso }}</span>
+      {% if f.ra_modo != 'completo' %}
+      <span class="w-full text-[10px] text-loyall-400">
+        {%- if f.ra_threads_volume_mes %}volume ~{{ f.ra_threads_volume_mes }}/mês → ~{{ f.ra_vol_semana }}/semana. Com cap abaixo disso, aberturas antigas somem do lote. Recomendado ~{{ f.ra_cap_recomendado }}
+        {%- else %}sem scorecard — rode-o p/ ver o volume e o cap recomendado{% endif %}</span>
+      {% endif %}
       · scorecard <span class="text-loyall-700 font-medium">US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem</span>
       · <span data-ra-cost class="text-loyall-700 font-medium">
         {%- if f.ra_modo == 'completo' %}threads: modo completo (custo recorrente por coorte)
