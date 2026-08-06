@@ -565,6 +565,11 @@ MAX_RUNS_POR_COORTE = 15
 # AMOSTRA: LATEST + cap (o cap LIMITA o crawl — 250 em 19s), sem data, sem coorte.
 LIMIAR_MEGA_COMPLAINTS30D = 400  # média > isto → mega (Club Med ~5 coorte; Localiza ~1189 amostra)
 AMOSTRA_CAP_DEFAULT = 250  # teto da amostra recente (ra_max_casos sobrepõe)
+# Piso do cap EDITÁVEL (frente card-cap): abaixo disso os subpilares não cruzam os
+# limiares de Proximity/clustering (temas viram artefato de K-means). O form aceita
+# 0 (= NÃO COLETAR) ou ≥ RA_CAP_PISO; rejeita 1..PISO-1. NULL = não-setado → default.
+RA_CAP_PISO = 30
+RA_CAP_ALERTA_BOTAO = 2000  # acima disto o botão (worker web) arrisca OOM → use o cron
 N_LEITURAS_MEGA = 4  # média das últimas N leituras de scorecard (suaviza churn no limiar)
 
 
@@ -737,10 +742,18 @@ def planejar_coortes(session, fonte, *, hoje: Optional[date] = None, force: bool
     # coorte. Rota AMOSTRA (LATEST+cap, sem data) p/ QUALQUER porte — pula a rota mega
     # e não gera plano de coorte. O 'completo' segue pela lógica de coorte/mega abaixo.
     if (fonte.ra_modo or "padrao") == "padrao":
-        return [{"acao": "amostra", "cap": fonte.ra_max_casos or AMOSTRA_CAP_DEFAULT}]
+        # cap: NULL = não-setado → default; 0 = NÃO COLETAR (frente card-cap, alinha
+        # com coortes=0). O `or` engoliria o 0 → resolve NULL-vs-0 explícito.
+        cap = fonte.ra_max_casos if fonte.ra_max_casos is not None else AMOSTRA_CAP_DEFAULT
+        if cap <= 0:
+            return []
+        return [{"acao": "amostra", "cap": cap}]
     # MEGA (Fatia 4d): o crawl não cabe no deadline → rota AMOSTRA (LATEST+cap, sem
     # data, sem coorte). ra_coortes_ativas vira on/off (n>0 = amostra on). O número de
     # coortes não se aplica à amostra (é 1 sample deslizante).
+    # DIVERGÊNCIA de semântica do 0 (frente card-cap, opção b): aqui — caminho COMPLETO
+    # — o `or` mantém 0→default (o 0-como-não-coletar vale só no padrão acima). O completo
+    # não é editável pela tela e o probe confirmou 0 fontes com cap=0, então é inócuo.
     if _e_mega(session, fonte.id):
         return [{"acao": "amostra", "cap": fonte.ra_max_casos or AMOSTRA_CAP_DEFAULT}]
     ledger = {

@@ -262,5 +262,45 @@
   document.getElementById('collapse-all').onclick = () => {
     document.querySelectorAll('#hierarquia details, #fontes-empresa details').forEach(d => d.open = false);
   };
+
+  // frente card-cap: recálculo ao vivo do custo/alcance no card de edição de fonte RA.
+  // Definida no window (a página carrega 1×) → sobrevive aos swaps htmx do card.
+  window.recalcRA = function (el) {
+    var box = el.closest('[data-ra-caso]');
+    if (!box) return;
+    var form = el.closest('form');
+    var modo = form.querySelector('[name=ra_modo]').value;
+    var onoff = box.querySelector('[data-ra-onoff]');
+    var toggleWrap = box.querySelector('[data-ra-toggle]');
+    var coortesWrap = box.querySelector('[data-ra-coortes]');
+    var coortesInput = form.querySelector('[name=ra_coortes_ativas]');
+    var capInput = form.querySelector('[name=ra_max_casos]');
+    var cost = box.querySelector('[data-ra-cost]');
+    var warn = box.querySelector('[data-ra-warn]');
+    var caso = parseFloat(box.dataset.raCaso);
+    var start = parseFloat(box.dataset.raStart);
+    var alerta = parseFloat(box.dataset.raAlerta);
+    var piso = parseInt(box.dataset.raPiso, 10);
+    var completo = (modo === 'completo');
+    // Visibilidade por modo: padrão → on/off (esconde o nº de coortes, inócuo);
+    // completo → nº de coortes.
+    toggleWrap.classList.toggle('hidden', completo);
+    coortesWrap.classList.toggle('hidden', !completo);
+    // No padrão a checkbox dirige o nº de coortes (1/0) — o form envia sempre o número.
+    if (!completo && el === onoff) coortesInput.value = onoff.checked ? 1 : 0;
+    var cap = parseInt(capInput.value, 10);
+    if (isNaN(cap)) cap = parseInt(capInput.placeholder, 10) || 0;  // vazio → default
+    var coortes = parseInt(coortesInput.value, 10); if (isNaN(coortes)) coortes = 0;
+    // Aviso de rota (item 6): só no padrão, quando o cap passa do seguro-do-botão.
+    warn.classList.toggle('hidden', !(!completo && cap > alerta));
+    if (completo) {
+      cost.textContent = 'threads: modo completo (custo recorrente por coorte)';
+      return;
+    }
+    if (coortes <= 0 || cap <= 0) { cost.textContent = 'desligado'; return; }
+    if (cap < piso) { cost.textContent = 'cap < ' + piso + ' — inválido'; return; }
+    var c = cap * caso + start;
+    cost.textContent = '~US$ ' + c.toFixed(2) + ' por coleta (uma vez — a abertura não é re-cobrada)';
+  };
 </script>
 {% endblock %}

@@ -30,9 +30,11 @@ def test_criar_fonte_ra_persiste_coortes(client_loyall, db_session):
     assert r.status_code == 200
     f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
     assert f.ra_coortes_ativas == 3
-    # sem scorecard ainda → threads sem número (aguardando), scorecard fixo visível
+    # nasce padrão (server_default) → resumo por-coleta: abertura + cap default +
+    # scorecard fixo. O padrão NÃO depende de scorecard p/ o custo (≠ do completo).
     assert b"scorecard US$ 0.055/sem" in r.data
-    assert "aguardando".encode() in r.data
+    assert b"abertura" in r.data
+    assert "/coleta".encode() in r.data
 
 
 def test_criar_fonte_ra_sem_input_nasce_conservador(client_loyall, db_session):
@@ -67,7 +69,7 @@ def test_config_ignorada_em_fonte_nao_ra(client_loyall, db_session):
 
 
 def test_criar_fonte_ra_coortes_zero_threads_off(client_loyall, db_session):
-    """Fatia 4.5: coortes=0 persiste 0 e a linha mostra 'threads off'."""
+    """Fatia 4.5: coortes=0 persiste 0. No padrão (default) a linha mostra 'coleta off'."""
     e, loc = _empresa_local(client_loyall)
     r = client_loyall.post(
         f"/ui/locais/{loc['id']}/fontes",
@@ -80,8 +82,8 @@ def test_criar_fonte_ra_coortes_zero_threads_off(client_loyall, db_session):
     )
     assert r.status_code == 200
     f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
-    assert f.ra_coortes_ativas == 0  # 0 = threads off (não vira 1)
-    assert b"threads off" in r.data
+    assert f.ra_coortes_ativas == 0  # 0 = off (não vira 1)
+    assert b"coleta off" in r.data
 
 
 def test_toggle_scorecard_ra(client_loyall, db_session):
@@ -119,3 +121,106 @@ def test_editar_fonte_ra_atualiza_coortes(client_loyall, db_session):
     db_session.expire_all()
     f2 = db_session.get(Fonte, f.id)
     assert f2.ra_coortes_ativas == 6
+
+
+# ── frente card-cap: ra_max_casos + ra_modo editáveis pela tela ──
+
+
+def _fonte_ra(client_loyall, db_session):
+    e, loc = _empresa_local(client_loyall)
+    client_loyall.post(
+        f"/ui/locais/{loc['id']}/fontes",
+        data={
+            "conector_tipo": "reclame_aqui",
+            "url": "https://www.reclameaqui.com.br/x/",
+            "ativo": "on",
+        },
+    )
+    return db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
+
+
+def _put(client_loyall, fonte_id, **campos):
+    data = {"url": "https://www.reclameaqui.com.br/x/", **campos}
+    return client_loyall.put(f"/ui/fontes/{fonte_id}", data=data)
+
+
+def test_editar_fonte_ra_cap_persiste(client_loyall, db_session):
+    """ra_max_casos ≥ piso persiste (1ª vez que a tela escreve o campo)."""
+    f = _fonte_ra(client_loyall, db_session)
+    r = _put(client_loyall, f.id, ra_max_casos="100", ra_modo="padrao")
+    assert r.status_code == 200
+    db_session.expire_all()
+    assert db_session.get(Fonte, f.id).ra_max_casos == 100
+
+
+def test_editar_fonte_ra_cap_zero_persiste_nao_coleta(client_loyall, db_session):
+    """ra_max_casos=0 persiste 0 (= NÃO COLETAR), não vira default."""
+    f = _fonte_ra(client_loyall, db_session)
+    r = _put(client_loyall, f.id, ra_max_casos="0", ra_modo="padrao")
+    assert r.status_code == 200
+    db_session.expire_all()
+    assert db_session.get(Fonte, f.id).ra_max_casos == 0
+
+
+def test_editar_fonte_ra_cap_abaixo_piso_rejeita(client_loyall, db_session):
+    """1..29 é rejeitado (400 + mensagem), NÃO persiste (temas não formam abaixo do piso)."""
+    f = _fonte_ra(client_loyall, db_session)
+    r = _put(client_loyall, f.id, ra_max_casos="15", ra_modo="padrao")
+    assert r.status_code == 400
+    assert "mínimo".encode() in r.data
+    db_session.expire_all()
+    assert db_session.get(Fonte, f.id).ra_max_casos is None  # inalterado
+
+
+def test_editar_fonte_ra_cap_vazio_volta_ao_default(client_loyall, db_session):
+    """Campo vazio → None (não-setado); o coletor usa o default."""
+    f = _fonte_ra(client_loyall, db_session)
+    _put(client_loyall, f.id, ra_max_casos="90")
+    db_session.expire_all()
+    assert db_session.get(Fonte, f.id).ra_max_casos == 90
+    _put(client_loyall, f.id, ra_max_casos="")
+    db_session.expire_all()
+    assert db_session.get(Fonte, f.id).ra_max_casos is None
+
+
+def test_editar_fonte_ra_modo_completo_persiste(client_loyall, db_session):
+    """O seletor de modo grava ra_modo."""
+    f = _fonte_ra(client_loyall, db_session)
+    assert f.ra_modo == "padrao"  # server_default
+    r = _put(client_loyall, f.id, ra_modo="completo", ra_coortes_ativas="2")
+    assert r.status_code == 200
+    db_session.expire_all()
+    assert db_session.get(Fonte, f.id).ra_modo == "completo"
+
+
+def test_editar_fonte_ra_modo_invalido_mantem(client_loyall, db_session):
+    """ra_modo inválido não corrompe o campo (mantém o atual)."""
+    f = _fonte_ra(client_loyall, db_session)
+    _put(client_loyall, f.id, ra_modo="lixo")
+    db_session.expire_all()
+    assert db_session.get(Fonte, f.id).ra_modo == "padrao"
+
+
+def test_editar_fonte_ra_cap_alto_avisa_rota(client_loyall, db_session):
+    """Cap > limiar-seguro-do-botão → o card de edição mostra o aviso de rota (item 6)."""
+    f = _fonte_ra(client_loyall, db_session)
+    _put(client_loyall, f.id, ra_max_casos="5000", ra_modo="padrao")
+    r = client_loyall.get(f"/ui/fontes/{f.id}/editar")
+    assert r.status_code == 200
+    assert "dispare pelo cron".encode() in r.data
+
+
+def test_config_cap_ignorada_em_fonte_nao_ra(client_loyall, db_session):
+    """ra_max_casos/ra_modo só valem p/ reclame_aqui."""
+    e, loc = _empresa_local(client_loyall)
+    client_loyall.post(
+        f"/ui/locais/{loc['id']}/fontes",
+        data={"conector_tipo": "google", "url": "ChIJ_x", "ativo": "on"},
+    )
+    f = db_session.query(Fonte).filter_by(empresa_id=e["id"]).one()
+    _put(client_loyall, f.id, ra_max_casos="100", ra_modo="completo")
+    db_session.expire_all()
+    f2 = db_session.get(Fonte, f.id)
+    # não-RA: o save NÃO escreve os campos (guard). ra_max_casos fica None; ra_modo
+    # fica no server_default ('padrao'), NÃO é sobrescrito p/ 'completo'.
+    assert f2.ra_max_casos is None and f2.ra_modo != "completo"

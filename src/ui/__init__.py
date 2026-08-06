@@ -72,9 +72,12 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         CUSTO_POR_CASO_USD,
         CUSTO_SCORECARD_USD,
         CUSTO_START_USD,
+        RA_CAP_ALERTA_BOTAO,
+        RA_CAP_PISO,
     )
 
     eh_ra = f.conector_tipo == "reclame_aqui"
+    ra_modo = (f.ra_modo or "padrao") if eh_ra else None
     # Controle REAL do custo de threads no dois-modos: nº de coortes mensais ativas
     # (Fatia 3.5/4.5). NULL → 1 (conservador); 0 = threads DESLIGADAS (o `or 1`
     # engoliria o 0). ra_max_casos/ra_janela_meses = dormant.
@@ -115,6 +118,18 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ra_custo_threads_mes = round(coortes * compl_30d * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
     else:
         ra_custo_threads_mes = None  # aguardando 1º scorecard → sem número (não inventa)
+    # ── MODO PADRÃO (frente card-cap): cap = alcance, custo POR COLETA (uma vez — a
+    # abertura é imutável, não re-cobrada). NULL = não-setado → default. On/off no padrão
+    # = coortes>0 E cap>0 (dois desligadores: coerência opção 1). ──
+    ra_cap_efetivo = (
+        (f.ra_max_casos if f.ra_max_casos is not None else AMOSTRA_CAP_DEFAULT) if eh_ra else None
+    )
+    ra_padrao_off = eh_ra and ra_modo == "padrao" and (coortes <= 0 or (ra_cap_efetivo or 0) <= 0)
+    ra_custo_por_coleta = (
+        0.0
+        if not eh_ra or (ra_cap_efetivo or 0) <= 0
+        else round(ra_cap_efetivo * CUSTO_POR_CASO_USD + CUSTO_START_USD, 2)
+    )
     return SimpleNamespace(
         id=f.id,
         empresa_id=f.empresa_id,
@@ -126,12 +141,20 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         eh_ra=eh_ra,
         ra_coortes_ativas=coortes,
         ra_threads_off=threads_off,  # coortes=0 → "threads desligadas"
-        ra_modo_threads=("amostra" if eh_mega else "coorte"),  # Fatia 4d
+        ra_modo_threads=("amostra" if eh_mega else "coorte"),  # Fatia 4d (só p/ completo)
         ra_amostra_n=ra_amostra_n,  # teto da amostra recente (mega)
         ra_custo_scorecard=CUSTO_SCORECARD_USD,
         ra_custo_threads_mes=ra_custo_threads_mes,  # None = aguardando scorecard; 0 = off
         ra_threads_volume_mes=compl_30d,  # complaints30Days (por mês); None = sem scorecard
         ra_custo_por_caso=CUSTO_POR_CASO_USD,  # p/ o cálculo ao vivo no input
+        # ── frente card-cap: modo real + cap editável + custo por-coleta (padrão) ──
+        ra_modo=ra_modo,  # 'padrao'|'completo' (campo real, não a heurística _e_mega)
+        ra_max_casos=(f.ra_max_casos if eh_ra else None),  # cru: None = não-setado (input vazio)
+        ra_cap_efetivo=ra_cap_efetivo,  # o que o coletor usa (None → default)
+        ra_padrao_off=ra_padrao_off,  # padrão desligado (coortes=0 OU cap=0)
+        ra_custo_por_coleta=ra_custo_por_coleta,  # US$ por coleta (uma vez) no padrão
+        ra_cap_piso=RA_CAP_PISO,  # mín editável (input min=)
+        ra_cap_alerta_botao=RA_CAP_ALERTA_BOTAO,  # acima → aviso de rota (item 6)
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
         # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
         # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).
@@ -3087,6 +3110,43 @@ def _ra_coortes_do_form(conector: str):
     return n if n >= 0 else 0  # 0 = threads desligadas (Fatia 4.5); negativo → 0
 
 
+def _ra_max_casos_do_form(conector: str, atual):
+    """ra_max_casos do form — só reclame_aqui (frente card-cap). É o ALCANCE da coleta
+    de aberturas no modo padrão. Semântica: 0 = NÃO COLETAR (alinha com coortes=0);
+    ≥ RA_CAP_PISO = alcance; 1..PISO-1 REJEITADO (abaixo do piso os subpilares não
+    cruzam os limiares de Proximity/clustering → temas viram artefato). Vazio/lixo →
+    None (= não-setado, o coletor usa o default). Retorna ``(valor, erro|None)``;
+    ``erro`` não-None significa rejeitar o save e re-renderizar o form. Não-RA → (None, None)."""
+    from src.coletor.reclame_aqui import RA_CAP_PISO
+
+    if conector != "reclame_aqui":
+        return None, None
+    v = (request.form.get("ra_max_casos") or "").strip()
+    if not v:
+        return None, None  # não-setado → default no coletor
+    try:
+        n = int(v)
+    except ValueError:
+        return None, None
+    if n < 0:
+        n = 0
+    if 0 < n < RA_CAP_PISO:
+        return atual, (
+            f"Cap mínimo é {RA_CAP_PISO}: abaixo disso os temas não se formam "
+            f"(clustering/Proximity). Use 0 para não coletar, ou ≥ {RA_CAP_PISO}."
+        )
+    return n, None
+
+
+def _ra_modo_do_form(conector: str, atual):
+    """ra_modo do form — só reclame_aqui. 'padrao' (abertura) | 'completo' (+thread).
+    Valor inválido/ausente → mantém o atual. Não-RA → None."""
+    if conector != "reclame_aqui":
+        return None
+    v = (request.form.get("ra_modo") or "").strip()
+    return v if v in ("padrao", "completo") else (atual or "padrao")
+
+
 @ui_bp.route("/ui/locais/<int:local_id>/fontes", methods=["POST"])
 @loyall_required_ui
 def htmx_criar_fonte(local_id: int):
@@ -3209,31 +3269,32 @@ def htmx_salvar_fonte(fonte_id: int):
         if erro:
             return erro
         ra_coortes = _ra_coortes_do_form(f.conector_tipo)
+        ra_max_casos, cap_erro = _ra_max_casos_do_form(f.conector_tipo, f.ra_max_casos)
+        if cap_erro:
+            # Rejeita o save e re-renderiza o form em edição com a mensagem (item 3).
+            f_vm = _wrap_fonte(f)
+            return (
+                render_template("partials/fonte_item_edit.html", f=f_vm, erro=cap_erro),
+                400,
+            )
+        ra_modo = _ra_modo_do_form(f.conector_tipo, f.ra_modo)
         f.url = url
         f.observacao = observacao
         # Só sobrescreve p/ RA (não-RA → None; não zera nada relevante).
         if f.conector_tipo == "reclame_aqui":
             f.ra_coortes_ativas = ra_coortes
+            f.ra_max_casos = ra_max_casos
+            f.ra_modo = ra_modo
         s.flush()
         local_map = {}
         if f.entidade_tipo == "local":
             loc = s.get(Local, f.entidade_id)
             if loc is not None:
                 local_map[loc.id] = loc.nome
-        _ = (
-            f.id,
-            f.empresa_id,
-            f.entidade_tipo,
-            f.entidade_id,
-            f.conector_tipo,
-            f.url,
-            f.ativo,
-            f.ra_coortes_ativas,
-            f.ultima_coleta,
-            f.criada_em,
-            f.observacao,
-        )
-        s.expunge(f)
+        # Wrap no view-model: o fonte_item.html usa atributos derivados (eh_ra, custo,
+        # ra_modo, ra_cap_efetivo…) que só existem no wrapper — renderizar o ORM cru
+        # esconderia o resumo RA (Undefined→falsy). Wrap ANTES do expunge.
+        f = _wrap_fonte(f, nome_local=local_map.get(f.entidade_id))
     return render_template("partials/fonte_item.html", f=f, local_nome=local_map)
 
 

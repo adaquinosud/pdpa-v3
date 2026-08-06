@@ -1140,3 +1140,32 @@ def test_planejar_padrao_respeita_coortes_zero(db_session):
     f.ra_coortes_ativas = 0
     db_session.commit()
     assert ra.planejar_coortes(db_session, f) == []
+
+
+def test_planejar_padrao_cap_zero_nao_coleta(db_session):
+    """frente card-cap: ra_max_casos=0 no padrão = NÃO COLETAR (o `or` NÃO vira 250)."""
+    e, f = _empresa_fonte(db_session)
+    f.ra_coortes_ativas = 1
+    f.ra_max_casos = 0
+    db_session.commit()
+    assert ra.planejar_coortes(db_session, f) == []
+
+
+def test_planejar_padrao_cap_null_usa_default(db_session):
+    """ra_max_casos=NULL (não-setado) → default AMOSTRA_CAP_DEFAULT."""
+    e, f = _empresa_fonte(db_session)
+    f.ra_coortes_ativas = 1
+    f.ra_max_casos = None
+    db_session.commit()
+    assert ra.planejar_coortes(db_session, f) == [
+        {"acao": "amostra", "cap": ra.AMOSTRA_CAP_DEFAULT}
+    ]
+
+
+def test_planejar_padrao_cap_setado_respeita(db_session):
+    """ra_max_casos setado (≥piso) vira o cap da amostra."""
+    e, f = _empresa_fonte(db_session)
+    f.ra_coortes_ativas = 1
+    f.ra_max_casos = 50
+    db_session.commit()
+    assert ra.planejar_coortes(db_session, f) == [{"acao": "amostra", "cap": 50}]
