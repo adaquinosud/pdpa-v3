@@ -42,10 +42,17 @@
   </div>
   {% endmacro %}
   {{ metric('Casos', p.total) }}
-  {{ metric('Taxa de resposta', p.taxa_resposta, '%', 'Casos respondidos ÷ total', 'taxa-resposta', num=p.resp_num, base=p.total, base_label='casos') }}
+  {{ metric('Taxa de resposta', p.taxa_resposta, '%', 'Respondidos ÷ base madura (queixas com +' ~ p.maturidade_dias ~ ' dias; recentes ainda no prazo)', 'taxa-resposta', num=p.resp_num, base=p.resp_base, base_label='com +' ~ p.maturidade_dias ~ 'd') }}
   {{ metric('Taxa de resolução', p.taxa_resolucao, '%', 'Resolvidos ÷ avaliados (' ~ p.n_avaliados ~ ')', 'taxa-resolucao', num=p.resol_num, base=p.n_avaliados, base_label='avaliados') }}
   {{ metric('Causa-raiz resolvida', p.taxa_causa, '%', 'Nosso diferencial: a resposta enfrentou a raiz ÷ classificados (' ~ p.n_classificados ~ ')', 'causa-raiz-resolvida', align='right', num=p.causa_num, base=p.n_classificados, base_label='classificados') }}
 </div>
+{# Nota de maturidade da taxa de RESPOSTA — sempre (não só no recorte). Escala quando
+   a base é jovem demais (<pct_min maduros) → leitura preliminar. #}
+{% if p.aviso_maturidade %}
+<div class="mt-1 text-[11px] text-amber-700">⚠ base ainda recente — só {{ p.maduros_pct }}% das reclamações têm +{{ p.maturidade_dias }} dias; taxa de resposta preliminar</div>
+{% elif p.resp_base is not none and p.resp_base < p.total %}
+<div class="mt-1 text-[11px] text-loyall-400">resposta sobre {{ p.resp_base }} de {{ p.total }} — reclamações dos últimos {{ p.maturidade_dias }} dias ainda estão no prazo</div>
+{% endif %}
 {% if p.nota_media is not none %}
 <div class="mt-2 text-xs text-loyall-500">Nota média dos avaliados: <strong class="text-loyall-800">★ {{ p.nota_media }}</strong> / 10 ({{ p.n_avaliados }} avaliados)</div>
 {% endif %}

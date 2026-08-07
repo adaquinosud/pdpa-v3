@@ -5210,32 +5210,38 @@ def _explorar_casos(s, empresa_id, filtros=None):
     def _pct(num, den):
         return round(100 * num / den) if den else None
 
+    from src.relatorios.parecer import MATURIDADE_CONFIG
+
+    matur_dias = MATURIDADE_CONFIG["dias"]
+    _corte_mad = datetime.utcnow() - timedelta(days=matur_dias)
     _av = [c for c in casos_painel if c.evaluated]
     # 'nao_rastreado' (caso que caiu do fetch) sai do denominador de conduta —
     # aparece na distribuição (transparência) mas não é classificado de conduta.
     _cl = [c for c in casos_painel if c.desfecho and c.desfecho != "nao_rastreado"]
-    _resp = sum(1 for c in casos_painel if (c.interactions_count or 0) > 0)
+    # GATE DE MATURIDADE — SÓ na taxa de RESPOSTA: o denominador é a base madura (queixa
+    # com +matur_dias OU sem data — None=madura, espelha parecer.py:680). Reclamação
+    # recente ainda está no prazo → não deprime a resposta. Resolução/causa NÃO gateiam
+    # (÷avaliados/÷classificados já auto-filtram caso fresco).
+    _maduros_resp = [
+        c for c in casos_painel if c.criado_em_origem is None or c.criado_em_origem <= _corte_mad
+    ]
+    _resp = sum(1 for c in _maduros_resp if (c.interactions_count or 0) > 0)
     _resol = sum(1 for c in _av if c.desfecho == "resolvido")
     _causa = sum(1 for c in _cl if c.causa_resolvida)
     _notas = [c.score for c in _av if c.score is not None]
-    # Micro-aviso de maturidade: recorte recente = coorte jovem que subestima conduta
-    # (mesma régua do parecer). Só quando há recorte.
-    aviso_maturidade, maduros_pct, matur_dias = False, None, None
-    if corte_data is not None:
-        from src.relatorios.parecer import MATURIDADE_CONFIG
-
-        matur_dias = MATURIDADE_CONFIG["dias"]
-        _cd = datetime.utcnow() - timedelta(days=matur_dias)
-        _com_data = [c for c in casos_painel if c.criado_em_origem]
-        if _com_data:
-            maduros_pct = round(
-                100 * sum(1 for c in _com_data if c.criado_em_origem <= _cd) / len(_com_data)
-            )
-            aviso_maturidade = maduros_pct < MATURIDADE_CONFIG["pct_min"]
+    # Maturidade da base (SEMPRE, não só no recorte): % das queixas COM data que já têm
+    # +matur_dias. <pct_min → taxa de resposta preliminar (escala a nota na tela).
+    _com_data = [c for c in casos_painel if c.criado_em_origem]
+    maduros_pct = (
+        round(100 * sum(1 for c in _com_data if c.criado_em_origem <= _corte_mad) / len(_com_data))
+        if _com_data
+        else None
+    )
+    aviso_maturidade = maduros_pct is not None and maduros_pct < MATURIDADE_CONFIG["pct_min"]
     painel = SimpleNamespace(
         total=len(casos_painel),
         desfechos=dict(Counter(c.desfecho for c in casos_painel if c.desfecho)),
-        taxa_resposta=_pct(_resp, len(casos_painel)),
+        taxa_resposta=_pct(_resp, len(_maduros_resp)),  # ÷ base madura (gate de resposta)
         taxa_resolucao=_pct(_resol, len(_av)),
         taxa_causa=_pct(_causa, len(_cl)),
         nota_media=round(sum(_notas) / len(_notas), 1) if _notas else None,
@@ -5245,6 +5251,7 @@ def _explorar_casos(s, empresa_id, filtros=None):
         recorte=_CASOS_PERIODO_LABEL.get(f_periodo),  # selo; None → sem selo
         anchor="data da queixa",
         resp_num=_resp,
+        resp_base=len(_maduros_resp),  # base madura da resposta (nota "X de total")
         resol_num=_resol,
         causa_num=_causa,
         aviso_maturidade=aviso_maturidade,

@@ -199,6 +199,102 @@ def test_periodo_recorta_painel(db_session):
     assert rec.aviso_maturidade is True and rec.maduros_pct == 0  # recorte imaturo
 
 
+def test_resposta_gate_maturidade_base_mista(db_session):
+    """Gate SÓ na resposta, base mista com datas reais: 3 maduros (2 respondidos) +
+    2 recentes (não respondidos) → hoje 2/5=40%; com o gate 2/3=67% (o cenário que o
+    modo padrão vai produzir e que ninguém cobre)."""
+    from datetime import timedelta
+
+    e, f = _empresa(db_session)
+    maduro = datetime.utcnow() - timedelta(days=60)
+    recente = datetime.utcnow() - timedelta(days=5)
+    _caso(db_session, e, f, "M1", criado_em_origem=maduro, interactions_count=3)
+    _caso(db_session, e, f, "M2", criado_em_origem=maduro, interactions_count=2)
+    _caso(db_session, e, f, "M3", criado_em_origem=maduro, interactions_count=0)
+    _caso(db_session, e, f, "R1", criado_em_origem=recente, interactions_count=0)
+    _caso(db_session, e, f, "R2", criado_em_origem=recente, interactions_count=0)
+    db_session.commit()
+    p = ui._explorar_casos(db_session, e.id).painel
+    assert p.total == 5
+    assert p.resp_base == 3  # só os maduros entram no denominador da resposta
+    assert p.taxa_resposta == 67  # 2 de 3 maduros (vs 2/5=40 sem o gate)
+
+
+def test_resposta_none_data_conta_como_madura(db_session):
+    """Caso sem criado_em_origem entra na base madura da resposta (None=madura)."""
+    e, f = _empresa(db_session)
+    _caso(db_session, e, f, "N1", interactions_count=2)
+    _caso(db_session, e, f, "N2", interactions_count=0)
+    db_session.commit()
+    p = ui._explorar_casos(db_session, e.id).painel
+    assert p.resp_base == 2  # ambos sem data → maduros
+    assert p.taxa_resposta == 50  # 1 de 2
+
+
+def test_nota_maturidade_na_visao_padrao(db_session):
+    """Sem filtro de período, a maturidade é computada (guard removido) → a nota
+    'X de total' aparece na visão padrão."""
+    from datetime import timedelta
+
+    e, f = _empresa(db_session)
+    _caso(
+        db_session,
+        e,
+        f,
+        "M1",
+        criado_em_origem=datetime.utcnow() - timedelta(days=60),
+        interactions_count=1,
+    )
+    _caso(
+        db_session,
+        e,
+        f,
+        "R1",
+        criado_em_origem=datetime.utcnow() - timedelta(days=5),
+        interactions_count=0,
+    )
+    db_session.commit()
+    p = ui._explorar_casos(db_session, e.id).painel  # SEM período
+    assert p.recorte is None  # visão padrão
+    assert p.maduros_pct == 50  # 1 de 2 com data (computado sem filtro)
+    assert p.resp_base == 1 and p.total == 2  # a nota "1 de 2" tem os dados
+
+
+def test_escalada_menos_50_madura(db_session):
+    """Base majoritariamente jovem (<pct_min madura) → aviso_maturidade True na padrão."""
+    from datetime import timedelta
+
+    e, f = _empresa(db_session)
+    _caso(
+        db_session,
+        e,
+        f,
+        "M1",
+        criado_em_origem=datetime.utcnow() - timedelta(days=60),
+        interactions_count=1,
+    )
+    _caso(
+        db_session,
+        e,
+        f,
+        "R1",
+        criado_em_origem=datetime.utcnow() - timedelta(days=5),
+        interactions_count=0,
+    )
+    _caso(
+        db_session,
+        e,
+        f,
+        "R2",
+        criado_em_origem=datetime.utcnow() - timedelta(days=5),
+        interactions_count=0,
+    )
+    db_session.commit()
+    p = ui._explorar_casos(db_session, e.id).painel
+    assert p.maduros_pct == 33  # 1 de 3 com data
+    assert p.aviso_maturidade is True  # <50 → preliminar
+
+
 # ── Filtros da lista ─────────────────────────────────────────────────────────
 
 
