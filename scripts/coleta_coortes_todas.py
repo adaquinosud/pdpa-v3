@@ -81,6 +81,10 @@ def _custo_coorte(volume) -> float:
 
 
 def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
+    # Instrumentação (frente Fatia 1): cada coleta REAL vira ColetaExecucao (falha Apify
+    # → status='erro' → visível no Monitoramento), via a máquina _coletar_fonte_direto.
+    from src.coletor.orquestrador import _coletar_fonte_direto
+
     # modo='completo': o padrão agora vai pelo cron pdpa-ra-aberturas (anti-colisão).
     fontes = fontes_ra_elegiveis(modo="completo")
     if fonte is not None:  # ESCOPA o run (e o --force) a UMA fonte
@@ -118,10 +122,13 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
                 f"vol/mês={vol}) ~US${custo_fonte:.2f}"
             )
             if not dry_run:
-                st = coletar_amostra(fonte_obj, force=force)
+                # Instrumentado: 1 ColetaExecucao por-fonte (falha Apify → status='erro').
+                st = _coletar_fonte_direto(
+                    fonte_id, coletor_override=lambda f: coletar_amostra(f, force=force)
+                )
                 print(
                     f"        → novos={st['casos_novos']} atual={st['casos_atualizados']} "
-                    f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']}"
+                    f"aband={st.get('abandonados')} nao_rastr={st.get('nao_rastreado')}"
                 )
                 if st["casos_novos"] + st["casos_atualizados"] > 0:
                     empresas_coletadas.add(empresa_id)
@@ -143,15 +150,27 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
                     f"    · {p['coorte']} COLETAR [{p['date_from']}..{p['date_to']}] "
                     f"idade={p['idade_meses']}m nnt={p['n_nao_terminais']}"
                 )
-                if not dry_run:
-                    st = coletar_coorte(fonte_obj, p)
+        if not dry_run and a_coletar:
+            # Multi-bloco numa ÚNICA ColetaExecucao por-fonte (rodando→erro se QUALQUER
+            # coorte falhou no Apify). Reusa _coletar_fonte_direto — o loop de coortes vira
+            # o override agregador; ledger por coorte e pós-coleta seguem iguais.
+            def _coletar_coortes_agregado(fonte_obj_, _blocos=a_coletar):
+                _n = _at = 0
+                _falhou = False
+                for _p in _blocos:
+                    st_c = coletar_coorte(fonte_obj_, _p)
+                    _n += st_c["casos_novos"]
+                    _at += st_c["casos_atualizados"]
+                    _falhou = _falhou or st_c.get("falhou_apify", False)
                     print(
-                        f"        → novos={st['casos_novos']} atual={st['casos_atualizados']} "
-                        f"aband={st['abandonados']} nao_rastr={st['nao_rastreado']} "
-                        f"fechada={st['fechada']}"
+                        f"        → {_p['coorte']} novos={st_c['casos_novos']} "
+                        f"atual={st_c['casos_atualizados']} fechada={st_c['fechada']}"
                     )
-                    if st["casos_novos"] + st["casos_atualizados"] > 0:
-                        empresas_coletadas.add(empresa_id)
+                return {"casos_novos": _n, "casos_atualizados": _at, "falhou_apify": _falhou}
+
+            st = _coletar_fonte_direto(fonte_id, coletor_override=_coletar_coortes_agregado)
+            if st["casos_novos"] + st["casos_atualizados"] > 0:
+                empresas_coletadas.add(empresa_id)
 
     # ── Acoplamento pós-coleta: digere o que foi coletado (subpilar → temas →
     # ratios → ORIGEM). A coleta grava casos + verbatim de valência com subpilar

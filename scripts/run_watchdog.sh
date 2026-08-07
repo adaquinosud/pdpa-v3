@@ -9,3 +9,7 @@ cd "$(dirname "$0")/.."
 PY="$([ -x .venv/bin/python ] && echo .venv/bin/python || echo python)"
 
 PYTHONPATH=. FLASK_APP=src.app:create_app "$PY" -m flask pos-coleta-watchdog "$@"
+
+# Housekeeping pendurado no watchdog (a cada 6h, sem serviço novo): reapa órfãs de
+# coleta presas em 'rodando' (container morto). Só UPDATE em banco — zero Apify.
+PYTHONPATH=. FLASK_APP=src.app:create_app "$PY" -m flask coletas-reaper
