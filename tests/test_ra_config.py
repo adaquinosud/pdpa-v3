@@ -1,6 +1,6 @@
 """Config de coleta RA por fonte (dois-modos, Fatia 3.5): ra_coortes_ativas via UI
-(criar/editar), só p/ reclame_aqui. ra_max_casos/ra_janela_meses saíram da UI
-(dormant). O campo é o controle demo↔cliente do custo de threads."""
+(criar/editar), só p/ reclame_aqui. ra_max_casos voltou VIVO como o cap editável no card
+(frente card-cap); ra_janela_meses está MORTA (aposentada, não lida por nenhum código)."""
 
 from __future__ import annotations
 

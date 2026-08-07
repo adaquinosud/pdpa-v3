@@ -80,7 +80,7 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     ra_modo = (f.ra_modo or "padrao") if eh_ra else None
     # Controle REAL do custo de threads no dois-modos: nº de coortes mensais ativas
     # (Fatia 3.5/4.5). NULL → 1 (conservador); 0 = threads DESLIGADAS (o `or 1`
-    # engoliria o 0). ra_max_casos/ra_janela_meses = dormant.
+    # engoliria o 0). ra_max_casos = o cap editável; ra_janela_meses = MORTA.
     coortes = f.ra_coortes_ativas if f.ra_coortes_ativas is not None else 1
     threads_off = coortes <= 0
     # Modo-por-tamanho (Fatia 4d): mega → AMOSTRA recente capada (custo fixo N×0,025);

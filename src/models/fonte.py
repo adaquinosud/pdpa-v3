@@ -52,10 +52,13 @@ class Fonte(Base):
     # o controle demo↔cliente do custo de threads (nº de coortes mensais no refresh;
     # custo ≈ coortes × volume-do-mês × US$0,025). Default 1 (demo/custo-Loyall).
     ra_coortes_ativas: Mapped[Optional[int]] = mapped_column(Integer)
-    # DORMANT (deprecados na UI, coluna preservada): ra_janela_meses (era a janela
-    # deslizante — modelo antigo); ra_max_casos vira teto-de-segurança default
-    # ilimitado no coletor (0 = sem cap). Não são mais editáveis pela tela.
+    # ra_janela_meses: MORTA — era a janela deslizante (modelo antigo). Não é lida por
+    # nenhum código desde o modo padrão (LATEST+cap): nunca foi escrita → sempre NULL, e
+    # o coletor usa CORTE_MESES fixo. Coluna preservada só p/ não migrar; o alcance da
+    # coleta é governado pelo cap (ra_max_casos). Se a janela em meses voltar, está aqui.
     ra_janela_meses: Mapped[Optional[int]] = mapped_column(Integer)
+    # ra_max_casos: VIVO — o cap (alcance) da coleta de aberturas, editável no card
+    # (0 = não coletar; ≥30). NULL = não-setado → default no coletor (AMOSTRA_CAP_DEFAULT).
     ra_max_casos: Mapped[Optional[int]] = mapped_column(Integer)
     # MODO de coleta RA: 'padrao' = só a abertura da reclamação (SEM interações/thread)
     # → imutável, sem re-visita, sem OOM, LATEST+cap p/ qualquer porte. 'completo' = +

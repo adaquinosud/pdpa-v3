@@ -417,13 +417,14 @@ def coletar_threads(
                 print(f"[reclame_aqui] threads fonte {fonte_id} pulada (cadência)")
                 return stats
 
-    janela_meses = fonte.ra_janela_meses or CORTE_MESES  # dormant (só sliding-compat)
     # ``cap`` explícito (rota AMOSTRA: LATEST + cap, o cap LIMITA o crawl) tem
     # precedência. Sem cap: ra_max_casos DORMANT default ILIMITADO (0) — no modo coorte
     # o volume do mês manda, o cap não deve truncar (fantasma da Fatia 3.5).
     cap = cap if cap is not None else (fonte.ra_max_casos or 0)
-    # date_from explícito (coorte) tem precedência; senão a janela deslizante vigente.
-    corte = date.fromisoformat(date_from) if date_from else _data_corte(janela_meses)
+    # date_from explícito (coorte) tem precedência; senão a janela default da coleta
+    # (CORTE_MESES). ra_janela_meses foi APOSENTADA (nunca escrita → sempre NULL; o
+    # alcance é o cap). Ver comentário em src/models/fonte.py.
+    corte = date.fromisoformat(date_from) if date_from else _data_corte()
     run_input = {
         "companies": [empresa_param],
         "scrapeComplaints": True,

@@ -160,17 +160,19 @@ def _capturar_input(monkeypatch, items):
 
 
 def test_coletar_usa_override_por_fonte(db_session, monkeypatch):
-    """Override na fonte (caso comercial): cap + janela vão pro run_input do actor."""
+    """Override de CAP na fonte (vivo, editável no card) vai pro run_input. A janela em
+    meses foi APOSENTADA: ra_janela_meses não é mais override — dateFrom = CORTE_MESES fixo,
+    mesmo com o campo setado (nunca é escrito em prod)."""
     from datetime import date, timedelta
 
     e, f = _empresa_fonte(db_session)
-    f.ra_janela_meses = 6
+    f.ra_janela_meses = 6  # setado à força, mas o coletor ignora (aposentado)
     f.ra_max_casos = 120
     db_session.commit()
     cap = _capturar_input(monkeypatch, [_reclamacao("O1")])
     ra.coletar_threads(f)
-    assert cap["maxComplaintsPerCompany"] == 120
-    assert cap["dateFrom"] == (date.today() - timedelta(days=6 * 30)).isoformat()
+    assert cap["maxComplaintsPerCompany"] == 120  # cap segue sendo override
+    assert cap["dateFrom"] == (date.today() - timedelta(days=ra.CORTE_MESES * 30)).isoformat()
 
 
 def test_coletar_usa_defaults_sem_override(db_session, monkeypatch):
