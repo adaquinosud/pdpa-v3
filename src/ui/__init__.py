@@ -5258,6 +5258,35 @@ def _explorar_casos(s, empresa_id, filtros=None):
         maduros_pct=maduros_pct,
         maturidade_dias=matur_dias,
     )
+    # ── A régua no ReclameAqui: distribuição por subpilar SÓ deste canal. Reuso puro do
+    # regua_recorte (subpilares_fonte='com-dado' = caminho não-pesquisa, sem "perguntados")
+    # + partials _mapa_lastro/_regua_detalhada. Escopo = fontes RA da empresa; base_regua =
+    # total CLASSIFICADOS (≠ nº de casos). All-time (perfil do canal); a lista abaixo é que
+    # respeita o recorte de período. Janela = min..max da queixa (§7: lastro temporal), 0 query. ──
+    from src.models.fonte import Fonte
+    from src.models.verbatim import Verbatim
+    from src.pesquisa.retorno import regua_recorte
+
+    _ra_ids = [
+        fid
+        for (fid,) in s.query(Fonte.id)
+        .filter(Fonte.empresa_id == empresa_id, Fonte.conector_tipo == "reclame_aqui")
+        .all()
+    ]
+    regua = None
+    if _ra_ids:
+        regua = regua_recorte(
+            s,
+            filtro_verbatim=Verbatim.fonte_id.in_(_ra_ids),
+            ativo=True,
+            subpilares_fonte="com-dado",
+            com_temas=True,
+            com_enunciado=False,
+        )
+        if not regua.get("pilares"):
+            regua = None  # nada classificado → o bloco some limpo
+    _datas = [c.criado_em_origem for c in casos if c.criado_em_origem]
+    janela = (min(_datas), max(_datas)) if _datas else None
     # ── Filtros (só a LISTA) ──────────────────────────────────────────────────
     from urllib.parse import urlencode
 
@@ -5300,6 +5329,8 @@ def _explorar_casos(s, empresa_id, filtros=None):
     return SimpleNamespace(
         painel=painel,
         casos=linhas,
+        regua=regua,  # distribuição por subpilar SÓ do canal RA (None = nada classificado)
+        janela=janela,  # (min, max) da queixa — lastro temporal da régua (§7)
         tem_dado=len(casos) > 0,  # tem RA data (independe do recorte de período)
         n_filtrado=len(linhas),
         filtros={

@@ -295,6 +295,97 @@ def test_escalada_menos_50_madura(db_session):
     assert p.aviso_maturidade is True  # <50 → preliminar
 
 
+# ── frente ra-regua-na-aba: distribuição por subpilar SÓ do canal RA ──
+
+
+def _verb(db_session, e, f, hash_dedup, subpilar, tipo="detrator"):
+    v = Verbatim(
+        empresa_id=e.id,
+        fonte_id=f.id,
+        texto="reclamação classificada",
+        hash_dedup=hash_dedup,
+        subpilar=subpilar,
+        tipo=tipo,
+        tem_texto=True,
+    )
+    db_session.add(v)
+    db_session.flush()
+    return v
+
+
+def _fonte_google(db_session, e):
+    g = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="google",
+        url="ChIJ",
+        status="ativa",
+    )
+    db_session.add(g)
+    db_session.flush()
+    return g
+
+
+def test_regua_ra_so_conta_fonte_ra(db_session):
+    """A régua isola a fonte RA: verbatins de OUTRA fonte (google) ficam de fora."""
+    e, f = _empresa(db_session)  # f = fonte reclame_aqui
+    g = _fonte_google(db_session, e)
+    _caso(db_session, e, f, "C1")  # ≥1 caso → tem_dado
+    _verb(db_session, e, f, "r1", "Pa2")
+    _verb(db_session, e, f, "r2", "Pa2")
+    _verb(db_session, e, f, "r3", "D1")
+    _verb(db_session, e, g, "g1", "Pa1")  # google → NÃO entra
+    db_session.commit()
+    r = ui._explorar_casos(db_session, e.id)
+    assert r.regua is not None
+    assert r.regua["base_regua"] == 3  # só os 3 RA (google fora)
+
+
+def test_regua_ra_total_classificados_nao_casos(db_session):
+    """O total da régua é CLASSIFICADOS (verbatins com subpilar), não nº de casos."""
+    e, f = _empresa(db_session)
+    _caso(db_session, e, f, "C1")
+    _caso(db_session, e, f, "C2")  # 2 casos
+    _verb(db_session, e, f, "r1", "Pa2")  # 1 classificado
+    db_session.commit()
+    r = ui._explorar_casos(db_session, e.id)
+    assert r.painel.total == 2  # 2 casos
+    assert r.regua["base_regua"] == 1  # 1 classificado (≠ 2 casos)
+
+
+def test_regua_ra_ausente_sem_classificado(db_session):
+    """Sem verbatim classificado → régua None (o bloco some limpo)."""
+    e, f = _empresa(db_session)
+    _caso(db_session, e, f, "C1")
+    db_session.commit()
+    assert ui._explorar_casos(db_session, e.id).regua is None
+
+
+def test_regua_ra_janela(db_session):
+    """Janela = min..max de criado_em_origem (lastro temporal, §7). Zero query."""
+    e, f = _empresa(db_session)
+    _caso(db_session, e, f, "C1", criado_em_origem=datetime(2025, 7, 1))
+    _caso(db_session, e, f, "C2", criado_em_origem=datetime(2026, 8, 1))
+    _verb(db_session, e, f, "r1", "Pa2")
+    db_session.commit()
+    r = ui._explorar_casos(db_session, e.id)
+    assert r.janela == (datetime(2025, 7, 1), datetime(2026, 8, 1))
+
+
+def test_regua_ra_rotulo_escopo_http(client_loyall, db_session):
+    """O bloco renderiza com o rótulo do §7: escopo + razão + ponte pro Diagnóstico."""
+    e, f = _empresa(db_session)
+    _caso(db_session, e, f, "C1", criado_em_origem=datetime(2025, 7, 1))
+    _verb(db_session, e, f, "r1", "Pa2")
+    _verb(db_session, e, f, "r2", "Pa2")
+    db_session.commit()
+    body = client_loyall.get(f"/empresas/{e.id}/explorar?tab=casos").get_data(as_text=True)
+    assert "A régua no ReclameAqui" in body
+    assert "só este canal" in body and "classificados" in body
+    assert "aba Diagnóstico" in body  # a ponte (§7)
+
+
 # ── Filtros da lista ─────────────────────────────────────────────────────────
 
 

@@ -75,6 +75,27 @@
 </div>
 {% endif %}
 
+{# ── A RÉGUA NO RECLAMEAQUI — distribuição por subpilar SÓ deste canal (reuso do
+   _mapa_lastro + _regua_detalhada). Rótulo trava o §7: escopo + razão + ponte pro
+   Diagnóstico. Some limpo quando não há verbatim classificado. ── #}
+{% if casos.regua and casos.regua.pilares %}
+<div class="mt-5 border-t border-loyall-200 pt-4">
+  <div class="flex items-baseline gap-2 flex-wrap">
+    <h4 class="text-sm font-semibold text-loyall-800">A régua no ReclameAqui</h4>
+    <span class="text-xs text-loyall-500">só este canal · {{ casos.regua.base_regua }} classificados{% if casos.janela %} · cobre {{ casos.janela[0].strftime('%m/%Y') }}–{{ casos.janela[1].strftime('%m/%Y') }}{% endif %}</span>
+  </div>
+  <p class="text-xs text-loyall-400 mt-1 max-w-2xl">É a dor de quem já tentou resolver e não conseguiu, por isso o perfil difere do diagnóstico consolidado (todas as fontes), na aba Diagnóstico.</p>
+  {% if casos.regua.mapa_lastro %}
+  <div class="mt-4">
+    {% with pilares = casos.regua.mapa_lastro %}{% include 'partials/_mapa_lastro.html' %}{% endwith %}
+  </div>
+  {% endif %}
+  {% with pilares = casos.regua.pilares, com_enunciado = False, com_temas = True %}
+  {% include 'partials/_regua_detalhada.html' %}
+  {% endwith %}
+</div>
+{% endif %}
+
 {# ── BARRA DE FILTROS (status / período / busca) — form HTMX ── #}
 <form hx-get="{{ tab_url }}" hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-push-url="{{ push }}"
       class="mt-4 flex flex-wrap items-center gap-2 text-xs">
