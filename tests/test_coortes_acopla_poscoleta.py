@@ -81,7 +81,9 @@ _ST_ZERO = {"casos_novos": 0, "casos_atualizados": 0, "abandonados": 0, "nao_ras
 
 def _stub_coleta(monkeypatch, elegiveis, planos, *, amostra_stats=None, coorte_stats=None):
     """Neutraliza a coleta real (Apify) — devolve stats scriptados por fonte."""
-    monkeypatch.setattr("scripts.coleta_coortes_todas.fontes_ra_elegiveis", lambda: elegiveis)
+    monkeypatch.setattr(
+        "scripts.coleta_coortes_todas.fontes_ra_elegiveis", lambda modo=None: elegiveis
+    )
     monkeypatch.setattr("scripts.coleta_coortes_todas._volume_mes", lambda s, fid: 100)
     monkeypatch.setattr(
         "scripts.coleta_coortes_todas.planejar_coortes",

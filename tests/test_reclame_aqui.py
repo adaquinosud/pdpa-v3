@@ -714,6 +714,7 @@ def test_coleta_coortes_fonte_escopa_o_run(db_session, capsys):
             autenticacao_tipo="publica",
             status="ativa",
             ra_coortes_ativas=1,
+            ra_modo="completo",  # o cron de coortes agora seleciona só completo
         )
         db_session.add(fx)
         db_session.flush()

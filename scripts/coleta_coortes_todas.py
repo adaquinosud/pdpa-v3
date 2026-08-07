@@ -35,22 +35,28 @@ from src.models.fonte_reputacao import FonteReputacao  # noqa: E402
 from src.utils.db import db_session  # noqa: E402
 
 
-def fontes_ra_elegiveis() -> List[int]:
+def fontes_ra_elegiveis(modo: str = None) -> List[int]:
     """fonte_ids RA ATIVAS com ``ra_coortes_ativas > 0`` (Fatia 4.5: threads gatilham
     SÓ por coortes>0 + fonte.ativo — dropou o coleta_noturna_ativa, que agora governa
-    só o não-RA). coortes=0 (default demo) = fora do plano."""
+    só o não-RA). coortes=0 (default demo) = fora do plano.
+
+    ``modo`` (frente ra-cron-aberturas) filtra por ``ra_modo`` p/ os DOIS crons não
+    colidirem: 'completo' → só ra_modo='completo'; 'padrao' → só padrão (NULL conta
+    como padrão, consistente com o coletor ``ra_modo or 'padrao'``); None → todos."""
+    from sqlalchemy import or_
+
     with db_session() as s:
-        rows = (
-            s.query(Fonte.id)
-            .filter(
-                Fonte.ativo.is_(True),
-                Fonte.conector_tipo == "reclame_aqui",
-                Fonte.ra_coortes_ativas.isnot(None),
-                Fonte.ra_coortes_ativas > 0,
-            )
-            .order_by(Fonte.id)
-            .all()
+        q = s.query(Fonte.id).filter(
+            Fonte.ativo.is_(True),
+            Fonte.conector_tipo == "reclame_aqui",
+            Fonte.ra_coortes_ativas.isnot(None),
+            Fonte.ra_coortes_ativas > 0,
         )
+        if modo == "completo":
+            q = q.filter(Fonte.ra_modo == "completo")
+        elif modo == "padrao":
+            q = q.filter(or_(Fonte.ra_modo == "padrao", Fonte.ra_modo.is_(None)))
+        rows = q.order_by(Fonte.id).all()
     return [r[0] for r in rows]
 
 
@@ -75,7 +81,8 @@ def _custo_coorte(volume) -> float:
 
 
 def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
-    fontes = fontes_ra_elegiveis()
+    # modo='completo': o padrão agora vai pelo cron pdpa-ra-aberturas (anti-colisão).
+    fontes = fontes_ra_elegiveis(modo="completo")
     if fonte is not None:  # ESCOPA o run (e o --force) a UMA fonte
         fontes = [fid for fid in fontes if fid == fonte]
         if not fontes:

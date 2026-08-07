@@ -40,7 +40,7 @@
         {%- else %}completo · {{ f.ra_coortes_ativas }} coorte{{ 's' if f.ra_coortes_ativas != 1 }} · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · threads {% if f.ra_custo_threads_mes is not none %}~US$ {{ '%.2f'|format(f.ra_custo_threads_mes) }}/mês ({{ f.ra_coortes_ativas }}×{{ f.ra_threads_volume_mes }}/mês){% else %}<span class="text-loyall-400">aguardando 1º scorecard</span>{% endif %}{% endif %}
       {%- elif f.ra_padrao_off %}<span class="text-loyall-400">coleta off</span> · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem
       {%- else %}abertura, cap {{ f.ra_cap_efetivo }} · scorecard US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem · ~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }}/coleta{% endif %}
-      {%- if f.ra_coletas_manuais_mes and f.ra_coletas_manuais_mes > 0 %} · <span class="text-loyall-400" title="Só conta disparos pelo botão (o cron não entra). Não é o gasto total da fonte.">disparos manuais: {{ f.ra_coletas_manuais_mes }} este mês (~US$ {{ '%.2f'|format(f.ra_gasto_manual_centavos / 100) }})</span>{% endif %}
+      {%- if f.ra_coletas_mes and f.ra_coletas_mes > 0 %} · <span class="text-loyall-400" title="Custo Apify das coletas registradas no mês (disparos manuais + cron de aberturas). Não inclui o scorecard semanal (~US$0,24/mês).">gasto este mês: ~US$ {{ '%.2f'|format(f.ra_gasto_mes_centavos / 100) }} ({{ f.ra_coletas_mes }} coleta{{ 's' if f.ra_coletas_mes != 1 }})</span>{% endif %}
     </span>
   {% endif %}
   <div class="flex items-center gap-2">

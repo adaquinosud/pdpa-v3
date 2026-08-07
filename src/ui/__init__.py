@@ -87,8 +87,8 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     # senão → COORTE (coortes × complaints30Days). complaints30Days = latest (display).
     compl_30d = None
     eh_mega = False
-    ra_gasto_manual_centavos = None  # trilha de gasto por disparo MANUAL (mês corrente)
-    ra_coletas_manuais_mes = 0
+    ra_gasto_mes_centavos = None  # Σ custo das coletas registradas no mês (botão + cron aberturas)
+    ra_coletas_mes = 0
     ra_dias_desde_coleta = None  # p/ o confirm consciente de frescor do botão
     if eh_ra:
         from datetime import datetime as _dt
@@ -116,8 +116,9 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
             # scorecard, mas na TELA sem dado → 'aguardando', não 'amostra').
             if compl_30d is not None:
                 eh_mega = _e_mega(_s, f.id)  # média das últimas N leituras > limiar
-            # Gasto MANUAL do mês: só disparos on-demand criam ColetaExecucao (o cron
-            # não) → o número é honestamente "disparos manuais", não o total.
+            # Gasto do mês: ColetaExecucao é criada pelo botão (on-demand) E pelo cron de
+            # ABERTURAS (frente 2A, via _coletar_fonte_direto). NÃO inclui o scorecard
+            # semanal nem, no completo, o cron de coortes → limite declarado no title.
             _ini_mes = _dt.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             _cent, _n = (
                 _s.query(
@@ -131,8 +132,8 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
                 )
                 .one()
             )
-            ra_gasto_manual_centavos = int(_cent or 0)
-            ra_coletas_manuais_mes = int(_n or 0)
+            ra_gasto_mes_centavos = int(_cent or 0)
+            ra_coletas_mes = int(_n or 0)
             ra_dias_desde_coleta = (
                 (_dt.utcnow() - f.ultima_coleta).days if f.ultima_coleta else None
             )
@@ -192,8 +193,8 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ra_cap_recomendado=ra_cap_recomendado,  # sugestão de cap p/ cadência semanal
         # ── frente ra-custo-repeticao: confirm consciente + trilha de gasto manual ──
         ra_dias_desde_coleta=ra_dias_desde_coleta,  # p/ o confirm do botão de aberturas
-        ra_gasto_manual_centavos=ra_gasto_manual_centavos,  # Σ custo dos disparos manuais/mês
-        ra_coletas_manuais_mes=ra_coletas_manuais_mes,  # nº de disparos manuais no mês
+        ra_gasto_mes_centavos=ra_gasto_mes_centavos,  # Σ custo das coletas do mês (botão+cron)
+        ra_coletas_mes=ra_coletas_mes,  # nº de coletas registradas no mês
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
         # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
         # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).
