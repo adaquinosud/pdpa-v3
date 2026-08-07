@@ -85,18 +85,16 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
     threads_off = coortes <= 0
     # Modo-por-tamanho (Fatia 4d): mega → AMOSTRA recente capada (custo fixo N×0,025);
     # senão → COORTE (coortes × complaints30Days). complaints30Days = latest (display).
+    from datetime import datetime as _dt
+
     compl_30d = None
     eh_mega = False
     ra_gasto_mes_centavos = None  # Σ custo das coletas registradas no mês (botão + cron aberturas)
     ra_coletas_mes = 0
     ra_dias_desde_coleta = None  # p/ o confirm consciente de frescor do botão
+    ultima_falha = None  # Fatia 2: aviso {dias, motivo} quando a ÚLTIMA execução é 'erro'
     if eh_ra:
-        from datetime import datetime as _dt
-
-        from sqlalchemy import func as _func
-
         from src.coletor.reclame_aqui import _e_mega
-        from src.models.coleta_execucao import ColetaExecucao
         from src.models.fonte_reputacao import FonteReputacao
 
         with db_session() as _s:
@@ -116,27 +114,38 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
             # scorecard, mas na TELA sem dado → 'aguardando', não 'amostra').
             if compl_30d is not None:
                 eh_mega = _e_mega(_s, f.id)  # média das últimas N leituras > limiar
-            # Gasto do mês: ColetaExecucao é criada pelo botão (on-demand) E pelo cron de
-            # ABERTURAS (frente 2A, via _coletar_fonte_direto). NÃO inclui o scorecard
-            # semanal nem, no completo, o cron de coortes → limite declarado no title.
-            _ini_mes = _dt.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            _cent, _n = (
-                _s.query(
-                    _func.coalesce(_func.sum(ColetaExecucao.custo_apify_centavos), 0),
-                    _func.count(ColetaExecucao.id),
-                )
-                .filter(
-                    ColetaExecucao.fonte_id == f.id,
-                    ColetaExecucao.custo_apify_centavos.isnot(None),
-                    ColetaExecucao.iniciado_em >= _ini_mes,
-                )
-                .one()
-            )
-            ra_gasto_mes_centavos = int(_cent or 0)
-            ra_coletas_mes = int(_n or 0)
             ra_dias_desde_coleta = (
                 (_dt.utcnow() - f.ultima_coleta).days if f.ultima_coleta else None
             )
+    # Execuções de coleta (TODAS as fontes): UMA query por fonte → aviso de falha (última
+    # execução = 'erro') + gasto do mês (só RA, derivado). O aviso cobre todo conector — a
+    # noturna que falhou no Carbel derruba google/linkedin/youtube etc., não só RA.
+    from src.models.coleta_execucao import ColetaExecucao
+
+    _ini_mes = _dt.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    with db_session() as _se:
+        _execs = (
+            _se.query(ColetaExecucao)
+            .filter(ColetaExecucao.fonte_id == f.id)
+            .order_by(ColetaExecucao.iniciado_em.desc())
+            .limit(100)
+            .all()
+        )
+        if _execs:  # derivar DENTRO da sessão (objetos detacham ao fechar o with)
+            _ult = _execs[0]  # execução mais recente (self-clearing: só o último estado)
+            if _ult.status == "erro":
+                _d = (_dt.utcnow() - _ult.iniciado_em).days if _ult.iniciado_em else 0
+                ultima_falha = {"dias": _d, "motivo": (_ult.mensagem_erro or "erro")[:80]}
+            if eh_ra:  # gasto do mês = soma dos custos das execuções deste mês
+                _mes = [
+                    e
+                    for e in _execs
+                    if e.custo_apify_centavos is not None
+                    and e.iniciado_em
+                    and e.iniciado_em >= _ini_mes
+                ]
+                ra_gasto_mes_centavos = sum(e.custo_apify_centavos for e in _mes)
+                ra_coletas_mes = len(_mes)
     ra_amostra_n = (f.ra_max_casos or AMOSTRA_CAP_DEFAULT) if eh_ra else None
     if threads_off:
         ra_custo_threads_mes = 0.0  # threads desligadas → custo zero
@@ -195,6 +204,7 @@ def _wrap_fonte(f, nome_local=None) -> SimpleNamespace:
         ra_dias_desde_coleta=ra_dias_desde_coleta,  # p/ o confirm do botão de aberturas
         ra_gasto_mes_centavos=ra_gasto_mes_centavos,  # Σ custo das coletas do mês (botão+cron)
         ra_coletas_mes=ra_coletas_mes,  # nº de coletas registradas no mês
+        ultima_falha=ultima_falha,  # Fatia 2: {dias,motivo} se a última coleta falhou (toda fonte)
         # Nome amigável do Local quando a fonte é de um local (entidade_tipo='local').
         # A tela exibe isto em vez do place_id cru (ChIJ…, guardado em url). None para
         # fontes de empresa (url costuma ser URL real de site/social → faz sentido exibir).
@@ -1375,6 +1385,40 @@ def detalhe_empresa(empresa_id: int):
 # ── Página de verbatins ─────────────────────────────────────────────────
 
 
+def _falhas_por_empresa(dias: int = 14):
+    """Rollup das coletas com falha por EMPRESA nos últimos ``dias`` (Fatia 2). Agrupa
+    p/ o painel ser legível quando a falha é sistêmica (ex: uma noite inteira de uma
+    empresa não vira centenas de linhas). Cross-empresa (a tela é loyall-only). Devolve
+    ``(lista_ordenada_por_n_desc, total_falhas)``."""
+    from datetime import datetime, timedelta
+
+    from src.models.coleta_execucao import ColetaExecucao
+    from src.models.empresa import Empresa
+
+    desde = datetime.utcnow() - timedelta(days=dias)
+    por_emp: dict = {}
+    total = 0
+    with db_session() as s:
+        rows = (
+            s.query(ColetaExecucao, Empresa.nome)
+            .join(Empresa, Empresa.id == ColetaExecucao.empresa_id)
+            .filter(ColetaExecucao.status == "erro", ColetaExecucao.iniciado_em >= desde)
+            .order_by(ColetaExecucao.iniciado_em.desc())
+            .all()
+        )
+        for exe, nome in rows:  # DENTRO da sessão (objetos detacham ao fechar)
+            total += 1
+            d = por_emp.setdefault(
+                exe.empresa_id,
+                {"empresa_id": exe.empresa_id, "nome": nome, "n": 0, "ultima": None, "motivo": ""},
+            )
+            d["n"] += 1
+            if d["ultima"] is None:  # rows vem desc → a 1ª por empresa é a mais recente
+                d["ultima"] = exe.iniciado_em
+                d["motivo"] = (exe.mensagem_erro or "erro")[:60]
+    return sorted(por_emp.values(), key=lambda x: -x["n"]), total
+
+
 @ui_bp.route("/monitoramento")
 @loyall_required_ui
 def monitoramento():
@@ -1383,6 +1427,8 @@ def monitoramento():
     if r:
         return r
     user = get_current_user()
+    from datetime import datetime, timedelta
+
     from src.api.monitoramento import listar_coletas as api_listar
 
     # Reusa o endpoint da API para listar
@@ -1395,8 +1441,9 @@ def monitoramento():
     )
     filtros = {
         "status": request.args.get("status", ""),
-        "desde_data": request.args.get("desde_data", ""),
+        "desde": request.args.get("desde", ""),  # Fatia 2: era 'desde_data' (morto)
     }
+    falhas_empresas, falhas_total = _falhas_por_empresa(dias=14)
     return render_template(
         "monitoramento.html",
         user=user,
@@ -1404,6 +1451,10 @@ def monitoramento():
         execucoes=body.get("execucoes", []),
         execucoes_em_andamento=execucoes_em_andamento,
         filtros=filtros,
+        falhas_empresas=falhas_empresas,
+        falhas_total=falhas_total,
+        falhas_dias=14,
+        falhas_desde=(datetime.utcnow() - timedelta(days=14)).date().isoformat(),
     )
 
 

@@ -14,6 +14,29 @@
   <p class="text-sm text-loyall-400">Últimas 24h por padrão. Atualiza automaticamente a cada 5s se houver coletas em andamento.</p>
 </div>
 
+{# Painel de falhas — FAZ a falha te encontrar: sem escolher filtro, no topo, agrupado
+   por empresa (o sistêmico não vira centenas de linhas). Drill → tabela filtrada. #}
+<div class="mb-3 border rounded p-3 {% if falhas_empresas %}border-amber-300 bg-amber-50{% else %}border-loyall-200 bg-white{% endif %}">
+  <div class="text-sm font-semibold {% if falhas_empresas %}text-amber-800{% else %}text-loyall-700{% endif %}">
+    Coletas com falha · últimos {{ falhas_dias }} dias ({{ falhas_total }})
+  </div>
+  {% if falhas_empresas %}
+  <div class="mt-2 space-y-1 text-xs">
+    {% for e in falhas_empresas %}
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="font-medium text-loyall-800">{{ e.nome }}</span>
+      <span class="text-amber-700">{{ e.n }} falha{{ 's' if e.n != 1 }}</span>
+      <span class="text-loyall-400">· última {% if e.ultima %}{{ e.ultima.strftime('%d/%m') }}{% endif %} · "{{ e.motivo }}"</span>
+      <a href="{{ url_for('ui.monitoramento') }}?status=erro&amp;empresa_id={{ e.empresa_id }}&amp;desde={{ falhas_desde }}"
+         class="text-loyall-600 hover:underline">ver</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="mt-1 text-xs text-loyall-400">Nenhuma falha nos últimos {{ falhas_dias }} dias.</div>
+  {% endif %}
+</div>
+
 <form method="get" class="bg-white border border-loyall-200 rounded p-3 mb-3 flex flex-wrap items-center gap-2 text-sm">
   <select name="status" class="px-2 py-1.5 border border-loyall-200 rounded">
     <option value="">Status: todos</option>
@@ -21,7 +44,7 @@
     <option value="{{ s }}" {% if filtros.status == s %}selected{% endif %}>{{ s }}</option>
     {% endfor %}
   </select>
-  <input type="date" name="desde_data" value="{{ filtros.desde_data or '' }}"
+  <input type="date" name="desde" value="{{ filtros.desde or '' }}"
          class="px-2 py-1.5 border border-loyall-200 rounded" title="Desde">
   <button type="submit" class="px-3 py-1.5 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Filtrar</button>
   <a href="{{ url_for('ui.monitoramento') }}" class="px-3 py-1.5 border border-loyall-200 hover:bg-loyall-100 rounded">Limpar</a>

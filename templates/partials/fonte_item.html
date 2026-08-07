@@ -31,6 +31,10 @@
   {% if f.ultima_coleta %}
     <span class="text-loyall-400" title="Última coleta">{{ f.ultima_coleta.strftime('%Y-%m-%d') }}</span>
   {% endif %}
+  {% if f.ultima_falha %}
+  <span class="text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 text-[11px]"
+        title="{{ f.ultima_falha.motivo }}">⚠ última coleta falhou ({% if f.ultima_falha.dias == 0 %}hoje{% else %}há {{ f.ultima_falha.dias }}d{% endif %}) — {{ f.ultima_falha.motivo }}. Tente disparar de novo.</span>
+  {% endif %}
   {% if f.eh_ra %}
     <span class="text-loyall-500 min-w-0 break-words"
           title="Dois modos: scorecard oficial (semanal) + coleta de casos. PADRÃO = só a abertura (imutável), até 'casos/coleta' por vez, custo uma vez por coleta. COMPLETO = + a thread (recorrente por coorte). O scorecard cobre a conduta agregada.">
