@@ -5,51 +5,51 @@
         class="flex flex-wrap items-center gap-2 w-full">
     <code class="px-1.5 py-0.5 bg-loyall-100 rounded text-loyall-800 min-w-[6rem] inline-block">{{ f.conector_tipo }}</code>
     <input name="url" value="{{ f.url }}" required autofocus
-           class="flex-1 px-2 py-1 border border-loyall-300 rounded">
+           class="flex-1 px-2 py-1 border border-loyall-400 bg-white rounded">
     <input name="observacao" value="{{ f.observacao or '' }}" placeholder="obs (opcional)"
-           class="w-32 px-2 py-1 border border-loyall-300 rounded">
+           class="w-32 px-2 py-1 border border-loyall-400 bg-white rounded">
     {% if erro %}
     <span class="w-full text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">{{ erro }}</span>
     {% endif %}
     {% if f.eh_ra %}
-    {# frente card-cap: modo real (padrão/completo) + cap editável (alcance) + custo por-coleta #}
+    {# card-cap + fix-legibilidade: linha 1 = CONTROLES (o que se edita); linhas 2-3 =
+       guia + custo em cinza (o que se lê). Antes tudo numa linha só → controles afogados. #}
     <span class="flex flex-wrap items-center gap-2 text-loyall-500 border-l border-loyall-300 pl-2 min-w-0 w-full"
           data-ra-caso="{{ f.ra_custo_por_caso }}"
           data-ra-start="0.005"
           data-ra-piso="{{ f.ra_cap_piso }}"
           data-ra-alerta="{{ f.ra_cap_alerta_botao }}">
+      {# ── linha 1: controles ── #}
       <label class="flex items-center gap-1">modo
         <select name="ra_modo" onchange="recalcRA(this)"
-                class="px-1 py-0.5 border border-loyall-300 rounded">
+                class="px-1 py-0.5 border border-loyall-400 bg-white rounded">
           <option value="padrao" {% if f.ra_modo != 'completo' %}selected{% endif %}>padrão (abertura)</option>
           <option value="completo" {% if f.ra_modo == 'completo' %}selected{% endif %}>completo (+ thread)</option>
         </select>
       </label>
-      <label data-ra-toggle class="flex items-center gap-1 {% if f.ra_modo == 'completo' %}hidden{% endif %}">
+      <label data-ra-toggle class="flex items-center gap-1 bg-white border border-loyall-400 rounded px-2 py-1 {% if f.ra_modo == 'completo' %}hidden{% endif %}">
         <input type="checkbox" data-ra-onoff onchange="recalcRA(this)"
-               {% if not f.ra_padrao_off %}checked{% endif %}> coletar
+               {% if not f.ra_padrao_off %}checked{% endif %}> coletar automaticamente
       </label>
       <label data-ra-coortes class="flex items-center gap-1 {% if f.ra_modo != 'completo' %}hidden{% endif %}">coortes
         <input name="ra_coortes_ativas" type="number" min="0" value="{{ f.ra_coortes_ativas }}"
-               oninput="recalcRA(this)" class="w-14 px-1 py-0.5 border border-loyall-300 rounded">
+               oninput="recalcRA(this)" class="w-14 px-1 py-0.5 border border-loyall-400 bg-white rounded">
       </label>
-      <label class="flex items-center gap-1">casos/coleta
+      <label class="flex items-center gap-1">casos por coleta
         <input name="ra_max_casos" type="number" min="0" step="1"
-               value="{{ f.ra_max_casos if f.ra_max_casos is not none else '' }}"
+               value="{{ f.ra_cap_efetivo }}"
                placeholder="{{ f.ra_cap_efetivo }}"
-               oninput="recalcRA(this)" class="w-16 px-1 py-0.5 border border-loyall-300 rounded">
+               oninput="recalcRA(this)" class="w-16 px-1 py-0.5 border border-loyall-400 bg-white rounded">
       </label>
-      <span class="text-[10px] text-loyall-400">0 = não coletar · mín {{ f.ra_cap_piso }}</span>
-      {% if f.ra_modo != 'completo' %}
-      <span class="w-full text-[10px] text-loyall-400">
-        {%- if f.ra_threads_volume_mes %}volume ~{{ f.ra_threads_volume_mes }}/mês → ~{{ f.ra_vol_semana }}/semana. Com cap abaixo disso, aberturas antigas somem do lote. Recomendado ~{{ f.ra_cap_recomendado }}
-        {%- else %}sem scorecard — rode-o p/ ver o volume e o cap recomendado{% endif %}</span>
-      {% endif %}
-      · scorecard <span class="text-loyall-700 font-medium">US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem</span>
-      · <span data-ra-cost class="text-loyall-700 font-medium">
+      {# ── linha 2: guia (cinza, linha própria) ── #}
+      <span class="w-full text-[10px] text-loyall-400">0 = não coletar · mín {{ f.ra_cap_piso }}
+        {%- if f.ra_modo != 'completo' %} · {% if f.ra_threads_volume_mes %}volume ~{{ f.ra_threads_volume_mes }}/mês → ~{{ f.ra_vol_semana }}/semana. Com cap abaixo disso, aberturas antigas somem do lote. Recomendado ~{{ f.ra_cap_recomendado }}{% else %}sem scorecard — rode-o p/ ver o volume e o cap recomendado{% endif %}{% endif %}</span>
+      {# ── linha 3: custo (cinza, linha própria) ── #}
+      <span class="w-full text-loyall-500">scorecard <span class="text-loyall-700 font-medium">US$ {{ '%.3f'|format(f.ra_custo_scorecard) }}/sem</span>
+        · <span data-ra-cost class="text-loyall-700 font-medium">
         {%- if f.ra_modo == 'completo' %}threads: modo completo (custo recorrente por coorte)
         {%- elif f.ra_padrao_off %}desligado
-        {%- else %}~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }} por coleta (uma vez — a abertura não é re-cobrada){% endif %}</span>
+        {%- else %}~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }} por coleta (uma vez — a abertura não é re-cobrada){% endif %}</span></span>
       <span data-ra-warn class="{% if f.ra_modo == 'completo' or not (f.ra_cap_efetivo and f.ra_cap_efetivo > f.ra_cap_alerta_botao) %}hidden{% endif %} w-full text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
         ⚠ Cap alto: o botão coleta no worker web (memória compartilhada). Acima de ~{{ f.ra_cap_alerta_botao }} o risco é estourar — para backfill grande, dispare pelo cron.
       </span>

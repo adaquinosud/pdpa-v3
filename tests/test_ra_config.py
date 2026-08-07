@@ -264,6 +264,19 @@ def test_card_cap_recomendado_sem_scorecard(client_loyall, db_session):
     assert "sem scorecard" in r.get_data(as_text=True)
 
 
+def test_card_padrao_controles_legiveis(client_loyall, db_session):
+    """Fix legibilidade: cap pré-preenchido (não vazio), on/off rotulado, inputs bg-white.
+    Fonte NULL-cap (como a 354) → o cap mostra o valor efetivo (250), não caixa vazia."""
+    f = _fonte_ra(client_loyall, db_session)  # cap NULL, padrão
+    assert f.ra_max_casos is None
+    body = client_loyall.get(f"/ui/fontes/{f.id}/editar").get_data(as_text=True)
+    assert 'name="ra_max_casos"' in body
+    assert 'value="250"' in body  # cap pré-preenchido com ra_cap_efetivo (não value="")
+    assert "coletar automaticamente" in body  # on/off rotulado (não checkbox nu)
+    assert "casos por coleta" in body
+    assert "bg-white" in body  # contraste da caixa sobre o fundo âmbar
+
+
 # ── frente ra-custo-repeticao: confirm consciente de frescor + gasto manual ──
 
 
