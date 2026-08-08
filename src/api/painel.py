@@ -478,21 +478,70 @@ def gargalo_sequencial(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
 # ── Métricas consolidadas (Manual Cap. 4) ─────────────────────────────
 
 
+def _normalizar_indice(base: float) -> float:
+    """Normaliza o ratio-base (0–9.99) para a escala 0-10 do Índice Geral, ANCORADA na
+    régua de ratio do Manual v8 — por partes, não linear: ratio 1,0 (empate) → 5 (piso
+    'atenção'), 2,0 ('bom') → 7 (piso 'saudável'), 5,0 ('excelente') → 10. Assim as faixas
+    do índice (≥7/5-7/<5) concordam com a régua de ratio dos pilares. Substitui o ×2 do
+    hotfix, que punha ratio 'bom' (2,0) em índice 4,0 = 'crítico' (choque com a régua)."""
+    if base <= 0.5:
+        return round(base * 5.0, 2)  # 0,5 → 2,5
+    if base <= 1.0:
+        return round(2.5 + (base - 0.5) * 5.0, 2)  # 1,0 → 5,0 (piso atenção = empate)
+    if base <= 2.0:
+        return round(5.0 + (base - 1.0) * 2.0, 2)  # 2,0 → 7,0 (piso saudável = 'bom')
+    if base <= 5.0:
+        return round(7.0 + (base - 2.0), 2)  # 5,0 → 10 (excelente)
+    return 10.0
+
+
+def _base_indice(matriz_subpilares, pilares=None):
+    """``(base, ratio_pior_pilar, ratio_medio_ponderado)`` — fonte única do cálculo.
+    ``base = min(pior, média)`` (elo mais fraco). ``pior`` = None quando não há pilar
+    mensurável (sem volume) → base 0.0. Usado por ``calcular_indice_geral`` e pelo flag
+    ``indice_governado_pelo_pior`` (sem duplicar a extração)."""
+    total_volume = sum(c.get("total", 0) for c in matriz_subpilares)
+    if total_volume == 0:
+        return (0.0, None, 0.0)
+    soma = sum(c.get("ratio", 0.0) * c.get("total", 0) for c in matriz_subpilares)
+    media = soma / total_volume
+    # Ratio do pior pilar — só pilares com volume > 0.
+    if pilares is not None:
+        ratios = [p["ratio"] for p in pilares if p.get("total", 0) > 0]
+    else:  # agrega da matriz por prefixo do código (P/D/Pa/A)
+        agg: Dict[str, Dict[str, int]] = {}
+        for c in matriz_subpilares:
+            p_code = PILAR_DE_SUBPILAR.get(c.get("subpilar", ""))
+            if p_code is None:
+                continue
+            d = agg.setdefault(p_code, {"promotor": 0, "detrator": 0, "total": 0})
+            d["promotor"] += c.get("promotor", 0)
+            d["detrator"] += c.get("detrator", 0)
+            d["total"] += c.get("total", 0)
+        ratios = [
+            calcular_ratio(d["promotor"], d["detrator"]) for d in agg.values() if d["total"] > 0
+        ]
+    if not ratios:
+        return (0.0, None, media)
+    pior = min(ratios)
+    return (min(pior, media), pior, media)
+
+
 def calcular_indice_geral(
     matriz_subpilares: List[Dict[str, Any]],
     pilares: Optional[List[Dict[str, Any]]] = None,
 ) -> float:
-    """Índice Geral (escala 0-10) conforme Manual Cap. 3-4.
+    """Índice Geral (escala 0-10) — Manual v8 (Índice Geral).
 
-    Fórmula (opção B do hotfix, 2026-05-24):
+    Fórmula:
+        base   = min(ratio_pior_pilar, ratio_medio_ponderado)   # elo mais fraco
+        indice = _normalizar_indice(base)                        # régua de ratio → 0-10
 
-        indice = min(ratio_pior_pilar, ratio_medio_ponderado) × 2
-        cap em 10
-
-    Justificativa: o Manual Cap. 3 define o Lastro como sequência
-    evolutiva P→D→Pa→A — pilar travado puxa tudo. Média ponderada
-    sozinha permite pilares saturados (Pa1 9.99) mascararem um pilar
-    crítico (P 0.4). O min() força o pior pilar a determinar o teto.
+    O ``min`` (elo mais fraco) impede que um pilar saturado (Pa1 9.99, alto volume)
+    mascare um pilar crítico via média — masking que é a MAIORIA da base, não caso raro
+    do BH Airport. A normalização é ancorada na régua de ratio (1,0→5, 2,0→7, 5,0→10)
+    para as faixas do índice (≥7/5-7/<5) concordarem com a régua dos pilares: ratio 'bom'
+    (2,0) → 'saudável', não 'crítico' (o ×2 antigo o punha em índice 4,0). Manual v8.
 
     Args:
         matriz_subpilares: lista de dicts {ratio, total} por subpilar
@@ -504,39 +553,17 @@ def calcular_indice_geral(
     Returns:
         0.0 quando não há volume.
     """
-    total_volume = sum(c.get("total", 0) for c in matriz_subpilares)
-    if total_volume == 0:
-        return 0.0
+    base, _, _ = _base_indice(matriz_subpilares, pilares)
+    return _normalizar_indice(base)
 
-    # Ratio médio ponderado por volume (sobre os 12 subpilares).
-    soma_ponderada = sum(c.get("ratio", 0.0) * c.get("total", 0) for c in matriz_subpilares)
-    ratio_medio_ponderado = soma_ponderada / total_volume
 
-    # Ratio do pior pilar — considera apenas pilares com volume > 0.
-    if pilares is not None:
-        ratios_pilares = [p["ratio"] for p in pilares if p.get("total", 0) > 0]
-    else:
-        # Agrega da matriz por prefixo do código (P/D/Pa/A).
-        agg: Dict[str, Dict[str, int]] = {}
-        for c in matriz_subpilares:
-            sub = c.get("subpilar", "")
-            p_code = PILAR_DE_SUBPILAR.get(sub)
-            if p_code is None:
-                continue
-            d = agg.setdefault(p_code, {"promotor": 0, "detrator": 0, "total": 0})
-            d["promotor"] += c.get("promotor", 0)
-            d["detrator"] += c.get("detrator", 0)
-            d["total"] += c.get("total", 0)
-        ratios_pilares = [
-            calcular_ratio(d["promotor"], d["detrator"]) for d in agg.values() if d["total"] > 0
-        ]
-    if not ratios_pilares:
-        return 0.0
-    ratio_pior_pilar = min(ratios_pilares)
-
-    # min() das duas referências → ×2 → cap em 10.
-    base = min(ratio_pior_pilar, ratio_medio_ponderado)
-    return round(min(10.0, base * 2.0), 2)
+def indice_governado_pelo_pior(matriz_subpilares, pilares=None) -> bool:
+    """True quando o PIOR PILAR (não a média) define o índice — o ``min`` pegou o pior
+    pilar (pior ≤ média) e há pilar mensurável. Alimenta a nota do card ('Aqui, {pilar}
+    é o teto') sem o template recomputar o índice (que agora é normalização por partes,
+    não ``ratio×2``)."""
+    _, pior, media = _base_indice(matriz_subpilares, pilares)
+    return pior is not None and pior <= media
 
 
 def faixa_indice_geral(indice: float) -> str:
@@ -1098,8 +1125,9 @@ def painel_nivel1(empresa_id: int):
             periodo=periodo_arg,
         )
 
-    # Índice Geral (opção B: min(pior_pilar, ratio_medio) × 2)
+    # Índice Geral (Manual v8: min(pior_pilar, média) → normalização por partes).
     indice_geral = calcular_indice_geral(matriz_para_metricas, pilares=pilares)
+    indice_governado = indice_governado_pelo_pior(matriz_para_metricas, pilares=pilares)
 
     return jsonify(
         {
@@ -1111,6 +1139,7 @@ def painel_nivel1(empresa_id: int):
             # B5 ext. CP-3: métricas consolidadas (Manual Cap. 4)
             "indice_geral": indice_geral,
             "indice_geral_faixa": faixa_indice_geral(indice_geral),
+            "indice_geral_governado_pelo_pior": indice_governado,  # nota do card (pior binda)
             "previsibilidade": previsibilidade,
             "previsibilidade_medida": previsib_medida,  # guard T1 (default 70,0 vs medido)
             "concentracao_detratores": concentracao_pct,

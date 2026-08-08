@@ -905,7 +905,7 @@ _AGG_CANONICO = {
 
 def test_simular_canonico_chain():
     """Exemplo canônico (corrigido do report): P2 alta, det→conv.
-    ratio 0.5→1.0 · Proximity 0→5.88 · Índice 2.0→3.34 · selo None."""
+    ratio 0.5→1.0 · Proximity 0→5.88 · Índice 5.0→6.34 (norm_A) · selo None."""
     from src.governanca.metricas import simular_impacto_acao
 
     r = simular_impacto_acao(_AGG_CANONICO, "P2", "alto", previsibilidade=None)
@@ -913,7 +913,7 @@ def test_simular_canonico_chain():
     assert r["recuperados"] == 20
     assert r["ratio"] == (0.5, 1.0)
     assert r["proximity"] == (0.0, 5.88)
-    assert r["indice"] == (2.0, 3.34)
+    assert r["indice"] == (5.0, 6.34)
     assert r["selo"] == (None, None)
 
 

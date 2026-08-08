@@ -3,8 +3,8 @@
 A explicação deixou de falar em "pilar travado" (vocabulário de gargalo, que a 17
 não tem) e passa a dizer que o PIOR PILAR define o teto. A frase final é DERIVADA
 do dado (nome do pilar + ratio) e CONDICIONAL: só aparece quando o pior pilar é o
-binding (pior*2 == indice_geral); quando a média ponderada é o teto, some — senão
-o executivo faria pior×2 e acharia divergência com o índice exibido.
+binding — flag Python ``indice_geral_governado_pelo_pior`` (o índice virou normalização
+por partes, o template não recomputa mais pior×2). Média no teto → some.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ _SNIPPET = (
     "{% set _com_vol = n1.pilares | selectattr('total') | list %}"
     "{% set _pior = (_com_vol | min(attribute='ratio')) if _com_vol else none %}"
     "Não é média — é o pior pilar que define o teto."
-    "{% if _pior and (_pior.ratio * 2) | round(2) == n1.indice_geral %}"
+    "{% if _pior and n1.indice_geral_governado_pelo_pior %}"
     " Aqui, {{ _pior.nome }} em {{ ('%.2f'|format(_pior.ratio))|replace('.', ',') }} é o teto."
     "{% endif %}"
 )
@@ -30,9 +30,10 @@ def _render(n1):
 
 
 def test_frase_final_deriva_pior_pilar_quando_binda():
-    # Empresa 17: pior pilar Precisão 1,03 → índice 2,06; pior binda (1,03×2 == 2,06).
+    # Empresa 17: pior pilar Precisão 1,03 → o pior binda (flag True).
     n1 = {
-        "indice_geral": 2.06,
+        "indice_geral": 5.1,
+        "indice_geral_governado_pelo_pior": True,
         "pilares": [
             {"pilar": "P", "nome": "Precisão", "ratio": 1.03, "total": 262},
             {"pilar": "D", "nome": "Direção", "ratio": 1.73, "total": 100},
@@ -46,10 +47,10 @@ def test_frase_final_deriva_pior_pilar_quando_binda():
 
 
 def test_frase_final_some_quando_media_binda():
-    # média ponderada < pior pilar → índice = média×2; pior (2,0×2=4,0) != índice 2,0
-    # → a frase final some (as duas primeiras ficam).
+    # média ponderada < pior pilar → a média é o teto (flag False) → a frase final some.
     n1 = {
-        "indice_geral": 2.0,
+        "indice_geral": 5.0,
+        "indice_geral_governado_pelo_pior": False,
         "pilares": [
             {"pilar": "P", "nome": "Precisão", "ratio": 2.0, "total": 100},
             {"pilar": "D", "nome": "Direção", "ratio": 2.0, "total": 100},

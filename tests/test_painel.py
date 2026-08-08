@@ -751,12 +751,11 @@ def test_calcular_indice_geral_todos_saturados_da_10():
 
 
 def test_calcular_indice_geral_pilar_critico_puxa_pra_baixo():
-    """Hotfix opção B: pilar crítico domina, mesmo com média ponderada saturada."""
+    """Manual v8: pilar crítico domina (min), mesmo com média ponderada saturada."""
     from src.api.painel import calcular_indice_geral
 
     # Pa saturado em 9.99 com 2000 verbatins + P crítico em 0.4 com 100 verbatins.
-    # Antes (CP-3 ingênuo): ratio_medio_ponderado ≈ 9.54 × 2 = 19 → cap 10.
-    # Agora (opção B): min(0.4, 9.54) × 2 = 0.80.
+    # base = min(0.4, média≈9.54) = 0.4 → normalização por partes: 0.4 × 5 = 2.0.
     matriz = [
         {"total": 100, "ratio": 0.4, "subpilar": "P1", "promotor": 2, "detrator": 5},
         {"total": 2000, "ratio": 9.99, "subpilar": "Pa1", "promotor": 2000, "detrator": 0},
@@ -768,12 +767,12 @@ def test_calcular_indice_geral_pilar_critico_puxa_pra_baixo():
         {"pilar": "A", "ratio": 0.0, "total": 0, "promotor": 0, "detrator": 0},
     ]
     indice = calcular_indice_geral(matriz, pilares=pilares)
-    # min(0.4, ratio_medio_ponderado) × 2 = 0.4 × 2 = 0.8
-    assert indice == 0.8
+    # base 0.4 → norm por partes (≤0.5 → ×5) = 2.0 (era 0.8 no ×2 antigo)
+    assert indice == 2.0
 
 
 def test_calcular_indice_geral_todos_criticos_resulta_baixo():
-    """Edge: todos pilares com ratio 0.3 → Índice ~0.6."""
+    """Edge: todos pilares com ratio 0.3 → base 0.3 → norm 0.3×5 = 1.5."""
     from src.api.painel import calcular_indice_geral
 
     matriz = [
@@ -786,7 +785,7 @@ def test_calcular_indice_geral_todos_criticos_resulta_baixo():
         {"pilar": p, "ratio": 0.3, "total": 10, "promotor": 1, "detrator": 3}
         for p in ["P", "D", "Pa", "A"]
     ]
-    assert calcular_indice_geral(matriz, pilares=pilares) == 0.6
+    assert calcular_indice_geral(matriz, pilares=pilares) == 1.5
 
 
 def test_calcular_indice_geral_sem_pilares_arg_deriva_da_matriz():
@@ -797,9 +796,42 @@ def test_calcular_indice_geral_sem_pilares_arg_deriva_da_matriz():
         {"subpilar": "P1", "total": 10, "ratio": 0.5, "promotor": 1, "detrator": 2},
         {"subpilar": "Pa1", "total": 10, "ratio": 9.99, "promotor": 10, "detrator": 0},
     ]
-    # min(min(P=0.5, Pa=9.99), ratio_medio) × 2 = 0.5 × 2 = 1.0
+    # base = min(min(P=0.5, Pa=9.99), média) = 0.5 → norm 0.5×5 = 2.5 (era 1.0)
     indice = calcular_indice_geral(matriz)
-    assert indice == 1.0
+    assert indice == 2.5
+
+
+def test_normalizar_indice_ancoras_regua():
+    """Normalização por partes ancorada na régua de ratio (Manual v8)."""
+    from src.api.painel import _normalizar_indice
+
+    assert _normalizar_indice(0.0) == 0.0
+    assert _normalizar_indice(0.5) == 2.5  # crítico/fraco
+    assert _normalizar_indice(1.0) == 5.0  # empate → piso ATENÇÃO
+    assert _normalizar_indice(2.0) == 7.0  # 'bom' → piso SAUDÁVEL
+    assert _normalizar_indice(5.0) == 10.0  # excelente
+    assert _normalizar_indice(9.99) == 10.0  # saturação
+    # entre âncoras (os casos reais da base)
+    assert _normalizar_indice(1.55) == 6.1  # BH Airport → atenção
+    assert _normalizar_indice(1.03) == 5.06  # Localiza → atenção
+    assert _normalizar_indice(0.75) == 3.75  # AmBev → crítico
+
+
+def test_indice_governado_pelo_pior_flag():
+    """Flag do card: True quando o pior pilar (não a média) define o índice."""
+    from src.api.painel import indice_governado_pelo_pior
+
+    # pior (P 0.4) < média saturada → o pior governa
+    matriz = [
+        {"total": 100, "ratio": 0.4, "subpilar": "P1", "promotor": 2, "detrator": 5},
+        {"total": 2000, "ratio": 9.99, "subpilar": "Pa1", "promotor": 2000, "detrator": 0},
+    ]
+    assert indice_governado_pelo_pior(matriz) is True
+    # todos iguais → pior == média → o pior "governa" (coincide)
+    iguais = [{"total": 10, "ratio": 2.0, "subpilar": "P1", "promotor": 6, "detrator": 3}]
+    assert indice_governado_pelo_pior(iguais) is True
+    # sem volume → sem pilar mensurável → False
+    assert indice_governado_pelo_pior([]) is False
 
 
 def test_faixa_indice_geral():
