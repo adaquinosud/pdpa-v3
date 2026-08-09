@@ -77,15 +77,15 @@ def calcular_previsibilidade_loja(meses: Sequence[tuple]) -> Dict[str, Any]:
     (``total >= PREVISIB_FLOOR_VERBATINS_MES``) e piso de meses
     (``>= PREVISIB_MIN_MESES``); abaixo do piso → tudo ``None``.
 
-    Régua **CV/2**, idêntica ao eixo temporal de
-    ``api/painel.calcular_previsibilidade`` (evita divergência de sensibilidade
-    entre as duas previsibilidades): ``previsib = (1 - min(CV/2, 1)) * 100``.
+    Régua **1 − CV** (Manual Cap. 4), idêntica ao eixo temporal de
+    ``api/painel.calcular_previsibilidade`` (90b9fb8, que já perdeu o /2):
+    ``previsib = (1 - min(CV, 1)) * 100``. O ``/2`` anterior (herança v2, 3f1b564)
+    descontava metade da variação antes de medir e foi removido.
 
-    ATENÇÃO (não é bug): com essa régua a faixa ``erratico`` (<40) só é
-    alcançada com **CV > 1.2**. Alternância suave (ex.: ratios 0.3↔9.0 mês a mês)
-    dá CV ≈ 1.08 → ``medio`` (~46); 2 valores alternados têm CV máximo ~1.155.
-    ``erratico`` exige assimetria forte (ex.: 2 meses ~0 e 1 mês alto). Ver os
-    testes-sentinela em ``tests/test_governanca.py``.
+    Régua de faixa (sem o /2): ``estavel`` (>70) exige CV < 0.3; ``medio`` (40-70)
+    CV 0.3-0.6; ``erratico`` (<40) CV > 0.6 — bem mais alcançável que antes. Ex.:
+    alternância 0.3↔9.0 mês a mês (CV ≈ 1.08) agora dá ``erratico`` (dava ~46
+    ``medio`` com o /2). Ver os testes-sentinela em ``tests/test_governanca.py``.
     """
     import statistics
 
@@ -97,7 +97,7 @@ def calcular_previsibilidade_loja(meses: Sequence[tuple]) -> Dict[str, Any]:
         return {"previsibilidade": None, "faixa": None, "cv": None, "n_meses": n}
     media = statistics.mean(ratios)
     cv = statistics.stdev(ratios) / max(media, 0.01)
-    score = round(max(0.0, min(100.0, (1 - min(cv / 2.0, 1.0)) * 100)), 1)
+    score = round(max(0.0, min(100.0, (1 - min(cv, 1.0)) * 100)), 1)
     return {
         "previsibilidade": score,
         "faixa": calcular_faixa_previsibilidade(score),

@@ -386,10 +386,10 @@ def test_faixa_previsibilidade_bordas(previsib, faixa):
 
 
 def test_previsibilidade_loja_estavel():
-    # ratios mensais ~[4.0, 4.2, 3.8, 4.1] → CV ~0.042 → previsib ~97.9.
+    # ratios mensais ~[4.0, 4.2, 3.8, 4.1] → CV ~0.042 → previsib ~95.8 (sem /2).
     meses = [(40, 10, 60), (42, 10, 60), (38, 10, 60), (41, 10, 60)]
     res = calcular_previsibilidade_loja(meses)
-    assert res["previsibilidade"] == pytest.approx(97.9, abs=0.3)
+    assert res["previsibilidade"] == pytest.approx(95.8, abs=0.3)
     assert res["faixa"] == "estavel"
     assert res["n_meses"] == 4
 
@@ -410,24 +410,26 @@ def test_previsibilidade_loja_floor_por_mes():
     assert res["n_meses"] == 2
 
 
-# ── Testes-sentinela da régua CV/2 (documentam a sensibilidade) ────────────
+# ── Testes-sentinela da régua 1 − CV (documentam a sensibilidade sem o /2) ──
 def test_sentinela_erratico_alcancavel():
     """PROVA que a faixa erratico é alcançável: 2 meses ~0 e 1 mês alto
-    (CV ~1.73 > 1.2) → previsibilidade baixa → erratico."""
+    (CV ~1.73 > 0.6) → previsibilidade baixa → erratico."""
     meses = [(0, 5, 5), (0, 5, 5), (50, 5, 55)]  # ratios [0.0, 0.0, 9.99]
     res = calcular_previsibilidade_loja(meses)
-    assert res["cv"] > 1.2
+    assert res["cv"] > 0.6
     assert res["previsibilidade"] < 40
     assert res["faixa"] == "erratico"
 
 
-def test_sentinela_alternancia_suave_e_medio_nao_erratico():
-    """NÃO é bug: alternância 0.3↔9.0 mês a mês dá CV ~1.08 (< 1.2) → medio,
-    não erratico. 2 valores alternados têm CV máximo ~1.155."""
+def test_sentinela_alternancia_suave_agora_erratico():
+    """Sem o /2 a régua fica mais sensível: alternância 0.3↔9.0 mês a mês dá
+    CV ~1.08 (> 0.6) → agora ``erratico`` (dava ~46 ``medio`` com o /2). A
+    oscilação é > 1/3 da média — o cliente não sabe o que encontra."""
     meses = [(3, 10, 13), (90, 10, 100), (3, 10, 13), (90, 10, 100)]  # ratios [0.3, 9.0, 0.3, 9.0]
     res = calcular_previsibilidade_loja(meses)
     assert 1.0 < res["cv"] < 1.155
-    assert res["faixa"] == "medio"
+    assert res["previsibilidade"] < 40
+    assert res["faixa"] == "erratico"
 
 
 def _add_ratio_mensal(db_session, empresa_id, local_id, periodo, prom, det):
