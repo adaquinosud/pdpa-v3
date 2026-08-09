@@ -34,18 +34,25 @@ demanda) que percorre os pilares na ordem P→D→Pa→A e conta a história do 
 
 *6 indicadores consolidados (cards):* todos os termos abaixo estão detalhados no Glossário; aqui
 fica o que cada um responde e **o que entra** no cálculo.
-1. **Índice Geral (0–10)** — nota única de saúde relacional. **Entra:** o ratio do pilar mais
-   travado e o ratio médio ponderado por volume dos 12 subpilares; o índice = `min(esses dois) × 2`
-   (cap 10). O `min` faz o pilar mais fraco puxar a nota (lógica do Lastro). Faixa saudável/atenção/
-   crítico. (`calcular_indice_geral`, painel.)
-2. **Proximity (0–100)** — quão perto da excelência o relacionamento está (0 = distante, 100 =
+1. **Índice PDPA (0–100)** — a relação em um número (manchete do Painel). **Entra:** `(promotores +
+   conversíveis × 0,5) ÷ total classificado × 100`. O conversível conta metade (relação incompleta,
+   não ausência); o detrator fica no denominador. Três leituras: **Índice PDPA** (todos) · **Base**
+   (Precisão + Disponibilidade) · **Topo** (Parceria + Aconselhamento), com o volume ao lado. Exibido
+   sem faixa/cor (base ainda pequena p/ calibrar cortes). (`indice_pdpa`, painel.)
+2. **Teto do Lastro (0–10)** — o teto que o pior pilar impõe (antes "Índice Geral"). **Entra:** o ratio
+   do pilar mais travado e o ratio médio ponderado por volume; o índice = `min(esses dois)` normalizado
+   à régua de ratio (1,0→5 · 2,0→7 · 5,0→10, escala 0–10). O `min` faz o pilar mais fraco puxar a nota
+   (lógica do Lastro). Aponta o elo que limita — não resume (isso é o Índice PDPA). Faixa saudável ≥7 /
+   atenção 5–7 / crítico <5. (`calcular_indice_geral`, painel.)
+3. **Proximity (0–100)** — quão perto da excelência o relacionamento está (0 = distante, 100 =
    excelência). **Entra:** o ratio do escopo, reescalado entre 0,5 e 9,0. Exige ≥10 verbatins;
    abaixo disso mostra "—". (Ver glossário.)
-3. **Previsibilidade (0–100)** — quão consistente é a experiência (entre lojas e no tempo). **Entra**
-   (empresa/agrupamento): três fatores ponderados — **variação entre lojas** (40%: lojas com
-   resultados muito diferentes = inconsistência), **variação mês a mês** (30%: ratio que oscila =
-   experiência de "loteria") e **% de conversíveis** (30%: mais conversíveis = mais resgatável). Em
-   loja, usa só a variação temporal da própria série. (`calcular_previsibilidade`, painel.)
+4. **Previsibilidade (0–100)** — quão consistente é a experiência (entre lojas e no tempo). **Entra:**
+   um eixo por dispersão medível — **variação entre lojas** e **variação mês a mês** —, cada eixo
+   `1 − min(CV, 1)` (CV = desvio ÷ média dos ratios). A nota é a **média dos eixos com base** (≥2 lojas
+   com ≥5 verbatins; ≥3 meses com ≥3); eixo sem base sai da conta. Sem nenhum eixo medível → **indisponível**
+   (não há default). Vale p/ empresa, agrupamento e loja (na loja, só o eixo temporal). Faixa <40 errático
+   / 40–70 médio / >70 estável. (`calcular_previsibilidade`, painel.)
 4. **Concentração (top-5)** — quanto dos detratores está concentrado nas poucas lojas mais críticas.
    **Entra:** soma de detratores dos 5 locais mais críticos ÷ total de detratores. Faixa: **cirúrgico**
    (>60%: problema localizado, dá pra resolver em poucas lojas), **misto**, **sistêmico** (<30%:
@@ -126,7 +133,7 @@ avaliações não vale o mesmo que outra "ótima" com 200). Fonte: `_explorar_le
 6. **Badges de destaque** — 🏆 melhor ratio · 📊 maior volume · 🔄 melhor conversão · ✨ zero detratores.
    São "menções honrosas": apontam em que a loja é a melhor do grupo.
 7. **Barra + legenda** — visualização do score; legenda "Índice X × Engaj. Y" mostra os dois fatores.
-8. **Score modulado** (número grande) — **Índice Geral × (Engajamento ÷ 100)**. Por que multiplicar um
+8. **Score modulado** (número grande) — **Teto do Lastro × (Engajamento ÷ 100)**. Por que multiplicar um
    pelo outro: o **Índice** (0–10) mede a *qualidade* da relação; o **Engajamento** (0–100) mede se há
    *volume e regularidade* de dados pra confiar nessa qualidade. Multiplicar penaliza a loja que parece
    ótima mas tem pouca evidência — sobe quem é boa **e** bem medida. (`score_mod`, ui.)
@@ -497,7 +504,7 @@ severidade da anomalia, ou do impacto qualitativo do tema. `consolidar`.)
    vazia.
 7. **Público afetado** — "N verbatins · M detratores" (o tamanho do problema endereçado).
 8. **Impacto projetado** (caixa azul — simulação, não promessa): **Ratio antes→depois**, **Proximity
-   antes→depois**, **Índice da loja/visão antes→depois** (é o Índice Geral 0–10 com 1 casa; "0,5 → 0,6"
+   antes→depois**, **Teto do Lastro da loja/visão antes→depois** (0–10 com 1 casa; "0,5 → 0,6"
    é nota baixa, não escala 0–1), **Selo antes→depois** (se loja), **R$ recuperável** (Σ por loja de
    recuperados × LTV — ver glossário R$ Fluxo), e a **premissa** "se executada com ~X% de sucesso" (taxa
    por prioridade: alto 50% / médio 35% / baixo 20%). Quando a Proximity sobe mas o Índice não move,
@@ -538,7 +545,7 @@ glossário) + **Top-5** (por selo, depois Proximity) e **Bottom-5** (Proximity a
 poucos pilares com dado (confiança parcial). A legenda explica o paradoxo: selo = amplitude de pontos
 fortes; Proximity = distância do elo mais fraco — uma loja pode ter selo alto e Proximity baixa.
 
-**Bloco 5 — Simulação de Cenários:** slider "N gargalos" → **Índice Geral projetado antes→depois** se a
+**Bloco 5 — Simulação de Cenários:** slider "N gargalos" → **Teto do Lastro projetado antes→depois** se a
 empresa executar as N ações de alta prioridade de maior impacto (~50% de sucesso, máx. 1 por subpilar) +
 as ações aplicadas ("P1 −7 det") + o **insight de teto**: até onde o plano leva o índice e qual o
 gargalo remanescente (avisa se nenhuma ação de alta endereça o pilar gargalo — Lastro).
@@ -621,7 +628,7 @@ um chat com memória da conversa anterior). Usa IA (Claude Sonnet). Fonte: `_exp
 - **Modelo:** Claude Sonnet, resposta curta (executiva, ~3–4 parágrafos), em **streaming** (o texto
   aparece conforme é gerado). (`chat.py`.)
 - **O que a IA "sabe":** antes de cada pergunta, o sistema monta um **resumo consolidado do escopo** com 8
-  blocos e entrega à IA — (1) resumo da empresa + Índice Geral + pilar gargalo; (2) leituras de
+  blocos e entrega à IA — (1) resumo da empresa + Teto do Lastro + pilar gargalo; (2) leituras de
   diagnóstico por subpilar; (3) top-10 lojas do leaderboard; (4) top-15 temas; (5) cruzamentos
   sistêmicos; (6) anomalias críticas; (7) contagem de ações por perspectiva; (8) verbatins detratores
   recentes. A IA responde **só com esses dados** — a regra do prompt proíbe inventar números, nomes ou
@@ -952,19 +959,27 @@ o texto + contexto e devolve 1 das 6 + confiança. O usuário pode trocar no dro
   Estruturada) · **Pa** Parceria (Pa1 Empatia Comercial · Pa2 Mutualidade · Pa3 Comprometimento
   Relacional) · **A** Aconselhamento (A1 Exemplo · A2 Orientação · A3 Recomendação Proativa).
 
-- **Índice Geral (0–10)** — nota única de saúde = `min(ratio do pior pilar, ratio médio ponderado) × 2`,
-  cap 10 (`calcular_indice_geral`, painel). O `min` faz o pilar mais travado mandar na nota. Faixa: ≥7
-  saudável · 5–7 atenção · <5 crítico. (Nota baixa, ex. 0,8/10, = empresa crítica, não escala diferente.)
+- **Índice PDPA (0–100)** — a relação em um número = `(promotores + conversíveis × 0,5) ÷ total
+  classificado × 100` (`indice_pdpa`, painel). O conversível conta metade (relação incompleta); o
+  detrator fica no denominador; sem_lastro e inativo ficam fora. Três leituras: Índice PDPA (todos) ·
+  Base (P+D) · Topo (Pa+A), com o volume ao lado. Sem faixa/cor por ora (base pequena p/ calibrar).
+
+- **Teto do Lastro (0–10)** — o teto que o pior pilar impõe (antes "Índice Geral") =
+  `min(ratio do pior pilar, ratio médio ponderado)` normalizado à régua de ratio (1,0→5 · 2,0→7 · 5,0→10),
+  escala 0–10 (`calcular_indice_geral`, painel). O `min` faz o pilar mais travado mandar na nota — aponta
+  o elo que limita, não resume (isso é o Índice PDPA). Faixa: ≥7 saudável · 5–7 atenção · <5 crítico.
 
 - **Proximity (0–100)** — distância à excelência, ancorada no ratio: `(ratio−0,5)/(9,0−0,5)×100`, cap
   [0,100] (`calcular_proximity`, metricas). Exige ≥10 verbatins (senão "—"). Faixa: <30 distante · 30–60
   médio · >60 próximo. Diferença pro ratio: o ratio é a conta crua; a Proximity é a conta numa régua de
   0 a 100 fácil de comparar.
 
-- **Previsibilidade (0–100)** — consistência da experiência. Loja: a partir da variação da série mensal
-  da própria loja. Empresa/agrupamento: composto de variação entre lojas (40%) + variação no tempo (30%)
-  + % de conversíveis (30%) (`calcular_previsibilidade`, painel). Faixa: <40 errático · 40–70 médio · >70
-  estável.
+- **Previsibilidade (0–100)** — consistência da experiência = `1 − CV` dos ratios (CV = desvio ÷ média),
+  em até dois eixos: variação entre lojas e variação no tempo. Cada eixo `(1 − min(CV, 1)) × 100`; a nota
+  é a **média dos eixos com base** (≥2 lojas com ≥5 verbatins; ≥3 meses com ≥3) — eixo sem base sai da
+  conta, não vira valor neutro. Sem eixo medível → **indisponível** (não há default). Loja: só o eixo
+  temporal da própria série. (`calcular_previsibilidade`, painel; loja em `calcular_previsibilidade_loja`,
+  metricas.) Faixa: <40 errático · 40–70 médio · >70 estável.
 
 - **Concentração (top-5)** — % dos detratores concentrado nas 5 lojas mais críticas. Faixa: >60% cirúrgico
   (localizado) · 30–60% misto · <30% sistêmico (espalhado). (`calcular_concentracao_detratores`, painel.)
