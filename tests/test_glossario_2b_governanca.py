@@ -31,7 +31,8 @@ def test_governanca_plugada_com_glossario(client_loyall: FlaskClient) -> None:
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/governanca").get_data(as_text=True)
     assert h  # tab renderiza (empresa vazia → cabeçalhos com ⓘ aparecem)
     # conteúdo do glossário (curta/completa) presente = ⓘ renderizou de fato
-    assert "Distância da excelência consolidada" in h  # proximity
+    assert "Razão entre promotores e detratores" in h  # ratio (radar, ex-proximity)
+    assert "capitalizando ou descapitalizando" in h  # trajetoria (bloco novo)
     assert "Coeficiente de Gini formal" in h  # gini
     assert "Sequência evolutiva dos 4 pilares" in h  # lastro
     assert "Estabilidade do ratio ao longo dos meses" in h  # previsibilidade
@@ -55,7 +56,9 @@ def test_2b_info_data_gated_no_source() -> None:
     gov = (_TPL / "explorar_governanca.html").read_text(encoding="utf-8")
     conc = (_TPL / "explorar_concentracao.html").read_text(encoding="utf-8")
     assert "glossario_i('gargalo')" in gov
-    assert "glossario_i('proximity')" in gov
+    assert "glossario_i('ratio')" in gov  # radar por ratio (ex-proximity)
+    assert "glossario_i('trajetoria')" in gov  # bloco Risco novo
+    assert "glossario_i('indice-pdpa')" in gov  # Base×Topo (Controle)
     assert "glossario_i('selo')" in gov
     assert "glossario_i('gini')" in gov
     # concentracao: título (concentracao-detratores) + card (gini)

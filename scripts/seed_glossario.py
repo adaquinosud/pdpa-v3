@@ -117,6 +117,18 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "Painel Executivo",
     ),
     (
+        "trajetoria",
+        "Trajetória do Capital Relacional",
+        "Lente de Governança",
+        "O capital relacional está capitalizando ou descapitalizando? Movimento, " "não foto.",
+        "Δ do Índice PDPA agregado entre a janela recente (3 meses) e a anterior, "
+        "sobre a série mensal (mês do evento, não da coleta). GUARD DE FRESCOR: só "
+        "é lida com coleta contínua ativa e base atualizada; sem isso fica "
+        "indisponível (nunca 'queda') — o instrumento não infere movimento a "
+        "partir de uma lacuna de coleta nossa. (Lente de Governança · Risco)",
+        "Painel de Governança",
+    ),
+    (
         "previsibilidade",
         "Previsibilidade",
         "Índices Consolidados",

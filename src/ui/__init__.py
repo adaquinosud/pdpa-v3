@@ -5402,15 +5402,18 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     from src.api.painel import NOME_SUBPILAR
     from src.diagnostico.leituras import agregar_subpilares
     from src.governanca.leitura import (
+        base_topo_governanca,
         cobertura_governanca,
+        dependencia_humana,
         distribuicao_previsibilidade,
         distribuicao_selos,
         garantir_governanca,
         gini_escopo,
         leitura_concentracao,
-        proximity_pilares_escopo,
+        pilares_ratio_radar,
         radar_svg_data,
         ranking_lojas_governanca,
+        trajetoria_governanca,
     )
     from src.governanca.metricas import compor_cenario, ordenar_acoes_cenario
     from src.planos.consolidar import consolidar_acoes
@@ -5418,12 +5421,14 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     garantir_governanca(empresa_id)
     escopo_tipo = "agrupamento" if ag_id else "empresa"
     escopo_id = ag_id if ag_id else None
-    pilares = proximity_pilares_escopo(s, empresa_id, escopo_tipo, escopo_id)
     gini = gini_escopo(s, empresa_id, escopo_tipo, escopo_id)
     top5 = gini["lojas"][:5] if gini and not gini.get("insuficiente") else []
 
     # Bloco 5 — Simulação de Cenários (efêmera; dedupe por subpilar; ordem fixa).
     agg = agregar_subpilares(s, empresa_id, ag_id, None)
+    # CONTROLE: Base/Topo do PDPA + frase Dependência Humana; radar por RATIO (não Proximity).
+    base_topo = base_topo_governanca(agg)
+    pilares = pilares_ratio_radar(agg)
     cf = {"agrupamento_id": ag_id} if ag_id else {}
     subpilares_alta = [
         it.subpilar
@@ -5462,7 +5467,10 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     return SimpleNamespace(
         escopo_tipo=escopo_tipo,
         cobertura=cobertura_governanca(s, empresa_id),
-        radar=radar_svg_data(pilares),
+        trajetoria=trajetoria_governanca(s, empresa_id),  # RISCO — capitaliza/descapitaliza
+        base_topo=base_topo,  # CONTROLE — o sistema entrega × o vínculo compensa
+        dependencia=dependencia_humana(base_topo),  # CONTROLE — frase de risco
+        radar=radar_svg_data(pilares),  # DRILL secundário (fonte ratio)
         pilares=pilares,
         gini=gini,
         leitura_conc=leitura_concentracao(gini),

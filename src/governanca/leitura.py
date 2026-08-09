@@ -270,6 +270,77 @@ def trajetoria_governanca(s, empresa_id: int, *, hoje=None) -> Dict[str, Any]:
     }
 
 
+def _pilares_de_agg(agg: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """agg (agregar_subpilares) → por pilar {pilar, promotor, conversivel, detrator, ratio}.
+    sem_lastro (pilar None) fica de fora."""
+    from src.api.painel import PILAR_DE_SUBPILAR, calcular_ratio
+
+    pil: Dict[str, Dict[str, Any]] = {}
+    for sub, d in agg.items():
+        pc = PILAR_DE_SUBPILAR.get(sub)
+        if pc is None:
+            continue
+        acc = pil.setdefault(pc, {"pilar": pc, "promotor": 0, "conversivel": 0, "detrator": 0})
+        acc["promotor"] += d["prom"]
+        acc["conversivel"] += d["conv"]
+        acc["detrator"] += d["det"]
+    for acc in pil.values():
+        acc["ratio"] = calcular_ratio(acc["promotor"], acc["detrator"])
+    return pil
+
+
+def base_topo_governanca(agg: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """CONTROLE: Base/Topo do Índice PDPA — Base=P+D (o sistema entrega), Topo=Pa+A
+    (o vínculo humano). ``{base, base_vol, topo, topo_vol}`` (None quando sem volume)."""
+    from src.api.painel import indice_pdpa
+
+    pil = list(_pilares_de_agg(agg).values())
+    base, base_vol = indice_pdpa(pil, codigos={"P", "D"})
+    topo, topo_vol = indice_pdpa(pil, codigos={"Pa", "A"})
+    return {"base": base, "base_vol": base_vol, "topo": topo, "topo_vol": topo_vol}
+
+
+def dependencia_humana(base_topo: Dict[str, Any]) -> Dict[str, Any]:
+    """Frase determinística de Dependência Humana (CONTROLE), do Base/Topo. SEM corte:
+    dispara quando Topo > Base, com a magnitude no próprio texto."""
+    base, topo = base_topo.get("base"), base_topo.get("topo")
+    if base is None or topo is None:
+        return {
+            "estado": "sem_dado",
+            "frase": "Base ou Topo sem dado suficiente — não há leitura de dependência humana.",
+        }
+    gap = round(topo - base, 1)
+    if topo > base:
+        frase = (
+            f"O vínculo humano segura a relação: o Topo (Parceria + Aconselhamento) marca "
+            f"{topo:.0f}, mas a Base (Precisão + Disponibilidade) só {base:.0f} — as pessoas "
+            f"compensam o que o sistema não entrega. Risco de controle: essa dependência é de "
+            f"indivíduos; se saem, a percepção cai para o nível da Base."
+        )
+        return {"estado": "dependente", "gap": gap, "frase": frase}
+    frase = (
+        f"O sistema entrega por conta própria: a Base ({base:.0f}) sustenta ou supera o Topo "
+        f"({topo:.0f}). Baixa dependência de compensação humana."
+    )
+    return {"estado": "sistema", "gap": gap, "frase": frase}
+
+
+def pilares_ratio_radar(agg: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Radar por pilar com fonte RATIO (não o Proximity quebrado): {pilar: {valor(0-100
+    do ratio), faixa(ratio), ratio}}. valor = ratio/9,99·100 (9,99 = cap) p/ o eixo 0-100."""
+    from src.api.painel import faixa_ratio
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for pc, acc in _pilares_de_agg(agg).items():
+        r = acc["ratio"]
+        out[pc] = {
+            "valor": round(min(r, 9.99) / 9.99 * 100, 1),
+            "faixa": faixa_ratio(r),
+            "ratio": r,
+        }
+    return out
+
+
 def distribuicao_previsibilidade(s, empresa_id: int) -> Dict[str, int]:
     """Contagem de lojas por faixa de previsibilidade + 'sem_dado' (NULL = histórico
     curto, NÃO é faixa de qualidade — categoria à parte). CP-LG-8 Bloco 3."""
@@ -364,6 +435,7 @@ def radar_svg_data(pilares: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
                     "nome": nome,
                     "valor": None,
                     "faixa": None,
+                    "ratio": None,
                     "tip": tip,
                     "lab": lab,
                     "vx": None,
@@ -380,6 +452,7 @@ def radar_svg_data(pilares: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
                     "nome": nome,
                     "valor": val,
                     "faixa": d.get("faixa"),
+                    "ratio": d.get("ratio"),
                     "tip": tip,
                     "lab": lab,
                     "vx": vx,

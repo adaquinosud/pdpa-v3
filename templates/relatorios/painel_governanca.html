@@ -3,7 +3,7 @@
 {% block title %}Painel de Governança — {{ empresa.nome }}{% endblock %}
 {% block conteudo %}
 {% set capa = d.capa %}
-{% set fnome = {'distante':'Distante','medio':'Médio','proximo':'Próximo'} %}
+{% macro secao_pergunta(txt) %}<div style="font-weight:700; font-size:9pt; text-transform:uppercase; letter-spacing:0.5pt; color:#6b6456; border-bottom:1px solid #ddd; margin:12pt 0 4pt">{{ txt }}</div>{% endmacro %}
 
 {# ═══ CAPA-CHOQUE (número real + contextualizado, não alarmista) ═══ #}
 <div class="capa-choque">
@@ -14,7 +14,7 @@
     <div class="capa-numero">{{ capa.numero }}</div>
     <div class="dash-sep">— — —</div>
     <div class="capa-soco">{{ capa.soco }}</div>
-    <div class="capa-promessa">→ as próximas páginas dão a leitura de Conselho: saúde, risco, estabilidade e o teto do plano atual.</div>
+    <div class="capa-promessa">→ a leitura de Conselho, em três perguntas: onde estamos expostos, o que depende de gente, onde o recurso rende mais.</div>
   </div>
   <div class="capa-fontes">
     <div class="titulo">Cobertura da base</div>
@@ -22,29 +22,16 @@
   </div>
 </div>
 
-{# ═══ 01 · SAÚDE RELACIONAL CONSOLIDADA (radar) ═══ #}
-{{ M.titulo_secao('01', 'Saúde Relacional Consolidada', 'Proximity por pilar (0–100) — distância da excelência.') }}
-{% set r = d.radar %}
-<div style="text-align:center; margin:6pt 0">
-  {% if r.n_dados == 0 %}
-  <div class="muted">Base relacional ainda em formação — sem pilares com lastro suficiente.</div>
-  {% else %}
-  <svg viewBox="0 0 {{ r.size }} {{ r.size }}" width="280" height="280">
-    {% for ring in r.rings %}<circle cx="{{ r.cx }}" cy="{{ r.cy }}" r="{{ ring }}" fill="none" stroke="#E7E3DC" stroke-width="1"/>{% endfor %}
-    {% for e in r.eixos %}<line x1="{{ r.cx }}" y1="{{ r.cy }}" x2="{{ e.tip[0] }}" y2="{{ e.tip[1] }}" stroke="{{ '#C9C2B6' if e.null else '#B89355' }}" stroke-width="1" {% if e.null %}stroke-dasharray="3,3"{% endif %}/>{% endfor %}
-    {% if r.n_dados >= 3 %}<polygon points="{{ r.poligono }}" fill="#1B6B61" fill-opacity="0.18" stroke="#1B6B61" stroke-width="2"/>{% endif %}
-    {% for e in r.eixos %}
-      {% if not e.null %}<circle cx="{{ e.vx }}" cy="{{ e.vy }}" r="3" fill="#1B6B61"/>{% endif %}
-      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
-      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— s/d' if e.null else '%.0f'|format(e.valor) }}</text>
-    {% endfor %}
-  </svg>
-  {% endif %}
-</div>
-<div class="card papel" style="border-color:var(--dourado); font-size:9pt">
-  <strong>Lastro:</strong> a sequência P→D→Pa→A trava no primeiro elo fraco. Parceria ou
-  Aconselhamento fortes não compensam Precisão/Disponibilidade crítica — a cadeia se rompe na origem.
-</div>
+{{ secao_pergunta('Risco · onde estamos expostos') }}
+
+{# ═══ 01 · TRAJETÓRIA DO CAPITAL ═══ #}
+{{ M.titulo_secao('01', 'Trajetória do Capital Relacional', 'Capitalizando ou descapitalizando — Δ do Índice PDPA entre janelas.') }}
+{% set t = d.trajetoria %}
+{% if t.estado == 'disponivel' %}
+<p style="font-size:11pt"><strong>{{ '%.1f'|format(t.pdpa_anterior) }} → {{ '%.1f'|format(t.pdpa_recente) }}</strong> — {{ {'capitalizando':'↑ capitalizando','descapitalizando':'↓ descapitalizando','estavel':'→ estável'}.get(t.direcao, t.direcao) }} (Índice PDPA, {{ t.janela_meses }}m recentes vs anteriores).</p>
+{% else %}
+<p class="muted">Trajetória indisponível — {{ t.motivo }}. Só é lida com coleta contínua; o instrumento não infere movimento a partir de uma lacuna de coleta nossa.</p>
+{% endif %}
 
 {# ═══ 02 · CONCENTRAÇÃO DE RISCO ═══ #}
 {{ M.titulo_secao('02', 'Concentração de Risco', 'Gini da distribuição de detratores entre lojas + bolsão crítico nominado.') }}
@@ -74,8 +61,56 @@
 </table>
 <p class="muted" style="font-size:8.5pt">"Em formação" = histórico insuficiente para medir estabilidade — não é faixa de qualidade.</p>
 
-{# ═══ 04 · RANKING DE EXCELÊNCIA (selos) ═══ #}
-{{ M.titulo_secao('04', 'Ranking de Excelência', 'Ordenado pelo selo (amplitude de pontos fortes); Proximity = gargalo da loja.') }}
+{{ secao_pergunta('Controle · o que depende de gente') }}
+
+{# ═══ 04 · BASE × TOPO + DEPENDÊNCIA HUMANA ═══ #}
+{{ M.titulo_secao('04', 'Base × Topo', 'O que o sistema entrega (Base = P+D) × o vínculo humano (Topo = Pa+A).') }}
+{% set bt = d.base_topo %}
+<p style="font-size:11pt"><strong>Base {{ '%.0f'|format(bt.base) if bt.base is not none else '—' }}</strong> (Precisão + Disponibilidade) · <strong>Topo {{ '%.0f'|format(bt.topo) if bt.topo is not none else '—' }}</strong> (Parceria + Aconselhamento).</p>
+<div class="card papel" style="border-color:var(--dourado); font-size:9pt">{{ d.dependencia.frase }}</div>
+
+{# ═══ 05 · DETALHE POR PILAR (radar por ratio) ═══ #}
+{{ M.titulo_secao('05', 'Detalhe por pilar', 'Ratio P/D por pilar na régua (9,99 = cap do sistema).') }}
+{% set r = d.radar %}
+<div style="text-align:center; margin:6pt 0">
+  {% if r.n_dados == 0 %}
+  <div class="muted">Base relacional ainda em formação — sem pilares com lastro suficiente.</div>
+  {% else %}
+  <svg viewBox="0 0 {{ r.size }} {{ r.size }}" width="260" height="260">
+    {% for ring in r.rings %}<circle cx="{{ r.cx }}" cy="{{ r.cy }}" r="{{ ring }}" fill="none" stroke="#E7E3DC" stroke-width="1"/>{% endfor %}
+    {% for e in r.eixos %}<line x1="{{ r.cx }}" y1="{{ r.cy }}" x2="{{ e.tip[0] }}" y2="{{ e.tip[1] }}" stroke="{{ '#C9C2B6' if e.null else '#B89355' }}" stroke-width="1" {% if e.null %}stroke-dasharray="3,3"{% endif %}/>{% endfor %}
+    {% if r.n_dados >= 3 %}<polygon points="{{ r.poligono }}" fill="#1B6B61" fill-opacity="0.18" stroke="#1B6B61" stroke-width="2"/>{% endif %}
+    {% for e in r.eixos %}
+      {% if not e.null %}<circle cx="{{ e.vx }}" cy="{{ e.vy }}" r="3" fill="#1B6B61"/>{% endif %}
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— s/d' if e.null else '%.1f'|format(e.ratio) }}</text>
+    {% endfor %}
+  </svg>
+  {% endif %}
+</div>
+<div class="card papel" style="border-color:var(--dourado); font-size:9pt">
+  <strong>Lastro:</strong> a sequência P→D→Pa→A trava no primeiro elo fraco. Parceria ou
+  Aconselhamento fortes não compensam Precisão/Disponibilidade crítica — a cadeia se rompe na origem.
+</div>
+
+{{ secao_pergunta('Alocação · onde o recurso rende mais') }}
+
+{# ═══ 06 · SIMULAÇÃO — TETO DO PLANO ATUAL ═══ #}
+{{ M.titulo_secao('06', 'Simulação de Cenários', 'O que o plano de ação atual consegue mover — e o que deixa de fora.') }}
+{% if d.cenario and d.cenario.teto %}
+{% set t = d.cenario.teto %}
+<div class="card papel" style="border-color:var(--dourado)">
+  <p style="font-size:10.5pt"><strong>Teto do plano atual: {{ '%.2f'|format(t.indice) }}/10</strong> — executando as {{ d.cenario.range_max }} ações de alta prioridade (uma por gargalo distinto), com ~50% de sucesso. Índice base {{ '%.2f'|format(d.cenario.indice_base) }} → {{ '%.2f'|format(d.cenario.indice_n) }}.</p>
+  {% if not t.gargalo_coberto and t.gargalo_pilar %}
+  <p style="font-size:10pt; color:#b3261e"><strong>⚠ Gargalo descoberto:</strong> nenhuma ação de alta prioridade endereça <strong>{{ t.gargalo_pilar }} · {{ t.gargalo_nome }}</strong>, que é o pilar que trava o Índice. Destravar exige priorizar {{ t.gargalo_nome }} — mais ações fora desse pilar não movem o agregado (Lastro).</p>
+  {% else %}
+  <p style="font-size:9.5pt" class="muted">O plano endereça o pilar gargalo ({{ t.gargalo_nome }}). O teto reflete o limite da premissa de ~50% de sucesso.</p>
+  {% endif %}
+</div>
+{% else %}<p class="muted">Sem ações de alta prioridade com lastro para simular.</p>{% endif %}
+
+{# ═══ 07 · RANKING DE EXCELÊNCIA (selos) ═══ #}
+{{ M.titulo_secao('07', 'Ranking de Excelência', 'Ordenado pelo selo (amplitude de pontos fortes); Proximity = gargalo da loja.') }}
 <p style="font-size:9.5pt"><strong>Selos:</strong> 🏅 Ouro {{ d.selo_dist.ouro }} · Prata {{ d.selo_dist.prata }} · Bronze {{ d.selo_dist.bronze }} · Sem selo {{ d.selo_dist.sem_selo }}.</p>
 {% if d.ranking.top %}
 <table>
@@ -90,22 +125,8 @@
 <p class="muted" style="font-size:8pt; margin-top:2pt">Selo = amplitude de pontos fortes (subpilares excelentes). Proximity (gargalo) = distância do pilar mais fraco. Selo alto + Proximity baixa = muitos pontos fortes, um elo fraco puxa (Lastro).</p>
 {% endif %}
 
-{# ═══ 05 · SIMULAÇÃO — TETO DO PLANO ATUAL ═══ #}
-{{ M.titulo_secao('05', 'Simulação de Cenários', 'O que o plano de ação atual consegue mover — e o que deixa de fora.') }}
-{% if d.cenario and d.cenario.teto %}
-{% set t = d.cenario.teto %}
-<div class="card papel" style="border-color:var(--dourado)">
-  <p style="font-size:10.5pt"><strong>Teto do plano atual: {{ '%.2f'|format(t.indice) }}/10</strong> — executando as {{ d.cenario.range_max }} ações de alta prioridade (uma por gargalo distinto), com ~50% de sucesso. Índice base {{ '%.2f'|format(d.cenario.indice_base) }} → {{ '%.2f'|format(d.cenario.indice_n) }}.</p>
-  {% if not t.gargalo_coberto and t.gargalo_pilar %}
-  <p style="font-size:10pt; color:#b3261e"><strong>⚠ Gargalo descoberto:</strong> nenhuma ação de alta prioridade endereça <strong>{{ t.gargalo_pilar }} · {{ t.gargalo_nome }}</strong>, que é o pilar que trava o Índice. Destravar exige priorizar {{ t.gargalo_nome }} — mais ações fora desse pilar não movem o agregado (Lastro).</p>
-  {% else %}
-  <p style="font-size:9.5pt" class="muted">O plano endereça o pilar gargalo ({{ t.gargalo_nome }}). O teto reflete o limite da premissa de ~50% de sucesso.</p>
-  {% endif %}
-</div>
-{% else %}<p class="muted">Sem ações de alta prioridade com lastro para simular.</p>{% endif %}
-
-{# ═══ 06 · PRÓXIMOS PASSOS PARA O BOARD ═══ #}
-{{ M.titulo_secao('06', 'Próximos Passos para o Board', 'Determinístico — derivado dos números acima.') }}
+{# ═══ 08 · PRÓXIMOS PASSOS PARA O BOARD ═══ #}
+{{ M.titulo_secao('08', 'Próximos Passos para o Board', 'Determinístico — derivado dos números acima.') }}
 <ol style="font-size:10pt; line-height:1.5">
   {% if d.cenario and d.cenario.teto and not d.cenario.teto.gargalo_coberto %}
   <li><strong>Destravar o gargalo {{ d.cenario.teto.gargalo_nome }}:</strong> criar ação de alta prioridade onde hoje não há — é o que limita o Índice a {{ '%.2f'|format(d.cenario.teto.indice) }}/10.</li>

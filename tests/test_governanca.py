@@ -1769,6 +1769,44 @@ def test_trajetoria_indisponivel_serie_curta(db_session):
     assert "série insuficiente" in r["motivo"]
 
 
+def test_dependencia_humana_variantes():
+    """Frase SEM corte: dispara quando Topo > Base, magnitude no texto."""
+    from src.governanca.leitura import dependencia_humana
+
+    dep = dependencia_humana({"base": 40.0, "topo": 78.0})
+    assert dep["estado"] == "dependente" and dep["gap"] == 38.0
+    assert "vínculo humano segura" in dep["frase"]
+    assert "risco de controle" in dep["frase"].lower()
+    dep = dependencia_humana({"base": 80.0, "topo": 60.0})
+    assert dep["estado"] == "sistema"
+    assert "entrega por conta própria" in dep["frase"]
+    dep = dependencia_humana({"base": None, "topo": 60.0})
+    assert dep["estado"] == "sem_dado"
+
+
+def test_base_topo_governanca_do_agg():
+    """Base = P+D; Topo = Pa+A; derivado do agg via Índice PDPA."""
+    from src.governanca.leitura import base_topo_governanca
+
+    agg = {
+        "P1": {"prom": 10, "conv": 0, "det": 10, "total": 20, "ratio": 1.0, "faixa": "atencao"},
+        "Pa1": {"prom": 18, "conv": 0, "det": 2, "total": 20, "ratio": 9.0, "faixa": "excelente"},
+    }
+    bt = base_topo_governanca(agg)
+    assert bt["base"] == 50.0 and bt["base_vol"] == 20  # P: 10/20
+    assert bt["topo"] == 90.0 and bt["topo_vol"] == 20  # Pa: 18/20
+
+
+def test_governanca_tres_secoes_na_tela(client_loyall, db_session):
+    """A aba renderiza as três perguntas do board como seções."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "GovSecoes"}).get_json()
+    h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/governanca").get_data(as_text=True)
+    assert "Risco · onde estamos expostos" in h
+    assert "Controle · o que depende de gente" in h
+    assert "Alocação · onde o recurso rende mais" in h
+    assert "Trajetória do Capital Relacional" in h
+
+
 def test_trajetoria_exclui_mes_corrente_parcial(db_session):
     """O mês-calendário corrente (parcial por natureza) não entra na janela."""
     from src.governanca.leitura import trajetoria_governanca

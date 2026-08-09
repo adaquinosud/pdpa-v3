@@ -521,39 +521,42 @@ cards/tabela.
 
 ## 14. GOVERNANÇA
 
-**Propósito.** Visão de Conselho: a saúde relacional consolidada, o risco concentrado, a previsibilidade,
-a excelência (selos) e uma simulação de cenário. É o "resumo executivo navegável". Fonte:
-`_explorar_governanca` (ui).
+**Propósito.** Leitura de Conselho — não uma lista de métricas, mas **três perguntas de governança**:
+onde estamos expostos (**Risco**), o que depende de gente (**Controle**), onde o recurso rende mais
+(**Alocação**). A aba é organizada nessas três seções. Fonte: `_explorar_governanca` (ui).
 
 **Anatomia.**
-*Topo:* banner de **cobertura** — "X de Y lojas com dado suficiente". Diz quão representativa é a foto
-(lojas sem volume aparecem como "em formação").
+*Topo:* banner de **cobertura** — "X de Y lojas com dado suficiente" (lojas sem volume aparecem como "em
+formação", não como zero).
 
-**Bloco 1 — Saúde Relacional (Radar):** gráfico de radar com os 4 pilares. Cada eixo é a **Proximity do
-pilar** (0–100: quão perto da excelência). Eixo tracejado = sem dado suficiente; o polígono só fecha com
-≥3 pilares com dado. Quanto maior a área, melhor. Abaixo, a leitura fixa do Lastro ("a sequência
-P→D→Pa→A trava no primeiro elo fraco").
+**RISCO · onde estamos expostos**
+- **Trajetória do Capital Relacional:** o capital está **capitalizando ou descapitalizando?** É o Δ do
+  Índice PDPA agregado entre a janela recente (3 meses) e a anterior, sobre a série mensal (mês do
+  evento). **Guard de frescor:** só é lida com coleta contínua ativa e base atualizada — sem isso fica
+  **indisponível** (nunca "queda"); o instrumento não infere movimento a partir de uma lacuna de coleta
+  nossa. (Capacidade dormante enquanto a coleta contínua não está ligada.)
+- **Concentração de Risco:** o **Gini** + a leitura automática + o **Top-5 lojas críticas** (nome · nº de
+  detratores · fatia %). "Onde está o passivo concentrado".
+- **Previsibilidade:** histograma de lojas por estabilidade — **Estável (>70)** / **Médio (40–70)** /
+  **Errático (<40)** + **Em formação** (histórico <3 meses).
 
-**Bloco 2 — Concentração de Risco:** o **Gini** (alto = poucas lojas concentram os detratores;
-acessível na tela 10) + a leitura automática + o **Top-5 lojas críticas** (nome · nº de detratores ·
-fatia %). "Onde está o risco".
+**CONTROLE · o que depende de gente**
+- **Base × Topo** do Índice PDPA: **Base** (Precisão + Disponibilidade — o que o sistema entrega) × **Topo**
+  (Parceria + Aconselhamento — o vínculo humano). A frase de **Dependência Humana** (determinística) dispara
+  quando o Topo supera a Base: "o vínculo humano segura a relação… risco de controle: se as pessoas saem, a
+  percepção cai para o nível da Base".
+- **Detalhe por pilar (radar):** drill secundário, agora por **ratio** (não mais o Proximity) — cada eixo é
+  o ratio P/D do pilar na régua (9,99 = cap). Abaixo, a leitura fixa do Lastro (a sequência trava no
+  primeiro elo fraco).
 
-**Bloco 3 — Previsibilidade:** histograma de lojas por estabilidade — **Estável (>70)** / **Médio
-(40–70)** / **Errático (<40)** (quão consistente é cada loja no tempo) + **Em formação** (histórico <3
-meses, sem base ainda).
-
-**Bloco 4 — Ranking de Excelência:** distribuição de **selos** (Ouro/Prata/Bronze/Sem selo — ver
-glossário) + **Top-5** (por selo, depois Proximity) e **Bottom-5** (Proximity ascendente). "base Np" =
-poucos pilares com dado (confiança parcial). A legenda explica o paradoxo: selo = amplitude de pontos
-fortes; Proximity = distância do elo mais fraco — uma loja pode ter selo alto e Proximity baixa.
-
-**Bloco 5 — Simulação de Cenários:** slider "N gargalos" → **Teto do Lastro projetado antes→depois** se a
-empresa executar as N ações de alta prioridade de maior impacto (~50% de sucesso, máx. 1 por subpilar) +
-as ações aplicadas ("P1 −7 det") + o **insight de teto**: até onde o plano leva o índice e qual o
-gargalo remanescente (avisa se nenhuma ação de alta endereça o pilar gargalo — Lastro).
-
-**Bloco 6 — Projeção Financeira:** placeholder "—" até cadastrar o LTV setorial de referência (projeção
-honesta, sem número inventado).
+**ALOCAÇÃO · onde o recurso rende mais**
+- **Simulação de Cenários:** slider "N gargalos" → **Teto do Lastro projetado antes→depois** (as N ações de
+  alta prioridade, ~50% de sucesso, máx. 1 por subpilar) + as ações aplicadas + o **insight de teto** (até
+  onde o plano leva e qual o gargalo remanescente).
+- **Ranking de Excelência:** distribuição de **selos** + Top/Bottom-5 (por selo, depois Proximity). "base
+  Np" = poucos pilares com dado. A legenda explica o paradoxo selo × Proximity.
+- **Projeção Financeira (R$):** placeholder "—" até cadastrar o LTV setorial (projeção honesta, sem número
+  inventado).
 
 **Filtros.** Agrupamento (header); `cenario_n` (slider).
 
@@ -588,10 +591,10 @@ projeção de impacto (igual à tela Plano). **Sem IA** — montagem das ações
 (*IA*) → Quebras estruturais (quando um subpilar mudou de nível) → Próximos passos. Mostra a evolução no
 tempo, não só a foto.
 
-**B5 · Painel de Governança.** Capa (pilar gargalo + Proximity) → Saúde Relacional (radar) →
-Concentração (Gini + top-5) → Previsibilidade (distribuição) → Ranking de Excelência (selos + top) →
-Simulação de Cenários (teto do plano + gargalo coberto?) → Próximos passos. **Sem IA** — assemblagem das
-métricas de governança. É a versão "para o Conselho" da aba Governança.
+**B5 · Painel de Governança.** Capa (pilar gargalo + ratio) → **Risco** (Trajetória → Concentração →
+Previsibilidade) → **Controle** (Base × Topo + Dependência Humana → Detalhe por pilar) → **Alocação**
+(Simulação/teto → Ranking) → Próximos passos. **Sem IA** — assemblagem das métricas de governança nas três
+perguntas do board. É a versão "para o Conselho" da aba Governança.
 
 *(Sweep: sem lacunas novas — cada seção tem o "o que mostra" e a marcação IA vs assemblado.)*
 

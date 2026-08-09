@@ -16,15 +16,18 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
     from src.api.painel import NOME_PILAR, NOME_SUBPILAR, PILAR_DE_SUBPILAR
     from src.diagnostico.leituras import _gargalo, agregar_subpilares
     from src.governanca.leitura import (
+        base_topo_governanca,
         cobertura_governanca,
+        dependencia_humana,
         distribuicao_previsibilidade,
         distribuicao_selos,
         garantir_governanca,
         gini_escopo,
         leitura_concentracao,
-        proximity_pilares_escopo,
+        pilares_ratio_radar,
         radar_svg_data,
         ranking_lojas_governanca,
+        trajetoria_governanca,
     )
     from src.governanca.metricas import compor_cenario, ordenar_acoes_cenario
     from src.models.empresa import Empresa
@@ -35,15 +38,17 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
     with db_session() as s:
         empresa = s.get(Empresa, empresa_id)
         nome = empresa.nome if empresa else f"empresa #{empresa_id}"
-        pilares = proximity_pilares_escopo(s, empresa_id, "empresa", None)
+        agg = agregar_subpilares(s, empresa_id, None)
+        pilares = pilares_ratio_radar(agg)  # radar por RATIO (não Proximity quebrado)
         radar = radar_svg_data(pilares)
+        base_topo = base_topo_governanca(agg)  # CONTROLE
         gini = gini_escopo(s, empresa_id, "empresa", None)
         top5 = gini["lojas"][:5] if gini and not gini.get("insuficiente") else []
         cob = cobertura_governanca(s, empresa_id)
         prev = distribuicao_previsibilidade(s, empresa_id)
         selo = distribuicao_selos(s, empresa_id)
         ranking = ranking_lojas_governanca(s, empresa_id)
-        agg = agregar_subpilares(s, empresa_id, None)
+        trajetoria = trajetoria_governanca(s, empresa_id)  # RISCO
         subpilares_alta = [
             it.subpilar
             for it in consolidar_acoes(empresa_id, {})
@@ -75,12 +80,13 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
     # crítico/fraco) OU o pilar-gargalo não tem Proximity para exibir, cai no ramo de
     # excelência (fallback abaixo, já existente).
     gp = _gargalo(agg)
-    gp_pilar = gp if (gp is not None and (pilares.get(gp) or {}).get("valor") is not None) else None
+    gp_pilar = gp if (gp is not None and (pilares.get(gp) or {}).get("ratio") is not None) else None
     if gp_pilar is not None:
         _gnome = NOME_PILAR.get(gp_pilar, gp_pilar)
+        _rt = ("%.2f" % pilares[gp_pilar]["ratio"]).replace(".", ",")
         capa = {
             "eyebrow": eyebrow,
-            "numero": f"{_gnome} em {pilares[gp_pilar]['valor']:.0f}/100",
+            "numero": f"{_gnome} em ratio {_rt}",
             "soco": "o pilar que trava todo o relacionamento — a cadeia do Lastro "
             "se rompe na origem.",
         }
@@ -95,6 +101,9 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
         "empresa_nome": nome,
         "gerado_em": datetime.utcnow(),
         "cobertura": cob,
+        "trajetoria": trajetoria,
+        "base_topo": base_topo,
+        "dependencia": dependencia_humana(base_topo),
         "radar": radar,
         "pilares": pilares,
         "gini": gini,

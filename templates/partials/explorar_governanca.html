@@ -1,11 +1,14 @@
-{# Painel de Governança (CP-LG-8) · visão Board/Conselho. LEVA 1: cobertura +
-   radar (Bloco 1) + concentração (Bloco 2). Blocos 3-6 nas próximas levas. #}
+{# Painel de Governança · visão Board/Conselho, reorganizado nas TRÊS perguntas:
+   RISCO (onde estamos expostos) · CONTROLE (o que depende de gente) · ALOCAÇÃO
+   (onde o recurso rende mais). #}
 {% set g = governanca %}
 {% set fcls = {'distante':'rose','medio':'amber','proximo':'emerald'} %}
+{# radar agora por RATIO (não Proximity): cores das faixas de ratio #}
+{% set rcls = {'critico':'rose','fraco':'orange','atencao':'amber','bom':'emerald','excelente':'emerald'} %}
 
 <div class="mb-4">
   <h3 class="text-sm font-semibold text-loyall-700">Painel de Governança</h3>
-  <p class="text-xs text-loyall-500">Visão de Conselho: saúde relacional consolidada, concentração de risco, previsibilidade e excelência.</p>
+  <p class="text-xs text-loyall-500">Visão de Conselho, em três perguntas: onde estamos expostos, o que depende de gente, onde o recurso rende mais.</p>
 </div>
 
 {# ── Aviso 'base em formação' (impede leitura de "sistema quebrado") ──────── #}
@@ -14,64 +17,33 @@
   Os blocos refletem a base medida; lojas sem volume aparecem como <b>“em formação”</b>, não como zero.
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-  {# ── Bloco 1 · Saúde Relacional Consolidada (radar 4 pilares) ──────────── #}
-  <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Saúde Relacional Consolidada · Proximity por pilar {{ glossario_i('proximity') }}</div>
-    {% set r = g.radar %}
-    {% if r.n_dados == 0 %}
-    <div class="text-center text-loyall-400 py-12">Base relacional ainda em formação — sem pilares com lastro suficiente.</div>
-    {% else %}
-    <svg viewBox="0 0 {{ r.size }} {{ r.size }}" class="w-full max-w-[320px] mx-auto" font-family="sans-serif">
-      {# anéis 25/50/75/100 #}
-      {% for ring in r.rings %}
-      <circle cx="{{ r.cx }}" cy="{{ r.cy }}" r="{{ ring }}" fill="none" stroke="#E7E3DC" stroke-width="1"/>
-      {% endfor %}
-      {# eixos (spokes): tracejado cinza se NULL #}
-      {% for e in r.eixos %}
-      <line x1="{{ r.cx }}" y1="{{ r.cy }}" x2="{{ e.tip[0] }}" y2="{{ e.tip[1] }}"
-            stroke="{{ '#C9C2B6' if e.null else '#B89355' }}" stroke-width="1"
-            {% if e.null %}stroke-dasharray="3,3"{% endif %}/>
-      {% endfor %}
-      {# polígono Proximity (só vértices com dado) #}
-      {% if r.n_dados >= 3 %}
-      <polygon points="{{ r.poligono }}" fill="#1B6B61" fill-opacity="0.18" stroke="#1B6B61" stroke-width="2"/>
-      {% endif %}
-      {# vértices + rótulos #}
-      {% for e in r.eixos %}
-      {% if not e.null %}<circle cx="{{ e.vx }}" cy="{{ e.vy }}" r="3" fill="#1B6B61"/>{% endif %}
-      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" dominant-baseline="middle"
-            font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
-      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" dominant-baseline="middle"
-            font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— sem dado' if e.null else '%.0f'|format(e.valor) }}</text>
-      {% endfor %}
-    </svg>
-    <div class="text-[10px] text-loyall-400 mt-1 text-center">Eixo tracejado = sem dado suficiente. 0–100 = distância da excelência (ratio 9.0).</div>
-    {% endif %}
-    {# leitura por pilar #}
-    <div class="mt-3 grid grid-cols-2 gap-1.5 text-[11px]">
-      {% for e in g.radar.eixos %}
-      <div class="flex items-center justify-between border border-loyall-100 rounded px-2 py-1">
-        <span class="text-loyall-600">{{ e.pilar }} · {{ e.nome }}</span>
-        {% if e.null %}<span class="text-loyall-300">—</span>
-        {% else %}<span class="font-semibold text-{{ fcls.get(e.faixa,'slate') }}-600">{{ '%.0f'|format(e.valor) }}</span>{% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    {# Leitura do Lastro: o radar pinta 4 eixos iguais, mas a sequência trava no
-       primeiro elo fraco — evita a leitura otimista "metade bom = ok". #}
-    <div class="mt-3 text-[11px] text-loyall-600 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 leading-relaxed">
-      <b>Lastro:</b> {{ glossario_i('lastro') }} a sequência P→D→Pa→A trava no primeiro elo fraco. Parceria ou
-      Aconselhamento fortes <b>não compensam</b> uma Precisão/Disponibilidade crítica — a
-      cadeia se rompe na origem.
-    </div>
-  </div>
+{# ════════════ RISCO · onde estamos expostos ════════════ #}
+<div class="text-xs font-semibold uppercase tracking-wider text-loyall-500 border-b border-loyall-200 pb-1 mb-3">Risco · onde estamos expostos</div>
 
-  {# ── Bloco 2 · Concentração de Risco (Gini + top 5 nominadas) ──────────── #}
+{# ── Trajetória do capital (capitaliza / descapitaliza / indisponível) ───── #}
+{% set t = g.trajetoria %}
+<div class="bg-white border border-loyall-200 rounded-lg p-4 mb-5">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Trajetória do Capital Relacional {{ glossario_i('trajetoria') }}</div>
+  {% if t.estado == 'disponivel' %}
+  {% set dir = {'capitalizando':'emerald','descapitalizando':'rose','estavel':'slate'}.get(t.direcao,'slate') %}
+  <div class="flex items-baseline gap-2 flex-wrap">
+    <span class="text-2xl font-bold text-loyall-800">{{ ('%.1f'|format(t.pdpa_anterior))|replace('.', ',') }} → {{ ('%.1f'|format(t.pdpa_recente))|replace('.', ',') }}</span>
+    <span class="text-sm font-semibold text-{{ dir }}-600">{{ {'capitalizando':'↑ capitalizando','descapitalizando':'↓ descapitalizando','estavel':'→ estável'}.get(t.direcao, t.direcao) }}</span>
+  </div>
+  <div class="text-[11px] text-loyall-400 mt-1">Índice PDPA {{ glossario_i('indice-pdpa') }} · {{ t.janela_meses }}m recentes vs {{ t.janela_meses }}m anteriores (mês do evento).</div>
+  {% else %}
+  <div class="flex items-baseline gap-2">
+    <span class="text-2xl font-bold text-loyall-300">indisponível</span>
+  </div>
+  <div class="text-[11px] text-loyall-500 mt-1">{{ t.motivo }} — a trajetória só é lida com coleta contínua; enquanto a base não é atualizada, o instrumento não infere movimento (não culpa o cliente por lacuna nossa).</div>
+  {% endif %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+  {# ── Concentração de Risco (Gini + top 5 nominadas) ────────────────────── #}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Concentração de Risco {{ glossario_i('gini') }}</div>
     {% if g.gini and not g.gini.insuficiente %}
-    {% set gc = fcls.get('proximo' if g.gini.faixa=='alta' else ('distante' if g.gini.faixa=='baixa' else 'amber'), 'amber') %}
     {% set gcolor = {'baixa':'emerald','media':'amber','alta':'rose'}.get(g.gini.faixa,'slate') %}
     <div class="flex items-baseline gap-2">
       <span class="text-3xl font-bold text-{{ gcolor }}-600 cursor-help" title="Gini corrigido por viés-de-n; bruto {{ '%.2f'|format(g.gini.gini_bruto) }}">{{ '%.2f'|format(g.gini.gini_corrigido) }}</span>
@@ -91,10 +63,8 @@
     <div class="text-center text-loyall-400 py-10 text-sm">{{ g.leitura_conc }}</div>
     {% endif %}
   </div>
-</div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
-  {# ── Bloco 3 · Previsibilidade da Operação (histograma) ────────────────── #}
+  {# ── Previsibilidade da Operação (histograma) ──────────────────────────── #}
   {% set pd = g.prev_dist %}
   {% set pv_total = pd.estavel + pd.medio + pd.erratico %}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
@@ -118,8 +88,118 @@
     </div>
     <div class="text-[10px] text-loyall-400 mt-1">{{ pv_total }} de {{ pv_total + pd.sem_dado }} lojas com série suficiente para medir estabilidade.</div>
   </div>
+</div>
 
-  {# ── Bloco 4 · Ranking de Excelência (selos + top/bottom 5 nominadas) ──── #}
+{# ════════════ CONTROLE · o que depende de gente ════════════ #}
+<div class="text-xs font-semibold uppercase tracking-wider text-loyall-500 border-b border-loyall-200 pb-1 mb-3 mt-8">Controle · o que depende de gente</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+  {# ── Base × Topo do Índice PDPA + frase de Dependência Humana ──────────── #}
+  {% set bt = g.base_topo %}{% set dep = g.dependencia %}
+  <div class="bg-white border border-loyall-200 rounded-lg p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Base × Topo {{ glossario_i('indice-pdpa') }}</div>
+    <div class="flex items-baseline gap-6">
+      <div>
+        <span class="text-3xl font-bold text-loyall-800">{{ ('%.0f'|format(bt.base)) if bt.base is not none else '—' }}</span>
+        <div class="text-[11px] text-loyall-400">Base · Precisão + Disponibilidade</div>
+        <div class="text-[10px] text-loyall-300">o que o sistema entrega</div>
+      </div>
+      <div>
+        <span class="text-3xl font-bold text-loyall-800">{{ ('%.0f'|format(bt.topo)) if bt.topo is not none else '—' }}</span>
+        <div class="text-[11px] text-loyall-400">Topo · Parceria + Aconselhamento</div>
+        <div class="text-[10px] text-loyall-300">o vínculo que se constrói</div>
+      </div>
+    </div>
+    <div class="mt-3 text-[11px] text-loyall-600 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 leading-relaxed">{{ dep.frase }}</div>
+  </div>
+
+  {# ── Detalhe por pilar (radar) — DRILL secundário, fonte RATIO ──────────── #}
+  <div class="bg-white border border-loyall-200 rounded-lg p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Detalhe por pilar · ratio {{ glossario_i('ratio') }}</div>
+    {% set r = g.radar %}
+    {% if r.n_dados == 0 %}
+    <div class="text-center text-loyall-400 py-12">Base relacional ainda em formação — sem pilares com lastro suficiente.</div>
+    {% else %}
+    <svg viewBox="0 0 {{ r.size }} {{ r.size }}" class="w-full max-w-[280px] mx-auto" font-family="sans-serif">
+      {% for ring in r.rings %}
+      <circle cx="{{ r.cx }}" cy="{{ r.cy }}" r="{{ ring }}" fill="none" stroke="#E7E3DC" stroke-width="1"/>
+      {% endfor %}
+      {% for e in r.eixos %}
+      <line x1="{{ r.cx }}" y1="{{ r.cy }}" x2="{{ e.tip[0] }}" y2="{{ e.tip[1] }}"
+            stroke="{{ '#C9C2B6' if e.null else '#B89355' }}" stroke-width="1"
+            {% if e.null %}stroke-dasharray="3,3"{% endif %}/>
+      {% endfor %}
+      {% if r.n_dados >= 3 %}
+      <polygon points="{{ r.poligono }}" fill="#1B6B61" fill-opacity="0.18" stroke="#1B6B61" stroke-width="2"/>
+      {% endif %}
+      {% for e in r.eixos %}
+      {% if not e.null %}<circle cx="{{ e.vx }}" cy="{{ e.vy }}" r="3" fill="#1B6B61"/>{% endif %}
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" dominant-baseline="middle"
+            font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" dominant-baseline="middle"
+            font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— sem dado' if e.null else '%.1f'|format(e.ratio) }}</text>
+      {% endfor %}
+    </svg>
+    <div class="text-[10px] text-loyall-400 mt-1 text-center">Eixo tracejado = sem dado. Ratio P/D por pilar na régua (9,99 = cap do sistema).</div>
+    {% endif %}
+    <div class="mt-3 grid grid-cols-2 gap-1.5 text-[11px]">
+      {% for e in g.radar.eixos %}
+      <div class="flex items-center justify-between border border-loyall-100 rounded px-2 py-1">
+        <span class="text-loyall-600">{{ e.pilar }} · {{ e.nome }}</span>
+        {% if e.null %}<span class="text-loyall-300">—</span>
+        {% else %}<span class="font-semibold text-{{ rcls.get(e.faixa,'slate') }}-600">{{ '%.1f'|format(e.ratio) }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="mt-3 text-[11px] text-loyall-600 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 leading-relaxed">
+      <b>Lastro:</b> {{ glossario_i('lastro') }} a sequência P→D→Pa→A trava no primeiro elo fraco. Parceria ou
+      Aconselhamento fortes <b>não compensam</b> uma Precisão/Disponibilidade crítica — a cadeia se rompe na origem.
+    </div>
+  </div>
+</div>
+
+{# ════════════ ALOCAÇÃO · onde o recurso rende mais ════════════ #}
+<div class="text-xs font-semibold uppercase tracking-wider text-loyall-500 border-b border-loyall-200 pb-1 mb-3 mt-8">Alocação · onde o recurso rende mais</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+  {# ── Simulação de Cenários (slider, dedupe por subpilar) ───────────────── #}
+  {% set c = g.cenario %}
+  <div class="bg-white border border-loyall-200 rounded-lg p-4">
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Simulação de Cenários</div>
+    {% if c and c.range_max %}
+    <p class="text-[11px] text-loyall-500 mb-3">Se a empresa executar as <b>N ações de alta prioridade</b> de maior impacto (uma por subpilar/gargalo distinto), com ~50% de sucesso:</p>
+    <div class="flex items-center gap-3 mb-3">
+      <input type="range" min="1" max="{{ c.range_max }}" value="{{ c.n }}" name="cenario_n"
+             hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='governanca') }}?agrupamento_id={{ filtros.agrupamento_id }}"
+             hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-trigger="change"
+             class="flex-1 accent-loyall-700">
+      <span class="text-sm font-semibold text-loyall-700 whitespace-nowrap">{{ c.n }} de {{ c.range_max }} gargalos {{ glossario_i('gargalo') }}</span>
+    </div>
+    <div class="flex items-baseline gap-3 bg-sky-50/40 border border-dashed border-sky-300 rounded p-3">
+      <div class="text-xs text-loyall-500">Teto do Lastro projetado {{ glossario_i('indice-geral') }}</div>
+      <div class="text-2xl font-bold text-loyall-800">{{ '%.2f'|format(c.indice_base) }} → <span class="text-sky-700">{{ '%.2f'|format(c.indice_n) }}</span></div>
+      <div class="text-xs text-loyall-400">/ 10</div>
+    </div>
+    {% if c.aplicados_nome %}
+    <div class="text-[11px] text-loyall-500 mt-2">Ações no cenário: {% for a in c.aplicados_nome %}<span class="inline-block bg-loyall-100 rounded px-1.5 py-0.5 mr-1 mb-1">{{ a.subpilar }} · {{ a.nome }} <span class="text-rose-600">−{{ a.recuperado }} det</span></span>{% endfor %}</div>
+    {% endif %}
+    {% if c.teto and not c.teto.gargalo_coberto and c.teto.gargalo_pilar %}
+    <div class="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
+      <b>⚠ Teto do plano atual: {{ '%.2f'|format(c.teto.indice) }}/10.</b> O gargalo remanescente é
+      <b>{{ c.teto.gargalo_pilar }} · {{ c.teto.gargalo_nome }}</b> — e <b>nenhuma</b> das {{ c.range_max }} ações
+      de alta prioridade o endereça. Destravar o Índice exige priorizar {{ c.teto.gargalo_nome }}; mais
+      ações fora desse pilar não movem o agregado (Lastro).
+    </div>
+    {% elif c.teto %}
+    <div class="mt-3 text-[11px] text-loyall-500">Teto do plano atual: <b>{{ '%.2f'|format(c.teto.indice) }}/10</b> (executando os {{ c.range_max }} gargalos).</div>
+    {% endif %}
+    <div class="text-[10px] text-loyall-400 mt-2 italic">Projeção — premissa de ~50% de sucesso por ação, não promessa. Máx. 1 ação por subpilar (atacar o mesmo ponto N vezes não é realista). O Índice sobe ao atacar gargalos distintos; mexer fora do pilar gargalo não move o agregado (Lastro).</div>
+    {% else %}
+    <div class="text-center text-loyall-400 py-10 text-sm">Sem ações de alta prioridade com lastro para simular.</div>
+    {% endif %}
+  </div>
+
+  {# ── Ranking de fraqueza (selos + top/bottom 5 nominadas) ──────────────── #}
   {% set scls = {'ouro':'amber','prata':'loyall','bronze':'orange'} %}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Ranking de Excelência {{ glossario_i('selo') }}</div>
@@ -140,7 +220,6 @@
     </li>
     {% endmacro %}
     {% if g.ranking.top %}
-    {# Legenda do paradoxo aparente Selo↑ × Proximity↓ — conecta com o Lastro. #}
     <div class="text-[10px] text-loyall-500 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 mb-2 leading-relaxed">
       <b>Selo</b> = amplitude de pontos fortes (subpilares excelentes). <b>Proximity (gargalo)</b> =
       distância do pilar mais fraco. Uma loja pode ter selo alto e Proximity baixa: muitos
@@ -159,51 +238,11 @@
   </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
-  {# ── Bloco 5 · Simulação de Cenários (slider, dedupe por subpilar) ──────── #}
-  {% set c = g.cenario %}
-  <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Simulação de Cenários</div>
-    {% if c and c.range_max %}
-    <p class="text-[11px] text-loyall-500 mb-3">Se a empresa executar as <b>N ações de alta prioridade</b> de maior impacto (uma por subpilar/gargalo distinto), com ~50% de sucesso:</p>
-    <div class="flex items-center gap-3 mb-3">
-      <input type="range" min="1" max="{{ c.range_max }}" value="{{ c.n }}" name="cenario_n"
-             hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='governanca') }}?agrupamento_id={{ filtros.agrupamento_id }}"
-             hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-trigger="change"
-             class="flex-1 accent-loyall-700">
-      <span class="text-sm font-semibold text-loyall-700 whitespace-nowrap">{{ c.n }} de {{ c.range_max }} gargalos {{ glossario_i('gargalo') }}</span>
-    </div>
-    <div class="flex items-baseline gap-3 bg-sky-50/40 border border-dashed border-sky-300 rounded p-3">
-      <div class="text-xs text-loyall-500">Teto do Lastro projetado</div>
-      <div class="text-2xl font-bold text-loyall-800">{{ '%.2f'|format(c.indice_base) }} → <span class="text-sky-700">{{ '%.2f'|format(c.indice_n) }}</span></div>
-      <div class="text-xs text-loyall-400">/ 10</div>
-    </div>
-    {% if c.aplicados_nome %}
-    <div class="text-[11px] text-loyall-500 mt-2">Ações no cenário: {% for a in c.aplicados_nome %}<span class="inline-block bg-loyall-100 rounded px-1.5 py-0.5 mr-1 mb-1">{{ a.subpilar }} · {{ a.nome }} <span class="text-rose-600">−{{ a.recuperado }} det</span></span>{% endfor %}</div>
-    {% endif %}
-    {# Insight do TETO: o plano atual tem limite, e o gargalo remanescente pode não ser atacado. #}
-    {% if c.teto and not c.teto.gargalo_coberto and c.teto.gargalo_pilar %}
-    <div class="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
-      <b>⚠ Teto do plano atual: {{ '%.2f'|format(c.teto.indice) }}/10.</b> O gargalo remanescente é
-      <b>{{ c.teto.gargalo_pilar }} · {{ c.teto.gargalo_nome }}</b> — e <b>nenhuma</b> das {{ c.range_max }} ações
-      de alta prioridade o endereça. Destravar o Índice exige priorizar {{ c.teto.gargalo_nome }}; mais
-      ações fora desse pilar não movem o agregado (Lastro).
-    </div>
-    {% elif c.teto %}
-    <div class="mt-3 text-[11px] text-loyall-500">Teto do plano atual: <b>{{ '%.2f'|format(c.teto.indice) }}/10</b> (executando os {{ c.range_max }} gargalos).</div>
-    {% endif %}
-    <div class="text-[10px] text-loyall-400 mt-2 italic">Projeção — premissa de ~50% de sucesso por ação, não promessa. Máx. 1 ação por subpilar (atacar o mesmo ponto N vezes não é realista). O Índice sobe ao atacar gargalos distintos; mexer fora do pilar gargalo não move o agregado (Lastro).</div>
-    {% else %}
-    <div class="text-center text-loyall-400 py-10 text-sm">Sem ações de alta prioridade com lastro para simular.</div>
-    {% endif %}
+{# ── Projeção Financeira (placeholder até LTV setorial) ─────────────────── #}
+<div class="bg-white border border-loyall-200 rounded-lg p-4 mt-5">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Projeção Financeira · R$</div>
+  <div class="flex items-baseline gap-2 mt-1">
+    <span class="text-3xl font-bold text-loyall-300" title="Habilita com LTV setorial">—</span>
   </div>
-
-  {# ── Bloco 6 · Projeção Financeira (placeholder até LTV setorial) ───────── #}
-  <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Projeção Financeira</div>
-    <div class="flex items-baseline gap-2 mt-1">
-      <span class="text-3xl font-bold text-loyall-300" title="Habilita com LTV setorial">—</span>
-    </div>
-    <p class="text-xs text-loyall-500 mt-2 leading-relaxed">A monetização (R$) da recuperação projetada <b>habilita automaticamente</b> quando o LTV setorial de referência for cadastrado para a empresa (conversíveis × LTV). Sem ele, o valor não é estimado — projeção honesta, sem número inventado.</p>
-  </div>
+  <p class="text-xs text-loyall-500 mt-2 leading-relaxed">A monetização (R$) da recuperação projetada <b>habilita automaticamente</b> quando o LTV setorial de referência for cadastrado para a empresa (conversíveis × LTV). Sem ele, o valor não é estimado — projeção honesta, sem número inventado.</p>
 </div>
