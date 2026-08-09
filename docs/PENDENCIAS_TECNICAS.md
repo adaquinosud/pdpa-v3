@@ -603,13 +603,35 @@ que vêm das 5 lojas com pior ratio``. > 60% = cirúrgico (poucas lojas);
 < 30% = sistêmico (processo central). Renderizar como cartão informativo
 + link para a página de Monitoramento de Locais.
 
-### Lente de Governança (ativos guarda-chuva)
+### Lente de Governança — ENTREGUE (aba Governança), reconciliação 2026-08-09
 
-Capítulo 6. Ativada quando a empresa é guarda-chuva (aeroportos,
-shoppings, hospitais, etc.). 4 indicadores: Índice de Curadoria, Coesão
-Experiencial, Concentração de Detratores e Dependência Humana
-(``ratio Pa / ratio D``). Página separada ``/empresas/<id>/governanca``
-ou seção condicional no painel principal.
+**Decisão de método (Alexandre):** a Lente é GERAL, não de guarda-chuva —
+governança é a mesma pergunta em qualquer negócio. A aba Governança (entregue,
+`_explorar_governanca` + doc-ouro `painel_governanca.py`) é organizada em TRÊS
+perguntas do board: **Risco** (Trajetória do capital + Concentração/Gini +
+Previsibilidade) · **Controle** (Base/Topo do Índice PDPA + frase de Dependência
+Humana; radar por ratio como drill) · **Alocação** (simulação/teto + ranking de
+fraqueza + R$ placeholder).
+
+**Os 4 indicadores do Manual cap. 6 (Curadoria, Coesão, Concentração, Dependência
+Humana) NUNCA foram implementados** — eram texto de pendência (commit bab4268),
+nunca código. O que foi construído nasceu do `docs/BLOCO_LG.md` (Proximity/
+Previsibilidade/Gini/Selo), ancorado no Replanejamento (CEO Confins), não no
+Manual. Veredito:
+- **Dependência Humana** (`ratio Pa / ratio D`): reabsorvida pelo **Base/Topo do
+  Índice PDPA** (Base fraca + Topo alto = gente compensando o sistema) — não se
+  rebuilda o Pa÷D; reusa-se o que já existe. **Entregue** (frase de risco).
+- **Curadoria** (% marcas-filhas ≥ 1,0) e **Coesão** (1−CV entre marcas): só
+  fazem sentido para ativo guarda-chuva, e o schema NÃO modela marca-filha (só
+  Empresa→Agrupamento→Local; o proxy de agrupamento não distingue nada, ~1
+  cliente na base é guarda-chuva de fato — BH Airport). **Modo guarda-chuva
+  FUTURO**, não implementado — construir custa caro para atender um caso.
+- **Concentração de Detratores:** comum ao Manual, **entregue** (Gini + top-5).
+
+**Buraco que a Fatia 1-2 fechou:** Trajetória (o capital capitaliza ou
+descapitaliza) — cap. 7 define o capital relacional como algo que se deprecia, e
+a Lente era retrato estático. Motor em `trajetoria_governanca` com guard de
+frescor (`coleta_noturna_ativa`); dormante até a coleta contínua ligar.
 
 ### Cache da leitura sequencial Sonnet (CP-5 extensão B5)
 

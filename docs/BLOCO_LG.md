@@ -17,6 +17,20 @@ Camada que transforma o PDPA de diagnóstico em instrumento de gestão estratég
 3. **Concentração de Detratores + Gini** (NOVO) — onde se concentram os detratores
 4. **Selo Ouro/Prata/Bronze** (NOVO) — heurística composta
 
+> **Baixa dos indicadores do Manual cap. 6 (reconciliação 2026-08-09).** Estes 4 (NOVO)
+> **substituíram** os 4 do Manual cap. 6 — Índice de Curadoria, Coesão Experiencial,
+> Concentração de Detratores e Dependência Humana (`ratio Pa/D`) —, que **nunca foram
+> implementados** (só texto de pendência). A concepção nasceu deste BLOCO_LG, ancorada no
+> Replanejamento (CEO Confins), não no Manual. Decisão de método do Alexandre: a Lente é
+> **geral**, não de guarda-chuva → Curadoria/Coesão (sobre marcas-filhas) ficam como **modo
+> guarda-chuva futuro** (schema não modela marca-filha; ~1 cliente na base é guarda-chuva);
+> Dependência Humana é reabsorvida pelo **Base/Topo do Índice PDPA**.
+>
+> **Evolução 2026-08 (Fatias 1-2):** a Lente foi reorganizada nas **três perguntas do board**
+> — Risco (+ **Trajetória** do capital, o buraco que faltava: capitaliza/descapitaliza, com
+> guard de frescor `coleta_noturna_ativa`), Controle (**Base/Topo** + Dependência Humana; radar
+> demovido a drill, fonte Proximity→ratio) e Alocação. Ver `docs/DESCRITIVO_EXPLORAR.md` §14.
+
 ## Proximity Index — fórmula reconciliada (2026-05-29)
 Escala **separada** das faixas operacionais (ver `docs/PROJETO_PDPA.md`).
 
