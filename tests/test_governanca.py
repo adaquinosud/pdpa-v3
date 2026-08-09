@@ -1,5 +1,7 @@
 """CP-LG-0 — helpers de governança, centralização de faixas, convenção de schema."""
 
+from datetime import datetime
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 
@@ -1655,3 +1657,126 @@ def test_dados_hash_persistido_nas_duas_tabelas(db_session):
     p = db_session.query(ProximityCalculation).filter_by(empresa_id=e.id).one()
     g = db_session.query(GiniConcentracao).filter_by(empresa_id=e.id).one()
     assert p.dados_hash == g.dados_hash == h
+
+
+# ── Trajetória do capital relacional (guard de frescor + direção) ──────────────
+_HOJE_TRAJ = datetime(2025, 8, 1)
+
+
+def _empresa_coleta(db_session, *, coleta_on, ultima_coleta):
+    e = Empresa(nome="Gov Traj", setor="varejo", coleta_noturna_ativa=coleta_on)
+    db_session.add(e)
+    db_session.commit()
+    db_session.add(
+        Fonte(
+            empresa_id=e.id,
+            entidade_tipo="empresa",
+            entidade_id=e.id,
+            conector_tipo="google",
+            url="http://x",
+            ultima_coleta=ultima_coleta,
+        )
+    )
+    db_session.commit()
+    return e
+
+
+def _serie(db_session, eid, meses):
+    for periodo, prom, det in meses:
+        _add_ratio_mensal(db_session, eid, None, periodo, prom, det)
+    db_session.commit()
+
+
+_SEIS_MESES = [(f"2025-0{m}", 10, 5) for m in range(1, 7)]  # jan..jun
+
+
+def test_trajetoria_indisponivel_coleta_desligada(db_session):
+    """Gate primário: sem coleta contínua → indisponível p/ TODAS (nunca 'queda').
+    A coleta parada é lacuna nossa, não deterioração do cliente."""
+    from src.governanca.leitura import trajetoria_governanca
+
+    e = _empresa_coleta(db_session, coleta_on=False, ultima_coleta=datetime(2025, 7, 25))
+    _serie(db_session, e.id, _SEIS_MESES)
+    r = trajetoria_governanca(db_session, e.id, hoje=_HOJE_TRAJ)
+    assert r["estado"] == "indisponivel"
+    assert "coleta contínua desligada" in r["motivo"]
+
+
+def test_trajetoria_indisponivel_base_velha(db_session):
+    """Coleta ligada mas base velha (>30d) → indisponível, com a data dita."""
+    from src.governanca.leitura import trajetoria_governanca
+
+    e = _empresa_coleta(db_session, coleta_on=True, ultima_coleta=datetime(2025, 5, 1))
+    _serie(db_session, e.id, _SEIS_MESES)
+    r = trajetoria_governanca(db_session, e.id, hoje=_HOJE_TRAJ)
+    assert r["estado"] == "indisponivel"
+    assert "não atualizada desde 2025-05-01" in r["motivo"]
+
+
+def test_trajetoria_capitalizando(db_session):
+    """Coleta fresca + série que sobe → capitalizando (PDPA recente > anterior)."""
+    from src.governanca.leitura import trajetoria_governanca
+
+    e = _empresa_coleta(db_session, coleta_on=True, ultima_coleta=datetime(2025, 7, 25))
+    _serie(
+        db_session,
+        e.id,
+        [
+            ("2025-01", 2, 8),
+            ("2025-02", 2, 8),
+            ("2025-03", 3, 7),  # anterior: PDPA ~20-30
+            ("2025-04", 8, 2),
+            ("2025-05", 9, 1),
+            ("2025-06", 9, 1),  # recente: PDPA ~80-90
+        ],
+    )
+    r = trajetoria_governanca(db_session, e.id, hoje=_HOJE_TRAJ)
+    assert r["estado"] == "disponivel"
+    assert r["direcao"] == "capitalizando"
+    assert r["delta"] > 0 and r["pdpa_recente"] > r["pdpa_anterior"]
+    assert r["recente"] == ["2025-04", "2025-05", "2025-06"]
+
+
+def test_trajetoria_descapitalizando(db_session):
+    from src.governanca.leitura import trajetoria_governanca
+
+    e = _empresa_coleta(db_session, coleta_on=True, ultima_coleta=datetime(2025, 7, 25))
+    _serie(
+        db_session,
+        e.id,
+        [
+            ("2025-01", 9, 1),
+            ("2025-02", 9, 1),
+            ("2025-03", 8, 2),
+            ("2025-04", 3, 7),
+            ("2025-05", 2, 8),
+            ("2025-06", 2, 8),
+        ],
+    )
+    r = trajetoria_governanca(db_session, e.id, hoje=_HOJE_TRAJ)
+    assert r["estado"] == "disponivel"
+    assert r["direcao"] == "descapitalizando" and r["delta"] < 0
+
+
+def test_trajetoria_indisponivel_serie_curta(db_session):
+    """Coleta fresca mas < 2 janelas de meses medidos → indisponível."""
+    from src.governanca.leitura import trajetoria_governanca
+
+    e = _empresa_coleta(db_session, coleta_on=True, ultima_coleta=datetime(2025, 7, 25))
+    _serie(db_session, e.id, [("2025-01", 10, 5), ("2025-02", 10, 5), ("2025-03", 10, 5)])
+    r = trajetoria_governanca(db_session, e.id, hoje=_HOJE_TRAJ)
+    assert r["estado"] == "indisponivel"
+    assert "série insuficiente" in r["motivo"]
+
+
+def test_trajetoria_exclui_mes_corrente_parcial(db_session):
+    """O mês-calendário corrente (parcial por natureza) não entra na janela."""
+    from src.governanca.leitura import trajetoria_governanca
+
+    e = _empresa_coleta(db_session, coleta_on=True, ultima_coleta=datetime(2025, 7, 25))
+    # 6 meses medidos + o mês corrente (2025-08) com dado espúrio: deve ser ignorado.
+    _serie(db_session, e.id, _SEIS_MESES + [("2025-08", 999, 1)])
+    r = trajetoria_governanca(db_session, e.id, hoje=_HOJE_TRAJ)
+    assert r["estado"] == "disponivel"
+    assert "2025-08" not in r["recente"]  # corrente fora
+    assert r["recente"] == ["2025-04", "2025-05", "2025-06"]

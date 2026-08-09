@@ -161,6 +161,115 @@ def cobertura_governanca(s, empresa_id: int) -> Dict[str, int]:
     return {"total": total, "com_dado": com_dado}
 
 
+# Trajetória do capital relacional (RISCO — está capitalizando ou descapitalizando?).
+# Constantes de PRIMEIROS PRINCÍPIOS, não calibradas contra a base (hoje congelada):
+TRAJETORIA_JANELA_MESES = 3  # trimestre — cadência de conselho
+TRAJETORIA_FRESCOR_MAX_DIAS = 30  # gate secundário; o primário é coleta_noturna_ativa
+
+
+def _freshness_empresa(s, empresa_id: int):
+    """Data da coleta mais recente da empresa (fontes + casos RA). None se nunca coletou."""
+    from sqlalchemy import func
+
+    from src.models.caso import Caso
+    from src.models.fonte import Fonte
+
+    f = s.query(func.max(Fonte.ultima_coleta)).filter(Fonte.empresa_id == empresa_id).scalar()
+    c = s.query(func.max(Caso.ultima_coleta)).filter(Caso.empresa_id == empresa_id).scalar()
+    return max([d for d in (f, c) if d is not None], default=None)
+
+
+def trajetoria_governanca(s, empresa_id: int, *, hoje=None) -> Dict[str, Any]:
+    """Trajetória do capital relacional: capitaliza ou descapitaliza? Δ do Índice PDPA
+    agregado entre a janela recente (K meses) e a anterior, sobre ``RatioMensal`` (mês
+    do EVENTO, não da coleta).
+
+    GUARD DE FRESCOR — o instrumento não pode culpar o cliente por lacuna nossa:
+    - sem coleta contínua (``coleta_noturna_ativa`` False) → a janela recente não se
+      preenche → **indisponível** ("coleta contínua desligada"). É o gate primário: com
+      a coleta desligada, indisponível para TODAS as empresas (nunca "estável"/"queda").
+    - coleta ativa mas base velha (última coleta > FRESCOR_MAX) → **indisponível**
+      ("base não atualizada desde {data}").
+    - série < 2 janelas de meses medidos → **indisponível** ("série insuficiente").
+    """
+    from datetime import datetime, timedelta  # noqa: F401
+
+    from src.api.painel import PILAR_DE_SUBPILAR, indice_pdpa
+    from src.models.anomalia import RatioMensal
+    from src.models.empresa import Empresa
+
+    def _indisp(motivo):
+        return {
+            "estado": "indisponivel",
+            "motivo": motivo,
+            "pdpa_recente": None,
+            "pdpa_anterior": None,
+            "delta": None,
+            "direcao": None,
+        }
+
+    emp = s.get(Empresa, empresa_id)
+    if emp is None or not emp.coleta_noturna_ativa:
+        return _indisp("coleta contínua desligada — trajetória exige base atualizada")
+    fresco = _freshness_empresa(s, empresa_id)
+    agora = hoje or datetime.utcnow()
+    if fresco is None or (agora - fresco).days > TRAJETORIA_FRESCOR_MAX_DIAS:
+        quando = fresco.strftime("%Y-%m-%d") if fresco else "nunca"
+        return _indisp(f"base não atualizada desde {quando}")
+
+    # Série mensal de PDPA agregado (agrega subpilares→pilares por período).
+    rows = s.query(
+        RatioMensal.periodo,
+        RatioMensal.subpilar,
+        RatioMensal.promotor,
+        RatioMensal.conversivel,
+        RatioMensal.detrator,
+    ).filter(RatioMensal.empresa_id == empresa_id)
+    por_periodo: Dict[str, Dict[str, Dict[str, int]]] = {}
+    for periodo, sub, p, cv, dt in rows:
+        pc = PILAR_DE_SUBPILAR.get(sub)
+        if pc is None:  # sem_lastro fora, como no Índice PDPA
+            continue
+        pil = por_periodo.setdefault(periodo, {}).setdefault(
+            pc, {"pilar": pc, "promotor": 0, "conversivel": 0, "detrator": 0}
+        )
+        pil["promotor"] += p or 0
+        pil["conversivel"] += cv or 0
+        pil["detrator"] += dt or 0
+
+    # PDPA por mês; exclui o mês-calendário corrente (sempre parcial).
+    mes_corrente = agora.strftime("%Y-%m")
+    serie = []
+    for periodo in sorted(por_periodo):
+        if periodo >= mes_corrente:
+            continue
+        val, _ = indice_pdpa(list(por_periodo[periodo].values()))
+        if val is not None:
+            serie.append((periodo, val))
+
+    k = TRAJETORIA_JANELA_MESES
+    if len(serie) < 2 * k:
+        return _indisp(f"série insuficiente (mín. {2 * k} meses medidos)")
+    ini_anterior = -2 * k
+    recente, anterior = serie[-k:], serie[ini_anterior:-k]
+    pdpa_rec = round(sum(v for _, v in recente) / k, 1)
+    pdpa_ant = round(sum(v for _, v in anterior) / k, 1)
+    delta = round(pdpa_rec - pdpa_ant, 1)
+    direcao = "capitalizando" if delta > 0 else ("descapitalizando" if delta < 0 else "estavel")
+    return {
+        "estado": "disponivel",
+        "motivo": None,
+        "pdpa_recente": pdpa_rec,
+        "pdpa_anterior": pdpa_ant,
+        "delta": delta,
+        "direcao": direcao,
+        "janela_meses": k,
+        "recente": [m for m, _ in recente],
+        "anterior": [m for m, _ in anterior],
+        "ultima_coleta": fresco,
+    }
+
+
 def distribuicao_previsibilidade(s, empresa_id: int) -> Dict[str, int]:
     """Contagem de lojas por faixa de previsibilidade + 'sem_dado' (NULL = histórico
     curto, NÃO é faixa de qualidade — categoria à parte). CP-LG-8 Bloco 3."""
