@@ -71,11 +71,14 @@ def gerar_leitura_sequencial(n1_payload: Dict[str, Any]) -> str:
             }
             for p in n1_payload.get("pilares", [])
         }
+        # Previsibilidade pode ser None (sem eixo de dispersão medível) — mandar
+        # "indisponível", nunca 0.0 (que o LLM leria como máximo de instabilidade).
+        _prev = n1_payload.get("previsibilidade")
         user_input = {
             "total_verbatins": n1_payload.get("total_verbatins", 0),
             "pilares": pilares_simples,
             "indice_geral": n1_payload.get("indice_geral", 0.0),
-            "previsibilidade": n1_payload.get("previsibilidade", 0.0),
+            "previsibilidade": _prev if _prev is not None else "indisponível",
         }
 
         resposta = client.messages.create(

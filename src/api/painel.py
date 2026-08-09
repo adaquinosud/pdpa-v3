@@ -579,21 +579,22 @@ def calcular_previsibilidade(
     empresa_id: int,
     s,
     base_query_args: Dict[str, Any],
-    pct_conversiveis: float,
-) -> float:
-    """Previsibilidade (escala 0-100) conforme Manual Cap. 4 + v2.
+) -> Optional[float]:
+    """Previsibilidade (escala 0-100) conforme Manual Cap. 4: ``1 − CV`` dos ratios,
+    homogeneidade entre lojas e no tempo.
 
-    Reescrita 2026-05-24 (hotfix B5): a versão anterior dispersava entre
-    os 12 subpilares — conceitualmente errado, porque cada subpilar mede
-    coisa diferente. O Manual fala "homogeneidade entre lojas, períodos
-    e situações". Adotamos a fórmula validada no v2 (analytics.py:1356):
+    Realinhada 2026-08-08 (dispersão pura): removidos 3 desvios não-Manual que
+    vieram da cópia atacadão do v2 no hotfix 99011d4 — (1) o termo
+    ``pct_conversíveis·0,3`` (aproveitamento de dado, não dispersão), (2) o fator
+    ``/2`` em ``min(CV/2,1)`` (escala inventada, o ``×2`` do Índice de novo), (3) o
+    eixo não-medido virava "1" fantasma. Fórmula agora:
 
-        var_locais  = min(CV(ratios_locais) / 2, 1)   # >= 5 verb/local
-        vol_temporal= min(CV(ratios_meses) / 2, 1)    # >= 3 verb/mês
-        score = ((1-var_locais)*0.4 + (1-vol_temporal)*0.3 + pct_conv*0.3) * 100
+        eixo_lojas = 1 − min(CV(ratios_locais), 1)   # >= 2 lojas c/ >= 5 verb
+        eixo_tempo = 1 − min(CV(ratios_meses), 1)    # >= 3 meses c/ >= 3 verb
+        score = média dos eixos COM BASE × 100       # eixo sem base sai da conta
 
-    Filtros de volume mínimo (v2): lojas >= 5 verbatins, meses >= 3.
-    Mesmos filtros do painel aplicados (agrupamento, local, fonte, período).
+    Sem nenhum eixo com base → ``None`` (não há default). Filtros do painel
+    aplicados (agrupamento, local, fonte, período).
     """
     import statistics
 
@@ -639,20 +640,20 @@ def calcular_previsibilidade(
         calcular_ratio(d["promotor"], d["detrator"]) for d in por_mes.values() if d["total"] >= 3
     ]
 
-    # 3. CV de cada eixo
+    # 3. Um eixo por dispersão medível: 1 − min(CV, 1). Eixo sem base fica de fora
+    # (não vira 1 fantasma) — renormalização automática pela média dos eixos com base.
+    eixos = []
     if len(ratios_locais) >= 2:
         cv = statistics.stdev(ratios_locais) / max(statistics.mean(ratios_locais), 0.01)
-        var_locais = min(cv / 2.0, 1.0)
-    else:
-        var_locais = 0.0
+        eixos.append(1.0 - min(cv, 1.0))
     if len(ratios_meses) >= 3:
         cv = statistics.stdev(ratios_meses) / max(statistics.mean(ratios_meses), 0.01)
-        vol_temporal = min(cv / 2.0, 1.0)
-    else:
-        vol_temporal = 0.0
+        eixos.append(1.0 - min(cv, 1.0))
 
-    # 4. Score combinado (pesos v2)
-    score = ((1 - var_locais) * 0.4 + (1 - vol_temporal) * 0.3 + pct_conversiveis * 0.3) * 100
+    # 4. Média dos eixos com base; sem nenhum eixo medível → None (não há default).
+    if not eixos:
+        return None
+    score = (sum(eixos) / len(eixos)) * 100
     return round(max(0.0, min(100.0, score)), 1)
 
 
@@ -1074,13 +1075,8 @@ def painel_nivel1(empresa_id: int):
             "data_inicio_periodo": data_inicio_periodo,
         }
 
-        # Previsibilidade precisa de pct_conversiveis (verbatins classificados,
-        # excluindo sem_lastro/inativo do denominador conforme decisão arq.).
-        verbatins_classificados = sum(p["total"] for p in pilares)
-        conversiveis = sum(p["conversivel"] for p in pilares)
-        pct_conv = (conversiveis / verbatins_classificados) if verbatins_classificados else 0.0
-
-        previsibilidade = calcular_previsibilidade(empresa_id, s, filtros_query, pct_conv)
+        # Previsibilidade = dispersão pura (lojas + tempo); None quando sem eixo medível.
+        previsibilidade = calcular_previsibilidade(empresa_id, s, filtros_query)
         previsib_medida = previsibilidade_medida(empresa_id, s, filtros_query)  # guard T1
         concentracao_pct = calcular_concentracao_detratores(empresa_id, s, filtros_query)
         conc_n_lojas = concentracao_n_lojas(empresa_id, s, filtros_query)  # guard T2

@@ -846,16 +846,15 @@ def test_faixa_indice_geral():
 
 
 def test_calcular_previsibilidade_empresa_vazia(client_loyall, db_session):
-    """Edge: empresa sem verbatins → 0 (sem locais/meses pra calcular)."""
+    """Edge: empresa sem verbatins → None (nenhum eixo de dispersão medível)."""
     from src.api.painel import calcular_previsibilidade
     from src.utils.db import db_session as get_session
 
     e = client_loyall.post("/api/empresas/", json={"nome": "EPrev0"}).get_json()
     with get_session() as s:
-        prev = calcular_previsibilidade(e["id"], s, {}, pct_conversiveis=0.0)
-    # Sem locais (var=0) + sem meses (vol_temporal=0) + 0% conv =
-    # (1*0.4 + 1*0.3 + 0*0.3) * 100 = 70
-    assert prev == 70.0
+        prev = calcular_previsibilidade(e["id"], s, {})
+    # Sem lojas (< 2) e sem meses (< 3) → eixos=[] → None (não há default)
+    assert prev is None
 
 
 def test_calcular_previsibilidade_1_local_so(client_loyall, db_session):
@@ -877,10 +876,9 @@ def test_calcular_previsibilidade_1_local_so(client_loyall, db_session):
             data_dias_atras=10,
         )
     with get_session() as s:
-        prev = calcular_previsibilidade(ctx["e"]["id"], s, {}, pct_conversiveis=0.0)
-    # 1 local (< 2) → var_locais=0; 1 mês (< 3) → vol_temporal=0; 0 conv
-    # → (0.4 + 0.3 + 0) * 100 = 70
-    assert prev == 70.0
+        prev = calcular_previsibilidade(ctx["e"]["id"], s, {})
+    # 1 local (< 2) → sem eixo lojas; 1 mês (< 3) → sem eixo tempo → eixos=[] → None
+    assert prev is None
 
 
 def test_calcular_previsibilidade_lojas_uniformes_alta(client_loyall, db_session):
@@ -911,11 +909,10 @@ def test_calcular_previsibilidade_lojas_uniformes_alta(client_loyall, db_session
                 tipo="promotor",
             )
     with get_session() as s:
-        prev = calcular_previsibilidade(e["id"], s, {}, pct_conversiveis=0.0)
-    # 5 lojas com ratio idêntico → var_locais=0 → contribui 100% no fator 0.4
-    # 0 conv → 0 no fator 0.3
-    # Score >= 70 (idealmente 100 mas meses pode ser 0 se tudo no mesmo mês)
-    assert prev >= 70.0
+        prev = calcular_previsibilidade(e["id"], s, {})
+    # 5 lojas ratio idêntico → CV=0 → eixo lojas = 1.0. Tudo no mesmo mês → sem
+    # eixo tempo → média de [1.0] = 100.0 (renorm sobre o único eixo com base).
+    assert prev == 100.0
 
 
 def test_calcular_previsibilidade_lojas_dispersas_reduz_score(client_loyall, db_session):
@@ -948,10 +945,50 @@ def test_calcular_previsibilidade_lojas_dispersas_reduz_score(client_loyall, db_
                 tipo=tipo,
             )
     with get_session() as s:
-        prev_dispersa = calcular_previsibilidade(e["id"], s, {}, pct_conversiveis=0.0)
-    # CV alto → var_locais ~1.0 → fator (1-1)*0.4 = 0
-    # Score deve cair em relação ao teste uniforme
+        prev_dispersa = calcular_previsibilidade(e["id"], s, {})
+    # ratios 9.99 vs 0 → CV alto (~0.91) → eixo lojas = 1 − min(CV,1) ~0.09.
+    # Único eixo com base (mesmo mês) → score ~9. Bem abaixo do uniforme (100).
     assert prev_dispersa < 70.0
+
+
+def test_calcular_previsibilidade_so_eixo_temporal_renorm_sem_fantasma(client_loyall, db_session):
+    """Caso Club Med: 1 loja (eixo lojas AUSENTE) + N meses. O eixo ausente NÃO
+    vira '1' fantasma — renormaliza sobre o único eixo com base (o temporal).
+    Prova também que o /2 saiu: usa min(CV, 1), não min(CV/2, 1)."""
+    import statistics
+
+    from src.api.painel import calcular_previsibilidade, calcular_ratio
+    from src.utils.db import db_session as get_session
+
+    ctx = _empresa_estrutura(client_loyall)
+    lid, eid, fid = ctx["loc"]["id"], ctx["e"]["id"], ctx["f"]["id"]
+    # 1 loja, 3 meses distintos, ratios dispersos (promotor vs detrator)
+    meses = {5: "promotor", 40: "detrator", 75: "promotor"}
+    for dias, tipo in meses.items():
+        for i in range(3):  # >= 3 verbatins/mês
+            _criar_verbatim(
+                db_session,
+                eid,
+                fid,
+                lid,
+                texto=f"m{dias}v{i}",
+                subpilar="Pa1",
+                tipo=tipo,
+                data_dias_atras=dias,
+            )
+    with get_session() as s:
+        prev = calcular_previsibilidade(eid, s, {})
+
+    r_p, r_d = calcular_ratio(3, 0), calcular_ratio(0, 3)
+    ratios = [r_p, r_d, r_p]
+    cv = statistics.stdev(ratios) / max(statistics.mean(ratios), 0.01)
+    esperado = round(max(0.0, min(100.0, (1 - min(cv, 1.0)) * 100)), 1)  # renorm sobre 1 eixo
+    assert prev == esperado
+    # o eixo de lojas (ausente) não entrou como 1 → NÃO é a média (esperado+100)/2
+    assert prev != round((esperado + 100.0) / 2, 1)
+    # e o /2 saiu: min(CV/2,1) daria um número mais alto (e diferente)
+    esperado_com_2 = round(max(0.0, min(100.0, (1 - min(cv / 2, 1.0)) * 100)), 1)
+    assert prev != esperado_com_2
 
 
 def test_painel_nivel1_inclui_indice_previsibilidade_concentracao(client_loyall, db_session):
