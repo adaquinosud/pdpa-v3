@@ -577,10 +577,13 @@ O Bloco 5 entregou Visão Geral (4 pilares) + Detalhamento (12 subpilares
 com nomes oficiais) + Ratio P/D (Cap. 4). Pendências para próximos
 blocos:
 
-### Índice Geral (escala 0-10)
+### Teto do Lastro (escala 0-10)
 
-Capítulo 4. Média ponderada dos ratios dos 12 subpilares, normalizada
-e ajustada por volume. Faixas:
+Capítulo 4 (antes "Índice Geral"). Fórmula: `min(ratio do pior pilar, ratio
+médio ponderado por volume)`, normalizado à régua de ratio (1,0→5 · 2,0→7 ·
+5,0→10). O `min` faz o pilar mais travado mandar na nota (a "média ponderada
+sem o min" foi descartada — no grão loja empatava em 0,0 por falta de dado).
+Faixas:
 - >= 7 — zona saudável
 - 5 a 7 — zona de atenção
 - < 5 — zona crítica (intervenção sistemática)

@@ -1,4 +1,4 @@
-{# Tab Leaderboard — ranking por score modulado (Teto do Lastro × engajamento/100). #}
+{# Tab Leaderboard — ranking por Índice PDPA × engajamento/100 (exibe o PDPA puro). #}
 {# 3 faixas de confiança (= selo): ranking ≥30 🟢 / em formação 10-30 🟡 / <10 🔴. #}
 {% set lb = leaderboard %}
 {% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
@@ -6,7 +6,6 @@
 {% import 'partials/_faixas.html' as fx %}
 {% set fclass = fx.FCLASS %}
 {% set medals = {1:'🥇', 2:'🥈', 3:'🥉'} %}
-{% set max_score = (lb.linhas[0].score_mod if lb.linhas else 10) or 10 %}
 
 {% macro linha(l, pos) %}
 {% set fc = fclass.get(l.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
@@ -24,14 +23,14 @@
       {% if l.cidade %}<span class="text-xs text-loyall-400">{{ l.cidade }}{% if l.uf %}/{{ l.uf }}{% endif %}</span>{% endif %}
       {% for emoji, titulo in l.badges %}<span title="{{ titulo }}" class="cursor-help">{{ emoji }}</span>{% endfor %}
     </div>
-    <div class="h-1.5 rounded bg-loyall-100 overflow-hidden mt-1.5" title="Score modulado {{ l.score_mod }}/10">
-      <div class="h-1.5 rounded" style="width: {{ (100 * l.score_mod / max_score) | round(0,'floor') }}%; background: linear-gradient(90deg,#B89355,#1d3149)"></div>
+    <div class="h-1.5 rounded bg-loyall-100 overflow-hidden mt-1.5" title="Índice PDPA {{ l.pdpa if l.pdpa is not none else '—' }}">
+      <div class="h-1.5 rounded" style="width: {{ (l.pdpa or 0) | round(0,'floor') }}%; background: linear-gradient(90deg,#B89355,#1d3149)"></div>
     </div>
-    <div class="text-[10px] text-loyall-400 mt-1">Teto do Lastro {{ '%.1f'|format(l.score) }} × Engaj. {{ l.engajamento }}</div>
+    <div class="text-[10px] text-loyall-400 mt-1">ordena por Índice PDPA × Engaj. {{ l.engajamento }}</div>
   </div>
   <div class="text-right shrink-0">
-    <div class="text-xl font-bold text-loyall-800">{{ '%.1f'|format(l.score_mod) }}</div>
-    <div class="text-[10px] text-loyall-400 uppercase">score</div>
+    <div class="text-xl font-bold text-loyall-800">{{ '%.1f'|format(l.pdpa) if l.pdpa is not none else '—' }}</div>
+    <div class="text-[10px] text-loyall-400 uppercase">índice pdpa</div>
   </div>
   <div class="text-center shrink-0 w-16">
     <div class="text-sm font-bold text-loyall-700">{{ '%.2f'|format(l.ratio) }}</div>
@@ -66,8 +65,8 @@
 
 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
   <div>
-    <h3 class="text-sm font-semibold text-loyall-700">Leaderboard · Score PDPA</h3>
-    <p class="text-xs text-loyall-500">Score = Teto do Lastro {{ glossario_i('indice-geral') }} (0-10) × Engajamento {{ glossario_i('engajamento') }} (÷100). Volume sela a confiança; sem volume, o índice não lidera.</p>
+    <h3 class="text-sm font-semibold text-loyall-700">Leaderboard · Ranking de Lojas</h3>
+    <p class="text-xs text-loyall-500">Coluna = Índice PDPA {{ glossario_i('indice-pdpa') }} (0-100), o mesmo número do Painel. Ordena por Índice PDPA × Engajamento {{ glossario_i('engajamento') }} (÷100): volume sela a confiança; sem volume, a loja não lidera.</p>
     {# CP-glossario-2e: colunas (ratio/proximity/selo/conv) ficam no macro linha()
        que renderiza por loja — 1 ⓘ aqui (legenda), não por linha. #}
     <p class="text-[11px] text-loyall-400 mt-0.5">
@@ -77,7 +76,7 @@
   </div>
   <div class="flex items-center gap-1 text-xs">
     <span class="text-loyall-400 mr-1">Ordenar:</span>
-    {% for v, l in [('score','Score'),('ratio','Ratio'),('proximity','Proximity'),('volume','Volume')] %}
+    {% for v, l in [('score','PDPA'),('ratio','Ratio'),('proximity','Proximity'),('volume','Volume')] %}
     <button type="button"
        hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='leaderboard') }}?{{ qs }}&order_by={{ v }}"
        hx-target="#explorar-conteudo" hx-swap="innerHTML"

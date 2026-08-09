@@ -51,7 +51,7 @@ def test_leaderboard_plugado_com_glossario(client_loyall: FlaskClient) -> None:
     e = _empresa(client_loyall, "lb")
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard").get_data(as_text=True)
     assert h
-    assert "O teto que o pior pilar impõe" in h  # indice-geral (Teto do Lastro)
+    assert "A relação em um número" in h  # indice-pdpa (leaderboard ordena/exibe PDPA)
     assert "Pré-condição de confiabilidade dos dados" in h  # engajamento
     assert "Reescala o ratio para 0" in h  # proximity
     assert "Insígnia Ouro/Prata/Bronze" in h  # selo

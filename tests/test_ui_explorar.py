@@ -289,7 +289,7 @@ def test_tab_leaderboard_ranking_e_medalhas(client_loyall, db_session):
     _verb(db_session, e, melhor, fm, "D2", "detrator", 6)  # vol 36, ratio 5 → alto
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard").get_data(as_text=True)
-    assert "Score PDPA" in h and "🥇" in h  # ranking gamificado
+    assert "Ranking de Lojas" in h and "🥇" in h  # ranking gamificado (header renomeado)
     assert "🏆" in h  # badge melhor ratio
     # Loja Melhor (score modulado maior) deve vir antes da Pior
     assert h.index("Loja Melhor") < h.index("Loja Pior")

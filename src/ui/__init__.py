@@ -5508,14 +5508,22 @@ def _explorar_concentracao(s, empresa_id, ag_id=None):
 
 
 def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score"):
-    """Ranking de locais por score modulado (CP-E3): score = Índice Geral ×
-    (engajamento/100). Três faixas de confiança (limiares = selo): ranking
-    principal ≥30 (🟢), 'em formação' 10-30 (🟡), 'insuficiente' <10 (🔴).
-    Retorna {ranked, formacao, insuficiente}. Badges só no ranking."""
+    """Ranking de locais por Índice PDPA modulado (CP-E3): ordena por Índice PDPA ×
+    (engajamento/100), exibe o PDPA puro (mesmo número do Painel). O Teto do Lastro
+    (score) fica só como base do delta da simulação — não ordena (empata em 0,0 no
+    grão loja quando o pior pilar não tem promotor por falta de dado). Três faixas de
+    confiança (limiares = selo): ranking ≥30 (🟢), 'em formação' 10-30 (🟡),
+    'insuficiente' <10 (🔴). Retorna {ranked, formacao, insuficiente}."""
     from sqlalchemy import func
 
     from src.api.engajamento import engajamento_por_loja
-    from src.api.painel import calcular_indice_geral, calcular_ratio, faixa_ratio
+    from src.api.painel import (
+        PILAR_DE_SUBPILAR,
+        calcular_indice_geral,
+        calcular_ratio,
+        faixa_ratio,
+        indice_pdpa,
+    )
     from src.models.local import Local
     from src.models.verbatim import Verbatim
 
@@ -5553,6 +5561,7 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
     linhas = []
     for lid, subs in por_loja.items():
         matriz = []
+        pilares_loja: dict = {}  # p/ o Índice PDPA por loja (exclui sem_lastro)
         prom = conv = det = 0
         for sub, c in subs.items():
             p, cv, dt = c["promotor"], c["conversivel"], c["detrator"]
@@ -5565,6 +5574,14 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
                     "detrator": dt,
                 }
             )
+            pc = PILAR_DE_SUBPILAR.get(sub)
+            if pc:  # sem_lastro (pilar None) fica fora do PDPA
+                d = pilares_loja.setdefault(
+                    pc, {"pilar": pc, "promotor": 0, "conversivel": 0, "detrator": 0}
+                )
+                d["promotor"] += p
+                d["conversivel"] += cv
+                d["detrator"] += dt
             prom += p
             conv += cv
             det += dt
@@ -5573,6 +5590,7 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
             continue
         loc = nomes.get(lid)
         ratio = calcular_ratio(prom, det)
+        pdpa, _ = indice_pdpa(list(pilares_loja.values()))  # PDPA puro da loja (0-100 ou None)
         linhas.append(
             SimpleNamespace(
                 id=lid,
@@ -5580,6 +5598,7 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
                 cidade=loc.cidade if loc else None,
                 uf=loc.uf if loc else None,
                 score=calcular_indice_geral(matriz),
+                pdpa=pdpa,
                 ratio=ratio,
                 faixa=faixa_ratio(ratio),
                 total=total,
@@ -5606,6 +5625,9 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
         x.selo = em["selo"]
         x.selo_emoji = em["selo_emoji"]
         x.score_mod = round(x.score * em["engajamento"] / 100.0, 2)
+        # Ranking por Índice PDPA modulado pelo engajamento (volume sela a confiança,
+        # CP-E3). Exibe o PDPA puro; o ×engaj só ordena. None (loja só sem_lastro) → fim.
+        x.pdpa_mod = None if x.pdpa is None else round(x.pdpa * em["engajamento"] / 100.0, 2)
         pm = prox_map.get(x.id, {"valor": None, "faixa": None, "n_pilares": 0})
         x.proximity = pm["valor"]
         x.proximity_faixa = pm["faixa"]
@@ -5628,12 +5650,16 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
             if x.detrator == 0 and x.total >= 5:
                 x.badges.append(("✨", "Zero detratores"))
 
+    # Ranking por Índice PDPA modulado (default); lojas sem PDPA (só sem_lastro) por último.
+    def _por_pdpa(x):
+        return (x.pdpa_mod is None, -(x.pdpa_mod or 0.0), -x.total)
+
     chave = {
         "ratio": lambda x: -x.ratio,
         "volume": lambda x: -x.total,
         # Proximity desc; lojas sem dado (NULL) sempre por último.
         "proximity": lambda x: (x.proximity is None, -(x.proximity or 0.0)),
-    }.get(order_by, lambda x: (-x.score_mod, -x.total))
+    }.get(order_by, _por_pdpa)
     for grupo in (ranked, formacao, insuficiente):
         grupo.sort(key=chave)
     return {"ranked": ranked, "formacao": formacao, "insuficiente": insuficiente}

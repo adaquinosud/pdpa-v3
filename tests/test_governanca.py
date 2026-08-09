@@ -633,6 +633,38 @@ def test_leaderboard_proximity_ordena_null_por_ultimo(db_session):
     assert ranked[-1].id == lb.id and ranked[-1].proximity is None  # NULL por último
 
 
+def test_leaderboard_ordena_por_pdpa_nao_pelo_teto(db_session):
+    """Reorder (caso Betim): loja com PDPA alto mas Teto 0 (pior pilar sem promotor
+    por falta de dado) rankeia ACIMA de uma loja uniformemente medíocre com Teto
+    maior. O Teto empata/afunda por ausência; o PDPA ordena por desempenho real."""
+    from src.governanca.metricas import recalcular_governanca
+    from src.ui import _explorar_leaderboard
+
+    e, fonte = _empresa_fonte(db_session)
+    boa = Local(empresa_id=e.id, nome="Boa com buraco")  # 90 promotores, 1 pilar só detrator
+    med = Local(empresa_id=e.id, nome="Mediocre uniforme")  # tudo ratio 1.0
+    db_session.add_all([boa, med])
+    db_session.commit()
+    for sub in ("P1", "D1", "Pa1"):
+        _verbs(db_session, e, fonte, boa, sub, "promotor", 30, f"g{sub}")
+    _verbs(db_session, e, fonte, boa, "A1", "detrator", 3, "gA")  # pilar A ratio 0 → Teto 0
+    for sub in ("P1", "D1", "Pa1", "A1"):
+        _verbs(db_session, e, fonte, med, sub, "promotor", 5, f"mp{sub}")
+        _verbs(db_session, e, fonte, med, sub, "detrator", 5, f"md{sub}")
+    db_session.commit()
+    recalcular_governanca(e.id)
+
+    ranked = _explorar_leaderboard(db_session, e.id, None, None, "score")[
+        "ranked"
+    ]  # default = PDPA
+    by_id = {x.id: x for x in ranked}
+    assert boa.id in by_id and med.id in by_id
+    # inversão: o Teto poria a medíocre na frente; o PDPA corrige.
+    assert by_id[boa.id].score < by_id[med.id].score  # Teto: boa (~0) < medíocre (~5)
+    assert by_id[boa.id].pdpa > by_id[med.id].pdpa  # PDPA: boa (~97) > medíocre (~50)
+    assert ranked.index(by_id[boa.id]) < ranked.index(by_id[med.id])  # boa rankeia acima
+
+
 @pytest.mark.parametrize(
     "subs_com_lastro, n_esperado, anota",
     [

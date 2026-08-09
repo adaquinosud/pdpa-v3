@@ -133,10 +133,12 @@ avaliações não vale o mesmo que outra "ótima" com 200). Fonte: `_explorar_le
 6. **Badges de destaque** — 🏆 melhor ratio · 📊 maior volume · 🔄 melhor conversão · ✨ zero detratores.
    São "menções honrosas": apontam em que a loja é a melhor do grupo.
 7. **Barra + legenda** — visualização do score; legenda "Índice X × Engaj. Y" mostra os dois fatores.
-8. **Score modulado** (número grande) — **Teto do Lastro × (Engajamento ÷ 100)**. Por que multiplicar um
-   pelo outro: o **Índice** (0–10) mede a *qualidade* da relação; o **Engajamento** (0–100) mede se há
-   *volume e regularidade* de dados pra confiar nessa qualidade. Multiplicar penaliza a loja que parece
-   ótima mas tem pouca evidência — sobe quem é boa **e** bem medida. (`score_mod`, ui.)
+8. **Índice PDPA** (número grande) — o **mesmo número do Painel** (0–100), o PDPA puro da loja. A
+   **ordenação** usa **Índice PDPA × (Engajamento ÷ 100)**: o PDPA (0–100) mede a *qualidade* da relação;
+   o **Engajamento** (0–100) mede se há *volume e regularidade* pra confiar nessa qualidade. Multiplicar
+   só ordena — penaliza a loja que parece ótima mas tem pouca evidência —, sem mudar o número exibido.
+   (Usa o PDPA, não o Teto do Lastro: no grão loja o Teto empata em 0,0 quando o pior pilar não tem
+   promotor por *falta de dado*, não desempenho. `pdpa_mod`, ui.)
 9. **Ratio P/D** + faixa (ver glossário).
 10. **Proximity** (0–100) + faixa; se a Proximity se apoia em poucos pilares com dado, mostra **"base
     Np"** (confiança parcial — leia com ressalva).
