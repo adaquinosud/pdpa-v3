@@ -91,14 +91,29 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
     # ── Índices Consolidados (src/api/painel.py) ──────────────────────────
     (
         "indice-geral",
-        "Índice Geral",
+        "Teto do Lastro",
         "Índices Consolidados",
-        "Indicador sintético de saúde do escopo, de 0 a 10.",
-        "Fórmula: min(ratio do pior pilar, ratio médio ponderado por volume) × 2, "
-        "com teto em 10. O min() faz o pilar mais fraco puxar o índice — coerente "
-        "com o Lastro como sequência evolutiva (um pilar travado limita o todo). "
-        "Faixas: saudável ≥ 7 · atenção 5–6.99 · crítico < 5. Zero quando não há "
-        "volume. (Manual Cap. 3-4)",
+        "O teto que o pior pilar impõe ao conjunto, de 0 a 10. Aponta o elo que "
+        "limita — não resume a relação (isso é o Índice PDPA).",
+        "Fórmula: min(ratio do pior pilar, ratio médio ponderado por volume), "
+        "normalizado à régua de ratio (1,0→5 · 2,0→7 · 5,0→10), escala 0-10. O "
+        "min() faz o pilar mais fraco puxar o teto — coerente com o Lastro como "
+        "sequência evolutiva (um pilar travado limita o todo). Faixas: saudável ≥ 7 "
+        "· atenção 5–6.99 · crítico < 5. Zero quando não há volume. (Manual Cap. 4)",
+        "Painel Executivo",
+    ),
+    (
+        "indice-pdpa",
+        "Índice PDPA",
+        "Índices Consolidados",
+        "A relação em um número, de 0 a 100. Resume o todo — o contraponto ao Teto "
+        "do Lastro, que aponta o elo mais fraco.",
+        "Fórmula: (promotores + conversíveis × 0,5) ÷ total classificado × 100. O "
+        "conversível conta metade (relação incompleta, não ausência); o detrator "
+        "fica no denominador. Três leituras: Índice PDPA (todos os subpilares) · "
+        "Base (Precisão + Disponibilidade) · Topo (Parceria + Aconselhamento), com "
+        "o volume ao lado. Sem_lastro e inativo ficam fora. Exibido sem faixa/cor "
+        "(base ainda pequena para calibrar cortes). (Manual Cap. 4)",
         "Painel Executivo",
     ),
     (
@@ -246,7 +261,7 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "Aconselhamento.",
         "Base conceitual do método: a relação evolui em ordem — Precisão, depois "
         "Disponibilidade, depois Parceria, depois Aconselhamento. Um pilar travado "
-        "limita os seguintes, o que justifica o min() do Índice Geral. (Manual Cap. 3)",
+        "limita os seguintes, o que justifica o min() do Teto do Lastro. (Manual Cap. 3)",
         "Painel, Governança, PDFs",
     ),
     (
@@ -264,7 +279,7 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "Gargalo",
         "Governança",
         "Pilar com menor ratio no agregado — o que mais limita o Lastro.",
-        "O pilar de menor ratio no escopo agregado. Como o Índice Geral usa o pior "
+        "O pilar de menor ratio no escopo agregado. Como o Teto do Lastro usa o pior "
         "pilar, o gargalo é o ponto de maior alavanca.",
         "Painel, Simulação",
     ),

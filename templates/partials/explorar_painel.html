@@ -38,6 +38,28 @@
   </a>
 </div>
 
+{# ── Índice PDPA — a relação em um número (manchete do Painel) ─────────── #}
+{# Stark por decisão: sem faixa, sem cor, sem frase — só os 3 números + volumes.
+   Cortes seriam calibrados contra uma base ainda pequena (§7). Base=P+D, Topo=Pa+A. #}
+{% if n1.indice_pdpa is not none %}
+<div class="mb-3 px-4 py-3 rounded border border-loyall-200 bg-white flex flex-wrap items-baseline gap-x-4 gap-y-1">
+  <div class="flex items-baseline gap-2">
+    <span class="text-xs uppercase tracking-wider text-loyall-400">Índice PDPA {{ glossario_i('indice-pdpa') }}</span>
+    <span class="text-3xl font-bold text-loyall-800">{{ ('%.1f'|format(n1.indice_pdpa))|replace('.', ',') }}</span>
+    <span class="text-xs text-loyall-400">a relação em um número</span>
+  </div>
+  <div class="flex items-baseline gap-3 text-sm text-loyall-600 ml-auto">
+    <span>Base
+      {% if n1.indice_pdpa_base is not none %}<span class="font-semibold">{{ ('%.1f'|format(n1.indice_pdpa_base))|replace('.', ',') }}</span>
+      <span class="text-loyall-400">({{ '{:,}'.format(n1.indice_pdpa_base_volume)|replace(',', '.') }})</span>{% else %}<span class="text-loyall-400">—</span>{% endif %}</span>
+    <span class="text-loyall-300">·</span>
+    <span>Topo
+      {% if n1.indice_pdpa_topo is not none %}<span class="font-semibold">{{ ('%.1f'|format(n1.indice_pdpa_topo))|replace('.', ',') }}</span>
+      <span class="text-loyall-400">({{ '{:,}'.format(n1.indice_pdpa_topo_volume)|replace(',', '.') }})</span>{% else %}<span class="text-loyall-400">—</span>{% endif %}</span>
+  </div>
+</div>
+{% endif %}
+
 {# ── Sumário de anomalias (Monitoramento ML) ─────────────────────────── #}
 {% if anomalias_resumo and anomalias_resumo.total %}
 <a href="{{ url_for('ui.anomalias_empresa', empresa_id=empresa.id) }}"
@@ -100,7 +122,7 @@
 {% set eng_selo_txt = {'alta':'volume robusto','media':'volume moderado','baixa':'volume insuficiente'}.get(n1.engajamento_selo, '') %}
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
   <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Índice Geral {{ glossario_i('indice-geral') }}</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Teto do Lastro {{ glossario_i('indice-geral') }}</div>
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ ig_cls }}-600">{{ '%.1f'|format(n1.indice_geral) }}</span>
       <span class="text-sm text-loyall-400">/ 10</span>

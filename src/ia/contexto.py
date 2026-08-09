@@ -235,7 +235,7 @@ def formatar_contexto(dados: Dict[str, Any]) -> str:
     L.append(f"Empresa: {r.get('empresa')}" + (f" (setor: {r['setor']})" if r.get("setor") else ""))
     L.append(
         f"Volume classificado: {r.get('volume_classificado')} · "
-        f"Índice Geral: {r.get('indice_geral')}/10 · "
+        f"Teto do Lastro: {r.get('indice_geral')}/10 · "
         f"Pilar gargalo: {r.get('pilar_gargalo') or 'n/d'}"
     )
     L.append(f"Lastro: {r.get('lastro')}")

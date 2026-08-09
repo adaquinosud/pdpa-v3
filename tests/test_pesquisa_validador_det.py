@@ -83,6 +83,8 @@ def test_blocklist_curadoria_bloqueia():
     assert "Proximity" in termos_proibidos("Qual o Proximity Index da loja?")
     assert "Gini" in termos_proibidos("Como está o Gini?")
     assert "Índice Geral" in termos_proibidos("Avalie o Índice Geral.")
+    assert "Teto do Lastro" in termos_proibidos("Qual o Teto do Lastro?")
+    assert "Índice PDPA" in termos_proibidos("Mostre o Índice PDPA.")
     assert "Selo Ouro" in termos_proibidos("Você conhece o Selo Ouro?")
     assert "Concentração de detratores" in termos_proibidos("Há concentração de detratores aqui?")
     # tokens de sistema

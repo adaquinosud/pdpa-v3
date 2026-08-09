@@ -36,9 +36,9 @@ O **ratio P/D** (promotores ÷ detratores) resume a saúde de um subpilar/pilar.
 Um retrato consolidado da empresa no escopo e período que o gestor está olhando.
 Campos podem vir vazios — **use só o que existe**. Pode conter:
 
-- **resumo** — empresa, período, volume total, Índice Geral, pilar gargalo.
+- **resumo** — empresa, período, volume total, Teto do Lastro, pilar gargalo.
 - **diagnostico** — leitura por subpilar (até 12): padrão + causa + ação.
-- **leaderboard** — top locais por score (Índice × engajamento), com ratio e volume.
+- **leaderboard** — top locais por score (Teto do Lastro × engajamento), com ratio e volume.
 - **temas** — top temas transversais (o que clientes mais comentam), com tipo e peso.
 - **cruzamentos** — temas que aparecem em mais de um subpilar (padrões sistêmicos).
 - **anomalias** — alertas críticos recentes (quedas/altas relevantes), já em

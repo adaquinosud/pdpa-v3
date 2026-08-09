@@ -34,7 +34,7 @@ def test_painel_plugado_com_glossario(client_loyall: FlaskClient) -> None:
     e = _empresa(client_loyall, "painel")
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/painel").get_data(as_text=True)
     assert h
-    assert "Indicador sintético de saúde" in h  # indice-geral
+    assert "O teto que o pior pilar impõe" in h  # indice-geral (Teto do Lastro)
     assert "Reescala o ratio para 0" in h  # proximity (completa; evita o texto estático)
     assert "Estabilidade do ratio ao longo dos meses" in h  # previsibilidade
     assert "se concentram em poucas lojas" in h  # concentracao-detratores
@@ -51,7 +51,7 @@ def test_leaderboard_plugado_com_glossario(client_loyall: FlaskClient) -> None:
     e = _empresa(client_loyall, "lb")
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/leaderboard").get_data(as_text=True)
     assert h
-    assert "Indicador sintético de saúde" in h  # indice-geral
+    assert "O teto que o pior pilar impõe" in h  # indice-geral (Teto do Lastro)
     assert "Pré-condição de confiabilidade dos dados" in h  # engajamento
     assert "Reescala o ratio para 0" in h  # proximity
     assert "Insígnia Ouro/Prata/Bronze" in h  # selo

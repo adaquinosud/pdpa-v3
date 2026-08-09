@@ -575,6 +575,21 @@ def faixa_indice_geral(indice: float) -> str:
     return "critico"
 
 
+def indice_pdpa(pilares, codigos=None):
+    """Índice PDPA (0-100) + volume classificado do recorte — a relação em um número.
+
+    ``(promotores + conversíveis·0,5) / (prom+conv+det) · 100``. O conversível conta
+    metade (relação incompleta, não ausência); o detrator fica no denominador. O
+    denominador é ``prom+conv+det`` explícito → inativo e sem_lastro ficam fora
+    (sem_lastro não entra em nenhum dos 4 pilares). ``codigos=None`` → Índice PDPA
+    (todos); ``{"P","D"}`` → Base; ``{"Pa","A"}`` → Topo. Retorna ``(None, 0)`` sem
+    volume classificado no recorte. Manual Cap. 4 (Índice PDPA)."""
+    sel = [p for p in pilares if codigos is None or p["pilar"] in codigos]
+    num = sum(p["promotor"] + p["conversivel"] * 0.5 for p in sel)
+    den = sum(p["promotor"] + p["conversivel"] + p["detrator"] for p in sel)
+    return (round(num / den * 100, 1), int(den)) if den else (None, 0)
+
+
 def calcular_previsibilidade(
     empresa_id: int,
     s,
@@ -1125,6 +1140,11 @@ def painel_nivel1(empresa_id: int):
     indice_geral = calcular_indice_geral(matriz_para_metricas, pilares=pilares)
     indice_governado = indice_governado_pelo_pior(matriz_para_metricas, pilares=pilares)
 
+    # Índice PDPA (Manual Cap. 4): a relação em um número + Base (P+D) / Topo (Pa+A).
+    pdpa_geral, _ = indice_pdpa(pilares)
+    pdpa_base, pdpa_base_vol = indice_pdpa(pilares, codigos={"P", "D"})
+    pdpa_topo, pdpa_topo_vol = indice_pdpa(pilares, codigos={"Pa", "A"})
+
     return jsonify(
         {
             "empresa_id": empresa_id,
@@ -1136,6 +1156,12 @@ def painel_nivel1(empresa_id: int):
             "indice_geral": indice_geral,
             "indice_geral_faixa": faixa_indice_geral(indice_geral),
             "indice_geral_governado_pelo_pior": indice_governado,  # nota do card (pior binda)
+            # Índice PDPA (manchete): a relação em um número + Base/Topo com volume.
+            "indice_pdpa": pdpa_geral,
+            "indice_pdpa_base": pdpa_base,
+            "indice_pdpa_base_volume": pdpa_base_vol,
+            "indice_pdpa_topo": pdpa_topo,
+            "indice_pdpa_topo_volume": pdpa_topo_vol,
             "previsibilidade": previsibilidade,
             "previsibilidade_medida": previsib_medida,  # guard T1 (default 70,0 vs medido)
             "concentracao_detratores": concentracao_pct,

@@ -845,6 +845,45 @@ def test_faixa_indice_geral():
     assert faixa_indice_geral(0.0) == "critico"
 
 
+def _pil(codigo, prom, conv, det):
+    return {"pilar": codigo, "promotor": prom, "conversivel": conv, "detrator": det}
+
+
+def test_indice_pdpa_ancoras():
+    """(prom + conv·0,5)/(prom+conv+det)·100, com volume."""
+    from src.api.painel import indice_pdpa
+
+    assert indice_pdpa([_pil("P", 10, 0, 0)]) == (100.0, 10)  # só promotor → 100
+    assert indice_pdpa([_pil("P", 0, 0, 10)]) == (0.0, 10)  # só detrator → 0
+    assert indice_pdpa([_pil("P", 0, 10, 0)]) == (50.0, 10)  # só conversível → 50
+    # mix: (6 + 2·0,5)/(6+2+2)·100 = 7/10·100 = 70,0
+    assert indice_pdpa([_pil("P", 6, 2, 2)]) == (70.0, 10)
+
+
+def test_indice_pdpa_base_topo_split():
+    """Base = P+D; Topo = Pa+A. Subpilar de pilar fora do subset não entra."""
+    from src.api.painel import indice_pdpa
+
+    pilares = [
+        _pil("P", 10, 0, 0),  # Base: 100
+        _pil("D", 0, 0, 10),  # Base: 0
+        _pil("Pa", 8, 0, 2),  # Topo: 80
+        _pil("A", 6, 0, 4),  # Topo: 60
+    ]
+    assert indice_pdpa(pilares, codigos={"P", "D"}) == (50.0, 20)  # (10)/(20)·100
+    assert indice_pdpa(pilares, codigos={"Pa", "A"}) == (70.0, 20)  # (14)/(20)·100
+    assert indice_pdpa(pilares) == (60.0, 40)  # (24)/(40)·100
+
+
+def test_indice_pdpa_sem_volume_none():
+    from src.api.painel import indice_pdpa
+
+    assert indice_pdpa([]) == (None, 0)
+    assert indice_pdpa([_pil("P", 0, 0, 0)]) == (None, 0)  # denominador 0
+    # subset vazio (empresa só com Base) → Topo None
+    assert indice_pdpa([_pil("P", 5, 0, 0)], codigos={"Pa", "A"}) == (None, 0)
+
+
 def test_calcular_previsibilidade_empresa_vazia(client_loyall, db_session):
     """Edge: empresa sem verbatins → None (nenhum eixo de dispersão medível)."""
     from src.api.painel import calcular_previsibilidade
@@ -1119,7 +1158,8 @@ def test_ui_painel_3_cards_metricas_consolidadas(client_loyall, db_session):
     )
     r = client_loyall.get(f"/empresas/{ctx['e']['id']}/painel")
     html = r.data.decode()
-    assert "Índice Geral" in html
+    assert "Teto do Lastro" in html  # antes "Índice Geral" (rename de exibição)
+    assert "Índice PDPA" in html  # manchete nova
     assert "Previsibilidade" in html
     assert "Concentração (top-5)" in html  # relabel CP-LG-3 (opção i)
     assert "Desigualdade (Gini)" in html  # card Gini adicionado no CP-LG-3

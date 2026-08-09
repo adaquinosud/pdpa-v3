@@ -57,6 +57,8 @@ BLOCKLIST_CASE_SENSITIVE: List[str] = ["ORIGEM"]
 BLOCKLIST_CURADORIA: List[str] = [
     # frases-jargão (regra C) — fronteira de palavra na frase inteira
     "Índice Geral",
+    "Teto do Lastro",
+    "Índice PDPA",
     "Concentração de detratores",
     "Selo de excelência",
     "Selo Ouro",

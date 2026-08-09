@@ -1,4 +1,4 @@
-{# Tab Leaderboard — ranking por score modulado (Índice Geral × engajamento/100). #}
+{# Tab Leaderboard — ranking por score modulado (Teto do Lastro × engajamento/100). #}
 {# 3 faixas de confiança (= selo): ranking ≥30 🟢 / em formação 10-30 🟡 / <10 🔴. #}
 {% set lb = leaderboard %}
 {% set qs = 'agrupamento_id=' ~ filtros.agrupamento_id ~ '&periodo=' ~ filtros.periodo %}
@@ -27,7 +27,7 @@
     <div class="h-1.5 rounded bg-loyall-100 overflow-hidden mt-1.5" title="Score modulado {{ l.score_mod }}/10">
       <div class="h-1.5 rounded" style="width: {{ (100 * l.score_mod / max_score) | round(0,'floor') }}%; background: linear-gradient(90deg,#B89355,#1d3149)"></div>
     </div>
-    <div class="text-[10px] text-loyall-400 mt-1">Índice {{ '%.1f'|format(l.score) }} × Engaj. {{ l.engajamento }}</div>
+    <div class="text-[10px] text-loyall-400 mt-1">Teto do Lastro {{ '%.1f'|format(l.score) }} × Engaj. {{ l.engajamento }}</div>
   </div>
   <div class="text-right shrink-0">
     <div class="text-xl font-bold text-loyall-800">{{ '%.1f'|format(l.score_mod) }}</div>
@@ -67,7 +67,7 @@
 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
   <div>
     <h3 class="text-sm font-semibold text-loyall-700">Leaderboard · Score PDPA</h3>
-    <p class="text-xs text-loyall-500">Score = Índice Geral {{ glossario_i('indice-geral') }} (0-10) × Engajamento {{ glossario_i('engajamento') }} (÷100). Volume sela a confiança; sem volume, o índice não lidera.</p>
+    <p class="text-xs text-loyall-500">Score = Teto do Lastro {{ glossario_i('indice-geral') }} (0-10) × Engajamento {{ glossario_i('engajamento') }} (÷100). Volume sela a confiança; sem volume, o índice não lidera.</p>
     {# CP-glossario-2e: colunas (ratio/proximity/selo/conv) ficam no macro linha()
        que renderiza por loja — 1 ⓘ aqui (legenda), não por linha. #}
     <p class="text-[11px] text-loyall-400 mt-0.5">

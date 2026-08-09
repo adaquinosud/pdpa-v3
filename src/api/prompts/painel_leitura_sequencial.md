@@ -22,7 +22,7 @@ O Lastro Relacional não é uma lista de quatro pilares paralelos — é uma **s
 Você receberá um JSON com:
 - `total_verbatins`: quantos verbatins totais no recorte.
 - `pilares`: dicionário com chaves P/D/Pa/A, cada um trazendo `ratio`, `total`, `promotor`, `conversivel`, `detrator`.
-- `indice_geral`: nota 0-10 da saúde consolidada.
+- `indice_geral`: Teto do Lastro — nota 0-10 (o teto que o pior pilar impõe).
 - `previsibilidade`: 0-100 (homogeneidade entre subpilares).
 
 ## Output
