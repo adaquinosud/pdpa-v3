@@ -31,6 +31,12 @@
     <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.cruzamentos }} cruzamentos {{ glossario_i('cruzamento') }}</span>
     <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.acoes }} ações N5</span>
   </div>
+  {% if temas_banner and temas_banner.recolhidos %}
+  {# Aviso obrigatório: declara que a lista foi filtrada. Números vivos, mesma query. #}
+  <p class="text-xs text-loyall-500 mt-1">
+    Mostrando <strong>{{ temas_banner.mostrados }}</strong> de {{ temas_banner.total }} temas · ocultos: {{ temas_banner.recolhidos }} com menos de {{ temas_banner.piso }} verbatins.
+  </p>
+  {% endif %}
   {# CP-glossario-2f: tipos aparecem nas barras empilhadas do Mapa/temas (loop) —
      1 ⓘ aqui (legenda), não por barra. #}
   <p class="text-[11px] text-loyall-400 mt-1">

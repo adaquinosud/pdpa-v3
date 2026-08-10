@@ -380,6 +380,9 @@ def test_temas_tela_renderiza_mapa_e_top_subpilar(client_loyall, db_session):
     db_session.add(t_demora)
     db_session.commit()
     _link(db_session, vd.id, t_demora.id)
+    for i in range(9):  # >= piso de 10 (senão o tema é recolhido da lista)
+        vv = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"d{i}", "D1", "detrator")
+        _link(db_session, vv.id, t_demora.id)
     db_session.add(_cache(e["id"], "D1", "detrator", "demora atendimento", 7, [], a["id"]))
     db_session.commit()
 
@@ -423,6 +426,9 @@ def test_temas_tela_top_subpilar_mostra_exemplos(client_loyall, db_session):
     db_session.add(t_preco)
     db_session.commit()
     _link(db_session, v.id, t_preco.id)  # régua live
+    for i in range(9):  # >= piso de 10
+        vv = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"p{i}", "P1", "detrator")
+        _link(db_session, vv.id, t_preco.id)
     db_session.add(_cache(e["id"], "P1", "detrator", "preço alto", 5, [v.id], a["id"]))  # exemplo
     db_session.commit()
     html = client_loyall.get(f"/empresas/{e['id']}/temas").get_data(as_text=True)
@@ -435,22 +441,46 @@ def test_temas_tela_top_subpilar_regua_live_e_tripleto(client_loyall, db_session
     e, a, loc, f = _ctx(client_loyall, "livetri")
     vs = [
         _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"c{i}", "D1", "conversivel")
-        for i in range(3)
+        for i in range(11)
     ]
     t = Tema(empresa_id=e["id"], nome="ambiente", slug="ambiente")
     db_session.add(t)
     db_session.commit()
-    _link(db_session, vs[0].id, t.id)
-    _link(db_session, vs[1].id, t.id)  # 2 vinculados; vs[2] sem tema
-    # cache DEFASADO diz 99 — não pode vazar pra tela (régua é live = 2).
+    for v in vs[:10]:  # 10 vinculados (>= piso de 10); vs[10] sem tema
+        _link(db_session, v.id, t.id)
+    # cache DEFASADO diz 99 — não pode vazar pra tela (régua é live = 10).
     db_session.add(_cache(e["id"], "D1", "conversivel", "ambiente", 99, [vs[0].id], a["id"]))
     db_session.commit()
 
     html = client_loyall.get(f"/empresas/{e['id']}/temas").get_data(as_text=True)
     assert "ambiente" in html
     assert "99" not in html  # snapshot do cache NÃO aparece (régua live)
-    # tripleto do subpilar D1: 3 com texto = 2 em temas + 1 sem tema
-    assert "3 c/ texto" in html and "2 em temas" in html and "1 sem tema" in html
+    # tripleto do subpilar D1: 11 com texto = 10 em temas + 1 sem tema
+    assert "11 c/ texto" in html and "10 em temas" in html and "1 sem tema" in html
+
+
+def test_temas_tela_piso_recolhe_e_banner(client_loyall, db_session):
+    """Piso 10 (frente piso-fusao-temas): tema <10 é recolhido da lista; o banner
+    declara mostrados/total/ocultos com números vivos. Filtro de EXIBIÇÃO — os
+    verbatins do tema recolhido seguem contando (não testado aqui, é da camada de ratios)."""
+    e, a, loc, f = _ctx(client_loyall, "piso")
+    grande = Tema(empresa_id=e["id"], nome="fila grande", slug="fila-grande")
+    pequeno = Tema(empresa_id=e["id"], nome="detalhe raro", slug="detalhe-raro")
+    db_session.add_all([grande, pequeno])
+    db_session.commit()
+    for i in range(10):  # tema grande: 10 (>= piso) → aparece
+        vv = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"g{i}", "Pa1", "promotor")
+        _link(db_session, vv.id, grande.id)
+    for i in range(4):  # tema pequeno: 4 (< piso) → recolhido
+        vv = _criar_verbatim(db_session, e["id"], f["id"], loc["id"], f"r{i}", "Pa1", "promotor")
+        _link(db_session, vv.id, pequeno.id)
+
+    html = client_loyall.get(f"/empresas/{e['id']}/temas").get_data(as_text=True)
+    assert "fila grande" in html  # >= 10 aparece
+    assert "detalhe raro" not in html  # < 10 recolhido
+    # banner: 1 mostrado de 2 · ocultos 1 com menos de 10
+    assert "Mostrando" in html and "de 2 temas" in html
+    assert "ocultos: 1 com menos de 10 verbatins" in html
 
 
 def test_temas_modal_drill_subpilar_todos_tipos(client_loyall, db_session):

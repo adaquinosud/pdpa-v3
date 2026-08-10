@@ -30,6 +30,14 @@ from src.models.temas import Tema, TemaCache, VerbatimTema
 from src.models.verbatim import Verbatim
 from src.utils.db import db_session
 
+# Piso de EXIBIÇÃO: tema com menos de N verbatins não entra na lista (nem na contagem).
+# 10 = mínimo acionável (5 relatos podem ser 5 acasos; abaixo disso não dá pra descrever
+# o problema com segurança) e já é o piso de confiança do Proximity de subpilar. Filtro de
+# exibição APENAS — o verbatim mantém subpilar/tipo e segue contando em ratios/PDPA/diagnóstico.
+# NOTA: a inclinação do Alexandre era 15; 10 ficou por ser mais conservador na 1ª passada
+# (descartar de menos é reversível; descartar de mais esconde o que ninguém soube). Revisar em uso.
+PISO_TEMA_VOLUME = 10
+
 
 def tripleto_bucket(
     empresa_id: int,

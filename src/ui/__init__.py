@@ -1856,9 +1856,14 @@ def _montar_mapa_lastro(n1, n2, gargalo):
     return mapa
 
 
-def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
+def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5, piso=None):
     """Top N temas de cada subpilar (régua LIVE), com split por tipo, 2-3 exemplos
     e o tripleto de cobertura por subpilar (total com texto / em temas / sem tema).
+
+    Aplica o PISO de exibição (``piso``, default ``PISO_TEMA_VOLUME=10``): tema com
+    menos de ``piso`` verbatins (total do tema, todos os subpilares) não entra na
+    lista. Filtro de EXIBIÇÃO — o dado segue nos ratios. Devolve ``(blocos, resumo)``
+    onde ``resumo = {total, mostrados, recolhidos, piso}`` (contagem REAL, mesma query).
 
     O ``total`` por tema = verbatins DISTINTOS do bucket vinculados ao tema ativo
     (= a lista de verbatins), igual ao modal do painel. Substitui o snapshot de
@@ -1874,8 +1879,11 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
     from src.models.local import Local
     from src.models.temas import Tema, TemaCache, VerbatimTema
-    from src.temas.cobertura import tripleto_bucket
+    from src.temas.cobertura import PISO_TEMA_VOLUME, tripleto_bucket
     from src.utils.sql import group_concat
+
+    if piso is None:
+        piso = PISO_TEMA_VOLUME
 
     # LIVE: verbatins distintos do bucket vinculados a cada tema ATIVO; split vivo.
     ql = (
@@ -1953,6 +1961,19 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
             except (ValueError, TypeError):
                 continue
 
+    # Volume do tema = total de verbatins somando todos os subpilares (grão "um tema").
+    # O piso corta por esse total; a contagem do banner sai daqui — REAL, mesma query.
+    vol_tema = {}
+    for (sub, _tid), e in agg.items():
+        vol_tema[e["tema_id"]] = vol_tema.get(e["tema_id"], 0) + e["total"]
+    visiveis = {tid for tid, v in vol_tema.items() if v >= piso}
+    resumo = {
+        "total": len(vol_tema),
+        "mostrados": len(visiveis),
+        "recolhidos": len(vol_tema) - len(visiveis),
+        "piso": piso,
+    }
+
     por_sub = {}
     for (sub, _tid), e in agg.items():
         por_sub.setdefault(sub, []).append(e)
@@ -1960,7 +1981,10 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
     out = []
     todos_ids = set()
     for sp in SUBPILARES_ORDEM:
-        temas = sorted(por_sub.get(sp, []), key=lambda x: -x["total"])[:top]
+        temas = sorted(
+            (e for e in por_sub.get(sp, []) if e["tema_id"] in visiveis),
+            key=lambda x: -x["total"],
+        )[:top]
         for t in temas:
             t["ex_ids"] = t["ex_ids"][:3]
             todos_ids.update(t["ex_ids"])
@@ -1984,7 +2008,7 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5):
     for bloco in out:
         for t in bloco["temas"]:
             t["exemplos"] = [textos.get(vid, "")[:140] for vid in t["ex_ids"] if textos.get(vid)]
-    return out
+    return out, resumo
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/temas")
@@ -1996,11 +2020,11 @@ def temas_empresa(empresa_id: int):
 def _aba_temas(empresa_id, empresa_w):
     """Contexto da aba Temas: Mapa de Lastro + cruzamentos transversais (N4) +
     ações (N5) + top temas por subpilar. Retorna None em erro (→ 404)."""
-    from sqlalchemy import distinct, func
+    from sqlalchemy import func
 
     from src.api.painel import painel_nivel1 as h_n1
     from src.api.painel import painel_nivel2 as h_n2
-    from src.models.temas import AcaoVenda, Tema, TemaCruzamento, VerbatimTema
+    from src.models.temas import AcaoVenda, TemaCruzamento
     from src.temas.janela import data_corte, get_janela_dias
 
     resp1 = h_n1(empresa_id)
@@ -2020,14 +2044,8 @@ def _aba_temas(empresa_id, empresa_w):
         agrupamentos = [SimpleNamespace(id=a.id, nome=a.nome) for a in ags]
         ag_filtro_nome = next((a.nome for a in agrupamentos if a.id == ag_filtro), None)
         transversais = _carregar_transversais(s, empresa_id, agrupamento_id=ag_filtro)
-        top_subpilar = _top_temas_por_subpilar(s, empresa_id, ag_filtro)
+        top_subpilar, temas_resumo = _top_temas_por_subpilar(s, empresa_id, ag_filtro)
         corte = data_corte(empresa_id, s)
-        n_temas = (
-            s.query(func.count(distinct(Tema.id)))
-            .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
-            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
-            .scalar()
-        )
         n_cruz = (
             s.query(func.count(TemaCruzamento.id))
             .filter(TemaCruzamento.empresa_id == empresa_id)
@@ -2092,7 +2110,8 @@ def _aba_temas(empresa_id, empresa_w):
         "transversais": transversais,
         "agrupamento_filtrado": ag_filtro_nome,
         "top_subpilar": top_subpilar,
-        "totais": {"temas": n_temas, "cruzamentos": n_cruz, "acoes": n_acoes},
+        "totais": {"temas": temas_resumo["mostrados"], "cruzamentos": n_cruz, "acoes": n_acoes},
+        "temas_banner": temas_resumo,
         "temas_em_anomalia": temas_em_anomalia,
         "temas_quadrante": temas_quadrante,
         "cruzamentos_em_anomalia": cruzamentos_em_anomalia,
