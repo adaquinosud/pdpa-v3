@@ -35,7 +35,7 @@ def test_painel_plugado_com_glossario(client_loyall: FlaskClient) -> None:
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/painel").get_data(as_text=True)
     assert h
     assert "O teto que o pior pilar impõe" in h  # indice-geral (Teto do Lastro)
-    assert "Reescala o ratio para 0" in h  # proximity (completa; evita o texto estático)
+    # proximity SAIU do painel (card agregado eliminado) — o verbete vive no confronto
     assert "Estabilidade do ratio ao longo dos meses" in h  # previsibilidade
     assert "se concentram em poucas lojas" in h  # concentracao-detratores
     assert "Pré-condição de confiabilidade dos dados" in h  # engajamento
@@ -53,7 +53,7 @@ def test_leaderboard_plugado_com_glossario(client_loyall: FlaskClient) -> None:
     assert h
     assert "A relação em um número" in h  # indice-pdpa (leaderboard ordena/exibe PDPA)
     assert "Pré-condição de confiabilidade dos dados" in h  # engajamento
-    assert "Reescala o ratio para 0" in h  # proximity
+    # proximity SAIU do leaderboard (coluna/sort eliminados com o agregado)
     assert "Insígnia Ouro/Prata/Bronze" in h  # selo
     assert "Feedback neutro com potencial" in h  # conversivel
 

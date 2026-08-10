@@ -246,10 +246,8 @@ def test_linhas_proximity_exemplo_a():
     assert by[(None, "D")]["proximity"] == 60.0
     assert by[(None, "Pa")]["proximity"] == 45.0
     assert (None, "A") not in by  # A ausente → sem linha
-
-    # agregada = min(pilar) = P (Lastro)
-    assert by[(None, None)]["proximity"] == 24.71
-    assert by[(None, None)]["faixa"] == "distante"
+    # linha agregada (subpilar=None, pilar=None) ELIMINADA
+    assert (None, None) not in by
 
 
 def test_linhas_proximity_exemplo_b_tudo_floor():
@@ -261,7 +259,7 @@ def test_linhas_proximity_exemplo_b_tudo_floor():
     by = {(ln["subpilar"], ln["pilar"]): ln for ln in linhas}
     assert by[("P1", None)]["proximity"] is None  # floor
     assert by[(None, "P")]["proximity"] is None  # pilar sem membro qualificado
-    assert by[(None, None)]["proximity"] is None  # agregada sem pilar válido
+    assert (None, None) not in by  # linha agregada eliminada
 
 
 # ── recalcular_governanca: persistência, escopo empresa, skip e no-dup ─────
@@ -325,15 +323,21 @@ def test_recalcular_persiste_empresa_e_loja(db_session):
     )
     assert emp_p2.proximity_0_100 is None  # floor
 
-    # escopo loja: escopo_id == loja.id
-    loja_agg = (
+    # escopo loja: escopo_id == loja.id. A linha AGREGADA foi eliminada — o grão pilar
+    # (subpilar=None, pilar="P") persiste.
+    assert (
         db_session.query(ProximityCalculation)
         .filter_by(
             empresa_id=e.id, escopo_tipo="loja", escopo_id=loja.id, subpilar=None, pilar=None
         )
+        .first()
+    ) is None
+    loja_pil = (
+        db_session.query(ProximityCalculation)
+        .filter_by(empresa_id=e.id, escopo_tipo="loja", escopo_id=loja.id, subpilar=None, pilar="P")
         .one()
     )
-    assert loja_agg.proximity_0_100 == 41.18  # min(pilar P) — único pilar
+    assert loja_pil.proximity_0_100 == 41.18  # pilar P (único)
 
 
 def test_recalcular_skip_por_hash_e_sem_duplicar(db_session):
@@ -558,7 +562,7 @@ def test_painel_loja_previsibilidade_usa_lg2_nao_composto(app, db_session, usuar
     assert ctx["escopo_tipo"] == "loja"
     assert ctx["previsib"]["fonte"] == "loja"  # nunca 'empresa'
     assert ctx["previsib"]["valor"] == lg2.previsibilidade_0_100  # vem do LG-2
-    assert "valor" in ctx["proximity"]  # card proximity presente
+    assert "proximity" not in ctx  # card proximity eliminado
 
 
 def test_painel_empresa_previsibilidade_mantem_composto(app, db_session, usuario_loyall):
@@ -608,33 +612,6 @@ def _verbs(db_session, e, fonte, loja, sub, tipo, n, pref):
         )
 
 
-def test_leaderboard_proximity_ordena_null_por_ultimo(db_session):
-    """order_by=proximity: loja com Proximity vem antes; loja NULL (todos os
-    subpilares < floor) sempre por último."""
-    from src.governanca.metricas import recalcular_governanca
-    from src.ui import _explorar_leaderboard
-
-    e, fonte = _empresa_fonte(db_session)
-    # Loja A: P1 com 30 promotores → ratio 9.99 → proximity 100 (≥ floor, selo alta).
-    la = Local(empresa_id=e.id, nome="A boa")
-    # Loja B: 32 verbatins espalhados, cada subpilar < 10 → proximity agregada NULL.
-    lb = Local(empresa_id=e.id, nome="B esparsa")
-    db_session.add_all([la, lb])
-    db_session.commit()
-    _verbs(db_session, e, fonte, la, "P1", "promotor", 30, "a")
-    for sub in ("P1", "P2", "D1", "D2"):
-        _verbs(db_session, e, fonte, lb, sub, "promotor", 8, f"b{sub}")
-    db_session.commit()
-    recalcular_governanca(e.id)
-
-    res = _explorar_leaderboard(db_session, e.id, None, None, "proximity")
-    ranked = res["ranked"]
-    ids = [x.id for x in ranked]
-    assert la.id in ids and lb.id in ids
-    assert ranked[0].id == la.id and ranked[0].proximity == 100.0
-    assert ranked[-1].id == lb.id and ranked[-1].proximity is None  # NULL por último
-
-
 def test_leaderboard_ordena_por_pdpa_nao_pelo_teto(db_session):
     """Reorder (caso Betim): loja com PDPA alto mas Teto 0 (pior pilar sem promotor
     por falta de dado) rankeia ACIMA de uma loja uniformemente medíocre com Teto
@@ -675,9 +652,11 @@ def test_leaderboard_ordena_por_pdpa_nao_pelo_teto(db_session):
         (["P1", "D1", "Pa1"], 3, False),  # 3 pilares → sem anotação
     ],
 )
-def test_leaderboard_anotacao_base_pilares(db_session, subs_com_lastro, n_esperado, anota):
-    """LG-4.1: agregado de < 3 pilares com lastro anota 'base Np'; 3+ fica limpo."""
-    from src.governanca.leitura import proximity_por_loja
+def test_n_pilares_por_loja_conta_lastro(db_session, subs_com_lastro, n_esperado, anota):
+    """LG-4.1: nº de pilares com lastro (≥1 pilar-level proximity) — a base 'Np' de
+    confiança, agora só no ranking da Governança (a coluna do Leaderboard saiu com o
+    Proximity agregado). < 3 dispara a anotação."""
+    from src.governanca.leitura import n_pilares_por_loja
     from src.governanca.metricas import recalcular_governanca
 
     e, fonte = _empresa_fonte(db_session)
@@ -689,33 +668,9 @@ def test_leaderboard_anotacao_base_pilares(db_session, subs_com_lastro, n_espera
     db_session.commit()
     recalcular_governanca(e.id)
 
-    pm = proximity_por_loja(db_session, e.id)[loja.id]
-    assert pm["n_pilares"] == n_esperado
-    assert (pm["n_pilares"] < 3) is anota  # condição que dispara a anotação no template
-
-
-def test_leaderboard_anotacao_renderiza_no_html(app, db_session, usuario_loyall):
-    """A anotação 'base Np' aparece no HTML do Leaderboard p/ loja mono-pilar."""
-    from flask import session  # noqa: F401
-
-    from src.governanca.metricas import recalcular_governanca
-
-    e, fonte = _empresa_fonte(db_session)
-    loja = Local(empresa_id=e.id, nome="Mono")
-    db_session.add(loja)
-    db_session.commit()
-    _verbs(db_session, e, fonte, loja, "P1", "promotor", 12, "m")
-    db_session.commit()
-    recalcular_governanca(e.id)
-
-    client = app.test_client()
-    with client.session_transaction() as sess:
-        sess["user_id"] = usuario_loyall.id
-    r = client.get(f"/empresas/{e.id}/explorar?tab=leaderboard")
-    assert r.status_code == 200
-    html = r.get_data(as_text=True)
-    assert "base 1p" in html  # anotação visível
-    assert 'aria-label="base: 1 pilar' in html  # acessível (não só hover)
+    n = n_pilares_por_loja(db_session, e.id).get(loja.id, 0)
+    assert n == n_esperado
+    assert (n < 3) is anota  # condição que dispara a anotação no ranking
 
 
 def test_confronto_anexa_proximity_por_subpilar(db_session):
@@ -871,13 +826,15 @@ def _pc(e, escopo_id, sub, val):
     )
 
 
-def _pc_agg(e, escopo_id):
+def _pc_pilar(e, escopo_id):
+    # Linha de PILAR (marca a loja como "medida" no universo do selo, após a
+    # eliminação da linha agregada subpilar=None/pilar=None).
     return ProximityCalculation(
         empresa_id=e.id,
         escopo_tipo="loja",
         escopo_id=escopo_id,
         subpilar=None,
-        pilar=None,
+        pilar="P",
         proximity_0_100=20.0,
         faixa="distante",
     )
@@ -896,7 +853,7 @@ def test_selo_conta_corte_estrito_e_ignora_null(db_session):
             _pc(e, 99, "D1", 60.0),  # == 60 → não conta
             _pc(e, 99, "D2", 60.01),  # > 60 → conta
             _pc(e, 99, "D3", None),  # NULL → não conta
-            _pc_agg(e, 99),
+            _pc_pilar(e, 99),
         ]
     )
     db_session.commit()
@@ -910,7 +867,7 @@ def test_selo_de_loja_ouro_exige_prev_alta(db_session):
 
     e = _empresa(db_session)
     db_session.add_all(
-        [_pc(e, 77, sub, 75.0) for sub in ("P1", "P2", "P3", "D1")] + [_pc_agg(e, 77)]
+        [_pc(e, 77, sub, 75.0) for sub in ("P1", "P2", "P3", "D1")] + [_pc_pilar(e, 77)]
     )
     db_session.commit()
     # sem previsib → prata
@@ -1166,114 +1123,83 @@ def test_distribuicao_previsibilidade(db_session):
     assert d == {"estavel": 1, "medio": 1, "erratico": 1, "sem_dado": 2}
 
 
-def test_ranking_lojas_governanca(db_session):
-    """Top desc / bottom asc por Proximity; carrega n_pilares (anotação base Np)."""
-    from src.governanca.leitura import ranking_lojas_governanca
-
-    e = _empresa(db_session)
-
-    def agg(lid, val, npil):
-        rows = [
-            ProximityCalculation(
-                empresa_id=e.id,
-                escopo_tipo="loja",
-                escopo_id=lid,
-                subpilar=None,
-                pilar=None,
-                proximity_0_100=val,
-                faixa="medio",
-            )
-        ]
-        for pil in ["P", "D", "Pa", "A"][:npil]:
-            rows.append(
-                ProximityCalculation(
-                    empresa_id=e.id,
-                    escopo_tipo="loja",
-                    escopo_id=lid,
-                    subpilar=None,
-                    pilar=pil,
-                    proximity_0_100=val,
-                    faixa="medio",
-                )
-            )
-        return rows
-
-    for lid, val, npil in [(1, 90, 4), (2, 50, 1), (3, 10, 2)]:
-        db_session.add_all(agg(lid, val, npil))
+def _loja_rank(db_session, e, fonte, nome, *, prom, det, n_pilares, subs_acima=0):
+    """Loja com PDPA-alvo (Verbatim P1: prom/(prom+det)) + n pilar-rows (n_pilares e
+    universo do selo) + subs>60 (selo). Substitui o setup por Proximity agregado."""
+    loja = Local(empresa_id=e.id, nome=nome)
+    db_session.add(loja)
     db_session.commit()
-    r = ranking_lojas_governanca(db_session, e.id, n=2)
-    assert [x["local_id"] for x in r["top"]] == [1, 2]
-    assert r["top"][0]["proximity"] == 90 and r["top"][0]["n_pilares"] == 4
-    assert [x["local_id"] for x in r["bottom"]] == [3, 2]
-    assert r["n_com_dado"] == 3
-
-
-def _gov_rows(e, lid, agg_val, faixa, n_pilares=0, subs_acima=0):
-    """Linhas de proximity p/ uma loja: agregada + n_pilares pilar-level + subs>60."""
-    out = [
-        ProximityCalculation(
-            empresa_id=e.id,
-            escopo_tipo="loja",
-            escopo_id=lid,
-            subpilar=None,
-            pilar=None,
-            proximity_0_100=agg_val,
-            faixa=faixa,
-        )
-    ]
+    if prom:
+        _verbs(db_session, e, fonte, loja, "P1", "promotor", prom, f"{loja.id}p")
+    if det:
+        _verbs(db_session, e, fonte, loja, "P1", "detrator", det, f"{loja.id}d")
     for pil in ["P", "D", "Pa", "A"][:n_pilares]:
-        out.append(
+        db_session.add(
             ProximityCalculation(
                 empresa_id=e.id,
                 escopo_tipo="loja",
-                escopo_id=lid,
+                escopo_id=loja.id,
                 subpilar=None,
                 pilar=pil,
-                proximity_0_100=agg_val,
-                faixa=faixa,
+                proximity_0_100=50.0,
+                faixa="medio",
             )
         )
     for sub in ["P1", "P2", "P3", "D1"][:subs_acima]:
-        out.append(
+        db_session.add(
             ProximityCalculation(
                 empresa_id=e.id,
                 escopo_tipo="loja",
-                escopo_id=lid,
+                escopo_id=loja.id,
                 subpilar=sub,
                 pilar=None,
                 proximity_0_100=90.0,
                 faixa="proximo",
             )
         )
-    return out
+    db_session.commit()
+    return loja
 
 
-def test_ranking_top_lidera_por_selo_nao_proximity(db_session):
-    """REGRESSÃO: bronze (proximity 69) > sem selo (proximity 100 base 1p).
-    Top usa a régua de excelência (selo), não proximity crua."""
+def test_ranking_lojas_governanca(db_session):
+    """Top desc / bottom asc por Índice PDPA; carrega n_pilares (anotação base Np)."""
     from src.governanca.leitura import ranking_lojas_governanca
 
-    e = _empresa(db_session)
-    db_session.add_all(_gov_rows(e, 1, 69.0, "proximo", n_pilares=2, subs_acima=2))  # bronze
-    db_session.add_all(_gov_rows(e, 2, 100.0, "proximo", n_pilares=1, subs_acima=1))  # sem selo
-    db_session.commit()
+    e, fonte = _empresa_fonte(db_session)
+    l1 = _loja_rank(db_session, e, fonte, "L1", prom=9, det=1, n_pilares=4)  # pdpa 90
+    l2 = _loja_rank(db_session, e, fonte, "L2", prom=5, det=5, n_pilares=1)  # pdpa 50
+    l3 = _loja_rank(db_session, e, fonte, "L3", prom=1, det=9, n_pilares=2)  # pdpa 10
+    r = ranking_lojas_governanca(db_session, e.id, n=2)
+    assert [x["local_id"] for x in r["top"]] == [l1.id, l2.id]
+    assert r["top"][0]["pdpa"] == 90.0 and r["top"][0]["n_pilares"] == 4
+    assert [x["local_id"] for x in r["bottom"]] == [l3.id, l2.id]
+    assert r["n_com_dado"] == 3
+
+
+def test_ranking_top_lidera_por_selo_nao_pdpa(db_session):
+    """REGRESSÃO: bronze (PDPA 60) > sem selo (PDPA 100). Top usa a régua de
+    excelência (selo), não o PDPA cru."""
+    from src.governanca.leitura import ranking_lojas_governanca
+
+    e, fonte = _empresa_fonte(db_session)
+    l1 = _loja_rank(db_session, e, fonte, "bronze", prom=6, det=4, n_pilares=2, subs_acima=2)
+    l2 = _loja_rank(db_session, e, fonte, "semselo", prom=10, det=0, n_pilares=1, subs_acima=1)
     r = ranking_lojas_governanca(db_session, e.id, n=5)
-    assert r["top"][0]["local_id"] == 1 and r["top"][0]["selo"] == "bronze"
-    assert r["top"][1]["local_id"] == 2 and r["top"][1]["selo"] is None  # 100 base 1p abaixo
+    assert r["top"][0]["local_id"] == l1.id and r["top"][0]["selo"] == "bronze"
+    assert r["top"][1]["local_id"] == l2.id and r["top"][1]["selo"] is None  # PDPA 100 abaixo
 
 
 def test_ranking_bottom_desempata_por_mais_pilares(db_session):
-    """Entre duas proximity 0, a de MAIS pilares (fraqueza ampla) vem primeiro."""
+    """Entre dois PDPA 0, o de MAIS pilares (fraqueza ampla) vem primeiro."""
     from src.governanca.leitura import ranking_lojas_governanca
 
-    e = _empresa(db_session)
-    db_session.add_all(_gov_rows(e, 1, 0.0, "distante", n_pilares=3))  # 0, 3 pilares
-    db_session.add_all(_gov_rows(e, 2, 0.0, "distante", n_pilares=1))  # 0, 1 pilar
-    db_session.add_all(_gov_rows(e, 3, 50.0, "medio", n_pilares=1))
-    db_session.add_all(_gov_rows(e, 4, 60.0, "medio", n_pilares=1))
-    db_session.commit()
+    e, fonte = _empresa_fonte(db_session)
+    l1 = _loja_rank(db_session, e, fonte, "zero3p", prom=0, det=5, n_pilares=3)  # pdpa 0
+    l2 = _loja_rank(db_session, e, fonte, "zero1p", prom=0, det=5, n_pilares=1)  # pdpa 0
+    _loja_rank(db_session, e, fonte, "meio", prom=5, det=5, n_pilares=1)  # pdpa 50
+    _loja_rank(db_session, e, fonte, "alto", prom=6, det=4, n_pilares=1)  # pdpa 60
     r = ranking_lojas_governanca(db_session, e.id, n=2)
-    assert [x["local_id"] for x in r["bottom"]] == [1, 2]  # 3 pilares antes de 1
+    assert [x["local_id"] for x in r["bottom"]] == [l1.id, l2.id]  # 3 pilares antes de 1
 
 
 # ── CP-LG-8 (leva 3): simulação de cenários composta ───────────────────────

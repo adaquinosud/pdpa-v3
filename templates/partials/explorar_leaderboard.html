@@ -36,22 +36,7 @@
     <div class="text-sm font-bold text-loyall-700">{{ '%.2f'|format(l.ratio) }}</div>
     <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ l.faixa }}</span>
   </div>
-  {% set pxc = {'distante':{'bg':'bg-rose-100','text':'text-rose-700'},'medio':{'bg':'bg-amber-100','text':'text-amber-800'},'proximo':{'bg':'bg-emerald-100','text':'text-emerald-700'}} %}
-  <div class="text-center shrink-0 w-16">
-    {% if l.proximity is not none %}
-    {% set pf = pxc.get(l.proximity_faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
-    <div class="text-sm font-bold text-loyall-700">{{ '%.0f'|format(l.proximity) }}</div>
-    <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ pf.bg }} {{ pf.text }}">{{ l.proximity_faixa }}</span>
-    {% if l.proximity_n_pilares < 3 %}
-    <div class="text-[9px] text-loyall-400 mt-0.5"
-         title="Proximity baseada em {{ l.proximity_n_pilares }} pilar(es) com lastro (≥10 verbatins) — confiança parcial"
-         aria-label="base: {{ l.proximity_n_pilares }} pilar(es) com lastro, confiança parcial">base {{ l.proximity_n_pilares }}p</div>
-    {% endif %}
-    {% else %}
-    <div class="text-sm font-bold text-loyall-300" title="Volume insuficiente (&lt; 10 verbatins/subpilar)">—</div>
-    <div class="text-[10px] text-loyall-400 uppercase">proximity</div>
-    {% endif %}
-  </div>
+  {# coluna Proximity ELIMINADA — o Índice PDPA (número grande) já é o ranking. #}
   <div class="text-center shrink-0 w-14">
     <div class="text-sm font-semibold text-amber-700">{{ l.pct_conv }}%</div>
     <div class="text-[10px] text-loyall-400 uppercase">conv</div>
@@ -70,13 +55,13 @@
     {# CP-glossario-2e: colunas (ratio/proximity/selo/conv) ficam no macro linha()
        que renderiza por loja — 1 ⓘ aqui (legenda), não por linha. #}
     <p class="text-[11px] text-loyall-400 mt-0.5">
-      Colunas: ratio {{ glossario_i('ratio') }} · proximity {{ glossario_i('proximity') }} ·
+      Colunas: ratio {{ glossario_i('ratio') }} ·
       selo {{ glossario_i('selo') }} · conversível {{ glossario_i('conversivel') }}
     </p>
   </div>
   <div class="flex items-center gap-1 text-xs">
     <span class="text-loyall-400 mr-1">Ordenar:</span>
-    {% for v, l in [('score','PDPA'),('ratio','Ratio'),('proximity','Proximity'),('volume','Volume')] %}
+    {% for v, l in [('score','PDPA'),('ratio','Ratio'),('volume','Volume')] %}
     <button type="button"
        hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='leaderboard') }}?{{ qs }}&order_by={{ v }}"
        hx-target="#explorar-conteudo" hx-swap="innerHTML"

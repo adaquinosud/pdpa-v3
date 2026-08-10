@@ -71,10 +71,9 @@ def test_copies_novas_no_template_antigas_fora():
     # Índice (PRESERVADO)
     assert "é o pior pilar que define o teto" in tpl
     assert "Pilar travado puxa o índice para baixo" not in tpl
-    # Proximity — copy nova, antigas fora
-    assert "Começar baixo é o normal" in tpl
-    assert "É o pilar mais distante que fixa o conjunto — não a média." not in tpl
-    assert "O pilar gargalo puxa para baixo" not in tpl
+    # Proximity — card ELIMINADO (redundante com o Teto do Lastro/PDPA)
+    assert "Começar baixo é o normal" not in tpl
+    assert "Distância até a excelência" not in tpl
     # Previsibilidade (empresa) — 4 variantes + guard
     assert "Ainda não há histórico suficiente para medir consistência." in tpl
     assert "problema de padronização, não de capacidade" in tpl
@@ -93,53 +92,7 @@ def test_copies_novas_no_template_antigas_fora():
     assert "os demais indicadores são especulativos" not in tpl
 
 
-# ── Proximity: copy nova (com valor nomeia o binding; sem binding omite "puxado por") ──
-
-_SNIPPET_PROX = (
-    "Distância até a excelência (ratio 9,0). Começar baixo é o normal — o que importa é a "
-    "evolução, não o valor absoluto. Hoje: {{ '%.0f'|format(proximity.valor) }}"
-    "{% if proximity.binding_pilar_nome %}, puxado por "
-    "{{ proximity.binding_pilar_nome }}{% endif %}."
-)
-
-
-def _render_prox(proximity):
-    return Environment().from_string(_SNIPPET_PROX).render(proximity=proximity)
-
-
-def test_binding_proximity_pega_menor_proximity():
-    from src.ui import _pilar_binding_proximity
-
-    # D tem a MENOR proximity (20) → binda D. O helper vê proximity, não ratio.
-    prox = {"P": {"valor": 35.0}, "D": {"valor": 20.0}, "Pa": {"valor": 48.0}}
-    assert _pilar_binding_proximity(prox) == "D"
-
-
-def test_binding_proximity_ignora_pilar_null():
-    from src.ui import _pilar_binding_proximity
-
-    # um pilar (talvez o de menor ratio) com proximity NULL não entra no min.
-    prox = {"P": {"valor": None}, "D": {"valor": 30.0}, "Pa": {"valor": 45.0}}
-    assert _pilar_binding_proximity(prox) == "D"
-
-
-def test_binding_proximity_todos_null_sem_binding():
-    from src.ui import _pilar_binding_proximity
-
-    assert _pilar_binding_proximity({"P": {"valor": None}, "D": {"valor": None}}) is None
-
-
-def test_proximity_com_valor_nomeia_binding():
-    html = _render_prox({"valor": 7.0, "binding_pilar_nome": "Precisão"})
-    assert "Começar baixo é o normal" in html
-    assert "Hoje: 7, puxado por Precisão." in html
-    assert "não a média" not in html  # a copy antiga saiu
-
-
-def test_proximity_com_valor_sem_binding_omite_puxado():
-    html = _render_prox({"valor": 7.0, "binding_pilar_nome": None})
-    assert "Hoje: 7." in html and "puxado por" not in html
-
+# (Proximity agregado eliminado — o card e o binding saíram; testes removidos.)
 
 # ── Variantes por estado/faixa (switch do template) ───────────────────────────
 

@@ -1603,16 +1603,6 @@ def painel_empresa(empresa_id: int):
     return _explorar_render(empresa_id, "painel")
 
 
-def _pilar_binding_proximity(prox_por_pilar):
-    """Pilar que BINDA o Proximity Geral = o de MENOR proximity entre os NÃO-NULL —
-    o mesmo `min(proximity_pilar)` de `linhas_proximity_escopo` (metricas.py). É o
-    pilar a nomear no card (não o de menor ratio: a proximity do pilar é média
-    ponderada dos subpilares acima do piso, agregação distinta do ratio). None se
-    todos os pilares têm proximity NULL (sem binding derivável → não nomear)."""
-    validos = {p: d["valor"] for p, d in prox_por_pilar.items() if d.get("valor") is not None}
-    return min(validos, key=validos.get) if validos else None
-
-
 def _aba_painel(empresa_id, empresa_w):
     """Contexto da aba Painel Executivo. Retorna None em erro dos endpoints
     (→ 404 no shell)."""
@@ -1637,15 +1627,15 @@ def _aba_painel(empresa_id, empresa_w):
         "periodo": request.args.get("periodo", ""),
     }
 
-    # ── Governança (CP-LG-4, leitura): Proximity do escopo + Previsibilidade da
-    # loja (LG-2, CV temporal). No escopo loja a Previsibilidade composta de
-    # empresa é degenerada (var_locais=0) — por isso trocamos a FONTE do card.
+    # ── Governança (CP-LG-4, leitura): Previsibilidade da loja (LG-2, CV temporal).
+    # No escopo loja a Previsibilidade composta de empresa é degenerada (var_locais=0)
+    # — por isso trocamos a FONTE do card. (Proximity agregado eliminado — o Teto do
+    # Lastro/PDPA já dizem o elo fraco.)
     from src.governanca.leitura import (
         escopo_de_filtros,
         garantir_governanca,
         gini_escopo,
         previsibilidade_loja,
-        proximity_escopo,
         selo_de_loja,
     )
 
@@ -1653,16 +1643,6 @@ def _aba_painel(empresa_id, empresa_w):
     escopo_tipo, escopo_id = escopo_de_filtros(filtros["agrupamento_id"], filtros["local_id"])
 
     with db_session() as s:
-        proximity = proximity_escopo(s, empresa_id, escopo_tipo, escopo_id)
-        # Pilar que fixa a distância (menor proximity, o binding do min) p/ a copy do
-        # card. Nome CORRETO (não o de menor ratio); None → a frase final some.
-        from src.api.painel import NOME_PILAR
-        from src.governanca.leitura import proximity_pilares_escopo
-
-        _bind = _pilar_binding_proximity(
-            proximity_pilares_escopo(s, empresa_id, escopo_tipo, escopo_id)
-        )
-        proximity["binding_pilar_nome"] = NOME_PILAR.get(_bind, _bind) if _bind else None
         # Previsibilidade — estado p/ a copy por-variante. `estado` ∈ {sem_dado, erratico,
         # medio, estavel}. Guard T1: no escopo empresa, 70,0 default (sem dispersão medível)
         # vira 'sem_dado' — o card não apresenta um default como medição.
@@ -1725,7 +1705,6 @@ def _aba_painel(empresa_id, empresa_w):
         "fontes": fontes_,
         "anomalias_resumo": anomalias_resumo,
         "escopo_tipo": escopo_tipo,
-        "proximity": proximity,
         "previsib": previsib,
         "concentracao": concentracao,
         "gini": gini,
@@ -5620,11 +5599,10 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
 
     # Engajamento por loja (CP-E3): modula o score e separa por faixa de confiança.
     eng_map = engajamento_por_loja(empresa_id, s, ag_id, corte)
-    # Proximity por loja (CP-LG-4, leitura): garante frescor e anexa a cada linha.
-    from src.governanca.leitura import garantir_governanca, proximity_por_loja, selos_por_loja
+    # Selos por loja (grão subpilar/pilar) — após a eliminação do Proximity agregado.
+    from src.governanca.leitura import garantir_governanca, selos_por_loja
 
     garantir_governanca(empresa_id)
-    prox_map = proximity_por_loja(s, empresa_id)
     selo_map = selos_por_loja(s, empresa_id)
     for x in linhas:
         em = eng_map.get(x.id, {"engajamento": 0, "volume": 0, "selo": "baixa", "selo_emoji": "🔴"})
@@ -5636,10 +5614,6 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
         # Ranking por Índice PDPA modulado pelo engajamento (volume sela a confiança,
         # CP-E3). Exibe o PDPA puro; o ×engaj só ordena. None (loja só sem_lastro) → fim.
         x.pdpa_mod = None if x.pdpa is None else round(x.pdpa * em["engajamento"] / 100.0, 2)
-        pm = prox_map.get(x.id, {"valor": None, "faixa": None, "n_pilares": 0})
-        x.proximity = pm["valor"]
-        x.proximity_faixa = pm["faixa"]
-        x.proximity_n_pilares = pm.get("n_pilares", 0)
         x.selo_qualidade = selo_map.get(x.id)  # ouro|prata|bronze|None (CP-LG-6)
 
     # 3 faixas pelo nível do selo (≥30 🟢 / 10-30 🟡 / <10 🔴).
@@ -5665,8 +5639,6 @@ def _explorar_leaderboard(s, empresa_id, ag_id=None, corte=None, order_by="score
     chave = {
         "ratio": lambda x: -x.ratio,
         "volume": lambda x: -x.total,
-        # Proximity desc; lojas sem dado (NULL) sempre por último.
-        "proximity": lambda x: (x.proximity is None, -(x.proximity or 0.0)),
     }.get(order_by, _por_pdpa)
     for grupo in (ranked, formacao, insuficiente):
         grupo.sort(key=chave)

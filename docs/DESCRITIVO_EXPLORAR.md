@@ -44,10 +44,7 @@ fica o que cada um responde e **o que entra** no cálculo.
    à régua de ratio (1,0→5 · 2,0→7 · 5,0→10, escala 0–10). O `min` faz o pilar mais fraco puxar a nota
    (lógica do Lastro). Aponta o elo que limita — não resume (isso é o Índice PDPA). Faixa saudável ≥7 /
    atenção 5–7 / crítico <5. (`calcular_indice_geral`, painel.)
-3. **Proximity (0–100)** — quão perto da excelência o relacionamento está (0 = distante, 100 =
-   excelência). **Entra:** o ratio do escopo, reescalado entre 0,5 e 9,0. Exige ≥10 verbatins;
-   abaixo disso mostra "—". (Ver glossário.)
-4. **Previsibilidade (0–100)** — quão consistente é a experiência (entre lojas e no tempo). **Entra:**
+3. **Previsibilidade (0–100)** — quão consistente é a experiência (entre lojas e no tempo). **Entra:**
    um eixo por dispersão medível — **variação entre lojas** e **variação mês a mês** —, cada eixo
    `1 − min(CV, 1)` (CV = desvio ÷ média dos ratios). A nota é a **média dos eixos com base** (≥2 lojas
    com ≥5 verbatins; ≥3 meses com ≥3); eixo sem base sai da conta. Sem nenhum eixo medível → **indisponível**
@@ -140,8 +137,8 @@ avaliações não vale o mesmo que outra "ótima" com 200). Fonte: `_explorar_le
    (Usa o PDPA, não o Teto do Lastro: no grão loja o Teto empata em 0,0 quando o pior pilar não tem
    promotor por *falta de dado*, não desempenho. `pdpa_mod`, ui.)
 9. **Ratio P/D** + faixa (ver glossário).
-10. **Proximity** (0–100) + faixa; se a Proximity se apoia em poucos pilares com dado, mostra **"base
-    Np"** (confiança parcial — leia com ressalva).
+10. **% Conversível / volume** — a coluna **Proximity** saiu do Leaderboard (agregado eliminado);
+    a ordenação e o número são o **Índice PDPA**.
 11. **% Conversível** — fatia de conversíveis no total (oportunidade de resgate da loja).
 12. **Volume** — nº de avaliações no recorte.
 
@@ -553,8 +550,8 @@ formação", não como zero).
 - **Simulação de Cenários:** slider "N gargalos" → **Teto do Lastro projetado antes→depois** (as N ações de
   alta prioridade, ~50% de sucesso, máx. 1 por subpilar) + as ações aplicadas + o **insight de teto** (até
   onde o plano leva e qual o gargalo remanescente).
-- **Ranking de Excelência:** distribuição de **selos** + Top/Bottom-5 (por selo, depois Proximity). "base
-  Np" = poucos pilares com dado. A legenda explica o paradoxo selo × Proximity.
+- **Ranking de Excelência:** distribuição de **selos** + Top/Bottom-5 (por selo, depois **Índice PDPA**
+  por loja — não mais o Proximity agregado, eliminado). "base Np" = poucos pilares com dado.
 - **Projeção Financeira (R$):** placeholder "—" até cadastrar o LTV setorial (projeção honesta, sem número
   inventado).
 

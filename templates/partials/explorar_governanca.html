@@ -214,24 +214,23 @@
     <li class="flex items-center justify-between border-b border-loyall-100 pb-1">
       <span class="truncate">{{ l.nome }}
         {% if l.selo %}<span class="text-[9px] uppercase px-1 rounded border border-{{ scls.get(l.selo,'loyall') }}-300 text-{{ scls.get(l.selo,'loyall') }}-700">{{ l.selo }}</span>{% endif %}
-        {% if l.n_pilares < 3 %}<span class="text-[9px] text-loyall-400" title="Proximity baseada em {{ l.n_pilares }} pilar(es) com lastro — confiança parcial">base {{ l.n_pilares }}p</span>{% endif %}
+        {% if l.n_pilares < 3 %}<span class="text-[9px] text-loyall-400" title="{{ l.n_pilares }} pilar(es) com lastro — confiança parcial">base {{ l.n_pilares }}p</span>{% endif %}
       </span>
-      <span class="text-loyall-700 font-semibold">{{ '%.0f'|format(l.proximity) }}</span>
+      <span class="text-loyall-700 font-semibold">{{ '%.0f'|format(l.pdpa) }}</span>
     </li>
     {% endmacro %}
     {% if g.ranking.top %}
     <div class="text-[10px] text-loyall-500 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 mb-2 leading-relaxed">
-      <b>Selo</b> = amplitude de pontos fortes (subpilares excelentes). <b>Proximity (gargalo)</b> =
-      distância do pilar mais fraco. Uma loja pode ter selo alto e Proximity baixa: muitos
-      pontos fortes, mas um elo fraco puxando o conjunto (Lastro).
+      <b>Selo</b> = amplitude de pontos fortes (subpilares excelentes). <b>Índice PDPA</b> = a relação
+      da loja em um número (0-100). O top ordena por selo, depois PDPA; o bottom são as lojas de menor PDPA.
     </div>
-    <div class="text-[11px] uppercase tracking-wider text-emerald-600 mb-1">▲ Top {{ g.ranking.top|length }} · ordenado por selo · Proximity (gargalo)</div>
+    <div class="text-[11px] uppercase tracking-wider text-emerald-600 mb-1">▲ Top {{ g.ranking.top|length }} · ordenado por selo · Índice PDPA</div>
     <ol class="text-xs text-loyall-700 space-y-1 mb-3">{% for l in g.ranking.top %}{{ linha_rank(l) }}{% endfor %}</ol>
     {% if g.ranking.bottom %}
-    <div class="text-[11px] uppercase tracking-wider text-rose-600 mb-1">▼ Bottom {{ g.ranking.bottom|length }} · Proximity (gargalo)</div>
+    <div class="text-[11px] uppercase tracking-wider text-rose-600 mb-1">▼ Bottom {{ g.ranking.bottom|length }} · menor Índice PDPA</div>
     <ol class="text-xs text-loyall-700 space-y-1">{% for l in g.ranking.bottom %}{{ linha_rank(l) }}{% endfor %}</ol>
     {% endif %}
-    <div class="text-[10px] text-loyall-400 mt-2">Leitura factual por Proximity (0-100) — não é julgamento. "base Np" = poucos pilares com lastro.</div>
+    <div class="text-[10px] text-loyall-400 mt-2">Leitura factual por Índice PDPA (0-100) — não é julgamento. "base Np" = poucos pilares com lastro.</div>
     {% else %}
     <div class="text-center text-loyall-400 py-10 text-sm">Nenhuma loja com Proximity suficiente ainda — base em formação.</div>
     {% endif %}

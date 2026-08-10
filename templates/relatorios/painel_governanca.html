@@ -110,19 +110,19 @@
 {% else %}<p class="muted">Sem ações de alta prioridade com lastro para simular.</p>{% endif %}
 
 {# ═══ 07 · RANKING DE EXCELÊNCIA (selos) ═══ #}
-{{ M.titulo_secao('07', 'Ranking de Excelência', 'Ordenado pelo selo (amplitude de pontos fortes); Proximity = gargalo da loja.') }}
+{{ M.titulo_secao('07', 'Ranking de Excelência', 'Ordenado pelo selo (amplitude de pontos fortes); Índice PDPA da loja.') }}
 <p style="font-size:9.5pt"><strong>Selos:</strong> 🏅 Ouro {{ d.selo_dist.ouro }} · Prata {{ d.selo_dist.prata }} · Bronze {{ d.selo_dist.bronze }} · Sem selo {{ d.selo_dist.sem_selo }}.</p>
 {% if d.ranking.top %}
 <table>
-  <thead><tr><th>Top · loja</th><th>Selo</th><th>Proximity (gargalo)</th></tr></thead>
+  <thead><tr><th>Top · loja</th><th>Selo</th><th>Índice PDPA</th></tr></thead>
   <tbody>
     {% for l in d.ranking.top %}
     <tr><td>{{ l.nome }}{% if l.n_pilares < 3 %} <span class="muted">(base {{ l.n_pilares }}p)</span>{% endif %}</td>
-        <td>{{ l.selo or '—' }}</td><td>{{ '%.0f'|format(l.proximity) }}</td></tr>
+        <td>{{ l.selo or '—' }}</td><td>{{ '%.0f'|format(l.pdpa) }}</td></tr>
     {% endfor %}
   </tbody>
 </table>
-<p class="muted" style="font-size:8pt; margin-top:2pt">Selo = amplitude de pontos fortes (subpilares excelentes). Proximity (gargalo) = distância do pilar mais fraco. Selo alto + Proximity baixa = muitos pontos fortes, um elo fraco puxa (Lastro).</p>
+<p class="muted" style="font-size:8pt; margin-top:2pt">Selo = amplitude de pontos fortes (subpilares excelentes). Índice PDPA = a relação da loja em um número (0-100). O top ordena por selo, depois PDPA.</p>
 {% endif %}
 
 {# ═══ 08 · PRÓXIMOS PASSOS PARA O BOARD ═══ #}

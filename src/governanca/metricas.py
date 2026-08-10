@@ -415,16 +415,9 @@ def linhas_proximity_escopo(agg: Dict[str, Dict[str, Any]]) -> List[Dict[str, An
             }
         )
 
-    validos = [pp for pp in pilar_prox.values() if pp is not None]
-    agg_prox = _arred(min(validos)) if validos else None
-    linhas.append(
-        {
-            "subpilar": None,
-            "pilar": None,
-            "proximity": agg_prox,
-            "faixa": calcular_faixa_proximity(agg_prox),
-        }
-    )
+    # Proximity AGREGADO (subpilar=None, pilar=None) ELIMINADO — era min(pilar), redundante
+    # com o Teto do Lastro/PDPA e pior onde divergia (mascaramento por média de subpilar).
+    # Emitimos só subpilar-level (selo/confronto) e pilar-level (radar já por ratio).
     return linhas
 
 

@@ -136,22 +136,9 @@
     {% set _pior = (_com_vol | min(attribute='ratio')) if _com_vol else none %}
     <div class="text-xs text-loyall-400 mt-2">Não é média — é o pior pilar que define o teto. O Lastro é sequência: um elo fraco limita o conjunto, mesmo com os outros fortes.{% if _pior and n1.indice_geral_governado_pelo_pior %} Aqui, {{ _pior.nome }} em {{ ('%.2f'|format(_pior.ratio))|replace('.', ',') }} é o teto.{% endif %}</div>
   </div>
-  {# Proximity do escopo ativo (CP-LG-4): loja → "da Loja"; senão "Geral" #}
-  {% set prox_cls = {'distante':'rose','medio':'amber','proximo':'emerald'}.get(proximity.faixa, 'slate') %}
-  <div class="bg-white border border-loyall-200 rounded p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400">Proximity {{ 'da Loja' if escopo_tipo == 'loja' else 'Geral' }} {{ glossario_i('proximity') }}</div>
-    {% if proximity.valor is not none %}
-    <div class="flex items-baseline gap-2 mt-1">
-      <span class="text-3xl font-bold text-{{ prox_cls }}-600">{{ '%.0f'|format(proximity.valor) }}</span>
-      <span class="text-sm text-loyall-400">/ 100</span>
-    </div>
-    <div class="text-xs text-{{ prox_cls }}-700 mt-1 capitalize">{{ proximity.faixa }}</div>
-    <div class="text-xs text-loyall-400 mt-2">Distância até a excelência (ratio 9,0). Começar baixo é o normal — o que importa é a evolução, não o valor absoluto. Hoje: {{ '%.0f'|format(proximity.valor) }}{% if proximity.binding_pilar_nome %}, puxado por {{ proximity.binding_pilar_nome }}{% endif %}.</div>
-    {% else %}
-    <div class="mt-1 text-loyall-300 text-3xl font-bold" title="Volume insuficiente (&lt; 10 verbatins/subpilar)">—</div>
-    <div class="text-xs text-loyall-400 mt-1">Ainda não há volume suficiente por subpilar para medir a distância até a excelência.</div>
-    {% endif %}
-  </div>
+
+  {# Proximity agregado (card "Distante") ELIMINADO — redundante com o Teto do Lastro
+     (acima) e o Índice PDPA (manchete). O grão subpilar sobrevive (selo, confronto). #}
 
   {# Previsibilidade: no escopo loja usa LG-2 (CV temporal puro); senão, composto de empresa #}
   {% if escopo_tipo == 'loja' %}

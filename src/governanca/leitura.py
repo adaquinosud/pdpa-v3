@@ -40,64 +40,6 @@ def escopo_de_filtros(agrupamento_id, local_id) -> Tuple[str, Optional[int]]:
     return "empresa", None
 
 
-def proximity_escopo(
-    s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
-) -> Dict[str, Any]:
-    """Linha agregada (subpilar e pilar NULL) de Proximity do escopo.
-    ``{valor, faixa}`` — None/None se sem dado suficiente ou sem linha."""
-    from src.models.governanca import ProximityCalculation as PC
-
-    cond_id = PC.escopo_id.is_(None) if escopo_id is None else (PC.escopo_id == escopo_id)
-    row = (
-        s.query(PC.proximity_0_100, PC.faixa)
-        .filter(
-            PC.empresa_id == empresa_id,
-            PC.escopo_tipo == escopo_tipo,
-            cond_id,
-            PC.subpilar.is_(None),
-            PC.pilar.is_(None),
-        )
-        .first()
-    )
-    return {"valor": row[0], "faixa": row[1]} if row else {"valor": None, "faixa": None}
-
-
-def proximity_por_loja(s, empresa_id: int) -> Dict[int, Dict[str, Any]]:
-    """Proximity agregada de cada loja → ``{local_id: {valor, faixa, n_pilares}}``.
-
-    ``n_pilares`` = nº de pilares COM lastro (pilar-level com proximity não-NULL)
-    que embasam o agregado — sinaliza confiança parcial no Leaderboard
-    (mono/bi-pilar). Usado pelo Leaderboard (2 queries, sem N+1)."""
-    from sqlalchemy import func
-
-    from src.models.governanca import ProximityCalculation as PC
-
-    rows = (
-        s.query(PC.escopo_id, PC.proximity_0_100, PC.faixa)
-        .filter(
-            PC.empresa_id == empresa_id,
-            PC.escopo_tipo == "loja",
-            PC.subpilar.is_(None),
-            PC.pilar.is_(None),
-        )
-        .all()
-    )
-    n_pilares = dict(
-        s.query(PC.escopo_id, func.count(PC.id))
-        .filter(
-            PC.empresa_id == empresa_id,
-            PC.escopo_tipo == "loja",
-            PC.pilar.isnot(None),
-            PC.proximity_0_100.isnot(None),
-        )
-        .group_by(PC.escopo_id)
-        .all()
-    )
-    return {
-        lid: {"valor": v, "faixa": f, "n_pilares": int(n_pilares.get(lid, 0))} for lid, v, f in rows
-    }
-
-
 def proximity_subpilares_escopo(
     s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
 ) -> Dict[str, Dict[str, Any]]:
@@ -119,46 +61,84 @@ def proximity_subpilares_escopo(
     return {sub: {"valor": v, "faixa": f} for sub, v, f in rows}
 
 
-def proximity_pilares_escopo(
-    s, empresa_id: int, escopo_tipo: str, escopo_id: Optional[int]
-) -> Dict[str, Dict[str, Any]]:
-    """Proximity por pilar (pilar-level rows) do escopo → {pilar: {valor, faixa}}.
-    Usado pelo radar do Painel de Governança (CP-LG-8)."""
-    from src.models.governanca import ProximityCalculation as PC
-
-    cond = PC.escopo_id.is_(None) if escopo_id is None else (PC.escopo_id == escopo_id)
-    rows = (
-        s.query(PC.pilar, PC.proximity_0_100, PC.faixa)
-        .filter(
-            PC.empresa_id == empresa_id,
-            PC.escopo_tipo == escopo_tipo,
-            cond,
-            PC.pilar.isnot(None),
-        )
-        .all()
-    )
-    return {p: {"valor": v, "faixa": f} for p, v, f in rows}
-
-
 def cobertura_governanca(s, empresa_id: int) -> Dict[str, int]:
-    """{total, com_dado}: lojas cadastradas vs lojas com Proximity agregada (lastro).
-    Alimenta o aviso 'base em formação' do board."""
+    """{total, com_dado}: lojas cadastradas vs lojas medidas (≥1 pilar com lastro).
+    Alimenta o aviso 'base em formação' do board. Grão PILAR (após a eliminação do
+    Proximity agregado): loja medida = tem ≥1 linha de pilar com proximity."""
+    from sqlalchemy import func
+
     from src.models.governanca import ProximityCalculation as PC
     from src.models.local import Local
 
     total = s.query(Local).filter_by(empresa_id=empresa_id).count()
     com_dado = (
-        s.query(PC.escopo_id)
+        s.query(func.count(func.distinct(PC.escopo_id)))
         .filter(
             PC.empresa_id == empresa_id,
             PC.escopo_tipo == "loja",
-            PC.subpilar.is_(None),
-            PC.pilar.is_(None),
+            PC.pilar.isnot(None),
             PC.proximity_0_100.isnot(None),
         )
-        .count()
-    )
+        .scalar()
+    ) or 0
     return {"total": total, "com_dado": com_dado}
+
+
+def n_pilares_por_loja(s, empresa_id: int) -> Dict[int, int]:
+    """Nº de pilares COM lastro (pilar-level proximity não-NULL) por loja — o "base Np"
+    de confiança parcial. Grão PILAR: sobrevive à eliminação do Proximity agregado."""
+    from sqlalchemy import func
+
+    from src.models.governanca import ProximityCalculation as PC
+
+    return {
+        lid: int(n)
+        for lid, n in s.query(PC.escopo_id, func.count(PC.id))
+        .filter(
+            PC.empresa_id == empresa_id,
+            PC.escopo_tipo == "loja",
+            PC.pilar.isnot(None),
+            PC.proximity_0_100.isnot(None),
+        )
+        .group_by(PC.escopo_id)
+        .all()
+    }
+
+
+def pdpa_por_loja(s, empresa_id: int) -> Dict[int, Optional[float]]:
+    """Índice PDPA por loja → ``{local_id: pdpa (0-100) ou None}``. O MESMO número da
+    manchete/Leaderboard (sem_lastro fora via PILAR_DE_SUBPILAR). Substitui o Proximity
+    agregado no ranking — evita o empate-0,0 que o Teto do Lastro tem no grão loja."""
+    from sqlalchemy import func
+
+    from src.api.painel import PILAR_DE_SUBPILAR, indice_pdpa
+    from src.models.verbatim import Verbatim
+
+    rows = (
+        s.query(Verbatim.local_id, Verbatim.subpilar, Verbatim.tipo, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.local_id.isnot(None),
+            Verbatim.subpilar.isnot(None),
+        )
+        .group_by(Verbatim.local_id, Verbatim.subpilar, Verbatim.tipo)
+        .all()
+    )
+    por_loja: Dict[int, Dict[str, Dict[str, int]]] = {}
+    for lid, sub, tipo, n in rows:
+        pc = PILAR_DE_SUBPILAR.get(sub)
+        if pc is None:
+            continue
+        pil = por_loja.setdefault(lid, {}).setdefault(
+            pc, {"pilar": pc, "promotor": 0, "conversivel": 0, "detrator": 0}
+        )
+        if tipo in ("promotor", "conversivel", "detrator"):
+            pil[tipo] += int(n)
+    out: Dict[int, Optional[float]] = {}
+    for lid, pildict in por_loja.items():
+        pdpa, _ = indice_pdpa(list(pildict.values()))
+        out[lid] = pdpa
+    return out
 
 
 # Trajetória do capital relacional (RISCO — está capitalizando ou descapitalizando?).
@@ -366,33 +346,35 @@ _SELO_RANK = {"ouro": 3, "prata": 2, "bronze": 1, None: 0}
 
 def ranking_lojas_governanca(s, empresa_id: int, n: int = 5) -> Dict[str, Any]:
     """Top/bottom n lojas (NOMINADAS), com selo e n_pilares ('base Np' do LG-4.1).
-    Lojas sem Proximity ficam fora (não são '0'). CP-LG-8 Bloco 4.
+    Lojas sem PDPA ficam fora (não são '0'). CP-LG-8 Bloco 4.
 
-    **Top** = régua de EXCELÊNCIA (selo): Ouro>Prata>Bronze>sem selo, proximity
-    desc no desempate. Proximity 100 mono-pilar (sem selo) NÃO lidera — não tem
-    base. **Bottom** = fraqueza: proximity asc; no empate (vários '0'), mais
-    pilares com lastro primeiro (fraqueza ampla confirmada > fraqueza num canto)."""
+    **Top** = régua de EXCELÊNCIA (selo): Ouro>Prata>Bronze>sem selo, PDPA desc no
+    desempate. **Bottom** = fraqueza: PDPA asc; no empate, mais pilares com lastro
+    primeiro (fraqueza ampla confirmada > fraqueza num canto). Ordena por Índice PDPA
+    por loja (não pelo Teto do Lastro, que empata em 0,0 por falta de dado no grão loja
+    — mesmo motivo do reorder do Leaderboard em 601807f)."""
     from src.models.local import Local
 
-    prox = proximity_por_loja(s, empresa_id)
+    pdpa = pdpa_por_loja(s, empresa_id)
+    n_pil = n_pilares_por_loja(s, empresa_id)
     selos = selos_por_loja(s, empresa_id)
     nomes = {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id).all()}
     com_dado = [
         {
             "local_id": lid,
             "nome": nomes.get(lid, f"loja {lid}"),
-            "proximity": d["valor"],
-            "n_pilares": d["n_pilares"],
+            "pdpa": v,
+            "n_pilares": int(n_pil.get(lid, 0)),
             "selo": selos.get(lid),
         }
-        for lid, d in prox.items()
-        if d["valor"] is not None
+        for lid, v in pdpa.items()
+        if v is not None
     ]
-    # Top: selo desc, depois proximity desc.
-    top = sorted(com_dado, key=lambda x: (-_SELO_RANK.get(x["selo"], 0), -x["proximity"]))[:n]
-    # Bottom: proximity asc, depois MAIS pilares primeiro (fraqueza ampla).
+    # Top: selo desc, depois PDPA desc.
+    top = sorted(com_dado, key=lambda x: (-_SELO_RANK.get(x["selo"], 0), -x["pdpa"]))[:n]
+    # Bottom: PDPA asc, depois MAIS pilares primeiro (fraqueza ampla).
     bottom = (
-        sorted(com_dado, key=lambda x: (x["proximity"], -x["n_pilares"]))[:n]
+        sorted(com_dado, key=lambda x: (x["pdpa"], -x["n_pilares"]))[:n]
         if len(com_dado) > n
         else []
     )
@@ -669,16 +651,17 @@ def selos_por_loja(s, empresa_id: int) -> Dict[int, Optional[str]]:
             PV.empresa_id == empresa_id, PV.escopo_tipo == "loja"
         )
     }
-    # universo = lojas com linha agregada de proximity (toda loja medida tem uma)
-    universo = [
+    # universo = lojas medidas = com ≥1 linha de PILAR com lastro (grão pilar, após a
+    # eliminação do Proximity agregado). distinct: toda loja medida tem ≥1 pilar.
+    universo = {
         r[0]
         for r in s.query(PC.escopo_id).filter(
             PC.empresa_id == empresa_id,
             PC.escopo_tipo == "loja",
-            PC.subpilar.is_(None),
-            PC.pilar.is_(None),
+            PC.pilar.isnot(None),
+            PC.proximity_0_100.isnot(None),
         )
-    ]
+    }
     return {lid: selo_loja(n_sub.get(lid, 0), prev.get(lid)) for lid in universo}
 
 
