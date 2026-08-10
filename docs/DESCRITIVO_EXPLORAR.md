@@ -47,7 +47,8 @@ fica o que cada um responde e **o que entra** no cálculo.
 3. **Previsibilidade (0–100)** — quão consistente é a experiência (entre lojas e no tempo). **Entra:**
    um eixo por dispersão medível — **variação entre lojas** e **variação mês a mês** —, cada eixo
    `1 − min(CV, 1)` (CV = desvio ÷ média dos ratios). A nota é a **média dos eixos com base** (≥2 lojas
-   com ≥5 verbatins; ≥3 meses com ≥3); eixo sem base sai da conta. Sem nenhum eixo medível → **indisponível**
+   com ≥5 verbatins; ≥3 meses com ≥3 — **`sem_lastro` fora do piso**, senão loja de puro ruído qualifica a
+   dispersão); eixo sem base sai da conta. Sem nenhum eixo medível → **indisponível**
    (não há default). Vale p/ empresa, agrupamento e loja (na loja, só o eixo temporal). Faixa <40 errático
    / 40–70 médio / >70 estável. (`calcular_previsibilidade`, painel.)
 4. **Concentração (top-5)** — quanto dos detratores está concentrado nas poucas lojas mais críticas.
@@ -952,8 +953,12 @@ o texto + contexto e devolve 1 das 6 + confiança. O usuário pode trocar no dro
   resgatar; **detrator**: crítica/reclamação clara; **inativo**: sem ligação à marca (anda junto com
   sem_lastro).
 
-- **sem_lastro** — avaliação sem ancoragem identificável à marca/produto/serviço/atendimento; não entra
-  no ratio dos pilares (ex.: comentário solto sem relação com a empresa).
+- **sem_lastro** — avaliação sem ancoragem identificável à marca/produto/serviço/atendimento (ex.:
+  comentário solto sem relação com a empresa). **Regra: `sem_lastro` não entra em conta.** Fica FORA de
+  todo denominador — ratio dos pilares/subpilares, Índice PDPA (geral/Base/Topo), Teto do Lastro,
+  Previsibilidade (inclusive do piso ≥5/≥3), Concentração (não é detrator), trajetória. O único lugar
+  onde aparece é a **contagem total de manifestações** (volume bruto) e a linha **"Fora dos 4 pilares:
+  N sem_lastro"**, que existe justamente para declarar o que ficou de fora — não some, não mente.
 
 - **pilar / subpilar / Lastro** — 4 pilares na sequência do **Lastro P→D→Pa→A** (um pilar travado puxa os
   seguintes): **P** Precisão (P1 Calibração da Promessa · P2 Qualidade da Entrega · P3 Consistência no
@@ -978,8 +983,8 @@ o texto + contexto e devolve 1 das 6 + confiança. O usuário pode trocar no dro
 
 - **Previsibilidade (0–100)** — consistência da experiência = `1 − CV` dos ratios (CV = desvio ÷ média),
   em até dois eixos: variação entre lojas e variação no tempo. Cada eixo `(1 − min(CV, 1)) × 100`; a nota
-  é a **média dos eixos com base** (≥2 lojas com ≥5 verbatins; ≥3 meses com ≥3) — eixo sem base sai da
-  conta, não vira valor neutro. Sem eixo medível → **indisponível** (não há default). Loja: só o eixo
+  é a **média dos eixos com base** (≥2 lojas com ≥5 verbatins; ≥3 meses com ≥3; **`sem_lastro` fora do
+  piso**) — eixo sem base sai da conta, não vira valor neutro. Sem eixo medível → **indisponível** (não há default). Loja: só o eixo
   temporal da própria série. (`calcular_previsibilidade`, painel; loja em `calcular_previsibilidade_loja`,
   metricas.) Faixa: <40 errático · 40–70 médio · >70 estável.
 

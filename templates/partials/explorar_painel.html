@@ -237,14 +237,17 @@
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="flex items-baseline justify-between">
       <div class="text-xs uppercase tracking-wider text-loyall-400">{{ p.pilar }}</div>
-      <div class="text-2xl font-semibold text-loyall-800">{{ p.total }}</div>
+      <div class="text-2xl font-semibold text-loyall-800"
+           title="Volume do pilar: promotores + conversíveis + detratores. O Ratio P/D abaixo divide só promotores por detratores — conversíveis contam no volume, não no ratio.">{{ p.total }}<span class="text-xs font-normal text-loyall-400 ml-1">verbatins</span></div>
     </div>
     <div class="text-sm font-medium text-loyall-700 mt-0.5">{{ p.nome }}</div>
 
-    {# Ratio P/D #}
+    {# Ratio P/D — com os operandos à mostra, pra o número não parecer calculado sobre o volume. #}
     <div class="mt-3 flex items-center gap-2">
       <span class="text-xs uppercase tracking-wider text-loyall-400">Ratio P/D</span>
       <span class="text-xl font-semibold {{ fcls.text }}">{{ '%.2f'|format(p.ratio) }}</span>
+      {% if p.total %}<span class="text-xs text-loyall-400 tabular-nums"
+        title="O Ratio P/D é {{ p.promotor }} promotores ÷ {{ p.detrator }} detratores. Os {{ p.conversivel }} conversíveis estão no volume ({{ p.total }}), fora do ratio.">{{ p.promotor }}P·{{ p.detrator }}D</span>{% endif %}
       <span class="ml-auto text-xs px-1.5 py-0.5 rounded {{ fcls.bg }} {{ fcls.text }}">
         <span class="inline-block w-1.5 h-1.5 rounded-full {{ fcls.dot }} mr-1"></span>{{ fcls.lbl }}
       </span>

@@ -610,10 +610,19 @@ def calcular_previsibilidade(
 
     Sem nenhum eixo com base → ``None`` (não há default). Filtros do painel
     aplicados (agrupamento, local, fonte, período).
+
+    ``sem_lastro`` (=inativo) fica FORA dos dois eixos (2026-08-10): já não entrava
+    no ratio (prom/det), mas inflava o piso (>=5 lojas / >=3 meses), deixando lojas
+    de puro ruído qualificarem a dispersão. Efeito depende de como o ruído se
+    distribui, não de quanto existe — concentrado (poucas lojas) distorce; espalhado
+    não. NULL (pendente) segue contando o piso.
     """
     import statistics
 
     # 1. Ratios por local (lojas) — usa só locais com >= 5 verbatins
+    #    sem_lastro (=inativo) NÃO entra: já está fora do ratio (prom/det), e deixá-lo
+    #    inflar o piso >= 5 faz lojas de puro ruído qualificarem a dispersão. Regra
+    #    "sem_lastro não entra em conta". NULL (pendente de classificação) fica.
     q_locais = (
         s.query(
             Verbatim.local_id,
@@ -622,6 +631,7 @@ def calcular_previsibilidade(
         )
         .filter(Verbatim.empresa_id == empresa_id)
         .filter(Verbatim.local_id.isnot(None))
+        .filter(func.coalesce(Verbatim.subpilar, "") != "sem_lastro")
         .group_by(Verbatim.local_id, Verbatim.tipo)
     )
     _apply_query_args(q_locais, empresa_id, s, base_query_args)  # filtros painel
@@ -636,12 +646,13 @@ def calcular_previsibilidade(
         calcular_ratio(d["promotor"], d["detrator"]) for d in por_local.values() if d["total"] >= 5
     ]
 
-    # 2. Ratios por mês — usa só meses com >= 3 verbatins
+    # 2. Ratios por mês — usa só meses com >= 3 verbatins (sem_lastro fora do piso, idem eixo 1)
     mes_expr = fmt_ano_mes(Verbatim.data_criacao_original)
     q_meses = (
         s.query(mes_expr.label("mes"), Verbatim.tipo, func.count(Verbatim.id))
         .filter(Verbatim.empresa_id == empresa_id)
         .filter(Verbatim.data_criacao_original.isnot(None))
+        .filter(func.coalesce(Verbatim.subpilar, "") != "sem_lastro")
         .group_by(mes_expr, Verbatim.tipo)
     )
     rows_meses = _apply_query_args(q_meses, empresa_id, s, base_query_args).all()

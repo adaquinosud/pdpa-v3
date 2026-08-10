@@ -954,6 +954,69 @@ def test_calcular_previsibilidade_lojas_uniformes_alta(client_loyall, db_session
     assert prev == 100.0
 
 
+def test_calcular_previsibilidade_sem_lastro_fora_do_piso(client_loyall, db_session):
+    """sem_lastro (=inativo) NÃO conta o piso >=5: loja de poucos reais + ruído não
+    qualifica a dispersão. Antes do fix (2026-08-10) o piso inflado por sem_lastro
+    fazia a loja B (3 reais + 5 sem_lastro = 8) qualificar → 2 lojas → eixo lojas →
+    prev=100.0. Com o fix, B (3 reais < 5) sai do piso, sobra só a loja A → 1 loja
+    < 2 → sem eixo lojas; tudo no mesmo mês → sem eixo tempo → eixos=[] → None."""
+    from src.api.painel import calcular_previsibilidade
+    from src.utils.db import db_session as get_session
+
+    e = client_loyall.post("/api/empresas/", json={"nome": "EPrevSL"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+
+    def _loja(nome, key):
+        loc = client_loyall.post(
+            f"/api/empresas/{e['id']}/locais",
+            json={"nome": nome, "agrupamento_id": a["id"]},
+        ).get_json()
+        f_ = client_loyall.post(
+            f"/api/locais/{loc['id']}/fontes",
+            json={"conector_tipo": "google", "url": f"ChIJ_sl_{key}"},
+        ).get_json()
+        return loc, f_
+
+    # Loja A: 5 reais promotor (qualifica sozinha — mas 1 loja < 2 → sem eixo lojas).
+    locA, fA = _loja("LA", "a")
+    for j in range(5):
+        _criar_verbatim(
+            db_session,
+            e["id"],
+            fA["id"],
+            locA["id"],
+            texto=f"a{j}",
+            subpilar="Pa1",
+            tipo="promotor",
+        )
+    # Loja B: 3 reais + 5 sem_lastro. Piso real = 3 (< 5, fora); inflado = 8 (>= 5).
+    locB, fB = _loja("LB", "b")
+    for j in range(3):
+        _criar_verbatim(
+            db_session,
+            e["id"],
+            fB["id"],
+            locB["id"],
+            texto=f"b{j}",
+            subpilar="Pa1",
+            tipo="promotor",
+        )
+    for j in range(5):
+        _criar_verbatim(
+            db_session,
+            e["id"],
+            fB["id"],
+            locB["id"],
+            texto=f"bsl{j}",
+            subpilar="sem_lastro",
+            tipo="inativo",
+        )
+
+    with get_session() as s:
+        prev = calcular_previsibilidade(e["id"], s, {})
+    assert prev is None
+
+
 def test_calcular_previsibilidade_lojas_dispersas_reduz_score(client_loyall, db_session):
     """Lojas com ratios muito diferentes → var_locais alto → score reduz."""
     from src.api.painel import calcular_previsibilidade
