@@ -327,7 +327,11 @@ leituras" + data da última geração (pra saber se o texto está fresco).
 lista de 3 subpilares (código·nome, ratio, badge). (Termos no glossário.)
 
 *Confronto Visual — UMA linha de subpilar:*
-1. **Subpilar + nome** (emoji de confiança por volume).
+1. **Subpilar + nome** (emoji de confiança por volume). Quando **≥40%** dos verbatins do subpilar são
+   **só-nota** (avaliação sem texto, classificada por heurística de estrela), aparece o badge âmbar
+   **"★ N% nota · M relatos"**: sinaliza que a leitura se apoia em estrela-muda e mostra **quantos
+   relatos escritos** a sustentam (a % dispara, o nº de relatos dimensiona a fragilidade — 42% com 3.000
+   relatos é robusto; 72% com 95 é frágil). Display-only, não muda a classificação.
 2. **Det / Conv / Prom** — contagens por tipo.
 3. **Ratio** — promotores ÷ detratores (ver glossário).
 4. **Proximity** (0–100) + faixa — distância da excelência; "—" se <10 verbatins (sem base).

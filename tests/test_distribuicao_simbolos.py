@@ -12,8 +12,42 @@ from src.coletor.distribuicao_simbolos import (
     empresas_com_residuo_simbolos,
     redistribuir_simbolos,
 )
-from src.diagnostico.leituras import agregar_subpilares
+from src.diagnostico.leituras import LIMIAR_NOTA_PESADA, agregar_subpilares, marcar_nota_pesada
 from src.models.verbatim import Verbatim
+
+
+def test_marcar_nota_pesada_dispara_por_pct_e_expoe_relato():
+    """Badge nota-pesada (frente badge-nota-pesada): dispara em >=40% só-nota; a %
+    dispara e o n_relato dimensiona. n_simbolo = total(agg) − total(so_texto)."""
+    # Pa1: 5325 total, 3104 relato → 2221 símbolo = 42% (>=40 → dispara), robusto (3104).
+    # A1: 335 total, 95 relato → 240 símbolo = 72% (dispara), frágil (95).
+    # P2: 100 total, 90 relato → 10 símbolo = 10% (< 40 → NÃO dispara).
+    agg = {
+        "Pa1": {"total": 5325, "prom": 5000, "conv": 200, "det": 125},
+        "A1": {"total": 335, "prom": 300, "conv": 20, "det": 15},
+        "P2": {"total": 100, "prom": 80, "conv": 10, "det": 10},
+    }
+    agg_texto = {
+        "Pa1": {"total": 3104},
+        "A1": {"total": 95},
+        "P2": {"total": 90},
+    }
+    out = marcar_nota_pesada(agg, agg_texto)
+    assert out["Pa1"]["nota_pesada"] is True
+    assert out["Pa1"]["pct_nota"] == 42
+    assert out["Pa1"]["n_relato"] == 3104
+    assert out["A1"]["nota_pesada"] is True
+    assert out["A1"]["pct_nota"] == 72
+    assert out["A1"]["n_relato"] == 95
+    assert out["P2"]["nota_pesada"] is False  # 10% < limiar
+    assert out["P2"]["n_relato"] == 90
+    # subpilar sem contrapartida de texto → 100% só-nota, n_relato 0
+    so = marcar_nota_pesada({"D1": {"total": 50}}, {})
+    assert so["D1"]["nota_pesada"] is True
+    assert so["D1"]["pct_nota"] == 100
+    assert so["D1"]["n_relato"] == 0
+    assert LIMIAR_NOTA_PESADA == 0.40
+
 
 _RATING_TIPO = {5: "promotor", 4: "conversivel", 3: "conversivel", 2: "detrator", 1: "detrator"}
 _SEQ = [0]

@@ -79,7 +79,7 @@
       {% for c in d.confronto %}
       {% set fc = fclass.get(c.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
       <tr class="border-t border-loyall-100 align-top">
-        <td class="px-3 py-2"><span title="Confiança por volume: {{ c.det + c.conv + c.prom }} verbatins" class="cursor-help">{{ selo_emoji(c.det + c.conv + c.prom) }}</span> <span class="font-medium text-loyall-800">{{ c.subpilar }}</span> <span class="text-xs text-loyall-400">· {{ c.nome }}</span></td>
+        <td class="px-3 py-2"><span title="Confiança por volume: {{ c.det + c.conv + c.prom }} verbatins" class="cursor-help">{{ selo_emoji(c.det + c.conv + c.prom) }}</span> <span class="font-medium text-loyall-800">{{ c.subpilar }}</span> <span class="text-xs text-loyall-400">· {{ c.nome }}</span>{% if c.nota_pesada %} <span class="ml-1 inline-block text-[10px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-800 cursor-help" title="{{ c.pct_nota }}% dos verbatins deste subpilar são só-nota (avaliação sem texto escrito). A leitura se apoia em {{ c.n_relato }} relatos.">★ {{ c.pct_nota }}% nota · {{ c.n_relato }} relatos</span>{% endif %}</td>
         <td class="text-right px-2 py-2 {% if c.det %}text-rose-700 font-medium{% else %}text-loyall-300{% endif %}">{{ c.det }}</td>
         <td class="text-right px-2 py-2 {% if c.conv %}text-amber-700{% else %}text-loyall-300{% endif %}">{{ c.conv }}</td>
         <td class="text-right px-2 py-2 {% if c.prom %}text-emerald-700{% else %}text-loyall-300{% endif %}">{{ c.prom }}</td>

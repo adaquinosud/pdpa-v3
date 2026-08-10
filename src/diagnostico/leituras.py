@@ -105,6 +105,37 @@ def agregar_subpilares(
     return out
 
 
+LIMIAR_NOTA_PESADA = 0.40  # >=40% só-nota (tem_texto=False) → a leitura se apoia em estrela-muda
+
+
+def marcar_nota_pesada(
+    agg: Dict[str, Dict[str, Any]],
+    agg_texto: Dict[str, Dict[str, Any]],
+    limiar: float = LIMIAR_NOTA_PESADA,
+) -> Dict[str, Dict[str, Any]]:
+    """Por subpilar, quanto da leitura se apoia em só-nota (``tem_texto=False``).
+
+    ``agg`` = confronto com símbolo (produção); ``agg_texto`` = MESMO escopo com
+    ``so_texto=True``. ``n_simbolo = total(agg) − total(texto)``. Marca ``nota_pesada``
+    quando a proporção só-nota ``>= limiar`` — o disparo é a %, mas o consumidor
+    exibe ``n_relato`` (volume de texto), que separa o subpilar robusto do frágil:
+    a mesma % pode ter 3.000 relatos ou 90. Sem segundo limiar, sem calibrar contra
+    a base congelada — a % dispara, o número de relatos dimensiona."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for sub, d in agg.items():
+        total = d["total"]
+        n_texto = agg_texto.get(sub, {}).get("total", 0)
+        n_sim = max(0, total - n_texto)
+        pct = (n_sim / total) if total else 0.0
+        out[sub] = {
+            "n_relato": n_texto,
+            "n_simbolo": n_sim,
+            "pct_nota": round(pct * 100),
+            "nota_pesada": pct >= limiar,
+        }
+    return out
+
+
 def resolver_escopo(s, modelo, empresa_id: int, ag_id=None, local_id=None) -> Dict[str, Any]:
     """Resolve qual escopo de material cacheado exibir, com herança
     loja→agrupamento→empresa (Bloco 9 CP-A1). Escopos exclusivos na chave:

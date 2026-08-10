@@ -4599,6 +4599,7 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         _gargalo,
         _scope_cond,
         agregar_subpilares,
+        marcar_nota_pesada,
         montar_payload_subpilar,
         resolver_escopo,
     )
@@ -4669,6 +4670,15 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
 
     _estoque = rs_estoque(s, empresa_id, ag_id, local_id)
 
+    # Badge "nota-pesada": quanto de cada subpilar é só-nota (tem_texto=False), no MESMO
+    # escopo. so_texto=True dá o volume de RELATO; símbolo = total − relato. Display-only,
+    # não muda classificação. Dispara em >=40%; o número de relatos vai à tela (fragilidade).
+    if local_id is not None:
+        agg_texto = agregar_subpilares(s, empresa_id, None, local_id, so_texto=True)
+    else:
+        agg_texto = agregar_subpilares(s, empresa_id, ag_id, so_texto=True)
+    nota_pesada_por_sub = marcar_nota_pesada(agg, agg_texto)
+
     confronto = []
     for sub in SUBPILARES_ORDEM:
         d = agg.get(sub)
@@ -4705,6 +4715,9 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                 herdado=herdado_sub.get(sub),  # None = próprio; str = origem do pai
                 stale=stale,
                 gerado_em=(lt.gerado_em if lt else None),
+                nota_pesada=nota_pesada_por_sub.get(sub, {}).get("nota_pesada", False),
+                pct_nota=nota_pesada_por_sub.get(sub, {}).get("pct_nota", 0),
+                n_relato=nota_pesada_por_sub.get(sub, {}).get("n_relato", 0),
             )
         )
 
