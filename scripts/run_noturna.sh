@@ -54,7 +54,7 @@ echo "[pipeline]   coleta saiu com código $COLETA_EXIT"
 echo ""
 echo "[pipeline] ▶ PASSO 2/3 — pipeline-pos-coleta empresa=${EMPRESA}"
 echo "[pipeline]   encadeia: classifica novos → embeddings → temas → cruzamentos → ações"
-echo "[pipeline]   roda só se novos >= limiar (default 50); aplica janela 180d"
+echo "[pipeline]   roda só se pendente_cauda >= limiar (default 10, acumula); aplica janela 180d"
 echo "[pipeline]   início: $(date -Iseconds)"
 
 FLASK_APP=src.app:create_app "$FLASK" pipeline-pos-coleta \

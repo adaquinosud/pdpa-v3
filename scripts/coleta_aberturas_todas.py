@@ -119,13 +119,16 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> int:
         )
         return 0
 
-    # Pós-coleta company-wide (força a cauda). Falha de 1 empresa não aborta as demais.
+    # Pós-coleta company-wide: o GATE de material governa (só roda a cauda + warm se
+    # pendente_cauda >= limiar; empresa parada é pulada, o material acumula). O run
+    # automático NÃO força (force=False, default); `--force` no cron ignora o gate.
+    # Falha de 1 empresa não aborta as demais.
     if empresas_coletadas:
         from src.temas.pos_coleta import executar_pos_coleta
 
         for eid in sorted(empresas_coletadas):
             try:
-                executar_pos_coleta(eid, force=True)
+                executar_pos_coleta(eid, force=force)
             except Exception as exc:  # noqa: BLE001
                 print(
                     f"[aberturas]   empresa {eid}: pós-coleta FALHOU: {type(exc).__name__}: {exc}"

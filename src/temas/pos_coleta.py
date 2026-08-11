@@ -28,8 +28,13 @@ from src.temas.cruzamento import (
 from src.temas.embeddings import embed_verbatins_pendentes
 from src.temas.pipeline import processar_empresa
 
-# Corte #4: default BAIXO (10, não 50). Barra os 0-9 (empresa de baixo volume) e deixa
-# as ativas atualizarem. Override por empresa em ``empresas.pos_coleta_limiar``.
+# Corte #4: gate de material da cauda+warm. Default BAIXO (10) — DERIVADO do piso que
+# já existe em dois lugares (tema aparece em ≥10 num bucket; Proximity de subpilar em
+# ≥10), NÃO medido; a inclinação inicial era 20. Protege empresa PARADA (barra 0-9), não
+# empresa ativa (≥10 acumulado roda — e a cauda já é delta-bounded por hash/incremental).
+# ⚠️ Lê ESTADO (verbatins sem embedding, `contar_pendente_cauda`), NÃO os novos desta
+# coleta → ACUMULA entre coletas: baixo volume NUNCA congela (ver o docstring de lá).
+# Override por empresa em ``empresas.pos_coleta_limiar``.
 LIMIAR_NOVOS_DEFAULT = 10
 CUSTO_USD_POR_CLASSIFICACAO = 0.0005  # Haiku, estimativa
 
@@ -103,9 +108,14 @@ def contar_novos(empresa_id: int) -> int:
 
 def contar_pendente_cauda(empresa_id: int) -> int:
     """Material que a CAUDA ainda não consumiu = verbatins com texto SEM embedding do
-    MODELO_PADRAO. É o sinal do gate da cauda (corte #4): inclui o que entrou nesta
-    rodada (já classificado pela cabeça) + o deferido de coletas pequenas. NÃO olha
-    ``subpilar_null`` (a cabeça classifica sempre → sempre 0) nem ``desfecho_null``."""
+    MODELO_PADRAO. É o sinal do gate da cauda (corte #4).
+
+    ⚠️ É um ESTOQUE lido do BANCO, não o fluxo desta coleta: a cabeça classifica sempre
+    (dá subpilar), mas SÓ a cauda embeda. Uma coleta gateada (pendente < limiar) deixa
+    seus verbatins classificados-sem-embedding → contam na PRÓXIMA. Então 3 dias de 5
+    verbatins acumulam 15 e a cauda roda no 4º dia. **Empresa de baixo volume NÃO
+    congela** — quem lê "gate de 10" tem de entender que os 10 ACUMULAM entre coletas.
+    NÃO olha ``subpilar_null`` (cabeça classifica sempre → 0) nem ``desfecho_null``."""
     from sqlalchemy import func
 
     from src.models.temas import VerbatimEmbedding

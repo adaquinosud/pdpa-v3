@@ -184,7 +184,8 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> None:
         print(f"[coortes] pós-coleta: digerindo {len(empresas_coletadas)} empresa(s)")
         for eid in sorted(empresas_coletadas):
             try:
-                r = executar_pos_coleta(eid, force=True)
+                # GATE de material governa (force=False no run automático); --force ignora.
+                r = executar_pos_coleta(eid, force=force)
             except Exception as exc:  # falha de 1 empresa não aborta as demais
                 print(f"[coortes]   empresa {eid}: pós-coleta FALHOU: {type(exc).__name__}: {exc}")
                 continue

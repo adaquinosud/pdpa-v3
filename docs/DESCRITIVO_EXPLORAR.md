@@ -402,8 +402,16 @@ detratores. Cruza "qual loja" com "em qual subpilar" ela peca.
 **Propósito.** É um **vigia automático 24/7** dos dados. Em vez de alguém varrer manualmente loja por
 loja e mês a mês, o sistema usa **machine learning** para apontar sozinho o que está fora do normal —
 duas perguntas que um humano não consegue cruzar à mão em escala: (a) *esta loja está pior que as
-outras?* e (b) *esta loja mudou de comportamento em relação a ela mesma?*. Cada coleta nova roda o
-monitoramento. Fonte: `_aba_anomalias` / `_anomalia_view` (ui) + `anomalia_card.html` + `anomalias/`.
+outras?* e (b) *esta loja mudou de comportamento em relação a ela mesma?*. Fonte: `_aba_anomalias` /
+`_anomalia_view` (ui) + `anomalia_card.html` + `anomalias/`.
+
+**Gate de material (corte #4).** A cauda cara do pós-coleta — embeddings → temas → cruzamentos → ações
+→ ratios → anomalias → diagnóstico/sugestões (Sonnet) → **warm dos 5 relatórios** — só roda quando há
+material novo suficiente: `pendente_cauda ≥ limiar` (default **10**, derivado do piso de tema/Proximity).
+O `pendente_cauda` é um ESTOQUE de verbatins sem embedding, lido do banco — **acumula entre coletas**, então
+empresa de baixo volume não congela (3 dias de 5 = 15 no 4º → roda). O caminho automático (cron de coleta)
+NÃO força; on-demand (clique), reprocessar de reclassificação e watchdog de coleta interrompida forçam, cada
+um com razão própria. A cabeça (classificação do dado novo) roda SEMPRE, gate ou não.
 
 **A série-base (`ratios_mensais`).** Ratio P/D por `(loja × subpilar × mês)`, alimenta a Camada 1, a
 Trajetória, a Previsibilidade e a Evolução. **Janela de 24 meses** (`JANELA_RATIOS_MESES` — margem

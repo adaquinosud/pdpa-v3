@@ -148,6 +148,8 @@ def test_executar_pula_abaixo_do_limiar(client_loyall, db_session, monkeypatch):
     r = executar_pos_coleta(e["id"], limiar=50)
     assert cabeca["classif"] == 1  # a cabeça RODOU (classificou o novo)
     assert r.executou is False and "cauda pulada" in r.motivo_skip
+    # o gate governa cauda E warm: gateado → nenhum relatório aquecido (frente gate-cauda-warm)
+    assert r.relatorios_aquecidos == 0
 
 
 def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypatch):

@@ -3,7 +3,8 @@
 O cron coleta casos + verbatim de valência (subpilar NULL); sem acoplar, ficam
 invisíveis nas leituras até o watchdog de 6h. Estes testes provam que
 ``coleta_coortes_todas.main()`` dispara ``executar_pos_coleta`` SÓ pras empresas
-que coletaram algo (novos/atualizados > 0), com ``force=True``, e que a
+que coletaram algo (novos/atualizados > 0), **honrando o gate de material** no run
+automático (``force=False``; ``--force`` ignora — frente gate-cauda-warm), e que a
 classificação de subpilar acontece no MESMO fluxo (não fica NULL esperando o
 watchdog). LLM/Apify stubados — zero gasto, zero rede.
 """
@@ -140,7 +141,9 @@ def test_acopla_dispara_so_para_quem_coletou(db_session, monkeypatch):
 
     main(dry_run=False)
 
-    assert chamadas == [(ea.id, True)]  # só A, com force=True; B (0 coletado) fora
+    # run automático NÃO força → o gate de material governa (frente gate-cauda-warm).
+    # `--force` (main(force=True)) threada `force=force` no pós-coleta = override manual.
+    assert chamadas == [(ea.id, False)]  # só A, sem force; B (0 coletado) fora
 
 
 def test_acopla_dry_run_nao_digere(db_session, monkeypatch):

@@ -125,6 +125,17 @@ ratios all-time), o dado >12m serve só de lastro do PDPA all-time — que o pro
 Se um dia o storage apertar de verdade, a peça durável é **filtro de idade na GERAÇÃO** de embedding
 (cap no crescimento, $0), nunca expurgo retroativo.
 
+### Warm dos relatórios — LAZY (frente futura, fora de propósito por ora)
+**Status:** ADIADO (deliberado, 2026-08-11)
+O warm dos 5 PDFs roda dentro da cauda, que agora é gateada (gate de material, corte #4)
+→ o warm só roda quando material acumulou (≥ limiar). Isso resolve ~95% do desperdício.
+O **lazy** (gerar seção só ao abrir o relatório) ficou de fora porque: (a) custaria
+**60-90s ao primeiro leitor** após a coleta (regenerar as seções que mudaram, Sonnet) —
+ruim numa demo, e **risco de timeout no worker web** (gunicorn `--timeout 120`); (b) exige
+rastreio de acesso que **não existe** (`RelatorioCache` sem `ultimo_acesso`). Reabrir só se
+medição em regime mostrar warm frequente-E-não-lido (aí o lever é rastreio de acesso +
+warm só do que foi aberto, não lazy puro).
+
 ### Pipeline — detecção de falha sistêmica de bucket
 **Status:** PENDENTE (robustez)
 O pipeline pós-coleta processa em buckets/lotes; hoje uma falha **sistêmica** de
