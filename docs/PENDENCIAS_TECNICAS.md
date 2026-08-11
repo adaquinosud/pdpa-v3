@@ -108,6 +108,23 @@ monitorar — se passar de ~1%, reabrir e endurecer. Query de medição: contar
 `verbatins` por `prompt_versao='falha-classificacao'` vs total com texto, por
 empresa.
 
+### Limpeza/retenção de dado antigo (embeddings/verbatins) — ❌ REJEITADO (2026-08-11)
+**Não reabrir achando que "limpar dado antigo economiza espaço".** Investigado a fundo
+e ARQUIVADO — a limpeza **custaria dinheiro em vez de economizar**:
+- Economia teórica ~**44 MB** — irrisória.
+- O índice **HNSW** (vetores) ocupa **mais que os próprios dados**; apagar linhas não
+  encolhe o índice proporcionalmente.
+- `hash_escopo` (chave de cache dos temas) é **derivado dos IDs** dos verbatins do bucket
+  → apagar/expurgar muda o hash → **dispara regeneração de TODOS os temas com LLM** (Sonnet)
+  → gasto real de LLM, o oposto do objetivo.
+- Além disso: apagar embedding acende **pendência falsa** (`contar_pendente_cauda` não filtra
+  idade → re-embeda, LLM pago). Apagar verbatim é irreversível e ainda alimenta o PDPA all-time.
+**Contexto que fecha:** com os horizontes decididos (temas 6m, Previsibilidade 12m, PDPA/Teto/
+ratios all-time), o dado >12m serve só de lastro do PDPA all-time — que o probe mostrou mover só
++0,2 a +2,1. Não há dado "morto que valha remover": o único candidato (embedding >6m) sai net-negativo.
+Se um dia o storage apertar de verdade, a peça durável é **filtro de idade na GERAÇÃO** de embedding
+(cap no crescimento, $0), nunca expurgo retroativo.
+
 ### Pipeline — detecção de falha sistêmica de bucket
 **Status:** PENDENTE (robustez)
 O pipeline pós-coleta processa em buckets/lotes; hoje uma falha **sistêmica** de
