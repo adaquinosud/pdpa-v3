@@ -405,6 +405,15 @@ duas perguntas que um humano não consegue cruzar à mão em escala: (a) *esta l
 outras?* e (b) *esta loja mudou de comportamento em relação a ela mesma?*. Cada coleta nova roda o
 monitoramento. Fonte: `_aba_anomalias` / `_anomalia_view` (ui) + `anomalia_card.html` + `anomalias/`.
 
+**A série-base (`ratios_mensais`).** Ratio P/D por `(loja × subpilar × mês)`, alimenta a Camada 1, a
+Trajetória, a Previsibilidade e a Evolução. **Janela de 24 meses** (`JANELA_RATIOS_MESES` — margem
+deliberada de 2× sobre o consumidor mais fundo, a Previsibilidade 12m; não medida). **Recompute
+INCREMENTAL:** a cada coleta só os **meses tocados** são refeitos (verbatim novo por `data_coleta` OU
+reclassificado por `reclassificado_em`), não a série inteira — sem lock crescente com coleta diária.
+`full=True` (undo de verbatim, move de loja, 1ª execução pós-deploy) reconcilia a janela toda.
+⚠️ **`ratio` = P/D** (conversível FORA, por método); **`total` = volume** (P+C+D) — denominadores
+diferentes de propósito, `total` **não** é a base do `ratio`.
+
 **Os 3 tipos de anomalia** (todos implementados):
 - **Indicador** — um **loja × subpilar** fora da curva (ex.: "Loja Park, em Qualidade, está mal"). É o
   sinal de negócio puro (ratio anômalo).

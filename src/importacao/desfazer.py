@@ -211,4 +211,5 @@ def recompute_apos_desfazer(empresa_id: int) -> None:
     from src.temas.limpeza import limpar_acumulo_temas
 
     limpar_acumulo_temas(empresa_id)  # desativa tema órfão + _regenerar_cache_por_vinculos
-    recomputar_ratios_mensais(empresa_id)
+    # full=True: o undo DELETA verbatins → não rastreável por timestamp → reconcilia a janela.
+    recomputar_ratios_mensais(empresa_id, full=True)

@@ -1547,8 +1547,10 @@ def _register_cli_commands(app: Flask) -> None:
             empresa_nome = emp.nome
 
         click.echo(f"[anomalias] empresa={empresa_nome!r} (id={empresa_id})")
-        n_ratios = recomputar_ratios_mensais(empresa_id)
-        click.echo(f"[anomalias] ratios mensais recomputados: {n_ratios}")
+        # full=True: entrada manual/reparo/pós-deploy — reconcilia a janela de 24m
+        # (purga >24m + recomputa). O caminho incremental é o pós-coleta automático.
+        n_ratios = recomputar_ratios_mensais(empresa_id, full=True)
+        click.echo(f"[anomalias] ratios mensais recomputados (janela 24m, full): {n_ratios}")
         resumo = detectar_e_persistir(empresa_id, gravar_snapshot=not sem_snapshot)
         click.echo(
             f"[anomalias] total={resumo['total']} "

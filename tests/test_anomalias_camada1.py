@@ -153,6 +153,126 @@ def test_grao_empresa_visivel_em_toda_leitura(client_loyall, db_session):
     assert so["D2"]["det"] == 0 and so["D2"]["prom"] == 1  # só a loja
 
 
+def test_ratios_janela_24m_ignora_mes_antigo(client_loyall, db_session):
+    """Janela de 24m (frente ratios-incremental): mês além de 24m antes do mais recente
+    COM dado não é escrito."""
+    e, a, locais, f = _ctx(client_loyall, "jan")
+    loc = locais[0]["id"]
+
+    def _add(dt, tag):
+        db_session.add(
+            Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f["id"],
+                local_id=loc,
+                texto=tag,
+                data_criacao_original=dt,
+                hash_dedup=f"{tag}-{datetime.utcnow().timestamp()}",
+                subpilar="D2",
+                tipo="promotor",
+                tem_texto=True,
+            )
+        )
+
+    _add(datetime(2026, 6, 15), "recente")  # mês mais novo → cutoff = 2024-07
+    _add(datetime(2023, 1, 15), "antigo")  # >24m antes → fora
+    db_session.commit()
+    recomputar_ratios_mensais(e["id"], full=True)
+    periodos = {
+        r.periodo for r in db_session.query(RatioMensal).filter_by(empresa_id=e["id"]).all()
+    }
+    assert "2026-06" in periodos
+    assert "2023-01" not in periodos  # fora da janela de 24m
+
+
+def test_ratios_incremental_reclassificacao_toca_o_mes(client_loyall, db_session):
+    """Incremental por meses tocados: reclassificar um verbatim (``reclassificado_em``)
+    recomputa o MÊS dele; mês não-tocado fica intacto (``gerado_em`` preservado). É a
+    cobertura que a curadoria (correção manual + reclass em massa) exige."""
+    e, a, locais, f = _ctx(client_loyall, "inc")
+    loc = locais[0]["id"]
+
+    def _add(dt, tipo, tag):
+        v = Verbatim(
+            empresa_id=e["id"],
+            fonte_id=f["id"],
+            local_id=loc,
+            texto=tag,
+            data_criacao_original=dt,
+            data_coleta=datetime(2026, 1, 1),  # antigo (< a marca) → não toca por coleta
+            hash_dedup=f"{tag}-{datetime.utcnow().timestamp()}",
+            subpilar="D2",
+            tipo=tipo,
+            tem_texto=True,
+        )
+        db_session.add(v)
+        db_session.commit()
+        return v
+
+    v_mar = _add(datetime(2026, 3, 15), "promotor", "mar")  # mês a reclassificar
+    _add(datetime(2026, 4, 15), "promotor", "abr")  # mês que NÃO muda
+    recomputar_ratios_mensais(e["id"], full=True)
+    # congela gerado_em numa marca fixa = "última recompute"
+    db_session.query(RatioMensal).filter_by(empresa_id=e["id"]).update(
+        {RatioMensal.gerado_em: datetime(2026, 5, 1)}, synchronize_session=False
+    )
+    db_session.commit()
+    # reclassifica o de março DEPOIS da marca — muda o tipo
+    v_mar.tipo = "detrator"
+    v_mar.reclassificado_em = datetime(2026, 6, 1)
+    db_session.commit()
+
+    n = recomputar_ratios_mensais(e["id"])  # incremental (default, deriva por timestamp)
+    assert n == 1  # só o mês tocado (2026-03)
+    mar = db_session.query(RatioMensal).filter_by(empresa_id=e["id"], periodo="2026-03").one()
+    abr = db_session.query(RatioMensal).filter_by(empresa_id=e["id"], periodo="2026-04").one()
+    assert mar.detrator == 1 and mar.promotor == 0  # refletiu a reclassificação
+    assert abr.gerado_em < mar.gerado_em  # abr NÃO recomputado (marca antiga preservada)
+
+
+def test_ratios_incremental_auto_poda_legado_fora_janela(client_loyall, db_session):
+    """A poda do incremental remove o legado >24m sozinha (sem --full): simula o
+    estado pós-deploy (linha antiga da mecânica velha) + uma coleta nova."""
+    e, a, locais, f = _ctx(client_loyall, "poda")
+    loc = locais[0]["id"]
+    # linha legada >24m (mecânica antiga), gerado_em antigo
+    db_session.add(
+        RatioMensal(
+            empresa_id=e["id"],
+            local_id=loc,
+            subpilar="D2",
+            periodo="2020-01",
+            promotor=5,
+            conversivel=0,
+            detrator=0,
+            total=5,
+            ratio=9.99,
+            gerado_em=datetime(2020, 1, 2),
+        )
+    )
+    # verbatim novo (coleta recente) num mês dentro da janela
+    db_session.add(
+        Verbatim(
+            empresa_id=e["id"],
+            fonte_id=f["id"],
+            local_id=loc,
+            texto="novo",
+            data_criacao_original=datetime(2026, 6, 15),
+            hash_dedup=f"novo-{datetime.utcnow().timestamp()}",
+            subpilar="D2",
+            tipo="promotor",
+            tem_texto=True,
+        )
+    )
+    db_session.commit()
+    recomputar_ratios_mensais(e["id"])  # incremental (default) — SEM --full
+    periodos = {
+        r.periodo for r in db_session.query(RatioMensal).filter_by(empresa_id=e["id"]).all()
+    }
+    assert "2020-01" not in periodos  # legado >24m purgado pela auto-poda
+    assert "2026-06" in periodos  # mês novo recomputado
+
+
 # ── detecção cross-sectional ─────────────────────────────────────────────
 
 

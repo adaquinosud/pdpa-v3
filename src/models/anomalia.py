@@ -132,7 +132,14 @@ class CruzamentoSnapshot(Base):
 
 
 class RatioMensal(Base):
-    """Série mensal de ratio P/D por (loja|agrupamento × subpilar) — camada 1."""
+    """Série mensal de ratio P/D por (loja|agrupamento × subpilar) — camada 1.
+
+    ⚠️ ``ratio`` = P/D (promotor ÷ detrator; conversível FORA do ratio, por método —
+    Manual Cap. 4). ``total`` = volume (promotor + conversível + detrator).
+    **Denominadores diferentes DE PROPÓSITO** — ``total`` NÃO é a base do ``ratio``
+    (não faça ``ratio × total`` nem assuma ``total`` como denominador). Escrita/janela:
+    ver ``anomalias.ratios.recomputar_ratios_mensais`` (janela 24m, incremental).
+    """
 
     __tablename__ = "ratios_mensais"
     __table_args__ = (
