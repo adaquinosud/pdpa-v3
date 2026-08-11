@@ -1017,6 +1017,55 @@ def test_calcular_previsibilidade_sem_lastro_fora_do_piso(client_loyall, db_sess
     assert prev is None
 
 
+def test_calcular_previsibilidade_janela_12m_ignora_serie_antiga(client_loyall, db_session):
+    """Janela de 12 meses (frente previsibilidade-janela-12m): pega os 12 meses mais
+    recentes (mês DESC, determinístico); série antiga fora da janela NÃO conta.
+    12 meses recentes uniformes (CV=0 → eixo tempo=1.0 → prev=100); 3 meses antigos
+    voláteis, excluídos — senão o CV subiria e prev cairia bem abaixo de 100."""
+    from datetime import datetime
+
+    from src.api.painel import calcular_previsibilidade
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session as get_session
+
+    ctx = _empresa_estrutura(client_loyall)
+    eid, fid, lid = ctx["e"]["id"], ctx["f"]["id"], ctx["loc"]["id"]
+
+    def _mes(k):  # k meses atrás de 2026-07 (dia 15)
+        tot = 2026 * 12 + 6 - k
+        return datetime(tot // 12, tot % 12 + 1, 15)
+
+    seq = [0]
+
+    def _seed(dt, tipo, n):
+        for _ in range(n):
+            seq[0] += 1
+            db_session.add(
+                Verbatim(
+                    empresa_id=eid,
+                    fonte_id=fid,
+                    local_id=lid,
+                    texto=f"v{seq[0]}",
+                    data_criacao_original=dt,
+                    hash_dedup=f"h-janela-{seq[0]}",
+                    subpilar="Pa1",
+                    tipo=tipo,
+                    tem_texto=True,
+                )
+            )
+        db_session.commit()
+
+    for k in range(12):  # 12 meses recentes: promotor (ratio 9.99 uniforme)
+        _seed(_mes(k), "promotor", 3)
+    for k in range(12, 15):  # 3 meses antigos: detrator (baixo) — fora da janela
+        _seed(_mes(k), "detrator", 3)
+
+    with get_session() as s:
+        prev = calcular_previsibilidade(eid, s, {})
+    # 1 loja → sem eixo lojas; só o eixo tempo. 12 meses uniformes → CV=0 → 100.
+    assert prev == 100.0
+
+
 def test_calcular_previsibilidade_lojas_dispersas_reduz_score(client_loyall, db_session):
     """Lojas com ratios muito diferentes → var_locais alto → score reduz."""
     from src.api.painel import calcular_previsibilidade

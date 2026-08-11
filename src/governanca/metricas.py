@@ -440,6 +440,7 @@ def recalcular_previsibilidade(empresa_id: int, *, skip_unchanged: bool = True) 
     """
     from sqlalchemy import and_, func
 
+    from src.api.painel import JANELA_PREVISIBILIDADE_MESES
     from src.models.anomalia import RatioMensal
     from src.models.governanca import PrevisibilidadeCalculation
     from src.models.local import Local
@@ -460,9 +461,14 @@ def recalcular_previsibilidade(empresa_id: int, *, skip_unchanged: bool = True) 
                 .group_by(RatioMensal.periodo)
                 .all()
             )
-            meses = [(int(p or 0), int(d or 0), int(t or 0)) for (_per, p, d, t) in rows]
+            # Janela 12m: os 12 períodos mais recentes (DESC determinístico). O hash usa a
+            # MESMA janela → recompute só nas lojas com >12 meses; estável no resto.
+            rows_janela = sorted(rows, key=lambda r: (r[0] or ""), reverse=True)[
+                :JANELA_PREVISIBILIDADE_MESES
+            ]
+            meses = [(int(p or 0), int(d or 0), int(t or 0)) for (_per, p, d, t) in rows_janela]
             serie = sorted(
-                [(per, int(p or 0), int(d or 0), int(t or 0)) for (per, p, d, t) in rows]
+                [(per, int(p or 0), int(d or 0), int(t or 0)) for (per, p, d, t) in rows_janela]
             )
             h = hash_payload(serie)
             base = and_(

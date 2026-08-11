@@ -590,6 +590,16 @@ def indice_pdpa(pilares, codigos=None):
     return (round(num / den * 100, 1), int(den)) if den else (None, 0)
 
 
+# Horizonte de LEITURA da Previsibilidade: os N meses mais recentes. Ela mede a
+# consistência da operação ATUAL — série de década lia deriva secular como
+# instabilidade (Club Med Brasil: 42→68 ao passar de 115 meses para 12). 12 é o
+# mínimo defensável: >=1 ciclo sazonal, e o piso de 3 meses deixa margem. Não é o
+# número da COLETA (15m) nem da RETENÇÃO (18m) — é horizonte de leitura próprio.
+# Ordenação por mês DESC, pega os N mais recentes: determinístico (senão o descarte
+# seria arbitrário e a nota oscilaria entre execuções sobre o MESMO dado).
+JANELA_PREVISIBILIDADE_MESES = 12
+
+
 def calcular_previsibilidade(
     empresa_id: int,
     s,
@@ -616,8 +626,38 @@ def calcular_previsibilidade(
     de puro ruído qualificarem a dispersão. Efeito depende de como o ruído se
     distribui, não de quanto existe — concentrado (poucas lojas) distorce; espalhado
     não. NULL (pendente) segue contando o piso.
+
+    Janela de leitura (2026-08-11): os **12 meses mais recentes** nos DOIS eixos
+    (``JANELA_PREVISIBILIDADE_MESES``). Mede a operação atual, não a década — série longa
+    lia deriva secular como instabilidade. Corte determinístico (mês DESC, N mais recentes).
     """
     import statistics
+    from datetime import datetime
+
+    # 0. Janela de 12 meses (horizonte de leitura). Determina os N meses mais recentes
+    #    COM dado (ordem DESC), âncora no próprio dado (imune à pausa de coleta), e corta
+    #    AMBOS os eixos no início do mais antigo deles — média de horizontes diferentes
+    #    não significaria nada. NULL sem data já não entra no eixo tempo.
+    mes_expr = fmt_ano_mes(Verbatim.data_criacao_original)
+    q_meses_distintos = (
+        s.query(mes_expr)
+        .filter(Verbatim.empresa_id == empresa_id)
+        .filter(Verbatim.data_criacao_original.isnot(None))
+        .filter(func.coalesce(Verbatim.subpilar, "") != "sem_lastro")
+        .group_by(mes_expr)
+    )
+    meses_recentes = sorted(
+        (
+            m
+            for (m,) in _apply_query_args(q_meses_distintos, empresa_id, s, base_query_args).all()
+            if m
+        ),
+        reverse=True,
+    )[:JANELA_PREVISIBILIDADE_MESES]
+    corte_janela = None
+    if meses_recentes:
+        _ano, _mes = min(meses_recentes).split("-")
+        corte_janela = datetime(int(_ano), int(_mes), 1)
 
     # 1. Ratios por local (lojas) — usa só locais com >= 5 verbatins
     #    sem_lastro (=inativo) NÃO entra: já está fora do ratio (prom/det), e deixá-lo
@@ -634,7 +674,8 @@ def calcular_previsibilidade(
         .filter(func.coalesce(Verbatim.subpilar, "") != "sem_lastro")
         .group_by(Verbatim.local_id, Verbatim.tipo)
     )
-    _apply_query_args(q_locais, empresa_id, s, base_query_args)  # filtros painel
+    if corte_janela is not None:
+        q_locais = q_locais.filter(Verbatim.data_criacao_original >= corte_janela)
     rows_locais = _apply_query_args(q_locais, empresa_id, s, base_query_args).all()
     por_local: Dict[int, Dict[str, int]] = {}
     for lid, tipo, qtd in rows_locais:
@@ -646,8 +687,8 @@ def calcular_previsibilidade(
         calcular_ratio(d["promotor"], d["detrator"]) for d in por_local.values() if d["total"] >= 5
     ]
 
-    # 2. Ratios por mês — usa só meses com >= 3 verbatins (sem_lastro fora do piso, idem eixo 1)
-    mes_expr = fmt_ano_mes(Verbatim.data_criacao_original)
+    # 2. Ratios por mês — usa só meses com >= 3 verbatins (sem_lastro fora do piso, idem eixo 1);
+    #    janelado nos 12 mais recentes (mesmo corte do eixo lojas).
     q_meses = (
         s.query(mes_expr.label("mes"), Verbatim.tipo, func.count(Verbatim.id))
         .filter(Verbatim.empresa_id == empresa_id)
@@ -655,6 +696,8 @@ def calcular_previsibilidade(
         .filter(func.coalesce(Verbatim.subpilar, "") != "sem_lastro")
         .group_by(mes_expr, Verbatim.tipo)
     )
+    if corte_janela is not None:
+        q_meses = q_meses.filter(Verbatim.data_criacao_original >= corte_janela)
     rows_meses = _apply_query_args(q_meses, empresa_id, s, base_query_args).all()
     por_mes: Dict[str, Dict[str, int]] = {}
     for mes, tipo, qtd in rows_meses:

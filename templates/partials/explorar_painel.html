@@ -29,6 +29,8 @@
           title="Selo de excelência: ≥4 subpilares Proximity>60 + previsibilidade>70 = Ouro; ≥3 = Prata; ≥2 = Bronze">{{ selo }}</span>{{ glossario_i('selo') }}
     {% endif %}</h1>
     <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
+    {# Declaração de horizonte (uma linha por seção) — cada indicador diz sobre que período fala. #}
+    <p class="text-xs text-loyall-400 italic mt-0.5">Índice PDPA e Teto do Lastro: todo o histórico · Previsibilidade: 12 meses</p>
   </div>
   <a id="btn-exportar-painel"
      href="{{ url_for('empresas.exportar_painel_xlsx', empresa_id=empresa.id) }}"

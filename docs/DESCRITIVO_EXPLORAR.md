@@ -11,6 +11,31 @@
 
 ---
 
+## Horizontes de leitura
+
+**Cada indicador tem um horizonte próprio — o horizonte segue o que ele MEDE, não um padrão único.**
+Aplicar um número a tudo atropelaria janelas que já têm razão. A tela **declara** o horizonte de cada
+seção (uma linha por seção, não card a card).
+
+| indicador | horizonte | razão |
+|---|---|---|
+| **Índice PDPA · Teto do Lastro · ratios** | **todo o histórico** | posição estrutural, muda devagar; a janela quase não afeta (probe: Δ +0,2 a +2,1) |
+| **Previsibilidade** (2 eixos) | **12 meses** (mais recentes) | consistência da operação ATUAL; série longa lia deriva de década como instabilidade (Club Med Brasil ia de 42→68 ao janelar) |
+| **Temas** | **6 meses** | assunto vivo — o que ninguém menciona há meio ano foi resolvido ou virou história |
+| **Anomalias** | **baseline recente (~3 meses)** — NÃO janelado em 12 | o detector compara o presente com o normal recente (média móvel de 3 meses cross-sectional + IsolationForest); janelar em 12 descartaria baseline que ele usa por desenho e não há razão de método (não é comparação homóloga) |
+| **Trajetória** | **6 meses** (2 janelas de 3) | direção do movimento recente (cadência de conselho) |
+| **Concentração · Gini** | **todo o histórico** | onde a dor concentra; janela avaliada e **adiada** (frente futura barata — filtro + recompute, sem migração) |
+| **Parecer** (conduta) | **span da coleta RA** (~15m, declarado) | como a empresa se comporta com quem reclama |
+| **Vitrine** | **90 dias** | reputação pública recente (diagnóstico de prospect, não de cliente) |
+
+**Regra da Previsibilidade (2026-08-11):** os **12 meses mais recentes COM dado** (`JANELA_PREVISIBILIDADE_MESES`),
+mês DESC determinístico (senão o descarte seria arbitrário e a nota oscilaria entre execuções sobre o mesmo
+dado), **nos dois eixos** (tempo e lojas — média de horizontes diferentes não significaria nada), ancorados no
+**dado** (`MAX(data_criacao) − 12m`, não em "hoje" — imune à pausa de coleta, mesmo cuidado do guard de frescor
+da Trajetória). Persistida (selo/Board) exige recompute (`recalcular_previsibilidade`, `skip_unchanged=False`).
+
+---
+
 ## 1. PAINEL
 
 **Propósito.** Tela de abertura do Explorar. Mostra, num relance, a saúde relacional da empresa

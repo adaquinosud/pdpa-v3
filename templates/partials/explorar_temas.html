@@ -24,7 +24,7 @@
   <h1 class="text-2xl font-semibold mt-1">Temas {{ glossario_i('tema') }}</h1>
   <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
   <p class="text-xs text-loyall-500 mt-1">
-    Análise dos últimos {{ janela_dias }} dias{% if data_corte %} (desde {{ data_corte.strftime('%d/%m/%Y') }}){% endif %}.
+    Temas: últimos 6 meses{% if data_corte %} (desde {{ data_corte.strftime('%d/%m/%Y') }}){% endif %}.
   </p>
   <div class="mt-2 flex flex-wrap gap-2 text-sm">
     <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.temas }} temas</span>
@@ -47,7 +47,7 @@
 {# CP-A dedupe: o filtro de agrupamento vinha aqui e duplicava o HEADER global —
    removido (Temas passa a consumir o escopo do header; sem filtro próprio). Sem
    <form> não há submit que perca o `tab`. Mantém-se só o aviso da janela. #}
-<div class="mb-5 text-xs text-loyall-400 italic">janela de {{ janela_dias }} dias (informativo, não filtra)</div>
+<div class="mb-5 text-xs text-loyall-400 italic">janela de temas: últimos 6 meses (rege o re-clustering; leituras antigas persistem)</div>
 
 {# ── Mapa de Lastro ───────────────────────────────────────────────── #}
 <h2 class="text-lg font-semibold text-loyall-700 mb-1">Mapa de Lastro</h2>
