@@ -136,6 +136,21 @@ rastreio de acesso que **não existe** (`RelatorioCache` sem `ultimo_acesso`). R
 medição em regime mostrar warm frequente-E-não-lido (aí o lever é rastreio de acesso +
 warm só do que foi aberto, não lazy puro).
 
+### Agregação do log de reclassificações — infra pronta, agregação ADIADA
+**Status:** ADIADO (deliberado, 2026-08-12 — probe confirmou volume ralo)
+O log `verbatins_reclassificacoes` **grava corretamente** (subpilar/tipo anterior→novo,
+autor, timestamp) e é lido HOJE só por-verbatim (histórico no modal). Agregado, viraria a
+**matriz de confusão real da régua** (onde o classificador erra sistematicamente → qual
+definição do prompt reescrever). MAS o probe (2026-08-12) achou **6 reclassificações, 1
+autor (Alexandre), 1 empresa (BH Airport)** — não forma padrão, e por ser autor único nem
+representa erro sistemático da régua (são correções pontuais). **Não construir nada** — nem
+tela, nem função de agregação: 6 registros não dizem nada. Reabrir quando houver curadoria
+real em escala (ordem de **centenas** de correções, vários autores). Quando o dado existir:
+a matriz é **GLOBAL, cross-empresa** (o prompt do classificador é único → a confusão é da
+régua, não do cliente); tela provável em `admin_temas`/rota admin nova, NÃO no Explorar do
+cliente (é curadoria interna, não diagnóstico). A curadoria auditada concluiu que a régua
+está BOA — reforça que hoje é infra p/ o futuro, não diagnóstico do presente.
+
 ### Pipeline — detecção de falha sistêmica de bucket
 **Status:** PENDENTE (robustez)
 O pipeline pós-coleta processa em buckets/lotes; hoje uma falha **sistêmica** de
