@@ -24,7 +24,7 @@ seção (uma linha por seção, não card a card).
 | **Temas** | **6 meses** | assunto vivo — o que ninguém menciona há meio ano foi resolvido ou virou história |
 | **Anomalias** | **baseline recente (~3 meses)** — NÃO janelado em 12 | o detector compara o presente com o normal recente (média móvel de 3 meses cross-sectional + IsolationForest); janelar em 12 descartaria baseline que ele usa por desenho e não há razão de método (não é comparação homóloga) |
 | **Trajetória** | **6 meses** (2 janelas de 3) | direção do movimento recente (cadência de conselho) |
-| **Concentração · Gini** | **todo o histórico** | onde a dor concentra; janela avaliada e **adiada** (frente futura barata — filtro + recompute, sem migração) |
+| **Concentração · Gini** | **6 meses** | "onde intervir AGORA" — decisão de alocação recorrente, casa com os temas; all-time diluía a dor recente (Localiza top-5 54%→64% ao janelar) |
 | **Parecer** (conduta) | **span da coleta RA** (~15m, declarado) | como a empresa se comporta com quem reclama |
 | **Vitrine** | **90 dias** | reputação pública recente (diagnóstico de prospect, não de cliente) |
 
@@ -376,7 +376,9 @@ lista de 3 subpilares (código·nome, ratio, badge). (Termos no glossário.)
 
 **Propósito.** Mostra **onde** os detratores se concentram entre as lojas — se o problema é de poucas
 lojas (dá pra fazer cirurgia) ou de muitas (é sistêmico, do processo). Fonte: `_explorar_concentracao`
-(ui).
+(ui). **Horizonte: 6 meses** (2026-08-12; era all-time) — mede "onde intervir AGORA"; loja consertada há
+mais de meio ano deixa de pesar. Corte no dado (`MAX(data)−6m`, imune à pausa). Tanto o top-5 do Painel
+(`calcular_concentracao_detratores`, live) quanto o Gini persistido (`recalcular_gini` → recompute).
 
 **Anatomia.**
 *Card Gini:* o **Gini** (0–1) é o "índice de desigualdade" dos detratores entre lojas. **Acessível:**

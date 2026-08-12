@@ -769,6 +769,60 @@ def test_recalcular_gini_persiste_bolsao_e_json(db_session):
     assert len(dj["lojas"]) == 6  # todas as medidas (p/ barras)
 
 
+def test_recalcular_gini_janela_6m_exclui_loja_antiga(db_session):
+    """Janela de 6m (frente concentracao-gini-janela-6m): detrator de loja fora dos
+    últimos 6m (âncora MAX(data)−6m) NÃO entra na distribuição do Gini."""
+    import json
+    from datetime import datetime
+
+    from src.governanca.metricas import recalcular_gini
+    from src.models.governanca import GiniConcentracao as GC
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    e, fonte = _empresa_fonte(db_session)
+    recente = datetime(2026, 7, 15)  # MAX → cutoff = ~2026-01
+    antiga = datetime(2024, 1, 15)  # >6m antes → fora
+    seq = [0]
+
+    def _loja(nome, n_det, dt):
+        loja = Local(empresa_id=e.id, nome=nome)
+        db_session.add(loja)
+        db_session.commit()
+        for _ in range(n_det):
+            seq[0] += 1
+            db_session.add(
+                Verbatim(
+                    empresa_id=e.id,
+                    fonte_id=fonte.id,
+                    local_id=loja.id,
+                    texto="t",
+                    subpilar="P1",
+                    tipo="detrator",
+                    data_criacao_original=dt,
+                    hash_dedup=f"jan{seq[0]}",
+                )
+            )
+        return loja
+
+    for i in range(5):  # 5 lojas recentes → Gini disponível
+        _loja(f"R{i}", 5, recente)
+    _loja("Antiga", 40, antiga)  # bolsão antigo — se entrasse, dominaria a distribuição
+    db_session.commit()
+
+    recalcular_gini(e.id)
+    row = (
+        db_session.query(GC)
+        .filter_by(empresa_id=e.id, escopo_tipo="empresa")
+        .filter(GC.escopo_id.is_(None))
+        .one()
+    )
+    dj = json.loads(row.distribuicao_json)
+    assert dj["total_lojas"] == 5  # a Antiga saiu (só as 5 recentes contam)
+    assert dj["total_detratores"] == 25  # 5×5; sem os 40 da Antiga
+    assert all(x["detratores"] == 5 for x in dj["lojas"])  # uniforme → sem bolsão
+
+
 def test_recalcular_gini_insuficiente_poucas_lojas(db_session):
     """< 5 lojas medidas → gini NULL, insuficiente."""
     import json

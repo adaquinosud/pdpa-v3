@@ -756,6 +756,27 @@ def _apply_query_args(q, empresa_id: int, s, base_query_args: Dict[str, Any]):
     return q
 
 
+# Horizonte de LEITURA da Concentração e do Gini: os N meses mais recentes. Ambos
+# respondem "onde intervir AGORA" (decisão de alocação recorrente), não posição
+# estrutural — all-time diluía a dor recente (Localiza: 54%→64% top-5 ao janelar; a
+# dor recente é MAIS concentrada). 6m = mesma família dos temas ("o que está vivo
+# agora"). Cross-sectional (compara lojas entre si), não precisa de série longa. Corte
+# = MAX(data_criacao)−6m por empresa (imune à pausa de coleta). Ver [[project_horizontes]].
+JANELA_CONCENTRACAO_MESES = 6
+
+
+def _corte_janela_meses(empresa_id: int, s, meses: int) -> Optional[datetime]:
+    """Início da janela de ``meses`` ancorada no dado mais recente da empresa:
+    ``MAX(data_criacao_original) − meses`` (não em "hoje" — imune à pausa de coleta).
+    ``None`` se a empresa não tem dado datado (→ sem corte)."""
+    maxd = (
+        s.query(func.max(Verbatim.data_criacao_original))
+        .filter(Verbatim.empresa_id == empresa_id)
+        .scalar()
+    )
+    return (maxd - timedelta(days=meses * 30)) if maxd is not None else None
+
+
 def calcular_concentracao_detratores(
     empresa_id: int, s, base_query_args: Dict[str, Any]
 ) -> Optional[float]:
@@ -808,8 +829,15 @@ def calcular_concentracao_detratores(
             q = q.filter(Verbatim.fonte_id == int(base_query_args["fonte_id"]))
         except (ValueError, TypeError):
             pass
+    # Janela de leitura: período explícito do request vence; senão, default de 6 meses
+    # ancorado no dado (MAX(data)−6m, imune à pausa). A Concentração passa a medir a dor
+    # ATUAL, não a década — all-time diluía (ver JANELA_CONCENTRACAO_MESES).
     if base_query_args.get("data_inicio_periodo"):
         q = q.filter(Verbatim.data_criacao_original >= base_query_args["data_inicio_periodo"])
+    else:
+        corte = _corte_janela_meses(empresa_id, s, JANELA_CONCENTRACAO_MESES)
+        if corte is not None:
+            q = q.filter(Verbatim.data_criacao_original >= corte)
 
     rows = q.all()
 

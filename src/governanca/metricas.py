@@ -505,8 +505,9 @@ def recalcular_gini(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str
     agrupamento) e persiste em ``gini_concentracao``.
 
     Distribuição = nº de detratores por loja MEDIDA (≥1 verbatim) no escopo,
-    histórico completo. ``gini`` (coluna) = Gini bruto; ``distribuicao_json``
-    guarda ``gini_bruto`` + ``gini_corrigido`` (viés-por-n) + ``faixa`` + bolsão
+    **janela de 6 meses** (2026-08-12; era histórico completo — all-time diluía a dor
+    recente, ver ``JANELA_CONCENTRACAO_MESES``). ``gini`` (coluna) = Gini bruto;
+    ``distribuicao_json`` guarda ``gini_bruto`` + ``gini_corrigido`` (viés-por-n) + faixa + bolsão
     (top_n a ≥50% dos detratores) + todas as lojas medidas ordenadas (p/ as
     barras). Indisponível (NULL) se < 5 lojas medidas ou 0 detratores.
     Delete-then-insert por escopo + skip por hash da distribuição.
@@ -523,11 +524,17 @@ def recalcular_gini(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str
 
     recalc = 0
     pulados = 0
+    from src.api.painel import JANELA_CONCENTRACAO_MESES, _corte_janela_meses
+
     with db_session() as s:
         nomes = {loc.id: loc.nome for loc in s.query(Local).filter_by(empresa_id=empresa_id).all()}
         escopos = [("empresa", None, None)]
         for ag in s.query(Agrupamento).filter_by(empresa_id=empresa_id).all():
             escopos.append(("agrupamento", ag.id, ag.id))
+
+        # Janela de 6 meses (mesma da Concentração): "onde a dor concentra AGORA".
+        # Corte no dado (imune à pausa). Entra no hash → recompute só onde a janela muda.
+        corte_janela = _corte_janela_meses(empresa_id, s, JANELA_CONCENTRACAO_MESES)
 
         for escopo_tipo, escopo_id, ag_id in escopos:
             q = (
@@ -535,6 +542,8 @@ def recalcular_gini(empresa_id: int, *, skip_unchanged: bool = True) -> Dict[str
                 .filter(Verbatim.empresa_id == empresa_id, Verbatim.local_id.isnot(None))
                 .group_by(Verbatim.local_id, Verbatim.tipo)
             )
+            if corte_janela is not None:
+                q = q.filter(Verbatim.data_criacao_original >= corte_janela)
             if ag_id is not None:
                 locais_ag = [
                     lid
