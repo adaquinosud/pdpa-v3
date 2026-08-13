@@ -22,6 +22,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 HASHTAG_ACTOR = "clockworks/tiktok-hashtag-scraper"
@@ -63,7 +66,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "falhou_apify": False,
     }
     if not hashtag:
-        print(f"[tiktok] fonte {fonte_id} sem url/hashtag — abortando")
+        logger.warning(f"[tiktok] fonte {fonte_id} sem url/hashtag — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -71,7 +74,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     data_inicio = _parse_data(data_inicio_iso)
 
     # Passo 1: descobre vídeos da hashtag
-    print(f"[tiktok] fonte {fonte_id} (#{hashtag}) passo 1/2: hashtag scraper")
+    logger.info(f"[tiktok] fonte {fonte_id} (#{hashtag}) passo 1/2: hashtag scraper")
     try:
         videos = run_and_collect(
             HASHTAG_ACTOR,
@@ -84,7 +87,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
             timeout=APIFY_TIMEOUT_SECONDS,
         )
     except ApifyError as exc:
-        print(f"[tiktok] hashtag scraper falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[tiktok] hashtag scraper falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -100,11 +103,11 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         video_urls.append(url)
     video_urls = video_urls[:TOP_N_VIDEOS_COMMENTS]
     if not video_urls:
-        print(f"[tiktok] fonte {fonte_id} sem vídeos elegíveis após filtro de data")
+        logger.info(f"[tiktok] fonte {fonte_id} sem vídeos elegíveis após filtro de data")
         return stats
 
     # Passo 2: comentários
-    print(f"[tiktok] fonte {fonte_id} passo 2/2: comments scraper ({len(video_urls)} vídeos)")
+    logger.info(f"[tiktok] fonte {fonte_id} passo 2/2: comments scraper ({len(video_urls)} vídeos)")
     try:
         comentarios = run_and_collect(
             COMMENTS_ACTOR,
@@ -116,7 +119,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
             timeout=APIFY_TIMEOUT_SECONDS,
         )
     except ApifyError as exc:
-        print(f"[tiktok] comments scraper falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[tiktok] comments scraper falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -147,12 +150,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 stats["duplicados"] += 1
         except Exception as exc:
             stats["erros"] += 1
-            print(
+            logger.warning(
                 f"[tiktok] erro ao processar comentário da fonte {fonte_id}: "
                 f"{type(exc).__name__}: {exc}"
             )
 
-    print(
+    logger.warning(
         f"[tiktok] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

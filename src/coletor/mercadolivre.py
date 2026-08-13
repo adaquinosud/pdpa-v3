@@ -20,6 +20,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 STORE_ACTOR = "viralanalyzer/mercadolivre-scraper"
@@ -55,7 +58,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "falhou_apify": False,
     }
     if not seller_id:
-        print(f"[mercadolivre] fonte {fonte_id} sem url/seller_id — abortando")
+        logger.warning(f"[mercadolivre] fonte {fonte_id} sem url/seller_id — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -63,7 +66,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     data_inicio = _parse_data(data_inicio_iso)
 
     # Passo 1: descobre SKUs do seller
-    print(f"[mercadolivre] fonte {fonte_id} ({seller_id}) passo 1/2: store scraper")
+    logger.info(f"[mercadolivre] fonte {fonte_id} ({seller_id}) passo 1/2: store scraper")
     try:
         products = run_and_collect(
             STORE_ACTOR,
@@ -71,7 +74,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
             timeout=APIFY_TIMEOUT_SECONDS,
         )
     except ApifyError as exc:
-        print(f"[mercadolivre] store scraper falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[mercadolivre] store scraper falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -83,10 +86,10 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     skus = list(set(skus))[:MAX_SKUS]
     if not skus:
         skus = [seller_id]  # fallback: tenta usar seller_id como SKU genérico
-    print(f"[mercadolivre] fonte {fonte_id} encontrou {len(skus)} SKUs")
+    logger.info(f"[mercadolivre] fonte {fonte_id} encontrou {len(skus)} SKUs")
 
     # Passo 2: busca reviews dos SKUs
-    print(f"[mercadolivre] fonte {fonte_id} passo 2/2: reviews scraper")
+    logger.info(f"[mercadolivre] fonte {fonte_id} passo 2/2: reviews scraper")
     try:
         reviews_data = run_and_collect(
             REVIEWS_ACTOR,
@@ -99,7 +102,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
             timeout=APIFY_TIMEOUT_SECONDS,
         )
     except ApifyError as exc:
-        print(f"[mercadolivre] reviews scraper falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[mercadolivre] reviews scraper falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -134,12 +137,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 stats["duplicados"] += 1
         except Exception as exc:
             stats["erros"] += 1
-            print(
+            logger.warning(
                 f"[mercadolivre] erro ao processar review da fonte {fonte_id}: "
                 f"{type(exc).__name__}: {exc}"
             )
 
-    print(
+    logger.warning(
         f"[mercadolivre] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

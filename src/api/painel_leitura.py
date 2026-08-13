@@ -16,6 +16,9 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "painel_leitura_sequencial.md"
@@ -98,5 +101,5 @@ def gerar_leitura_sequencial(n1_payload: Dict[str, Any]) -> str:
             return "Sem leitura editorial disponível neste momento."
         return leitura
     except Exception as exc:
-        print(f"[painel_leitura] falha na geração: {type(exc).__name__}: {exc}")
+        logger.warning(f"[painel_leitura] falha na geração: {type(exc).__name__}: {exc}")
         return "Sem leitura editorial disponível neste momento."

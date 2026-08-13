@@ -35,6 +35,9 @@ from src.temas.clusterer import (
 from src.temas.embeddings import MODELO_PADRAO, carregar_embeddings
 from src.temas.rotulador import REPS_PARA_ROTULAGEM, RotulagemInfraError, rotular_cluster
 from src.temas.slug import slugify
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Custo Haiku por rotulagem (1 chamada por cluster): system+payload pequeno,
 # saída <100 tokens. Estimativa: $0.0005/chamada (alinhado a CUSTO_USD_POR_VERBATIM
@@ -538,7 +541,7 @@ def processar_empresa(
             resumo.custo_usd_acumulado = round(resumo.custo_usd_acumulado + stats["custo_usd"], 6)
             resumo.buckets_processados += 1
         except Exception as exc:  # noqa: BLE001
-            print(f"[temas/pipeline] bucket {chave}: {type(exc).__name__}: {exc}")
+            logger.warning(f"[temas/pipeline] bucket {chave}: {type(exc).__name__}: {exc}")
             resumo.erros += 1
         finally:
             # Libera o pico do bucket antes do próximo (não acumula entre buckets).

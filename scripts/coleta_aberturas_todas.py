@@ -147,6 +147,9 @@ def main(dry_run: bool, force: bool = False, fonte: int = None) -> int:
 
 
 if __name__ == "__main__":
+    from src.utils.logging_config import configure_logging
+
+    configure_logging()  # cron standalone: loga com formato central
     ap = argparse.ArgumentParser(description="Cron semanal de ABERTURAS RA (modo padrão).")
     ap.add_argument("--dry-run", action="store_true", help="lista o plano + custo, sem coletar")
     ap.add_argument(

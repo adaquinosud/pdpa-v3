@@ -20,6 +20,9 @@ from src.ui import ui_bp
 
 
 def create_app() -> Flask:
+    from src.utils.logging_config import configure_logging
+
+    configure_logging()  # logging centralizado (higiene) — 1 ponto, idempotente
     app = Flask(__name__)
     app.config.from_object(get_config())
     # Garante SECRET_KEY para assinar a sessão (cookie HttpOnly).

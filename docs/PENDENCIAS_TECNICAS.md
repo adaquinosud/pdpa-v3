@@ -13,11 +13,15 @@
 `pdpa.com.br`** (DNS, OPS) pra acessar pela URL final.
 
 **🟡 Acabamento (durante/logo após o piloto):**
-- **R1** `print()` → logging centralizado · **R2** resíduos `None:None` · **R5**
-  `datetime` tz-aware · **R3** dicionários Pa2/Pa3 (conteúdo).
-- **Faxina O2:** remover `_require_loyall_html` inline redundantes + `_check_acesso`
-  dead-code (o `@loyall_required_ui` é o gate autoritativo).
-- **Pipeline:** detecção de **falha sistêmica de bucket** (hoje degrada silencioso).
+- **R1** `print()` → logging centralizado ✅ FEITO (2026-08-13, `chore/higiene`): 108 prints
+  → `logger.warning/info` + `configure_logging()` central no `create_app`. · **R2** resíduos
+  `None:None` · **R5** `datetime` tz-aware · **R3** dicionários Pa2/Pa3 (conteúdo).
+- ~~**Faxina O2:** `_check_acesso` dead-code~~ ❌ **PREMISSA ERRADA (2026-08-13):** `_check_acesso`
+  NÃO é dead-code — é o gate de **autorização por-empresa** (cliente só vê a própria empresa) e é
+  **load-bearing** em `htmx_verbatim_detalhes` + `htmx_reclassificar_modal` (rotas SEM `@loyall_required_ui`
+  → ele é o ÚNICO gate; removê-lo vazaria dado de outra empresa). Nos outros 17 callers é redundante
+  (loyall passa direto) mas inofensivo. NÃO remover. Docstring esclarecido em vez de deletar.
+- **Pipeline:** detecção de **falha sistêmica de bucket** ✅ RESOLVIDO (ver abaixo).
 - **Auto-deploy do Render inconsistente** — vários commits precisaram Manual Deploy;
   investigar o gatilho.
 - **`seed_exemplo` não idempotente** (quebra re-run; trava CI/dev compartilhado).

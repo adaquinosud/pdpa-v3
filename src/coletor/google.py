@@ -35,6 +35,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── Constantes ───────────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
 
     if not place_id:
-        print(f"[google] fonte {fonte_id} sem url/place_id — abortando")
+        logger.warning(f"[google] fonte {fonte_id} sem url/place_id — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -170,7 +173,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
     if reviews_start_date:  # guard defensivo: calcular_data_inicio_coleta sempre devolve data
         run_input["reviewsStartDate"] = reviews_start_date
-    print(
+    logger.info(
         f"[google] fonte {fonte_id} ({place_id}) reviewsStartDate={reviews_start_date}, "
         f"cap={MAX_REVIEWS_PER_PLACE}"
     )
@@ -178,7 +181,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     try:
         items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[google] Apify falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[google] Apify falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -202,12 +205,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 stats["duplicados"] += 1
         except Exception as exc:
             stats["erros"] += 1
-            print(
+            logger.warning(
                 f"[google] erro ao processar item da fonte {fonte_id}: "
                 f"{type(exc).__name__}: {exc}"
             )
 
-    print(
+    logger.warning(
         f"[google] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

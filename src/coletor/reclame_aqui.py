@@ -32,6 +32,9 @@ from src.models.caso import Caso
 from src.models.fonte import Fonte
 from src.models.verbatim import Verbatim
 from src.utils.db import db_session
+import logging
+
+logger = logging.getLogger(__name__)
 
 ATOR_APIFY = "blackfalcondata/reclameaqui-scraper"
 APIFY_TIMEOUT_SECONDS = 900
@@ -321,7 +324,7 @@ def coletar_scorecard(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         "falhou_apify": False,
     }
     if not empresa_param:
-        print(f"[reclame_aqui] scorecard fonte {fonte_id} sem url — abortando")
+        logger.warning(f"[reclame_aqui] scorecard fonte {fonte_id} sem url — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -329,7 +332,9 @@ def coletar_scorecard(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
         with db_session() as s:
             if em_cadencia_scorecard(s, fonte_id):
                 stats["pulado_cadencia"] = True
-                print(f"[reclame_aqui] scorecard fonte {fonte_id} pulado (cadência semanal)")
+                logger.warning(
+                    f"[reclame_aqui] scorecard fonte {fonte_id} pulado (cadência semanal)"
+                )
                 return stats
 
     run_input = {
@@ -343,7 +348,7 @@ def coletar_scorecard(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
     try:
         items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[reclame_aqui] scorecard Apify falhou fonte {fonte_id}: {exc}")
+        logger.warning(f"[reclame_aqui] scorecard Apify falhou fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -355,12 +360,14 @@ def coletar_scorecard(fonte: Fonte, *, force: bool = False) -> Dict[str, Any]:
                 _proc_reputacao(item, fonte_id, empresa_id, agora, stats)
         except Exception as exc:  # per-item: um item ruim não derruba o lote
             stats["erros"] += 1
-            print(f"[reclame_aqui] scorecard erro fonte {fonte_id}: {type(exc).__name__}: {exc}")
+            logger.warning(
+                f"[reclame_aqui] scorecard erro fonte {fonte_id}: {type(exc).__name__}: {exc}"
+            )
 
     if stats.get("reputacao"):
         # Custo do modo A (perfil + start) — trilha por disparo manual.
         stats["custo_apify_centavos"] = round(CUSTO_SCORECARD_USD * 100)
-    print(
+    logger.warning(
         f"[reclame_aqui] scorecard fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"reputacao={stats['reputacao']} erros={stats['erros']}"
     )
@@ -406,7 +413,7 @@ def coletar_threads(
         "falhou_apify": False,
     }
     if not empresa_param:
-        print(f"[reclame_aqui] threads fonte {fonte_id} sem url — abortando")
+        logger.warning(f"[reclame_aqui] threads fonte {fonte_id} sem url — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -414,7 +421,7 @@ def coletar_threads(
         with db_session() as s:
             if em_cadencia_cooldown(s, fonte_id):
                 stats["pulado_cadencia"] = True
-                print(f"[reclame_aqui] threads fonte {fonte_id} pulada (cadência)")
+                logger.info(f"[reclame_aqui] threads fonte {fonte_id} pulada (cadência)")
                 return stats
 
     # ``cap`` explícito (rota AMOSTRA: LATEST + cap, o cap LIMITA o crawl) tem
@@ -443,7 +450,7 @@ def coletar_threads(
     try:
         items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[reclame_aqui] threads Apify falhou fonte {fonte_id}: {exc}")
+        logger.warning(f"[reclame_aqui] threads Apify falhou fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -456,7 +463,9 @@ def coletar_threads(
             _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats)
         except Exception as exc:  # per-item: um item ruim não derruba o lote
             stats["erros"] += 1
-            print(f"[reclame_aqui] threads erro fonte {fonte_id}: {type(exc).__name__}: {exc}")
+            logger.warning(
+                f"[reclame_aqui] threads erro fonte {fonte_id}: {type(exc).__name__}: {exc}"
+            )
 
     if expirar:  # coorte passa expirar=False (faz o escopado no coletar_coorte)
         with db_session() as s:
@@ -471,7 +480,7 @@ def coletar_threads(
     stats["custo_apify_centavos"] = round(
         (_retornadas * CUSTO_POR_CASO_USD + CUSTO_START_USD) * 100
     )
-    print(
+    logger.warning(
         f"[reclame_aqui] threads fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['casos_novos']} atualizados={stats['casos_atualizados']} "
         f"abandonados={stats['abandonados']} nao_rastreado={stats['nao_rastreado']} "
@@ -887,7 +896,7 @@ def coletar_coorte(fonte, plano_item: Dict[str, Any], *, agora=None) -> Dict[str
             # vazio-suspeito) → NÃO grava ledger E NÃO roda expirar. Casos já
             # upsertados persistem (idempotente); o cron re-tenta a coorte inteira.
             motivo = "CIRCUIT BREAKER (orçamento de runs estourado)" if estourou else "cobertura"
-            print(
+            logger.warning(
                 f"[reclame_aqui] coorte {coorte} fonte {fonte.id}: {motivo} NÃO confirmada "
                 f"(runs={agg['runs_actor']} blocos={agg['blocos']} coletados={agg['coletados']} "
                 f"falhou_apify={agg['falhou_apify']} n_casos={n_casos}) — ledger NÃO gravado"

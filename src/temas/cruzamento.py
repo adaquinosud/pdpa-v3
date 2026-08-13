@@ -29,6 +29,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ── Fase 2 (semântica) ────────────────────────────────────────────────
 SEMANTIC_THRESHOLD = 0.90
@@ -376,7 +379,7 @@ def _confirmar_mesmo_conceito(
         data = _parse_label_json(raw)
         return bool(data.get("mesmo_conceito")) if isinstance(data, dict) else False, it, ot
     except Exception as exc:  # noqa: BLE001
-        print(f"[temas/cruzamento] curadoria falhou: {type(exc).__name__}: {exc}")
+        logger.warning(f"[temas/cruzamento] curadoria falhou: {type(exc).__name__}: {exc}")
         return False, 0, 0
 
 

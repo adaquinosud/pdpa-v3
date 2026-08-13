@@ -26,6 +26,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 ATOR_APIFY = "apify/google-search-scraper"
@@ -74,7 +77,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "falhou_apify": False,
     }
     if not query:
-        print(f"[google_news] fonte {fonte_id} sem url/query — abortando")
+        logger.warning(f"[google_news] fonte {fonte_id} sem url/query — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -100,7 +103,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
     if tbs:
         run_input["tbs"] = tbs
-    print(
+    logger.info(
         f"[google_news] fonte {fonte_id} query={query!r} data_inicio={data_inicio_iso} "
         f"(via tbs), max_results={MAX_RESULTS_DEFAULT}"
     )
@@ -108,7 +111,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     try:
         items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[google_news] Apify falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[google_news] Apify falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -144,12 +147,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                     stats["duplicados"] += 1
             except Exception as exc:
                 stats["erros"] += 1
-                print(
+                logger.warning(
                     f"[google_news] erro ao processar notícia da fonte {fonte_id}: "
                     f"{type(exc).__name__}: {exc}"
                 )
 
-    print(
+    logger.warning(
         f"[google_news] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

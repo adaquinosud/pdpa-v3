@@ -34,6 +34,9 @@ from src.temas.extrator import extrair_temas
 from src.temas.persistencia import merge_temas, persistir_temas_de_verbatim
 from src.temas.slug import slugify
 from src.utils.db import db_session
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 temas_bp = Blueprint("temas", __name__, url_prefix="/api/temas")
@@ -501,7 +504,7 @@ def reprocessar_temas_empresa(empresa_id: int):
                 )
                 novos_vinculos += len(ids)
         except Exception as exc:  # noqa: BLE001
-            print(f"[temas/reprocessar] erro verbatim {vdata['id']}: {exc}")
+            logger.warning(f"[temas/reprocessar] erro verbatim {vdata['id']}: {exc}")
             erros += 1
 
     custo_estimado = round(len(verbatins_dados) * CUSTO_USD_POR_VERBATIM, 4)

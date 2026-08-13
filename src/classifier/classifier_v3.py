@@ -73,6 +73,9 @@ import anthropic
 from anthropic import Anthropic
 
 from src.config import get_config
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── Constantes ───────────────────────────────────────────────────────────
@@ -502,7 +505,7 @@ def _call_claude_with_retry(
         except anthropic.RateLimitError as exc:
             last_err = exc
             delay = BASE_DELAY_SECONDS * (2**attempt)
-            print(
+            logger.info(
                 f"[classifier:{modelo}] rate limit (429), tentativa "
                 f"{attempt + 1}/{MAX_RETRIES}, aguardando {delay}s..."
             )
@@ -511,7 +514,7 @@ def _call_claude_with_retry(
             if exc.status_code >= 500:
                 last_err = exc
                 delay = BASE_DELAY_SECONDS * (2**attempt)
-                print(
+                logger.warning(
                     f"[classifier:{modelo}] erro {exc.status_code}, tentativa "
                     f"{attempt + 1}/{MAX_RETRIES}, aguardando {delay}s..."
                 )
@@ -811,7 +814,7 @@ def _fallback_parse_sonnet(
         ) from exc
 
     resultado_sonnet.escalado = True
-    print(
+    logger.warning(
         f"[classifier] parse_fallback → {sonnet_model} resgatou verbatim que o Haiku "
         f"invalidou em {HAIKU_PARSE_RETRIES} tentativas (sub={resultado_sonnet.subpilar})"
     )
@@ -916,7 +919,7 @@ def classificar(
             break
         except ValueError as exc:
             ultimo_parse_err = exc
-            print(
+            logger.warning(
                 f"[classifier:haiku] parse/validação falhou "
                 f"({tentativa + 1}/{HAIKU_PARSE_RETRIES}): {str(exc)[:120]}"
             )
@@ -953,7 +956,7 @@ def classificar(
         gasto_mes = _obter_gasto_mensal_sonnet()
         if gasto_mes >= budget:
             motivo_escalada = "budget_exceeded"
-            print(
+            logger.info(
                 f"[classifier] confianca={resultado.confianca:.2f} < {threshold:.2f} "
                 f"mas orçamento Sonnet do mês esgotado ({gasto_mes:.2f} >= {budget:.2f}); "
                 f"mantendo resposta Haiku."
@@ -966,7 +969,7 @@ def classificar(
                 resultado_sonnet.escalado = True
                 resultado_final = resultado_sonnet
                 motivo_escalada = "confianca_baixa"
-                print(
+                logger.info(
                     f"[classifier] escalado para {sonnet_model}: "
                     f"Haiku conf={resultado.confianca:.2f} → "
                     f"Sonnet conf={resultado_sonnet.confianca:.2f} "
@@ -975,7 +978,7 @@ def classificar(
             except Exception as exc:
                 # Falha na escalada NÃO derruba a classificação — fica com Haiku.
                 motivo_escalada = f"escalada_falhou:{type(exc).__name__}"
-                print(f"[classifier] escalada Sonnet falhou ({exc!r}); ficando com Haiku.")
+                logger.warning(f"[classifier] escalada Sonnet falhou ({exc!r}); ficando com Haiku.")
 
     # 3) Persistir métricas (best-effort)
     _registrar_metrica(

@@ -28,6 +28,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 ATOR_APIFY = "apify/facebook-posts-scraper"
@@ -150,7 +153,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
 
     if not url_normalizada:
-        print(f"[facebook] fonte {fonte_id} sem url — abortando")
+        logger.warning(f"[facebook] fonte {fonte_id} sem url — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -161,7 +164,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "startUrls": [{"url": url_normalizada}],
         "resultsLimit": MAX_POSTS_DEFAULT,
     }
-    print(
+    logger.info(
         f"[facebook] fonte {fonte_id} ({url_normalizada}) "
         f"data_inicio={data_inicio_iso} (filtro pós-coleta), max_posts={MAX_POSTS_DEFAULT}"
     )
@@ -169,7 +172,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     try:
         posts = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[facebook] Apify falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[facebook] Apify falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -190,12 +193,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                     stats["duplicados"] += 1
             except Exception as exc:
                 stats["erros"] += 1
-                print(
+                logger.warning(
                     f"[facebook] erro ao processar comentário da fonte {fonte_id}: "
                     f"{type(exc).__name__}: {exc}"
                 )
 
-    print(
+    logger.warning(
         f"[facebook] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

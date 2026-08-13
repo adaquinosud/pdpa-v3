@@ -24,6 +24,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 ATOR_APIFY = "agents/tripadvisor-reviews"
@@ -99,7 +102,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
 
     if not url:
-        print(f"[tripadvisor] fonte {fonte_id} sem url — abortando")
+        logger.warning(f"[tripadvisor] fonte {fonte_id} sem url — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -117,7 +120,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
     if data_inicio_iso:
         run_input["since"] = data_inicio_iso[:10]
-    print(
+    logger.info(
         f"[tripadvisor] fonte {fonte_id} ({url}) data_inicio={data_inicio_iso} "
         f"(filtro pós-coleta), max_reviews={MAX_REVIEWS_DEFAULT}"
     )
@@ -125,7 +128,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     try:
         items = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[tripadvisor] Apify falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[tripadvisor] Apify falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -154,7 +157,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 stats["duplicados"] += 1
         except Exception as exc:
             stats["erros"] += 1
-            print(
+            logger.warning(
                 f"[tripadvisor] erro ao processar review da fonte {fonte_id}: "
                 f"{type(exc).__name__}: {exc}"
             )
@@ -162,7 +165,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     # Ignorado: rating (string 'X of 5 bubbles' ou int). Pendência item 40.
     _ = re  # silenciar import não usado em runtime; mantido para parser de rating se voltar
 
-    print(
+    logger.warning(
         f"[tripadvisor] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

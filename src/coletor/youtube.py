@@ -27,6 +27,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 SEARCH_ACTOR = "streamers/youtube-scraper"
@@ -63,7 +66,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "falhou_apify": False,
     }
     if not query:
-        print(f"[youtube] fonte {fonte_id} sem url/query — abortando")
+        logger.warning(f"[youtube] fonte {fonte_id} sem url/query — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -72,7 +75,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
 
     # Passo 1: descobre vídeos da busca
     search_url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
-    print(
+    logger.info(
         f"[youtube] fonte {fonte_id} query={query!r} passo 1/2: search "
         f"data_inicio={data_inicio_iso}, max_videos={MAX_VIDEOS_DEFAULT}"
     )
@@ -87,7 +90,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
             timeout=APIFY_TIMEOUT_SECONDS,
         )
     except ApifyError as exc:
-        print(f"[youtube] search scraper falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[youtube] search scraper falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -108,11 +111,13 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         video_meta.append({"url": url, "data": v_data})
     video_meta = video_meta[:TOP_N_VIDEOS_COMMENTS]
     if not video_meta:
-        print(f"[youtube] fonte {fonte_id} sem vídeos elegíveis após filtro de data")
+        logger.info(f"[youtube] fonte {fonte_id} sem vídeos elegíveis após filtro de data")
         return stats
 
     # Passo 2: comentários dos vídeos
-    print(f"[youtube] fonte {fonte_id} passo 2/2: comments scraper ({len(video_meta)} vídeos)")
+    logger.info(
+        f"[youtube] fonte {fonte_id} passo 2/2: comments scraper ({len(video_meta)} vídeos)"
+    )
     try:
         comentarios = run_and_collect(
             COMMENTS_ACTOR,
@@ -124,7 +129,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
             timeout=APIFY_TIMEOUT_SECONDS,
         )
     except ApifyError as exc:
-        print(f"[youtube] comments scraper falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[youtube] comments scraper falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -161,12 +166,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 stats["duplicados"] += 1
         except Exception as exc:
             stats["erros"] += 1
-            print(
+            logger.warning(
                 f"[youtube] erro ao processar comentário da fonte {fonte_id}: "
                 f"{type(exc).__name__}: {exc}"
             )
 
-    print(
+    logger.warning(
         f"[youtube] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

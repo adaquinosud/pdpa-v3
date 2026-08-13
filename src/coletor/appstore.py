@@ -31,6 +31,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 PLAY_ACTOR = "agents/googleplay-reviews"
@@ -108,7 +111,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         "falhou_apify": False,
     }
     if not app_id:
-        print(f"[appstore] fonte {fonte_id} sem url/app_id — abortando")
+        logger.warning(f"[appstore] fonte {fonte_id} sem url/app_id — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -145,7 +148,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
         extrator = _extrair_review_android
         plataforma = "android"
 
-    print(
+    logger.info(
         f"[appstore] fonte {fonte_id} ({plataforma}: {app_id}) data_inicio={data_inicio_iso} "
         f"(filtro pós-coleta), max_reviews={MAX_REVIEWS_DEFAULT}"
     )
@@ -153,7 +156,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     try:
         items = run_and_collect(ator, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[appstore/{plataforma}] Apify falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[appstore/{plataforma}] Apify falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -182,12 +185,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                 stats["duplicados"] += 1
         except Exception as exc:
             stats["erros"] += 1
-            print(
+            logger.warning(
                 f"[appstore/{plataforma}] erro ao processar review da fonte {fonte_id}: "
                 f"{type(exc).__name__}: {exc}"
             )
 
-    print(
+    logger.warning(
         f"[appstore/{plataforma}] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

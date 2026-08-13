@@ -27,6 +27,9 @@ from src.temas.cruzamento import (
 )
 from src.temas.embeddings import embed_verbatins_pendentes
 from src.temas.pipeline import processar_empresa
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Corte #4: gate de material da cauda+warm. Default BAIXO (10) — DERIVADO do piso que
 # já existe em dois lugares (tema aparece em ≥10 num bucket; Proximity de subpilar em
@@ -245,7 +248,7 @@ def _classificar_pendentes_serial(
                 v.confianca = 0.0
                 v.prompt_versao = MARCADOR_FALHA_CLASSIFICACAO
                 stats["falhas"] += 1
-                print(
+                logger.warning(
                     f"[pos-coleta] verbatim={v.id} MARCADO "
                     f"{MARCADOR_FALHA_CLASSIFICACAO} (terminal, fora da fila) "
                     f"após reroll+Sonnet: {exc}"
@@ -256,7 +259,7 @@ def _classificar_pendentes_serial(
                 # subpilar=NULL para o verbatim reentrar na fila e ser
                 # reprocessado numa próxima rodada (não marca como falha um
                 # verbatim classificável só porque a rede caiu).
-                print(
+                logger.warning(
                     f"[pos-coleta] verbatim={v.id} falha NÃO-terminal "
                     f"(mantido na fila): {type(exc).__name__}: {exc}"
                 )
@@ -361,7 +364,7 @@ def _marcar_pos_coleta_status(empresa_id, status, pendencias=None, *, agora=None
             elif status in ("completo", "interrompido", "falha_sistemica"):
                 emp.pos_coleta_concluido_em = agora
     except Exception as exc:  # status é observabilidade, não pode quebrar o pipeline
-        print(f"[pos-coleta-status] empresa {empresa_id}: {type(exc).__name__}: {exc}")
+        logger.warning(f"[pos-coleta-status] empresa {empresa_id}: {type(exc).__name__}: {exc}")
 
 
 def _carregar_contexto(s, empresa_id: int) -> Dict[str, Any]:
@@ -563,9 +566,11 @@ def _passe2_serial(empresa_id, passe2, stats, ctx, chunk) -> None:
             except ValueError as exc:
                 _marcar_terminal(v)
                 stats["falhas"] += 1
-                print(f"[pos-coleta] verbatim={v.id} MARCADO {MARCADOR_FALHA_CLASSIFICACAO}: {exc}")
+                logger.warning(
+                    f"[pos-coleta] verbatim={v.id} MARCADO {MARCADOR_FALHA_CLASSIFICACAO}: {exc}"
+                )
             except Exception as exc:  # noqa: BLE001
-                print(
+                logger.warning(
                     f"[pos-coleta] verbatim={v.id} falha NÃO-terminal "
                     f"(mantido na fila): {type(exc).__name__}: {exc}"
                 )
@@ -599,7 +604,7 @@ def _passe2_batch_sonnet(client, empresa_id, passe2, stats, knobs, ctx, chunk) -
         batch_id = _submeter_batch(client, items, sonnet, empresa_id, 2, ctx)
         if not _poll_batch(client, batch_id, knobs):
             _marcar_batch_status(empresa_id, batch_id, "timeout")
-            print(f"[pos-coleta] batch Sonnet {batch_id} timeout — NULL p/ retry")
+            logger.warning(f"[pos-coleta] batch Sonnet {batch_id} timeout — NULL p/ retry")
             return
         _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, retidos, sonnet)
         _marcar_batch_status(empresa_id, batch_id, "processed")
@@ -762,7 +767,7 @@ def _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk) -> boo
             if getattr(b, "processing_status", None) != "ended":
                 # AGUARDA terminar (anti-duplo-submit) — não pula nem ressubmete.
                 if not _poll_batch(client, batch_id, knobs):
-                    print(
+                    logger.warning(
                         f"[pos-coleta] batch aberto {batch_id} ainda processando "
                         f"(poll-timeout) — NÃO submete novos (anti-duplo-submit)"
                     )
@@ -776,7 +781,7 @@ def _reatar_batches_abertos(client, empresa_id, stats, ctx, knobs, chunk) -> boo
                 _consumir_passe2_sonnet(client, batch_id, empresa_id, stats, chunk, {}, modelo)
             _marcar_batch_status(empresa_id, batch_id, "processed")
         except Exception as exc:  # noqa: BLE001
-            print(
+            logger.warning(
                 f"[pos-coleta] reatamento do batch {batch_id} falhou: "
                 f"{type(exc).__name__}: {exc} — NÃO submete novos"
             )
@@ -806,7 +811,7 @@ def _classificar_pendentes_batch(
     # outro processo já está classificando esta empresa, pula sem submeter nada.
     with _lock_empresa(empresa_id) as got_lock:
         if not got_lock:
-            print(
+            logger.info(
                 f"[pos-coleta] empresa {empresa_id}: outra execução já está "
                 f"classificando (lock) — pulando (anti-duplo-submit concorrente)"
             )
@@ -842,7 +847,7 @@ def _classificar_pendentes_batch(
                 batch_id = _submeter_batch(client, grupo, HAIKU_MODEL, empresa_id, 1, ctx)
                 if not _poll_batch(client, batch_id, knobs):
                     _marcar_batch_status(empresa_id, batch_id, "timeout")
-                    print(
+                    logger.warning(
                         f"[pos-coleta] batch Haiku {batch_id} timeout "
                         f"({knobs['timeout_s']}s) — batch_id persistido, NULL p/ retry"
                     )
@@ -850,7 +855,7 @@ def _classificar_pendentes_batch(
                 _consumir_passe1(client, batch_id, empresa_id, stats, passe2, ctx, chunk)
                 _marcar_batch_status(empresa_id, batch_id, "processed")
             except Exception as exc:  # noqa: BLE001
-                print(
+                logger.warning(
                     f"[pos-coleta] batch Haiku falhou: {type(exc).__name__}: {exc} — NULL p/ retry"
                 )
                 return stats
@@ -883,7 +888,9 @@ def _classificar_casos_ra(empresa_id: int) -> Dict[str, int]:
         try:
             d = gerar_desfecho_pendentes(fid)
         except Exception as exc:  # não aborta o pós-coleta (temas/diagnóstico já feitos)
-            print(f"[pos_coleta] desfecho RA fonte {fid} falhou: {type(exc).__name__}: {exc}")
+            logger.warning(
+                f"[pos_coleta] desfecho RA fonte {fid} falhou: {type(exc).__name__}: {exc}"
+            )
             continue
         tin += d["in"]
         tout += d["out"]
@@ -1074,7 +1081,7 @@ def executar_pos_coleta(
             custo += ti_ / 1e6 * 3.0 + to_ / 1e6 * 15.0
         except Exception as exc:  # noqa: BLE001
             r.relatorios_falhas += 1
-            print(f"[pos-coleta] relatorio {_fn.__module__}: {type(exc).__name__}: {exc}")
+            logger.warning(f"[pos-coleta] relatorio {_fn.__module__}: {type(exc).__name__}: {exc}")
 
     # ── Leitura editorial das anomalias (Bloco 8 / PA.5): gera SÓ o delta
     # (apenas_sem_leitura → IS NULL; a detecção preserva a leitura já paga das
@@ -1091,7 +1098,7 @@ def executar_pos_coleta(
         r.anomalias_leituras_falhas = ml["falhas"]
         custo += ml["in"] / 1e6 * 3.0 + ml["out"] / 1e6 * 15.0
     except Exception as exc:  # noqa: BLE001
-        print(f"[pos-coleta] leituras anomalias: {type(exc).__name__}: {exc}")
+        logger.warning(f"[pos-coleta] leituras anomalias: {type(exc).__name__}: {exc}")
 
     r.custo_estimado_usd = round(custo, 4)
     # Chegou ao fim = 'completo' — SALVO falha sistêmica da rotulagem (LLM caiu na

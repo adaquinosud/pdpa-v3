@@ -18,6 +18,9 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "extracao_temas_v1.md"
@@ -119,10 +122,10 @@ def extrair_temas(
         except json.JSONDecodeError:
             data = _reparar_json_truncado(cleaned)
             if data is None:
-                print(f"[temas/extrator] resposta não-parseável: {raw[:200]!r}")
+                logger.info(f"[temas/extrator] resposta não-parseável: {raw[:200]!r}")
                 return []
     except Exception as exc:  # noqa: BLE001
-        print(f"[temas/extrator] falha LLM: {type(exc).__name__}: {exc}")
+        logger.warning(f"[temas/extrator] falha LLM: {type(exc).__name__}: {exc}")
         return []
 
     temas_brutos = data.get("temas") if isinstance(data, dict) else None

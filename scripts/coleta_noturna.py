@@ -294,6 +294,9 @@ def main(empresa: Union[int, str]) -> None:
 
 
 if __name__ == "__main__":
+    from src.utils.logging_config import configure_logging
+
+    configure_logging()  # crons standalone não passam por create_app; loga com formato central
     parser = argparse.ArgumentParser(description="Coleta noturna por empresa (CP-#2).")
     parser.add_argument(
         "--empresa",

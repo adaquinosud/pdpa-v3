@@ -34,6 +34,9 @@ from src.coletor.apify import ApifyError, run_and_collect
 from src.coletor.incremental import calcular_data_inicio_coleta
 from src.coletor.pipeline import processar_verbatim_coletado
 from src.models.fonte import Fonte
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── Constantes ───────────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
 
     if not username:
-        print(f"[instagram] fonte {fonte_id} sem url/username — abortando")
+        logger.warning(f"[instagram] fonte {fonte_id} sem url/username — abortando")
         stats["falhou_apify"] = True
         return stats
 
@@ -173,7 +176,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     }
     if data_inicio:  # guard defensivo: calcular_data_inicio_coleta sempre devolve data
         run_input["onlyPostsNewerThan"] = data_inicio
-    print(
+    logger.info(
         f"[instagram] fonte {fonte_id} (@{username}) onlyPostsNewerThan={data_inicio}, "
         f"max_posts={MAX_POSTS_DEFAULT}, max_comments_per_post={MAX_COMMENTS_PER_POST}"
     )
@@ -181,7 +184,7 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
     try:
         posts = run_and_collect(ATOR_APIFY, run_input, timeout=APIFY_TIMEOUT_SECONDS)
     except ApifyError as exc:
-        print(f"[instagram] Apify falhou para fonte {fonte_id}: {exc}")
+        logger.warning(f"[instagram] Apify falhou para fonte {fonte_id}: {exc}")
         stats["falhou_apify"] = True
         return stats
 
@@ -202,12 +205,12 @@ def coletar(fonte: Fonte) -> Dict[str, Any]:
                     stats["duplicados"] += 1
             except Exception as exc:
                 stats["erros"] += 1
-                print(
+                logger.warning(
                     f"[instagram] erro ao processar comentário da fonte {fonte_id}: "
                     f"{type(exc).__name__}: {exc}"
                 )
 
-    print(
+    logger.warning(
         f"[instagram] fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['novos']} duplicados={stats['duplicados']} "
         f"erros={stats['erros']} falhou_apify={stats['falhou_apify']}"

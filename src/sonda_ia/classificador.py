@@ -26,6 +26,9 @@ from src.models.sonda_ia import (
     SondaIAResposta,
 )
 from src.utils.db import db_session
+import logging
+
+logger = logging.getLogger(__name__)
 
 AVALIACAO_PROMPT = Path(__file__).parent / "prompts" / "avaliacao_pdpa_v1.md"
 LEITURA_PROMPT = Path(__file__).parent / "prompts" / "leitura_ia_v1.md"
@@ -138,7 +141,7 @@ def classificar_avaliacoes(
                 data = gerar({"texto": r.resposta_texto})
             except Exception as exc:  # uma resposta ruim não derruba o lote
                 stats["erros"] += 1
-                print(f"[sonda_avaliacao] resposta {r.id}: {type(exc).__name__}: {exc}")
+                logger.warning(f"[sonda_avaliacao] resposta {r.id}: {type(exc).__name__}: {exc}")
                 continue
             for p in data.get("pontos") or []:
                 sub, tipo = p.get("subpilar"), p.get("tipo")

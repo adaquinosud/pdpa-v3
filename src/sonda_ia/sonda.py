@@ -16,6 +16,9 @@ from typing import Any, Callable, Dict, Optional
 from src.models.sonda_ia import SondaIAExecucao, SondaIAResposta
 from src.sonda_ia.adapters import ADAPTERS, PRECO
 from src.utils.db import db_session
+import logging
+
+logger = logging.getLogger(__name__)
 
 # As 3 sondas com foco na empresa (a 4ª — defasagem — é análise, vem no G4).
 PERGUNTAS = {
@@ -100,7 +103,7 @@ def sondar_empresa(
                         r = caller(prompt)
                     except Exception as exc:
                         stats["erros"] += 1
-                        print(
+                        logger.info(
                             f"[sonda_ia] {vendor}/{pergunta_tipo}#{rep}: "
                             f"{type(exc).__name__}: {exc}"
                         )
@@ -191,6 +194,6 @@ def rodar_sonda_mensal(
                 )
         except Exception as exc:
             stats["erros"] += 1
-            print(f"[sonda_ia] empresa {eid}: {type(exc).__name__}: {exc}")
+            logger.warning(f"[sonda_ia] empresa {eid}: {type(exc).__name__}: {exc}")
     stats["custo_usd"] = round(stats["custo_usd"], 4)
     return stats

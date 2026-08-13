@@ -18,6 +18,9 @@ from typing import Any, Callable, Dict, Optional
 
 from src.models.caso import Caso
 from src.utils.db import db_session
+import logging
+
+logger = logging.getLogger(__name__)
 
 DESFECHO_PROMPT_PATH = Path(__file__).parent / "prompts" / "caso_desfecho_v1.md"
 VERSAO_LLM = "caso-desfecho-llm-v1"
@@ -105,7 +108,7 @@ def gerar_desfecho_pendentes(
                 r = classificar_caso(caso, gerar_fn=gerar_fn)
             except Exception as exc:  # um caso ruim não derruba o lote (nem faz rollback)
                 stats["erros"] += 1
-                print(f"[caso_desfecho] caso {caso.id}: {type(exc).__name__}: {exc}")
+                logger.warning(f"[caso_desfecho] caso {caso.id}: {type(exc).__name__}: {exc}")
                 continue
             caso.desfecho = r["desfecho"]
             caso.causa_resolvida = r["causa_resolvida"]

@@ -20,6 +20,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.temas.cruzamento import _subpilar_tipo
+import logging
+
+logger = logging.getLogger(__name__)
 
 SONNET_MODEL = "claude-sonnet-4-6"
 ACAO_PROMPT_PATH = Path(__file__).parent / "prompts" / "acao_venda_v1.md"
@@ -196,7 +199,7 @@ def _gerar_acao_llm(
         impacto = (data.get("impacto_qualitativo") or "").strip().lower()
         return acao, impacto, data.get("justificativa"), data.get("pressupostos"), it, ot
     except Exception as exc:  # noqa: BLE001
-        print(f"[temas/acao] geração falhou: {type(exc).__name__}: {exc}")
+        logger.warning(f"[temas/acao] geração falhou: {type(exc).__name__}: {exc}")
         return None, "", None, None, 0, 0
 
 

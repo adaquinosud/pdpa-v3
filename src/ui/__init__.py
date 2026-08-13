@@ -2869,7 +2869,15 @@ def htmx_excluir_verbatim(verbatim_id: int):
 
 
 def _check_acesso(empresa_id: int):
-    """Para endpoints HTMX: devolve None ou tupla (fragment, status)."""
+    """Gate de AUTORIZAÇÃO POR-EMPRESA para endpoints HTMX (NÃO é dead-code).
+
+    Distinto do ``@loyall_required_ui`` (que gateia "é admin Loyall"): este garante
+    que um CLIENTE só acessa a PRÓPRIA empresa (``user.empresa_id != empresa_id`` →
+    403). É **load-bearing** nas rotas cliente-acessíveis — ``htmx_verbatim_detalhes``
+    e ``htmx_reclassificar_modal`` NÃO têm ``@loyall_required_ui``, então aqui é o
+    ÚNICO gate; removê-lo vazaria dado de outra empresa. Nas rotas loyall-only ele é
+    redundante (loyall passa direto), mas mantido por consistência/defesa-em-profundidade.
+    Devolve ``None`` (ok) ou tupla ``(fragment, status)``."""
     user = get_current_user()
     if user is None:
         return ("<div class='text-red-600'>Sessão expirada.</div>", 401)

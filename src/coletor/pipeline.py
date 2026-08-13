@@ -42,6 +42,9 @@ from typing import Optional
 from src.models.fonte import Fonte
 from src.models.verbatim import Verbatim
 from src.utils.db import db_session
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 MIN_CHARS_PARA_PROCESSAR = 3
@@ -238,7 +241,7 @@ def processar_verbatim_coletado(
                 .first()
             )
             if legacy is not None:
-                print(
+                logger.info(
                     f"[pipeline] cleanup retroativo: verbatim legacy "
                     f"id={legacy.id} fonte={fonte_id} removido em favor de "
                     f"id={verbatim.id} (reviewId={review_id_externo})"

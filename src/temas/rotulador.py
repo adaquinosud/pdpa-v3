@@ -17,6 +17,9 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 100
@@ -161,7 +164,9 @@ def rotular_cluster(
             messages=[{"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)}],
         )
     except Exception as exc:  # noqa: BLE001 — INFRA: a chamada em si falhou
-        print(f"[temas/rotulador] falha de chamada LLM (infra): {type(exc).__name__}: {exc}")
+        logger.warning(
+            f"[temas/rotulador] falha de chamada LLM (infra): {type(exc).__name__}: {exc}"
+        )
         raise RotulagemInfraError(str(exc)) from exc
 
     # Resposta recebida — parse. Malformado = descarte limpo (não é infra; família do
@@ -172,7 +177,7 @@ def rotular_cluster(
     try:
         data = _parse_label_json(raw)
     except json.JSONDecodeError:
-        print(f"[temas/rotulador] JSON inválido: {raw[:200]!r}")
+        logger.warning(f"[temas/rotulador] JSON inválido: {raw[:200]!r}")
         return None
 
     nome = data.get("nome") if isinstance(data, dict) else None

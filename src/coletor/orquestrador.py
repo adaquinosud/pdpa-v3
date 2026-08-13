@@ -11,6 +11,9 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 COOLDOWN_MINUTOS = 15
 
@@ -158,7 +161,9 @@ def re_marca_orfas(limite_segundos: int = REAPER_LIMITE_SEGUNDOS) -> int:
             )
         )
     if n:
-        print(f"[reaper] {n} órfã(s) 'rodando' > {limite_segundos // 60}min → marcadas erro")
+        logger.warning(
+            f"[reaper] {n} órfã(s) 'rodando' > {limite_segundos // 60}min → marcadas erro"
+        )
     return n
 
 
@@ -234,7 +239,7 @@ def _rodar_async(fn, *, app=None, label: str) -> bool:
             try:
                 fn()
             except Exception as exc:  # noqa: BLE001
-                print(f"[async:{label}] {type(exc).__name__}: {exc}")
+                logger.warning(f"[async:{label}] {type(exc).__name__}: {exc}")
 
     threading.Thread(target=_runner, daemon=True, name=label).start()
     return True
@@ -354,7 +359,7 @@ def _coletar_fonte_direto(fonte_id: int, *, coletor_override=None) -> Dict[str, 
         stats = _executar_com_timeout(coletor_fn, fonte, TIMEOUT_FONTE_SEGUNDOS)
     except TimeoutFonte as exc:
         mins = TIMEOUT_FONTE_SEGUNDOS // 60
-        print(
+        logger.warning(
             f"[coleta] fonte {fonte_id} timeout {mins}min — pulada, thread órfã em bg "
             f"(Apify pode seguir rodando)"
         )
