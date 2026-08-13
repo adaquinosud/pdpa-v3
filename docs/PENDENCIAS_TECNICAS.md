@@ -22,8 +22,11 @@
   → ele é o ÚNICO gate; removê-lo vazaria dado de outra empresa). Nos outros 17 callers é redundante
   (loyall passa direto) mas inofensivo. NÃO remover. Docstring esclarecido em vez de deletar.
 - **Pipeline:** detecção de **falha sistêmica de bucket** ✅ RESOLVIDO (ver abaixo).
-- **Auto-deploy do Render inconsistente** — vários commits precisaram Manual Deploy;
-  investigar o gatilho.
+- **Auto-deploy do Render** — ✅ parece RESOLVIDO/intermitente (evidência 2026-08-13):
+  na sessão de ~15 FF-merges seguidos para `main`, **TODOS auto-deployaram sozinhos** (o
+  `/healthz` virou o SHA novo em 1-7 sondagens, sem Manual Deploy). O "precisava Manual
+  Deploy" de antes era intermitente ou já se corrigiu. **Não perseguir** sem uma falha nova
+  reproduzível; se voltar, aí sim investigar o gatilho (webhook GitHub→Render).
 - **`seed_exemplo` não idempotente** (quebra re-run; trava CI/dev compartilhado).
 - **Testes não cobrem JS** — o re-init HTMX do CP-UX2 (export/leitura/anomalias) só é
   verificável no browser; risco de regressão silenciosa.
