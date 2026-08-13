@@ -57,6 +57,8 @@ class ResumoPosColeta:
     classif_falhas: int = 0
     embeddings_gerados: int = 0
     clusters_rotulados: int = 0
+    falha_sistemica: bool = False  # rotulagem caiu na rodada (LLM infra) → 0 temas ≠ realidade
+    falha_sistemica_motivo: Optional[str] = None
     cruz_literais: int = 0
     cruz_semanticos: int = 0
     acoes: int = 0
@@ -328,12 +330,13 @@ def _lock_empresa(empresa_id: int):
             conn.close()
 
 
-def _marcar_pos_coleta_status(empresa_id, status, pendencias=None, *, agora=None):
+def _marcar_pos_coleta_status(empresa_id, status, pendencias=None, *, agora=None, motivo=None):
     """Persiste o estado do pós-coleta na empresa (p/ o watchdog + banner admin).
 
-    ``rodando`` grava ``iniciado_em``; ``completo``/``interrompido`` gravam
-    ``concluido_em``. Sempre atualiza o snapshot de pendências. Best-effort: nunca
-    derruba o pós-coleta se a escrita de status falhar."""
+    ``rodando`` grava ``iniciado_em``; ``completo``/``interrompido``/``falha_sistemica``
+    gravam ``concluido_em``. ``motivo`` (falha_sistemica) vai no snapshot de pendências
+    (`falha_sistemica_motivo`), sem coluna nova. Sempre atualiza o snapshot. Best-effort:
+    nunca derruba o pós-coleta se a escrita de status falhar."""
     import json as _json
     from datetime import datetime as _dt
 
@@ -347,11 +350,15 @@ def _marcar_pos_coleta_status(empresa_id, status, pendencias=None, *, agora=None
             if emp is None:
                 return
             emp.pos_coleta_status = status
-            if pendencias is not None:
-                emp.pos_coleta_pendencias_json = _json.dumps(pendencias, ensure_ascii=False)
+            pend = dict(pendencias) if pendencias is not None else None
+            if motivo is not None:
+                pend = pend or {}
+                pend["falha_sistemica_motivo"] = motivo
+            if pend is not None:
+                emp.pos_coleta_pendencias_json = _json.dumps(pend, ensure_ascii=False)
             if status == "rodando":
                 emp.pos_coleta_iniciado_em = agora
-            elif status in ("completo", "interrompido"):
+            elif status in ("completo", "interrompido", "falha_sistemica"):
                 emp.pos_coleta_concluido_em = agora
     except Exception as exc:  # status é observabilidade, não pode quebrar o pipeline
         print(f"[pos-coleta-status] empresa {empresa_id}: {type(exc).__name__}: {exc}")
@@ -948,6 +955,8 @@ def executar_pos_coleta(
         empresa_id, callback_progresso=callback_progresso, aplicar_janela=aplicar_janela
     )
     r.clusters_rotulados = rp.clusters_rotulados
+    r.falha_sistemica = rp.falha_sistemica
+    r.falha_sistemica_motivo = rp.falha_sistemica_motivo
 
     rl = detectar_e_persistir_literais(empresa_id)
     r.cruz_literais = rl.cruzamentos_criados
@@ -1085,9 +1094,16 @@ def executar_pos_coleta(
         print(f"[pos-coleta] leituras anomalias: {type(exc).__name__}: {exc}")
 
     r.custo_estimado_usd = round(custo, 4)
-    # Chegou ao fim = 'completo'. Se o processo morre antes daqui (redeploy), o
-    # status fica 'rodando' e o watchdog o detecta como interrompido.
+    # Chegou ao fim = 'completo' — SALVO falha sistêmica da rotulagem (LLM caiu na
+    # rodada): aí o status é 'falha_sistemica' (o dado se auto-corrige na próxima coleta,
+    # mas o operador precisa saber que o "0 temas" de hoje é infra, não realidade). Se o
+    # processo morre antes daqui (redeploy), fica 'rodando' e o watchdog trata.
     from src.temas.watchdog import pendencias_pos_coleta as _pend
 
-    _marcar_pos_coleta_status(empresa_id, "completo", _pend(empresa_id))
+    if r.falha_sistemica:
+        _marcar_pos_coleta_status(
+            empresa_id, "falha_sistemica", _pend(empresa_id), motivo=r.falha_sistemica_motivo
+        )
+    else:
+        _marcar_pos_coleta_status(empresa_id, "completo", _pend(empresa_id))
     return r

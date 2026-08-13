@@ -424,6 +424,15 @@ reclassificado por `reclassificado_em`), não a série inteira — sem lock cres
 ⚠️ **`ratio` = P/D** (conversível FORA, por método); **`total` = volume** (P+C+D) — denominadores
 diferentes de propósito, `total` **não** é a base do `ratio`.
 
+**Guard de falha sistêmica (pós-coleta).** Se a rotulagem dos temas (Haiku) cai na rodada inteira — API
+fora, rate-limit —, antes o pós-coleta "completava" com **0 temas** como se fosse a realidade do dado. Agora
+o rotulador distingue **falha-de-chamada** (a chamada levantou = infra) de **descarte-limpo** (respondeu sem
+label = dado); se **mais da metade** das chamadas de rotulagem falham na rodada (**e** ≥5, pra rodada pequena
+não gritar por azar transiente), a empresa fica com `pos_coleta_status='falha_sistemica'` e aparece no **painel
+de falhas do Monitoramento** com selo próprio **"pós-coleta"** (distinto da falha de coleta/Apify). Não aborta
+(os buckets que deram certo ficam; o dado se auto-corrige na próxima coleta, pois temas re-clusteriza a janela);
+só **sinaliza** pro operador saber que o "0 temas" é infra, não realidade.
+
 **Os 3 tipos de anomalia** (todos implementados):
 - **Indicador** — um **loja × subpilar** fora da curva (ex.: "Loja Park, em Qualidade, está mal"). É o
   sinal de negócio puro (ratio anômalo).

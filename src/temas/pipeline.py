@@ -33,13 +33,23 @@ from src.temas.clusterer import (
     pick_representativos,
 )
 from src.temas.embeddings import MODELO_PADRAO, carregar_embeddings
-from src.temas.rotulador import REPS_PARA_ROTULAGEM, rotular_cluster
+from src.temas.rotulador import REPS_PARA_ROTULAGEM, RotulagemInfraError, rotular_cluster
 from src.temas.slug import slugify
 
 # Custo Haiku por rotulagem (1 chamada por cluster): system+payload pequeno,
 # saída <100 tokens. Estimativa: $0.0005/chamada (alinhado a CUSTO_USD_POR_VERBATIM
 # de extrator legado, conservador pra cima).
 CUSTO_USD_POR_ROTULAGEM = 0.0005
+
+# Guard de falha sistêmica do pipeline: a rotulagem (Haiku) caiu na rodada inteira e
+# 0 temas saíram — hoje isso passava como "sucesso, 0 temas". Dispara quando a fração
+# de chamadas de rotulagem que FALHARAM (infra, não descarte) passa de 50% E há volume
+# mínimo. 50% = mais da metade falhou é evidência por si (não precisa justificar 30×25);
+# o sinal é bimodal (infra saudável ~0%, caída ~100%), não uma distribuição a calibrar.
+# Piso 5 = rodada pequena (3 clusters, 3 falhas) NÃO acusa — poderia ser transiente;
+# fica sem hash e re-tenta na próxima coleta (falso-negativo barato, falso-positivo caro).
+TAXA_FALHA_SISTEMICA = 0.5
+PISO_FALHA_CHAMADA = 5
 
 
 @dataclass
@@ -50,7 +60,11 @@ class ResumoPipeline:
     buckets_pulados: int = 0  # bucket pequeno < MIN
     buckets_sem_embeddings: int = 0  # esquecimento de rodar temas-embed
     clusters_rotulados: int = 0
-    clusters_descartados: int = 0  # rotulador devolveu None
+    clusters_descartados: int = 0  # rotulador devolveu None (descarte LIMPO)
+    clusters_tentados: int = 0  # chamadas de rotulagem (rotulados + descartados + falha)
+    falhas_chamada: int = 0  # RotulagemInfraError — a CHAMADA ao LLM levantou (infra)
+    falha_sistemica: bool = False  # muitas falhas de chamada → LLM caído na rodada
+    falha_sistemica_motivo: Optional[str] = None
     temas_unicos_criados: int = 0  # novos rows em temas
     temas_reusados: int = 0  # slug já existia
     vinculos_criados: int = 0
@@ -319,6 +333,8 @@ def _processar_bucket(
         "clusters_total": 0,
         "clusters_rotulados": 0,
         "clusters_descartados": 0,
+        "clusters_tentados": 0,
+        "falhas_chamada": 0,
         "vinculos_criados": 0,
         "temas_novos": 0,
         "temas_reusados": 0,
@@ -369,15 +385,22 @@ def _processar_bucket(
             for i in rep_pos
         ]
 
-        label = rotular_cluster(
-            {
-                "subpilar": sub,
-                "tipo": tipo,
-                "setor": setor,
-                "agrupamento": ag_nome,
-            },
-            reps_dados,
-        )
+        stats["clusters_tentados"] += 1
+        try:
+            label = rotular_cluster(
+                {
+                    "subpilar": sub,
+                    "tipo": tipo,
+                    "setor": setor,
+                    "agrupamento": ag_nome,
+                },
+                reps_dados,
+            )
+        except RotulagemInfraError:
+            # A CHAMADA falhou (infra) — NÃO grava nada (o bucket volta na próxima
+            # coleta, pois temas re-clusteriza a janela) e conta pro guard sistêmico.
+            stats["falhas_chamada"] += 1
+            continue
         stats["custo_usd"] = round(stats["custo_usd"] + CUSTO_USD_POR_ROTULAGEM, 6)
         if not label:
             stats["clusters_descartados"] += 1
@@ -506,6 +529,8 @@ def processar_empresa(
             resumo.detalhes_buckets.append(stats)
             resumo.clusters_rotulados += stats["clusters_rotulados"]
             resumo.clusters_descartados += stats["clusters_descartados"]
+            resumo.clusters_tentados += stats["clusters_tentados"]
+            resumo.falhas_chamada += stats["falhas_chamada"]
             resumo.temas_unicos_criados += stats["temas_novos"]
             resumo.temas_reusados += stats["temas_reusados"]
             resumo.vinculos_criados += stats["vinculos_criados"]
@@ -519,4 +544,26 @@ def processar_empresa(
             # Libera o pico do bucket antes do próximo (não acumula entre buckets).
             del embeddings
 
+    # Guard de falha sistêmica: a rotulagem caiu na rodada (LLM infra). Nível de RODADA.
+    resumo.falha_sistemica, resumo.falha_sistemica_motivo = _avaliar_falha_sistemica(
+        resumo.falhas_chamada, resumo.clusters_tentados
+    )
     return resumo
+
+
+def _avaliar_falha_sistemica(falhas_chamada: int, clusters_tentados: int):
+    """Decide se a rodada foi falha sistêmica de rotulagem. RODADA (não bucket) + piso
+    absoluto → rodada pequena com azar transiente NÃO acusa. Devolve ``(bool, motivo)``.
+
+    Dispara sse ``falhas_chamada >= PISO`` E fração ``> TAXA``. Puro/testável."""
+    if (
+        falhas_chamada >= PISO_FALHA_CHAMADA
+        and clusters_tentados > 0
+        and falhas_chamada / clusters_tentados > TAXA_FALHA_SISTEMICA
+    ):
+        pct = round(100.0 * falhas_chamada / clusters_tentados)
+        return True, (
+            f"rotulagem: {falhas_chamada} de {clusters_tentados} chamadas falharam "
+            f"({pct}%) — provável indisponibilidade do LLM"
+        )
+    return False, None

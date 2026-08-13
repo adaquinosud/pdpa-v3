@@ -32,6 +32,12 @@ REPS_PARA_ROTULAGEM = 8
 _prompt_cache: Dict[str, str] = {}
 
 
+class RotulagemInfraError(Exception):
+    """A CHAMADA ao LLM falhou (rede / rate-limit / timeout / API down) — infra, não
+    dado. Distinta de ``None`` (resposta recebida sem label válido = descarte limpo).
+    O pipeline conta estas por rodada para detectar falha sistêmica (LLM caído)."""
+
+
 def _carregar_prompt(prompt_path: Optional[Path] = None) -> str:
     key = str(prompt_path or PROMPT_PATH)
     if key not in _prompt_cache:
@@ -94,11 +100,15 @@ def rotular_cluster(
         prompt_path: opcional. Se passado, sobrescreve o default.
 
     Returns:
-        Label canônica (string normalizada) ou ``None`` se:
+        Label canônica (string normalizada) ou ``None`` (descarte LIMPO) se:
             - cluster não tem representativos
             - LLM devolveu ``{"nome": null}``
-            - LLM falhou (rede / JSON inválido) → caller decide se descarta o cluster
+            - JSON inválido (resposta recebida mas malformada)
             - label vazia após normalização
+
+    Raises:
+        RotulagemInfraError: a CHAMADA ao LLM falhou (infra). O caller (pipeline)
+            conta estas por rodada — falha sistêmica ≠ descarte de dado.
     """
     if not representativos:
         return None
@@ -128,6 +138,11 @@ def rotular_cluster(
 
     user_payload = {"bucket": bucket_payload, "representativos": reps_payload}
 
+    # A CHAMADA à API (infra) é separada do PARSE (conteúdo). Distinção que o guard
+    # de falha sistêmica precisa: chamada levantou (rede/rate-limit/timeout/API down)
+    # = infra → RotulagemInfraError; resposta recebida mas malformada / {"nome": null}
+    # = descarte LIMPO → None. Colapsar os dois (o `return None` antigo) cegava o
+    # pipeline pra uma queda do LLM na rodada inteira.
     try:
         client = _get_client()
         resposta = client.messages.create(
@@ -145,15 +160,19 @@ def rotular_cluster(
             ],
             messages=[{"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)}],
         )
-        raw = "".join(
-            block.text for block in resposta.content if getattr(block, "type", None) == "text"
-        )
+    except Exception as exc:  # noqa: BLE001 — INFRA: a chamada em si falhou
+        print(f"[temas/rotulador] falha de chamada LLM (infra): {type(exc).__name__}: {exc}")
+        raise RotulagemInfraError(str(exc)) from exc
+
+    # Resposta recebida — parse. Malformado = descarte limpo (não é infra; família do
+    # parse do classificador, ~0,73%).
+    raw = "".join(
+        block.text for block in resposta.content if getattr(block, "type", None) == "text"
+    )
+    try:
         data = _parse_label_json(raw)
     except json.JSONDecodeError:
         print(f"[temas/rotulador] JSON inválido: {raw[:200]!r}")
-        return None
-    except Exception as exc:  # noqa: BLE001
-        print(f"[temas/rotulador] falha LLM: {type(exc).__name__}: {exc}")
         return None
 
     nome = data.get("nome") if isinstance(data, dict) else None

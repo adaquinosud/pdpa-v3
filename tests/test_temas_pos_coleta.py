@@ -168,7 +168,12 @@ def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypat
     monkeypatch.setattr(
         "src.temas.pos_coleta.processar_empresa",
         lambda eid, **k: chamadas.append("pipeline")
-        or SimpleNamespace(clusters_rotulados=3, custo_usd_acumulado=0.01),
+        or SimpleNamespace(
+            clusters_rotulados=3,
+            custo_usd_acumulado=0.01,
+            falha_sistemica=False,
+            falha_sistemica_motivo=None,
+        ),
     )
     monkeypatch.setattr(
         "src.temas.pos_coleta.detectar_e_persistir_literais",
@@ -211,7 +216,12 @@ def test_executar_passa_limite_para_classificar(client_loyall, db_session, monke
     )
     monkeypatch.setattr(
         "src.temas.pos_coleta.processar_empresa",
-        lambda eid, **k: SimpleNamespace(clusters_rotulados=0, custo_usd_acumulado=0.0),
+        lambda eid, **k: SimpleNamespace(
+            clusters_rotulados=0,
+            custo_usd_acumulado=0.0,
+            falha_sistemica=False,
+            falha_sistemica_motivo=None,
+        ),
     )
     monkeypatch.setattr(
         "src.temas.pos_coleta.detectar_e_persistir_literais",

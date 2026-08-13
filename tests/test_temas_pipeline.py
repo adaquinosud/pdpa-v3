@@ -2,7 +2,45 @@
 
 from __future__ import annotations
 
-from src.temas.pipeline import _agregar_cache_por_label
+from src.temas.pipeline import (
+    PISO_FALHA_CHAMADA,
+    TAXA_FALHA_SISTEMICA,
+    _agregar_cache_por_label,
+    _avaliar_falha_sistemica,
+)
+
+
+# ── Guard de falha sistêmica de rotulagem (frente falha-sistemica-bucket) ──────
+def test_falha_sistemica_dispara_com_volume_e_taxa_alta():
+    """LLM caído na rodada: muitas chamadas falharam (>50%) E acima do piso → acusa."""
+    ok, motivo = _avaliar_falha_sistemica(falhas_chamada=180, clusters_tentados=200)
+    assert ok is True
+    assert "180 de 200" in motivo and "90%" in motivo
+
+
+def test_falha_sistemica_nao_dispara_com_descarte_limpo():
+    """Descarte legítimo (null-limpo) NÃO conta como falha_chamada → 0 falhas → não acusa.
+    Rodada saudável: 200 clusters tentados, 0 falhas de CHAMADA (todos rotularam ou
+    descartaram limpo)."""
+    ok, motivo = _avaliar_falha_sistemica(falhas_chamada=0, clusters_tentados=200)
+    assert ok is False and motivo is None
+
+
+def test_falha_sistemica_nao_dispara_bucket_pequeno_abaixo_do_piso():
+    """Rodada pequena (3 clusters, 3 falhas = 100%) NÃO acusa — abaixo do piso de 5,
+    pode ser azar transiente; fica sem hash e re-tenta na próxima coleta."""
+    ok, _ = _avaliar_falha_sistemica(falhas_chamada=3, clusters_tentados=3)
+    assert ok is False
+    # e no piso exato com taxa > 50% → acusa
+    assert PISO_FALHA_CHAMADA == 5 and TAXA_FALHA_SISTEMICA == 0.5
+    ok2, _ = _avaliar_falha_sistemica(falhas_chamada=5, clusters_tentados=6)  # 83% e >= piso
+    assert ok2 is True
+
+
+def test_falha_sistemica_borda_exatamente_50pct_nao_dispara():
+    """Exatamente 50% NÃO dispara (corte é > 50%, estrito): 5 de 10."""
+    ok, _ = _avaliar_falha_sistemica(falhas_chamada=5, clusters_tentados=10)
+    assert ok is False
 
 
 def test_agregar_soma_volumes_de_clusters_com_mesmo_label():

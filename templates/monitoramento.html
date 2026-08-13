@@ -18,17 +18,24 @@
    por empresa (o sistêmico não vira centenas de linhas). Drill → tabela filtrada. #}
 <div class="mb-3 border rounded p-3 {% if falhas_empresas %}border-amber-300 bg-amber-50{% else %}border-loyall-200 bg-white{% endif %}">
   <div class="text-sm font-semibold {% if falhas_empresas %}text-amber-800{% else %}text-loyall-700{% endif %}">
-    Coletas com falha · últimos {{ falhas_dias }} dias ({{ falhas_total }})
+    Falhas (coleta e pós-coleta) · últimos {{ falhas_dias }} dias ({{ falhas_total }})
   </div>
   {% if falhas_empresas %}
   <div class="mt-2 space-y-1 text-xs">
     {% for e in falhas_empresas %}
     <div class="flex items-center gap-2 flex-wrap">
       <span class="font-medium text-loyall-800">{{ e.nome }}</span>
+      {% if e.tipo == 'pos_coleta' %}
+      {# Falha do pipeline (rotulagem LLM), NÃO do Apify — selo distinto pra não confundir. #}
+      <span class="text-[10px] uppercase px-1 py-0.5 rounded bg-rose-100 text-rose-700">pós-coleta</span>
+      <span class="text-loyall-400">· {% if e.ultima %}{{ e.ultima.strftime('%d/%m') }}{% endif %} · "{{ e.motivo }}"</span>
+      {% else %}
+      <span class="text-[10px] uppercase px-1 py-0.5 rounded bg-amber-100 text-amber-700">coleta</span>
       <span class="text-amber-700">{{ e.n }} falha{{ 's' if e.n != 1 }}</span>
       <span class="text-loyall-400">· última {% if e.ultima %}{{ e.ultima.strftime('%d/%m') }}{% endif %} · "{{ e.motivo }}"</span>
       <a href="{{ url_for('ui.monitoramento') }}?status=erro&amp;empresa_id={{ e.empresa_id }}&amp;desde={{ falhas_desde }}"
          class="text-loyall-600 hover:underline">ver</a>
+      {% endif %}
     </div>
     {% endfor %}
   </div>

@@ -138,8 +138,34 @@ def test_monitoramento_painel_render(client_loyall, db_session):
     _exe(db_session, e, f, "erro", dias=1, motivo="Apify falhou")
     db_session.commit()
     body = client_loyall.get("/monitoramento").get_data(as_text=True)
-    assert "Coletas com falha · últimos 14 dias (1)" in body
+    assert "Falhas (coleta e pós-coleta) · últimos 14 dias (1)" in body
     assert "PainelX" in body and "1 falha" in body
+
+
+def test_falhas_por_empresa_inclui_pos_coleta_como_2o_source(db_session):
+    """Falha SISTÊMICA do pós-coleta (pos_coleta_status='falha_sistemica') entra no
+    rollup como linha PRÓPRIA, tipo='pos_coleta' — distinta da falha de coleta (Apify).
+    Frente falha-sistemica-bucket."""
+    import json
+
+    ea = _emp(db_session, "EmpColeta")
+    fa = _fonte(db_session, ea, conector="google")
+    _exe(db_session, ea, fa, "erro", dias=1, motivo="Apify falhou")
+    eb = _emp(db_session, "EmpPipeline")
+    eb.pos_coleta_status = "falha_sistemica"
+    eb.pos_coleta_concluido_em = datetime.utcnow() - timedelta(days=1)
+    eb.pos_coleta_pendencias_json = json.dumps(
+        {"falha_sistemica_motivo": "rotulagem: 40 de 42 chamadas falharam (95%)"}
+    )
+    db_session.commit()
+
+    lista, total = ui._falhas_por_empresa(dias=14)
+    assert total == 2
+    tipos = {x["nome"]: x["tipo"] for x in lista}
+    assert tipos["EmpColeta"] == "coleta"
+    assert tipos["EmpPipeline"] == "pos_coleta"
+    pipe = next(x for x in lista if x["nome"] == "EmpPipeline")
+    assert "pós-coleta:" in pipe["motivo"] and "95%" in pipe["motivo"]
 
 
 def test_monitoramento_painel_vazio(client_loyall, db_session):

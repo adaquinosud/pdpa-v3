@@ -151,13 +151,21 @@ régua, não do cliente); tela provável em `admin_temas`/rota admin nova, NÃO 
 cliente (é curadoria interna, não diagnóstico). A curadoria auditada concluiu que a régua
 está BOA — reforça que hoje é infra p/ o futuro, não diagnóstico do presente.
 
+### Pipeline — tema bom SOME entre a rodada que falha e a próxima que dá certo
+**Status:** REGISTRADO (fora de escopo da frente falha-sistemica; não urgente)
+`_zerar_cache_bucket` (`pipeline.py`) roda ANTES da rotulagem → apaga o tema bom anterior, depois tenta
+re-rotular. Se a rotulagem falha (infra), a linha fica apagada → o tema **desaparece** da tela no intervalo
+até a próxima coleta que der certo (temas re-clusteriza a janela → auto-corrige). O cliente vê o tema sumir
+transitoriamente. Não é bug de dado (auto-corrige) e é **mais um argumento a favor do sinal de falha
+sistêmica** (o operador entende o "sumiço" como infra). Conserto real (só zerar após confirmar sucesso da
+rotulagem) é maior e não urgente — registrado ao fechar a frente `falha-sistemica-bucket` (2026-08-12).
+
 ### Pipeline — detecção de falha sistêmica de bucket
-**Status:** PENDENTE (robustez)
-O pipeline pós-coleta processa em buckets/lotes; hoje uma falha **sistêmica** de
-um bucket (ex.: todo um lote falhando por erro de infra/dependência, não por dado
-ruim) pode passar sem alarme — degrada silenciosamente em vez de sinalizar.
-**Ação:** detectar quando um bucket inteiro falha (taxa de falha do lote acima de
-um limiar) e **sinalizar/abortar** em vez de seguir como se fosse falha pontual.
+**Status:** ✅ RESOLVIDO (2026-08-12, frente falha-sistemica-bucket)
+O rotulador distingue falha-de-chamada (infra → `RotulagemInfraError`) de descarte-limpo (`None`); o
+pipeline conta por rodada e marca `pos_coleta_status='falha_sistemica'` se >50% das chamadas falham e ≥5
+(piso). Aparece no painel de falhas do Monitoramento com selo "pós-coleta" (2º source, sem migração).
+Sinaliza, não aborta. Ver §12 do DESCRITIVO.
 
 ### Distribuição de símbolos — v2 (a CP da v1 `1609f29` está no ar)
 A v1 (distribuir os só-símbolo pelos pilares por proporção de texto + valência)

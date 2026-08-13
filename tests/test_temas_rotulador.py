@@ -120,16 +120,22 @@ def test_rotular_cluster_descarta_quando_json_invalido():
     assert nome is None
 
 
-def test_rotular_cluster_descarta_quando_exception_llm():
-    """Erro de rede → None (não levanta — pipeline continua)."""
+def test_rotular_cluster_raise_infra_quando_chamada_falha():
+    """Erro de rede (a CHAMADA falha) → RotulagemInfraError (frente falha-sistemica):
+    o pipeline conta como falha de infra, não como descarte de dado. Antes retornava
+    None, colapsando infra com descarte-limpo e cegando o guard sistêmico."""
+    import pytest
+
+    from src.temas.rotulador import RotulagemInfraError
+
     fake = MagicMock()
     fake.messages.create.side_effect = ConnectionError("rede")
     with patch("src.classifier.classifier_v3._get_client", return_value=fake):
-        nome = rotular_cluster(
-            {"subpilar": "D2", "tipo": "detrator"},
-            [{"texto": "qualquer"}],
-        )
-    assert nome is None
+        with pytest.raises(RotulagemInfraError):
+            rotular_cluster(
+                {"subpilar": "D2", "tipo": "detrator"},
+                [{"texto": "qualquer"}],
+            )
 
 
 def test_rotular_cluster_sem_representativos_devolve_none_sem_chamar_llm():

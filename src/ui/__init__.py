@@ -1390,6 +1390,7 @@ def _falhas_por_empresa(dias: int = 14):
     p/ o painel ser legível quando a falha é sistêmica (ex: uma noite inteira de uma
     empresa não vira centenas de linhas). Cross-empresa (a tela é loyall-only). Devolve
     ``(lista_ordenada_por_n_desc, total_falhas)``."""
+    import json as _json
     from datetime import datetime, timedelta
 
     from src.models.coleta_execucao import ColetaExecucao
@@ -1409,13 +1410,49 @@ def _falhas_por_empresa(dias: int = 14):
         for exe, nome in rows:  # DENTRO da sessão (objetos detacham ao fechar)
             total += 1
             d = por_emp.setdefault(
-                exe.empresa_id,
-                {"empresa_id": exe.empresa_id, "nome": nome, "n": 0, "ultima": None, "motivo": ""},
+                (exe.empresa_id, "coleta"),
+                {
+                    "empresa_id": exe.empresa_id,
+                    "nome": nome,
+                    "n": 0,
+                    "ultima": None,
+                    "motivo": "",
+                    "tipo": "coleta",
+                },
             )
             d["n"] += 1
             if d["ultima"] is None:  # rows vem desc → a 1ª por empresa é a mais recente
                 d["ultima"] = exe.iniciado_em
                 d["motivo"] = (exe.mensagem_erro or "erro")[:60]
+
+        # 2º source: falha SISTÊMICA do pós-coleta (pipeline/rotulagem LLM). Natureza
+        # diferente da coleta (Apify) — linha própria, marcada tipo='pos_coleta', pra o
+        # operador não confundir com falha de coleta. Fonte: pos_coleta_status (empresa),
+        # sem migração. Motivo vem do snapshot de pendências.
+        pc_rows = (
+            s.query(Empresa)
+            .filter(
+                Empresa.pos_coleta_status == "falha_sistemica",
+                Empresa.pos_coleta_concluido_em >= desde,
+            )
+            .all()
+        )
+        for emp in pc_rows:
+            total += 1
+            motivo = "rotulagem falhou (infra LLM)"
+            try:
+                pend = _json.loads(emp.pos_coleta_pendencias_json or "{}")
+                motivo = pend.get("falha_sistemica_motivo") or motivo
+            except (ValueError, TypeError):
+                pass
+            por_emp[(emp.id, "pos_coleta")] = {
+                "empresa_id": emp.id,
+                "nome": emp.nome,
+                "n": 1,
+                "ultima": emp.pos_coleta_concluido_em,
+                "motivo": ("pós-coleta: " + motivo)[:80],
+                "tipo": "pos_coleta",
+            }
     return sorted(por_emp.values(), key=lambda x: -x["n"]), total
 
 

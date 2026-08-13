@@ -35,7 +35,12 @@ from src.classifier.classifier_v3 import _get_client
 from src.temas.clusterer import clusterizar_bucket, pick_representativos
 from src.temas.embeddings import carregar_embeddings
 from src.temas.pipeline import _carregar_verbatins_empresa
-from src.temas.rotulador import HAIKU_MODEL, REPS_PARA_ROTULAGEM, rotular_cluster
+from src.temas.rotulador import (
+    HAIKU_MODEL,
+    REPS_PARA_ROTULAGEM,
+    RotulagemInfraError,
+    rotular_cluster,
+)
 
 _JUIZ_SYS = (
     "Você recebe um conjunto de verbatins que foram agrupados por similaridade "
@@ -178,7 +183,11 @@ def main() -> int:
         pos = np.where(res.labels == cid)[0]
         rep_pos = pick_representativos(vetores, res.labels, cid, k=REPS_PARA_ROTULAGEM)
         reps = [{"texto": membros[i]["texto"], "verbatim_id": membros[i]["id"]} for i in rep_pos]
-        label = rotular_cluster(bucket_ctx, reps)  # LLM, read-only
+        try:
+            label = rotular_cluster(bucket_ctx, reps)  # LLM, read-only
+        except RotulagemInfraError as exc:  # chamada falhou (infra) — trata como descarte no probe
+            print(f"  [medir] falha de chamada LLM: {exc}")
+            label = None
         if label is None:
             descartados.append((cid, pos))
         else:
