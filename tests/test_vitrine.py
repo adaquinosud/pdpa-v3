@@ -149,3 +149,73 @@ def test_vitrine_sem_perfil_aguardando_nao_falha(db_session):
     assert _sig(v, "nota_ra")["status"] == "aguardando"  # não vermelho
     assert _sig(v, "nota_ra")["universo"] is None
     assert _sig(v, "rating_amostra")["status"] == "nao_medido"  # sem reviews com rating
+
+
+def _verb_tipo(db_session, e, f, tipo, n, sub="Pa1"):
+    for i in range(n):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="x",
+                tem_texto=True,
+                hash_dedup=f"ct-{tipo}-{sub}-{id(e)}-{i}",
+                subpilar=sub,
+                tipo=tipo,
+            )
+        )
+
+
+def test_vitrine_concorrentes_com_selo_de_data(app, db_session):
+    """Frente vitrine-achados: os concorrentes nomeados pelas IAs (sonda) entram na
+    Vitrine — a resposta à pergunta que ela faz. Selo de data OBRIGATÓRIO (sonda mensal)."""
+    import json
+
+    from flask import render_template
+
+    from src.models.sonda_ia import SondaIAExecucao, SondaIALeitura
+
+    e, f = _base(db_session)
+    ex = SondaIAExecucao(empresa_id=e.id, competencia="2026-07", status="concluida")
+    db_session.add(ex)
+    db_session.flush()
+    db_session.add(
+        SondaIALeitura(
+            execucao_id=ex.id,
+            empresa_id=e.id,
+            competencia="2026-07",
+            encaminhamentos_json=json.dumps(["Movida", "Unidas", "Localiza"]),
+        )
+    )
+    db_session.commit()
+
+    v = ui._explorar_vitrine(db_session, e.id)
+    assert v.concorrentes == ["Movida", "Unidas", "Localiza"]
+    assert v.concorrentes_competencia == "2026-07"
+
+    with app.test_request_context():
+        html = render_template("partials/explorar_vitrine.html", vitrine=v)
+    assert "Contra quem você perde" in html and "Movida" in html
+    assert "segundo as IAs em 2026-07" in html  # ⚠️ selo de data obrigatório
+
+
+def test_vitrine_pct_conversivel_pool_recuperavel(app, db_session):
+    """Frente vitrine-achados: conversível = pool recuperável (relação começada, não
+    fechada). Recálculo trivial sobre verbatim classificado; sem_lastro fora."""
+    from flask import render_template
+
+    e, f = _base(db_session)
+    _verb_tipo(db_session, e, f, "conversivel", 3)
+    _verb_tipo(db_session, e, f, "promotor", 1)
+    _verb_tipo(db_session, e, f, "conversivel", 2, sub="sem_lastro")  # fora do denominador
+    db_session.commit()
+
+    v = ui._explorar_vitrine(db_session, e.id)
+    assert v.n_conversivel == 3  # 3 conversíveis com subpilar válido
+    assert v.pct_conversivel == 75.0  # 3 de 4 classificados (3 conv + 1 prom)
+
+    with app.test_request_context():
+        html = render_template("partials/explorar_vitrine.html", vitrine=v)
+    assert "Pool recuperável" in html
+    assert "decisão ainda não foi tomada" in html
+    assert "não o não-cliente literal" in html  # a ressalva de honestidade

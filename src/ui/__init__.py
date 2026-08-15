@@ -4982,6 +4982,28 @@ def _explorar_vitrine(s, empresa_id):
     )
     notas = [r for r, _dt in reviews_rating if r is not None]
     n_notas = len(notas)  # N = avaliações de apoio (outras fontes)
+
+    # Pool recuperável (frente vitrine-achados): conversível = relação COMEÇADA, não fechada.
+    # O termo que saiu da Previsibilidade (§4.31.2, lá media dispersão, era ruído) é sinal AQUI:
+    # a Vitrine é sobre conversão, e conversível é a zona onde a decisão ainda não foi tomada.
+    # Recálculo trivial ($0), sobre verbatim já classificado. ⚠️ é quem JÁ toca a marca (não o
+    # não-cliente literal) — a leitura declara isso.
+    from sqlalchemy import func as _func
+
+    from src.api.painel import PILAR_DE_SUBPILAR
+
+    n_conversivel = n_classificado = 0
+    for tipo, sub, qtd in (
+        s.query(Verbatim.tipo, Verbatim.subpilar, _func.count(Verbatim.id))
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.subpilar.isnot(None))
+        .group_by(Verbatim.tipo, Verbatim.subpilar)
+    ):
+        if PILAR_DE_SUBPILAR.get(sub) is None:  # sem_lastro/inativo fora, como no PDPA
+            continue
+        n_classificado += int(qtd)
+        if tipo == "conversivel":
+            n_conversivel += int(qtd)
+    pct_conversivel = round(100.0 * n_conversivel / n_classificado, 1) if n_classificado else None
     notas_recentes = sum(  # M = as de apoio nos últimos 90d
         1 for r, dt in reviews_rating if r is not None and dt and dt >= corte_recencia
     )
@@ -5109,7 +5131,38 @@ def _explorar_vitrine(s, empresa_id):
         ),
     ]
     tem_dado = any(sig["status"] in ("verde", "vermelho", "info", "fragil") for sig in sinais)
-    return SimpleNamespace(sinais=sinais, config=cfg, tem_dado=tem_dado)
+
+    # Concorrentes nomeados pelas IAs (frente vitrine-achados): a Vitrine pergunta "o que
+    # te custa cliente novo" = contra quem você perde. A resposta JÁ existe na sonda IA
+    # (encaminhamentos = destinos que as IAs recomendam a um insatisfeito). Cross-ref, $0.
+    # ⚠️ competencia = selo de data OBRIGATÓRIO: sonda é MENSAL e pode estar parada; mostrar
+    # concorrente velho como "agora" seria pior que não mostrar. Lista sintetizada (flat),
+    # SEM rank de frequência — a lista não carrega contagem por modelo; não fabricar rank.
+    from src.models.sonda_ia import SondaIALeitura as _SIL
+
+    _lia = (
+        s.query(_SIL.encaminhamentos_json, _SIL.competencia)
+        .filter(_SIL.empresa_id == empresa_id)
+        .order_by(_SIL.competencia.desc())
+        .first()
+    )
+    concorrentes, concorrentes_competencia = [], None
+    if _lia and _lia[0]:
+        try:
+            concorrentes = [c for c in json.loads(_lia[0]) if c]
+            concorrentes_competencia = _lia[1]
+        except (ValueError, TypeError):
+            pass
+
+    return SimpleNamespace(
+        sinais=sinais,
+        config=cfg,
+        tem_dado=tem_dado,
+        concorrentes=concorrentes,
+        concorrentes_competencia=concorrentes_competencia,
+        pct_conversivel=pct_conversivel,
+        n_conversivel=n_conversivel,
+    )
 
 
 _DEFASAGEM_ORDEM = {
