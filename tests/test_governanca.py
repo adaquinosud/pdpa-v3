@@ -1557,6 +1557,53 @@ def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     # (o insight de teto depende de haver ações alta com lastro — validado no BH real)
 
 
+def test_governanca_tab_trajetoria_caminho_feliz_renderiza(app, db_session, usuario_loyall):
+    """Trava #2 (frente vitrine-achados): o teste do CAMINHO FELIZ do RENDER — prova que a
+    TELA Governança mostra o card de trajetória COM conteúdo (não só a função, não só o
+    guard indisponível). É o teste que teria pego 'motor sem template' (Fatia 1). Série
+    fresca vs utcnow real (o render usa hoje=utcnow, não _HOJE_TRAJ) → capitalizando."""
+    from datetime import timedelta
+
+    from src.models.fonte import Fonte
+
+    e = Empresa(nome="GovTrajRender", setor="varejo", coleta_noturna_ativa=True)
+    db_session.add(e)
+    db_session.commit()
+    db_session.add(
+        Fonte(
+            empresa_id=e.id,
+            entidade_tipo="empresa",
+            entidade_id=e.id,
+            conector_tipo="google",
+            url="http://traj",
+            ultima_coleta=datetime.utcnow() - timedelta(days=5),  # FRESCA vs utcnow
+        )
+    )
+    db_session.commit()
+    _serie(
+        db_session,
+        e.id,
+        [  # anterior baixo → recente alto = capitalizando
+            ("2025-01", 2, 8),
+            ("2025-02", 2, 8),
+            ("2025-03", 3, 7),
+            ("2025-04", 8, 2),
+            ("2025-05", 9, 1),
+            ("2025-06", 9, 1),
+        ],
+    )
+
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess["user_id"] = usuario_loyall.id
+    r = client.get(f"/empresas/{e.id}/explorar?tab=governanca")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "Trajetória do Capital Relacional" in html  # o card existe
+    assert "capitalizando" in html  # ⚠️ SÓ no ramo disponível (:33) — prova o caminho feliz
+    assert "→" in html  # a transição PDPA anterior → recente (:32)
+
+
 def test_painel_gini_empresa_sim_loja_nao(app, db_session, usuario_loyall):
     """Card Gini no Painel: presente em empresa/agrupamento; None (N/A) em loja."""
     from flask import session
