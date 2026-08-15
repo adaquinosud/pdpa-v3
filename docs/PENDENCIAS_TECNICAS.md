@@ -158,6 +158,17 @@ régua, não do cliente); tela provável em `admin_temas`/rota admin nova, NÃO 
 cliente (é curadoria interna, não diagnóstico). A curadoria auditada concluiu que a régua
 está BOA — reforça que hoje é infra p/ o futuro, não diagnóstico do presente.
 
+### Eixo do não-cliente + calibração do corte §6.11 — UMA coleta destrava as duas
+**Status:** PENDENTE (coleta nova — espera crédito). Registrado 2026-08-15 (frente vitrine-achados).
+Coletar a reputação dos **concorrentes nomeados** (Movida/Unidas/Hertz… — a sonda IA já dá os NOMES em
+`encaminhamentos_json`, $0, mas não o placar) destrava DUAS frentes que estavam separadas no backlog:
+(a) **o placar do shortlist** (eixo não-cliente: "você 7,2 × Movida 8,1") e (b) **a calibração do corte
+§6.11** (`VITRINE_CONFIG.nota_corte=4.5` hardcoded, `ui:4940` — reconhecidamente incalibrado p/ a escala
+0-10 do RA; a **distribuição de pares** é a referência que falta pra calibrar por dado em vez de por
+decreto). NÃO é a mesma coleta que a do cliente — é coleta de CONCORRENTE (Apify+LLM). Mas UMA coleta de
+concorrente serve às duas → custo dividido. É o run que mais rende quando o crédito voltar. O que JÁ está
+no ar ($0): a lista nomeada + selo de data na Vitrine (frente vitrine-achados). Ver [[project_horizontes]].
+
 ### Pipeline — tema bom SOME entre a rodada que falha e a próxima que dá certo
 **Status:** REGISTRADO (fora de escopo da frente falha-sistemica; não urgente)
 `_zerar_cache_bucket` (`pipeline.py`) roda ANTES da rotulagem → apaga o tema bom anterior, depois tenta
