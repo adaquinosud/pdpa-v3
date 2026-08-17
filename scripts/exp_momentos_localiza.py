@@ -2,9 +2,14 @@
 
 Data: 2026-08-17. O que testa: ESTABILIDADE da leitura "Momentos/Ocupação" (degraus 1-2
 do Capital de Escolha) para UMA empresa (Localiza), ANTES de decidir construir a frente.
-Pergunta ao LLM (não toca o corpus): que SITUAÇÕES levam alguém a alugar carro (Mapa) e,
-por situação, quem vem à cabeça (Ocupação). Roda no Render (chaves em env). Custo pinado
-~US$1 (teto US$5); imprime o custo REAL no fim. Reusa src/sonda_ia/adapters.
+Pergunta ao LLM (não toca o corpus). Roda no Render (chaves em env).
+
+⚠️ FIX 2026-08-17 (1ª rodada deu GPT/Gemini VAZIOS): não era parse — o cap MAX_OUT_TOKENS=500
+dos adapters era comido pelo RACIOCÍNIO (GPT reasoning) / THINKING (Gemini), zerando o texto.
+Aqui: chamadas próprias com GPT reasoning_effort=minimal + cap 1500 e Gemini thinkingBudget=0.
+NÃO toca os adapters compartilhados (mudaria a sonda de reputação — que provavelmente sofre o
+mesmo bug e roda Claude-only; investigar à parte). Custo re-pinado ~US$0.30 (teto US$5);
+imprime custo REAL + tokens/vazios POR MODELO no fim.
 
 CRITÉRIO TRAVADO 2026-08-17 (não muda depois de ver o resultado):
   momento CONVERGE  se Jaccard>=0.60 E Kendall-tau>=0.50 E alvo(Localiza) em 0/3 ou 3/3.
@@ -18,16 +23,18 @@ Uso no Render:  PYTHONPATH=. python scripts/exp_momentos_localiza.py
 
 import json
 import re
+import urllib.request
 from itertools import combinations
 from statistics import mean
 
 from scipy.stats import kendalltau
 
-from src.sonda_ia.adapters import chamar_claude, chamar_gemini, chamar_gpt
+from src.config import get_config
+from src.sonda_ia.adapters import chamar_claude
 
-VENDORS = {"claude": chamar_claude, "gpt": chamar_gpt, "gemini": chamar_gemini}
 REPS = 3
 ALVO = "localiza"
+PRECO = {"claude": (3.0, 15.0), "gpt": (1.25, 10.0), "gemini": (0.30, 2.50)}
 # Falseamento §6: sinais de candidato FORA da categoria de locadoras.
 FORA_CAT = (
     "uber",
@@ -80,15 +87,79 @@ OCUP = (
 )
 
 
+def _gpt(prompt):
+    """GPT-5 com reasoning_effort=minimal + cap 1500 (o 'low'+500 dos adapters zerava o texto)."""
+    key = get_config().OPENAI_API_KEY
+    if not key:
+        raise ValueError("OPENAI_API_KEY ausente")
+    body = {
+        "model": "gpt-5",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_completion_tokens": 1500,
+        "reasoning_effort": "minimal",
+    }
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+    )
+    with urllib.request.urlopen(req, timeout=120) as r:
+        d = json.load(r)
+    u = d.get("usage", {})
+    return {
+        "texto": d["choices"][0]["message"].get("content") or "",
+        "tokens_in": int(u.get("prompt_tokens", 0) or 0),
+        "tokens_out": int(u.get("completion_tokens", 0) or 0),
+    }
+
+
+def _gemini(prompt):
+    """Gemini 2.5 Flash com thinkingBudget=0 (o thinking ligado comia o cap e zerava o texto)."""
+    key = get_config().GOOGLE_API_KEY
+    if not key:
+        raise ValueError("GOOGLE_API_KEY ausente")
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.5-flash:generateContent?key={key}"
+    )
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 800, "thinkingConfig": {"thinkingBudget": 0}},
+    }
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req, timeout=90) as r:
+        d = json.load(r)
+    cand = (d.get("candidates") or [{}])[0]
+    parts = ((cand.get("content") or {}).get("parts")) or [{}]
+    u = d.get("usageMetadata", {})
+    return {
+        "texto": parts[0].get("text", ""),
+        "tokens_in": int(u.get("promptTokenCount", 0) or 0),
+        "tokens_out": int(u.get("candidatesTokenCount", 0) or 0),
+    }
+
+
+def _claude(prompt):
+    r = chamar_claude(prompt)
+    return {"texto": r["texto"], "tokens_in": r["tokens_in"], "tokens_out": r["tokens_out"]}
+
+
+VENDORS = {"claude": _claude, "gpt": _gpt, "gemini": _gemini}
+STATS = {v: {"in": 0, "out": 0, "vazio": 0, "n": 0} for v in VENDORS}
+
+
 def _lista(txt):
-    m = re.search(r"\[.*\]", txt, re.DOTALL)
-    if not m:
-        return None
-    try:
-        arr = json.loads(m.group(0))
-    except Exception:  # noqa: BLE001 — resposta malformada = lista vazia (conta como divergência)
-        return None
-    return [str(x).strip().lower() for x in arr if str(x).strip()]
+    """Extrai o 1º array JSON de STRINGS — robusto a fence ```json e a citações [1] em prosa."""
+    for m in re.finditer(r"\[[^\[\]]*\]", txt, re.DOTALL):
+        try:
+            arr = json.loads(m.group(0))
+        except Exception:  # noqa: BLE001
+            continue
+        if isinstance(arr, list) and arr and all(isinstance(x, str) for x in arr):
+            return [x.strip().lower() for x in arr if x.strip()]
+    return None
 
 
 def _jaccard(a, b):
@@ -100,27 +171,27 @@ def _tau(a, b):
     comuns = [x for x in a if x in b]
     if len(comuns) < 2:
         return None
-    ra = [a.index(x) for x in comuns]
-    rb = [b.index(x) for x in comuns]
-    t, _ = kendalltau(ra, rb)
+    t, _ = kendalltau([a.index(x) for x in comuns], [b.index(x) for x in comuns])
     return t
 
 
 def _coletar(prompt):
-    """{vendor: [lista_rep1..N]} + tokens (in, out) acumulados."""
-    out, tin, tout = {}, 0, 0
+    out = {}
     for v, fn in VENDORS.items():
         out[v] = []
         for _ in range(REPS):
             r = fn(prompt)
-            tin += r.get("tokens_in", 0)
-            tout += r.get("tokens_out", 0)
-            out[v].append(_lista(r.get("texto", "")) or [])
-    return out, tin, tout
+            STATS[v]["in"] += r.get("tokens_in", 0)
+            STATS[v]["out"] += r.get("tokens_out", 0)
+            STATS[v]["n"] += 1
+            lst = _lista(r.get("texto", ""))
+            if not lst:
+                STATS[v]["vazio"] += 1
+            out[v].append(lst or [])
+    return out
 
 
 def _fora_cat(reps):
-    """True se ALGUMA rep traz ALGUM candidato fora da categoria de locadoras."""
     return any(any(any(k in c for k in FORA_CAT) for c in r) for r in reps)
 
 
@@ -133,11 +204,8 @@ def _metricas(reps):
 
 
 def main():
-    tin = tout = 0
     print("=== MAPA (estabilidade da enumeração) ===")
-    mapa, ti, to = _coletar(MAPA)
-    tin += ti
-    tout += to
+    mapa = _coletar(MAPA)
     mapa_js = []
     for v, reps in mapa.items():
         j, _t, _a = _metricas(reps)
@@ -147,12 +215,10 @@ def main():
     print(f"  -> Mapa Jaccard medio {mean(mapa_js):.2f}  ({'OK >=0.50' if mapa_ok else 'BAIXO'})")
 
     conv = 0
-    sem_fora = 0  # momentos SEM candidato fora-de-categoria (falseamento §6)
+    sem_fora = 0
     for m in MOMENTOS:
         print(f"\n=== OCUPACAO: {m!r} ===")
-        dados, ti, to = _coletar(OCUP.format(m=m))
-        tin += ti
-        tout += to
+        dados = _coletar(OCUP.format(m=m))
         votos = 0
         fora_algum = False
         for v, reps in dados.items():
@@ -166,7 +232,7 @@ def main():
                 f"  {'CONVERGE' if ok else '-'}"
             )
             print(f"          rep1: {reps[0][:6]}")
-        m_ok = votos >= 2  # within-model e o gate; maioria dos modelos
+        m_ok = votos >= 2
         conv += m_ok
         if not fora_algum:
             sem_fora += 1
@@ -175,18 +241,27 @@ def main():
             f"fora-de-categoria: {'SIM' if fora_algum else 'NAO (falseamento)'}"
         )
 
-    custo = tin / 1e6 * 3.0 + tout / 1e6 * 12.0
+    print("\n=== POR MODELO (prova do fix: vazios devem ser 0) ===")
+    custo = 0.0
+    for v, s in STATS.items():
+        pin, pout = PRECO[v]
+        c = s["in"] / 1e6 * pin + s["out"] / 1e6 * pout
+        custo += c
+        print(
+            f"  {v:7} chamadas={s['n']} vazios={s['vazio']} in={s['in']} out={s['out']} ~US${c:.2f}"
+        )
+
     print("\n=== VEREDITO ===")
     print(
         f"convergem: {conv}/3 - Mapa OK: {mapa_ok} - momentos SEM fora-de-categoria: {sem_fora}/3"
     )
-    falseou = sem_fora >= 2  # 4o criterio: so locadoras em >=2 momentos -> REPROVA
+    falseou = sem_fora >= 2
     passa = conv >= 2 and mapa_ok and not falseou
     if falseou:
         print("REPROVA - falseamento §6: so locadoras em >=2 momentos (estavel e inutil)")
     else:
         print("PASSA - construir" if passa else "REPROVA - sem leitura confiavel, parar")
-    print(f"custo real: ~US$ {custo:.2f}  (tokens in={tin} out={tout})")
+    print(f"custo real total: ~US$ {custo:.2f}")
 
 
 if __name__ == "__main__":
