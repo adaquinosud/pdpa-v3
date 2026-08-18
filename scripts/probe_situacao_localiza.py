@@ -10,7 +10,11 @@ superior. "aluguei para viajar com a família" (situação) e "a família gostou
 carro" (incidental) ambos casam 'família'. Por isso a seção de EXEMPLOS: ela
 calibra a precisão real. Julgar os 20 à mão é o ponto.
 
-Uso no Render:  PYTHONPATH=. python scripts/probe_situacao_localiza.py [empresa_id=17]
+Uso no Render:  PYTHONPATH=. python scripts/probe_situacao_localiza.py \
+                    [empresa_id=17] [fonte_filtro] [valencia_filtro] [n_exemplos=20]
+  ex. célula densa RA×detrator com 40 exemplos:
+      PYTHONPATH=. python scripts/probe_situacao_localiza.py 17 ra detrator 40
+  (fonte_filtro casa por SUBSTRING no conector_tipo; use o rótulo visto na seção 3.)
 Remover após o diagnóstico.
 """
 
@@ -22,6 +26,9 @@ from src.models.verbatim import Verbatim as V
 from src.utils.db import db_session
 
 EMPRESA = int(sys.argv[1]) if len(sys.argv) > 1 else 17
+FONTE_F = sys.argv[2].lower() if len(sys.argv) > 2 else None  # substring no conector_tipo
+TIPO_F = sys.argv[3].lower() if len(sys.argv) > 3 else None  # valência exata
+NEX = int(sys.argv[4]) if len(sys.argv) > 4 else 20
 
 # Padrões de SITUAÇÃO (o que levou a alugar). Sugeridos + espaço p/ o corpus revelar
 # outros (ver EXEMPLOS não casados no fim). Regex case-insensitive, com acento e sem.
@@ -73,16 +80,29 @@ with db_session() as s:
         print(f"  {k:20} {cont[k]:>5}  {100*cont[k]/n:>5.1f}%")
     print(f"  {'>> ALGUM termo':20} {algum:>5}  {100*algum/n:>5.1f}%  (teto do corpus)")
 
-    # 2) 20 exemplos reais — julgar situacao declarada vs mencao incidental
-    print("\n--- 2) 20 EXEMPLOS que casaram algum termo (julgar a mao) ---")
+    # 2) N exemplos reais — julgar situacao declarada vs mencao incidental.
+    #    Filtro opcional fonte/valencia p/ mirar a celula densa (ex. RA x detrator).
+    foco = []
+    if FONTE_F:
+        foco.append(f"fonte~{FONTE_F}")
+    if TIPO_F:
+        foco.append(f"valencia={TIPO_F}")
+    rotulo = (" [foco: " + ", ".join(foco) + "]") if foco else ""
+    print(f"\n--- 2) {NEX} EXEMPLOS que casaram algum termo{rotulo} (julgar a mao) ---")
     vistos = 0
     for _id, txt, tipo, fonte in linhas:
-        if vistos >= 20:
+        if vistos >= NEX:
             break
+        if FONTE_F and FONTE_F not in (fonte or "").lower():
+            continue
+        if TIPO_F and TIPO_F != (tipo or "").lower():
+            continue
         if ALGUM.search(txt or ""):
             quais = [k for k, rx in PAT.items() if rx.search(txt or "")]
             print(f"  [{fonte or 'sem_fonte'}/{tipo}] ({','.join(quais)}) {_short(txt)!r}")
             vistos += 1
+    if foco:
+        print(f"  (encontrados {vistos} na celula; precisao aqui decide o corpus-como-juiz)")
 
     # 3) varia por FONTE? (RA contextualiza mais que Google review curto?)
     print("\n--- 3) por FONTE (conector_tipo): menciona algum termo / total ---")
