@@ -21,11 +21,12 @@ Remover após o diagnóstico.
 import re
 import sys
 
+from src.models.empresa import Empresa
 from src.models.fonte import Fonte
 from src.models.verbatim import Verbatim as V
 from src.utils.db import db_session
 
-EMPRESA = int(sys.argv[1]) if len(sys.argv) > 1 else 17
+EMPRESA = int(sys.argv[1]) if len(sys.argv) > 1 else 17  # 0 = SCAN cross-empresa (escala)
 FONTE_F = sys.argv[2].lower() if len(sys.argv) > 2 else None  # substring no conector_tipo
 TIPO_F = sys.argv[3].lower() if len(sys.argv) > 3 else None  # valência exata
 NEX = int(sys.argv[4]) if len(sys.argv) > 4 else 20
@@ -53,6 +54,36 @@ def _short(t):
 
 
 with db_session() as s:
+    if EMPRESA == 0:
+        # SCAN cross-empresa (Q2 escala): quem tem massa RA×detrator com situação?
+        print("=== SCAN cross-empresa: densidade RA x detrator com situacao ===\n")
+        cons = sorted(c for (c,) in s.query(Fonte.conector_tipo).distinct() if c)
+        print("conector_tipo existentes:", ", ".join(cons) or "(nenhum)")
+        RA = re.compile(r"reclame|^ra$|ra_|_ra\b", re.IGNORECASE)  # confira acima qual casa
+        nomes = {e.id: e.nome for e in s.query(Empresa)}
+        rows = (
+            s.query(V.empresa_id, V.tipo, V.texto, Fonte.conector_tipo)
+            .outerjoin(Fonte, V.fonte_id == Fonte.id)
+            .filter(V.tem_texto.is_(True))
+            .all()
+        )
+        agg = {}  # empresa_id -> [ra_detr_total, ra_detr_com_termo, total_texto]
+        for eid, tipo, txt, con in rows:
+            d = agg.setdefault(eid, [0, 0, 0])
+            d[2] += 1
+            if con and RA.search(con) and (tipo or "").lower() == "detrator":
+                d[0] += 1
+                if ALGUM.search(txt or ""):
+                    d[1] += 1
+        print(f"\n{'empresa':24} {'txt':>7} {'RA_detr':>8} {'c/termo':>8} {'~situ':>6}")
+        for eid in sorted(agg, key=lambda x: -agg[x][1]):
+            rt, rterm, tt = agg[eid]
+            est = round(rterm * 0.22)  # precisão ~20-25% da célula (item 1 do probe geral)
+            print(f"{(nomes.get(eid) or '?')[:24]:24} {tt:>7} {rt:>8} {rterm:>8} {est:>6}")
+        print("\n~situ = c/termo x 0.22 (precisao da celula). Se so Localiza tem massa,")
+        print("a fonte RA depende de volume no ReclameAqui = limitacao de produto.")
+        raise SystemExit
+
     linhas = (
         s.query(V.id, V.texto, V.tipo, Fonte.conector_tipo)
         .outerjoin(Fonte, V.fonte_id == Fonte.id)
