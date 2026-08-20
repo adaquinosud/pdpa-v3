@@ -762,6 +762,58 @@ sondagem.
 
 ---
 
+## JORNADA (a experiência por etapa)
+
+**Propósito.** Ler os verbatins pela **etapa da jornada** do cliente — a linguagem que
+ele já fala ("sua dor está na retirada, não no carro"), que vira ação, diferente de
+"sua Precisão está em 0,82". A etapa é **ortogonal** ao subpilar: o subpilar diz *o quê*
+(a dimensão do valor), a etapa diz *quando* (o momento da jornada). "Cobrança indevida"
+é Mutualidade **e** pós-serviço. Fonte: `_explorar_jornada` (ui) + `src/jornada/`.
+
+**Configuração (admin).** A jornada é a espinha de etapas de EXPERIÊNCIA do cliente
+(Localiza: reservar · ir até o local · retirar · usar · devolver · pós-serviço),
+**configurada por empresa e nunca fixa** — tabela `empresa_jornada_etapas` (ordenada,
+versionada). Quem escreve: o cliente informa o processo, o operador escreve a jornada
+(é experiência, não processo interno — "conferência de CNH no balcão" é processo,
+"retirar" é experiência), o LLM propõe um rascunho, o corpus valida (etapa sem lastro
+no corpus nasce morta). **Sem jornada configurada, a aba não aparece** — jornada errada
+é pior que jornada nenhuma. Versionamento lazy (o verbatim mantém a etapa da versão sob
+a qual foi classificado; editar a jornada custa US$0, backfill é ato explícito e pago).
+
+**Anatomia.** Duas visões sempre juntas — **Gargalo** (onde a experiência trava: ratio
+< 1,0, e a etapa travada mais A MONTANTE é o teto, lei do elo mais fraco) e **Volume**
+(onde está a massa de dor: contagem de detratores). **Quando divergem, está o achado**
+("o volume está no pós-serviço, mas quem trava é a retirada — consertar o pós-serviço
+atende quem já chegou irritado; consertar a retirada evita que cheguem assim"). Nenhum
+instrumento de CX diz isso, porque todos ordenam por volume. Mais: a matriz **etapa ×
+subpilar** (o que falha em cada etapa) e o **piso de 10** verbatins por etapa (abaixo
+disso, exibe volume e declara "sem ratio").
+
+**⚠️ Viés de fonte + filtro por fonte (obrigatório).** A distribuição de etapa depende
+do **mix de fontes**: o ReclameAqui concentra no pós-serviço, o Google na retirada. Uma
+empresa só-Google veria a jornada travada na retirada *por construção* — seria a
+assinatura da fonte, não a realidade. Por isso a leitura **declara o mix** e permite
+**ver por fonte**, para separar "minha jornada trava aqui" de "minha coleta olha pra
+aqui". (Vale a trava geral: toda leitura de corpus orgânico herda o viés da fonte; a
+correção nunca é o classificador.)
+
+**⚠️ Limitação declarada (v1 mono-rótulo).** Cada verbatim carrega UMA etapa dominante.
+**Um relato que atravessa duas etapas conta na dominante** — "retirei rápido, mas
+devolver foi um inferno" entra em uma só. É a partição limpa que sustenta "onde a dor se
+concentra" (denominador que soma 100%); o custo é perder o secundário do relato longo.
+Etapas secundárias (multi-rótulo) são v2, só se uma leitura pedir o drill-down.
+
+**Operação.** A etapa sai como 4ª dimensão na MESMA chamada do classificador (verbatim
+novo ganha etapa de graça; a lista de etapas da empresa vai no prompt volátil, sem
+CheckConstraint global — é por-empresa). Precisão validada a **90%** (teste 17/ago, 50
+verbatins Localiza; RA 96%). **Knob de confiança:** etapa de baixa confiança em texto
+curto genérico é tratada como "nenhuma" — aplicado na LEITURA (re-tunável sem
+re-classificar); limiar provisório 0,80 (definitivo virá da pesquisa-por-etapa). A aba
+nasce fina e enche sozinha; o backfill da base é botão admin, custo declarado e
+aprovação própria.
+
+---
+
 ## 19. VITRINE (decisão do consumidor NOVO)
 
 A Vitrine responde a uma pergunta diferente do resto do sistema. O diagnóstico lê a relação de quem

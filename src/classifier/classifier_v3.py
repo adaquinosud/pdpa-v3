@@ -153,6 +153,12 @@ class ResultadoClassificacao:
     prompt_versao: str = PROMPT_VERSAO
     modelo: str = HAIKU_MODEL
     escalado: bool = False
+    # Frente Jornada: etapa DOMINANTE + a confiança PRÓPRIA dela. Só preenchidos quando
+    # a chamada passou a jornada da empresa (``etapas`` em ``classificar``); NULL caso
+    # contrário. Extraídos de forma LENIENT (nunca falham a classificação de subpilar); a
+    # validação contra a jornada da empresa fica na camada de escrita (pós-coleta).
+    etapa: Optional[str] = None
+    etapa_confianca: Optional[float] = None
 
 
 # ── Singletons em memória ────────────────────────────────────────────────
@@ -251,6 +257,7 @@ def _build_user_prompt(
     fonte_tipo: Optional[str] = None,
     local_nome: Optional[str] = None,
     local_tipo: Optional[str] = None,
+    etapas: Optional[list] = None,
 ) -> str:
     """Monta a mensagem do user: hints contextuais + contexto do local + verbatim.
 
@@ -295,6 +302,21 @@ def _build_user_prompt(
             "genuinamente alheio à experiência neste local (ex.: comentário técnico "
             "sobre voo sem relação com a loja), mantenha sem_lastro — o local válido "
             "NÃO obriga ancoragem."
+        )
+
+    # Frente Jornada: quando a empresa tem jornada configurada, a lista de etapas é
+    # injetada AQUI (volátil, por-empresa — não no system cacheado nem com CheckConstraint
+    # global, ao contrário do subpilar). Pede a etapa DOMINANTE + a confiança própria dela.
+    # "nenhuma" é resposta VÁLIDA e obrigatória — verbatim que não fala de etapa não é
+    # forçado numa. Tarefa FECHADA (escolher de N), validada a 90% no teste de precisão.
+    if etapas:
+        _lista = " · ".join(str(e) for e in etapas)
+        linhas.append(
+            "\nEtapas da jornada do cliente desta empresa (a EXPERIÊNCIA, não o processo "
+            f"interno): {_lista}. Diga a ÚNICA etapa DOMINANTE de que o verbatim fala. Se "
+            'não fala de nenhuma etapa (elogio/xingamento genérico), use "nenhuma" — NÃO '
+            'force. ALÉM dos campos acima, inclua no JSON: "etapa" (uma das etapas exatas '
+            'ou "nenhuma") e "etapa_confianca" (0.0-1.0).'
         )
 
     if linhas:
@@ -651,12 +673,28 @@ def _parse_response(raw: str, modelo: str = HAIKU_MODEL) -> ResultadoClassificac
 
     justificativa = str(data.get("justificativa_curta", "")).strip()
 
+    # Frente Jornada: etapa é LENIENT — só presente quando a chamada pediu (jornada
+    # injetada). Nunca levanta: etapa malformada vira None e a classificação de subpilar
+    # (load-bearing) segue íntegra. A validação contra a jornada da empresa é na escrita.
+    etapa_raw = data.get("etapa")
+    etapa = (
+        str(etapa_raw).strip().lower() if isinstance(etapa_raw, str) and etapa_raw.strip() else None
+    )
+    etapa_conf = None
+    if etapa is not None:
+        try:
+            etapa_conf = max(0.0, min(1.0, float(data.get("etapa_confianca", 0.5))))
+        except (TypeError, ValueError):
+            etapa_conf = 0.5
+
     return ResultadoClassificacao(
         subpilar=subpilar,
         tipo=tipo,
         confianca=confianca,
         justificativa=justificativa,
         modelo=modelo,
+        etapa=etapa,
+        etapa_confianca=etapa_conf,
     )
 
 
@@ -684,6 +722,7 @@ def montar_params_classificacao(
     fonte_tipo: Optional[str] = None,
     local_nome: Optional[str] = None,
     local_tipo: Optional[str] = None,
+    etapas: Optional[list] = None,
 ) -> dict:
     """Monta os ``params`` de UMA request de classificação (Messages/Batches).
 
@@ -711,6 +750,7 @@ def montar_params_classificacao(
                     fonte_tipo=fonte_tipo,
                     local_nome=local_nome,
                     local_tipo=local_tipo,
+                    etapas=etapas,
                 ),
             }
         ],
@@ -851,6 +891,7 @@ def classificar(
     fonte_tipo: Optional[str] = None,
     local_nome: Optional[str] = None,
     local_tipo: Optional[str] = None,
+    etapas: Optional[list] = None,
 ) -> ResultadoClassificacao:
     """Classifica um verbatim com escalada Haiku→Sonnet opcional.
 
@@ -903,6 +944,7 @@ def classificar(
         fonte_tipo=fonte_tipo,
         local_nome=local_nome,
         local_tipo=local_tipo,
+        etapas=etapas,
     )
     texto_hash = hashlib.sha1(texto_truncado.encode("utf-8")).hexdigest()[:16]
 

@@ -3890,6 +3890,13 @@ _EXPLORAR_TABS = [
         "grupo": "diagnostico",
         "escopo_aceito": [],  # sonda é nível-empresa
     },
+    # JORNADA (frente Jornada — leitura por etapa; dark sem jornada configurada)
+    {
+        "id": "jornada",
+        "label": "Jornada",
+        "grupo": "diagnostico",
+        "escopo_aceito": ["agrupamento"],
+    },
     # VITRINE (decisão do consumidor NOVO — nível empresa, sem grão de loja)
     {"id": "vitrine", "label": "Vitrine", "grupo": "vitrine", "escopo_aceito": []},
     # AÇÃO
@@ -3919,6 +3926,16 @@ _EXPLORAR_GRUPOS = [
 _EXPLORAR_TAB_IDS = {t["id"] for t in _EXPLORAR_TABS}
 # Mapa id→escopo_aceito p/ o contexto do template (chip + header condicional).
 _EXPLORAR_ESCOPO_ACEITO = {t["id"]: t["escopo_aceito"] for t in _EXPLORAR_TABS}
+
+
+def _tabs_visiveis(ctx):
+    """Frente Jornada: a aba 'jornada' fica DARK (fora da tab bar) enquanto a empresa
+    não tem jornada configurada — jornada errada é pior que jornada nenhuma."""
+    if ctx.get("jornada_configurada"):
+        return _EXPLORAR_TABS
+    return [t for t in _EXPLORAR_TABS if t["id"] != "jornada"]
+
+
 # Abas que ainda usam full-load (não HTMX swap). VAZIO desde o CP-UX2b: todas as
 # abas fazem HTMX swap. O <script> inline que morria no swap innerHTML (export-href,
 # leitura, toggles das anomalias) virou um re-init global data-driven em base.html
@@ -5591,6 +5608,14 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     )
 
 
+def _explorar_jornada(s, empresa_id, ag_id=None, fonte=None):
+    """Frente Jornada: leitura por etapa (gargalo | volume, matriz etapa×subpilar,
+    filtro por fonte, piso 10, declaração de mix). None se a empresa não tem jornada."""
+    from src.jornada.leitura import agregar_jornada
+
+    return agregar_jornada(s, empresa_id, ag_id, fonte)
+
+
 def _explorar_concentracao(s, empresa_id, ag_id=None):
     """Aba Concentração (CP-LG-3): Gini + faixa + leitura + barras + heatmap
     loja×subpilar (LG-3.1). Escopo empresa (ag_id None) ou agrupamento. Leitura."""
@@ -6006,6 +6031,15 @@ def _explorar_contexto(empresa_id, tab):
             _explorar_concentracao(s, empresa_id, ag_id) if tab == "concentracao" else None
         )
         governanca = _explorar_governanca(s, empresa_id, ag_id) if tab == "governanca" else None
+        # Frente Jornada: dark até configurar — o flag governa a tab bar (esconde a aba
+        # sem jornada); a leitura só é montada quando a aba está ativa. Fonte é CONTROLE.
+        from src.jornada import jornada_da_empresa as _jornada_da_empresa
+
+        _jv, _jr = _jornada_da_empresa(s, empresa_id)
+        jornada_configurada = bool(_jr)
+        jornada = None
+        if tab == "jornada":
+            jornada = _explorar_jornada(s, empresa_id, ag_id, request.args.get("fonte") or None)
         leaderboard = None
         if tab == "leaderboard":
             ob = request.args.get("order_by", "score")
@@ -6057,6 +6091,8 @@ def _explorar_contexto(empresa_id, tab):
         "vitrine": vitrine,
         "concentracao": concentracao,
         "governanca": governanca,
+        "jornada": jornada,
+        "jornada_configurada": jornada_configurada,
         "planos": planos,
         "leaderboard": leaderboard,
         "ia": ia,
@@ -6127,7 +6163,7 @@ def _explorar_render(empresa_id, tab):
     return render_template(
         "empresas/explorar.html",
         user=user,
-        tabs=_EXPLORAR_TABS,
+        tabs=_tabs_visiveis(ctx),
         tabs_migradas=_EXPLORAR_TABS_MIGRADAS,
         grupos=_EXPLORAR_GRUPOS,
         **ctx,  # inclui eh_loyall (CP-O2)
@@ -6162,7 +6198,7 @@ def explorar_tab(empresa_id: int, tab: str):
     header = render_template("partials/explorar_header.html", header_oob=True, **ctx)
     tabbar = render_template(
         "partials/explorar_tabbar.html",
-        tabs=_EXPLORAR_TABS,
+        tabs=_tabs_visiveis(ctx),
         tabs_migradas=_EXPLORAR_TABS_MIGRADAS,
         grupos=_EXPLORAR_GRUPOS,
         tabbar_oob=True,

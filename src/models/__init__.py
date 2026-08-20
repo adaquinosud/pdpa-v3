@@ -21,6 +21,7 @@ from src.models.coleta_execucao import ColetaExecucao
 from src.models.contato import ContatoAtributo, ContatoEmpresa, PesquisaConvite
 from src.models.diagnostico import LeituraDiagnostico
 from src.models.empresa import Empresa
+from src.models.empresa_jornada_etapa import EmpresaJornadaEtapa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.fonte import Fonte
 from src.models.fonte_coorte_coleta import FonteCoorteColeta
@@ -70,6 +71,7 @@ __all__ = [
     "TemaSnapshot",
     "Base",
     "Caso",
+    "EmpresaJornadaEtapa",
     "FonteCoorteColeta",
     "ChatCache",
     "ClassificacaoBatch",

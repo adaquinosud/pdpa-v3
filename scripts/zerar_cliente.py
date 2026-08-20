@@ -129,7 +129,17 @@ PLANO: list[tuple[str, str, str]] = [
 ]
 
 # Estrutura que DEVE permanecer (não entra no PLANO de deleção).
-MANTIDAS = ["empresas", "locais", "locais_metadados", "agrupamentos", "fontes", "usuarios"]
+# `empresa_jornada_etapas`: config da jornada por-empresa (como fontes/locais) — zerar os
+# verbatins e re-coletar deve reencontrar a jornada, não perdê-la.
+MANTIDAS = [
+    "empresas",
+    "locais",
+    "locais_metadados",
+    "agrupamentos",
+    "fontes",
+    "usuarios",
+    "empresa_jornada_etapas",
+]
 
 # Globais sem empresa_id — intencionalmente NÃO tocadas (não derivam de uma empresa).
 # Lista EXPLÍCITA para o teste de cobertura: PLANO ∪ MANTIDAS ∪ GLOBAIS_IGNORADAS deve

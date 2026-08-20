@@ -192,6 +192,7 @@ def _classificar_pendentes_serial(
     NULL e um re-query daria loop infinito).
     """
     from src.classifier.classifier_v3 import classificar
+    from src.jornada import jornada_da_empresa, normalizar_etapa
     from src.models.empresa import Empresa
     from src.models.fonte import Fonte
     from src.models.local import Local
@@ -209,6 +210,9 @@ def _classificar_pendentes_serial(
         # CP local-no-prompt: nome do local p/ o prompt saber que reviews de loja-tenant
         # (Unidas, McDonald's…) são parte da empresa multi-tenant (não descartar sem_lastro).
         locais = {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id).all()}
+        # Frente Jornada: jornada ativa 1× por rodada (rótulos p/ o prompt + versão p/ carimbo).
+        # Sem jornada → etapa fica NULL (classificador não recebe lista, não força etapa).
+        jornada_versao, jornada_rotulos = jornada_da_empresa(s, empresa_id)
         q = s.query(Verbatim).filter(
             Verbatim.empresa_id == empresa_id,
             Verbatim.tem_texto.is_(True),
@@ -228,12 +232,20 @@ def _classificar_pendentes_serial(
                     empresa_setor=setor,
                     fonte_tipo=fontes.get(fonte_id),
                     local_nome=locais.get(local_id),
+                    etapas=jornada_rotulos or None,
                 )
                 v.subpilar = r.subpilar
                 v.tipo = r.tipo
                 v.confianca = r.confianca
                 v.justificativa = r.justificativa
                 v.prompt_versao = r.prompt_versao
+                # Frente Jornada: grava a etapa CRUA validada contra a jornada + a confiança
+                # própria dela; carimba a versão (lazy). O knob de confiança é na LEITURA.
+                if jornada_rotulos:
+                    etapa_val = normalizar_etapa(r.etapa, jornada_rotulos)
+                    v.etapa = etapa_val
+                    v.etapa_confianca = r.etapa_confianca if etapa_val else None
+                    v.etapa_versao = jornada_versao if etapa_val else None
                 stats["classificados"] += 1
             except ValueError as exc:
                 # Falha TERMINAL: reroll Haiku (3x) + escalada Sonnet esgotados
@@ -369,16 +381,23 @@ def _marcar_pos_coleta_status(empresa_id, status, pendencias=None, *, agora=None
 
 def _carregar_contexto(s, empresa_id: int) -> Dict[str, Any]:
     """Contexto de classificação (nome/setor + mapas fonte→tipo e local→nome)."""
+    from src.jornada import jornada_da_empresa
     from src.models.empresa import Empresa
     from src.models.fonte import Fonte
     from src.models.local import Local
 
     emp = s.get(Empresa, empresa_id)
+    # Frente Jornada: rótulos p/ INJETAR no prompt (montar_params/classificar). A ESCRITA
+    # da etapa é self-contained em _aplicar_resultado (via a sessão do verbatim), então
+    # não precisa threadar ctx pelos 5 pontos de escrita do batch.
+    jornada_versao, jornada_rotulos = jornada_da_empresa(s, empresa_id)
     return {
         "nome": emp.nome if emp else None,
         "setor": emp.setor if emp else None,
         "fontes": {f.id: f.conector_tipo for f in s.query(Fonte).filter_by(empresa_id=empresa_id)},
         "locais": {x.id: x.nome for x in s.query(Local).filter_by(empresa_id=empresa_id)},
+        "jornada_versao": jornada_versao,
+        "jornada_rotulos": jornada_rotulos,
     }
 
 
@@ -389,6 +408,31 @@ def _aplicar_resultado(v, r) -> None:
     v.confianca = r.confianca
     v.justificativa = r.justificativa
     v.prompt_versao = r.prompt_versao
+    _aplicar_etapa(v, r)
+
+
+def _aplicar_etapa(v, r) -> None:
+    """Frente Jornada: grava a etapa CRUA validada contra a jornada da empresa + carimba a
+    versão. Self-contained: busca a jornada pela sessão do próprio verbatim (cache em
+    ``session.info``, 1× por empresa por sessão) — cobre os 5 pontos de escrita do batch
+    sem threadar ctx. Sem jornada configurada → não escreve nada (etapa fica NULL)."""
+    from sqlalchemy.orm import object_session
+
+    from src.jornada import jornada_da_empresa, normalizar_etapa
+
+    s = object_session(v)
+    if s is None:
+        return
+    cache = s.info.setdefault("_jornada_cache", {})
+    if v.empresa_id not in cache:
+        cache[v.empresa_id] = jornada_da_empresa(s, v.empresa_id)
+    versao, rotulos = cache[v.empresa_id]
+    if not rotulos:
+        return
+    etapa_val = normalizar_etapa(getattr(r, "etapa", None), rotulos)
+    v.etapa = etapa_val
+    v.etapa_confianca = getattr(r, "etapa_confianca", None) if etapa_val else None
+    v.etapa_versao = versao if etapa_val else None
 
 
 def _marcar_terminal(v) -> None:
@@ -438,6 +482,7 @@ def _submeter_batch(client, items, modelo: str, empresa_id: int, passe: int, ctx
                 empresa_setor=ctx["setor"],
                 fonte_tipo=ctx["fontes"].get(fonte_id),
                 local_nome=ctx["locais"].get(local_id),
+                etapas=ctx.get("jornada_rotulos") or None,
             ),
         }
         for (vid, texto, fonte_id, local_id) in items
@@ -560,6 +605,7 @@ def _passe2_serial(empresa_id, passe2, stats, ctx, chunk) -> None:
                     empresa_setor=ctx["setor"],
                     fonte_tipo=ctx["fontes"].get(it["fonte_id"]),
                     local_nome=ctx["locais"].get(it["local_id"]),
+                    etapas=ctx.get("jornada_rotulos") or None,
                 )
                 _aplicar_resultado(v, r)
                 stats["classificados"] += 1

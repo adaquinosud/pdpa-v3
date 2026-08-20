@@ -1,0 +1,121 @@
+{# Jornada do cliente — leitura por etapa. Duas visões (Gargalo | Volume), matriz
+   etapa×subpilar, filtro por fonte (CONTROLE), piso 10, declaração de mix. #}
+{% set j = jornada %}
+{% set qs = filtros.qs if filtros and filtros.qs is defined else '' %}
+{% set faixa_cor = {
+  'critico':'bg-rose-100 text-rose-700','fraco':'bg-orange-100 text-orange-700',
+  'atencao':'bg-amber-100 text-amber-700','bom':'bg-emerald-100 text-emerald-700',
+  'excelente':'bg-emerald-200 text-emerald-800'} %}
+
+<div class="text-xs uppercase tracking-wider text-loyall-400">Jornada · a experiência por etapa</div>
+<h3 class="text-lg font-semibold text-loyall-800 mt-0.5">Onde a experiência trava, e onde está a massa de dor</h3>
+<p class="text-xs text-loyall-500 mt-1">
+  Lê os verbatins pela ETAPA da jornada — a linguagem que o cliente já fala. O gargalo
+  (quem trava primeiro) diz o que consertar; o volume (onde está a massa) diz quem atender.
+  Quando divergem, está o achado.</p>
+
+{% if not j %}
+<div class="mt-6 text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Esta empresa ainda não tem uma jornada configurada.</div>
+{% else %}
+
+{# ── Declaração de MIX de fontes (obrigatória) ── #}
+<div class="mt-4 rounded border-l-4 border-loyall-300 bg-loyall-50 px-3 py-2 text-xs text-loyall-600">
+  Esta leitura vem de {{ j.mix | sum(attribute='n') }} manifestações:
+  {% for m in j.mix %}<strong>{{ m.pct }}%</strong> {{ m.fonte }}{% if not loop.last %} · {% endif %}{% endfor %}.
+  Cada fonte enxerga etapas diferentes — a reclamação formal concentra no pós-serviço, o
+  review de loja na retirada. Filtre por fonte para separar a jornada da coleta.</div>
+
+{# ── Filtro por FONTE (controle, não três matrizes) ── #}
+<div class="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
+  <span class="text-loyall-400 uppercase tracking-wider">Fonte:</span>
+  {% for f in ([none] + j.fontes_disponiveis) %}
+  <button hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='jornada') }}?{{ qs }}{% if f %}&fonte={{ f }}{% endif %}"
+          hx-target="#explorar-conteudo" hx-swap="innerHTML"
+          hx-push-url="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=jornada&{{ qs }}{% if f %}&fonte={{ f }}{% endif %}"
+          class="cursor-pointer px-2 py-1 rounded border {% if j.fonte_atual == f %}border-loyall-600 bg-loyall-100 font-medium{% else %}border-loyall-200 hover:bg-loyall-50{% endif %}">
+    {{ f if f else 'todas' }}</button>
+  {% endfor %}
+</div>
+
+{# ── Divergência gargalo × volume (o achado) ── #}
+{% if j.divergem %}
+<div class="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+  <div class="font-semibold">O volume de dor está em <em>{{ j.volume.rotulo }}</em>, mas quem trava primeiro é <em>{{ j.gargalo.rotulo }}</em>.</div>
+  <p class="mt-1 text-amber-800">Consertar <strong>{{ j.volume.rotulo }}</strong> atende quem já chegou irritado; consertar
+    <strong>{{ j.gargalo.rotulo }}</strong> evita que cheguem assim (lei do elo mais fraco — o gargalo mais a montante é o teto).</p>
+</div>
+{% endif %}
+
+{# ── Duas visões: GARGALO | VOLUME ── #}
+<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+  <div class="rounded-lg border border-loyall-200 px-3 py-2">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Gargalo · onde trava</div>
+    {% if j.gargalo %}
+    <div class="mt-1 text-lg font-semibold text-loyall-800">{{ j.gargalo.rotulo }}</div>
+    <div class="text-xs text-loyall-500">ratio {{ '%.2f'|format(j.gargalo.ratio) }} · etapa travada mais a montante (o teto da jornada)</div>
+    {% else %}<div class="mt-1 text-sm text-loyall-400">Nenhuma etapa com ratio abaixo de 1,0 (com lastro).</div>{% endif %}
+  </div>
+  <div class="rounded-lg border border-loyall-200 px-3 py-2">
+    <div class="text-xs uppercase tracking-wider text-loyall-400">Volume · onde está a massa</div>
+    {% if j.volume %}
+    <div class="mt-1 text-lg font-semibold text-loyall-800">{{ j.volume.rotulo }}</div>
+    <div class="text-xs text-loyall-500">{{ j.volume.det }} detratores — a maior massa de dor</div>
+    {% else %}<div class="mt-1 text-sm text-loyall-400">Sem detratores com lastro.</div>{% endif %}
+  </div>
+</div>
+
+{# ── Etapas na ORDEM da jornada, com ratio/faixa e piso ── #}
+<div class="mt-4">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Etapas da jornada (na ordem)</div>
+  <div class="space-y-1">
+    {% for e in j.etapas %}
+    <div class="flex items-center gap-2 text-sm px-2 py-1.5 rounded border {% if j.gargalo and e.rotulo == j.gargalo.rotulo %}border-amber-300 bg-amber-50{% else %}border-loyall-100{% endif %}">
+      <span class="text-loyall-300 text-xs w-4">{{ e.ordem + 1 }}</span>
+      <span class="font-medium text-loyall-800 flex-1">{{ e.rotulo }}</span>
+      {% if e.tem_ratio %}
+        <span class="px-1.5 py-0.5 rounded text-[10px] {{ faixa_cor.get(e.faixa, 'bg-loyall-100 text-loyall-600') }}">{{ e.faixa }}</span>
+        <span class="text-loyall-600 tabular-nums w-14 text-right">{{ '%.2f'|format(e.ratio) }}</span>
+        <span class="text-loyall-400 text-xs w-24 text-right">{{ e.det }}d · {{ e.total }} tot</span>
+      {% else %}
+        <span class="text-loyall-400 text-xs italic">{{ e.total }} manifestações — menos de {{ 10 }}, sem leitura confiável</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% set mortas = j.etapas | selectattr('sem_lastro') | list %}
+  {% if mortas %}
+  <p class="mt-2 text-xs text-loyall-400">
+    Sem lastro: {% for e in mortas %}<strong>{{ e.rotulo }}</strong>{% if not loop.last %}, {% endif %}{% endfor %} —
+    ninguém menciona: ou funciona bem, ou não é onde a experiência acontece.</p>
+  {% endif %}
+</div>
+
+{# ── Matriz etapa × subpilar (o cruzamento acionável) ── #}
+{% if j.matriz_linhas and j.matriz_subs %}
+<div class="mt-4">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Etapa × subpilar — o que falha em cada etapa</div>
+  <div class="overflow-x-auto">
+    <table class="text-xs border-collapse">
+      <thead><tr>
+        <th class="px-2 py-1 text-left text-loyall-400 font-medium">etapa</th>
+        {% for s in j.matriz_subs %}<th class="px-2 py-1 text-center font-medium text-loyall-500">{{ s }}</th>{% endfor %}
+      </tr></thead>
+      <tbody>
+        {% for row in j.matriz_linhas %}
+        <tr class="border-t border-loyall-100">
+          <td class="px-2 py-1 font-medium text-loyall-700">{{ row.rotulo }}</td>
+          {% for c in row.celulas %}<td class="px-2 py-1 text-center {% if c %}text-loyall-700{% else %}text-loyall-300{% endif %}">{{ c or '·' }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<p class="mt-4 text-xs text-loyall-300">
+  Um relato que atravessa duas etapas conta na dominante (v1 mono-rótulo). Etapa de baixa
+  confiança em texto curto genérico é tratada como "nenhuma" (limiar {{ j.limiar_confianca }}, provisório).
+  {% if j.nenhuma_n %}· {{ j.nenhuma_n }} manifestações sem etapa clara.{% endif %}</p>
+{% endif %}

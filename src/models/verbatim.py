@@ -117,6 +117,17 @@ class Verbatim(Base):
     justificativa: Mapped[Optional[str]] = mapped_column(Text)
     prompt_versao: Mapped[Optional[str]] = mapped_column(String, default="v3.0")
 
+    # Frente Jornada: etapa DOMINANTE da jornada (por-empresa). Gravada CRUA + a
+    # confiança própria da etapa; o limiar do knob (baixa confiança em texto curto
+    # genérico → 'nenhuma') é aplicado na LEITURA, não aqui — assim é re-tunável sem
+    # re-classificar. NULL = empresa sem jornada OU verbatim não classificado p/ etapa.
+    # 'nenhuma' é valor VÁLIDO (verbatim que não fala de etapa). Sem CheckConstraint:
+    # a lista é por-empresa (ver EmpresaJornadaEtapa). ``etapa_versao`` versiona lazy
+    # (espelha prompt_versao): o verbatim mantém a etapa da versão sob a qual foi lido.
+    etapa: Mapped[Optional[str]] = mapped_column(String)
+    etapa_confianca: Mapped[Optional[float]] = mapped_column(Float)
+    etapa_versao: Mapped[Optional[int]] = mapped_column(Integer)
+
     # CP-D3: reviews ratings-only + dedup robusto.
     tem_texto: Mapped[bool] = mapped_column(Boolean, default=True)
     rating: Mapped[Optional[int]] = mapped_column(Integer)
