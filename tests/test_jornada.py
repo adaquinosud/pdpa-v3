@@ -385,3 +385,91 @@ def test_config_acao_add_via_http(db_session, client_loyall):
     assert resp.status_code == 200 and "reservar" in resp.get_data(as_text=True)
     _v, etapas = jornada_da_empresa(db_session, e.id)
     assert etapas == ["reservar"]
+
+
+# ── 8. Backfill (CLI jornada-backfill) — só-etapa, idempotente, dry-run ──
+
+
+def test_backfill_sem_jornada_nao_chama_llm(db_session):
+    from src.jornada.backfill import backfill_etapa
+
+    e = Empresa(nome="BF sem jornada")
+    db_session.add(e)
+    db_session.commit()
+    stats = backfill_etapa(e.id)
+    assert stats.get("erro") and stats["processados"] == 0  # guard antes de qualquer LLM
+
+
+def test_backfill_conta_pendentes(db_session):
+    from src.jornada.backfill import contar_pendentes
+
+    e = _empresa_com_jornada(db_session)
+    f = _fonte(db_session, e.id, "google")
+    for _ in range(3):  # 3 elegíveis (tem_texto, etapa NULL)
+        db_session.add(Verbatim(empresa_id=e.id, fonte_id=f.id, texto="x", tem_texto=True))
+    db_session.add(  # já tem etapa → não conta
+        Verbatim(empresa_id=e.id, fonte_id=f.id, texto="x", tem_texto=True, etapa="retirar")
+    )
+    db_session.add(  # sem texto → não conta
+        Verbatim(empresa_id=e.id, fonte_id=f.id, texto="", tem_texto=False)
+    )
+    db_session.commit()
+    assert contar_pendentes(db_session, e.id) == 3
+    assert contar_pendentes(db_session, e.id, limite=2) == 2
+
+
+def test_backfill_grava_etapa_sem_tocar_subpilar_idempotente(db_session, monkeypatch):
+    import src.jornada.backfill as bf
+
+    e = _empresa_com_jornada(db_session)
+    f = _fonte(db_session, e.id, "google")
+    v = Verbatim(
+        empresa_id=e.id,
+        fonte_id=f.id,
+        texto="peguei o carro",
+        tem_texto=True,
+        subpilar="D1",
+        tipo="detrator",
+        confianca=0.9,
+    )
+    db_session.add(v)
+    db_session.commit()
+    vid = v.id
+    # LLM mockado — não gasta; devolve etapa + tokens
+    monkeypatch.setattr(bf, "_classificar_etapa", lambda rot, txt: ("retirar", 0.95, 100, 20))
+    stats = bf.backfill_etapa(e.id)
+    assert stats["com_etapa"] == 1 and stats["custo_usd"] > 0
+    db_session.expire_all()
+    v2 = db_session.get(Verbatim, vid)
+    assert v2.etapa == "retirar" and v2.etapa_versao == 1
+    assert v2.subpilar == "D1" and v2.tipo == "detrator"  # subpilar/tipo INTOCADOS
+    # idempotente: re-rodar não acha mais nada (etapa != NULL)
+    stats2 = bf.backfill_etapa(e.id)
+    assert stats2["processados"] == 0
+
+
+def test_backfill_max_usd_aborta(db_session, monkeypatch):
+    import src.jornada.backfill as bf
+
+    e = _empresa_com_jornada(db_session)
+    f = _fonte(db_session, e.id, "google")
+    for _ in range(5):
+        db_session.add(Verbatim(empresa_id=e.id, fonte_id=f.id, texto="x", tem_texto=True))
+    db_session.commit()
+    # cada chamada custa ~ (10000 in + 2000 out) → passa de US$0.001 rápido
+    monkeypatch.setattr(bf, "_classificar_etapa", lambda rot, txt: ("retirar", 0.9, 10000, 2000))
+    stats = bf.backfill_etapa(e.id, max_usd=0.001, chunk=1)
+    assert stats["abortado"] is True and stats["processados"] < 5  # parou no teto
+
+
+def test_cli_jornada_backfill_dry_run(db_session, app):
+    e = _empresa_com_jornada(db_session)
+    f = _fonte(db_session, e.id, "google")
+    db_session.add(Verbatim(empresa_id=e.id, fonte_id=f.id, texto="x", tem_texto=True))
+    db_session.commit()
+    result = app.test_cli_runner().invoke(
+        args=["jornada-backfill", "--empresa", str(e.id), "--dry-run"]
+    )
+    assert result.exit_code == 0
+    out = result.output
+    assert "elegíveis" in out and "custo ESTIMADO" in out and "dry-run" in out

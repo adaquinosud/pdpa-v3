@@ -1214,6 +1214,101 @@ def _register_cli_commands(app: Flask) -> None:
             "(recalcula cache/Painel + re-tematiza)"
         )
 
+    # ── flask jornada-backfill (etapa na base histórica — classificação só-de-etapa) ──
+    @app.cli.command("jornada-backfill")
+    @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
+    @click.option(
+        "--limite",
+        type=int,
+        default=None,
+        help="Cap de verbatins (ex.: 200 p/ validar a leitura antes de gastar tudo).",
+    )
+    @click.option(
+        "--max-usd",
+        type=float,
+        default=None,
+        help="Kill switch: aborta quando o custo REAL acumulado excede USD.",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Só CONTA os elegíveis e estima o custo — NÃO chama LLM, não grava.",
+    )
+    @click.option(
+        "--sim",
+        is_flag=True,
+        default=False,
+        help="Pula a confirmação interativa (para execução não-TTY). Sem isto, pergunta.",
+    )
+    def jornada_backfill_cmd(empresa_arg, limite, max_usd, dry_run, sim):
+        """Backfill de ETAPA na base histórica (frente Jornada).
+
+        Classifica SÓ a etapa (prompt enxuto, sem tocar subpilar) dos verbatins com
+        texto e ``etapa IS NULL`` da empresa (que precisa ter jornada). Idempotente.
+        SEMPRE mostra a contagem + custo estimado ANTES; run pago pede confirmação
+        (ou --dry-run só conta). Imprime o custo REAL no fim.
+        """
+        from src.jornada.backfill import (
+            CUSTO_ESTIMADO_POR_VERBATIM,
+            backfill_etapa,
+            contar_pendentes,
+        )
+        from src.jornada import jornada_da_empresa
+        from src.models.empresa import Empresa
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            try:
+                emp = s.get(Empresa, int(empresa_arg))
+            except ValueError:
+                emp = s.query(Empresa).filter_by(nome=empresa_arg).first()
+            if emp is None:
+                click.echo(f"empresa {empresa_arg!r} não encontrada", err=True)
+                raise SystemExit(1)
+            empresa_id, empresa_nome = emp.id, emp.nome
+            _versao, rotulos = jornada_da_empresa(s, empresa_id)
+            if not rotulos:
+                click.echo(
+                    f"'{empresa_nome}' não tem jornada configurada — configure antes "
+                    f"(/ui/empresas/{empresa_id}/jornada).",
+                    err=True,
+                )
+                raise SystemExit(1)
+            n = contar_pendentes(s, empresa_id, limite)
+
+        est = n * CUSTO_ESTIMADO_POR_VERBATIM
+        click.echo(f"empresa: {empresa_nome} (id {empresa_id}) · jornada: {' · '.join(rotulos)}")
+        click.echo(
+            f"elegíveis (tem_texto & etapa IS NULL{f', limite {limite}' if limite else ''}): {n}"
+        )
+        click.echo(
+            f"custo ESTIMADO: ~US$ {est:.2f} (~US$ {CUSTO_ESTIMADO_POR_VERBATIM} / verbatim)"
+        )
+        if max_usd is not None:
+            click.echo(f"kill switch: aborta em US$ {max_usd:.2f}")
+
+        if dry_run:
+            click.echo("[dry-run] nada gravado, nenhum LLM chamado.")
+            return
+        if n == 0:
+            click.echo("nada a fazer (0 elegíveis).")
+            return
+        if not sim and not click.confirm("Rodar o backfill PAGO agora?", default=False):
+            click.echo("abortado pelo operador — nada gasto.")
+            return
+
+        stats = backfill_etapa(empresa_id, limite, max_usd=max_usd)
+        click.echo(
+            f"processados={stats['processados']} · com_etapa={stats['com_etapa']} · "
+            f"nenhuma={stats['nenhuma']} · sem_etapa={stats['sem_etapa']}"
+            + (" · ABORTADO (kill switch)" if stats.get("abortado") else "")
+        )
+        click.echo(
+            f"custo REAL: ~US$ {stats['custo_usd']:.3f} "
+            f"(in={stats['tokens_in']} out={stats['tokens_out']})"
+        )
+
     # ── flask reconciliar-vinculos (poda retroativa de vínculos órfãos) ──
     @app.cli.command("reconciliar-vinculos")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
