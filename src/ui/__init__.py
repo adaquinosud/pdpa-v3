@@ -3502,6 +3502,61 @@ def htmx_editar_empresa_modal(empresa_id: int):
     return render_template("partials/empresa_edit_modal.html", empresa=empresa)
 
 
+def _jornada_config_ctx(s, empresa_id):
+    """Contexto da tela de config da jornada (versão atual + etapas ativas ordenadas)."""
+    from src.jornada.config import listar_etapas
+
+    versao, etapas = listar_etapas(s, empresa_id)
+    return {
+        "empresa_id": empresa_id,
+        "versao": versao,
+        "etapas": [SimpleNamespace(id=e.id, ordem=e.ordem, rotulo=e.rotulo) for e in etapas],
+    }
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/jornada", methods=["GET"])
+@loyall_required_ui
+def empresa_jornada_config(empresa_id: int):
+    """Tela admin de configuração da jornada (ao lado do cadastro de ORIGEM/régua)."""
+    with db_session() as s:
+        empresa = s.get(Empresa, empresa_id)
+        if empresa is None:
+            return render_template("404.html"), 404
+        nome = empresa.nome
+        ctx = _jornada_config_ctx(s, empresa_id)
+    return render_template("empresas/jornada.html", empresa_nome=nome, **ctx)
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/jornada/acao", methods=["POST"])
+@loyall_required_ui
+def empresa_jornada_acao(empresa_id: int):
+    """Ação HTMX na jornada (add/renomear/mover/desativar/publicar) → re-render do fragmento."""
+    from src.jornada import config as jc
+
+    acao = (request.form.get("acao") or "").strip()
+    etapa_id = request.form.get("etapa_id")
+    etapa_id = int(etapa_id) if etapa_id and etapa_id.isdigit() else None
+    erro = None
+    with db_session() as s:
+        if s.get(Empresa, empresa_id) is None:
+            return ("", 404)
+        try:
+            if acao == "add":
+                jc.adicionar_etapa(s, empresa_id, request.form.get("rotulo", ""))
+            elif acao == "renomear" and etapa_id:
+                jc.renomear_etapa(s, etapa_id, request.form.get("rotulo", ""))
+            elif acao == "mover" and etapa_id:
+                jc.mover_etapa(s, etapa_id, request.form.get("direcao", "cima"))
+            elif acao == "desativar" and etapa_id:
+                jc.desativar_etapa(s, etapa_id)
+            elif acao == "publicar":
+                jc.publicar_nova_versao(s, empresa_id)
+        except ValueError as exc:
+            erro = str(exc)
+        ctx = _jornada_config_ctx(s, empresa_id)
+    return render_template("partials/jornada_config.html", erro=erro, **ctx)
+
+
 @ui_bp.route("/ui/empresas/<int:empresa_id>", methods=["PUT"])
 @loyall_required_ui
 def htmx_salvar_empresa(empresa_id: int):

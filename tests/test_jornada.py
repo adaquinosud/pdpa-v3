@@ -305,3 +305,83 @@ def test_render_tab_dark_sem_jornada(db_session, client_loyall):
     html = client_loyall.get(f"/empresas/{e.id}/explorar?tab=painel").get_data(as_text=True)
     # A aba Jornada NÃO aparece na tab bar quando não há jornada configurada.
     assert "tab=jornada" not in html
+
+
+# ── 7. Config (CRUD + versionamento) + tela admin ───────────────────────
+
+
+def test_config_add_ordem_e_versao(db_session):
+    from src.jornada.config import adicionar_etapa, listar_etapas
+
+    e = Empresa(nome="Cfg")
+    db_session.add(e)
+    db_session.commit()
+    for r in ["reservar", "retirar", "devolver"]:
+        adicionar_etapa(db_session, e.id, r)
+    v, etapas = listar_etapas(db_session, e.id)
+    assert v == 1
+    assert [x.rotulo for x in etapas] == ["reservar", "retirar", "devolver"]
+    assert [x.ordem for x in etapas] == [0, 1, 2]
+
+
+def test_config_mover_reordena(db_session):
+    from src.jornada.config import adicionar_etapa, listar_etapas, mover_etapa
+
+    e = Empresa(nome="Cfg2")
+    db_session.add(e)
+    db_session.commit()
+    ids = [adicionar_etapa(db_session, e.id, r).id for r in ["a", "b", "c"]]
+    mover_etapa(db_session, ids[2], "cima")  # c sobe
+    _v, etapas = listar_etapas(db_session, e.id)
+    assert [x.rotulo for x in etapas] == ["a", "c", "b"]
+
+
+def test_config_desativar_some_da_lista(db_session):
+    from src.jornada.config import adicionar_etapa, desativar_etapa, listar_etapas
+
+    e = Empresa(nome="Cfg3")
+    db_session.add(e)
+    db_session.commit()
+    ids = [adicionar_etapa(db_session, e.id, r).id for r in ["a", "b"]]
+    desativar_etapa(db_session, ids[0])
+    _v, etapas = listar_etapas(db_session, e.id)
+    assert [x.rotulo for x in etapas] == ["b"]
+
+
+def test_config_publicar_cria_versao_e_preserva(db_session):
+    from src.jornada.config import adicionar_etapa, listar_etapas, publicar_nova_versao
+
+    e = Empresa(nome="Cfg4")
+    db_session.add(e)
+    db_session.commit()
+    for r in ["a", "b"]:
+        adicionar_etapa(db_session, e.id, r)
+    nova = publicar_nova_versao(db_session, e.id)
+    assert nova == 2
+    v, etapas = listar_etapas(db_session, e.id)  # atual = maior versão = 2
+    assert v == 2 and [x.rotulo for x in etapas] == ["a", "b"]
+    # v1 preservada (verbatins antigos mantêm a versão)
+    v1 = [
+        x for x in db_session.query(EmpresaJornadaEtapa).filter_by(empresa_id=e.id, versao=1).all()
+    ]
+    assert len(v1) == 2
+
+
+def test_render_tela_config_caminho_feliz(db_session, client_loyall):
+    e = _empresa_com_jornada(db_session)  # já tem as 4 etapas
+    html = client_loyall.get(f"/ui/empresas/{e.id}/jornada").get_data(as_text=True)
+    # A tela RENDERIZA as etapas configuradas + o botão de publicar versão (não só o vazio).
+    assert "retirar" in html and "pós-serviço" in html
+    assert "Publicar nova versão" in html and "backfill" in html.lower()
+
+
+def test_config_acao_add_via_http(db_session, client_loyall):
+    e = Empresa(nome="CfgHTTP")
+    db_session.add(e)
+    db_session.commit()
+    resp = client_loyall.post(
+        f"/ui/empresas/{e.id}/jornada/acao", data={"acao": "add", "rotulo": "reservar"}
+    )
+    assert resp.status_code == 200 and "reservar" in resp.get_data(as_text=True)
+    _v, etapas = jornada_da_empresa(db_session, e.id)
+    assert etapas == ["reservar"]

@@ -1,0 +1,65 @@
+{# Fragmento editável da jornada (HTMX target). Add/ordenar/renomear/desativar + publicar. #}
+<div id="jornada-config">
+  {% if erro %}
+  <div class="mb-3 bg-rose-50 border border-rose-200 rounded px-3 py-2 text-sm text-rose-800">{{ erro }}</div>
+  {% endif %}
+
+  <div class="mb-2 text-xs text-loyall-500">
+    Versão atual: <strong>v{{ versao or '—' }}</strong>
+    {% if not etapas %}· nenhuma etapa ainda — a aba Jornada fica oculta até a 1ª etapa.{% endif %}
+  </div>
+
+  {% if etapas %}
+  <ul class="space-y-1 mb-3">
+    {% for e in etapas %}
+    <li class="flex items-center gap-2 border border-loyall-100 rounded px-2 py-1">
+      <span class="text-loyall-300 text-xs w-4">{{ e.ordem + 1 }}</span>
+      <form hx-post="{{ url_for('ui.empresa_jornada_acao', empresa_id=empresa_id) }}"
+            hx-target="#jornada-config" hx-swap="outerHTML" class="flex-1 flex items-center gap-2">
+        <input type="hidden" name="acao" value="renomear">
+        <input type="hidden" name="etapa_id" value="{{ e.id }}">
+        <input name="rotulo" value="{{ e.rotulo }}"
+               class="flex-1 px-2 py-1 border border-loyall-200 rounded text-sm">
+        <button type="submit" class="text-xs px-2 py-1 border border-loyall-200 rounded hover:bg-loyall-50">salvar</button>
+      </form>
+      {% for dir, sim in [('cima','↑'), ('baixo','↓')] %}
+      <button hx-post="{{ url_for('ui.empresa_jornada_acao', empresa_id=empresa_id) }}"
+              hx-target="#jornada-config" hx-swap="outerHTML"
+              hx-vals='{"acao":"mover","etapa_id":"{{ e.id }}","direcao":"{{ dir }}"}'
+              class="text-xs px-1.5 py-1 border border-loyall-200 rounded hover:bg-loyall-50">{{ sim }}</button>
+      {% endfor %}
+      <button hx-post="{{ url_for('ui.empresa_jornada_acao', empresa_id=empresa_id) }}"
+              hx-target="#jornada-config" hx-swap="outerHTML"
+              hx-vals='{"acao":"desativar","etapa_id":"{{ e.id }}"}'
+              hx-confirm="Remover a etapa &quot;{{ e.rotulo }}&quot; desta versão?"
+              class="text-xs px-1.5 py-1 border border-rose-200 text-rose-600 rounded hover:bg-rose-50">remover</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {# Adicionar etapa #}
+  <form hx-post="{{ url_for('ui.empresa_jornada_acao', empresa_id=empresa_id) }}"
+        hx-target="#jornada-config" hx-swap="outerHTML" class="flex items-center gap-2 mb-4">
+    <input type="hidden" name="acao" value="add">
+    <input name="rotulo" placeholder="Nova etapa (ex.: retirar)" required
+           class="flex-1 px-2 py-1 border border-loyall-200 rounded text-sm">
+    <button type="submit" class="text-sm px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Adicionar</button>
+  </form>
+
+  {% if etapas %}
+  <div class="border-t border-loyall-100 pt-3">
+    <button hx-post="{{ url_for('ui.empresa_jornada_acao', empresa_id=empresa_id) }}"
+            hx-target="#jornada-config" hx-swap="outerHTML"
+            hx-vals='{"acao":"publicar"}'
+            hx-confirm="Publicar como nova versão v{{ (versao or 0) + 1 }}? Os verbatins já classificados mantêm a versão atual."
+            class="text-sm px-3 py-1.5 border border-loyall-300 rounded hover:bg-loyall-50">
+      Publicar nova versão (v{{ (versao or 0) + 1 }})</button>
+    <p class="mt-2 text-xs text-loyall-400 leading-relaxed">
+      Editar aqui altera a versão atual. <strong>Publicar cria uma versão nova (v{{ (versao or 0) + 1 }})</strong>:
+      os verbatins já classificados <strong>mantêm a versão em que foram lidos</strong>, e os novos passam a usar a
+      mais recente. Reclassificar a base inteira para a nova jornada (backfill) é uma
+      <strong>operação separada, com custo declarado e aprovação</strong> — não acontece ao editar ou publicar aqui.</p>
+  </div>
+  {% endif %}
+</div>

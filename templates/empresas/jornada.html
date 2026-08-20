@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titulo %}Jornada — {{ empresa_nome }}{% endblock %}
+{% block conteudo %}
+<div class="mb-2">
+  <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa_id) }}" class="text-sm text-loyall-400 hover:underline">← {{ empresa_nome }}</a>
+  <h1 class="text-2xl font-semibold mt-1">Jornada do cliente</h1>
+</div>
+<p class="text-loyall-500 mb-4 text-sm max-w-2xl">
+  As etapas de <strong>experiência</strong> do cliente (ex.: reservar · retirar · devolver · pós-serviço),
+  na ordem. É a experiência que o cliente vive, não o processo interno da empresa. A leitura por etapa
+  fica na aba <em>Jornada</em> do Explorar — que só aparece quando há ao menos uma etapa aqui.</p>
+
+<div class="max-w-2xl border border-loyall-200 rounded-lg p-4">
+  {% include "partials/jornada_config.html" %}
+</div>
+{% endblock %}

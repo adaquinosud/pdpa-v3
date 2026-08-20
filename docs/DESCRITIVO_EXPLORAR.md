@@ -773,12 +773,18 @@ ele já fala ("sua dor está na retirada, não no carro"), que vira ação, dife
 **Configuração (admin).** A jornada é a espinha de etapas de EXPERIÊNCIA do cliente
 (Localiza: reservar · ir até o local · retirar · usar · devolver · pós-serviço),
 **configurada por empresa e nunca fixa** — tabela `empresa_jornada_etapas` (ordenada,
-versionada). Quem escreve: o cliente informa o processo, o operador escreve a jornada
-(é experiência, não processo interno — "conferência de CNH no balcão" é processo,
-"retirar" é experiência), o LLM propõe um rascunho, o corpus valida (etapa sem lastro
-no corpus nasce morta). **Sem jornada configurada, a aba não aparece** — jornada errada
-é pior que jornada nenhuma. Versionamento lazy (o verbatim mantém a etapa da versão sob
-a qual foi classificado; editar a jornada custa US$0, backfill é ato explícito e pago).
+versionada). **Tela admin dedicada** (`/ui/empresas/<id>/jornada`, gated por
+`loyall_required_ui`), linkada do modal de edição da empresa ao lado do cadastro de
+ORIGEM/régua: criar, renomear, ordenar (↑/↓) e desativar etapas; o cliente não toca.
+Quem escreve: o cliente informa o processo, o operador escreve a jornada à mão (é
+experiência, não processo interno — "conferência de CNH no balcão" é processo,
+"retirar" é experiência). **Sem jornada configurada, a aba não aparece** — jornada
+errada é pior que jornada nenhuma. **Versionamento visível:** editar altera a versão
+atual; "Publicar nova versão" cria a v+1 — os verbatins já classificados **mantêm a
+versão em que foram lidos** (`etapa_versao`), os novos usam a mais recente, e o
+**backfill da base é operação separada e paga** (não acontece ao editar/publicar). O
+rascunho por LLM e a validação por corpus são fatia seguinte (o operador digitar à mão
+já torna operável).
 
 **Anatomia.** Duas visões sempre juntas — **Gargalo** (onde a experiência trava: ratio
 < 1,0, e a etapa travada mais A MONTANTE é o teto, lei do elo mais fraco) e **Volume**

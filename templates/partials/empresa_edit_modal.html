@@ -68,6 +68,13 @@
           </label>
         </div>
       </div>
+      {# Frente Jornada: config da jornada é uma lista ordenada (tela própria), ao lado
+         do cadastro de ORIGEM/régua. Link — a tela abre fora do modal. #}
+      <div class="pt-2 border-t border-loyall-100">
+        <a href="{{ url_for('ui.empresa_jornada_config', empresa_id=empresa.id) }}"
+           class="text-sm text-loyall-700 hover:underline">Configurar jornada do cliente →</a>
+        <span class="text-xs text-loyall-400 block">etapas de experiência (reservar · retirar · devolver…) — habilita a aba Jornada</span>
+      </div>
       <div class="flex gap-2 pt-2">
         <button type="submit" class="px-4 py-2 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Salvar</button>
         <button type="button" onclick="document.getElementById('empresa-edit-modal').remove()"
