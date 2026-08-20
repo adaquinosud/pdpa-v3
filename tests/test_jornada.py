@@ -284,17 +284,46 @@ def test_leitura_matriz_agrupada_por_pilar_sigla(db_session):
     _verb(db_session, e.id, f.id, "retirar", "inativo", 0.95, "sem_lastro", 1)
     db_session.commit()
     j = agregar_jornada(db_session, e.id)
-    # colunas em ORDEM CANÔNICA por pilar (P→D→Pa→A), siglas, sem_lastro (SL) por último
-    assert [c.sigla for c in j.matriz_colunas] == ["P1", "D1", "Pa1", "SL"]
+    # colunas em ORDEM CANÔNICA por pilar (P→D→Pa→A), siglas — sem_lastro FORA da matriz
+    assert [c.sigla for c in j.matriz_colunas] == ["P1", "D1", "Pa1"]
     assert j.matriz_colunas[0].nome  # nome completo para o hover (title)
-    # grupos = nome do PILAR + span; sem_lastro separado
     assert [(g.nome, g.span) for g in j.matriz_grupos] == [
         ("Precisão", 1),
         ("Disponibilidade", 1),
         ("Parceria", 1),
-        ("sem lastro", 1),
     ]
-    assert j.matriz_grupos[-1].is_lastro is True
+    # sem_lastro sai da matriz mas é declarado no rodapé
+    assert j.sem_lastro_total == 1
+
+
+def test_leitura_total_exclui_sem_lastro_e_reconcilia(db_session):
+    e = _empresa_com_jornada(db_session)
+    f = _fonte(db_session, e.id, "google")
+    _verb(db_session, e.id, f.id, "retirar", "detrator", 0.95, "D1", 8)
+    _verb(db_session, e.id, f.id, "retirar", "promotor", 0.95, "P1", 2)
+    _verb(db_session, e.id, f.id, "retirar", "conversivel", 0.95, "P2", 1)
+    _verb(db_session, e.id, f.id, "retirar", "inativo", 0.95, "sem_lastro", 3)  # fora do total
+    db_session.commit()
+    j = agregar_jornada(db_session, e.id)
+    ret = next(x for x in j.etapas if x.rotulo == "retirar")
+    assert ret.total == 8 + 2 + 1  # prom+conv+det (11), SEM os 3 inativos
+    # soma da linha da matriz reconcilia com o total (SL fora dos dois)
+    row = next(r for r in j.matriz_linhas if r.rotulo == "retirar")
+    assert sum(row.celulas) == ret.total
+    # dominante = subpilar de maior massa
+    assert ret.dominante_sigla == "D1" and ret.dominante_n == 8
+
+
+def test_leitura_share_do_passivo(db_session):
+    e = _empresa_com_jornada(db_session)
+    f = _fonte(db_session, e.id, "google")
+    _verb(db_session, e.id, f.id, "retirar", "detrator", 0.95, "D1", 10)
+    _verb(db_session, e.id, f.id, "pós-serviço", "detrator", 0.95, "Pa1", 18)
+    db_session.commit()
+    j = agregar_jornada(db_session, e.id)
+    ret = next(x for x in j.etapas if x.rotulo == "retirar")
+    # denominador = det das etapas com lastro (10 + 18 = 28)
+    assert abs(ret.share_dor - 10 / 28) < 1e-6
 
 
 def test_leitura_sem_jornada_none(db_session):
@@ -320,6 +349,8 @@ def test_render_jornada_caminho_feliz(db_session, client_loyall):
     assert "manifestações" in html  # linha de declaração de mix
     # matriz agrupada por pilar + sigla (gramática do Quadro dos Pilares)
     assert "Disponibilidade" in html and ">D1<" in html
+    # linha auditável: operandos do ratio (NP·ND) + participação no passivo
+    assert "P·" in html and "D<" in html and "% dor" in html
 
 
 def test_render_tab_dark_sem_jornada(db_session, client_loyall):

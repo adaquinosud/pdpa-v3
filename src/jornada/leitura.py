@@ -97,9 +97,11 @@ def agregar_jornada(
         Fonte.conector_tipo,
     )
 
-    # buckets[etapa] = {prom, conv, det, total} ; matriz[(etapa, subpilar)] = count
-    buckets = {r: {"prom": 0, "conv": 0, "det": 0, "total": 0} for r in rotulos}
-    buckets[ETAPA_NENHUMA] = {"prom": 0, "conv": 0, "det": 0, "total": 0}
+    # buckets[etapa] = {prom, conv, det, sl}. total = prom+conv+det — sem_lastro FORA (§4.38,
+    # como agregar_subpilares); o count de sem_lastro (sl) vai pro rodapé. A matriz também
+    # exclui sem_lastro (é ausência de âncora, não "o que falha"): soma da linha = total.
+    buckets = {r: {"prom": 0, "conv": 0, "det": 0, "sl": 0} for r in rotulos}
+    buckets[ETAPA_NENHUMA] = {"prom": 0, "conv": 0, "det": 0, "sl": 0}
     matriz = {}
     for etapa, sub, tipo, econf, _con, n in q.all():
         n = int(n)
@@ -110,22 +112,31 @@ def agregar_jornada(
         b = buckets.get(alvo)
         if b is None:
             continue
-        b["total"] += n
         if tipo == "promotor":
             b["prom"] += n
         elif tipo == "conversivel":
             b["conv"] += n
         elif tipo == "detrator":
             b["det"] += n
-        if alvo != ETAPA_NENHUMA and sub:
+        elif tipo == "inativo":
+            b["sl"] += n
+        if alvo != ETAPA_NENHUMA and sub and sub != "sem_lastro":
             matriz[(alvo, sub)] = matriz.get((alvo, sub), 0) + n
+
+    # Subpilar DOMINANTE por etapa (maior massa) — responde "o que falha nesta etapa?".
+    por_etapa_subs = {}
+    for (et, sub), c in matriz.items():
+        por_etapa_subs.setdefault(et, {})[sub] = c
 
     # Uma linha por etapa da jornada, na ORDEM. Piso: < 10 → sem ratio, só volume.
     etapas = []
     for ordem, r in enumerate(rotulos):
         b = buckets[r]
-        tem_ratio = b["total"] >= PISO_TEMA_VOLUME
+        total = b["prom"] + b["conv"] + b["det"]  # sem_lastro FORA
+        tem_ratio = total >= PISO_TEMA_VOLUME
         ratio = calcular_ratio(b["prom"], b["det"]) if tem_ratio else None
+        subs_r = por_etapa_subs.get(r, {})
+        dom = max(subs_r, key=subs_r.get) if subs_r else None
         etapas.append(
             SimpleNamespace(
                 ordem=ordem,
@@ -133,13 +144,22 @@ def agregar_jornada(
                 prom=b["prom"],
                 conv=b["conv"],
                 det=b["det"],
-                total=b["total"],
+                total=total,
+                sl=b["sl"],
                 ratio=ratio,
                 faixa=(faixa_ratio(ratio) if ratio is not None else None),
                 tem_ratio=tem_ratio,
-                sem_lastro=(b["total"] < PISO_TEMA_VOLUME),
+                sem_lastro=(total < PISO_TEMA_VOLUME),
+                dominante_sigla=dom,
+                dominante_n=(subs_r.get(dom) if dom else None),
+                share_dor=None,  # preenchido abaixo (precisa do denominador global)
             )
         )
+    # % do passivo: det da etapa ÷ det das etapas COM LASTRO (denominador declarado na tela;
+    # etapas abaixo do piso ficam fora, por isso os % não somam 100%).
+    total_det = sum(e.det for e in etapas if e.tem_ratio) or 0
+    for e in etapas:
+        e.share_dor = (e.det / total_det) if (total_det and e.tem_ratio) else None
 
     # GARGALO = etapa travada (ratio < 1,0) mais A MONTANTE (menor ordem) — elo fraco.
     gargalo = next((e for e in etapas if e.tem_ratio and e.ratio < 1.0), None)
@@ -150,29 +170,23 @@ def agregar_jornada(
 
     # Matriz etapa × subpilar (só etapas com lastro). Colunas em ordem canônica agrupadas
     # por PILAR (gramática do Quadro dos Pilares): grupo = nome do pilar; coluna = SIGLA
-    # do subpilar (nome completo no title). sem_lastro fica por último, separado dos pilares.
+    # (nome completo no title). sem_lastro NÃO entra (já filtrado acima) — vai pro rodapé.
     subs_set = {sub for (et, sub) in matriz}
-    ordenadas = [sp for sp in SUBPILARES_ORDEM if sp in subs_set]  # P1..A3 na ordem oficial
-    tem_sem_lastro = "sem_lastro" in subs_set
-    colunas = ordenadas + (["sem_lastro"] if tem_sem_lastro else [])
-    matriz_colunas = [
-        SimpleNamespace(sigla=("SL" if sp == "sem_lastro" else sp), nome=NOME_SUBPILAR.get(sp, sp))
-        for sp in colunas
-    ]
+    colunas = [sp for sp in SUBPILARES_ORDEM if sp in subs_set]  # P1..A3, SL já fora
+    matriz_colunas = [SimpleNamespace(sigla=sp, nome=NOME_SUBPILAR.get(sp, sp)) for sp in colunas]
     grupos = []
     for p in PILARES_ORDEM:
-        span = sum(1 for sp in ordenadas if PILAR_DE_SUBPILAR.get(sp) == p)
+        span = sum(1 for sp in colunas if PILAR_DE_SUBPILAR.get(sp) == p)
         if span:
-            grupos.append(SimpleNamespace(nome=NOME_PILAR[p], span=span, is_lastro=False))
-    if tem_sem_lastro:
-        grupos.append(SimpleNamespace(nome="sem lastro", span=1, is_lastro=True))
+            grupos.append(SimpleNamespace(nome=NOME_PILAR[p], span=span))
     linhas_matriz = [
         SimpleNamespace(rotulo=e.rotulo, celulas=[matriz.get((e.rotulo, sp), 0) for sp in colunas])
         for e in etapas
         if e.tem_ratio
     ]
 
-    nenhuma_n = buckets[ETAPA_NENHUMA]["total"]
+    nenhuma_n = sum(buckets[ETAPA_NENHUMA][k] for k in ("prom", "conv", "det", "sl"))
+    sem_lastro_total = sum(buckets[r]["sl"] for r in rotulos)  # rodapé "N sem lastro"
     return SimpleNamespace(
         versao=versao,
         etapas=etapas,
@@ -186,5 +200,6 @@ def agregar_jornada(
         matriz_colunas=matriz_colunas,
         matriz_grupos=grupos,
         matriz_linhas=linhas_matriz,
+        sem_lastro_total=sem_lastro_total,
         limiar_confianca=LIMIAR_CONFIANCA_PROVISORIO,
     )

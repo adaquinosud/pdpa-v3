@@ -70,25 +70,32 @@
   <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Etapas da jornada (na ordem)</div>
   <div class="space-y-1">
     {% for e in j.etapas %}
+    {% set tot = e.total if e.total else 1 %}
     <div class="flex items-center gap-2 text-sm px-2 py-1.5 rounded border {% if j.gargalo and e.rotulo == j.gargalo.rotulo %}border-amber-300 bg-amber-50{% else %}border-loyall-100{% endif %}">
-      <span class="text-loyall-300 text-xs w-4">{{ e.ordem + 1 }}</span>
-      <span class="font-medium text-loyall-800 flex-1">{{ e.rotulo }}</span>
+      <span class="text-loyall-300 text-xs w-4 shrink-0">{{ e.ordem + 1 }}</span>
+      <span class="font-medium text-loyall-800 w-28 shrink-0 truncate" title="{{ e.rotulo }}">{{ e.rotulo }}</span>
       {% if e.tem_ratio %}
-        <span class="px-1.5 py-0.5 rounded text-[10px] {{ faixa_cor.get(e.faixa, 'bg-loyall-100 text-loyall-600') }}">{{ e.faixa }}</span>
-        <span class="text-loyall-600 tabular-nums w-14 text-right">{{ '%.2f'|format(e.ratio) }}</span>
-        <span class="text-loyall-400 text-xs w-24 text-right">{{ e.det }}d · {{ e.total }} tot</span>
+        <span class="px-1.5 py-0.5 rounded text-[10px] shrink-0 {{ faixa_cor.get(e.faixa, 'bg-loyall-100 text-loyall-600') }}">{{ e.faixa }}</span>
+        {# barra empilhada prom/conv/det (gramática do loja_drill) — números exatos no hover #}
+        <div class="flex-1 flex h-1.5 rounded overflow-hidden bg-loyall-100 min-w-[3rem]"
+             title="prom {{ e.prom }} · conv {{ e.conv }} · det {{ e.det }} · {{ e.total }} tot">
+          <div class="bg-emerald-400" style="width: {{ (e.prom / tot * 100) | round(0,'floor') }}%"></div>
+          <div class="bg-amber-400" style="width: {{ (e.conv / tot * 100) | round(0,'floor') }}%"></div>
+          <div class="bg-rose-400" style="width: {{ (e.det / tot * 100) | round(0,'floor') }}%"></div>
+        </div>
+        <span class="text-loyall-600 tabular-nums shrink-0 w-24 text-right" title="ratio P/D · operandos: promotores · detratores">{{ '%.2f'|format(e.ratio) }} · {{ e.prom }}P·{{ e.det }}D</span>
+        <span class="text-loyall-500 text-xs shrink-0 w-20 text-right truncate" title="subpilar de maior massa nesta etapa — o que falha aqui">{% if e.dominante_sigla %}{{ e.dominante_sigla }} · {{ e.dominante_n }}{% else %}—{% endif %}</span>
+        <span class="text-loyall-400 text-xs shrink-0 w-16 text-right" title="detratores da etapa ÷ detratores das etapas com lastro">{% if e.share_dor is not none %}{{ (100 * e.share_dor) | round | int }}% dor{% else %}—{% endif %}</span>
       {% else %}
-        <span class="text-loyall-400 text-xs italic">{{ e.total }} manifestações — menos de {{ 10 }}, sem leitura confiável</span>
+        <span class="text-loyall-400 text-xs italic flex-1">{{ e.total }} manifestações — menos de 10, sem leitura confiável</span>
       {% endif %}
     </div>
     {% endfor %}
   </div>
-  {% set mortas = j.etapas | selectattr('sem_lastro') | list %}
-  {% if mortas %}
-  <p class="mt-2 text-xs text-loyall-400">
-    Sem lastro: {% for e in mortas %}<strong>{{ e.rotulo }}</strong>{% if not loop.last %}, {% endif %}{% endfor %} —
-    ninguém menciona: ou funciona bem, ou não é onde a experiência acontece.</p>
-  {% endif %}
+  <p class="mt-1 text-xs text-loyall-300">
+    Barra: promotor · conversível · detrator (números no hover). <strong>% dor</strong> = detratores da etapa
+    ÷ detratores das etapas com lastro — as abaixo do piso ficam fora, então os % não somam 100%.
+    {% if j.sem_lastro_total %}<br>{{ j.sem_lastro_total }} manifestações <strong>sem lastro</strong>, fora do ratio (não entram na barra nem na matriz).{% endif %}</p>
 </div>
 
 {# ── Matriz etapa × subpilar (o cruzamento acionável) — agrupada por pilar, sigla+hover ── #}
@@ -102,7 +109,7 @@
           <th rowspan="2" class="px-2 py-1 text-left align-bottom text-loyall-400 font-medium">etapa</th>
           {% for g in j.matriz_grupos %}
           <th colspan="{{ g.span }}"
-              class="px-2 py-0.5 text-center font-medium {% if g.is_lastro %}text-loyall-300 border-l-2 border-loyall-200{% else %}text-loyall-500 border-l border-loyall-100{% endif %}">{{ g.nome }}</th>
+              class="px-2 py-0.5 text-center font-medium text-loyall-500 border-l border-loyall-100">{{ g.nome }}</th>
           {% endfor %}
         </tr>
         <tr>

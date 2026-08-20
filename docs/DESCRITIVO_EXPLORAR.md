@@ -791,12 +791,24 @@ já torna operável).
 (onde está a massa de dor: contagem de detratores). **Quando divergem, está o achado**
 ("o volume está no pós-serviço, mas quem trava é a retirada — consertar o pós-serviço
 atende quem já chegou irritado; consertar a retirada evita que cheguem assim"). Nenhum
-instrumento de CX diz isso, porque todos ordenam por volume. Mais: a matriz **etapa ×
-subpilar** (o que falha em cada etapa) — colunas **agrupadas por pilar** (Precisão ·
-Disponibilidade · Parceria · Aconselhamento) e nomeadas pela **sigla** (P1, D1, Pa1…,
-nome completo no hover), `sem_lastro` na última coluna, separado; mesma gramática do
-Quadro dos Pilares. E o **piso de 10** verbatins por etapa (abaixo disso, exibe volume
-e declara "sem ratio").
+instrumento de CX diz isso, porque todos ordenam por volume.
+
+Cada linha de etapa é **auditável**: barra empilhada promotor/conversível/detrator
+(gramática do drill de loja; os quatro números — incl. total — no hover), o ratio com
+seus **operandos** ao lado (`0.29 · 84P·288D`), o **subpilar dominante** da etapa
+(`Pa2 · 408` — "o que falha aqui") e a **participação no passivo** (detratores da etapa
+÷ detratores das etapas com lastro; as abaixo do piso ficam fora, então os % não somam
+100% — declarado na tela). Mais: a matriz **etapa × subpilar** — colunas **agrupadas
+por pilar** (Precisão · Disponibilidade · Parceria · Aconselhamento), nomeadas pela
+**sigla** (P1, D1, Pa1…, nome completo no hover); mesma gramática do Quadro dos Pilares.
+E o **piso de 10** verbatins por etapa (abaixo disso, exibe volume e declara "sem
+ratio").
+
+**`total` e `sem_lastro` (reconciliação):** o `total` da etapa é `promotor + conversível
++ detrator` — `sem_lastro` fica **fora** (§4.38, como no resto da plataforma), então
+somar a linha bate com o total. `sem_lastro` também sai da matriz (é ausência de âncora,
+não "o que falha"), mas o total dele é **declarado num rodapé** ("N manifestações sem
+lastro, fora do ratio") — o número continua visível, a exclusão fica explícita.
 
 **⚠️ Viés de fonte + filtro por fonte (obrigatório).** A distribuição de etapa depende
 do **mix de fontes**: o ReclameAqui concentra no pós-serviço, o Google na retirada. Uma
