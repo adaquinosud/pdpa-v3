@@ -275,6 +275,28 @@ def test_leitura_filtro_por_fonte(db_session):
     assert pos.total == 0  # pós-serviço é só RA → some no google-only
 
 
+def test_leitura_matriz_agrupada_por_pilar_sigla(db_session):
+    e = _empresa_com_jornada(db_session)
+    f = _fonte(db_session, e.id, "google")
+    _verb(db_session, e.id, f.id, "retirar", "detrator", 0.95, "D1", 6)
+    _verb(db_session, e.id, f.id, "retirar", "detrator", 0.95, "Pa1", 3)
+    _verb(db_session, e.id, f.id, "retirar", "promotor", 0.95, "P1", 2)
+    _verb(db_session, e.id, f.id, "retirar", "inativo", 0.95, "sem_lastro", 1)
+    db_session.commit()
+    j = agregar_jornada(db_session, e.id)
+    # colunas em ORDEM CANÔNICA por pilar (P→D→Pa→A), siglas, sem_lastro (SL) por último
+    assert [c.sigla for c in j.matriz_colunas] == ["P1", "D1", "Pa1", "SL"]
+    assert j.matriz_colunas[0].nome  # nome completo para o hover (title)
+    # grupos = nome do PILAR + span; sem_lastro separado
+    assert [(g.nome, g.span) for g in j.matriz_grupos] == [
+        ("Precisão", 1),
+        ("Disponibilidade", 1),
+        ("Parceria", 1),
+        ("sem lastro", 1),
+    ]
+    assert j.matriz_grupos[-1].is_lastro is True
+
+
 def test_leitura_sem_jornada_none(db_session):
     e = Empresa(nome="Nada")
     db_session.add(e)
@@ -296,6 +318,8 @@ def test_render_jornada_caminho_feliz(db_session, client_loyall):
     assert "retirar" in html and "pós-serviço" in html
     assert "Gargalo" in html and "Jornada" in html
     assert "manifestações" in html  # linha de declaração de mix
+    # matriz agrupada por pilar + sigla (gramática do Quadro dos Pilares)
+    assert "Disponibilidade" in html and ">D1<" in html
 
 
 def test_render_tab_dark_sem_jornada(db_session, client_loyall):

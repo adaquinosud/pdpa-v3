@@ -41,7 +41,15 @@ def agregar_jornada(
     ``fonte`` (conector_tipo) filtra a agregação das etapas; None = todas as fontes
     (o mix é sempre declarado). O knob de confiança é aplicado aqui.
     """
-    from src.api.painel import NOME_SUBPILAR, calcular_ratio, faixa_ratio
+    from src.api.painel import (
+        NOME_PILAR,
+        NOME_SUBPILAR,
+        PILAR_DE_SUBPILAR,
+        PILARES_ORDEM,
+        SUBPILARES_ORDEM,
+        calcular_ratio,
+        faixa_ratio,
+    )
     from src.diagnostico.leituras import _locais_do_agrupamento
     from src.models.fonte import Fonte
     from src.models.verbatim import Verbatim
@@ -140,18 +148,29 @@ def agregar_jornada(
     volume = max(com_dor, key=lambda e: e.det) if com_dor else None
     divergem = bool(gargalo and volume and gargalo.rotulo != volume.rotulo)
 
-    # Matriz etapa × subpilar (só etapas com lastro; subpilares presentes, nomeados).
-    subs_presentes = sorted({sub for (et, sub) in matriz})
-    linhas_matriz = []
-    for e in etapas:
-        if not e.tem_ratio:
-            continue
-        linhas_matriz.append(
-            SimpleNamespace(
-                rotulo=e.rotulo,
-                celulas=[matriz.get((e.rotulo, sub), 0) for sub in subs_presentes],
-            )
-        )
+    # Matriz etapa × subpilar (só etapas com lastro). Colunas em ordem canônica agrupadas
+    # por PILAR (gramática do Quadro dos Pilares): grupo = nome do pilar; coluna = SIGLA
+    # do subpilar (nome completo no title). sem_lastro fica por último, separado dos pilares.
+    subs_set = {sub for (et, sub) in matriz}
+    ordenadas = [sp for sp in SUBPILARES_ORDEM if sp in subs_set]  # P1..A3 na ordem oficial
+    tem_sem_lastro = "sem_lastro" in subs_set
+    colunas = ordenadas + (["sem_lastro"] if tem_sem_lastro else [])
+    matriz_colunas = [
+        SimpleNamespace(sigla=("SL" if sp == "sem_lastro" else sp), nome=NOME_SUBPILAR.get(sp, sp))
+        for sp in colunas
+    ]
+    grupos = []
+    for p in PILARES_ORDEM:
+        span = sum(1 for sp in ordenadas if PILAR_DE_SUBPILAR.get(sp) == p)
+        if span:
+            grupos.append(SimpleNamespace(nome=NOME_PILAR[p], span=span, is_lastro=False))
+    if tem_sem_lastro:
+        grupos.append(SimpleNamespace(nome="sem lastro", span=1, is_lastro=True))
+    linhas_matriz = [
+        SimpleNamespace(rotulo=e.rotulo, celulas=[matriz.get((e.rotulo, sp), 0) for sp in colunas])
+        for e in etapas
+        if e.tem_ratio
+    ]
 
     nenhuma_n = buckets[ETAPA_NENHUMA]["total"]
     return SimpleNamespace(
@@ -164,7 +183,8 @@ def agregar_jornada(
         mix=sorted(mix, key=lambda m: -m["n"]),
         fonte_atual=fonte,
         fontes_disponiveis=fontes_disponiveis,
-        matriz_subs=[NOME_SUBPILAR.get(x, x) for x in subs_presentes],
+        matriz_colunas=matriz_colunas,
+        matriz_grupos=grupos,
         matriz_linhas=linhas_matriz,
         limiar_confianca=LIMIAR_CONFIANCA_PROVISORIO,
     )

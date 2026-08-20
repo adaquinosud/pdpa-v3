@@ -792,8 +792,11 @@ já torna operável).
 ("o volume está no pós-serviço, mas quem trava é a retirada — consertar o pós-serviço
 atende quem já chegou irritado; consertar a retirada evita que cheguem assim"). Nenhum
 instrumento de CX diz isso, porque todos ordenam por volume. Mais: a matriz **etapa ×
-subpilar** (o que falha em cada etapa) e o **piso de 10** verbatins por etapa (abaixo
-disso, exibe volume e declara "sem ratio").
+subpilar** (o que falha em cada etapa) — colunas **agrupadas por pilar** (Precisão ·
+Disponibilidade · Parceria · Aconselhamento) e nomeadas pela **sigla** (P1, D1, Pa1…,
+nome completo no hover), `sem_lastro` na última coluna, separado; mesma gramática do
+Quadro dos Pilares. E o **piso de 10** verbatins por etapa (abaixo disso, exibe volume
+e declara "sem ratio").
 
 **⚠️ Viés de fonte + filtro por fonte (obrigatório).** A distribuição de etapa depende
 do **mix de fontes**: o ReclameAqui concentra no pós-serviço, o Google na retirada. Uma
