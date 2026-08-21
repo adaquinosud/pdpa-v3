@@ -349,8 +349,8 @@ def test_render_jornada_caminho_feliz(db_session, client_loyall):
     assert "manifestações" in html  # linha de declaração de mix
     # matriz agrupada por pilar + sigla (gramática do Quadro dos Pilares)
     assert "Disponibilidade" in html and ">D1<" in html
-    # linha auditável: operandos do ratio (NP·ND) + participação no passivo
-    assert "P·" in html and "D<" in html and "% dor" in html
+    # linha auditável: operandos do ratio (NP·ND) + participação nos detratores
+    assert "P·" in html and "D<" in html and "% det." in html
 
 
 def test_render_tab_dark_sem_jornada(db_session, client_loyall):

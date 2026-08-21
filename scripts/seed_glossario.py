@@ -615,6 +615,23 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "e ao cache temático por nível.",
         "Temas (interno)",
     ),
+    # ── Jornada (src/jornada/) ────────────────────────────────────────────
+    (
+        "jornada",
+        "Jornada (etapa)",
+        "Jornada",
+        "Leitura dos verbatins pela etapa da jornada do cliente.",
+        "A etapa é o MOMENTO da experiência (ex.: reservar · retirar · devolver · "
+        "pós-serviço), configurada por empresa. É ORTOGONAL ao subpilar: o subpilar diz "
+        "O QUÊ (a dimensão do valor), a etapa diz QUANDO (o momento da jornada) — uma "
+        "cobrança indevida é Mutualidade E pós-serviço. Cada verbatim carrega UMA etapa "
+        "dominante: um relato que atravessa duas etapas conta na dominante (v1 "
+        "mono-rótulo). Piso de 10 verbatins por etapa — abaixo disso exibe o volume mas "
+        "não emite ratio. A distribuição por etapa depende do MIX DE FONTES (o "
+        "ReclameAqui concentra no pós-serviço, o Google na retirada), por isso a leitura "
+        "declara o mix e permite filtrar por fonte — para separar a jornada da coleta.",
+        "aba Jornada",
+    ),
     # ── Engajamento (src/api/engajamento.py) ──────────────────────────────
     (
         "engajamento",

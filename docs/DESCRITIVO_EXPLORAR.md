@@ -765,7 +765,7 @@ sondagem.
 ## JORNADA (a experiência por etapa)
 
 **Propósito.** Ler os verbatins pela **etapa da jornada** do cliente — a linguagem que
-ele já fala ("sua dor está na retirada, não no carro"), que vira ação, diferente de
+ele já fala ("o problema está na retirada, não no carro"), que vira ação, diferente de
 "sua Precisão está em 0,82". A etapa é **ortogonal** ao subpilar: o subpilar diz *o quê*
 (a dimensão do valor), a etapa diz *quando* (o momento da jornada). "Cobrança indevida"
 é Mutualidade **e** pós-serviço. Fonte: `_explorar_jornada` (ui) + `src/jornada/`.
@@ -788,7 +788,7 @@ já torna operável).
 
 **Anatomia.** Duas visões sempre juntas — **Gargalo** (onde a experiência trava: ratio
 < 1,0, e a etapa travada mais A MONTANTE é o teto, lei do elo mais fraco) e **Volume**
-(onde está a massa de dor: contagem de detratores). **Quando divergem, está o achado**
+(onde está a maior massa de detratores: contagem). **Quando divergem, está o achado**
 ("o volume está no pós-serviço, mas quem trava é a retirada — consertar o pós-serviço
 atende quem já chegou irritado; consertar a retirada evita que cheguem assim"). Nenhum
 instrumento de CX diz isso, porque todos ordenam por volume.
@@ -820,8 +820,9 @@ correção nunca é o classificador.)
 
 **⚠️ Limitação declarada (v1 mono-rótulo).** Cada verbatim carrega UMA etapa dominante.
 **Um relato que atravessa duas etapas conta na dominante** — "retirei rápido, mas
-devolver foi um inferno" entra em uma só. É a partição limpa que sustenta "onde a dor se
-concentra" (denominador que soma 100%); o custo é perder o secundário do relato longo.
+devolver foi um inferno" entra em uma só. É a partição limpa que sustenta "onde os
+detratores se concentram" (denominador que soma 100%); o custo é perder o secundário do
+relato longo.
 Etapas secundárias (multi-rótulo) são v2, só se uma leitura pedir o drill-down.
 
 **Operação.** A etapa sai como 4ª dimensão na MESMA chamada do classificador (verbatim

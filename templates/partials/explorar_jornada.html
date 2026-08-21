@@ -8,7 +8,7 @@
   'excelente':'bg-emerald-200 text-emerald-800'} %}
 
 <div class="text-xs uppercase tracking-wider text-loyall-400">Jornada · a experiência por etapa</div>
-<h3 class="text-lg font-semibold text-loyall-800 mt-0.5">Onde a experiência trava, e onde está a massa de dor</h3>
+<h3 class="text-lg font-semibold text-loyall-800 mt-0.5">Onde a experiência trava, e onde está a massa de detratores {% if glossario_i is defined %}{{ glossario_i('jornada') }}{% endif %}</h3>
 <p class="text-xs text-loyall-500 mt-1">
   Lê os verbatins pela ETAPA da jornada — a linguagem que o cliente já fala. O gargalo
   (quem trava primeiro) diz o que consertar; o volume (onde está a massa) diz quem atender.
@@ -41,7 +41,7 @@
 {# ── Divergência gargalo × volume (o achado) ── #}
 {% if j.divergem %}
 <div class="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-  <div class="font-semibold">O volume de dor está em <em>{{ j.volume.rotulo }}</em>, mas quem trava primeiro é <em>{{ j.gargalo.rotulo }}</em>.</div>
+  <div class="font-semibold">O volume de detratores está em <em>{{ j.volume.rotulo }}</em>, mas quem trava primeiro é <em>{{ j.gargalo.rotulo }}</em>.</div>
   <p class="mt-1 text-amber-800">Consertar <strong>{{ j.volume.rotulo }}</strong> atende quem já chegou irritado; consertar
     <strong>{{ j.gargalo.rotulo }}</strong> evita que cheguem assim (lei do elo mais fraco — o gargalo mais a montante é o teto).</p>
 </div>
@@ -60,7 +60,7 @@
     <div class="text-xs uppercase tracking-wider text-loyall-400">Volume · onde está a massa</div>
     {% if j.volume %}
     <div class="mt-1 text-lg font-semibold text-loyall-800">{{ j.volume.rotulo }}</div>
-    <div class="text-xs text-loyall-500">{{ j.volume.det }} detratores — a maior massa de dor</div>
+    <div class="text-xs text-loyall-500">{{ j.volume.det }} detratores — a maior massa de detratores</div>
     {% else %}<div class="mt-1 text-sm text-loyall-400">Sem detratores com lastro.</div>{% endif %}
   </div>
 </div>
@@ -73,11 +73,11 @@
     {% set tot = e.total if e.total else 1 %}
     <div class="flex items-center gap-2 text-sm px-2 py-1.5 rounded border {% if j.gargalo and e.rotulo == j.gargalo.rotulo %}border-amber-300 bg-amber-50{% else %}border-loyall-100{% endif %}">
       <span class="text-loyall-300 text-xs w-4 shrink-0">{{ e.ordem + 1 }}</span>
-      <span class="font-medium text-loyall-800 w-28 shrink-0 truncate" title="{{ e.rotulo }}">{{ e.rotulo }}</span>
+      <span class="font-medium text-loyall-800 flex-1 min-w-0 truncate" title="{{ e.rotulo }}">{{ e.rotulo }}</span>
       {% if e.tem_ratio %}
         <span class="px-1.5 py-0.5 rounded text-[10px] shrink-0 {{ faixa_cor.get(e.faixa, 'bg-loyall-100 text-loyall-600') }}">{{ e.faixa }}</span>
-        {# barra empilhada prom/conv/det (gramática do loja_drill) — números exatos no hover #}
-        <div class="flex-1 flex h-1.5 rounded overflow-hidden bg-loyall-100 min-w-[3rem]"
+        {# barra empilhada prom/conv/det (gramática do loja_drill), fixa/estreita — números no hover #}
+        <div class="w-36 shrink-0 flex h-1.5 rounded overflow-hidden bg-loyall-100"
              title="prom {{ e.prom }} · conv {{ e.conv }} · det {{ e.det }} · {{ e.total }} tot">
           <div class="bg-emerald-400" style="width: {{ (e.prom / tot * 100) | round(0,'floor') }}%"></div>
           <div class="bg-amber-400" style="width: {{ (e.conv / tot * 100) | round(0,'floor') }}%"></div>
@@ -85,7 +85,7 @@
         </div>
         <span class="text-loyall-600 tabular-nums shrink-0 w-24 text-right" title="ratio P/D · operandos: promotores · detratores">{{ '%.2f'|format(e.ratio) }} · {{ e.prom }}P·{{ e.det }}D</span>
         <span class="text-loyall-500 text-xs shrink-0 w-20 text-right truncate" title="subpilar de maior massa nesta etapa — o que falha aqui">{% if e.dominante_sigla %}{{ e.dominante_sigla }} · {{ e.dominante_n }}{% else %}—{% endif %}</span>
-        <span class="text-loyall-400 text-xs shrink-0 w-16 text-right" title="detratores da etapa ÷ detratores das etapas com lastro">{% if e.share_dor is not none %}{{ (100 * e.share_dor) | round | int }}% dor{% else %}—{% endif %}</span>
+        <span class="text-loyall-400 text-xs shrink-0 w-16 text-right" title="% dos detratores das etapas com lastro">{% if e.share_dor is not none %}{{ (100 * e.share_dor) | round | int }}% det.{% else %}—{% endif %}</span>
       {% else %}
         <span class="text-loyall-400 text-xs italic flex-1">{{ e.total }} manifestações — menos de 10, sem leitura confiável</span>
       {% endif %}
@@ -93,7 +93,7 @@
     {% endfor %}
   </div>
   <p class="mt-1 text-xs text-loyall-300">
-    Barra: promotor · conversível · detrator (números no hover). <strong>% dor</strong> = detratores da etapa
+    Barra: promotor · conversível · detrator (números no hover). <strong>% dos detratores</strong> = detratores da etapa
     ÷ detratores das etapas com lastro — as abaixo do piso ficam fora, então os % não somam 100%.
     {% if j.sem_lastro_total %}<br>{{ j.sem_lastro_total }} manifestações <strong>sem lastro</strong>, fora do ratio (não entram na barra nem na matriz).{% endif %}</p>
 </div>
