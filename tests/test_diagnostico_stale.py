@@ -145,18 +145,45 @@ def test_plano_marca_selo_stale(db_session):
     assert pa2b.stale is False
 
 
-def test_consumidores_concordam_num_dado_stale(db_session):
-    """O mesmo dado stale: régua True, lista o inclui, impresso bloqueia, Plano marca."""
+def test_gate_por_acao_le_escopo_do_entregavel(db_session):
+    """Fatia 3B: Plano Executivo e Parecer bloqueiam pelos PRÓPRIOS itens (consolidar),
+    não por um escopo global. bloquear_se_acao_stale usa o item.stale já computado."""
     from src.planos.consolidar import _itens_diagnostico
-    from src.relatorios.gates import bloquear_se_stale
+    from src.relatorios.gates import bloquear_se_acao_stale
     from src.relatorios.pdf import RelatorioBloqueado
 
     e = _empresa(db_session)
-    _leitura(db_session, e.id, "Pa2", "hash_velho")
+    _leitura(db_session, e.id, "Pa2", "hash_velho", acao="revisar cobrança")
+    itens = _itens_diagnostico(db_session, e.id)  # o que Plano Executivo/Parecer montam
+    with pytest.raises(RelatorioBloqueado) as exc:
+        bloquear_se_acao_stale(itens, e.id, "StaleCo")
+    assert "Pa2" in str(exc.value) and "diagnostico-gerar" in str(exc.value)
+    # fresco → não bloqueia (mesmo conjunto de itens)
+    lt = db_session.query(LeituraDiagnostico).filter_by(empresa_id=e.id).first()
+    lt.dados_hash = _hash_vivo(db_session, e.id, "Pa2")
+    db_session.commit()
+    bloquear_se_acao_stale(_itens_diagnostico(db_session, e.id), e.id, "StaleCo")  # não levanta
+
+
+def test_consumidores_concordam_num_dado_stale(db_session):
+    """O mesmo dado stale: régua True, lista o inclui, DOIS gates bloqueiam (leitura e
+    ação), Plano marca. Nenhum consumidor de .acao que imprima/escreva fica de fora."""
+    from src.planos.consolidar import _itens_diagnostico
+    from src.relatorios.gates import bloquear_se_acao_stale, bloquear_se_stale
+    from src.relatorios.pdf import RelatorioBloqueado
+
+    e = _empresa(db_session)
+    _leitura(db_session, e.id, "Pa2", "hash_velho", acao="revisar cobrança")
     agg = agregar_subpilares(db_session, e.id)
     lt = db_session.query(LeituraDiagnostico).filter_by(empresa_id=e.id).first()
+    itens = _itens_diagnostico(db_session, e.id)
+    # a régua (todos chamam a mesma)
     assert leitura_stale(db_session, lt, "Pa2", agg["Pa2"], _gargalo(agg), e.id) is True
     assert "Pa2" in subpilares_stale(db_session, e.id)
-    assert next(i for i in _itens_diagnostico(db_session, e.id) if i.subpilar == "Pa2").stale
+    assert next(i for i in itens if i.subpilar == "Pa2").stale  # Plano (selo)
+    # gate dos que leem .leitura direto (Resumo Executivo, Diagnóstico Pontual)
     with pytest.raises(RelatorioBloqueado):
         bloquear_se_stale(db_session, e.id, "StaleCo")
+    # gate dos que consomem via consolidar (Plano Executivo, Parecer)
+    with pytest.raises(RelatorioBloqueado):
+        bloquear_se_acao_stale(itens, e.id, "StaleCo")

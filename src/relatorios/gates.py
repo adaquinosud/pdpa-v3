@@ -24,3 +24,22 @@ def bloquear_se_stale(s, empresa_id: int, empresa_nome: str, ag_id=None, local_i
         f"'{empresa_nome}' — {nomes}. O texto exibiria números que divergem do dado ao "
         f"vivo. Regenere antes de emitir:  flask diagnostico-gerar --empresa {empresa_id}"
     )
+
+
+def bloquear_se_acao_stale(itens, empresa_id: int, empresa_nome: str) -> None:
+    """Gate para entregáveis que consomem o Plano (``consolidar_acoes``): bloqueia se QUALQUER
+    ação de diagnóstico veio de leitura stale (``item.stale``, já computado). Lê o escopo REAL
+    do entregável — os itens que ELE monta —, não um escopo global; cada relatório bloqueia
+    pelos próprios itens."""
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+
+    stale_subs = {it.subpilar for it in itens if getattr(it, "stale", False) and it.subpilar}
+    if not stale_subs:
+        return
+    ordenados = [sp for sp in SUBPILARES_ORDEM if sp in stale_subs]
+    nomes = ", ".join(f"{sp} ({NOME_SUBPILAR.get(sp, sp)})" for sp in ordenados)
+    raise RelatorioBloqueado(
+        f"Relatório bloqueado: {len(ordenados)} ação(ões) de leitura desatualizada em "
+        f"'{empresa_nome}' — {nomes}. Regenere antes de emitir:  flask diagnostico-gerar "
+        f"--empresa {empresa_id}"
+    )

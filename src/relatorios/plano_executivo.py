@@ -32,10 +32,14 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
     from src.planos.consolidar import consolidar_acoes
     from src.utils.db import db_session
 
+    from src.relatorios.gates import bloquear_se_acao_stale
+
     itens = consolidar_acoes(empresa_id)
     with db_session() as s:
         empresa = s.get(Empresa, empresa_id)
         empresa_nome = empresa.nome if empresa else f"empresa #{empresa_id}"
+        # GATE (prioridade 1): impresso NÃO sai com ação de leitura stale — bloqueia.
+        bloquear_se_acao_stale(itens, empresa_id, empresa_nome)
         agg = agregar_subpilares(s, empresa_id, None)
         gargalo = _gargalo(agg)
         # CP-LG-5: projeção de impacto (mesma fn da tela → números idênticos).

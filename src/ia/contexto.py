@@ -228,7 +228,10 @@ def _contar_perspectivas(empresa_id: int, ag_id: Optional[int]) -> Dict[str, int
     filtros: Dict[str, Any] = {}
     if ag_id is not None:
         filtros["agrupamento_id"] = ag_id
-    itens = consolidar_acoes(empresa_id, filtros)
+    # Ação de leitura stale NÃO entra no contexto do LLM (mesmo princípio da Parte C: o
+    # consumidor que escreve não propaga o fóssil). Aqui é a distribuição de perspectivas
+    # — não carrega números stale —, mas a ação defasada sai da conta por precaução/coerência.
+    itens = [it for it in consolidar_acoes(empresa_id, filtros) if not getattr(it, "stale", False)]
     cont = Counter(it.perspectiva for it in itens if getattr(it, "perspectiva", None))
     return dict(cont)
 

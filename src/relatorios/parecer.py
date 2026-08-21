@@ -393,13 +393,17 @@ def _rung(faixa) -> Dict[str, Any]:
     return {"frase": faixa.frase, "subpilares": subs, "leitura": None}
 
 
-def _ato4(s, empresa_id: int) -> Dict[str, Any]:
+def _ato4(s, empresa_id: int, empresa_nome: str) -> Dict[str, Any]:
     """Ato 4: remédios (``consolidar_acoes``) organizados pelas 4 práticas do
     Caminho + R$ recuperável (estoque). Omite o R$ se não houver LTV de loja."""
     from src.governanca.impacto_rs import rs_estoque
     from src.planos.consolidar import consolidar_acoes
+    from src.relatorios.gates import bloquear_se_acao_stale
 
     itens = consolidar_acoes(empresa_id)
+    # GATE (prioridade 1): o Parecer não imprime remédio de leitura stale — bloqueia. O
+    # bloqueio é ANTES da síntese Sonnet (montar_dados propaga → route devolve 409).
+    bloquear_se_acao_stale(itens, empresa_id, empresa_nome)
     itens = sorted(itens, key=lambda x: _PRIO_ORDEM.get(x.prioridade, 1))
     por_prat: Dict[str, list] = {}
     for it in itens:
@@ -713,7 +717,7 @@ def montar_dados(
             gaps = gap_confronto(s, pesq.id)
         corrente = _corrente(analises, NOME_SUBPILAR)
         citacoes = _citacoes(s, empresa_id)
-        ato4 = _ato4(s, empresa_id)
+        ato4 = _ato4(s, empresa_id, empresa_nome)
 
     # ── monta a forma editorial (fora da sessão) ──
     fer_sub = ferida["subpilar"] if ferida else None
