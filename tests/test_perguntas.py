@@ -180,6 +180,74 @@ def test_perguntas_primeira_aba_mas_entrada_padrao_e_painel(db_session, client_l
     assert "o dado põe na mesa" not in html  # conteúdo default não é a tela de perguntas
 
 
+def test_q2_leitura_cruzada_atravessa_a_jornada(db_session):
+    """A #2 é o padrão: prom×det do pior subpilar E sua distribuição por etapa."""
+    from src.models.empresa_jornada_etapa import EmpresaJornadaEtapa
+
+    e = Empresa(nome="Cruz")
+    db_session.add(e)
+    db_session.flush()
+    f = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=1,
+        conector_tipo="google",
+        url="http://g",
+    )
+    db_session.add(f)
+    db_session.flush()
+    for i, r in enumerate(["reservar", "retirar", "pós-serviço"]):
+        db_session.add(
+            EmpresaJornadaEtapa(empresa_id=e.id, versao=1, ordem=i, rotulo=r, ativo=True)
+        )
+    db_session.flush()
+    for et, nn in [("reservar", 3), ("retirar", 4), ("pós-serviço", 9)]:
+        for _ in range(nn):
+            db_session.add(
+                Verbatim(
+                    empresa_id=e.id,
+                    fonte_id=f.id,
+                    texto="c",
+                    tem_texto=True,
+                    subpilar="Pa2",
+                    tipo="detrator",
+                    confianca=0.9,
+                    etapa=et,
+                    etapa_confianca=0.95,
+                    etapa_versao=1,
+                )
+            )
+    db_session.commit()
+    d = resolver_perguntas(db_session, e.id)
+    q2 = next(c for g in d.grupos for c in g.perguntas if c.n == 2)
+    assert "promotores contra" in q2.resumo and "16 detratores" in q2.resumo
+    assert "atravessa a jornada" in q2.resumo and "pós-serviço: 9" in q2.resumo
+
+
+def test_q18_usa_objetivo_declarado_e_degrada(db_session):
+    com = _empresa_com_base(db_session, missao="ser a locadora de confiança")
+    d = resolver_perguntas(db_session, com.id)
+    q18 = next(c for g in d.grupos for c in g.perguntas if c.n == 18)
+    assert "confiança" in q18.resumo  # usa a missão real
+    sem = Empresa(nome="SemObj")
+    db_session.add(sem)
+    db_session.commit()
+    q18v = next(
+        c for g in resolver_perguntas(db_session, sem.id).grupos for c in g.perguntas if c.n == 18
+    )
+    assert "não está cadastrado" in q18v.resumo  # convida a cadastrar
+
+
+def test_q19_degrada_para_convite_sem_origem(db_session):
+    sem = Empresa(nome="SemGap")
+    db_session.add(sem)
+    db_session.commit()
+    q19 = next(
+        c for g in resolver_perguntas(db_session, sem.id).grupos for c in g.perguntas if c.n == 19
+    )
+    assert "não há gap a medir" in q19.resumo  # o convite, não uma frase vaga
+
+
 def test_q10_endpoint_declara_o_buraco(db_session, client_loyall):
     e = _empresa_com_base(db_session)
     resp = client_loyall.get(f"/ui/empresas/{e.id}/perguntas/q10")

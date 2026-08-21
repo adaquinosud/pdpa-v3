@@ -260,8 +260,18 @@ FONTE_REF = {
 }
 
 
+def _guard(fn, default=None):
+    """Cada aprofundamento é best-effort: artefato ausente/edge → degrada, nunca quebra."""
+    try:
+        return fn()
+    except Exception:  # noqa: BLE001
+        return default
+
+
 def _sinais(s, empresa_id: int) -> dict:
-    """Sinais ao vivo, calculados 1×, lidos de funções existentes (custo zero, sem LLM)."""
+    """Sinais ao vivo, calculados 1×, lidos de artefatos JÁ persistidos (custo zero, sem LLM).
+    Os aprofundamentos (delta, etapas do pior, temas, ações, leitura, confronto) são
+    guardados: se o artefato não existe, o resumo degrada para a forma curta."""
     from sqlalchemy import func
 
     from src.api.engajamento import engajamento_escopo
@@ -276,8 +286,13 @@ def _sinais(s, empresa_id: int) -> dict:
     pior = None
     if agg:
         sub, d = min(agg.items(), key=lambda kv: kv[1]["ratio"])
-        pior = SimpleNamespace(nome=NOME_SUBPILAR.get(sub, sub), ratio=d["ratio"], det=d["det"])
-    # Fonte dominante (para "ouvimos quem?") — top conector por volume.
+        pior = SimpleNamespace(
+            sub=sub,
+            nome=NOME_SUBPILAR.get(sub, sub),
+            ratio=d["ratio"],
+            prom=d["prom"],
+            det=d["det"],
+        )
     fonte_top = None
     linha = (
         s.query(Fonte.conector_tipo, func.count(Verbatim.id))
@@ -292,33 +307,246 @@ def _sinais(s, empresa_id: int) -> dict:
             nome=linha[0] or "sem_fonte", pct=round(100 * linha[1] / eng["volume"])
         )
     emp = s.get(Empresa, empresa_id)
-    tem_origem = bool(emp and (emp.missao or emp.visao or emp.valores))
-    return {"eng": eng, "pior": pior, "fonte_top": fonte_top, "tem_origem": tem_origem}
+    sig = {
+        "eng": eng,
+        "pior": pior,
+        "fonte_top": fonte_top,
+        "tem_origem": bool(emp and (emp.missao or emp.visao or emp.valores)),
+        "missao": (emp.missao if emp else None),
+        "visao": (emp.visao if emp else None),
+    }
+
+    # #1 — o que MUDOU: nº do último período + subpilar de maior Δratio (RatioMensal).
+    sig["delta"] = _guard(lambda: _delta_ultimo(s, empresa_id))
+    # #2 — o pior subpilar ATRAVESSA a jornada: detratores por etapa.
+    sig["pior_etapas"] = _guard(lambda: _pior_por_etapa(s, empresa_id, pior.sub)) if pior else None
+    # #3 — os temas nomeados, com volume.
+    sig["temas"] = _guard(lambda: _top_temas(s, empresa_id), [])
+    # #4/#5/#8/#11/#17 — as ações consolidadas (o Plano).
+    sig["acoes"] = _guard(lambda: _acoes(s, empresa_id), [])
+    # #15 — o eixo mais fraco do Engajamento.
+    sig["eixo_fraco"] = _guard(lambda: _eixo_fraco(eng))
+    # #16 — a leitura diagnóstica (cache) do pior subpilar.
+    sig["leitura16"] = _guard(lambda: _leitura_pior(s, empresa_id, pior.sub)) if pior else None
+    # #19 — o gap do Confronto (OrigemSintese, via pesquisa da empresa).
+    sig["confronto19"] = _guard(lambda: _confronto(s, empresa_id))
+    return sig
+
+
+def _delta_ultimo(s, empresa_id: int):
+    from sqlalchemy import func
+
+    from src.models.anomalia import RatioMensal
+
+    periodos = [
+        p
+        for (p,) in s.query(RatioMensal.periodo)
+        .filter(RatioMensal.empresa_id == empresa_id)
+        .distinct()
+        .order_by(RatioMensal.periodo.desc())
+        .limit(2)
+    ]
+    if not periodos:
+        return None
+    ult = periodos[0]
+    n_ult = (
+        s.query(func.coalesce(func.sum(RatioMensal.total), 0))
+        .filter(
+            RatioMensal.empresa_id == empresa_id,
+            RatioMensal.periodo == ult,
+            RatioMensal.local_id.is_(None),
+            RatioMensal.agrupamento_id.is_(None),
+        )
+        .scalar()
+    )
+    mover = None
+    if len(periodos) == 2:
+        prev = periodos[1]
+        rs = {}
+        for per in (ult, prev):
+            for sub, r in s.query(RatioMensal.subpilar, RatioMensal.ratio).filter(
+                RatioMensal.empresa_id == empresa_id,
+                RatioMensal.periodo == per,
+                RatioMensal.local_id.is_(None),
+                RatioMensal.agrupamento_id.is_(None),
+            ):
+                rs.setdefault(sub, {})[per] = r
+        cand = [
+            (sub, v[ult], v[prev])
+            for sub, v in rs.items()
+            if v.get(ult) is not None and v.get(prev) is not None
+        ]
+        if cand:
+            sub, a, b = max(cand, key=lambda x: abs((x[1] or 0) - (x[2] or 0)))
+            from src.api.painel import NOME_SUBPILAR
+
+            mover = SimpleNamespace(nome=NOME_SUBPILAR.get(sub, sub), de=b, para=a)
+    return SimpleNamespace(n=int(n_ult or 0), mover=mover)
+
+
+def _pior_por_etapa(s, empresa_id: int, sub: str):
+    from sqlalchemy import func
+
+    from src.models.verbatim import Verbatim
+
+    rows = (
+        s.query(Verbatim.etapa, func.count(Verbatim.id))
+        .filter(
+            Verbatim.empresa_id == empresa_id,
+            Verbatim.subpilar == sub,
+            Verbatim.tipo == "detrator",
+            Verbatim.etapa.isnot(None),
+            Verbatim.etapa != "nenhuma",
+        )
+        .group_by(Verbatim.etapa)
+        .order_by(func.count(Verbatim.id).desc())
+        .all()
+    )
+    return [(e, int(n)) for e, n in rows] or None
+
+
+def _top_temas(s, empresa_id: int):
+    from sqlalchemy import func
+
+    from src.models.temas import Tema, VerbatimTema
+
+    rows = (
+        s.query(Tema.nome, func.count(VerbatimTema.id))
+        .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+        .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
+        .group_by(Tema.id)
+        .order_by(func.count(VerbatimTema.id).desc())
+        .limit(3)
+        .all()
+    )
+    return [(nome, int(n)) for nome, n in rows]
+
+
+_ORDEM_PRIO = {"alto": 0, "medio": 1, "baixo": 2}
+
+
+def _acoes(s, empresa_id: int):
+    from src.planos.consolidar import consolidar_acoes
+
+    itens = consolidar_acoes(empresa_id, {})
+    itens = sorted(itens, key=lambda a: (_ORDEM_PRIO.get(a.prioridade, 3), -(a.det or 0)))
+    return itens
+
+
+def _eixo_fraco(eng: dict):
+    comp = eng.get("componentes")
+    if not isinstance(comp, dict) or not comp:
+        return None
+    rotulos = {
+        "volume": "volume",
+        "diversidade": "diversidade de fontes",
+        "consistencia": "consistência no tempo",
+        "regularidade": "consistência no tempo",
+    }
+    chave = min(comp, key=lambda k: comp.get(k, 1))
+    return rotulos.get(chave, chave)
+
+
+def _leitura_pior(s, empresa_id: int, sub: str):
+    from src.models.diagnostico import LeituraDiagnostico
+
+    row = (
+        s.query(LeituraDiagnostico.leitura)
+        .filter(
+            LeituraDiagnostico.empresa_id == empresa_id,
+            LeituraDiagnostico.agrupamento_id.is_(None),
+            LeituraDiagnostico.subpilar == sub,
+        )
+        .first()
+    )
+    return row[0] if row and row[0] else None
+
+
+def _confronto(s, empresa_id: int):
+    from src.models.origem import OrigemSintese
+    from src.models.pesquisa import Pesquisa
+
+    row = (
+        s.query(OrigemSintese.texto)
+        .join(Pesquisa, Pesquisa.id == OrigemSintese.pesquisa_id)
+        .filter(Pesquisa.empresa_id == empresa_id, OrigemSintese.texto.isnot(None))
+        .order_by(OrigemSintese.gerado_em.desc())
+        .first()
+    )
+    return row[0] if row and row[0] else None
+
+
+def _frase_etapas(pe: list) -> str:
+    """'reserva: 159, retirada: 167, pós-serviço: 408' — top etapas por detrator do subpilar."""
+    return ", ".join(f"{e}: {c}" for e, c in pe[:3])
 
 
 def _resumo(n: int, sig: dict) -> str:
-    """Resumo curto por pergunta (uma linha), dos sinais. Degrada quando falta base."""
+    """Resposta NO LUGAR (não ponteiro): lê mais campos do mesmo artefato. Degrada se falta."""
     eng, pior, ft = sig["eng"], sig["pior"], sig["fonte_top"]
+    acoes = sig.get("acoes") or []
+
     if n == 1:
-        return (
-            f"{eng['volume']} manifestações classificadas; a série e as anomalias mostram "
-            "o que mudou."
-        )
+        d = sig.get("delta")
+        if d and d.mover:
+            return (
+                f"Na última coleta entraram {d.n} manifestações. O que mais mudou: "
+                f"{d.mover.nome} passou de ratio {d.mover.de:.2f} para {d.mover.para:.2f}."
+            )
+        if d:
+            return f"Na última coleta entraram {d.n} manifestações."
+        return f"{eng['volume']} manifestações classificadas até aqui."
     if n == 2:
-        return (
-            f"O pior ponto é {pior.nome} (ratio {pior.ratio:.2f})."
-            if pior
-            else "Ainda sem base para dizer o que funciona."
-        )
+        if not pior:
+            return "Ainda sem base para dizer o que funciona."
+        base = f"{pior.nome}: {pior.prom} promotores contra {pior.det} detratores."
+        pe = sig.get("pior_etapas")
+        if pe:
+            return f"{base} E atravessa a jornada — {_frase_etapas(pe)}."
+        return base
     if n == 3:
+        temas = sig.get("temas") or []
+        if temas:
+            lista = ", ".join(f"{nome} ({v})" for nome, v in temas)
+            return f"Os temas que mais se repetem: {lista}."
         return "Temas recorrentes e cruzamentos apontam candidatos a causa."
     if n == 4:
+        if acoes:
+            a = acoes[0]
+            alvo = a.subpilar_nome or (a.texto or "").strip()[:40]
+            det = f", {a.det} detratores" if a.det else ""
+            return (
+                f"A opção de maior prioridade ({a.prioridade}) ataca {alvo}{det}. "
+                "Se dá para executar depende de você."
+            )
         return "O impacto de cada opção é estimado no Plano; a viabilidade depende de você."
     if n == 5:
+        if acoes:
+            return (
+                f"{len(acoes)} ações no plano, cada uma ancorada nos verbatins que a "
+                "originaram — nenhuma é palpite."
+            )
         return "Cada ação rastreia até os verbatins que a sustentam."
     if n == 6:
-        return "O Plano projeta cenários de ação: se você endereçar X, o índice sobe."
+        alto = [a for a in acoes if a.prioridade == "alto"]
+        if alto:
+            return (
+                f"O cenário do Plano: endereçar os {len(alto)} pontos de maior prioridade "
+                "é o que mais move a relação."
+            )
+        return (
+            "O Plano projeta cenários de ação: se você endereçar os pontos prioritários, "
+            "o índice sobe."
+        )
     if n == 8:
+        if acoes:
+            top = "; ".join(
+                (a.texto or a.subpilar_nome or "").strip()[:48]
+                for a in acoes[:3]
+                if (a.texto or a.subpilar_nome)
+            )
+            if top:
+                return f"A IA propõe, dos temas: {top}."
         return "A IA propõe intervenções a partir dos temas recorrentes."
     if n == 10:
         return (
@@ -326,6 +554,13 @@ def _resumo(n: int, sig: dict) -> str:
             "categoria em destaque."
         )
     if n == 11:
+        if acoes:
+            a = acoes[0]
+            alvo = a.subpilar_nome or (a.texto or "").strip()[:40]
+            det = f" — {a.det} detratores" if a.det else ""
+            return (
+                f"O próximo passo de maior retorno: atacar {alvo}{det}, prioridade {a.prioridade}."
+            )
         return "O Plano indica o próximo passo por impacto estimado."
     if n == 14:
         return (
@@ -333,24 +568,47 @@ def _resumo(n: int, sig: dict) -> str:
             "no diagnóstico."
         )
     if n == 15:
+        fraco = sig.get("eixo_fraco")
+        cauda = f" O eixo mais fino é {fraco} — leia com isso." if fraco else ""
         return (
-            f"Engajamento {eng['indice']}/100 diz se há base; o resto (stakes, alinhamento) é seu."
+            f"Engajamento {eng['indice']}/100 diz se há base.{cauda} O resto "
+            "(stakes, alinhamento) é seu."
         )
     if n == 16:
+        lt = sig.get("leitura16")
+        if lt and pior:
+            return f"Sobre {pior.nome}, a leitura: “{lt.strip()[:160]}”."
         return "As leituras diagnósticas interpretam o número em significado."
     if n == 17:
+        if pior and acoes:
+            n_sub = sum(1 for a in acoes if a.subpilar == pior.sub)
+            if n_sub:
+                return (
+                    f"O que o dado aponta muda o plano: {pior.nome} travada puxa "
+                    f"{n_sub} das {len(acoes)} ações."
+                )
         return "O Plano liga o diagnóstico às ações de agora e adiante."
     if n in (18, 20):
+        decl = sig.get("missao") if n == 18 else sig.get("visao")
+        rot = "objetivo" if n == 18 else "o que busca"
+        if decl:
+            return (
+                f"Seu {rot} declarado: “{decl.strip()[:140]}”. O sistema guarda e mede "
+                "contra ele — não o define."
+            )
         return (
-            "O sistema guarda o objetivo que VOCÊ declarou (essência); não o define."
-            if sig["tem_origem"]
-            else "Essência ainda não declarada — cadastre missão/visão para ancorar."
+            f"O {rot} declarado não está cadastrado — cadastre missão/visão para o "
+            "sistema ancorar."
         )
     if n == 19:
+        gap = sig.get("confronto19")
+        if gap:
+            return f"O gap medido: {gap.strip()[:180]}"
+        if not sig["tem_origem"]:
+            return "O objetivo declarado não está cadastrado — sem ele não há gap a medir."
         return (
-            "O Confronto mede o gap entre o que você declarou ser e o que o cliente vive."
-            if sig["tem_origem"]
-            else "Declare a essência (missão/visão) para o sistema medir o encaixe."
+            "Essência declarada, mas sem confronto rodado ainda — rode uma pesquisa de "
+            "confronto para medir o gap."
         )
     if n == 21:
         return (
