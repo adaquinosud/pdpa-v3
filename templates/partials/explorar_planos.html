@@ -21,6 +21,7 @@
     {% if it.subpilar %}<span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-600">{{ it.subpilar }}{% if it.subpilar_nome %} · {{ it.subpilar_nome }}{% endif %}{% if it.pilar == p.gargalo %} <span title="Pilar gargalo do Lastro">🚩</span>{% endif %}</span>{% endif %}
     {% if loyall %}<span class="px-2 py-0.5 rounded border border-loyall-200 bg-loyall-50 text-loyall-400">{{ it.origem }}{% if it.dimensao %} · {{ it.dimensao }}{% endif %}</span>{% endif %}
     {% if it.loja %}<span class="px-2 py-0.5 rounded bg-loyall-50 text-loyall-500">📍 {{ it.loja }}</span>{% endif %}
+    {% if it.stale %}<span title="A leitura que gerou esta ação está defasada — regenere o diagnóstico" class="px-2 py-0.5 rounded border border-amber-300 text-amber-800 bg-amber-50">defasada</span>{% endif %}
   </div>
   <div class="text-sm text-loyall-800 font-medium leading-snug">{{ it.texto }}</div>
   {% if it.justificativa %}<div class="text-xs text-loyall-500 mt-1.5 leading-relaxed">{{ it.justificativa }}</div>{% endif %}
@@ -75,7 +76,7 @@
 {# ── Macro: linha da tabela densa (alternativa) ── #}
 {% macro linha(it) %}
 <tr class="border-t border-loyall-100 align-top">
-  <td class="px-3 py-2 text-loyall-700 max-w-[420px]">{{ it.texto }}</td>
+  <td class="px-3 py-2 text-loyall-700 max-w-[420px]">{{ it.texto }}{% if it.stale %} <span title="Leitura defasada — regenere o diagnóstico" class="text-[10px] px-1 py-0.5 rounded border border-amber-300 text-amber-800 bg-amber-50">defasada</span>{% endif %}</td>
   <td class="px-2 py-2 persp-cell">{% set a = it %}{% include 'partials/plano_persp_cell.html' %}</td>
   {% if loyall %}<td class="px-2 py-2 text-[11px] text-loyall-500 whitespace-nowrap">{{ it.origem }}{% if it.dimensao %} · {{ it.dimensao }}{% endif %}</td>{% endif %}
   <td class="px-2 py-2 text-xs whitespace-nowrap">

@@ -13,6 +13,12 @@ class PdfIndisponivel(RuntimeError):
     """Disparada quando WeasyPrint não consegue carregar as libs nativas."""
 
 
+class RelatorioBloqueado(RuntimeError):
+    """Gate: o relatório NÃO é gerado porque exibiria leitura cacheada STALE (números do
+    texto divergem do dado vivo). Bloqueia — não degrada, não imprime ressalva. A mensagem
+    diz quantos subpilares, em qual empresa, e o comando que regenera. Molde §4.28."""
+
+
 def render_pdf(html: str, base_url: Optional[str] = None) -> bytes:
     """Converte HTML em bytes PDF. ``base_url`` resolve assets relativos
     (imagens/CSS) — passe a raiz da app se houver. Levanta ``PdfIndisponivel``

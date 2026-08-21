@@ -177,6 +177,48 @@ def _gargalo(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
     return gargalo_sequencial(agg)
 
 
+def leitura_stale(s, lt, subpilar, dados, gargalo, empresa_id, ag_id=None, local_id=None) -> bool:
+    """Régua CANÔNICA de staleness da leitura cacheada: o hash do dado VIVO diverge do
+    ``dados_hash`` gravado → o texto (números do LLM) está obsoleto. Este é o ÚNICO lugar
+    que recomputa — os consumidores chamam esta, NÃO replicam min/hash local (molde de
+    ``gargalo_sequencial``). Sem hash → não comparável (False). Subpilar que sumiu do agg
+    (``dados`` None) → leitura órfã (True)."""
+    if lt is None or not getattr(lt, "dados_hash", None):
+        return False
+    if not dados:
+        return True
+    ag_payload = None if local_id is not None else ag_id
+    payload = montar_payload_subpilar(
+        s, empresa_id, ag_payload, subpilar, dados, gargalo, local_id=local_id
+    )
+    return hash_payload(payload) != lt.dados_hash
+
+
+def subpilares_stale(s, empresa_id, ag_id=None, local_id=None):
+    """Lista (ordenada) dos subpilares com leitura PRÓPRIA stale no escopo. Régua canônica
+    ``leitura_stale``. Base dos gates de bloqueio (impressos) e dos selos."""
+    from src.api.painel import SUBPILARES_ORDEM
+    from src.models.diagnostico import LeituraDiagnostico
+
+    agg = agregar_subpilares(s, empresa_id, ag_id, local_id)
+    gargalo = _gargalo(agg)
+    ag_ef = None if local_id is not None else ag_id
+    rows = {
+        r.subpilar: r
+        for r in s.query(LeituraDiagnostico).filter(
+            LeituraDiagnostico.empresa_id == empresa_id,
+            *_scope_cond(LeituraDiagnostico, ag_ef, local_id),
+        )
+        if r.dados_hash
+    }
+    return [
+        sub
+        for sub in SUBPILARES_ORDEM
+        if sub in rows
+        and leitura_stale(s, rows[sub], sub, agg.get(sub), gargalo, empresa_id, ag_id, local_id)
+    ]
+
+
 def loja_qualifica(s, empresa_id: int, local_id: int) -> bool:
     """Gate do diagnóstico próprio (Bloco 9 CP-A2): a loja precisa de volume
     classificado ≥ 30 (= VOLUME_CONFIANCA_ALTA, selo 🟢). Abaixo disso, herda."""

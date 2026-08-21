@@ -2523,7 +2523,14 @@ def relatorios_view(empresa_id: int, tipo: str):
         if empresa_db is None:
             return render_template("404.html"), 404
         empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
-    html = _relatorio_html(empresa_w, tipo)
+    from flask import Response
+
+    from src.relatorios.pdf import RelatorioBloqueado
+
+    try:
+        html = _relatorio_html(empresa_w, tipo)
+    except RelatorioBloqueado as exc:
+        return Response(str(exc), status=409, mimetype="text/plain; charset=utf-8")
     return html
 
 
@@ -2545,8 +2552,12 @@ def relatorios_pdf(empresa_id: int, tipo: str):
         if empresa_db is None:
             return render_template("404.html"), 404
         empresa_w = _wrap_empresa(empresa_db, _ultima_coleta(s, empresa_id))
-    html = _relatorio_html(empresa_w, tipo)
-    from src.relatorios.pdf import PdfIndisponivel, render_pdf
+    from src.relatorios.pdf import PdfIndisponivel, RelatorioBloqueado, render_pdf
+
+    try:
+        html = _relatorio_html(empresa_w, tipo)
+    except RelatorioBloqueado as exc:
+        return Response(str(exc), status=409, mimetype="text/plain; charset=utf-8")
 
     # O Parecer usa @font-face (Gelasio bundlada) — base_url resolve os arquivos.
     base_url = None
@@ -4739,13 +4750,12 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         _gargalo,
         _scope_cond,
         agregar_subpilares,
+        leitura_stale,
         marcar_nota_pesada,
-        montar_payload_subpilar,
         resolver_escopo,
     )
     from src.models.diagnostico import LeituraDiagnostico
     from src.models.local import Local
-    from src.utils.hashing import hash_payload
 
     def _leituras(ag, loc):
         return {
@@ -4826,18 +4836,12 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
             continue
         lt = leituras.get(sub)
         px = prox_sub.get(sub, {"valor": None, "faixa": None})
-        # Hardening de exibição: recomputa o hash do payload atual e compara ao
-        # dados_hash salvo — se diferir, a leitura está obsoleta (números do texto
-        # divergem da tabela ao vivo). Só p/ leituras PRÓPRIAS com hash (herdadas
-        # pertencem ao pai → regen no escopo dele; o escopo de geração casa: empresa
-        # /agrupamento usa ag_id; loja usa agrupamento_id=None, igual ao pós-coleta).
-        stale = False
-        if lt is not None and lt.dados_hash and sub not in herdado_sub:
-            ag_payload = None if local_id is not None else ag_id
-            payload_now = montar_payload_subpilar(
-                s, empresa_id, ag_payload, sub, d, gargalo, local_id=local_id
-            )
-            stale = hash_payload(payload_now) != lt.dados_hash
+        # Staleness pela régua CANÔNICA (leitura_stale) — não recomputa hash aqui. Só p/
+        # leituras PRÓPRIAS (herdadas pertencem ao pai → regen no escopo dele); o guard de
+        # herança é política de exibição desta aba, a régua fica na função canônica.
+        stale = sub not in herdado_sub and leitura_stale(
+            s, lt, sub, d, gargalo, empresa_id, ag_id, local_id=local_id
+        )
         confronto.append(
             SimpleNamespace(
                 subpilar=sub,

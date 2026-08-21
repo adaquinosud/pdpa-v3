@@ -42,6 +42,7 @@ def _item(
     agrupamento_id=None,
     justificativa=None,
     det=None,
+    stale=False,
 ):
     from src.api.painel import NOME_SUBPILAR, PILAR_DE_SUBPILAR
 
@@ -61,6 +62,7 @@ def _item(
         prioridade=(prioridade or "medio"),
         agrupamento_id=agrupamento_id,
         justificativa=justificativa,
+        stale=stale,  # só ações de diagnóstico com leitura defasada (selo no Plano)
         # preenchidos pelo overlay
         perspectiva=None,
         perspectiva_confianca=None,
@@ -146,10 +148,18 @@ def _rows_resolvidos(s, modelo, empresa_id, ag_id, local_id):
 
 
 def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleNamespace]:
-    from src.diagnostico.leituras import agregar_subpilares
+    from src.diagnostico.leituras import _gargalo, agregar_subpilares, leitura_stale
     from src.models.diagnostico import LeituraDiagnostico
 
     agg = agregar_subpilares(s, empresa_id, None)
+    _cache = {}  # (agrupamento_id, local_id) -> (agg_escopo, gargalo_escopo) p/ a régua
+
+    def _escopo(ag, loc):
+        if (ag, loc) not in _cache:
+            a = agregar_subpilares(s, empresa_id, ag, loc)
+            _cache[(ag, loc)] = (a, _gargalo(a))
+        return _cache[(ag, loc)]
+
     out = []
     rows = [
         r
@@ -159,6 +169,18 @@ def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleN
     for r in rows:
         d = agg.get(r.subpilar, {})
         prio = _FAIXA_PRIORIDADE.get(d.get("faixa"), "medio")
+        # Selo de stale (régua canônica), no escopo próprio da leitura resolvida.
+        a_esc, g_esc = _escopo(r.agrupamento_id, r.local_id)
+        st = leitura_stale(
+            s,
+            r,
+            r.subpilar,
+            a_esc.get(r.subpilar),
+            g_esc,
+            empresa_id,
+            r.agrupamento_id,
+            r.local_id,
+        )
         out.append(
             _item(
                 f"diag:{r.id}",
@@ -170,6 +192,7 @@ def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleN
                 prioridade=prio,
                 agrupamento_id=r.agrupamento_id,
                 local_id=r.local_id,
+                stale=st,
             )
         )
     return out

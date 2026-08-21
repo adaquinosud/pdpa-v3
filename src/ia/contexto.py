@@ -66,15 +66,22 @@ def montar_contexto(s, empresa_id: int, ag_id: Optional[int] = None, corte=None)
     )
     ordem = {sp: i for i, sp in enumerate(SUBPILARES_ORDEM)}
     leituras.sort(key=lambda x: ordem.get(x.subpilar, 99))
-    diagnostico = [
-        {
-            "subpilar": x.subpilar,
-            "nome": NOME_SUBPILAR.get(x.subpilar, x.subpilar),
-            "leitura": x.leitura,
-            "acao": x.acao,
-        }
-        for x in leituras
-    ]
+    # Leitura STALE NÃO entra no contexto do LLM: o consumidor que ESCREVE não pode
+    # propagar o fóssil. Omite o texto e DECLARA indisponível (régua canônica).
+    from src.diagnostico.leituras import leitura_stale
+
+    diagnostico = []
+    for x in leituras:
+        _st = leitura_stale(s, x, x.subpilar, agg.get(x.subpilar), gargalo_cod, empresa_id, ag_id)
+        diagnostico.append(
+            {
+                "subpilar": x.subpilar,
+                "nome": NOME_SUBPILAR.get(x.subpilar, x.subpilar),
+                "leitura": (None if _st else x.leitura),
+                "acao": (None if _st else x.acao),
+                "indisponivel": _st,  # leitura defasada — não use este subpilar
+            }
+        )
 
     # 3. Leaderboard top 10 (ranking principal)
     lb = _explorar_leaderboard(s, empresa_id, ag_id, corte)

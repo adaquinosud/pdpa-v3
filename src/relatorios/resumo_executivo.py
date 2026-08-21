@@ -53,6 +53,7 @@ def montar_dados(
         painel_nivel1,
     )
     from src.diagnostico.leituras import _gargalo, agregar_subpilares
+    from src.relatorios.gates import bloquear_se_stale as _bloquear_se_stale
     from src.models.anomalia import AnomaliaDetectada
     from src.models.diagnostico import LeituraDiagnostico
     from src.models.empresa import Empresa
@@ -76,6 +77,10 @@ def montar_dados(
         empresa = s.get(Empresa, empresa_id)
         empresa_nome = empresa.nome if empresa else f"empresa #{empresa_id}"
         empresa_setor = getattr(empresa, "setor", None)
+
+        # GATE (prioridade 1): entregável impresso NÃO sai com leitura stale — bloqueia
+        # (não degrada, não ressalva). O cliente não pode receber PDF com número velho.
+        _bloquear_se_stale(s, empresa_id, empresa_nome)
 
         agg = agregar_subpilares(s, empresa_id, None)
         gargalo = _gargalo(agg)
