@@ -762,6 +762,57 @@ sondagem.
 
 ---
 
+## PERGUNTAS (o índice pelas perguntas do executivo)
+
+**Propósito.** Uma superfície transversal (primeira aba, mas **não** o destino padrão — a
+entrada continua no Painel) que responde *"vocês consolidaram muita coisa sobre nós —
+onde busco o que eu não sei?"*. Mostra as **25 perguntas que executivos de fato fazem**
+ao decidir e onde o PDPA responde com o dado daquele cliente — e onde não, e por quê.
+Framework: *The Art of Asking Smarter Questions* (Chevallier, Dalsace & Barsoux, HBR
+mai-jun/2024) — perguntas traduzidas para PT direto, crédito visível na tela. Fonte:
+`_explorar_perguntas` (ui) + `src/perguntas/mapa.py`.
+
+**É um MAPA DE HONESTIDADE, não placar.** Morre se virar vitrine de "quantas
+respondemos". Vive confessional: poucos dados provados, inferências com a premissa à
+vista, lacunas declaradas. As 5 seções (domínios) são colapsáveis; **Investigativo e
+Subjetivo abrem por padrão** (o primeiro é onde o sistema é forte, o segundo é o
+diferencial).
+
+**Quatro tipos de célula, com tratamento visual distinto e inegociável:**
+- **Dado** — o sistema tem o número (Q1, 2, 5, 14). Resumo + link para a aba de origem.
+  Q14 é a surpresa: o Engajamento mede a **própria suficiência** do diagnóstico.
+- **Inferência** — deriva, mas é leitura (9 perguntas). **A premissa fica SEMPRE visível**
+  ("assume: …"), nunca em hover. Se uma inferência tiver cara de dado, a tela comete o
+  erro de sensemaking do artigo — o pior resultado possível. Q19 (Confronto/ORIGEM: o gap
+  entre o que a empresa declarou ser e o que entrega) é a mais afiada.
+- **Âncora objetiva** — o bloco Subjetivo (21-25), sobre o time do cliente. **O
+  instrumento NÃO responde**; põe o fato objetivo na mesa (o que deveria preocupar pelo
+  dado, o mix de fontes que explica o desacordo) e **devolve a pergunta**. Etiqueta fixa:
+  "o dado põe na mesa — não é como as pessoas se sentem". **O pecado deste bloco é o
+  inverso do resto:** vender o fato objetivo como se fosse a resposta subjetiva.
+- **Lacuna** — declarada, com o motivo: falta dado seu (Q13 orçamento/equipe) vs o
+  instrumento não chega (Q7, 12) vs fora do objeto (Q9). Sem número, sem link falso.
+
+**Q10 (o caso especial).** "Que soluções ninguém considerou?" é o degrau 1 do Capital de
+Escolha por outro nome (frente registrada, não construída). A célula não fica vazia:
+mostra os **concorrentes que as IAs citam** a um insatisfeito (da Vitrine/sonda), com os
+**fora-de-categoria em destaque** (Uber, ônibus — o que o cliente não tem no radar), e a
+declaração honesta: *"isto é o que se vê de fora, para quem já está insatisfeito; não
+cobre quem nunca chegou até você"*. O detalhe carrega ao expandir, e o expandir é
+**logado (anônimo)** como teste de demanda da frente de momentos.
+
+**Custo: zero.** A tela **LÊ** — todo resumo vem de função/artefato já persistido pelo
+pós-coleta (`agregar_subpilares`, `engajamento_escopo`, `LeituraDiagnostico`, `AcaoVenda`,
+`OrigemSintese`, `SondaIALeitura`). Não recalcula, não tem cache próprio, não chama LLM;
+herda o gate de material por construção. Abrir dez vezes no mesmo dia custa zero.
+**Amarra premissa↔função:** cada inferência aponta o callable que a sustenta (`FONTE_REF`);
+um teste falha se ele sumir/renomear, forçando revisar a premissa antes que ela minta.
+
+**Empresa sem base:** a tela renderiza mesmo assim (o mapa vale sozinho); as células de
+dado degradam para "ainda sem base" e a Q14 (Engajamento) explica o que falta.
+
+---
+
 ## JORNADA (a experiência por etapa)
 
 **Propósito.** Ler os verbatins pela **etapa da jornada** do cliente — a linguagem que

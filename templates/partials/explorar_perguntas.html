@@ -1,0 +1,101 @@
+{# As perguntas do executivo — mapa de honestidade (não placar). 4 tipos de célula com
+   tratamento distinto e inegociável: dado × inferência × âncora × lacuna. A tela LÊ. #}
+{% set p = perguntas %}
+
+<div class="text-xs uppercase tracking-wider text-loyall-400">Perguntas · por onde começar</div>
+<h3 class="text-lg font-semibold text-loyall-800 mt-0.5">As perguntas que você faz — e o que o dado responde {% if glossario_i is defined %}{{ glossario_i('perguntas-executivo') }}{% endif %}</h3>
+<p class="text-xs text-loyall-500 mt-1 max-w-3xl">
+  As 25 perguntas que executivos fazem ao decidir, e onde o PDPA responde com o SEU dado — e onde não,
+  e por quê. Cada célula diz seu tipo: <strong class="text-loyall-700">dado</strong> (temos o número),
+  <em>inferência</em> (leitura, com a premissa à vista), <span class="text-loyall-500">âncora</span>
+  (o fato que a conversa precisa) ou <span class="text-loyall-400">lacuna</span> (declarada).
+  A tela não recalcula — ela lê e leva você à aba do detalhe.</p>
+<p class="text-[11px] text-loyall-400 mt-1">
+  Perguntas adaptadas de <em>The Art of Asking Smarter Questions</em> (Chevallier, Dalsace &amp; Barsoux,
+  Harvard Business Review, mai-jun 2024).</p>
+
+{% if not p.tem_base %}
+<div class="mt-3 rounded border-l-4 border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+  Esta empresa ainda não tem base para as respostas de dado. O mapa das perguntas continua útil —
+  e a pergunta <strong>14</strong> (Engajamento) explica o que falta para o resto acender.</div>
+{% endif %}
+
+{% macro tag(txt, cls) %}<span class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded {{ cls }}">{{ txt }}</span>{% endmacro %}
+
+<div class="mt-4 space-y-2">
+  {% for g in p.grupos %}
+  <details class="border border-loyall-200 rounded-lg" {% if g.aberto %}open{% endif %}>
+    <summary class="cursor-pointer px-3 py-2 text-sm font-medium text-loyall-700 select-none">{{ g.label }}
+      <span class="text-xs text-loyall-400 font-normal">· {{ g.perguntas|length }}</span></summary>
+    <div class="px-3 pb-3 space-y-1.5">
+      {% for c in g.perguntas %}
+
+      {# ── DADO ── #}
+      {% if c.tipo == 'dado' %}
+      <div class="rounded border {% if c.destaque %}border-loyall-400 bg-loyall-50{% else %}border-loyall-100{% endif %} px-3 py-2">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm font-medium text-loyall-800">{{ c.n }}. {{ c.texto }}</div>
+            <div class="text-sm text-loyall-700 mt-0.5">{{ c.resumo }}</div>
+          </div>
+          {{ tag('dado', 'bg-emerald-100 text-emerald-700') }}
+        </div>
+        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">ver em {{ c.link }} →</a>{% endif %}
+      </div>
+
+      {# ── INFERÊNCIA — a premissa SEMPRE visível ── #}
+      {% elif c.tipo == 'inferencia' %}
+      <div class="rounded border {% if c.destaque %}border-amber-300{% else %}border-loyall-100{% endif %} px-3 py-2">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm font-medium text-loyall-800">{{ c.n }}. {{ c.texto }}</div>
+            <div class="text-sm text-loyall-700 mt-0.5">{{ c.resumo }}</div>
+          </div>
+          {{ tag('inferido', 'bg-amber-100 text-amber-700') }}
+        </div>
+        <div class="mt-1 text-xs text-loyall-500 italic border-l-2 border-amber-200 pl-2">assume: {{ c.premissa }}</div>
+        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">ver em {{ c.link }} →</a>{% endif %}
+      </div>
+
+      {# ── ÂNCORA OBJETIVA — põe o fato, DEVOLVE a pergunta, nunca responde ── #}
+      {% elif c.tipo == 'ancora' %}
+      <div class="rounded border border-loyall-200 bg-loyall-50 px-3 py-2">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm text-loyall-700">{{ c.resumo }}</div>
+            {% if c.subjetivo %}<div class="text-sm font-medium text-loyall-800 mt-1">↳ {{ c.n }}. {{ c.texto }}</div>{% else %}<div class="text-sm font-medium text-loyall-800">{{ c.n }}. {{ c.texto }}</div>{% endif %}
+          </div>
+          {{ tag('âncora', 'bg-loyall-200 text-loyall-600') }}
+        </div>
+        {% if c.etiqueta %}<div class="mt-1 text-[11px] text-loyall-400">⚑ {{ c.etiqueta }}</div>{% endif %}
+        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">ver em {{ c.link }} →</a>{% endif %}
+      </div>
+
+      {# ── LACUNA — declarada, com o motivo. Q10 = lacuna-com-conteúdo ── #}
+      {% else %}
+      <div class="rounded border border-dashed border-loyall-200 px-3 py-2 {% if c.natureza != 'conteudo' %}opacity-80{% endif %}">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-sm font-medium text-loyall-700">{{ c.n }}. {{ c.texto }}</div>
+            {% if c.motivo %}<div class="text-xs text-loyall-500 mt-0.5">{{ c.motivo }}</div>{% endif %}
+            {% if c.n == 10 %}<div class="text-sm text-loyall-600 mt-0.5">{{ c.resumo }}</div>{% endif %}
+          </div>
+          {% if c.natureza == 'cliente' %}{{ tag('falta dado seu', 'bg-loyall-100 text-loyall-500') }}
+          {% elif c.natureza == 'fora' %}{{ tag('fora do objeto', 'bg-loyall-100 text-loyall-400') }}
+          {% else %}{{ tag('lacuna', 'bg-loyall-100 text-loyall-400') }}{% endif %}
+        </div>
+        {% if c.n == 10 %}
+        {# Detalhe carrega preguiçoso ao abrir o bloco Especulativo — o hx-get LOGA o
+           expandir (teste comercial da frente de momentos), por isso não é inline. #}
+        <div hx-get="{{ url_for('ui.htmx_perguntas_q10', empresa_id=empresa.id) }}"
+             hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
+             class="text-xs text-loyall-300 mt-1">Abra para ver os concorrentes que as IAs citam…</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% endfor %}
+    </div>
+  </details>
+  {% endfor %}
+</div>

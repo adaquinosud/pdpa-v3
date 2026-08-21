@@ -615,6 +615,23 @@ TERMOS: list[tuple[str, str, str, str, str, str]] = [
         "e ao cache temático por nível.",
         "Temas (interno)",
     ),
+    # ── Perguntas do executivo (src/perguntas/) ───────────────────────────
+    (
+        "perguntas-executivo",
+        "Perguntas (do executivo)",
+        "Perguntas",
+        "Mapa das 25 perguntas que executivos fazem × o que o PDPA responde.",
+        "Índice transversal: as 25 perguntas de decisão (framework 'The Art of Asking "
+        "Smarter Questions', Chevallier/Dalsace/Barsoux, HBR mai-jun/2024, creditado na "
+        "tela), agrupadas em 5 domínios, cada uma marcada com o TIPO de resposta. DADO = o "
+        "sistema tem o número. INFERÊNCIA = deriva, mas é leitura — a PREMISSA fica sempre "
+        "visível (o pior erro da tela é inferência com cara de dado). ÂNCORA = o bloco "
+        "Subjetivo, sobre o time do cliente: o instrumento NÃO responde, põe o fato "
+        "objetivo na mesa e devolve a pergunta (o pecado inverso é vender o fato como "
+        "resposta subjetiva). LACUNA = declarada, com o motivo (falta dado seu vs "
+        "instrumento não chega). A tela LÊ o que já foi calculado — custo zero, sem LLM.",
+        "aba Perguntas",
+    ),
     # ── Jornada (src/jornada/) ────────────────────────────────────────────
     (
         "jornada",

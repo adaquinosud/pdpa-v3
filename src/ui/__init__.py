@@ -3881,6 +3881,9 @@ _ESCOPO_FULL = list(_ESCOPO_DIMENSOES)  # atalho p/ "como hoje" (as três visív
 # rotuladas, na ordem desta lista. IA fica fora do funil (transversal, à direita).
 # Reorg SÓ visual — escopo_aceito de cada aba é o do CP-A, intacto.
 _EXPLORAR_TABS = [
+    # PERGUNTAS — índice transversal (entrada, primeira posição). NÃO é o destino padrão:
+    # o redirect de entrada continua no Painel (quem sabe o que procura não passa pelo índice).
+    {"id": "perguntas", "label": "Perguntas", "grupo": "indice", "escopo_aceito": []},
     # VISÃO (panorama)
     {"id": "painel", "label": "Painel", "grupo": "visao", "escopo_aceito": _ESCOPO_FULL},
     {"id": "locais", "label": "Locais", "grupo": "visao", "escopo_aceito": []},
@@ -3970,6 +3973,7 @@ _EXPLORAR_TABS = [
 # Seções da tab bar (CP-B), na ordem do funil. IA não entra aqui — é transversal e
 # a tab bar a renderiza à direita, separada.
 _EXPLORAR_GRUPOS = [
+    {"id": "indice", "label": "Perguntas"},
     {"id": "visao", "label": "Visão"},
     {"id": "explorar", "label": "Explorar"},
     {"id": "diagnostico", "label": "Diagnóstico"},
@@ -5663,6 +5667,38 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     )
 
 
+def _explorar_perguntas(s, empresa_id):
+    """As perguntas do executivo (transversal): mapa das 25 × o que o PDPA responde.
+    Leitura pura (custo zero, sem LLM) — resumos vêm de artefatos já persistidos."""
+    from src.perguntas.mapa import resolver_perguntas
+
+    # q10 (concorrentes) carrega preguiçoso pelo endpoint htmx_perguntas_q10 — ele loga o
+    # expandir. Aqui só o mapa das 25 (leitura pura, sem tocar a sonda a cada abertura).
+    return resolver_perguntas(s, empresa_id)
+
+
+@ui_bp.route("/ui/empresas/<int:empresa_id>/perguntas/q10", methods=["GET"])
+def htmx_perguntas_q10(empresa_id: int):
+    """Detalhe da Q10 (concorrentes que as IAs citam). LOGA o expandir como teste
+    comercial da frente de momentos — SÓ o evento + empresa, SEM identificar usuário."""
+    r = _require_login_html()
+    if r:
+        return r
+    user = get_current_user()
+    if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
+        return render_template("403.html"), 403
+    import logging
+
+    from src.perguntas.mapa import concorrentes_q10
+
+    # medição de demanda (anônima): só o evento + empresa, sem user — teste comercial da
+    # frente de momentos (se ninguém expande, "soluções não consideradas" interessa menos).
+    logging.getLogger(__name__).info("perguntas.q10_expandido empresa=%s", empresa_id)
+    with db_session() as s:
+        q10 = concorrentes_q10(s, empresa_id)
+    return render_template("partials/perguntas_q10.html", q10=q10)
+
+
 def _explorar_jornada(s, empresa_id, ag_id=None, fonte=None):
     """Frente Jornada: leitura por etapa (gargalo | volume, matriz etapa×subpilar,
     filtro por fonte, piso 10, declaração de mix). None se a empresa não tem jornada."""
@@ -6095,6 +6131,7 @@ def _explorar_contexto(empresa_id, tab):
         jornada = None
         if tab == "jornada":
             jornada = _explorar_jornada(s, empresa_id, ag_id, request.args.get("fonte") or None)
+        perguntas = _explorar_perguntas(s, empresa_id) if tab == "perguntas" else None
         leaderboard = None
         if tab == "leaderboard":
             ob = request.args.get("order_by", "score")
@@ -6148,6 +6185,7 @@ def _explorar_contexto(empresa_id, tab):
         "governanca": governanca,
         "jornada": jornada,
         "jornada_configurada": jornada_configurada,
+        "perguntas": perguntas,
         "planos": planos,
         "leaderboard": leaderboard,
         "ia": ia,

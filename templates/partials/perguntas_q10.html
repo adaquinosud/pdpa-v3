@@ -1,0 +1,18 @@
+{# Q10 — concorrentes que as IAs citam a um insatisfeito (Vitrine/sonda), fora-de-categoria
+   em destaque. Lacuna-com-conteúdo: mostra o que existe e declara o que NÃO cobre. #}
+<div class="mt-2">
+  {% if q10 and q10.itens %}
+  <div class="text-xs text-loyall-500 mb-1">Quem as IAs citam a um insatisfeito{% if q10.competencia %} · {{ q10.competencia }}{% endif %}:</div>
+  <div class="flex flex-wrap gap-1.5">
+    {% for it in q10.itens %}
+    <span class="px-2 py-0.5 rounded text-xs {% if it.fora %}bg-amber-100 text-amber-800 font-medium{% else %}bg-loyall-100 text-loyall-600{% endif %}"
+          {% if it.fora %}title="fora da categoria — o cliente não te tem no radar aqui"{% endif %}>{{ it.nome }}</span>
+    {% endfor %}
+  </div>
+  <p class="mt-2 text-xs text-amber-800">As opções <strong>fora da categoria</strong> (em destaque) são as mais reveladoras — o cliente nem te considera nelas.</p>
+  {% else %}
+  <div class="text-xs text-loyall-400">Sem sondagem de IA ainda — sem concorrentes citados para mostrar.</div>
+  {% endif %}
+  <p class="mt-2 text-xs text-loyall-500 italic border-l-2 border-loyall-200 pl-2">
+    Isto é o que se vê de fora, para quem já está insatisfeito. Não cobre quem nunca chegou até você.</p>
+</div>
