@@ -238,14 +238,45 @@ def test_q18_usa_objetivo_declarado_e_degrada(db_session):
     assert "não está cadastrado" in q18v.resumo  # convida a cadastrar
 
 
-def test_q19_degrada_para_convite_sem_origem(db_session):
+def test_q19_sem_confronto_vira_lacuna(db_session):
+    """Fatia 1 #3: sem gap medido, Q19 é ausência de dado → LACUNA, não INFERÊNCIA."""
     sem = Empresa(nome="SemGap")
     db_session.add(sem)
     db_session.commit()
     q19 = next(
         c for g in resolver_perguntas(db_session, sem.id).grupos for c in g.perguntas if c.n == 19
     )
-    assert "não há gap a medir" in q19.resumo  # o convite, não uma frase vaga
+    assert q19.tipo == "lacuna"  # reclassificada (era inferência estática)
+    assert q19.premissa is None  # lacuna não carrega premissa
+    assert q19.motivo and "gap" in q19.motivo  # motivo declarado, molde das outras
+
+
+# ── 5. Fatia 1 — correções de exibição ───────────────────────────────────
+
+
+def test_corte_em_fronteira_de_palavra():
+    from src.perguntas.mapa import _corte
+
+    assert _corte("cobrança indevida marcada errado", 18) == "cobrança indevida…"
+    assert _corte("curto", 40) == "curto"  # cabe → não corta
+    r = _corte("A sustentabilidade está no centro da estratégia", 22)
+    assert r.endswith("…") and not r[:-1].endswith(" ")  # nunca no meio da palavra
+
+
+def test_link_label_humano_nunca_slug(db_session):
+    e = _empresa_com_base(db_session)
+    d = resolver_perguntas(db_session, e.id)
+    q1 = next(c for g in d.grupos for c in g.perguntas if c.n == 1)  # link=evolucao
+    assert q1.link == "evolucao" and q1.link_label == "Evolução"
+    q23 = next(c for g in d.grupos for c in g.perguntas if c.n == 23)  # link=reputacao_ia
+    assert q23.link_label == "Reputação IA"
+
+
+def test_render_nao_expoe_slug_no_link(db_session, client_loyall):
+    e = _empresa_com_base(db_session)
+    html = client_loyall.get(f"/empresas/{e.id}/explorar?tab=perguntas").get_data(as_text=True)
+    assert "aprofundar em Evolução" in html  # rótulo acentuado
+    assert "ver em evolucao" not in html and "aprofundar em evolucao" not in html
 
 
 def test_q10_endpoint_declara_o_buraco(db_session, client_loyall):

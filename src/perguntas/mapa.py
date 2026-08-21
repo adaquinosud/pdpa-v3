@@ -39,6 +39,30 @@ ABERTOS_PADRAO = {"investigativo", "subjetivo"}  # fortes + diferencial, abertos
 
 ETIQUETA_ANCORA = "o dado põe na mesa — não é como as pessoas se sentem"
 
+# Rótulo da aba como o cliente a vê (o link não pode expor o slug interno).
+LINK_LABEL = {
+    "painel": "Painel",
+    "evolucao": "Evolução",
+    "quadro": "Quadro dos Pilares",
+    "temas": "Temas",
+    "planos": "Planos de Ação",
+    "governanca": "Governança",
+    "diagnostico": "Diagnóstico",
+    "pesquisas": "Pesquisas",
+    "vitrine": "Vitrine",
+    "reputacao_ia": "Reputação IA",
+    "jornada": "Jornada",
+}
+
+
+def _corte(s, n: int) -> str:
+    """Corta em FRONTEIRA de palavra + reticência (nunca no meio da palavra)."""
+    s = (s or "").strip()
+    if len(s) <= n:
+        return s
+    return s[:n].rsplit(" ", 1)[0].rstrip(" ,;.:—-") + "…"
+
+
 # As 25, na ordem dos domínios. texto = versão PT final (fixa). premissa só nas inferências
 # (SEMPRE visível). motivo só nas lacunas. link = aba onde vive o detalhe (a tela não repete).
 PERGUNTAS = [
@@ -513,7 +537,7 @@ def _resumo(n: int, sig: dict) -> str:
     if n == 4:
         if acoes:
             a = acoes[0]
-            alvo = a.subpilar_nome or (a.texto or "").strip()[:40]
+            alvo = a.subpilar_nome or _corte(a.texto, 40)
             det = f", {a.det} detratores" if a.det else ""
             return (
                 f"A opção de maior prioridade ({a.prioridade}) ataca {alvo}{det}. "
@@ -541,7 +565,7 @@ def _resumo(n: int, sig: dict) -> str:
     if n == 8:
         if acoes:
             top = "; ".join(
-                (a.texto or a.subpilar_nome or "").strip()[:48]
+                _corte(a.texto or a.subpilar_nome, 48)
                 for a in acoes[:3]
                 if (a.texto or a.subpilar_nome)
             )
@@ -556,7 +580,7 @@ def _resumo(n: int, sig: dict) -> str:
     if n == 11:
         if acoes:
             a = acoes[0]
-            alvo = a.subpilar_nome or (a.texto or "").strip()[:40]
+            alvo = a.subpilar_nome or _corte(a.texto, 40)
             det = f" — {a.det} detratores" if a.det else ""
             return (
                 f"O próximo passo de maior retorno: atacar {alvo}{det}, prioridade {a.prioridade}."
@@ -577,7 +601,7 @@ def _resumo(n: int, sig: dict) -> str:
     if n == 16:
         lt = sig.get("leitura16")
         if lt and pior:
-            return f"Sobre {pior.nome}, a leitura: “{lt.strip()[:160]}”."
+            return f"Sobre {pior.nome}, a leitura: “{_corte(lt, 160)}”."
         return "As leituras diagnósticas interpretam o número em significado."
     if n == 17:
         if pior and acoes:
@@ -593,7 +617,7 @@ def _resumo(n: int, sig: dict) -> str:
         rot = "objetivo" if n == 18 else "o que busca"
         if decl:
             return (
-                f"Seu {rot} declarado: “{decl.strip()[:140]}”. O sistema guarda e mede "
+                f"Seu {rot} declarado: “{_corte(decl, 140)}”. O sistema guarda e mede "
                 "contra ele — não o define."
             )
         return (
@@ -603,7 +627,7 @@ def _resumo(n: int, sig: dict) -> str:
     if n == 19:
         gap = sig.get("confronto19")
         if gap:
-            return f"O gap medido: {gap.strip()[:180]}"
+            return f"O gap medido: {_corte(gap, 180)}"
         if not sig["tem_origem"]:
             return "O objetivo declarado não está cadastrado — sem ele não há gap a medir."
         return (
@@ -640,22 +664,30 @@ def resolver_perguntas(s, empresa_id: int) -> list:
     tem_base = bool(sig["eng"]["volume"])
     out = []
     for p in PERGUNTAS:
-        out.append(
-            SimpleNamespace(
-                n=p["n"],
-                dom=p["dom"],
-                texto=p["texto"],
-                tipo=p["tipo"],
-                resumo=_resumo(p["n"], sig),
-                premissa=p.get("premissa"),
-                motivo=p.get("motivo"),
-                natureza=p.get("natureza"),
-                link=p.get("link"),
-                destaque=p.get("destaque", False),
-                subjetivo=p.get("subjetivo", False),
-                etiqueta=(ETIQUETA_ANCORA if p["tipo"] == TIPO_ANCORA else None),
-            )
+        c = SimpleNamespace(
+            n=p["n"],
+            dom=p["dom"],
+            texto=p["texto"],
+            tipo=p["tipo"],
+            resumo=_resumo(p["n"], sig),
+            premissa=p.get("premissa"),
+            motivo=p.get("motivo"),
+            natureza=p.get("natureza"),
+            link=p.get("link"),
+            link_label=LINK_LABEL.get(p.get("link")),  # rótulo humano (nunca o slug)
+            destaque=p.get("destaque", False),
+            subjetivo=p.get("subjetivo", False),
+            etiqueta=(ETIQUETA_ANCORA if p["tipo"] == TIPO_ANCORA else None),
         )
+        # Q19 é INFERÊNCIA só quando HÁ gap medido; sem confronto rodado é AUSÊNCIA de dado
+        # → reclassifica para LACUNA (com o motivo declarado, molde das outras). Sem premissa.
+        if p["n"] == 19 and not sig.get("confronto19"):
+            c.tipo = TIPO_LACUNA
+            c.natureza = "cliente" if not sig["tem_origem"] else "instrumento"
+            c.motivo = c.resumo
+            c.premissa = None
+            c.link = None
+        out.append(c)
     grupos = []
     for dom_id, dom_label in DOMINIOS:
         grupos.append(

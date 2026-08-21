@@ -40,7 +40,7 @@
           </div>
           {{ tag('dado', 'bg-emerald-100 text-emerald-700') }}
         </div>
-        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">ver em {{ c.link }} →</a>{% endif %}
+        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">aprofundar em {{ c.link_label or c.link }} →</a>{% endif %}
       </div>
 
       {# ── INFERÊNCIA — a premissa SEMPRE visível ── #}
@@ -54,7 +54,7 @@
           {{ tag('inferido', 'bg-amber-100 text-amber-700') }}
         </div>
         <div class="mt-1 text-xs text-loyall-500 italic border-l-2 border-amber-200 pl-2">assume: {{ c.premissa }}</div>
-        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">ver em {{ c.link }} →</a>{% endif %}
+        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">aprofundar em {{ c.link_label or c.link }} →</a>{% endif %}
       </div>
 
       {# ── ÂNCORA OBJETIVA — põe o fato, DEVOLVE a pergunta, nunca responde ── #}
@@ -68,7 +68,7 @@
           {{ tag('âncora', 'bg-loyall-200 text-loyall-600') }}
         </div>
         {% if c.etiqueta %}<div class="mt-1 text-[11px] text-loyall-400">⚑ {{ c.etiqueta }}</div>{% endif %}
-        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">ver em {{ c.link }} →</a>{% endif %}
+        {% if c.link %}<a class="text-xs text-loyall-500 hover:underline" href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab={{ c.link }}">aprofundar em {{ c.link_label or c.link }} →</a>{% endif %}
       </div>
 
       {# ── LACUNA — declarada, com o motivo. Q10 = lacuna-com-conteúdo ── #}
