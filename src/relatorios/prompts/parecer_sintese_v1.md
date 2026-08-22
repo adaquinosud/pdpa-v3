@@ -73,9 +73,13 @@ Produza OITO saídas:
    ``responde_pct`` + volume, e note que resolução/causa estão em maturação (a
    coleta é recente); nada de julgar a conduta.
 
-2. ``fecho`` — 1 parágrafo (máx. ~70 palavras). A ferida é individual (topo) ou
-   sistêmica (base)? o que muda se agir. NÃO liste vários subpilares; nomeie no
-   máximo a ferida e um contraponto. Autoridade, sem clichê motivacional.
+2. ``fecho`` — 1 parágrafo (máx. ~70 palavras). Fecha nomeando DOIS eixos e SÓ eles: a
+   FERIDA (onde dói) e, como CONTRAPONTO, o ELO TRAVADO (o que trava primeiro) — na RELAÇÃO
+   entre os dois (o que muda se calibrar o elo antes de tratar a ferida), NÃO como lista de
+   subpilares comprometidos. JAMAIS liste três ou mais subpilares; JAMAIS cole a ferida e o
+   elo travado na mesma frase sem a palavra que os separa ("onde dói" × "o que trava
+   primeiro"). Se ``elo_travado.pilar`` for null, nomeie só a ferida e um contraponto seu.
+   Autoridade, sem clichê motivacional, sem prometer número.
 
 3. ``essencia`` — objeto ``{"missao","visao","valores"}`` com cada campo REESCRITO
    em 1-2 linhas, essencial, SEM detalhe operacional (nada de cifras tipo "R$ 300
