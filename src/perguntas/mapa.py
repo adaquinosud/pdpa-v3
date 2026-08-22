@@ -580,11 +580,15 @@ def _resumo(n: int, sig: dict) -> str:
         return "Temas recorrentes e cruzamentos apontam candidatos a causa."
     if n == 4:
         if acoes:
-            a = max(acoes, key=lambda x: (x.volume or 0))  # a que toca mais gente (≠ Q11 gargalo)
+            # Maior volume ENTRE as de prioridade ALTA — Q4 pergunta se a opção é viável;
+            # a de maior volume no geral pode ser manutenção de subpilar saudável (defeito de
+            # produto: manutenção vendida como "opção"). Sem alto, cai no conjunto todo.
+            altos = [a for a in acoes if a.prioridade == "alto"]
+            a = max(altos or acoes, key=lambda x: (x.volume or 0))
             alvo = a.subpilar_nome or _corte(a.texto, 40)
             vol = f", {a.volume} manifestações" if a.volume else ""
             return (
-                f"A opção que toca mais gente ({a.prioridade}) ataca {alvo}{vol}. "
+                f"A opção prioritária que toca mais gente ({a.prioridade}) ataca {alvo}{vol}. "
                 "Se dá para executar depende de você."
             )
         return "O impacto de cada opção é estimado no Plano; a viabilidade depende de você."
