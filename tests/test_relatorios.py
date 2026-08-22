@@ -9,6 +9,34 @@ def _empresa(client_loyall, sfx):
     return client_loyall.post("/api/empresas/", json={"nome": f"ERel-{sfx}"}).get_json()
 
 
+def _stamp_hashes(db_session, empresa_id):
+    """Carimba dados_hash VIVO nas leituras empresa-scope — a leitura de um render feliz
+    nasce FRESCA. Fatia 4: leitura sem hash é stale e bloquearia o impresso; o caminho
+    feliz precisa da certidão de base (== o que a geração real grava)."""
+    from src.diagnostico.leituras import _gargalo, agregar_subpilares, montar_payload_subpilar
+    from src.models.diagnostico import LeituraDiagnostico
+    from src.utils.hashing import hash_payload
+
+    agg = agregar_subpilares(db_session, empresa_id)
+    g = _gargalo(agg)
+    for lt in (
+        db_session.query(LeituraDiagnostico)
+        .filter(
+            LeituraDiagnostico.empresa_id == empresa_id,
+            LeituraDiagnostico.agrupamento_id.is_(None),
+            LeituraDiagnostico.local_id.is_(None),
+        )
+        .all()
+    ):
+        if lt.subpilar in agg:
+            lt.dados_hash = hash_payload(
+                montar_payload_subpilar(
+                    db_session, empresa_id, None, lt.subpilar, agg[lt.subpilar], g
+                )
+            )
+    db_session.commit()
+
+
 @pytest.fixture(autouse=True)
 def _fake_llm(monkeypatch):
     """Stub das chamadas LLM do doc-ouro (B1' + B2') — toda a suíte roda $0.
@@ -142,6 +170,7 @@ def test_resumo_executivo_doc_ouro(client_loyall, db_session):
         )
     )
     db_session.commit()
+    _stamp_hashes(db_session, e["id"])  # leitura fresca p/ o render feliz (Fatia 4)
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/resumo_executivo").get_data(as_text=True)
     # estrutura doc-ouro (porte fiel v2 — capa-choque + RE + 02 + EN + SE + AL + FZ + 10)
     assert "Diagnóstico Pontual · PDPA" in h and "FAKE manchete" in h  # capa-eyebrow + manchete
@@ -204,6 +233,7 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
         )
     )
     db_session.commit()
+    _stamp_hashes(db_session, e["id"])  # leitura fresca p/ o render feliz (Fatia 4)
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/diagnostico_pontual").get_data(
         as_text=True
     )
@@ -295,6 +325,7 @@ def test_plano_executivo_assembly(client_loyall, db_session):
         )
     )
     db_session.commit()
+    _stamp_hashes(db_session, e["id"])  # leitura fresca p/ o render feliz (Fatia 4)
 
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/plano_executivo").get_data(as_text=True)
     assert "Plano de Ação Executivo" in h

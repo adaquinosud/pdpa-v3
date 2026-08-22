@@ -43,6 +43,7 @@ def _item(
     justificativa=None,
     det=None,
     stale=False,
+    stale_motivo=None,
 ):
     from src.api.painel import NOME_SUBPILAR, PILAR_DE_SUBPILAR
 
@@ -63,6 +64,7 @@ def _item(
         agrupamento_id=agrupamento_id,
         justificativa=justificativa,
         stale=stale,  # só ações de diagnóstico com leitura defasada (selo no Plano)
+        stale_motivo=stale_motivo,  # "sem_hash" | "divergente" | None — nomeia o bloqueio
         # preenchidos pelo overlay
         perspectiva=None,
         perspectiva_confianca=None,
@@ -148,7 +150,7 @@ def _rows_resolvidos(s, modelo, empresa_id, ag_id, local_id):
 
 
 def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleNamespace]:
-    from src.diagnostico.leituras import _gargalo, agregar_subpilares, leitura_stale
+    from src.diagnostico.leituras import _gargalo, agregar_subpilares, motivo_stale
     from src.models.diagnostico import LeituraDiagnostico
 
     agg = agregar_subpilares(s, empresa_id, None)
@@ -169,9 +171,9 @@ def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleN
     for r in rows:
         d = agg.get(r.subpilar, {})
         prio = _FAIXA_PRIORIDADE.get(d.get("faixa"), "medio")
-        # Selo de stale (régua canônica), no escopo próprio da leitura resolvida.
+        # Selo/motivo de stale (régua canônica), no escopo próprio da leitura resolvida.
         a_esc, g_esc = _escopo(r.agrupamento_id, r.local_id)
-        st = leitura_stale(
+        mot = motivo_stale(
             s,
             r,
             r.subpilar,
@@ -192,7 +194,8 @@ def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleN
                 prioridade=prio,
                 agrupamento_id=r.agrupamento_id,
                 local_id=r.local_id,
-                stale=st,
+                stale=mot is not None,
+                stale_motivo=mot,
             )
         )
     return out

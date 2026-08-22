@@ -92,8 +92,8 @@ def test_leitura_stale_canonica(db_session):
     lt.dados_hash = None
     db_session.commit()
     assert (
-        leitura_stale(db_session, lt, "Pa2", agg["Pa2"], g, e.id) is False
-    )  # sem hash → não comparável
+        leitura_stale(db_session, lt, "Pa2", agg["Pa2"], g, e.id) is True
+    )  # sem hash → stale (pré-hash, Fatia 4)
 
 
 def test_subpilares_stale_lista_ordenada(db_session):
@@ -163,6 +163,33 @@ def test_gate_por_acao_le_escopo_do_entregavel(db_session):
     lt.dados_hash = _hash_vivo(db_session, e.id, "Pa2")
     db_session.commit()
     bloquear_se_acao_stale(_itens_diagnostico(db_session, e.id), e.id, "StaleCo")  # não levanta
+
+
+def test_leitura_sem_hash_e_stale(db_session):
+    """Fatia 4: leitura pré-hash (dados_hash NULL) é STALE — motivo 'sem_hash'. Régua True,
+    lista inclui, os DOIS gates bloqueiam nomeando o motivo, Plano marca. Os três que
+    concordavam no erro (régua/lista/probe) concordam na correção."""
+    from src.diagnostico.leituras import motivo_stale, subpilares_stale_motivos
+    from src.planos.consolidar import _itens_diagnostico
+    from src.relatorios.gates import bloquear_se_acao_stale, bloquear_se_stale
+    from src.relatorios.pdf import RelatorioBloqueado
+
+    e = _empresa(db_session)
+    lt = _leitura(db_session, e.id, "Pa2", None, acao="revisar cobrança")  # SEM hash
+    agg = agregar_subpilares(db_session, e.id)
+    g = _gargalo(agg)
+    assert motivo_stale(db_session, lt, "Pa2", agg["Pa2"], g, e.id) == "sem_hash"
+    assert leitura_stale(db_session, lt, "Pa2", agg["Pa2"], g, e.id) is True
+    assert ("Pa2", "sem_hash") in subpilares_stale_motivos(db_session, e.id)
+    it = next(i for i in _itens_diagnostico(db_session, e.id) if i.subpilar == "Pa2")
+    assert it.stale is True and it.stale_motivo == "sem_hash"
+    # os dois gates bloqueiam E nomeiam "sem hash" na mensagem
+    with pytest.raises(RelatorioBloqueado) as ex1:
+        bloquear_se_stale(db_session, e.id, "StaleCo")
+    assert "sem hash" in str(ex1.value)
+    with pytest.raises(RelatorioBloqueado) as ex2:
+        bloquear_se_acao_stale(_itens_diagnostico(db_session, e.id), e.id, "StaleCo")
+    assert "sem hash" in str(ex2.value)
 
 
 def test_consumidores_concordam_num_dado_stale(db_session):

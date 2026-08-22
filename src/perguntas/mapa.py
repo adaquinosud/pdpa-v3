@@ -474,13 +474,18 @@ def _eixo_fraco(eng: dict):
 def _leitura_pior(s, empresa_id: int, sub: str):
     from src.models.diagnostico import LeituraDiagnostico
 
+    # Escopo empresa-wide ESTRITO (== o que o Parecer lê): ambos NULL. Sem o filtro de
+    # local_id, uma leitura de LOJA (agrupamento NULL, local set) podia ser pega no lugar;
+    # `.first()` sem ORDER BY escolhia arbitrário. Fatia 4: alinha e torna determinístico.
     row = (
         s.query(LeituraDiagnostico.leitura)
         .filter(
             LeituraDiagnostico.empresa_id == empresa_id,
             LeituraDiagnostico.agrupamento_id.is_(None),
+            LeituraDiagnostico.local_id.is_(None),
             LeituraDiagnostico.subpilar == sub,
         )
+        .order_by(LeituraDiagnostico.id)
         .first()
     )
     return row[0] if row and row[0] else None

@@ -177,26 +177,47 @@ def _gargalo(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
     return gargalo_sequencial(agg)
 
 
-def leitura_stale(s, lt, subpilar, dados, gargalo, empresa_id, ag_id=None, local_id=None) -> bool:
-    """Régua CANÔNICA de staleness da leitura cacheada: o hash do dado VIVO diverge do
-    ``dados_hash`` gravado → o texto (números do LLM) está obsoleto. Este é o ÚNICO lugar
-    que recomputa — os consumidores chamam esta, NÃO replicam min/hash local (molde de
-    ``gargalo_sequencial``). Sem hash → não comparável (False). Subpilar que sumiu do agg
-    (``dados`` None) → leitura órfã (True)."""
-    if lt is None or not getattr(lt, "dados_hash", None):
-        return False
+def motivo_stale(s, lt, subpilar, dados, gargalo, empresa_id, ag_id=None, local_id=None):
+    """Motivo da staleness da leitura cacheada, ou ``None`` se fresca. Régua CANÔNICA — o
+    ÚNICO lugar que recomputa o hash. Dois motivos NOMEADOS (o operador precisa saber se
+    regenerar é atualização ou primeira geração):
+
+      ``"sem_hash"``   — leitura pré-hash: nunca registrou a base que a gerou. Não é
+                         comparável a nada → tratada como STALE (Fatia 4). Antes devolvia
+                         False ("não comparável") e o fóssil escapava. Regenerar é a
+                         PRIMEIRA certidão de base — não há texto "a atualizar".
+      ``"divergente"`` — hash do dado VIVO diverge do gravado (a base mudou) OU o subpilar
+                         sumiu do agg (órfã). Regenerar ATUALIZA o texto ao dado de hoje.
+
+    Sem linha (``lt`` None) → None (nada a julgar).
+
+    DECISÃO TRAVADA (Fatia 4): SEM backfill de ``dados_hash``. Carimbar o hash de HOJE numa
+    leitura escrita ONTEM certificaria o fóssil como fresco — os números velhos ficariam, mas
+    a régua os daria por atuais. A única saída legítima de "sem_hash" é REGENERAR (run pago).
+    """
+    if lt is None:
+        return None
+    if not getattr(lt, "dados_hash", None):
+        return "sem_hash"
     if not dados:
-        return True
+        return "divergente"  # órfã: subpilar sumiu do agg → leitura sem lastro
     ag_payload = None if local_id is not None else ag_id
     payload = montar_payload_subpilar(
         s, empresa_id, ag_payload, subpilar, dados, gargalo, local_id=local_id
     )
-    return hash_payload(payload) != lt.dados_hash
+    return "divergente" if hash_payload(payload) != lt.dados_hash else None
 
 
-def subpilares_stale(s, empresa_id, ag_id=None, local_id=None):
-    """Lista (ordenada) dos subpilares com leitura PRÓPRIA stale no escopo. Régua canônica
-    ``leitura_stale``. Base dos gates de bloqueio (impressos) e dos selos."""
+def leitura_stale(s, lt, subpilar, dados, gargalo, empresa_id, ag_id=None, local_id=None) -> bool:
+    """True se a leitura cacheada está stale (qualquer motivo). Fina camada booleana sobre
+    ``motivo_stale`` — os consumidores que só querem o sim/não (selo, Plano, IA) chamam esta."""
+    return motivo_stale(s, lt, subpilar, dados, gargalo, empresa_id, ag_id, local_id) is not None
+
+
+def subpilares_stale_motivos(s, empresa_id, ag_id=None, local_id=None):
+    """``[(subpilar, motivo)]`` das leituras stale no escopo, em ordem canônica. Inclui
+    leitura SEM hash (motivo ``"sem_hash"``, Fatia 4) — antes eram filtradas aqui (``if
+    r.dados_hash``) e escapavam do bloqueio. Base dos gates de impresso."""
     from src.api.painel import SUBPILARES_ORDEM
     from src.models.diagnostico import LeituraDiagnostico
 
@@ -209,14 +230,21 @@ def subpilares_stale(s, empresa_id, ag_id=None, local_id=None):
             LeituraDiagnostico.empresa_id == empresa_id,
             *_scope_cond(LeituraDiagnostico, ag_ef, local_id),
         )
-        if r.dados_hash
     }
-    return [
-        sub
-        for sub in SUBPILARES_ORDEM
-        if sub in rows
-        and leitura_stale(s, rows[sub], sub, agg.get(sub), gargalo, empresa_id, ag_id, local_id)
-    ]
+    out = []
+    for sub in SUBPILARES_ORDEM:
+        if sub not in rows:
+            continue
+        m = motivo_stale(s, rows[sub], sub, agg.get(sub), gargalo, empresa_id, ag_id, local_id)
+        if m:
+            out.append((sub, m))
+    return out
+
+
+def subpilares_stale(s, empresa_id, ag_id=None, local_id=None):
+    """Lista (ordenada) dos códigos de subpilar com leitura stale no escopo (só os códigos —
+    sobre ``subpilares_stale_motivos``). Base dos selos."""
+    return [sub for sub, _ in subpilares_stale_motivos(s, empresa_id, ag_id, local_id)]
 
 
 def loja_qualifica(s, empresa_id: int, local_id: int) -> bool:
