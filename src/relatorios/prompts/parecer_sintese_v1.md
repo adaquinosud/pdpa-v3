@@ -32,8 +32,17 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
   classificado). NUNCA escreva "X% das ocorrências" nem troque a base — o 23%
   não é "dos resolvidos" nem "das ocorrências", é dos casos com desfecho.
 - Só afirme o que está no JSON. Se um fato vier vazio/"—", não o mencione.
+- NÃO PROMETA RESULTADO. Explique a MECÂNICA (o que sustenta o quê); nunca "conserte X e
+  recupere Y clientes" nem "e o índice sobe para Z". O leitor é board — quer a lógica
+  causal, não uma promessa numérica (mesma trava do drill da Visão Financeira).
+- DOIS EIXOS DISTINTOS — a ``ferida`` (ONDE dói) e o ``elo_travado`` (O QUE TRAVA primeiro
+  na sequência) NÃO são a mesma coisa. JAMAIS os cite na mesma frase sem a palavra que os
+  separa ("onde dói" × "o que trava primeiro"). Colá-los inverte o sentido da peça.
 
-Campos do JSON: ``empresa``, ``ferida`` (subpilar mais ferido);
+Campos do JSON: ``empresa``, ``ferida`` (EIXO 1 — ONDE DÓI: subpilar de mais detratores no
+agregado de TODAS as fontes); ``elo_travado`` (EIXO 2 — O QUE TRAVA PRIMEIRO na sequência do
+Lastro: ``pilar`` + ``subpilares`` crítico/fraco dele; ``coincide_com_ferida`` bool; ``pilar``
+null = nada trava antes da ferida);
 ``concentracao_ra`` (``pct``, ``n_no_subpilar``/``total``, ``base`` = "reclamações
 no ReclameAqui"); ``intensidade_voz_total`` (``detratores``/``promotores``/
 ``ratio``, ``base`` = "manifestações públicas de todas as fontes") — universos
@@ -44,7 +53,7 @@ DISTINTOS, ver a REGRA MÁXIMA; ``conduta`` (``responde_pct``/``resolve_pct``/
 (missão/visão/valores crus); ``identidade_ia_vs_essencia`` (o que as IAs veem × a
 essência — cita explicitamente o que a IA NÃO menciona).
 
-Produza SEIS saídas:
+Produza OITO saídas:
 
 1. ``abertura`` — 2 parágrafos (máx. ~95 palavras cada). §1: a tese — onde a marca
    trai a promessa e por quê (ferida + ruptura + os DOIS fatos públicos, cada um
@@ -78,9 +87,19 @@ Produza SEIS saídas:
 5. ``ausentes_frase`` — 1 frase curta sobre o que essa ausência revela (ex.: "a
    identidade de propósito não transpassa ao conhecimento público").
 
-6. ``leitura_topo`` — 1-2 frases: por que a ferida (se está no ``topo``/individual)
-   se corrige na RELAÇÃO, caso a caso, e não com um novo processo. Se a ferida for
-   sistêmica (``base``), adapte para a leitura correspondente.
+6. ``leitura_topo`` — 1-2 frases que nomeiam os DOIS eixos DISTINTOS, nunca colados:
+   a FERIDA (``ferida``, onde dói) e o ELO TRAVADO (``elo_travado.pilar`` +
+   ``elo_travado.subpilares``, o que trava primeiro na sequência do Lastro). REGRA: ferida e
+   elo travado JAMAIS na mesma frase sem a palavra que os separa ("onde dói" × "o que trava
+   primeiro").
+   - ``coincide_com_ferida`` = true → diga que COINCIDEM (a ferida é o próprio elo que trava);
+     não invente divergência.
+   - ``coincide_com_ferida`` = false → DIVERGEM: a correção relacional na ferida NÃO se
+     sustenta sozinha enquanto o elo travado anterior não for calibrado. Consertar a ferida
+     (topo) atende quem JÁ chegou irritado; calibrar o elo travado (base) evita que cheguem
+     assim. Explique a MECÂNICA, sem prometer número.
+   - ``elo_travado.pilar`` null → nada trava antes da ferida: aí, e SÓ aí, a ferida se corrige
+     na RELAÇÃO, caso a caso.
 
 7. ``corrente_nucleo`` — objeto ``{nivel: frase}`` onde, para CADA elo de
    ``corrente_elos``, você extrai a FRASE-NÚCLEO da justificativa em UMA linha

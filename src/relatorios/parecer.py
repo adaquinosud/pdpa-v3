@@ -28,7 +28,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.7-bases-declaradas"
+PROMPT_SINTESE_VER = "v1.8-dois-eixos"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -471,9 +471,24 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
     Chaves AUTO-DESCRITIVAS: a concentração RA e o diagnóstico do subpilar são
     métricas DISTINTAS (o prompt exige separá-las — nada de '62% são detratores')."""
     t, v = d["tese"], d["tese"]["voz"]
+    _ato3 = d.get("ato3", {})
     return {
         "empresa": d["empresa_nome"],
+        # EIXO 1 — ONDE DÓI: a ferida (subpilar de mais detratores no agregado).
         "ferida": t["subpilar_nome"],
+        # EIXO 2 — O QUE TRAVA PRIMEIRO: o elo travado (pilar do gargalo sequencial +
+        # subpilar(es) crítico/fraco dele). DISTINTO da ferida — o prompt exige separá-los.
+        # pilar None → nada trava antes da ferida (aí, e só aí, vale "caso a caso").
+        "elo_travado": {
+            "pilar": _ato3.get("gargalo_nome"),
+            "subpilares": [
+                sp["nome"]
+                for fx in ("topo", "base")
+                for sp in (_ato3.get(fx, {}) or {}).get("subpilares", [])
+                if sp.get("gargalo")
+            ],
+            "coincide_com_ferida": bool(_ato3.get("ferida_no_gargalo")),
+        },
         # DOIS universos DISTINTOS, cada um com sua ``base`` explícita (como o
         # ``conduta`` faz com ``*_base``). Antes vinham juntos sob ``voz_publica``
         # sem rótulo → o Sonnet colava ("aprofunda") e produzia número impossível
@@ -662,13 +677,12 @@ def montar_dados(
         agg = agregar_subpilares(s, empresa_id)
         ra = _conc_ra(s, empresa_id)
         ra_ini, ra_fim = _janela_ra(s, empresa_id)  # período da coleta RA (do dado)
-        # A FERIDA = subpilar de MAIOR concentração de reclamações RA (a dor mais
-        # concentrada, def. da pauta '62% moram na Mutualidade') — NÃO o de maior %
-        # detrator, que elegia bucket minúsculo 100%-detrator. Fallback (sem RA):
-        # subpilar de mais detratores no diagnóstico.
-        if ra["por_sub"]:
-            fer_sub = max(ra["por_sub"], key=lambda k: ra["por_sub"][k])
-        elif agg:
+        # A FERIDA = subpilar de mais DETRATORES no AGREGADO (todas as fontes) — §7: não
+        # tirar a espinha do peso de UMA fonte. Antes vinha do peso do ReclameAqui sozinho,
+        # o que (a) deixava quem não tem RA SEM espinha (fer_sub None → peça genérica) e
+        # (b) violava a trava do §7. A concentração RA vira UM sinal (concentracao_ra), não
+        # o eleitor da ferida. Sem detrator em lugar nenhum → None (degrada p/ "Relação").
+        if agg:
             fer_sub = max(agg, key=lambda k: agg[k].get("det", 0))
             fer_sub = fer_sub if agg[fer_sub].get("det") else None
         else:
@@ -766,7 +780,12 @@ def montar_dados(
     # Gargalo sequencial (§7): o elo que trava a sequência P→D→Pa→A. DISTINTO da ferida-RA
     # (dor mais concentrada numa fonte). Anota o Ato 3; a injeção nos facts do LLM + a
     # reescrita do prompt são o passo 2 (pago). None = nada travado.
-    from src.api.painel import NOME_PILAR, SUBPILARES_ORDEM, gargalo_sequencial
+    from src.api.painel import (
+        NOME_PILAR,
+        PILAR_DE_SUBPILAR,
+        SUBPILARES_ORDEM,
+        gargalo_sequencial,
+    )
 
     _metodo_total = len(SUBPILARES_ORDEM)  # 12 subpilares do método (item 2: declarar recorte)
     _garg_cod = gargalo_sequencial(agg) if agg else None
@@ -997,6 +1016,11 @@ def montar_dados(
                 else {"frase": "", "subpilares": [], "leitura": None}
             ),
             "gargalo_nome": _garg_nome,  # None → sem elo travado (estado explícito)
+            "ferida_no_gargalo": (
+                fer_sub is not None
+                and _garg_cod is not None
+                and PILAR_DE_SUBPILAR.get(fer_sub) == _garg_cod
+            ),
             "eixos_leitura": _eixos_leitura(
                 fer_sub, (ferida["nome"] if ferida else None), _garg_cod, _garg_nome
             ),

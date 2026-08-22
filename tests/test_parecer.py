@@ -656,6 +656,60 @@ def test_montar_dados_empresa_inexistente(db_session):
     assert montar_dados(999999) is None
 
 
+def test_ferida_vem_do_agregado_e_facts_tem_dois_eixos(db_session):
+    """Passo 2 (§7): a ferida é o subpilar de mais detratores no AGREGADO (todas as fontes),
+    não o top do RA sozinho. E _facts_sintese carrega os DOIS eixos nomeados distintos."""
+    from src.models.fonte import Fonte
+    from src.relatorios.parecer import _facts_sintese
+
+    e = _empresa(db_session, "feragg")
+    f_ra = _fonte(db_session, e)  # reclame_aqui: 2 detratores em Pa1
+    for i in range(2):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f_ra.id,
+                texto="ra det",
+                tem_texto=True,
+                subpilar="Pa1",
+                tipo="detrator",
+                hash_dedup=f"ra{i}",
+            )
+        )
+    f_g = Fonte(
+        empresa_id=e.id,
+        entidade_tipo="empresa",
+        entidade_id=e.id,
+        conector_tipo="google",
+        url="http://g",
+        status="ativa",
+    )
+    db_session.add(f_g)
+    db_session.flush()
+    for i in range(5):  # outra fonte: 5 detratores em D2 → mais no agregado
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f_g.id,
+                texto="g det",
+                tem_texto=True,
+                subpilar="D2",
+                tipo="detrator",
+                hash_dedup=f"g{i}",
+            )
+        )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    # D2 (5 det) > Pa1 (2 det, top do RA) → ferida segue o AGREGADO
+    assert d["tese"]["subpilar_nome"] == "Eficácia Operacional"  # D2, não Pa1
+    facts = _facts_sintese(d)
+    assert facts["ferida"] == "Eficácia Operacional"
+    # eixo 2 presente e estruturado (distinto da ferida)
+    elo = facts["elo_travado"]
+    assert "pilar" in elo and "subpilares" in elo and "coincide_com_ferida" in elo
+
+
 def test_citacao_valencia_e_trava_nunca_promotor_em_tema_detrator(db_session):
     """Item 4 (Fatia 6): valência é REQUISITO, não preferência. Tema DETRATOR cujos exemplos
     apontam só para um verbatim PROMOTOR fica SEM citação — elogio nunca ilustra dor."""
