@@ -359,8 +359,8 @@ def _sinais(s, empresa_id: int) -> dict:
     sig["acoes"] = _guard(lambda: _acoes(s, empresa_id), [])
     # #15 — o eixo mais fraco do Engajamento.
     sig["eixo_fraco"] = _guard(lambda: _eixo_fraco(eng))
-    # #6 — Teto projetado: endereçar os subpilares das ações ALTO leva o Teto de X→Y.
-    sig["cenario6"] = _guard(lambda: _cenario_alto(agg, sig.get("acoes") or []))
+    # #6 — Teto projetado: endereçar os subpilares em PIOR estado (critico/fraco) leva o Teto.
+    sig["cenario6"] = _guard(lambda: _cenario_pior(agg))
     # #16 — a leitura diagnóstica (cache) do pior subpilar.
     sig["leitura16"] = _guard(lambda: _leitura_pior(s, empresa_id, pior.sub)) if pior else None
     # #19 — o gap do Confronto (OrigemSintese, via pesquisa da empresa).
@@ -479,17 +479,23 @@ def _acoes(s, empresa_id: int):
     return itens
 
 
-def _cenario_alto(agg, acoes):
-    """#6 — projeta o Teto do Lastro (compor_cenario, o próprio FONTE_REF[6]) endereçando
-    os subpilares das ações ALTO. Só subpilares presentes no agg (compor_cenario muta cópia).
-    Retorna {indice_base, indice_n, n, ...} ou None se não há alto acionável."""
+def _cenario_pior(agg):
+    """#6 — projeta o Teto do Lastro (compor_cenario, o próprio FONTE_REF[6]) endereçando os
+    subpilares em PIOR ESTADO (faixa critico/fraco), NÃO as ações "alto": o "alto" de
+    N5/anomalia é impacto/severidade, não subpilar doente — três sentidos no mesmo rótulo, e
+    projetar melhora em subpilar saudável infla o Teto. Retorna:
+      - {tudo_saudavel: True}  → nenhum subpilar em estado ruim (vazio explícito, §7);
+      - {indice_base, indice_n, n, ...} → a projeção;
+      - None → sem dado (agg vazio)."""
+    from src.api.painel import SUBPILARES_ORDEM
     from src.governanca.metricas import compor_cenario
 
-    subs = []
-    for a in acoes:
-        if a.prioridade == "alto" and a.subpilar and a.subpilar in agg and a.subpilar not in subs:
-            subs.append(a.subpilar)
-    return compor_cenario(agg, subs, len(subs)) if subs else None
+    if not agg:
+        return None
+    subs = [sp for sp in SUBPILARES_ORDEM if sp in agg and agg[sp]["faixa"] in ("critico", "fraco")]
+    if not subs:
+        return {"tudo_saudavel": True}
+    return compor_cenario(agg, subs, len(subs))
 
 
 def _eixo_fraco(eng: dict):
@@ -615,16 +621,15 @@ def _resumo(n: int, sig: dict) -> str:
         return "Cada ação rastreia até os verbatins que a sustentam."
     if n == 6:
         cen = sig.get("cenario6")
-        if cen and cen["indice_n"] > cen["indice_base"]:
+        if cen and cen.get("tudo_saudavel"):
             return (
-                f"Endereçar os {cen['n']} pontos de maior prioridade leva o Teto do Lastro "
-                f"de {cen['indice_base']:.1f} para {cen['indice_n']:.1f}."
+                "Nenhum subpilar está em estado ruim (crítico ou fraco) — não há ponto a "
+                "endereçar; o retrato já parte saudável."
             )
-        alto = [a for a in acoes if a.prioridade == "alto"]
-        if alto:
+        if cen and "indice_base" in cen:
             return (
-                f"O cenário do Plano: endereçar os {len(alto)} pontos de maior prioridade "
-                "é o que mais move a relação."
+                f"Endereçar os {cen['n']} subpilares em pior estado leva o Teto do Lastro "
+                f"de {cen['indice_base']:.1f} para {cen['indice_n']:.1f}."
             )
         return (
             "O Plano projeta cenários de ação: se você endereçar os pontos prioritários, "
