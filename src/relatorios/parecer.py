@@ -387,8 +387,11 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
 def _rung(faixa, gargalo_cod=None) -> Dict[str, Any]:
     """Faixa topo/base do quadro → só subpilares com sinal relevante (corta neutros),
     carregando valência + faixa (o P7 mostra a cor, não só o nome). ``gargalo_cod`` (pilar):
-    marca o subpilar do pilar-gargalo DENTRO da faixa onde já está (opção ANOTAR — não
-    reordena topo/base, que é a divisão método sistêmico×individual)."""
+    marca "elo travado" nos subpilares do pilar-gargalo em CRÍTICO ou FRACO (ratio<1,0) — os
+    elos realmente quebrados —, por FAIXA e não por posição (NÃO "o menor ratio do pilar", que
+    marcaria alguém até num pilar saudável). Se NENHUM subpilar do pilar-gargalo está <1,0, nada
+    é marcado e o pilar trava pelo agregado: ``eixos_leitura`` ainda nomeia o pilar (estado
+    explícito §7). >1 abaixo de 1,0 → marca todos. Opção ANOTAR — não reordena topo/base."""
     from src.api.painel import PILAR_DE_SUBPILAR
 
     subs = []
@@ -396,7 +399,11 @@ def _rung(faixa, gargalo_cod=None) -> Dict[str, Any]:
     for p in faixa.pilares:
         for c in p.subpilares:
             if c.total and (c.faixa in ("critico", "atencao") or c.valencia == "detrator"):
-                eh_g = gargalo_cod is not None and PILAR_DE_SUBPILAR.get(c.subpilar) == gargalo_cod
+                eh_g = (
+                    gargalo_cod is not None
+                    and PILAR_DE_SUBPILAR.get(c.subpilar) == gargalo_cod
+                    and c.faixa in ("critico", "fraco")  # elo REALMENTE travado (ratio<1,0)
+                )
                 tem_gargalo = tem_gargalo or eh_g
                 subs.append(
                     {

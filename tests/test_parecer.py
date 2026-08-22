@@ -709,6 +709,40 @@ def test_citacao_valencia_e_trava_nunca_promotor_em_tema_detrator(db_session):
     assert prom_tema["citacao"] is not None  # valência certa → ilustra
 
 
+def test_rung_marca_gargalo_so_critico_ou_fraco(db_session):
+    """Item 1 (Fatia 6): 'elo travado' marca subpilar do pilar-gargalo em CRÍTICO/FRACO
+    (ratio<1,0), por faixa — nunca 'atenção', nunca por posição."""
+    from types import SimpleNamespace as NS
+
+    from src.relatorios.parecer import _rung
+
+    def _c(sub, nome, faixa, val):
+        return NS(subpilar=sub, nome=nome, faixa=faixa, valencia=val, total=100)
+
+    faixa = NS(
+        frase="f",
+        pilares=[
+            NS(
+                code="P",
+                subpilares=[
+                    _c("P1", "Calibração", "critico", "detrator"),  # <1,0 → travado
+                    _c("P2", "Qualidade", "atencao", "promotor"),  # 1,41 → NÃO
+                ],
+            )
+        ],
+    )
+    r = _rung(faixa, "P")
+    marc = {sp["nome"]: sp["gargalo"] for sp in r["subpilares"]}
+    assert marc["Calibração"] is True and marc["Qualidade"] is False
+    assert r["tem_gargalo"] is True
+    # pilar-gargalo saudável (nenhum <1,0) → nada marcado (trava pelo agregado)
+    faixa2 = NS(
+        frase="f", pilares=[NS(code="P", subpilares=[_c("P2", "Qualidade", "atencao", "promotor")])]
+    )
+    r2 = _rung(faixa2, "P")
+    assert r2["tem_gargalo"] is False and all(not sp["gargalo"] for sp in r2["subpilares"])
+
+
 def test_reconciliacao_bases_do_funil(db_session):
     """Item 3 (Fatia 6): o 46% é sobre a base MADURA (não o total), e as três bases
     reconciliam (molde §4.51.3):
