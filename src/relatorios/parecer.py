@@ -515,7 +515,10 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         "conduta": {
             # CADA taxa tem base PRÓPRIA (item 5 — não misturar denominadores):
             "responde_pct": t["conduta"]["responde"],
-            "responde_base": "do total de casos",
+            "responde_base": (
+                "da base madura (queixas antigas o bastante para já terem sido "
+                "respondidas), NÃO o total"
+            ),
             **(
                 {
                     "resolve_pct": t["conduta"]["resolve"],

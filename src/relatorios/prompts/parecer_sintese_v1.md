@@ -27,7 +27,9 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
   compensa sem consertar).
 - BASE DE CADA TAXA DA CONDUTA (não misture denominadores): cada ``*_pct`` vem
   com seu ``*_base`` — use o referente EXATO. ``responde_pct`` é ``responde_base``
-  (do total de casos); ``resolve_pct`` é ``resolve_base`` (dos avaliados);
+  (a BASE MADURA — queixas antigas o bastante para já terem sido respondidas —, NÃO o
+  total; DECLARE essa base na prosa, ex.: "responde a 46% da base madura");
+  ``resolve_pct`` é ``resolve_base`` (dos avaliados);
   ``enfrenta_a_causa_pct`` é ``enfrenta_a_causa_base`` (dos casos com desfecho
   classificado). NUNCA escreva "X% das ocorrências" nem troque a base — o 23%
   não é "dos resolvidos" nem "das ocorrências", é dos casos com desfecho.
