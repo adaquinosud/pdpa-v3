@@ -148,8 +148,9 @@ PERGUNTAS = [
         texto="Qual é o próximo passo?",
         tipo=TIPO_INFERENCIA,
         link="planos",
-        premissa="A prioridade vem do impacto estimado. Assume que maior impacto potencial "
-        "= melhor próximo passo; ignora esforço e sequência.",
+        premissa="O próximo passo segue a sequência do Lastro — o elo que trava primeiro "
+        "(o gargalo), não o de maior impacto isolado. Ignora esforço e capacidade, "
+        "que são seus.",
     ),
     dict(
         n=12,
@@ -201,8 +202,8 @@ PERGUNTAS = [
         texto="O que ela muda no que fazemos agora e depois?",
         tipo=TIPO_INFERENCIA,
         link="planos",
-        premissa="Liga o diagnóstico ao plano — assume que o que o dado aponta como "
-        "problema é o que endereçar primeiro.",
+        premissa="Liga o diagnóstico ao plano pelo gargalo — assume que o elo que trava a "
+        "sequência do Lastro é o que endereçar primeiro.",
     ),
     dict(
         n=18,
@@ -330,10 +331,18 @@ def _sinais(s, empresa_id: int) -> dict:
         fonte_top = SimpleNamespace(
             nome=linha[0] or "sem_fonte", pct=round(100 * linha[1] / eng["volume"])
         )
+    # Gargalo sequencial (§7): o elo que trava o Lastro (P→D→Pa→A). DISTINTO do `pior`
+    # (menor ratio) — a régua canônica, custo zero sobre o agg já materializado. None =
+    # nada quebrado → a célula DIZ que não há gargalo (estado vazio explícito, nunca muda).
+    from src.api.painel import NOME_PILAR, gargalo_sequencial
+
+    g_cod = gargalo_sequencial(agg) if agg else None
+    gargalo = SimpleNamespace(pilar=g_cod, nome=NOME_PILAR.get(g_cod, g_cod)) if g_cod else None
     emp = s.get(Empresa, empresa_id)
     sig = {
         "eng": eng,
-        "pior": pior,
+        "pior": pior,  # menor ratio — uso legítimo, mas NÃO é o gargalo
+        "gargalo": gargalo,
         "fonte_top": fonte_top,
         "tem_origem": bool(emp and (emp.missao or emp.visao or emp.valores)),
         "missao": (emp.missao if emp else None),
@@ -350,6 +359,8 @@ def _sinais(s, empresa_id: int) -> dict:
     sig["acoes"] = _guard(lambda: _acoes(s, empresa_id), [])
     # #15 — o eixo mais fraco do Engajamento.
     sig["eixo_fraco"] = _guard(lambda: _eixo_fraco(eng))
+    # #6 — Teto projetado: endereçar os subpilares das ações ALTO leva o Teto de X→Y.
+    sig["cenario6"] = _guard(lambda: _cenario_alto(agg, sig.get("acoes") or []))
     # #16 — a leitura diagnóstica (cache) do pior subpilar.
     sig["leitura16"] = _guard(lambda: _leitura_pior(s, empresa_id, pior.sub)) if pior else None
     # #19 — o gap do Confronto (OrigemSintese, via pesquisa da empresa).
@@ -401,10 +412,21 @@ def _delta_ultimo(s, empresa_id: int):
             if v.get(ult) is not None and v.get(prev) is not None
         ]
         if cand:
-            sub, a, b = max(cand, key=lambda x: abs((x[1] or 0) - (x[2] or 0)))
-            from src.api.painel import NOME_SUBPILAR
+            from src.api.painel import NOME_SUBPILAR, faixa_ratio
 
-            mover = SimpleNamespace(nome=NOME_SUBPILAR.get(sub, sub), de=b, para=a)
+            # Só CRUZAMENTO DE FAIXA conta como mudança: delta absoluto de ratio numa base
+            # minúscula (0,00→0,01) é ruído, não notícia. Sem cruzamento → mover None, e a
+            # célula diz que a coleta confirmou o retrato (leitura honesta).
+            crossers = [(sub, a, b) for (sub, a, b) in cand if faixa_ratio(a) != faixa_ratio(b)]
+            if crossers:
+                sub, a, b = max(crossers, key=lambda x: abs((x[1] or 0) - (x[2] or 0)))
+                mover = SimpleNamespace(
+                    nome=NOME_SUBPILAR.get(sub, sub),
+                    de=b,
+                    para=a,
+                    faixa_de=faixa_ratio(b),
+                    faixa_para=faixa_ratio(a),
+                )
     return SimpleNamespace(n=int(n_ult or 0), mover=mover)
 
 
@@ -455,6 +477,19 @@ def _acoes(s, empresa_id: int):
     itens = consolidar_acoes(empresa_id, {})
     itens = sorted(itens, key=lambda a: (_ORDEM_PRIO.get(a.prioridade, 3), -(a.det or 0)))
     return itens
+
+
+def _cenario_alto(agg, acoes):
+    """#6 — projeta o Teto do Lastro (compor_cenario, o próprio FONTE_REF[6]) endereçando
+    os subpilares das ações ALTO. Só subpilares presentes no agg (compor_cenario muta cópia).
+    Retorna {indice_base, indice_n, n, ...} ou None se não há alto acionável."""
+    from src.governanca.metricas import compor_cenario
+
+    subs = []
+    for a in acoes:
+        if a.prioridade == "alto" and a.subpilar and a.subpilar in agg and a.subpilar not in subs:
+            subs.append(a.subpilar)
+    return compor_cenario(agg, subs, len(subs)) if subs else None
 
 
 def _eixo_fraco(eng: dict):
@@ -519,11 +554,15 @@ def _resumo(n: int, sig: dict) -> str:
         d = sig.get("delta")
         if d and d.mover:
             return (
-                f"Na última coleta entraram {d.n} manifestações. O que mais mudou: "
-                f"{d.mover.nome} passou de ratio {d.mover.de:.2f} para {d.mover.para:.2f}."
+                f"Na última coleta entraram {d.n} manifestações. Mudou de faixa: "
+                f"{d.mover.nome} passou de {d.mover.faixa_de} para {d.mover.faixa_para} "
+                f"(ratio {d.mover.de:.2f}→{d.mover.para:.2f})."
             )
         if d:
-            return f"Na última coleta entraram {d.n} manifestações."
+            return (
+                f"Na última coleta entraram {d.n} manifestações — nenhum subpilar mudou de "
+                "faixa; a coleta confirmou o retrato."
+            )
         return f"{eng['volume']} manifestações classificadas até aqui."
     if n == 2:
         if not pior:
@@ -541,22 +580,42 @@ def _resumo(n: int, sig: dict) -> str:
         return "Temas recorrentes e cruzamentos apontam candidatos a causa."
     if n == 4:
         if acoes:
-            a = acoes[0]
+            a = max(acoes, key=lambda x: (x.volume or 0))  # a que toca mais gente (≠ Q11 gargalo)
             alvo = a.subpilar_nome or _corte(a.texto, 40)
-            det = f", {a.det} detratores" if a.det else ""
+            vol = f", {a.volume} manifestações" if a.volume else ""
             return (
-                f"A opção de maior prioridade ({a.prioridade}) ataca {alvo}{det}. "
+                f"A opção que toca mais gente ({a.prioridade}) ataca {alvo}{vol}. "
                 "Se dá para executar depende de você."
             )
         return "O impacto de cada opção é estimado no Plano; a viabilidade depende de você."
     if n == 5:
         if acoes:
+            a0 = acoes[0]
+            n_fraco = sum(1 for a in acoes if (a.volume or 0) < 3)
+            # A origem de acoes[0] governa a promessa: estrutural/anomalia NÃO nasce de
+            # "verbatins que a originaram" — não prometer o que aquela ação não tem.
+            origem_txt = {
+                "Estrutural": "é proativa (estrutural), não ancorada em verbatins",
+                "Anomalia": "vem de uma anomalia detectada",
+            }.get(a0.origem)
+            if origem_txt:
+                return (
+                    f"{len(acoes)} ações. A de maior prioridade {origem_txt}; "
+                    f"{n_fraco} com menos de 3 verbatins de lastro."
+                )
+            anc = a0.volume or a0.det or 0
             return (
-                f"{len(acoes)} ações no plano, cada uma ancorada nos verbatins que a "
-                "originaram — nenhuma é palpite."
+                f"{len(acoes)} ações. A mais forte ancora em {anc} verbatins; "
+                f"{n_fraco} com menos de 3 de lastro."
             )
         return "Cada ação rastreia até os verbatins que a sustentam."
     if n == 6:
+        cen = sig.get("cenario6")
+        if cen and cen["indice_n"] > cen["indice_base"]:
+            return (
+                f"Endereçar os {cen['n']} pontos de maior prioridade leva o Teto do Lastro "
+                f"de {cen['indice_base']:.1f} para {cen['indice_n']:.1f}."
+            )
         alto = [a for a in acoes if a.prioridade == "alto"]
         if alto:
             return (
@@ -583,19 +642,27 @@ def _resumo(n: int, sig: dict) -> str:
             "categoria em destaque."
         )
     if n == 11:
+        g = sig.get("gargalo")
+        if g:
+            n_garg = sum(1 for a in acoes if a.pilar == g.pilar) if acoes else 0
+            cauda = f" — {n_garg} das {len(acoes)} ações nascem aí" if n_garg else ""
+            return f"Por sequência, o próximo passo é o elo que trava primeiro: {g.nome}{cauda}."
         if acoes:
             a = acoes[0]
             alvo = a.subpilar_nome or _corte(a.texto, 40)
-            det = f" — {a.det} detratores" if a.det else ""
             return (
-                f"O próximo passo de maior retorno: atacar {alvo}{det}, prioridade {a.prioridade}."
+                f"Nenhum elo trava a sequência; o de maior impacto é atacar {alvo}, "
+                f"prioridade {a.prioridade}."
             )
         return "O Plano indica o próximo passo por impacto estimado."
     if n == 14:
-        return (
+        base = (
             f"Engajamento {eng['indice']}/100 {eng['selo_emoji']} — a base para confiar "
             "no diagnóstico."
         )
+        if ft:  # os dois fatos LADO A LADO, sem reconciliação inventada (contraste c/ Q24)
+            base += f" Ao lado: {ft.pct}% do volume vêm de {ft.nome}."
+        return base
     if n == 15:
         fraco = sig.get("eixo_fraco")
         cauda = f" O eixo mais fino é {fraco} — leia com isso." if fraco else ""
@@ -606,16 +673,33 @@ def _resumo(n: int, sig: dict) -> str:
     if n == 16:
         lt = sig.get("leitura16")
         if lt and pior:
-            return f"Sobre {pior.nome}, a leitura: “{_corte(lt, 160)}”."
+            from src.api.painel import PILAR_DE_SUBPILAR
+
+            g = sig.get("gargalo")
+            base = f"Sobre {pior.nome}, a leitura: “{_corte(lt, 150)}”."
+            if g and PILAR_DE_SUBPILAR.get(pior.sub) != g.pilar:
+                base += f" (É o mais fraco por ratio; o elo que trava a sequência é {g.nome}.)"
+            return base
         return "As leituras diagnósticas interpretam o número em significado."
     if n == 17:
-        if pior and acoes:
-            n_sub = sum(1 for a in acoes if a.subpilar == pior.sub)
-            if n_sub:
+        g = sig.get("gargalo")
+        if g and acoes:
+            from src.api.painel import PILAR_DE_SUBPILAR
+
+            n_garg = sum(1 for a in acoes if a.pilar == g.pilar)
+            pior_pil = PILAR_DE_SUBPILAR.get(pior.sub) if pior else None
+            if pior and g.pilar != pior_pil:
+                # A DIVERGÊNCIA é a leitura: gargalo (trava a sequência) ≠ pior (menor ratio).
                 return (
-                    f"O que o dado aponta muda o plano: {pior.nome} travada puxa "
-                    f"{n_sub} das {len(acoes)} ações."
+                    f"O gargalo é {g.nome} — puxa {n_garg} das {len(acoes)} ações; o mais "
+                    f"fraco por ratio é {pior.nome}, ponto distinto. O plano começa pelo gargalo."
                 )
+            return (
+                f"O gargalo {g.nome} puxa {n_garg} das {len(acoes)} ações — é por onde o "
+                "plano começa."
+            )
+        if not g and acoes:
+            return f"Nenhum elo trava a sequência; as {len(acoes)} ações seguem por impacto."
         return "O Plano liga o diagnóstico às ações de agora e adiante."
     if n in (18, 20):
         decl = sig.get("missao") if n == 18 else sig.get("visao")
@@ -645,10 +729,24 @@ def _resumo(n: int, sig: dict) -> str:
             f"({eng['selo_emoji']} {eng['indice']}/100)."
         )
     if n == 22:
+        if not pior:
+            return "Ainda sem base para apontar o que deveria preocupar."
+        from src.api.painel import PILAR_DE_SUBPILAR
+
+        g = sig.get("gargalo")
+        if g is None:
+            return (
+                f"O mais fraco é {pior.nome} ({pior.det} detratores) — mas nenhum elo trava "
+                "a sequência do Lastro; não há gargalo."
+            )
+        if g.pilar == PILAR_DE_SUBPILAR.get(pior.sub):
+            return (
+                f"O que deveria preocupar é {pior.nome} ({pior.det} detratores) — e é ele "
+                f"que trava a sequência do Lastro ({g.nome})."
+            )
         return (
-            f"Pelo dado, o que deveria preocupar é {pior.nome} ({pior.det} detratores)."
-            if pior
-            else "Ainda sem base para apontar o que deveria preocupar."
+            f"Dois sinais distintos: o mais fraco por ratio é {pior.nome} ({pior.det} "
+            f"detratores); o que trava a sequência do Lastro é {g.nome}."
         )
     if n == 23:
         return "O gap entre o que você declara ser, o que o cliente vive e o que as IAs ecoam."
