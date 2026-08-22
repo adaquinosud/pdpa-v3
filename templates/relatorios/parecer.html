@@ -111,6 +111,9 @@
   .sp.crit{ border-color:var(--crit); color:var(--crit); background:#f4e3e0; }
   .spv{ font-size:8pt; text-transform:uppercase; letter-spacing:.06em; margin-left:2mm; }
   .v-detrator{ color:var(--crit); } .v-conversivel{ color:var(--aten); } .v-promotor{ color:var(--bom); }
+  .sp.garg{ border-color:var(--marrom); box-shadow:inset 0 0 0 1px var(--marrom); }
+  .spg{ font-size:8pt; text-transform:uppercase; letter-spacing:.06em; margin-left:2mm; color:var(--marrom); font-weight:bold; }
+  .eixos{ text-align:center; font-size:11.5pt; max-width:152mm; margin:5mm auto 0; color:var(--marrom); }
   .rung .leitura{ margin-top:2mm; font-style:italic; color:var(--marrom2); }
 
   /* fecho */
@@ -217,7 +220,7 @@
   <div class="rule"></div>
   {% if d.ato2a.maturidade.madura %}
   <div class="funil">
-    <div class="step s1"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde{% if d.ato2a.funil.base_responde %} · dos {{ d.ato2a.funil.base_responde }} casos{% endif %}</div></div>
+    <div class="step s1"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde{% if d.ato2a.funil.base_responde %} · dos {{ d.ato2a.funil.base_responde }} casos maduros{% endif %}</div></div>
     <div class="arrow">↓</div>
     {% if d.ato2a.funil.base_resolve %}<div class="step s2"><div class="fn">{{ d.ato2a.funil.resolve }}%</div><div class="fl">resolve · dos {{ d.ato2a.funil.base_resolve }} avaliados</div></div>{% else %}<div class="step s2"><div class="fn">—</div><div class="fl">resolve · sem casos avaliados</div></div>{% endif %}
     <div class="arrow">↓</div>
@@ -226,7 +229,7 @@
   {% set cmp = d.ato2a.compensa %}
   <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:0 auto">{% if cmp.sem_causa %}“{{ cmp.sem_causa }} dos {{ cmp.resolvidos }} casos ‘resolvidos’ compensam o cliente sem consertar a causa — que segue fabricando o próximo detrator.”{% elif cmp.resolvidos and cmp.classif_sem_causa %}“Quando resolve, conserta a causa ({{ cmp.resolvidos_com_causa }} de {{ cmp.resolvidos }}) — mas {{ cmp.classif_sem_causa }} dos {{ cmp.classif_total }} casos classificados seguem sem a causa enfrentada.”{% elif cmp.classif_sem_causa %}“{{ cmp.classif_sem_causa }} dos {{ cmp.classif_total }} casos classificados seguem sem a causa enfrentada.”{% endif %}</p>
   {% else %}
-  <div class="step s1" style="width:70%;margin:5mm auto;text-align:center"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde · dos {{ d.ato2a.funil.base_responde }} casos</div></div>
+  <div class="step s1" style="width:70%;margin:5mm auto;text-align:center"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde · dos {{ d.ato2a.funil.base_responde }} casos maduros</div></div>
   <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:3mm auto">A base é recente: {% if d.ato2a.maturidade.maduros_pct == 0 %}<strong>nenhum</strong> dos {{ d.ato2a.maturidade.n_casos }} casos ainda tem mais de {{ d.ato2a.maturidade.dias }} dias{% else %}só <strong>{{ d.ato2a.maturidade.maduros_pct }}%</strong> dos {{ d.ato2a.maturidade.n_casos }} casos têm mais de {{ d.ato2a.maturidade.dias }} dias{% endif %}. Resolução e causa-raiz precisam de tempo para amadurecer — <em>a conduta não é julgada sobre coleta recente</em>.</p>
   {% endif %}
 
@@ -236,6 +239,8 @@
     {% endfor %}
   </div>
   <p class="muted" style="text-align:center;font-size:9.5pt;margin-top:1mm">nota média {{ d.ato2a.nota_media }}/10 · {{ d.ato2a.n_avaliados }} avaliados</p>
+  {% set rc = d.ato2a.reconciliacao %}
+  <p class="muted" style="text-align:center;font-size:8.5pt;margin-top:1mm">Bases: {{ rc.respondidas }} respondidas + {{ rc.nao_respondidas_maduras }} não respondidas = {{ rc.maduros }} casos maduros · {{ rc.total }} no total = {{ rc.maduros }} maduros + {{ rc.imaturos }} recentes · nota sobre {{ rc.avaliados }} avaliados.</p>
 
   {% for c in d.ato2a.citacoes %}
   <div class="quote">{{ c.texto }}<span class="src">— {{ c.fonte }}</span></div>
@@ -342,7 +347,7 @@
       <p style="margin:0">{% if d.ato2c.ecoa.subpilares %}<strong>{{ d.ato2c.ecoa.subpilares }}</strong> — {% endif %}{{ d.ato2c.ecoa.frase }}</p>
     </td>
   </tr></table>
-  {% if d.ato2c.divergencia.n %}<p class="method" style="margin-top:8mm;font-size:11.5pt">“As três IAs divergem em {{ d.ato2c.divergencia.n }} dos {{ d.ato2c.divergencia.total }} subpilares — {{ d.ato2c.divergencia.frase }}”</p>{% endif %}
+  {% if d.ato2c.divergencia.n %}<p class="method" style="margin-top:8mm;font-size:11.5pt">“As três IAs divergem em {{ d.ato2c.divergencia.n }} dos {{ d.ato2c.divergencia.total }} subpilares que a sonda avalia — de {{ d.ato2c.divergencia.metodo_total }} do método — {{ d.ato2c.divergencia.frase }}”</p>{% endif %}
 </div>
 
 {# ═══════════ P7 · ATO 3 ═══════════ #}
@@ -351,7 +356,7 @@
   <h2 class="manchete">Onde a correção mora.</h2>
   <div class="rule"></div>
   <div class="ladder">
-    {% macro sp_chip(sp) %}<span class="sp {{ 'crit' if sp.critico }}">{{ sp.nome }}{% if sp.valencia %} <span class="spv v-{{ sp.valencia }}">{{ sp.valencia }}</span>{% endif %}</span>{% endmacro %}
+    {% macro sp_chip(sp) %}<span class="sp {{ 'crit' if sp.critico }}{{ ' garg' if sp.gargalo }}">{{ sp.nome }}{% if sp.valencia %} <span class="spv v-{{ sp.valencia }}">{{ sp.valencia }}</span>{% endif %}{% if sp.gargalo %} <span class="spg">elo travado</span>{% endif %}</span>{% endmacro %}
     <div class="rung">
       <div class="re">Topo · Individual</div>
       <div class="rf">“{{ d.ato3.topo.frase }}”</div>
@@ -365,6 +370,7 @@
       {% for sp in d.ato3.base.subpilares %}{{ sp_chip(sp) }}{% endfor %}
       {% if d.ato3.base.leitura %}<div class="leitura">{{ d.ato3.base.leitura }}</div>{% endif %}
     </div>
+    {% if d.ato3.eixos_leitura %}<p class="eixos">{{ d.ato3.eixos_leitura }}</p>{% endif %}
   </div>
 </div>
 

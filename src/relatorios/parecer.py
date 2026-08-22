@@ -289,26 +289,31 @@ def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]
             if vol > cur["_top"]:
                 cur["exemplos"], cur["_top"] = exemplos, vol
 
-    def _citacao(exemplos_json, label) -> Optional[str]:
-        """Escolhe a citação: prefere PT ∧ on-label; fallback = 1º com texto (o mais
-        central). Só ordem de preferência — não muda dado nem volume."""
+    def _citacao(exemplos_json, label, tipo) -> Optional[str]:
+        """Escolhe a citação. VALÊNCIA é REQUISITO (item 4): só verbatim do mesmo ``tipo`` do
+        tema ilustra — nunca o oposto (elogio jamais ilustra tema detrator). Idioma é
+        PREFERÊNCIA (PT ∧ on-label > PT > 1º da valência). Sem candidato da valência certa →
+        None: o tema aparece SEM citação. Ausência é honesta; citação errada destrói a peça."""
         try:
             ids = _json.loads(exemplos_json) if exemplos_json else []
         except (ValueError, TypeError):
             ids = []
-        cands = []  # textos exibíveis (≤15 palavras), em ordem centroid-first
+        cands = []  # SÓ verbatins da valência do tema, em ordem centroid-first
         for vid in ids:
             v = s.get(Verbatim, vid)
-            if v and v.texto and v.tem_texto is not False:
+            if v and v.texto and v.tem_texto is not False and v.tipo == tipo:  # TRAVA de valência
                 palavras = " ".join(v.texto.split()).split()
                 cands.append(" ".join(palavras[:15]) + ("…" if len(palavras) > 15 else ""))
         if not cands:
-            return None
+            return None  # sem candidato da valência certa → tema sem citação
         alvo = _tokens_label(label)
-        for t in cands:  # preferência: português E casa o label
+        for t in cands:  # preferência 1: português E casa o label
             if not _parece_espanhol(t) and _casa_label(t, alvo):
                 return mascarar_identificadores(t)
-        return mascarar_identificadores(cands[0])  # fallback: o mais central
+        for t in cands:  # preferência 2: português (valência já garantida)
+            if not _parece_espanhol(t):
+                return mascarar_identificadores(t)
+        return mascarar_identificadores(cands[0])  # valência certa; idioma é só preferência
 
     out: Dict[str, List[Dict[str, Any]]] = {"detrator": [], "promotor": []}
     for tipo in ("detrator", "promotor"):
@@ -317,7 +322,11 @@ def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]
             key=lambda x: -x[1]["volume"],
         )[:k]
         out[tipo] = [
-            {"nome": label, "volume": dd["volume"], "citacao": _citacao(dd["exemplos"], label)}
+            {
+                "nome": label,
+                "volume": dd["volume"],
+                "citacao": _citacao(dd["exemplos"], label, tipo),
+            }
             for label, dd in itens
         ]
     return out
@@ -375,22 +384,49 @@ def _corrente(analises, nome_map) -> Dict[str, Any]:
     return {"elos": elos, "ruptura_frase": ruptura_frase}
 
 
-def _rung(faixa) -> Dict[str, Any]:
+def _rung(faixa, gargalo_cod=None) -> Dict[str, Any]:
     """Faixa topo/base do quadro → só subpilares com sinal relevante (corta neutros),
-    carregando valência + faixa (o P7 mostra a cor, não só o nome)."""
+    carregando valência + faixa (o P7 mostra a cor, não só o nome). ``gargalo_cod`` (pilar):
+    marca o subpilar do pilar-gargalo DENTRO da faixa onde já está (opção ANOTAR — não
+    reordena topo/base, que é a divisão método sistêmico×individual)."""
+    from src.api.painel import PILAR_DE_SUBPILAR
+
     subs = []
+    tem_gargalo = False
     for p in faixa.pilares:
         for c in p.subpilares:
             if c.total and (c.faixa in ("critico", "atencao") or c.valencia == "detrator"):
+                eh_g = gargalo_cod is not None and PILAR_DE_SUBPILAR.get(c.subpilar) == gargalo_cod
+                tem_gargalo = tem_gargalo or eh_g
                 subs.append(
                     {
                         "nome": c.nome,
                         "critico": c.faixa == "critico",
                         "valencia": c.valencia,
                         "faixa": c.faixa,
+                        "gargalo": eh_g,  # este subpilar é do pilar que trava a sequência
                     }
                 )
-    return {"frase": faixa.frase, "subpilares": subs, "leitura": None}
+    return {"frase": faixa.frase, "subpilares": subs, "leitura": None, "tem_gargalo": tem_gargalo}
+
+
+def _eixos_leitura(fer_sub, fer_nome, gargalo_cod, gargalo_nome) -> Optional[str]:
+    """Leitura ASSEMBLATIVA ($0, sem LLM) dos dois eixos: onde DÓI (ferida-RA) × o que
+    TRAVA primeiro na sequência (gargalo). Coincidem → diz isso; divergem → a divergência é a
+    leitura. None → sem gargalo (nada travado)."""
+    from src.api.painel import PILAR_DE_SUBPILAR
+
+    if not gargalo_cod:
+        return None
+    if fer_sub and PILAR_DE_SUBPILAR.get(fer_sub) == gargalo_cod:
+        return (
+            f"A ferida ({fer_nome}) e o elo que trava a sequência são o mesmo pilar "
+            f"({gargalo_nome}) — atacar aqui sustenta o resto."
+        )
+    return (
+        f"A ferida está no topo ({fer_nome}); mas o elo que trava a sequência vem da base "
+        f"({gargalo_nome}). Consertar depois do elo travado é investir onde ainda não sustenta."
+    )
 
 
 def _ato4(s, empresa_id: int, empresa_nome: str) -> Dict[str, Any]:
@@ -720,6 +756,14 @@ def montar_dados(
         ato4 = _ato4(s, empresa_id, empresa_nome)
 
     # ── monta a forma editorial (fora da sessão) ──
+    # Gargalo sequencial (§7): o elo que trava a sequência P→D→Pa→A. DISTINTO da ferida-RA
+    # (dor mais concentrada numa fonte). Anota o Ato 3; a injeção nos facts do LLM + a
+    # reescrita do prompt são o passo 2 (pago). None = nada travado.
+    from src.api.painel import NOME_PILAR, SUBPILARES_ORDEM, gargalo_sequencial
+
+    _metodo_total = len(SUBPILARES_ORDEM)  # 12 subpilares do método (item 2: declarar recorte)
+    _garg_cod = gargalo_sequencial(agg) if agg else None
+    _garg_nome = NOME_PILAR.get(_garg_cod, _garg_cod) if _garg_cod else None
     fer_sub = ferida["subpilar"] if ferida else None
     fer_agg = agg.get(fer_sub) if fer_sub else None
     encaminhamentos = list(getattr(snap, "encaminhamentos", []) or []) if snap else []
@@ -861,11 +905,23 @@ def montar_dados(
                 "responde": casos.taxa_resposta or 0,
                 "resolve": casos.taxa_resolucao or 0,
                 "causa": casos.taxa_causa or 0,
-                # base de CADA degrau (denominadores distintos — item 5):
-                # responde/total · resolve/avaliados · causa/classificados
-                "base_responde": casos.total,
+                # base de CADA degrau (denominadores distintos — item 5). O 46% é ÷ base
+                # MADURA (o rótulo era "total" e mentia — parecer.py:5484 divide por
+                # _maduros_resp): base_responde passa a ser a base madura real.
+                "base_responde": casos.resp_base,
                 "base_resolve": casos.n_avaliados,
                 "base_causa": casos.n_classificados,
+            },
+            # Reconciliação DECLARADA dos denominadores (molde §4.51.3): identidades
+            #   respondidas + nao_respondidas_maduras == maduros
+            #   total == maduros + imaturos
+            "reconciliacao": {
+                "total": casos.total,
+                "maduros": casos.resp_base,
+                "imaturos": casos.total - casos.resp_base,
+                "respondidas": casos.resp_num,
+                "nao_respondidas_maduras": casos.resp_base - casos.resp_num,
+                "avaliados": casos.n_avaliados,
             },
             "nota_media": casos.nota_media if casos.nota_media is not None else "—",
             "n_avaliados": casos.n_avaliados,
@@ -917,20 +973,25 @@ def montar_dados(
             },
             "divergencia": {
                 "n": getattr(div, "n_discordam", 0) if div else 0,
-                "total": len(getattr(div, "linhas", []) or []) if div else 0,
+                "total": len(getattr(div, "linhas", []) or []) if div else 0,  # cobertura da SONDA
+                "metodo_total": _metodo_total,  # de 12 do método (item 2: recorte declarado)
                 "frase": "quem pergunta a uma IA ouve outra empresa.",
             },
         },
         "ato3": {
             "topo": (
-                _rung(quadro.faixas[0])
+                _rung(quadro.faixas[0], _garg_cod)
                 if quadro.tem_dado
                 else {"frase": "", "subpilares": [], "leitura": None}
             ),
             "base": (
-                _rung(quadro.faixas[1])
+                _rung(quadro.faixas[1], _garg_cod)
                 if quadro.tem_dado
                 else {"frase": "", "subpilares": [], "leitura": None}
+            ),
+            "gargalo_nome": _garg_nome,  # None → sem elo travado (estado explícito)
+            "eixos_leitura": _eixos_leitura(
+                fer_sub, (ferida["nome"] if ferida else None), _garg_cod, _garg_nome
             ),
         },
         "ato4": ato4,

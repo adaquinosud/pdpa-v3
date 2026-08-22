@@ -654,3 +654,118 @@ def test_montar_dados_degrada_sem_dado(db_session):
 
 def test_montar_dados_empresa_inexistente(db_session):
     assert montar_dados(999999) is None
+
+
+def test_citacao_valencia_e_trava_nunca_promotor_em_tema_detrator(db_session):
+    """Item 4 (Fatia 6): valência é REQUISITO, não preferência. Tema DETRATOR cujos exemplos
+    apontam só para um verbatim PROMOTOR fica SEM citação — elogio nunca ilustra dor."""
+    import json
+    from datetime import date
+
+    from src.models.temas import TemaCache
+    from src.relatorios.parecer import _temas_voz
+
+    e = _empresa(db_session, "valtrava")
+    f = _fonte(db_session, e)
+    prom = Verbatim(
+        empresa_id=e.id,
+        fonte_id=f.id,
+        texto="Atendimento muito bom, ágil, veículo em boas condições e equipe atenciosa.",
+        tem_texto=True,
+        subpilar="Pa2",
+        tipo="promotor",
+        hash_dedup="vprom",
+    )
+    db_session.add(prom)
+    db_session.flush()
+
+    def _tc(tipo, label, ex):
+        return TemaCache(
+            empresa_id=e.id,
+            agrupamento_id=None,
+            subpilar="Pa2",
+            tipo=tipo,
+            tema_label=label,
+            volume=59,
+            percentual=0.0,
+            periodo_inicio=date(2026, 1, 1),
+            periodo_fim=date(2026, 1, 31),
+            exemplos_verbatim_ids=json.dumps(ex),
+            hash_escopo=f"h-{label}-{tipo}",
+        )
+
+    db_session.add_all(
+        [
+            _tc("detrator", "cobrança adicional", [prom.id]),  # só promotor → sem citação
+            _tc("promotor", "atendimento ágil", [prom.id]),  # valência certa → ilustra
+        ]
+    )
+    db_session.commit()
+
+    voz = _temas_voz(db_session, e.id)
+    det_tema = next(t for t in voz["detrator"] if t["nome"] == "cobrança adicional")
+    assert det_tema["citacao"] is None  # trava: promotor NÃO ilustra tema detrator
+    prom_tema = next(t for t in voz["promotor"] if t["nome"] == "atendimento ágil")
+    assert prom_tema["citacao"] is not None  # valência certa → ilustra
+
+
+def test_reconciliacao_bases_do_funil(db_session):
+    """Item 3 (Fatia 6): o 46% é sobre a base MADURA (não o total), e as três bases
+    reconciliam (molde §4.51.3):
+      respondidas + nao_respondidas_maduras == maduros ; total == maduros + imaturos."""
+    from datetime import datetime
+
+    e = _empresa(db_session, "recon")
+    f = _fonte(db_session, e)
+    velho, recente = datetime(2020, 1, 1), datetime.utcnow()
+    db_session.add_all(
+        [  # 2 maduros respondidos + 1 maduro não respondido + 2 imaturos
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id="M1",
+                criado_em_origem=velho,
+                interactions_count=2,
+            ),
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id="M2",
+                criado_em_origem=velho,
+                interactions_count=1,
+            ),
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id="M3",
+                criado_em_origem=velho,
+                interactions_count=0,
+            ),
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id="I1",
+                criado_em_origem=recente,
+                interactions_count=0,
+            ),
+            Caso(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                origem_id="I2",
+                criado_em_origem=recente,
+                interactions_count=0,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    rc = d["ato2a"]["reconciliacao"]
+    assert rc["respondidas"] + rc["nao_respondidas_maduras"] == rc["maduros"]  # identidade 1
+    assert rc["total"] == rc["maduros"] + rc["imaturos"]  # identidade 2
+    assert (rc["total"], rc["maduros"], rc["imaturos"]) == (5, 3, 2)
+    assert (rc["respondidas"], rc["nao_respondidas_maduras"]) == (2, 1)
+    # o 46% é sobre a base MADURA, não o total (o rótulo antigo mentia)
+    assert d["ato2a"]["funil"]["base_responde"] == rc["maduros"] != rc["total"]
+    html = _render(d)
+    assert "casos maduros" in html and "recentes" in html
