@@ -17,8 +17,6 @@ from typing import Any, Dict, List, Optional
 
 from src.models.temas import TemaCache
 
-# Faixas que contam como "fraco" (piores primeiro pelo ratio).
-_FAIXAS_FRACAS = ("critico", "fraco")
 _TOP_TEMAS = 6
 _SHARE_DOMINANTE = 0.5  # < 0.5 do detrator no top subpilar → disperso
 
@@ -30,6 +28,7 @@ def _nome_sub(sub: str) -> str:
 
 
 def _focos_subpilar(s, empresa_id: int, local_ids) -> List[Dict[str, Any]]:
+    from src.api.painel import abaixo_do_empate
     from src.diagnostico.leituras import agregar_subpilares
 
     agg = agregar_subpilares(s, empresa_id, local_ids=local_ids)
@@ -47,7 +46,7 @@ def _focos_subpilar(s, empresa_id: int, local_ids) -> List[Dict[str, Any]]:
             "justificativa": f"ratio {d['ratio']:.2f} ({d['faixa']}), {d['det']} detratores",
         }
         for sub, d in agg.items()
-        if d["faixa"] in _FAIXAS_FRACAS
+        if abaixo_do_empate(d["ratio"])
     ]
     fracos.sort(key=lambda f: f["ratio"])  # pior primeiro
     return fracos

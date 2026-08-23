@@ -97,13 +97,14 @@ def montar_dados(
         PILAR_DE_SUBPILAR,
         PILARES_ORDEM,
         SUBPILARES_ORDEM,
+        abaixo_do_empate,
         calcular_indice_geral,
-        calcular_ratio,
+        eh_elo_travado,
         faixa_indice_geral,
-        faixa_ratio,
         painel_nivel1,
     )
     from src.diagnostico.leituras import _gargalo, agregar_subpilares
+    from src.utils.fmt import virg
     from src.relatorios.gates import bloquear_se_stale as _bloquear_se_stale
     from src.models.anomalia import AnomaliaDetectada
     from src.models.diagnostico import LeituraDiagnostico
@@ -327,54 +328,16 @@ def montar_dados(
             )
 
     # ─── Pilares (Lastro) + leituras destacadas por pilar ───────────────────
-    pilares: List[SimpleNamespace] = []
-    pilar_subs_data: Dict[str, List[Dict[str, Any]]] = {}
-    pilar_leitura_ativo: Dict[str, str] = {}
-    pilar_leitura_gargalo: Dict[str, str] = {}
-    pilar_sub_destaque: Dict[str, Dict[str, str]] = {}
-    for code in PILARES_ORDEM:
-        subs = [x for x in agg if PILAR_DE_SUBPILAR.get(x) == code]
-        if not subs:
-            continue
-        prom = sum(agg[x]["prom"] for x in subs)
-        conv = sum(agg[x]["conv"] for x in subs)
-        det = sum(agg[x]["det"] for x in subs)
-        ratio = calcular_ratio(prom, det)
-        pilares.append(
-            SimpleNamespace(
-                codigo=code,
-                nome=NOME_PILAR.get(code, code),
-                ratio=ratio,
-                faixa=faixa_ratio(ratio),
-                total=prom + conv + det,
-                prom=prom,
-                conv=conv,
-                det=det,
-                gargalo=(code == gargalo),
-                ferida_interna=_feridas_map.get(code, []),
-            )
-        )
-        sub_pior = min(subs, key=lambda x: agg[x]["ratio"])
-        sub_melhor = max(subs, key=lambda x: agg[x]["ratio"])
-        pilar_sub_destaque[code] = {"pior": sub_pior, "melhor": sub_melhor}
-        if sub_pior in leituras:
-            pilar_leitura_gargalo[code] = leituras[sub_pior][0]
-        if sub_melhor in leituras:
-            pilar_leitura_ativo[code] = leituras[sub_melhor][0]
-        pilar_subs_data[code] = [
-            {
-                "subpilar": x,
-                "nome": NOME_SUBPILAR.get(x, x),
-                "ratio": agg[x]["ratio"],
-                "faixa": agg[x]["faixa"],
-                "det": agg[x]["det"],
-                "conv": agg[x]["conv"],
-                "prom": agg[x]["prom"],
-                "leitura": (leituras.get(x)[0] if leituras.get(x) else None),
-                "acao": (leituras.get(x)[1] if leituras.get(x) else None),
-            }
-            for x in sorted(subs)
-        ]
+    # Builder editorial ÚNICO (Fatia 8, camada 2) — mesma fonte que o Resumo
+    # Executivo. ``incluir_subs_data`` porque o Diagnóstico detalha subpilar a subpilar.
+    from src.relatorios.lastro import montar_lastro
+
+    _lastro = montar_lastro(agg, gargalo, leituras, _feridas_map, incluir_subs_data=True)
+    pilares = _lastro.pilares
+    pilar_subs_data = _lastro.pilar_subs_data
+    pilar_leitura_ativo = _lastro.pilar_leitura_ativo
+    pilar_leitura_gargalo = _lastro.pilar_leitura_gargalo
+    pilar_sub_destaque = _lastro.pilar_sub_destaque
 
     # ─── Confronto Visual ──────────────────────────────────────────────────
     confronto: List[SimpleNamespace] = []
@@ -388,7 +351,7 @@ def montar_dados(
                 subpilar=sub,
                 nome=NOME_SUBPILAR.get(sub, sub),
                 pilar=PILAR_DE_SUBPILAR.get(sub),
-                gargalo=(PILAR_DE_SUBPILAR.get(sub) == gargalo),
+                gargalo=eh_elo_travado(sub, gargalo, d_["ratio"]),  # só o elo travado, não o pilar
                 det=d_["det"],
                 conv=d_["conv"],
                 prom=d_["prom"],
@@ -460,7 +423,7 @@ def montar_dados(
     # ─── Priorização (Sequência do Lastro) ─────────────────────────────────
     _pos = {p: i for i, p in enumerate(PILARES_ORDEM)}
     prio = sorted(
-        (sub for sub in agg if agg[sub]["faixa"] in ("critico", "fraco")),
+        (sub for sub in agg if abaixo_do_empate(agg[sub]["ratio"])),
         key=lambda sub: (_pos.get(PILAR_DE_SUBPILAR.get(sub, "Z"), 99), agg[sub]["ratio"]),
     )[:5]
     priorizacao = [
@@ -469,7 +432,7 @@ def montar_dados(
             nome=NOME_SUBPILAR.get(sub, sub),
             pilar=PILAR_DE_SUBPILAR.get(sub),
             pilar_nome=NOME_PILAR.get(PILAR_DE_SUBPILAR.get(sub), ""),
-            gargalo=(PILAR_DE_SUBPILAR.get(sub) == gargalo),
+            gargalo=eh_elo_travado(sub, gargalo, agg[sub]["ratio"]),
             ratio=agg[sub]["ratio"],
             faixa=agg[sub]["faixa"],
             det=agg[sub]["det"],
@@ -608,7 +571,7 @@ def montar_dados(
             acao_txt = (sug[0].acao if sug else None) or sd["acao"]
             como_txt = (sug[0].justificativa if sug else None) or (
                 f"Atacar pelo subpilar {sd['subpilar']} ({sd['nome']}) — ratio "
-                f"{sd['ratio']:.2f}, {sd['det']} detratores."
+                f"{virg(sd['ratio'])}, {sd['det']} detratores."
             )
             impacto_txt = (
                 f"Reduz {sd['det']} detratores e libera {sd['conv']} conversíveis. "

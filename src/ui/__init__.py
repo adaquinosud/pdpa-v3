@@ -2459,6 +2459,25 @@ _ABA_BUILDERS = {
 }
 
 
+def _janela_label(empresa_id: int):
+    """Janela REAL da coleta (min–max de data do verbatim), derivada do DADO — nunca
+    hardcoded. Vale p/ qualquer fonte (não só RA). Usa ``data_criacao_original`` (data
+    do fato) e cai p/ ``data_coleta`` quando ausente. ``None`` se não houver verbatim
+    com data. Formato ``MM/AAAA – MM/AAAA`` (mês único quando min e max coincidem)."""
+    from sqlalchemy import func
+
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    dt = func.coalesce(Verbatim.data_criacao_original, Verbatim.data_coleta)
+    with db_session() as s:
+        mn, mx = s.query(func.min(dt), func.max(dt)).filter(Verbatim.empresa_id == empresa_id).one()
+    if mn is None or mx is None:
+        return None
+    a, b = mn.strftime("%m/%Y"), mx.strftime("%m/%Y")
+    return f"janela {a}" if a == b else f"janela {a} – {b}"
+
+
 def _relatorio_html(empresa_w, tipo: str) -> str:
     """Dispatch do HTML por tipo de relatório. Cada CP B1-B4 preenche o seu."""
     from datetime import datetime
@@ -2467,6 +2486,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
     if meta is None:
         return None
     _, titulo, _, cp, _ = meta
+    _jl = _janela_label(empresa_w.id)
     if tipo == "resumo_executivo":
         from src.relatorios.resumo_executivo import montar_dados
 
@@ -2476,6 +2496,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
+            janela_label=_jl,
             d=d,
         )
     if tipo == "diagnostico_pontual":
@@ -2487,6 +2508,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
+            janela_label=_jl,
             d=d,
         )
     if tipo == "plano_executivo":
@@ -2498,6 +2520,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
+            janela_label=_jl,
             d=d,
         )
     if tipo == "diagnostico_longitudinal":
@@ -2509,6 +2532,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
+            janela_label=_jl,
             d=d,
         )
     if tipo == "painel_governanca":
@@ -2520,6 +2544,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
+            janela_label=_jl,
             d=d,
         )
     if tipo == "parecer":
@@ -2556,6 +2581,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         empresa=empresa_w,
         gerado_em=datetime.utcnow(),
         escopo_label=None,
+        janela_label=_jl,
         titulo=titulo,
         cp=cp,
     )

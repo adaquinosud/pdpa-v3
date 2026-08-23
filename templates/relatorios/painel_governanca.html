@@ -28,7 +28,7 @@
 {{ M.titulo_secao('01', 'Trajetória do Capital Relacional', 'Capitalizando ou descapitalizando — Δ do Índice PDPA entre janelas.') }}
 {% set t = d.trajetoria %}
 {% if t.estado == 'disponivel' %}
-<p style="font-size:11pt"><strong>{{ '%.1f'|format(t.pdpa_anterior) }} → {{ '%.1f'|format(t.pdpa_recente) }}</strong> — {{ {'capitalizando':'↑ capitalizando','descapitalizando':'↓ descapitalizando','estavel':'→ estável'}.get(t.direcao, t.direcao) }} (Índice PDPA, {{ t.janela_meses }}m recentes vs anteriores).</p>
+<p style="font-size:11pt"><strong>{{ t.pdpa_anterior | virg(1) }} → {{ t.pdpa_recente | virg(1) }}</strong> — {{ {'capitalizando':'↑ capitalizando','descapitalizando':'↓ descapitalizando','estavel':'→ estável'}.get(t.direcao, t.direcao) }} (Índice PDPA, {{ t.janela_meses }}m recentes vs anteriores).</p>
 {% else %}
 <p class="muted">Trajetória indisponível — {{ t.motivo }}. Só é lida com coleta contínua; o instrumento não infere movimento a partir de uma lacuna de coleta nossa.</p>
 {% endif %}
@@ -36,7 +36,7 @@
 {# ═══ 02 · CONCENTRAÇÃO DE RISCO ═══ #}
 {{ M.titulo_secao('02', 'Concentração de Risco', 'Gini da distribuição de detratores entre lojas + bolsão crítico nominado.') }}
 {% if d.gini and not d.gini.insuficiente %}
-<p style="font-size:10pt"><strong>Gini {{ '%.2f'|format(d.gini.gini_corrigido) }}/1.00 · {{ {'baixa':'Baixa','media':'Média','alta':'Alta'}.get(d.gini.faixa, d.gini.faixa) }}.</strong> {{ d.leitura_conc }}</p>
+<p style="font-size:10pt"><strong>Gini {{ d.gini.gini_corrigido | virg }}/1,00 ·{{ {'baixa':'Baixa','media':'Média','alta':'Alta'}.get(d.gini.faixa, d.gini.faixa) }}.</strong> {{ d.leitura_conc }}</p>
 <table>
   <thead><tr><th>#</th><th>Loja crítica</th><th>Detratores</th><th>Share</th></tr></thead>
   <tbody>
@@ -68,6 +68,10 @@
 {% set bt = d.base_topo %}
 <p style="font-size:11pt"><strong>Base {{ '%.0f'|format(bt.base) if bt.base is not none else '—' }}</strong> (Precisão + Disponibilidade) · <strong>Topo {{ '%.0f'|format(bt.topo) if bt.topo is not none else '—' }}</strong> (Parceria + Aconselhamento).</p>
 <div class="card papel" style="border-color:var(--dourado); font-size:9pt">{{ d.dependencia.frase }}</div>
+{# Fatia 8 (D1): compensação INTRA-pilar — distinta da inter-grupo acima (Topo×Base). #}
+{% if d.feridas_internas %}
+<div class="card papel" style="border-color:#d97706; background:#fef7ed; color:#92400e; font-size:9pt; margin-top:3pt"><strong>Compensação dentro do pilar</strong> — distinta da de cima (Topo × Base): {% for fi in d.feridas_internas %}{{ fi.pilar_nome }} soma {{ fi.pilar_ratio | virg }} (saudável na média), mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %}{% if not loop.last %}; {% endif %}{% endfor %}. Um subpilar forte cobre o buraco do vizinho no mesmo pilar.</div>
+{% endif %}
 
 {# ═══ 05 · DETALHE POR PILAR (radar por ratio) ═══ #}
 {{ M.titulo_secao('05', 'Detalhe por pilar', 'Ratio P/D por pilar na régua (9,99 = cap do sistema).') }}
@@ -83,7 +87,7 @@
     {% for e in r.eixos %}
       {% if not e.null %}<circle cx="{{ e.vx }}" cy="{{ e.vy }}" r="3" fill="#1B6B61"/>{% endif %}
       <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
-      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— s/d' if e.null else '%.1f'|format(e.ratio) }}</text>
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— s/d' if e.null else e.ratio | virg(1) }}</text>
     {% endfor %}
   </svg>
   {% endif %}
@@ -100,7 +104,7 @@
 {% if d.cenario and d.cenario.teto %}
 {% set t = d.cenario.teto %}
 <div class="card papel" style="border-color:var(--dourado)">
-  <p style="font-size:10.5pt"><strong>Teto do plano atual: {{ '%.2f'|format(t.indice) }}/10</strong> — executando as {{ d.cenario.range_max }} ações de alta prioridade (uma por gargalo distinto), com ~50% de sucesso. Índice base {{ '%.2f'|format(d.cenario.indice_base) }} → {{ '%.2f'|format(d.cenario.indice_n) }}.</p>
+  <p style="font-size:10.5pt"><strong>Teto do plano atual: {{ t.indice | virg }}/10</strong> — executando as {{ d.cenario.range_max }} ações de alta prioridade (uma por gargalo distinto), com ~50% de sucesso. Índice base {{ d.cenario.indice_base | virg }} → {{ d.cenario.indice_n | virg }}.</p>
   {% if not t.gargalo_coberto and t.gargalo_pilar %}
   <p style="font-size:10pt; color:#b3261e"><strong>⚠ Gargalo descoberto:</strong> nenhuma ação de alta prioridade endereça <strong>{{ t.gargalo_pilar }} · {{ t.gargalo_nome }}</strong>, que é o pilar que trava o Índice. Destravar exige priorizar {{ t.gargalo_nome }} — mais ações fora desse pilar não movem o agregado (Lastro).</p>
   {% else %}
@@ -129,7 +133,7 @@
 {{ M.titulo_secao('08', 'Próximos Passos para o Board', 'Determinístico — derivado dos números acima.') }}
 <ol style="font-size:10pt; line-height:1.5">
   {% if d.cenario and d.cenario.teto and not d.cenario.teto.gargalo_coberto %}
-  <li><strong>Destravar o gargalo {{ d.cenario.teto.gargalo_nome }}:</strong> criar ação de alta prioridade onde hoje não há — é o que limita o Índice a {{ '%.2f'|format(d.cenario.teto.indice) }}/10.</li>
+  <li><strong>Destravar o gargalo {{ d.cenario.teto.gargalo_nome }}:</strong> criar ação de alta prioridade onde hoje não há — é o que limita o Índice a {{ d.cenario.teto.indice | virg }}/10.</li>
   {% endif %}
   {% if d.top5 %}<li><strong>Atacar a concentração:</strong> as {{ d.top5|length }} lojas críticas nominadas concentram a maior parte dos detratores — intervenção cirúrgica de maior retorno.</li>{% endif %}
   {% if d.cobertura.total - d.cobertura.com_dado > 0 %}<li><strong>Elevar cobertura:</strong> {{ d.cobertura.total - d.cobertura.com_dado }} de {{ d.cobertura.total }} lojas em formação — ampliar coleta para medir governança no conjunto.</li>{% endif %}

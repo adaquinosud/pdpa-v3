@@ -33,7 +33,7 @@
 
   {% if d.fontes %}
   <div class="capa-fontes">
-    <div class="titulo">Fontes monitoradas</div>
+    <div class="titulo">Fontes cadastradas</div>
     <ul>
       {% for f in d.fontes %}
       <li><span class="conector">{{ f.conector }}</span> ·
@@ -151,11 +151,11 @@ ordem desperdiça esforço.</p>
         <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
       <td style="text-align:right"><strong>{{ p.ratio | virg }}</strong></td>
       <td>
-        {%- if n == 'n1' %}<span class="cel-n1">🔴 N1 · {{ p.faixa }}</span>
-        {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2 · {{ p.faixa }}</span>
-        {%- elif n == 'n3' %}<span class="cel-n3">✓ N3 · {{ p.faixa }}</span>
-        {%- elif n == 'n4' %}<span class="cel-n4">★ N4 · {{ p.faixa }}</span>
-        {%- else %}{{ p.faixa }}{% endif %}
+        {%- if n == 'n1' %}<span class="cel-n1">🔴 N1 · {{ p.faixa | acento }}</span>
+        {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2 · {{ p.faixa | acento }}</span>
+        {%- elif n == 'n3' %}<span class="cel-n3">✓ N3 · {{ p.faixa | acento }}</span>
+        {%- elif n == 'n4' %}<span class="cel-n4">★ N4 · {{ p.faixa | acento }}</span>
+        {%- else %}{{ p.faixa | acento }}{% endif %}
       </td>
       <td>{{ M.lastro_interp(p.faixa) }}</td>
       <td style="text-align:right">{{ p.total }}</td>
@@ -174,7 +174,7 @@ ordem desperdiça esforço.</p>
   {% for x in d.priorizacao %}
   <span class="ord">{{ loop.index }}º</span>
   <strong>{{ x.subpilar }}</strong> → {{ x.nome }}{% if x.gargalo %} 🚩{% endif %}
-  <span class="muted">(ratio {{ '%.2f'|format(x.ratio) }} · {{ x.det }} det)</span>
+  <span class="muted">(ratio {{ x.ratio | virg }} · {{ x.det }} det)</span>
   {%- if not loop.last %}<span class="sep">|</span>{% endif %}
   {% endfor %}
 </p>
@@ -205,13 +205,13 @@ ordem desperdiça esforço.</p>
         {{ c.det }}</td>
       <td style="text-align:right">{{ c.conv }}</td>
       <td style="text-align:right">{{ c.prom }}</td>
-      <td style="text-align:right"><strong>{{ '%.2f'|format(c.ratio) }}</strong></td>
+      <td style="text-align:right"><strong>{{ c.ratio | virg }}</strong></td>
       <td>
         {%- if n == 'n1' %}<span class="cel-n1">🔴 N1</span>
         {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2</span>
         {%- elif n == 'n3' %}<span class="cel-n3">✓ N3</span>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4</span>
-        {%- else %}{{ c.faixa }}{% endif %}
+        {%- else %}{{ c.faixa | acento }}{% endif %}
       </td>
       <td style="text-align:right">{{ c.n_fontes }}</td>
       <td style="font-size:8.5pt">
@@ -248,7 +248,7 @@ ordem desperdiça esforço.</p>
         {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2</span>
         {%- elif n == 'n3' %}<span class="cel-n3">✓ N3</span>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4</span>
-        {%- else %}{{ mc.faixa }}{% endif %}
+        {%- else %}{{ mc.faixa | acento }}{% endif %}
       </td>
       <td style="font-size:8.5pt">{{ mc.o_que_move }}</td>
     </tr>
@@ -290,7 +290,7 @@ ordem desperdiça esforço.</p>
         {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2</span>
         {%- elif n == 'n3' %}<span class="cel-n3">✓ N3</span>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4</span>
-        {%- else %}{{ mf.faixa }}{% endif %}
+        {%- else %}{{ mf.faixa | acento }}{% endif %}
       </td>
       <td style="text-align:center; font-size:9pt; color:#1A1A2E">
         {% if mf.proximity is not none %}<b>{{ '%.0f'|format(mf.proximity) }}</b>{% else %}<span class="muted">—</span>{% endif %}
@@ -341,7 +341,7 @@ ordem desperdiça esforço.</p>
         {% if a.projecao %}
         <div style="margin-top:3pt; border:1px dashed #B89355; background:#F0EDE4; padding:3pt 5pt; color:#1A1A2E">
           <div style="font-size:7pt; text-transform:uppercase; letter-spacing:.5px; color:#1B6B61; font-weight:bold">📈 Impacto projetado</div>
-          <div style="font-size:8pt">Ratio {{ '%.2f'|format(a.projecao.ratio[0]) }} → <b>{{ '%.2f'|format(a.projecao.ratio[1]) }}</b>{% if not a.projecao.sub_floor %} · Proximity {{ '%.0f'|format(a.projecao.proximity[0]) }} → <b>{{ '%.0f'|format(a.projecao.proximity[1]) }}</b>{% endif %} · Índice {{ '%.1f'|format(a.projecao.indice[0]) }} → <b>{{ '%.1f'|format(a.projecao.indice[1]) }}</b>{% if a.projecao.rs_fluxo_fmt %} · R$ recuperável <b>{{ a.projecao.rs_fluxo_fmt }}</b>{% endif %}</div>
+          <div style="font-size:8pt">Ratio {{ a.projecao.ratio[0] | virg }} → <b>{{ a.projecao.ratio[1] | virg }}</b>{% if not a.projecao.sub_floor %} · Proximity {{ '%.0f'|format(a.projecao.proximity[0]) }} → <b>{{ '%.0f'|format(a.projecao.proximity[1]) }}</b>{% endif %} · Índice {{ a.projecao.indice[0] | virg(1) }} → <b>{{ a.projecao.indice[1] | virg(1) }}</b>{% if a.projecao.rs_fluxo_fmt %} · R$ recuperável <b>{{ a.projecao.rs_fluxo_fmt }}</b>{% endif %}</div>
           {% if not a.projecao.sub_floor and a.projecao.proximity[1] > a.projecao.proximity[0] and a.projecao.indice[0] == a.projecao.indice[1] %}<div style="font-size:7pt">↳ não é o pilar gargalo (Lastro segura o Índice).</div>{% endif %}
           <div style="font-size:7pt; color:#8a7857; font-style:italic">Se executada com ~{{ (a.projecao.taxa*100)|round|int }}% de sucesso · não promessa · depende da execução.</div>
         </div>

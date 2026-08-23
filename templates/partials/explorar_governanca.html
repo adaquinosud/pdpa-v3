@@ -48,7 +48,7 @@
     {% if g.gini and not g.gini.insuficiente %}
     {% set gcolor = {'baixa':'emerald','media':'amber','alta':'rose'}.get(g.gini.faixa,'slate') %}
     <div class="flex items-baseline gap-2">
-      <span class="text-3xl font-bold text-{{ gcolor }}-600 cursor-help" title="Gini corrigido por viés-de-n; bruto {{ '%.2f'|format(g.gini.gini_bruto) }}">{{ '%.2f'|format(g.gini.gini_corrigido) }}</span>
+      <span class="text-3xl font-bold text-{{ gcolor }}-600 cursor-help" title="Gini corrigido por viés-de-n; bruto {{ g.gini.gini_bruto | virg }}">{{ g.gini.gini_corrigido | virg }}</span>
       <span class="text-sm text-loyall-400">/ 1.00 · {{ {'baixa':'Baixa','media':'Média','alta':'Alta'}.get(g.gini.faixa, g.gini.faixa) }}</span>
     </div>
     <p class="text-xs text-loyall-600 mt-2 leading-relaxed">{{ g.leitura_conc }}</p>
@@ -146,7 +146,7 @@
       <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" dominant-baseline="middle"
             font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
       <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" dominant-baseline="middle"
-            font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— sem dado' if e.null else '%.1f'|format(e.ratio) }}</text>
+            font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— sem dado' if e.null else e.ratio | virg(1) }}</text>
       {% endfor %}
     </svg>
     <div class="text-[10px] text-loyall-400 mt-1 text-center">Eixo tracejado = sem dado. Ratio P/D por pilar na régua (9,99 = cap do sistema).</div>
@@ -186,7 +186,7 @@
     </div>
     <div class="flex items-baseline gap-3 bg-sky-50/40 border border-dashed border-sky-300 rounded p-3">
       <div class="text-xs text-loyall-500">Teto do Lastro projetado {{ glossario_i('indice-geral') }}</div>
-      <div class="text-2xl font-bold text-loyall-800">{{ '%.2f'|format(c.indice_base) }} → <span class="text-sky-700">{{ '%.2f'|format(c.indice_n) }}</span></div>
+      <div class="text-2xl font-bold text-loyall-800">{{ c.indice_base | virg }} → <span class="text-sky-700">{{ c.indice_n | virg }}</span></div>
       <div class="text-xs text-loyall-400">/ 10</div>
     </div>
     {% if c.aplicados_nome %}
@@ -194,13 +194,13 @@
     {% endif %}
     {% if c.teto and not c.teto.gargalo_coberto and c.teto.gargalo_pilar %}
     <div class="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 leading-relaxed">
-      <b>⚠ Teto do plano atual: {{ '%.2f'|format(c.teto.indice) }}/10.</b> O gargalo remanescente é
+      <b>⚠ Teto do plano atual: {{ c.teto.indice | virg }}/10.</b> O gargalo remanescente é
       <b>{{ c.teto.gargalo_pilar }} · {{ c.teto.gargalo_nome }}</b> — e <b>nenhuma</b> das {{ c.range_max }} ações
       de alta prioridade o endereça. Destravar o Índice exige priorizar {{ c.teto.gargalo_nome }}; mais
       ações fora desse pilar não movem o agregado (Lastro).
     </div>
     {% elif c.teto %}
-    <div class="mt-3 text-[11px] text-loyall-500">Teto do plano atual: <b>{{ '%.2f'|format(c.teto.indice) }}/10</b> (executando os {{ c.range_max }} gargalos).</div>
+    <div class="mt-3 text-[11px] text-loyall-500">Teto do plano atual: <b>{{ c.teto.indice | virg }}/10</b> (executando os {{ c.range_max }} gargalos).</div>
     {% endif %}
     <div class="text-[10px] text-loyall-400 mt-2 italic">Projeção — premissa de ~50% de sucesso por ação, não promessa. Máx. 1 ação por subpilar (atacar o mesmo ponto N vezes não é realista). O Índice sobe ao atacar gargalos distintos; mexer fora do pilar gargalo não move o agregado (Lastro).</div>
     {% else %}

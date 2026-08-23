@@ -28,7 +28,7 @@
 
   {% if d.fontes %}
   <div class="capa-fontes">
-    <div class="titulo">Fontes monitoradas</div>
+    <div class="titulo">Fontes cadastradas</div>
     <ul>
       {% for f in d.fontes %}
       <li><span class="conector">{{ f.conector }}</span> ·
@@ -88,11 +88,11 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
         <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
       <td style="text-align:right"><strong>{{ p.ratio | virg }}</strong></td>
       <td>
-        {%- if n == 'n1' %}<span class="cel-n1">🔴 N1 · {{ p.faixa }}</span>
-        {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2 · {{ p.faixa }}</span>
-        {%- elif n == 'n3' %}<span class="cel-n3">✓ N3 · {{ p.faixa }}</span>
-        {%- elif n == 'n4' %}<span class="cel-n4">★ N4 · {{ p.faixa }}</span>
-        {%- else %}{{ p.faixa }}{% endif %}
+        {%- if n == 'n1' %}<span class="cel-n1">🔴 N1 · {{ p.faixa | acento }}</span>
+        {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2 · {{ p.faixa | acento }}</span>
+        {%- elif n == 'n3' %}<span class="cel-n3">✓ N3 · {{ p.faixa | acento }}</span>
+        {%- elif n == 'n4' %}<span class="cel-n4">★ N4 · {{ p.faixa | acento }}</span>
+        {%- else %}{{ p.faixa | acento }}{% endif %}
       </td>
       <td>{{ M.lastro_interp(p.faixa) }}</td>
       <td style="text-align:right">{{ p.total }}</td>
@@ -112,7 +112,7 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
   {% for x in d.priorizacao %}
   <span class="ord">{{ loop.index }}º</span>
   <strong>{{ x.subpilar }}</strong> → {{ x.nome }}{% if x.gargalo %} 🚩{% endif %}
-  <span class="muted">(ratio {{ '%.2f'|format(x.ratio) }} · {{ x.det }} det)</span>
+  <span class="muted">(ratio {{ x.ratio | virg }} · {{ x.det }} det)</span>
   {%- if not loop.last %}<span class="sep">|</span>{% endif %}
   {% endfor %}
 </p>
@@ -146,13 +146,13 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
         {{ c.det }}</td>
       <td style="text-align:right">{{ c.conv }}</td>
       <td style="text-align:right">{{ c.prom }}</td>
-      <td style="text-align:right"><strong>{{ '%.2f'|format(c.ratio) }}</strong></td>
+      <td style="text-align:right"><strong>{{ c.ratio | virg }}</strong></td>
       <td>
         {%- if n == 'n1' %}<span class="cel-n1">🔴 N1</span>
         {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2</span>
         {%- elif n == 'n3' %}<span class="cel-n3">✓ N3</span>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4</span>
-        {%- else %}{{ c.faixa }}{% endif %}
+        {%- else %}{{ c.faixa | acento }}{% endif %}
       </td>
       <td style="text-align:right">{{ c.n_fontes }}</td>
       <td style="font-size:8.5pt">
@@ -267,7 +267,7 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
       {%- if not loop.last %} · {% endif -%}
       {% endfor %}
     </div>
-    <div class="h-detalhe">teto do lastro {{ '%.2f'|format(d.indice_geral) }}/10</div>
+    <div class="h-detalhe">teto do lastro {{ d.indice_geral | virg }}/10</div>
   </div>
 </div>
 
@@ -285,7 +285,7 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
         {%- elif n == 'n4' %}★ N4
         {%- else %}—{% endif %}
       </div>
-      <div class="sp-ratio">{{ '%.2f'|format(c.ratio) }}</div>
+      <div class="sp-ratio">{{ c.ratio | virg }}</div>
     </td>
     {% endfor %}
   </tr>

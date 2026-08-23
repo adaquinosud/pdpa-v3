@@ -392,18 +392,14 @@ def _rung(faixa, gargalo_cod=None) -> Dict[str, Any]:
     marcaria alguém até num pilar saudável). Se NENHUM subpilar do pilar-gargalo está <1,0, nada
     é marcado e o pilar trava pelo agregado: ``eixos_leitura`` ainda nomeia o pilar (estado
     explícito §7). >1 abaixo de 1,0 → marca todos. Opção ANOTAR — não reordena topo/base."""
-    from src.api.painel import PILAR_DE_SUBPILAR
+    from src.api.painel import eh_elo_travado
 
     subs = []
     tem_gargalo = False
     for p in faixa.pilares:
         for c in p.subpilares:
             if c.total and (c.faixa in ("critico", "atencao") or c.valencia == "detrator"):
-                eh_g = (
-                    gargalo_cod is not None
-                    and PILAR_DE_SUBPILAR.get(c.subpilar) == gargalo_cod
-                    and c.faixa in ("critico", "fraco")  # elo REALMENTE travado (ratio<1,0)
-                )
+                eh_g = eh_elo_travado(c.subpilar, gargalo_cod, c.ratio)  # régua canônica (nº)
                 tem_gargalo = tem_gargalo or eh_g
                 subs.append(
                     {

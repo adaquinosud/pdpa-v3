@@ -329,7 +329,7 @@
 </head>
 <body>
 {% block conteudo %}{% endblock %}
-<footer>PDPA · Loyall Company — {{ empresa.nome }} · janela últimos 180 dias</footer>
+<footer>PDPA · Loyall Company — {{ empresa.nome }}{% if janela_label %} · {{ janela_label }}{% endif %}</footer>
 </body>
 </html>
 </content>

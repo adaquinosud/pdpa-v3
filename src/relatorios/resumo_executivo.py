@@ -46,10 +46,10 @@ def montar_dados(
         PILAR_DE_SUBPILAR,
         PILARES_ORDEM,
         SUBPILARES_ORDEM,
+        abaixo_do_empate,
         calcular_indice_geral,
-        calcular_ratio,
+        eh_elo_travado,
         faixa_indice_geral,
-        faixa_ratio,
         painel_nivel1,
     )
     from src.diagnostico.leituras import _gargalo, agregar_subpilares
@@ -207,42 +207,16 @@ def montar_dados(
                     )
                 )
 
-    # Pilares (Lastro) — guarda DUAS leituras por pilar:
-    # · pilar_leitura_gargalo[code] = sub_pior  (o que dói no pilar, p/ gargalo)
-    # · pilar_leitura_ativo[code]   = sub_melhor (o que sustenta o pilar, p/ ativo)
-    pilares: List[SimpleNamespace] = []
-    pilar_leitura_gargalo: Dict[str, str] = {}
-    pilar_leitura_ativo: Dict[str, str] = {}
-    pilar_sub_destaque: Dict[str, Dict[str, str]] = {}  # code → {pior, melhor}
-    for code in PILARES_ORDEM:
-        subs = [x for x in agg if PILAR_DE_SUBPILAR.get(x) == code]
-        if not subs:
-            continue
-        prom = sum(agg[x]["prom"] for x in subs)
-        conv = sum(agg[x]["conv"] for x in subs)
-        det = sum(agg[x]["det"] for x in subs)
-        ratio = calcular_ratio(prom, det)
-        pilares.append(
-            SimpleNamespace(
-                codigo=code,
-                nome=NOME_PILAR.get(code, code),
-                ratio=ratio,
-                faixa=faixa_ratio(ratio),
-                total=prom + conv + det,
-                prom=prom,
-                conv=conv,
-                det=det,
-                gargalo=(code == gargalo),
-                ferida_interna=_feridas_map.get(code, []),
-            )
-        )
-        sub_pior = min(subs, key=lambda x: agg[x]["ratio"])
-        sub_melhor = max(subs, key=lambda x: agg[x]["ratio"])
-        pilar_sub_destaque[code] = {"pior": sub_pior, "melhor": sub_melhor}
-        if sub_pior in leituras:
-            pilar_leitura_gargalo[code] = leituras[sub_pior][0]
-        if sub_melhor in leituras:
-            pilar_leitura_ativo[code] = leituras[sub_melhor][0]
+    # Pilares (Lastro) — builder editorial ÚNICO (Fatia 8, camada 2). Guarda DUAS
+    # leituras por pilar: gargalo = sub_pior (o que dói), ativo = sub_melhor (o que
+    # sustenta). Mesma fonte que o Diagnóstico Pontual — de-dup em src.relatorios.lastro.
+    from src.relatorios.lastro import montar_lastro
+
+    _lastro = montar_lastro(agg, gargalo, leituras, _feridas_map)
+    pilares = _lastro.pilares
+    pilar_leitura_gargalo = _lastro.pilar_leitura_gargalo
+    pilar_leitura_ativo = _lastro.pilar_leitura_ativo
+    pilar_sub_destaque = _lastro.pilar_sub_destaque
 
     # Confronto Visual: 12 subpilares + leitura cacheada + contagem por fonte
     fontes_por_subpilar: Dict[str, int] = {}
@@ -266,7 +240,7 @@ def montar_dados(
                 subpilar=sub,
                 nome=NOME_SUBPILAR.get(sub, sub),
                 pilar=PILAR_DE_SUBPILAR.get(sub),
-                gargalo=(PILAR_DE_SUBPILAR.get(sub) == gargalo),
+                gargalo=eh_elo_travado(sub, gargalo, d["ratio"]),  # só o elo travado, não o pilar
                 det=d["det"],
                 conv=d["conv"],
                 prom=d["prom"],
@@ -282,7 +256,7 @@ def montar_dados(
     # Priorização (Sequência do Lastro)
     _pos = {p: i for i, p in enumerate(PILARES_ORDEM)}
     prio = sorted(
-        (sub for sub in agg if agg[sub]["faixa"] in ("critico", "fraco")),
+        (sub for sub in agg if abaixo_do_empate(agg[sub]["ratio"])),
         key=lambda sub: (_pos.get(PILAR_DE_SUBPILAR.get(sub, "Z"), 99), agg[sub]["ratio"]),
     )[:5]
     priorizacao = [
@@ -291,7 +265,7 @@ def montar_dados(
             nome=NOME_SUBPILAR.get(sub, sub),
             pilar=PILAR_DE_SUBPILAR.get(sub),
             pilar_nome=NOME_PILAR.get(PILAR_DE_SUBPILAR.get(sub), ""),
-            gargalo=(PILAR_DE_SUBPILAR.get(sub) == gargalo),
+            gargalo=eh_elo_travado(sub, gargalo, agg[sub]["ratio"]),
             ratio=agg[sub]["ratio"],
             faixa=agg[sub]["faixa"],
             det=agg[sub]["det"],

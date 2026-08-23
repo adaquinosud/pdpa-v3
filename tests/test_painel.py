@@ -1571,3 +1571,45 @@ def test_pilares_com_ferida_interna():
     assert "Pa" in pilares_com_ferida_interna(a2, piso=5)  # com piso menor, passa a sustentar
     # pilar que NÃO aparenta OK (soma<1) fica de fora — é o próprio gargalo
     assert pilares_com_ferida_interna(_agg({"P1": (2, 0, 80)}), piso=30) == {}
+
+
+def test_abaixo_do_empate():
+    """Régua canônica por NÚMERO (não rótulo): ratio < RATIO_EMPATE (1,0). Empate exato
+    (1,0) NÃO trava; None (célula muda) NÃO trava. Fonte única do 'faixa in
+    (critico,fraco)' — o limiar 1,0 coincide com o teto da faixa 'fraco', por construção."""
+    from src.api.painel import RATIO_EMPATE, abaixo_do_empate, faixa_ratio
+
+    assert RATIO_EMPATE == 1.0
+    assert abaixo_do_empate(0.31) is True  # critico
+    assert abaixo_do_empate(0.85) is True  # fraco
+    assert abaixo_do_empate(0.999) is True
+    assert abaixo_do_empate(1.0) is False  # empate exato = atencao, não trava
+    assert abaixo_do_empate(1.41) is False  # atencao
+    assert abaixo_do_empate(9.99) is False  # teto saturado NÃO é elo travado
+    assert abaixo_do_empate(None) is False  # célula muda
+    # equivale EXATAMENTE ao rótulo que substituiu (fronteira em 1,0)
+    for r in (0.0, 0.49, 0.5, 0.99, 1.0, 1.5, 9.99):
+        assert abaixo_do_empate(r) == (faixa_ratio(r) in ("critico", "fraco"))
+
+
+def test_eh_elo_travado():
+    """Fatia 8, camada 1 (grão SUBPILAR): marca só o elo travado do pilar-gargalo —
+    subpilar do gargalo E abaixo do empate (ratio<1,0). Subpilar saudável do gargalo NÃO
+    marca (o bug das 3 superfícies); subpilar de outro pilar NÃO marca; gargalo None NÃO
+    marca. Recebe RATIO (número), não faixa (rótulo)."""
+    from src.api.painel import PILAR_DE_SUBPILAR, eh_elo_travado
+
+    # "Pa2" pertence a "Pa"; "P1" pertence a "P" (mapa canônico)
+    assert PILAR_DE_SUBPILAR["Pa2"] == "Pa"
+    # elo travado: é do gargalo E abaixo do empate
+    assert eh_elo_travado("Pa2", "Pa", 0.31) is True  # critico
+    assert eh_elo_travado("Pa2", "Pa", 0.85) is True  # fraco
+    # saudável no pilar-gargalo → NÃO marca (era o defeito: marcava o pilar inteiro)
+    assert eh_elo_travado("Pa1", "Pa", 1.42) is False  # atencao
+    assert eh_elo_travado("Pa1", "Pa", 9.99) is False  # teto saturado
+    assert eh_elo_travado("Pa1", "Pa", 1.0) is False  # empate exato não trava
+    # crítico mas de OUTRO pilar → NÃO marca
+    assert eh_elo_travado("P1", "Pa", 0.31) is False
+    # sem gargalo definido, ou célula muda → ninguém marca
+    assert eh_elo_travado("Pa2", None, 0.31) is False
+    assert eh_elo_travado("Pa2", "Pa", None) is False

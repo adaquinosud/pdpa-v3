@@ -418,6 +418,11 @@ FAIXAS_RATIO = (
     (float("inf"), "excelente"),
 )
 
+# Empate P=D → ratio 1,0 (definição do ratio, não artefato de faixa). Abaixo disso o
+# subpilar "trava": detratores mandam. Coincide com o teto da faixa "fraco" acima — mas a
+# régua canônica é o NÚMERO; a faixa é a tradução (ver eh_elo_travado).
+RATIO_EMPATE = 1.0
+
 
 def faixa_ratio(ratio: float) -> str:
     """Devolve a faixa semântica do ratio (5 níveis, cores do painel).
@@ -473,6 +478,37 @@ def gargalo_sequencial(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
         return criticos[0]
     fracos = [p for p in PILARES_ORDEM if p in ratios and ratios[p] < 1.0]
     return fracos[0] if fracos else None
+
+
+def abaixo_do_empate(ratio) -> bool:
+    """Régua canônica do grão subpilar, SEM recorte de pilar: o subpilar está abaixo do
+    empate (``ratio < RATIO_EMPATE`` = detratores mandam)? Fonte ÚNICA do ``faixa in
+    ("critico", "fraco")`` que estava espalhado (priorização dos impressos, mapa de
+    perguntas, escopo de pesquisa) — compara o NÚMERO, não o rótulo, que é só a tradução.
+    ``None`` (célula muda, sem sinal P/D) → False."""
+    return ratio is not None and ratio < RATIO_EMPATE
+
+
+def eh_elo_travado(subpilar: str, gargalo_pilar, ratio) -> bool:
+    """Grão SUBPILAR (régua canônica): este subpilar é o elo TRAVADO? Pertence ao
+    pilar-gargalo E está abaixo do empate (``ratio < RATIO_EMPATE``). Um caller por
+    superfície — ``_rung`` do Parecer e o Confronto Visual dos impressos delegam a ESTA
+    função; NUNCA marcar "todo subpilar do pilar-gargalo" (isso marca subpilar saudável).
+    §7: não muda a seleção do pilar (``gargalo_sequencial``), só decide a marca no grão de baixo.
+
+    Compara o NÚMERO (ratio), não o rótulo de faixa: a régua do método é ``ratio < 1,0``; a
+    faixa (critico/fraco) é só a TRADUÇÃO dela. Comparar rótulo mentiria em silêncio se uma
+    faixa fosse renomeada ou nascesse uma nova abaixo do empate — o flag sumiria sem quebrar
+    nada. ``ratio is None`` (célula muda, sem sinal P/D) → não é elo travado.
+
+    Se NENHUM subpilar do pilar-gargalo é elo travado (todos ≥1,0), ninguém recebe marca e o
+    pilar trava pelo agregado — matematicamente inalcançável (soma<1 ⟹ ∃ sub<1), mas a marca
+    de PILAR (tabela de Lastro/cards) já declara o pilar de qualquer forma."""
+    return (
+        gargalo_pilar is not None
+        and PILAR_DE_SUBPILAR.get(subpilar) == gargalo_pilar
+        and abaixo_do_empate(ratio)
+    )
 
 
 def pilares_com_ferida_interna(agg: Dict[str, Dict[str, Any]], piso=None) -> Dict[str, Any]:

@@ -174,7 +174,7 @@ def test_resumo_executivo_doc_ouro(client_loyall, db_session):
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/resumo_executivo").get_data(as_text=True)
     # estrutura doc-ouro (porte fiel v2 — capa-choque + RE + 02 + EN + SE + AL + FZ + 10)
     assert "Diagnóstico Pontual · PDPA" in h and "FAKE manchete" in h  # capa-eyebrow + manchete
-    assert "Fontes monitoradas" in h  # bloco fontes na capa azul
+    assert "Fontes cadastradas" in h  # B4: cadastrada-sem-dado é estado real, não "monitorada"
     assert "Três descobertas" in h and "d1" in h and "d2" in h and "d3" in h
     assert "Paradoxo central" in h and "FAKE paradoxo costurado" in h
     assert "Mapa de Lastro" in h and "Precisão" in h  # pilar gargalo nomeado
@@ -185,7 +185,7 @@ def test_resumo_executivo_doc_ouro(client_loyall, db_session):
     assert "Encerramento Executivo" in h and "Onde investir primeiro" in h  # cap-stone B1'
     assert "Convite ao Diagnóstico Interno" in h and "Fase 2" in h
     assert "Loyall Company" in h  # assinatura editorial
-    assert "180 dias" in h  # footer compartilhado
+    assert "janela" in h and "180 dias" not in h  # B3: janela REAL, não hardcoded 180d
 
 
 def test_diagnostico_pontual_assembly(client_loyall, db_session):
@@ -259,7 +259,7 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     assert "Nota Metodológica" in h and "Lacunas para a Fase 2" in h  # 09
     assert "Convite ao Diagnóstico Interno" in h and "Fase 2" in h  # 10
     assert "Loyall Company" in h  # assinatura
-    assert "180 dias" in h  # footer
+    assert "janela" in h and "180 dias" not in h  # B3: janela REAL, não hardcoded 180d
 
 
 def test_plano_executivo_assembly(client_loyall, db_session):
@@ -333,7 +333,7 @@ def test_plano_executivo_assembly(client_loyall, db_session):
     assert "📢 Marketing" in h and "👥 Pessoas" in h
     assert "Sugestões estruturais" in h and "Recalibre a promessa" in h
     assert "Ações reativas" in h or "Reaborde detratores hoje" in h
-    assert "180 dias" in h
+    assert "janela" in h and "180 dias" not in h  # B3: janela REAL, não hardcoded 180d
 
 
 def test_relatorio_tipo_invalido_404(client_loyall, db_session):

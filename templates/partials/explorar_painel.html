@@ -126,10 +126,10 @@
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="text-xs uppercase tracking-wider text-loyall-400">Teto do Lastro {{ glossario_i('indice-geral') }}</div>
     <div class="flex items-baseline gap-2 mt-1">
-      <span class="text-3xl font-bold text-{{ ig_cls }}-600">{{ '%.1f'|format(n1.indice_geral) }}</span>
+      <span class="text-3xl font-bold text-{{ ig_cls }}-600">{{ n1.indice_geral | virg(1) }}</span>
       <span class="text-sm text-loyall-400">/ 10</span>
     </div>
-    <div class="text-xs text-{{ ig_cls }}-700 mt-1 capitalize">{{ n1.indice_geral_faixa }}</div>
+    <div class="text-xs text-{{ ig_cls }}-700 mt-1">{{ n1.indice_geral_faixa | acento }}</div>
     {# Pior pilar = min ratio entre volume>0 (o MESMO que calcular_indice_geral usa).
        A frase final só aparece quando o pior pilar É o binding — flag Python
        ``indice_geral_governado_pelo_pior`` (o índice virou normalização por partes, o
@@ -158,7 +158,7 @@
       <span class="text-3xl font-bold text-{{ prev_cls }}-600">{{ '%.0f'|format(previsib.valor) }}</span>
       <span class="text-sm text-loyall-400">/ 100</span>
     </div>
-    <div class="text-xs text-{{ prev_cls }}-700 mt-1 capitalize">{{ previsib.faixa }}</div>
+    <div class="text-xs text-{{ prev_cls }}-700 mt-1">{{ previsib.faixa | acento }}</div>
     <div class="text-xs text-loyall-400 mt-2" title="CV dos ratios mensais desta loja (LG-2)">Consistência mês a mês desta loja. Baixa = experiência de loteria.</div>
     {% else %}
     <div class="mt-1 text-loyall-300 text-3xl font-bold" title="Histórico insuficiente (&lt; 3 meses com volume)">—</div>
@@ -177,7 +177,7 @@
       <span class="text-3xl font-bold text-{{ prev_cls }}-600">{{ '%.0f'|format(n1.previsibilidade) }}</span>
       <span class="text-sm text-loyall-400">/ 100</span>
     </div>
-    <div class="text-xs text-{{ prev_cls }}-700 mt-1 capitalize">{{ previsib.faixa }}</div>
+    <div class="text-xs text-{{ prev_cls }}-700 mt-1">{{ previsib.faixa | acento }}</div>
     <div class="text-xs text-loyall-400 mt-2">{% if previsib.estado == 'erratico' %}A experiência varia muito entre lojas e meses — o cliente não sabe o que vai encontrar. É problema de padronização, não de capacidade.{% elif previsib.estado == 'medio' %}A experiência oscila entre lojas e meses. Padronizar o que já funciona é o caminho mais curto.{% else %}A experiência é consistente entre lojas e no tempo — o que for corrigido tende a se manter.{% endif %}</div>
     {% endif %}
   </div>
@@ -191,7 +191,7 @@
     <div class="flex items-baseline gap-2 mt-1">
       <span class="text-3xl font-bold text-{{ conc_cls }}-600">{{ '%.0f'|format(concentracao.pct) }}%</span>
     </div>
-    <div class="text-xs text-{{ conc_cls }}-700 mt-1 capitalize">{{ concentracao.faixa }}</div>
+    <div class="text-xs text-{{ conc_cls }}-700 mt-1">{{ concentracao.faixa | acento }}</div>
     <div class="text-xs text-loyall-400 mt-2">{% if concentracao.estado == 'cirurgico' %}{{ '%.0f'|format(concentracao.pct) }}% da dor vem das 5 lojas de pior experiência. Intervenção cirúrgica em poucos pontos resolve a maior parte.{% elif concentracao.estado == 'misto' %}{{ '%.0f'|format(concentracao.pct) }}% da dor vem das 5 piores lojas — parte é local, parte é do processo. Vale atacar os dois.{% else %}Só {{ '%.0f'|format(concentracao.pct) }}% da dor vem das 5 piores lojas — está espalhada pela rede. Corrigir processo, não unidade.{% endif %}</div>
     {% endif %}
   </div>
@@ -206,7 +206,7 @@
     {% if gini and not gini.insuficiente and gini.faixa %}
     <div class="text-3xl font-bold text-{{ gcls }}-600 mt-1">{{ gword.get(gini.faixa, gini.faixa) }}</div>
     <div class="text-xs text-loyall-400 mt-1">
-      <span class="cursor-help" title="Gini corrigido por viés-de-n ({{ gini.total_lojas }} lojas); bruto {{ '%.2f'|format(gini.gini_bruto) }}">{{ '%.2f'|format(gini.gini_corrigido) }} / 1.00</span>
+      <span class="cursor-help" title="Gini corrigido por viés-de-n ({{ gini.total_lojas }} lojas); bruto {{ gini.gini_bruto | virg }}">{{ gini.gini_corrigido | virg }} / 1,00</span>
       · <a href="{{ url_for('ui.explorar_empresa', empresa_id=empresa.id) }}?tab=concentracao&agrupamento_id={{ filtros.agrupamento_id }}" class="underline hover:text-loyall-600">ver aba</a>
     </div>
     <div class="text-xs text-loyall-400 mt-2">{% if gini.faixa == 'baixa' %}A dor é parecida em todas as lojas — não há um grupo que já acerte. A causa é do processo.{% elif gini.faixa == 'media' %}A dor é desigual entre as lojas. Há unidades que sofrem menos — vale entender o que fazem diferente.{% else %}A dor está muito concentrada em poucas lojas. A maioria já acerta — procure o que essas fazem e replique.{% endif %}</div>
@@ -253,7 +253,7 @@
     {# Ratio P/D — com os operandos à mostra, pra o número não parecer calculado sobre o volume. #}
     <div class="mt-3 flex items-center gap-2">
       <span class="text-xs uppercase tracking-wider text-loyall-400">Ratio P/D</span>
-      <span class="text-xl font-semibold {{ fcls.text }}">{{ '%.2f'|format(p.ratio) }}</span>
+      <span class="text-xl font-semibold {{ fcls.text }}">{{ p.ratio | virg }}</span>
       {% if p.total %}<span class="text-xs text-loyall-400 tabular-nums"
         title="O Ratio P/D é {{ p.promotor }} promotores ÷ {{ p.detrator }} detratores. Os {{ p.conversivel }} conversíveis estão no volume ({{ p.total }}), fora do ratio.">{{ p.promotor }}P·{{ p.detrator }}D</span>{% endif %}
       <span class="ml-auto text-xs px-1.5 py-0.5 rounded {{ fcls.bg }} {{ fcls.text }}">
@@ -271,15 +271,15 @@
         hx-get="{{ url_for('ui.painel_quarter_detalhe', empresa_id=empresa.id) }}?pilar={{ p.pilar }}&quarter={{ h.chave }}&agrupamento_id={{ filtros.agrupamento_id }}&local_id={{ filtros.local_id }}"
         hx-target="body" hx-swap="beforeend"
         title="{{ h.total }} verbatins no {{ h.q }} (todos os tipos)"
-        class="inline-flex flex-col items-center leading-tight hover:text-loyall-700 hover:underline cursor-pointer"><span>{{ h.q }}·{{ '%.2f'|format(h.ratio) }}</span><span class="text-loyall-300 tabular-nums">{{ h.total }}</span></button>{% endfor %}
+        class="inline-flex flex-col items-center leading-tight hover:text-loyall-700 hover:underline cursor-pointer"><span>{{ h.q }}·{{ h.ratio | virg }}</span><span class="text-loyall-300 tabular-nums">{{ h.total }}</span></button>{% endfor %}
     </div>
     {% endif %}
 
     {% if p.total %}
     <div class="mt-3 flex h-2 rounded overflow-hidden bg-loyall-100">
-      <div class="bg-emerald-500" style="width: {{ pct_prom }}%" title="Promotor: {{ p.promotor }} ({{ '%.1f'|format(pct_prom) }}%)"></div>
-      <div class="bg-amber-400" style="width: {{ pct_conv }}%" title="Conversível: {{ p.conversivel }} ({{ '%.1f'|format(pct_conv) }}%)"></div>
-      <div class="bg-rose-500" style="width: {{ pct_detr }}%" title="Detrator: {{ p.detrator }} ({{ '%.1f'|format(pct_detr) }}%)"></div>
+      <div class="bg-emerald-500" style="width: {{ pct_prom }}%" title="Promotor: {{ p.promotor }} ({{ pct_prom | virg(1) }}%)"></div>
+      <div class="bg-amber-400" style="width: {{ pct_conv }}%" title="Conversível: {{ p.conversivel }} ({{ pct_conv | virg(1) }}%)"></div>
+      <div class="bg-rose-500" style="width: {{ pct_detr }}%" title="Detrator: {{ p.detrator }} ({{ pct_detr | virg(1) }}%)"></div>
     </div>
     <div class="mt-2 grid grid-cols-3 text-xs text-loyall-600">
       <div><span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>{{ p.promotor }} <span class="text-loyall-400">({{ '%.0f'|format(pct_prom) }}%)</span></div>
@@ -380,7 +380,7 @@
         <td class="text-right px-3 py-1.5">
           {% if c.total %}
           <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold {{ fcls.bg }} {{ fcls.text }}">
-            {{ '%.2f'|format(c.ratio) }}
+            {{ c.ratio | virg }}
           </span>
           {% else %}<span class="text-loyall-300">—</span>{% endif %}
         </td>

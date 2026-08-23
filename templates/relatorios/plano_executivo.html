@@ -21,9 +21,9 @@
   <div style="margin-top:4pt; border:1px dashed #B89355; background:#F0EDE4; padding:4pt 6pt">
     <div style="font-size:7.5pt; text-transform:uppercase; letter-spacing:.5px; color:#1B6B61; font-weight:bold">📈 Impacto projetado</div>
     <div style="font-size:8.5pt; color:#1A1A2E; margin-top:1pt">
-      Ratio {{ '%.2f'|format(it.projecao.ratio[0]) }} → <b>{{ '%.2f'|format(it.projecao.ratio[1]) }}</b>
+      Ratio {{ it.projecao.ratio[0] | virg }} → <b>{{ it.projecao.ratio[1] | virg }}</b>
       {% if not it.projecao.sub_floor %}· Proximity {{ '%.0f'|format(it.projecao.proximity[0]) }} → <b>{{ '%.0f'|format(it.projecao.proximity[1]) }}</b>{% else %}· Proximity —{% endif %}
-      · Índice da {{ 'loja' if it.projecao_loja else 'visão' }} {{ '%.1f'|format(it.projecao.indice[0]) }} → <b>{{ '%.1f'|format(it.projecao.indice[1]) }}</b>
+      · Índice da {{ 'loja' if it.projecao_loja else 'visão' }} {{ it.projecao.indice[0] | virg(1) }} → <b>{{ it.projecao.indice[1] | virg(1) }}</b>
       {% if it.projecao_loja %}· Selo {{ it.projecao.selo[0] or '—' }} → <b>{{ it.projecao.selo[1] or '—' }}</b>{% endif %}
       {% if it.projecao.rs_fluxo_fmt %}· R$ recuperável <b>{{ it.projecao.rs_fluxo_fmt }}</b>{% endif %}
     </div>

@@ -487,12 +487,12 @@ def _cenario_pior(agg):
       - {tudo_saudavel: True}  → nenhum subpilar em estado ruim (vazio explícito, §7);
       - {indice_base, indice_n, n, ...} → a projeção;
       - None → sem dado (agg vazio)."""
-    from src.api.painel import SUBPILARES_ORDEM
+    from src.api.painel import SUBPILARES_ORDEM, abaixo_do_empate
     from src.governanca.metricas import compor_cenario
 
     if not agg:
         return None
-    subs = [sp for sp in SUBPILARES_ORDEM if sp in agg and agg[sp]["faixa"] in ("critico", "fraco")]
+    subs = [sp for sp in SUBPILARES_ORDEM if sp in agg and abaixo_do_empate(agg[sp]["ratio"])]
     if not subs:
         return {"tudo_saudavel": True}
     return compor_cenario(agg, subs, len(subs))

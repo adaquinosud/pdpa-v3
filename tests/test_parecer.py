@@ -764,14 +764,24 @@ def test_citacao_valencia_e_trava_nunca_promotor_em_tema_detrator(db_session):
 
 
 def test_rung_marca_gargalo_so_critico_ou_fraco(db_session):
-    """Item 1 (Fatia 6): 'elo travado' marca subpilar do pilar-gargalo em CRÍTICO/FRACO
-    (ratio<1,0), por faixa — nunca 'atenção', nunca por posição."""
+    """Item 1 (Fatia 6/8): 'elo travado' marca subpilar do pilar-gargalo abaixo do empate
+    (ratio<1,0), pelo NÚMERO — nunca 'atenção', nunca por posição. O ``ratio`` do fixture
+    é consistente com a faixa (a produção sempre carrega ambos, ui:_explorar_quadro)."""
     from types import SimpleNamespace as NS
 
     from src.relatorios.parecer import _rung
 
+    _RATIO_DE_FAIXA = {"critico": 0.3, "fraco": 0.8, "atencao": 1.41, "bom": 2.75}
+
     def _c(sub, nome, faixa, val):
-        return NS(subpilar=sub, nome=nome, faixa=faixa, valencia=val, total=100)
+        return NS(
+            subpilar=sub,
+            nome=nome,
+            faixa=faixa,
+            ratio=_RATIO_DE_FAIXA[faixa],
+            valencia=val,
+            total=100,
+        )
 
     faixa = NS(
         frase="f",
