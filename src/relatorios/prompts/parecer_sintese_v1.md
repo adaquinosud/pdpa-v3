@@ -70,7 +70,13 @@ Produza OITO saídas:
    pública. §2: a consequência — a conduta reativa que gerencia
    visibilidade sem consertar; e a vitrine (ao serem consultadas por um cliente
    insatisfeito, e ``consultam_ia_pct`` já consultam IAs, as ``ias`` RECOMENDAM os
-   ``encaminhamentos``). Factual, sem inflar. Se ``base_madura`` for false (base
+   ``encaminhamentos``). Factual, sem inflar. A VITRINE é FATO OBSERVADO (as IAs
+   recomendam X) — NÃO consequência explicada. PROIBIDO afirmar que a reputação nas IAs foi
+   "construída por" / "resultado de" qualquer conjunto de verbatins ou detratores, ou ligar
+   a sonda de IA à conduta por CAUSA: NÃO HÁ dado que meça esse elo. Descreva o que as IAs
+   recomendam e PARE. E NÃO rotule os detratores de todas as fontes como "vozes sem
+   resposta" — os não-respondidos maduros são OUTRO número (base de ``responde_pct``), um
+   terceiro universo; não os confunda com a intensidade nem com a concentração. Se ``base_madura`` for false (base
    recente/imatura), os campos ``resolve_pct``/``enfrenta_a_causa_pct`` NÃO virão —
    e você NÃO pode citar nem inventar % de resolução ou de causa. Fale só de
    ``responde_pct`` + volume, e note que resolução/causa estão em maturação (a
