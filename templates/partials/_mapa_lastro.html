@@ -21,12 +21,12 @@
     </div>
     <div class="mt-1 text-sm">
       <span class="text-loyall-500">Ratio P/D:</span>
-      <span class="font-bold text-loyall-800">{{ '%.2f'|format(p.ratio) }}</span>
+      <span class="font-bold text-loyall-800">{{ p.ratio | virg }}</span>
       <span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ p.faixa }}</span>
     </div>
     {# Fatia 7: pilar OK pela soma escondendo subpilar crítico (piso 30). Só o callout — a faixa do pilar não muda. #}
     {% if p.ferida_interna %}
-    <div class="mt-1 text-[11px] text-amber-700 bg-amber-50 rounded px-1.5 py-1 leading-snug">⚠ aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ '%.2f'|format(sp.ratio) }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</div>
+    <div class="mt-1 text-[11px] text-amber-700 bg-amber-50 rounded px-1.5 py-1 leading-snug">⚠ aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</div>
     {% endif %}
     {% if p.total %}
     {# Tradução do ratio em linguagem simples (CP-ratio-palavras), discreta sob o número. #}

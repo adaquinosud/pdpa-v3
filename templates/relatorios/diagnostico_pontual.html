@@ -149,7 +149,7 @@ ordem desperdiça esforço.</p>
     <tr{% if p.gargalo %} style="background:#fdecec"{% endif %}>
       <td><strong>{{ p.codigo }}</strong> {{ p.nome }}{% if p.gargalo %}
         <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
-      <td style="text-align:right"><strong>{{ '%.2f'|format(p.ratio) }}</strong></td>
+      <td style="text-align:right"><strong>{{ p.ratio | virg }}</strong></td>
       <td>
         {%- if n == 'n1' %}<span class="cel-n1">🔴 N1 · {{ p.faixa }}</span>
         {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2 · {{ p.faixa }}</span>
@@ -162,7 +162,7 @@ ordem desperdiça esforço.</p>
       <td class="muted">{{ p.prom }} · {{ p.conv }} · {{ p.det }}</td>
     </tr>
     {% if p.ferida_interna %}{# Fatia 7: pilar OK pela soma escondendo subpilar crítico — acrescenta, não muda a faixa #}
-    <tr><td colspan="6" style="background:#fef7ed;color:#92400e;font-size:8.5pt;padding:2pt 6pt">⚠ Aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ '%.2f'|format(sp.ratio) }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</td></tr>
+    <tr><td colspan="6" style="background:#fef7ed;color:#92400e;font-size:8.5pt;padding:2pt 6pt">⚠ Aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</td></tr>
     {% endif %}
     {% endfor %}
   </tbody>

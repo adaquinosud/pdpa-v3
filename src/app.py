@@ -79,6 +79,12 @@ def create_app() -> Flask:
 
     app.add_template_filter(render_md_leve, "md_leve")
 
+    # Decimal com VÍRGULA (pt-BR) — fonte única; tela e impresso usam ``| virg``, nunca
+    # ``'%.2f'|format`` cru (sai com ponto). Ver src/utils/fmt.py.
+    from src.utils.fmt import virg as _virg
+
+    app.add_template_filter(_virg, "virg")
+
     # R$ pt-BR (Visão Financeira): 1234567.5 → "R$ 1.234.568" (sem centavos, milhar
     # com ponto). Valores grandes de projeção — centavos poluem a leitura C-Level.
     @app.template_filter("moeda")

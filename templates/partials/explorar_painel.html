@@ -140,7 +140,7 @@
     {# Fatia 7: pilar que aparenta saudável escondendo subpilar crítico (soma dilui). ACRESCENTA — não troca a faixa do pilar. #}
     {% if feridas_internas %}
     <div class="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700">
-      {% for fi in feridas_internas %}<div class="mb-0.5">⚠ <strong>{{ fi.pilar_nome }}</strong> em {{ ('%.2f'|format(fi.pilar_ratio))|replace('.', ',') }} aparenta saudável, mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ ('%.2f'|format(sp.ratio))|replace('.', ',') }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</div>{% endfor %}
+      {% for fi in feridas_internas %}<div class="mb-0.5">⚠ <strong>{{ fi.pilar_nome }}</strong> em {{ fi.pilar_ratio | virg }} aparenta saudável, mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</div>{% endfor %}
     </div>
     {% endif %}
   </div>

@@ -117,7 +117,7 @@
        Base). Aqui, INTRA-pilar (subpilar forte cobre o crítico vizinho no MESMO pilar). #}
     {% if g.feridas_internas %}
     <div class="mt-2 text-[11px] text-amber-700 bg-amber-50 border-l-2 border-amber-300 pl-2 py-1.5 leading-relaxed">
-      <strong>Compensação dentro do pilar</strong> — distinta da de cima (que é Topo × Base): {% for fi in g.feridas_internas %}{{ fi.pilar_nome }} soma {{ '%.2f'|format(fi.pilar_ratio) }} (saudável na média), mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ '%.2f'|format(sp.ratio) }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %}{% if not loop.last %}; {% endif %}{% endfor %}. Um subpilar forte cobre o buraco do vizinho no mesmo pilar.
+      <strong>Compensação dentro do pilar</strong> — distinta da de cima (que é Topo × Base): {% for fi in g.feridas_internas %}{{ fi.pilar_nome }} soma {{ fi.pilar_ratio | virg }} (saudável na média), mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %}{% if not loop.last %}; {% endif %}{% endfor %}. Um subpilar forte cobre o buraco do vizinho no mesmo pilar.
     </div>
     {% endif %}
   </div>
@@ -156,7 +156,7 @@
       <div class="flex items-center justify-between border border-loyall-100 rounded px-2 py-1">
         <span class="text-loyall-600">{{ e.pilar }} · {{ e.nome }}</span>
         {% if e.null %}<span class="text-loyall-300">—</span>
-        {% else %}<span class="font-semibold text-{{ rcls.get(e.faixa,'slate') }}-600">{{ '%.1f'|format(e.ratio) }}</span>{% set fi = (g.feridas_internas | selectattr('pilar', 'equalto', e.pilar) | list | first) %}{% if fi %}<span class="text-amber-600 ml-1 cursor-help" title="Aparenta saudável, mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ '%.2f'|format(sp.ratio) }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma dilui.">⚠</span>{% endif %}{% endif %}
+        {% else %}<span class="font-semibold text-{{ rcls.get(e.faixa,'slate') }}-600">{{ e.ratio | virg(1) }}</span>{% set fi = (g.feridas_internas | selectattr('pilar', 'equalto', e.pilar) | list | first) %}{% if fi %}<span class="text-amber-600 ml-1 cursor-help" title="Aparenta saudável, mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma dilui.">⚠</span>{% endif %}{% endif %}
       </div>
       {% endfor %}
     </div>
