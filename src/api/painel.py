@@ -475,6 +475,47 @@ def gargalo_sequencial(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
     return fracos[0] if fracos else None
 
 
+def pilares_com_ferida_interna(agg: Dict[str, Dict[str, Any]], piso=None) -> Dict[str, Any]:
+    """Par do ``ratios_por_pilar``: onde a SOMA do pilar esconde um subpilar crítico.
+
+    Um pilar que aparenta OK pela soma (ratio ≥ 1,0) mas carrega, por dentro, subpilar em
+    CRÍTICO (ratio < 0,5) com volume ≥ ``piso``. Retorna ``{pilar: [{subpilar, ratio, det,
+    total}]}`` em ordem canônica; pilares sem ferida interna ficam de fora.
+
+    ``piso`` default = ``VOLUME_CONFIANCA_ALTA`` (30) — o MESMO piso de confiança que o
+    sistema já usa no grão subpilar, não número novo. Subpilar ABAIXO do piso NÃO gera
+    declaração e NÃO vira "saudável": apenas não sustenta veredito.
+
+    §7: o gargalo NÃO muda. Isto só DECLARA o que a soma oculta — não altera faixa do pilar
+    nem elege gargalo. Régua canônica: um caller por superfície, nunca recalcular local."""
+    if piso is None:
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
+        piso = VOLUME_CONFIANCA_ALTA
+    rp = ratios_por_pilar(agg)
+    out: Dict[str, Any] = {}
+    for p in PILARES_ORDEM:
+        if rp.get(p, 0.0) < 1.0:
+            continue  # pilar não aparenta OK — o próprio pilar/gargalo já sinaliza
+        feridas = [
+            {
+                "subpilar": sub,
+                "ratio": agg[sub]["ratio"],
+                "det": agg[sub]["det"],
+                "total": agg[sub]["total"],
+            }
+            for sub in SUBPILARES_ORDEM
+            if sub in agg
+            and PILAR_DE_SUBPILAR.get(sub) == p
+            and (agg[sub]["prom"] + agg[sub]["det"]) > 0  # sem sinal P/D não conta
+            and agg[sub]["ratio"] < 0.5
+            and agg[sub]["total"] >= piso
+        ]
+        if feridas:
+            out[p] = feridas
+    return out
+
+
 # ── Métricas consolidadas (Manual Cap. 4) ─────────────────────────────
 
 

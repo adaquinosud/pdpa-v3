@@ -1542,3 +1542,32 @@ def test_exportar_painel_xlsx_cliente_outra_empresa_403(client_loyall, client_cl
     cli = client_cliente_factory(e_a["id"])
     r = cli.get(f"/api/empresas/{e_b['id']}/painel/exportar.xlsx")
     assert r.status_code == 403
+
+
+def test_pilares_com_ferida_interna():
+    """Fatia 7: declara o subpilar crítico escondido num pilar OK pela soma; piso=30
+    (VOLUME_CONFIANCA_ALTA). Abaixo do piso NÃO declara e NÃO vira saudável."""
+    from src.api.painel import calcular_ratio, faixa_ratio, pilares_com_ferida_interna
+
+    def _agg(raw):  # sub -> (prom, conv, det)
+        return {
+            k: {
+                "prom": p,
+                "conv": c,
+                "det": d,
+                "total": p + c + d,
+                "ratio": calcular_ratio(p, d),
+                "faixa": faixa_ratio(calcular_ratio(p, d)),
+            }
+            for k, (p, c, d) in raw.items()
+        }
+
+    # Parceria OK pela soma (Pa1 cobre) mas Pa2 crítico com volume alto → declara
+    fi = pilares_com_ferida_interna(_agg({"Pa1": (1493, 0, 95), "Pa2": (12, 0, 1047)}), piso=30)
+    assert "Pa" in fi and fi["Pa"][0]["subpilar"] == "Pa2" and fi["Pa"][0]["det"] == 1047
+    # Pa2 crítico mas volume 5 < piso → NÃO declara (não sustenta veredito)
+    a2 = _agg({"Pa1": (1493, 0, 95), "Pa2": (0, 0, 5)})
+    assert "Pa" not in pilares_com_ferida_interna(a2, piso=30)
+    assert "Pa" in pilares_com_ferida_interna(a2, piso=5)  # com piso menor, passa a sustentar
+    # pilar que NÃO aparenta OK (soma<1) fica de fora — é o próprio gargalo
+    assert pilares_com_ferida_interna(_agg({"P1": (2, 0, 80)}), piso=30) == {}

@@ -113,6 +113,13 @@
       </div>
     </div>
     <div class="mt-3 text-[11px] text-loyall-600 bg-loyall-50 border-l-2 border-loyall-300 pl-2 py-1.5 leading-relaxed">{{ dep.frase }}</div>
+    {# Fatia 7 — DUAS compensações DISTINTAS, nunca fundidas: acima, INTER-grupo (Topo cobre
+       Base). Aqui, INTRA-pilar (subpilar forte cobre o crítico vizinho no MESMO pilar). #}
+    {% if g.feridas_internas %}
+    <div class="mt-2 text-[11px] text-amber-700 bg-amber-50 border-l-2 border-amber-300 pl-2 py-1.5 leading-relaxed">
+      <strong>Compensação dentro do pilar</strong> — distinta da de cima (que é Topo × Base): {% for fi in g.feridas_internas %}{{ fi.pilar_nome }} soma {{ ('%.2f'|format(fi.pilar_ratio))|replace('.', ',') }} (saudável na média), mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ ('%.2f'|format(sp.ratio))|replace('.', ',') }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %}{% if not loop.last %}; {% endif %}{% endfor %}. Um subpilar forte cobre o buraco do vizinho no mesmo pilar.
+    </div>
+    {% endif %}
   </div>
 
   {# ── Detalhe por pilar (radar) — DRILL secundário, fonte RATIO ──────────── #}

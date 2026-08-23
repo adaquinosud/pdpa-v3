@@ -1732,9 +1732,44 @@ def _aba_painel(empresa_id, empresa_w):
         for _p in n1.get("pilares", []):
             _p["historico_quarters"] = hist_q.get(_p["pilar"], [])
 
+        # Fatia 7: pilar OK pela soma escondendo subpilar crítico (piso 30). Declara — NÃO
+        # muda a faixa do pilar (§7). Régua canônica pilares_com_ferida_interna, 1 caller.
+        from src.api.painel import (
+            NOME_PILAR,
+            NOME_SUBPILAR,
+            pilares_com_ferida_interna,
+            ratios_por_pilar,
+        )
+        from src.diagnostico.leituras import agregar_subpilares
+
+        _agg_fi = agregar_subpilares(
+            s,
+            empresa_id,
+            (escopo_id if escopo_tipo == "agrupamento" else None),
+            (escopo_id if escopo_tipo == "loja" else None),
+        )
+        _rp_fi = ratios_por_pilar(_agg_fi)
+        feridas_internas = [
+            {
+                "pilar": p,
+                "pilar_nome": NOME_PILAR.get(p, p),
+                "pilar_ratio": _rp_fi.get(p),
+                "subpilares": [
+                    {
+                        "nome": NOME_SUBPILAR.get(f["subpilar"], f["subpilar"]),
+                        "ratio": f["ratio"],
+                        "det": f["det"],
+                    }
+                    for f in fer
+                ],
+            }
+            for p, fer in pilares_com_ferida_interna(_agg_fi).items()
+        ]
+
     # B6.6 CP-5: a seção "Temas transversais" saiu do painel — vive na aba Temas.
     return {
         "n1": n1,
+        "feridas_internas": feridas_internas,
         "n2": n2,
         "filtros": filtros,
         "agrupamentos": agrupamentos,
@@ -1855,7 +1890,7 @@ def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
 # ── B6.6 CP-5: tela dedicada de temas ─────────────────────────────────
 
 
-def _montar_mapa_lastro(n1, n2, gargalo):
+def _montar_mapa_lastro(n1, n2, gargalo, feridas=None):
     """Mapa de Lastro: 4 pilares (ratio+faixa) com seus subpilares + gargalo.
 
     Reusa os dados de painel_nivel1 (pilares) e painel_nivel2 (matriz de
@@ -1863,9 +1898,13 @@ def _montar_mapa_lastro(n1, n2, gargalo):
     (§7 gargalo_sequencial), computada pelo caller a partir do agg — NÃO o
     "menor ratio" antigo, que contradizia o cabeçalho sequencial do Lastro e
     marcava um falso gargalo quando nenhum pilar estava crítico/fraco.
-    """
+
+    ``feridas`` (Fatia 7): ``{pilar: [{nome, ratio, det}]}`` da régua canônica
+    ``pilares_com_ferida_interna`` (piso 30) — o subpilar crítico que a soma do pilar
+    esconde. Só o callout; não muda a faixa do pilar. None = sem marcação."""
     from src.api.painel import PILARES_ORDEM
 
+    feridas = feridas or {}
     pilares = {p["pilar"]: p for p in n1.get("pilares", [])}
     subs_por_pilar = {}
     for cell in n2.get("matriz", []):
@@ -1888,6 +1927,7 @@ def _montar_mapa_lastro(n1, n2, gargalo):
                 "detrator": p.get("detrator", 0),
                 "gargalo": pid == gargalo,
                 "subpilares": subs_por_pilar.get(pid, []),
+                "ferida_interna": feridas.get(pid, []),  # subpilar crítico oculto (piso 30)
             }
         )
     return mapa
@@ -2118,11 +2158,25 @@ def _aba_temas(empresa_id, empresa_w):
         # Gargalo canônico (§7 gargalo_sequencial) — MESMO agg all-time que a aba
         # Diagnóstico usa (_gargalo), não o "menor ratio" local antigo. Escopo =
         # filtro de agrupamento da aba, como na Diagnóstico.
+        from src.api.painel import NOME_SUBPILAR as _NS_ml
+        from src.api.painel import pilares_com_ferida_interna as _pcfi
         from src.diagnostico.leituras import _gargalo, agregar_subpilares
 
-        gargalo = _gargalo(agregar_subpilares(s, empresa_id, ag_filtro))
+        _agg_ml = agregar_subpilares(s, empresa_id, ag_filtro)
+        gargalo = _gargalo(_agg_ml)
+        _fer_ml = {  # Fatia 7: subpilar crítico oculto por pilar (régua canônica, piso 30)
+            p: [
+                {
+                    "nome": _NS_ml.get(f["subpilar"], f["subpilar"]),
+                    "ratio": f["ratio"],
+                    "det": f["det"],
+                }
+                for f in fer
+            ]
+            for p, fer in _pcfi(_agg_ml).items()
+        }
 
-    mapa_lastro = _montar_mapa_lastro(n1, n2, gargalo)
+    mapa_lastro = _montar_mapa_lastro(n1, n2, gargalo, _fer_ml)
 
     # Fatia 2: etiqueta de quadrante de Propagação por tema — SÓ os ACIONÁVEIS
     # (Crítico/Acelerando); os demais quadrantes vivem só na tela Propagação. Assim a

@@ -137,6 +137,12 @@
     {% set _com_vol = n1.pilares | selectattr('total') | list %}
     {% set _pior = (_com_vol | min(attribute='ratio')) if _com_vol else none %}
     <div class="text-xs text-loyall-400 mt-2">Não é média — é o pior pilar que define o teto. O Lastro é sequência: um elo fraco limita o conjunto, mesmo com os outros fortes.{% if _pior and n1.indice_geral_governado_pelo_pior %} Aqui, {{ _pior.nome }} em {{ ('%.2f'|format(_pior.ratio))|replace('.', ',') }} é o teto.{% endif %}</div>
+    {# Fatia 7: pilar que aparenta saudável escondendo subpilar crítico (soma dilui). ACRESCENTA — não troca a faixa do pilar. #}
+    {% if feridas_internas %}
+    <div class="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700">
+      {% for fi in feridas_internas %}<div class="mb-0.5">⚠ <strong>{{ fi.pilar_nome }}</strong> em {{ ('%.2f'|format(fi.pilar_ratio))|replace('.', ',') }} aparenta saudável, mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ ('%.2f'|format(sp.ratio))|replace('.', ',') }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</div>{% endfor %}
+    </div>
+    {% endif %}
   </div>
 
   {# Proximity agregado (card "Distante") ELIMINADO — redundante com o Teto do Lastro

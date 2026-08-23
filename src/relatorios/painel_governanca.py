@@ -41,7 +41,28 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
         agg = agregar_subpilares(s, empresa_id, None)
         pilares = pilares_ratio_radar(agg)  # radar por RATIO (não Proximity quebrado)
         radar = radar_svg_data(pilares)
-        base_topo = base_topo_governanca(agg)  # CONTROLE
+        base_topo = base_topo_governanca(agg)  # CONTROLE (compensação INTER-grupo: Topo×Base)
+        # Fatia 7 — compensação INTRA-pilar: pilar OK pela soma escondendo subpilar crítico
+        # (piso 30). DISTINTA da inter-grupo do base_topo — nomeadas separadas, nunca fundir.
+        from src.api.painel import pilares_com_ferida_interna, ratios_por_pilar
+
+        _rp = ratios_por_pilar(agg)
+        feridas_internas = [
+            {
+                "pilar": p,
+                "pilar_nome": NOME_PILAR.get(p, p),
+                "pilar_ratio": _rp.get(p),
+                "subpilares": [
+                    {
+                        "nome": NOME_SUBPILAR.get(f["subpilar"], f["subpilar"]),
+                        "ratio": f["ratio"],
+                        "det": f["det"],
+                    }
+                    for f in fer
+                ],
+            }
+            for p, fer in pilares_com_ferida_interna(agg).items()
+        ]
         gini = gini_escopo(s, empresa_id, "empresa", None)
         top5 = gini["lojas"][:5] if gini and not gini.get("insuficiente") else []
         cob = cobertura_governanca(s, empresa_id)
@@ -103,7 +124,8 @@ def montar_dados(empresa_id: int) -> Dict[str, Any]:
         "cobertura": cob,
         "trajetoria": trajetoria,
         "base_topo": base_topo,
-        "dependencia": dependencia_humana(base_topo),
+        "dependencia": dependencia_humana(base_topo),  # compensação INTER-grupo (Topo×Base)
+        "feridas_internas": feridas_internas,  # compensação INTRA-pilar (Pa1 cobre Pa2)
         "radar": radar,
         "pilares": pilares,
         "gini": gini,
