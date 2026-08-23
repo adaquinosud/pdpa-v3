@@ -12,8 +12,11 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
     todas as fontes" (universo MAIOR — RA + demais canais + avaliações por nota).
     Ao citar esses números, diga SEMPRE "todas as fontes" (ou "manifestações
     públicas", nunca "reclamações").
-  São leituras COMPLEMENTARES (ONDE dói × QUÃO intensa é a dor), não aninhadas.
-  PROIBIDO ligá-las com "aprofunda / detalha / dos quais / desses / é um zoom".
+  São leituras COMPLEMENTARES (a CONCENTRAÇÃO no ReclameAqui × a INTENSIDADE em todas as
+  fontes), não aninhadas nem apresentadas como "do mesmo problema".
+  PROIBIDO ligá-las com "aprofunda / detalha / dos quais / desses / é um zoom / do mesmo
+  problema / onde dói e quão funda". A expressão "onde dói" é RESERVADA à FERIDA (eixo 1) —
+  não a use nesta distinção concentração×intensidade.
   O total da intensidade PODE ser maior que o total da concentração (universo mais
   amplo) — logo, tratar a intensidade como recorte da concentração gera número
   impossível ("das N reclamações RA, M são detratoras" com M > N). NÃO faça isso.
