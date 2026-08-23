@@ -98,6 +98,9 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
       <td style="text-align:right">{{ p.total }}</td>
       <td class="muted">{{ p.prom }} · {{ p.conv }} · {{ p.det }}</td>
     </tr>
+    {% if p.ferida_interna %}{# Fatia 7: pilar OK pela soma escondendo subpilar crítico — não muda a faixa, acrescenta #}
+    <tr><td colspan="6" style="background:#fef7ed;color:#92400e;font-size:8.5pt;padding:2pt 6pt">⚠ Aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ '%.2f'|format(sp.ratio) }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</td></tr>
+    {% endif %}
     {% endfor %}
   </tbody>
 </table>

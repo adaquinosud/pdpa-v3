@@ -136,6 +136,22 @@ def montar_dados(
 
         agg = agregar_subpilares(s, empresa_id, None)
         gargalo = _gargalo(agg)
+        # Fatia 7: subpilar crítico oculto num pilar OK pela soma (piso 30) — DECLARADO no
+        # impresso (peça de cliente). Régua canônica pilares_com_ferida_interna.
+        from src.api.painel import NOME_SUBPILAR as _NSd
+        from src.api.painel import pilares_com_ferida_interna as _pcfid
+
+        _feridas_map = {
+            p: [
+                {
+                    "nome": _NSd.get(f["subpilar"], f["subpilar"]),
+                    "ratio": f["ratio"],
+                    "det": f["det"],
+                }
+                for f in fer
+            ]
+            for p, fer in _pcfid(agg).items()
+        }
 
         # 12 leituras cacheadas empresa-wide
         leituras = {
@@ -335,6 +351,7 @@ def montar_dados(
                 conv=conv,
                 det=det,
                 gargalo=(code == gargalo),
+                ferida_interna=_feridas_map.get(code, []),
             )
         )
         sub_pior = min(subs, key=lambda x: agg[x]["ratio"])
