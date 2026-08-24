@@ -427,8 +427,9 @@ def _eixos_leitura(fer_sub, fer_nome, gargalo_cod, gargalo_nome) -> Optional[str
             f"({gargalo_nome}) — atacar aqui sustenta o resto."
         )
     return (
-        f"A ferida está no topo ({fer_nome}); mas o elo que trava a sequência vem da base "
-        f"({gargalo_nome}). Consertar depois do elo travado é investir onde ainda não sustenta."
+        f"A ferida está no topo ({fer_nome}); o elo que trava a sequência vem da base "
+        f"({gargalo_nome}). Consertar a ferida atende quem já chegou irritado; calibrar o elo "
+        f"travado evita que cheguem assim."
     )
 
 
@@ -656,7 +657,7 @@ def montar_dados(
     empresa_id: int, *, ag_id: Optional[int] = None, local_id: Optional[int] = None
 ) -> Optional[Dict[str, Any]]:
     """Agrega o Parecer (P1-P7 + P9). ``None`` se a empresa não existe."""
-    from src.api.painel import NOME_SUBPILAR
+    from src.api.painel import NOME_SUBPILAR, ferida_de_agg
     from src.diagnostico.leituras import agregar_subpilares
     from src.models.empresa import Empresa
     from src.models.origem import OrigemAnalise
@@ -681,23 +682,8 @@ def montar_dados(
         # o que (a) deixava quem não tem RA SEM espinha (fer_sub None → peça genérica) e
         # (b) violava a trava do §7. A concentração RA vira UM sinal (concentracao_ra), não
         # o eleitor da ferida. Sem detrator em lugar nenhum → None (degrada p/ "Relação").
-        if agg:
-            fer_sub = max(agg, key=lambda k: agg[k].get("det", 0))
-            fer_sub = fer_sub if agg[fer_sub].get("det") else None
-        else:
-            fer_sub = None
-        _fa = agg.get(fer_sub) if fer_sub else None
-        ferida = (
-            {
-                "subpilar": fer_sub,
-                "nome": NOME_SUBPILAR.get(fer_sub, fer_sub),
-                "det": _fa["det"] if _fa else 0,
-                "total": _fa["total"] if _fa else 0,
-                "det_pct": round(100 * _fa["det"] / _fa["total"]) if (_fa and _fa["total"]) else 0,
-            }
-            if fer_sub
-            else None
-        )
+        ferida = ferida_de_agg(agg)  # régua canônica (grão subpilar) — sem 2ª cópia
+        fer_sub = ferida["subpilar"] if ferida else None
         casos = _explorar_casos(s, empresa_id).painel
         # Bug 2: a citação do funil é parametrizada pelo dado real — nada hardcoded,
         # e a lente segue o dado: se há resolvidos que SÓ compensam, conta-os; se

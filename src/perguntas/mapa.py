@@ -651,11 +651,14 @@ def _resumo(n: int, sig: dict) -> str:
             "categoria em destaque."
         )
     if n == 11:
+        # Fatia 9: a leitura no topo já NOMEIA o elo que trava; a Q11 não re-identifica —
+        # responde o consequente de AÇÃO (leitor puro, sem imperativo). O link leva a Planos.
         g = sig.get("gargalo")
         if g:
-            n_garg = sum(1 for a in acoes if a.pilar == g.pilar) if acoes else 0
-            cauda = f" — {n_garg} das {len(acoes)} ações nascem aí" if n_garg else ""
-            return f"Por sequência, o próximo passo é o elo que trava primeiro: {g.nome}{cauda}."
+            if acoes:
+                n_garg = sum(1 for a in acoes if a.pilar == g.pilar)
+                return f"{n_garg} das {len(acoes)} ações consolidadas nascem no elo que trava."
+            return "O elo que trava ainda não tem ações consolidadas no Plano."
         if acoes:
             a = acoes[0]
             alvo = a.subpilar_nome or _corte(a.texto, 40)
@@ -810,7 +813,15 @@ def resolver_perguntas(s, empresa_id: int) -> list:
                 perguntas=[c for c in out if c.dom == dom_id],
             )
         )
-    return SimpleNamespace(grupos=grupos, tem_base=tem_base, engajamento=sig["eng"])
+    # Fatia 9: a leitura no topo — o cruzamento dos quatro eixos, ACIMA do Investigativo.
+    # Peça própria (src.diagnostico.leitura_topo), determinística; as 25 células viram a
+    # evidência dela. Degrada declarando; não renderiza (com motivo) se <2 eixos.
+    from src.diagnostico.leitura_topo import montar_leitura_topo
+
+    leitura = montar_leitura_topo(s, empresa_id)
+    return SimpleNamespace(
+        grupos=grupos, tem_base=tem_base, engajamento=sig["eng"], leitura=leitura
+    )
 
 
 def concorrentes_q10(s, empresa_id: int) -> Optional[dict]:

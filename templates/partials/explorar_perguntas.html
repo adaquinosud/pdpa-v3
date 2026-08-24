@@ -22,6 +22,27 @@
 
 {% macro tag(txt, cls) %}<span class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded {{ cls }}">{{ txt }}</span>{% endmacro %}
 
+{# Fatia 9 · A leitura no topo — o cruzamento dos quatro eixos, determinístico. As 25
+   células abaixo são a evidência dela. Degradação DECLARADA; se <2 eixos, diz por quê. #}
+{% if p.leitura %}
+  {% if p.leitura.renderiza %}
+  <div class="mt-4 rounded-lg border border-loyall-300 bg-loyall-50 px-4 py-3">
+    <div class="text-[10px] uppercase tracking-wider text-loyall-500">A leitura — o cruzamento que nenhuma célula faz sozinha</div>
+    <p class="text-sm text-loyall-800 mt-1.5 font-medium leading-snug">{{ p.leitura.frases[0].texto }}</p>
+    {% if p.leitura.frases|length > 1 %}
+    <ul class="mt-2 space-y-1">
+      {% for f in p.leitura.frases[1:] %}
+      <li class="text-xs {{ 'text-loyall-400 italic' if f.degradado else 'text-loyall-600' }}">{{ f.texto }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <div class="text-[11px] text-loyall-400 mt-2">As 25 perguntas abaixo são a evidência desta leitura.</div>
+  </div>
+  {% elif p.leitura.motivo %}
+  <div class="mt-4 text-xs text-loyall-400 italic">Leitura no topo indisponível — {{ p.leitura.motivo }}</div>
+  {% endif %}
+{% endif %}
+
 <div class="mt-4 space-y-2">
   {% for g in p.grupos %}
   <details class="border border-loyall-200 rounded-lg" {% if g.aberto %}open{% endif %}>

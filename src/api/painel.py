@@ -511,6 +511,30 @@ def eh_elo_travado(subpilar: str, gargalo_pilar, ratio) -> bool:
     )
 
 
+def ferida_de_agg(agg: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """A FERIDA: subpilar de MAIS detratores no agregado (todas as fontes). Régua canônica
+    (grão subpilar) — o Parecer e a leitura no topo delegam a ESTA função, sem 2ª cópia da
+    seleção. É a valência do PESO (onde mais dói), DISTINTA do elo travado (o que trava
+    primeiro na sequência) — os dois eixos nascem do mesmo ``agg`` mas são seleções
+    diferentes (argmax-det × gargalo-sequencial), reconciliadas pela leitura.
+
+    Sem detrator em lugar nenhum → None (degrada declarando, nunca inventa ferida). Retorna
+    ``{subpilar, nome, det, total, det_pct}``."""
+    if not agg:
+        return None
+    fer_sub = max(agg, key=lambda k: agg[k].get("det", 0))
+    if not agg[fer_sub].get("det"):
+        return None
+    fa = agg[fer_sub]
+    return {
+        "subpilar": fer_sub,
+        "nome": NOME_SUBPILAR.get(fer_sub, fer_sub),
+        "det": fa["det"],
+        "total": fa["total"],
+        "det_pct": round(100 * fa["det"] / fa["total"]) if fa["total"] else 0,
+    }
+
+
 def pilares_com_ferida_interna(agg: Dict[str, Dict[str, Any]], piso=None) -> Dict[str, Any]:
     """Par do ``ratios_por_pilar``: onde a SOMA do pilar esconde um subpilar crítico.
 
