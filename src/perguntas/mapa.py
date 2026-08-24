@@ -23,6 +23,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Optional
 
+from src.utils.fmt import virg  # decimal pt-BR (vírgula) — a aba constrói string em Python
+
 TIPO_DADO = "dado"
 TIPO_INFERENCIA = "inferencia"
 TIPO_ANCORA = "ancora"
@@ -250,7 +252,9 @@ PERGUNTAS = [
         texto="O que foi dito, o que foi entendido e o que se quis dizer são a mesma coisa?",
         tipo=TIPO_ANCORA,
         subjetivo=True,
-        link="reputacao_ia",
+        # Fatia 10: o eixo ecoado (IA) foi para a leitura no topo; a Q23 encolheu ao eixo
+        # DECLARADO × vivido (a essência que você diz ser) — que vive em Pesquisas, como a Q19.
+        link="pesquisas",
     ),
     dict(
         n=24,
@@ -300,24 +304,19 @@ def _sinais(s, empresa_id: int) -> dict:
     from sqlalchemy import func
 
     from src.api.engajamento import engajamento_escopo
-    from src.api.painel import NOME_SUBPILAR
     from src.diagnostico.leituras import agregar_subpilares
     from src.models.empresa import Empresa
     from src.models.fonte import Fonte
     from src.models.verbatim import Verbatim
 
+    from src.api.painel import ferida_de_agg
+
     eng = engajamento_escopo(empresa_id, s, {})
     agg = agregar_subpilares(s, empresa_id)
-    pior = None
-    if agg:
-        sub, d = min(agg.items(), key=lambda kv: kv[1]["ratio"])
-        pior = SimpleNamespace(
-            sub=sub,
-            nome=NOME_SUBPILAR.get(sub, sub),
-            ratio=d["ratio"],
-            prom=d["prom"],
-            det=d["det"],
-        )
+    # A FERIDA (subpilar de mais detratores) é a âncora ÚNICA da página para "o subpilar em
+    # questão" — a MESMA do topo. Um critério só: o menor-ratio nomearia OUTRO objeto e a
+    # página usaria dois critérios para o mesmo papel (o defeito que a Fatia 9 corrigiu).
+    ferida = ferida_de_agg(agg)
     fonte_top = None
     linha = (
         s.query(Fonte.conector_tipo, func.count(Verbatim.id))
@@ -341,7 +340,8 @@ def _sinais(s, empresa_id: int) -> dict:
     emp = s.get(Empresa, empresa_id)
     sig = {
         "eng": eng,
-        "pior": pior,  # menor ratio — uso legítimo, mas NÃO é o gargalo
+        "agg": agg,  # p/ ler prom/det da ferida sem 2ª query
+        "ferida": ferida,
         "gargalo": gargalo,
         "fonte_top": fonte_top,
         "tem_origem": bool(emp and (emp.missao or emp.visao or emp.valores)),
@@ -351,18 +351,22 @@ def _sinais(s, empresa_id: int) -> dict:
 
     # #1 — o que MUDOU: nº do último período + subpilar de maior Δratio (RatioMensal).
     sig["delta"] = _guard(lambda: _delta_ultimo(s, empresa_id))
-    # #2 — o pior subpilar ATRAVESSA a jornada: detratores por etapa.
-    sig["pior_etapas"] = _guard(lambda: _pior_por_etapa(s, empresa_id, pior.sub)) if pior else None
-    # #3 — os temas nomeados, com volume.
-    sig["temas"] = _guard(lambda: _top_temas(s, empresa_id), [])
+    # #3 — os temas nomeados × subpilar, com o piso da aba Temas (não o top-3 cru).
+    sig["temas_sub"] = _guard(lambda: _top_temas_sub(s, empresa_id), [])
+    # #24 — concentração de detratores por LOJA (além do canal em fonte_top).
+    sig["conc_loja"] = _guard(lambda: _conc_loja(s, empresa_id))
+    # #2 — a etapa que mais trava (ratio), da mesma régua da aba Jornada.
+    sig["etapa_trava"] = _guard(lambda: _etapa_trava(s, empresa_id))
     # #4/#5/#8/#11/#17 — as ações consolidadas (o Plano).
     sig["acoes"] = _guard(lambda: _acoes(s, empresa_id), [])
     # #15 — o eixo mais fraco do Engajamento.
     sig["eixo_fraco"] = _guard(lambda: _eixo_fraco(eng))
     # #6 — Teto projetado: endereçar os subpilares em PIOR estado (critico/fraco) leva o Teto.
     sig["cenario6"] = _guard(lambda: _cenario_pior(agg))
-    # #16 — a leitura diagnóstica (cache) do pior subpilar.
-    sig["leitura16"] = _guard(lambda: _leitura_pior(s, empresa_id, pior.sub)) if pior else None
+    # #16 — a leitura diagnóstica (cache) da FERIDA (a âncora da página).
+    sig["leitura16"] = (
+        _guard(lambda: _leitura_sub(s, empresa_id, ferida["subpilar"])) if ferida else None
+    )
     # #19 — o gap do Confronto (OrigemSintese, via pesquisa da empresa).
     sig["confronto19"] = _guard(lambda: _confronto(s, empresa_id))
     return sig
@@ -430,44 +434,6 @@ def _delta_ultimo(s, empresa_id: int):
     return SimpleNamespace(n=int(n_ult or 0), mover=mover)
 
 
-def _pior_por_etapa(s, empresa_id: int, sub: str):
-    from sqlalchemy import func
-
-    from src.models.verbatim import Verbatim
-
-    rows = (
-        s.query(Verbatim.etapa, func.count(Verbatim.id))
-        .filter(
-            Verbatim.empresa_id == empresa_id,
-            Verbatim.subpilar == sub,
-            Verbatim.tipo == "detrator",
-            Verbatim.etapa.isnot(None),
-            Verbatim.etapa != "nenhuma",
-        )
-        .group_by(Verbatim.etapa)
-        .order_by(func.count(Verbatim.id).desc())
-        .all()
-    )
-    return [(e, int(n)) for e, n in rows] or None
-
-
-def _top_temas(s, empresa_id: int):
-    from sqlalchemy import func
-
-    from src.models.temas import Tema, VerbatimTema
-
-    rows = (
-        s.query(Tema.nome, func.count(VerbatimTema.id))
-        .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
-        .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
-        .group_by(Tema.id)
-        .order_by(func.count(VerbatimTema.id).desc())
-        .limit(3)
-        .all()
-    )
-    return [(nome, int(n)) for nome, n in rows]
-
-
 _ORDEM_PRIO = {"alto": 0, "medio": 1, "baixo": 2}
 
 
@@ -512,7 +478,7 @@ def _eixo_fraco(eng: dict):
     return rotulos.get(chave, chave)
 
 
-def _leitura_pior(s, empresa_id: int, sub: str):
+def _leitura_sub(s, empresa_id: int, sub: str):
     from src.models.diagnostico import LeituraDiagnostico
 
     # Escopo empresa-wide ESTRITO (== o que o Parecer lê): ambos NULL. Sem o filtro de
@@ -546,15 +512,55 @@ def _confronto(s, empresa_id: int):
     return row[0] if row and row[0] else None
 
 
-def _frase_etapas(pe: list) -> str:
-    """'reserva: 159, retirada: 167, pós-serviço: 408' — top etapas por detrator do subpilar."""
-    return ", ".join(f"{e}: {c}" for e, c in pe[:3])
+def _top_temas_sub(s, empresa_id: int):
+    """#3 — tema × SUBPILAR, com o MESMO piso de exibição da aba Temas (não o top-3 cru).
+    Reusa ``_top_temas_por_subpilar`` (fonte única do piso 10 + fusão-na-persistência) e
+    destila os pares mais fortes. Custo zero, sem LLM. Fora do topo-3 fica recolhido."""
+    from src.ui import _top_temas_por_subpilar
+
+    blocos, _resumo = _top_temas_por_subpilar(s, empresa_id)
+    pares = [(t["label"], b["nome"], t["total"]) for b in blocos for t in b.get("temas", [])]
+    pares.sort(key=lambda x: x[2], reverse=True)
+    return pares[:3]
+
+
+def _conc_loja(s, empresa_id: int):
+    """#24 — concentração de detratores por LOJA (grão de loja, ortogonal ao de canal).
+    Reusa a métrica canônica do Manual (as piores lojas ÷ total) e a faixa dela. None quando
+    há poucas lojas para a métrica ter sentido — a célula degrada como a tela."""
+    from src.api.painel import (
+        calcular_concentracao_detratores,
+        concentracao_n_lojas,
+        faixa_concentracao,
+    )
+
+    pct = calcular_concentracao_detratores(empresa_id, s, {})
+    if pct is None:
+        return None
+    return SimpleNamespace(
+        pct=round(pct),
+        faixa=faixa_concentracao(pct),
+        n_lojas=concentracao_n_lojas(empresa_id, s, {}),
+    )
+
+
+def _etapa_trava(s, empresa_id: int):
+    """#2 — a etapa que mais TRAVA (ratio<1,0 mais a montante), com o ratio. Reusa o gargalo
+    de ``agregar_jornada`` (mesma régua da aba Jornada). None se não há jornada configurada ou
+    nenhuma etapa trava — aí a Q2 fica na forma de subpilar."""
+    from src.jornada.leitura import agregar_jornada
+
+    j = agregar_jornada(s, empresa_id)
+    g = getattr(j, "gargalo", None) if j is not None else None
+    if g is None:
+        return None
+    return SimpleNamespace(rotulo=g.rotulo, ratio=g.ratio)
 
 
 def _resumo(n: int, sig: dict) -> str:
     """Resposta NO LUGAR (não ponteiro): lê mais campos do mesmo artefato. Degrada se falta."""
-    eng, pior, ft = sig["eng"], sig["pior"], sig["fonte_top"]
-    acoes = sig.get("acoes") or []
+    eng, ft = sig["eng"], sig["fonte_top"]
+    fer, acoes = sig.get("ferida"), sig.get("acoes") or []
 
     if n == 1:
         d = sig.get("delta")
@@ -562,27 +568,48 @@ def _resumo(n: int, sig: dict) -> str:
             return (
                 f"Na última coleta entraram {d.n} manifestações. Mudou de faixa: "
                 f"{d.mover.nome} passou de {d.mover.faixa_de} para {d.mover.faixa_para} "
-                f"(ratio {d.mover.de:.2f}→{d.mover.para:.2f})."
+                f"(ratio {virg(d.mover.de)}→{virg(d.mover.para)})."
             )
-        if d:
+        if d and d.n:  # coletou, e nenhum subpilar cruzou de faixa → confirmação
             return (
                 f"Na última coleta entraram {d.n} manifestações — nenhum subpilar mudou de "
                 "faixa; a coleta confirmou o retrato."
             )
+        if d:  # d.n == 0 → não houve coleta nova; não há o que confirmar (estados distintos)
+            return (
+                "A última janela não trouxe manifestações novas — não há coleta a confirmar "
+                "o retrato."
+            )
         return f"{eng['volume']} manifestações classificadas até aqui."
     if n == 2:
-        if not pior:
+        if not fer:
             return "Ainda sem base para dizer o que funciona."
-        base = f"{pior.nome}: {pior.prom} promotores contra {pior.det} detratores."
-        pe = sig.get("pior_etapas")
-        if pe:
-            return f"{base} E atravessa a jornada — {_frase_etapas(pe)}."
-        return base
+        # Onde há jornada, o RATIO da etapa que trava distingue "onde tem gente" de "onde
+        # trava" (volume não distingue). Prioriza a etapa: se a frase cresce, corta o subpilar,
+        # não a etapa. Sem jornada, ancora na FERIDA (um critério na página, o mesmo do topo).
+        et = sig.get("etapa_trava")
+        if et:
+            return f"Na jornada, “{et.rotulo}” é a etapa que mais trava — ratio {virg(et.ratio)}."
+        # A ferida é o maior volume de detratores ABSOLUTO — pode ter saldo POSITIVO em taxa
+        # (max-det ≠ pior-ratio). "O que funciona/não" exige declarar o que o número significa,
+        # não apresentar saldo positivo como problema. abaixo_do_empate = a régua, não um corte.
+        from src.api.painel import abaixo_do_empate
+
+        r = sig["agg"][fer["subpilar"]]["ratio"]
+        if abaixo_do_empate(r):
+            return (
+                f"{fer['nome']} concentra o maior volume de detratores ({fer['det']}) e o "
+                f"ratio {virg(r)} confirma o ponto fraco."
+            )
+        return (
+            f"{fer['nome']} concentra o maior volume de detratores ({fer['det']}), mas o "
+            f"ratio {virg(r)} ainda é positivo — o volume dói, a taxa não."
+        )
     if n == 3:
-        temas = sig.get("temas") or []
-        if temas:
-            lista = ", ".join(f"{nome} ({v})" for nome, v in temas)
-            return f"Os temas que mais se repetem: {lista}."
+        ts = sig.get("temas_sub") or []
+        if ts:
+            lista = ", ".join(f"{nome} em {sub} ({v})" for nome, sub, v in ts)
+            return f"Os temas que mais se repetem, por onde doem: {lista}."
         return "Temas recorrentes e cruzamentos apontam candidatos a causa."
     if n == 4:
         if acoes:
@@ -629,7 +656,7 @@ def _resumo(n: int, sig: dict) -> str:
         if cen and "indice_base" in cen:
             return (
                 f"Endereçar os {cen['n']} subpilares em pior estado leva o Teto do Lastro "
-                f"de {cen['indice_base']:.1f} para {cen['indice_n']:.1f}."
+                f"de {virg(cen['indice_base'], 1)} para {virg(cen['indice_n'], 1)}."
             )
         return (
             "O Plano projeta cenários de ação: se você endereçar os pontos prioritários, "
@@ -651,19 +678,18 @@ def _resumo(n: int, sig: dict) -> str:
             "categoria em destaque."
         )
     if n == 11:
-        # Fatia 9: a leitura no topo já NOMEIA o elo que trava; a Q11 não re-identifica —
-        # responde o consequente de AÇÃO (leitor puro, sem imperativo). O link leva a Planos.
+        # Fatia 9/10: a leitura no topo NOMEIA o elo que trava e a Q17 quantifica as ações
+        # nele. A Q11 fica DIRECIONAL (próximo passo → Planos), sem repetir a fração da Q17.
         g = sig.get("gargalo")
         if g:
-            if acoes:
-                n_garg = sum(1 for a in acoes if a.pilar == g.pilar)
-                return f"{n_garg} das {len(acoes)} ações consolidadas nascem no elo que trava."
-            return "O elo que trava ainda não tem ações consolidadas no Plano."
+            return "O próximo passo está no elo que trava — as ações consolidadas estão no Plano."
         if acoes:
             a = acoes[0]
             alvo = a.subpilar_nome or _corte(a.texto, 40)
+            # Sem gargalo, a AÇÃO de maior impacto (acoes[0]) pode atacar outro subpilar que a
+            # ferida — a copy diz "a ação", não "o objeto da página", pra não confundir os dois.
             return (
-                f"Nenhum elo trava a sequência; o de maior impacto é atacar {alvo}, "
+                f"Nenhum elo trava a sequência; a ação de maior impacto ataca {alvo}, "
                 f"prioridade {a.prioridade}."
             )
         return "O Plano indica o próximo passo por impacto estimado."
@@ -683,33 +709,22 @@ def _resumo(n: int, sig: dict) -> str:
             "(stakes, alinhamento) é seu."
         )
     if n == 16:
+        # Fatia 10: a célula é "o que essa informação NOVA nos ensina" — entrega a leitura e
+        # PARA. O topo já identifica ferida×gargalo; o parêntese que reexplicava saiu (as
+        # células apontam, não reexplicam).
         lt = sig.get("leitura16")
-        if lt and pior:
-            from src.api.painel import PILAR_DE_SUBPILAR
-
-            g = sig.get("gargalo")
-            base = f"Sobre {pior.nome}, a leitura: “{_corte(lt, 150)}”."
-            if g and PILAR_DE_SUBPILAR.get(pior.sub) != g.pilar:
-                base += f" (É o mais fraco por ratio; o elo que trava a sequência é {g.nome}.)"
-            return base
+        if lt and fer:
+            return f"Sobre {fer['nome']}, a leitura: “{_corte(lt, 150)}”."
         return "As leituras diagnósticas interpretam o número em significado."
     if n == 17:
+        # Fatia 10: "o que ela muda no que fazemos" = o consequente de PLANO. Leitor puro —
+        # põe a fração das ações no elo que trava e devolve; sem julgamento ("pouco"/"bem"),
+        # sem reidentificar o gargalo (o topo já o nomeia). 9% já diz tudo; quem lê conclui.
         g = sig.get("gargalo")
         if g and acoes:
-            from src.api.painel import PILAR_DE_SUBPILAR
-
             n_garg = sum(1 for a in acoes if a.pilar == g.pilar)
-            pior_pil = PILAR_DE_SUBPILAR.get(pior.sub) if pior else None
-            if pior and g.pilar != pior_pil:
-                # A DIVERGÊNCIA é a leitura: gargalo (trava a sequência) ≠ pior (menor ratio).
-                return (
-                    f"O gargalo é {g.nome} — puxa {n_garg} das {len(acoes)} ações; o mais "
-                    f"fraco por ratio é {pior.nome}, ponto distinto. O plano começa pelo gargalo."
-                )
-            return (
-                f"O gargalo {g.nome} puxa {n_garg} das {len(acoes)} ações — é por onde o "
-                "plano começa."
-            )
+            pct = round(100 * n_garg / len(acoes))
+            return f"{n_garg} de {len(acoes)} ações ({pct}%) nascem no elo que trava."
         if not g and acoes:
             return f"Nenhum elo trava a sequência; as {len(acoes)} ações seguem por impacto."
         return "O Plano liga o diagnóstico às ações de agora e adiante."
@@ -741,33 +756,46 @@ def _resumo(n: int, sig: dict) -> str:
             f"({eng['selo_emoji']} {eng['indice']}/100)."
         )
     if n == 22:
-        if not pior:
+        # Fatia 10: ÂNCORA — põe UM fato e devolve a pergunta, sem reensinar os dois eixos. E
+        # ancora na FERIDA (maior volume de detratores), o MESMO critério do topo: ancorar no
+        # menor ratio faria a página usar dois critérios para "o que deveria preocupar" (o
+        # defeito que a Fatia 9 corrigiu — dois critérios sobre o mesmo objeto no mesmo bloco).
+        fer = sig.get("ferida")
+        if not fer:
             return "Ainda sem base para apontar o que deveria preocupar."
-        from src.api.painel import PILAR_DE_SUBPILAR
-
-        g = sig.get("gargalo")
-        if g is None:
-            return (
-                f"O mais fraco é {pior.nome} ({pior.det} detratores) — mas nenhum elo trava "
-                "a sequência do Lastro; não há gargalo."
-            )
-        if g.pilar == PILAR_DE_SUBPILAR.get(pior.sub):
-            return (
-                f"O que deveria preocupar é {pior.nome} ({pior.det} detratores) — e é ele "
-                f"que trava a sequência do Lastro ({g.nome})."
-            )
-        return (
-            f"Dois sinais distintos: o mais fraco por ratio é {pior.nome} ({pior.det} "
-            f"detratores); o que trava a sequência do Lastro é {g.nome}."
-        )
+        return f"O maior foco de detratores está em {fer['nome']} ({fer['det']})."
     if n == 23:
-        return "O gap entre o que você declara ser, o que o cliente vive e o que as IAs ecoam."
-    if n == 24:
+        # Fatia 10: encolhida. O topo já entrega vivido × ecoado (a ferida × a sonda de IA); o
+        # que SOBRA para a Q23 é o eixo DECLARADO — a essência que você diz ser, que o topo
+        # nunca vê. Âncora: põe o fato do gap declarado × vivido e devolve; sem reexplicar o eco.
+        if sig.get("confronto19"):
+            return (
+                "Há uma essência declarada para confrontar com o que o cliente vive — "
+                "o gap está no Confronto."
+            )
         return (
-            f"Suas vozes: {ft.pct}% {ft.nome} — você ouve umas fontes, quase não outras."
-            if ft
-            else "Ainda sem volume para dizer quais vozes você ouviu."
+            "Falta a essência declarada — sem ela, o gap entre o que você diz ser e o que "
+            "o cliente vive não se mede."
         )
+    if n == 24:
+        # Fatia 10: além do canal (fonte_top), a concentração por LOJA — grão ortogonal. A copy
+        # diz o SENTIDO da faixa (concentrada/espalhada), nunca o limiar: quem corta é
+        # faixa_concentracao. Reencodar o limiar aqui mentiria em silêncio se ele mudasse.
+        cl = sig.get("conc_loja")
+        if ft and cl:
+            sentido = {
+                "cirurgico": (
+                    f"a dor concentra em poucas lojas — {cl.pct}% dos detratores nas 5 piores"
+                ),
+                "sistemico": (
+                    f"a dor é espalhada — as 5 piores lojas somam só {cl.pct}% dos detratores "
+                    "(processo central, não loja específica)"
+                ),
+            }.get(cl.faixa, f"a dor está parcialmente concentrada — {cl.pct}% nas 5 piores lojas")
+            return f"{ft.pct}% {ft.nome}; e {sentido}."
+        if ft:
+            return f"Suas vozes: {ft.pct}% {ft.nome} — você ouve umas fontes, quase não outras."
+        return "Ainda sem volume para dizer quais vozes você ouviu."
     if n == 25:
         return "A mesma realidade lida por fontes diferentes explica o desacordo."
     return ""

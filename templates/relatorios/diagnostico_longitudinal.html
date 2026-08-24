@@ -23,7 +23,7 @@
       <li><span class="conector">{{ x.quarter }}</span> ·
           <span class="quant">
             {%- if x.ratio_medio is not none -%}
-              ratio médio {{ '%.2f'|format(x.ratio_medio) }} · {{ x.n_verbatins }} verbatins
+              ratio médio {{ x.ratio_medio | virg }} · {{ x.n_verbatins }} verbatins
             {%- else -%}sem dado{%- endif -%}
           </span></li>
       {% endfor %}
@@ -78,7 +78,7 @@
                   {%- elif n == 'n4' %}; background:var(--n4-bg); color:var(--n4-tx)
                   {% endif %}{% endif %}">
           {%- if c.vazio -%}<span class="muted">—</span>
-          {%- else -%}{{ '%.2f'|format(c.ratio) }}{%- endif -%}
+          {%- else -%}{{ c.ratio | virg }}{%- endif -%}
         </td>
       {% endfor %}
       <td style="text-align:center; font-weight:700; font-size:11pt;
@@ -141,7 +141,7 @@
         → <span class="cel-{{ n_new }}">{{ q.nivel_novo }}</span>
       </td>
       <td style="text-align:right; font-size:8.5pt">
-        {{ '%.2f'|format(q.ratio_anterior) }} → {{ '%.2f'|format(q.ratio_novo) }}
+        {{ q.ratio_anterior | virg }} → {{ q.ratio_novo | virg }}
       </td>
       <td>
         {%- if q.direcao == 'piora' -%}

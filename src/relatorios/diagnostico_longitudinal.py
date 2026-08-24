@@ -12,6 +12,8 @@ from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional
 
+from src.utils.fmt import virg  # decimal pt-BR (vírgula) — impresso não sai com ponto
+
 
 def _hash(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
@@ -269,7 +271,7 @@ def montar_dados(
             proximos_passos.append(
                 f"Investigar a piora de {q.subpilar} ({q.nome}) em {q.de}: "
                 f"caiu de {q.nivel_anterior} para {q.nivel_novo} "
-                f"(ratio {q.ratio_anterior:.2f} → {q.ratio_novo:.2f}). "
+                f"(ratio {virg(q.ratio_anterior)} → {virg(q.ratio_novo)}). "
                 f"O que mudou na operação nesse quarter?"
             )
     if gargalo_nome:
@@ -292,8 +294,8 @@ def montar_dados(
         )
         capa_manchete = (
             f"Em {len(ind_validos)} quarters de observação, o índice médio "
-            f"{direcao_geral} de {ind_validos[0].ratio_medio:.2f} "
-            f"para {ind_validos[-1].ratio_medio:.2f}"
+            f"{direcao_geral} de {virg(ind_validos[0].ratio_medio)} "
+            f"para {virg(ind_validos[-1].ratio_medio)}"
         )
     else:
         capa_manchete = (
