@@ -3167,10 +3167,40 @@ devendo. Ambos exigem gate comparativo.
   dois cliques num toggle (que voltam ao ponto de partida) e, depois, cliques no
   controle errado. **Antes de concluir a partir de uma ação relatada, perguntar o
   que exatamente foi clicado, quantas vezes e onde.**
+- **DEPLOY MATA A DAEMON-THREAD — NÃO EMPURRAR COM RUN EM ANDAMENTO.** A coleta
+  on-demand e o pós-coleta/classificação rodam em **daemon-thread do worker web**
+  (`_rodar_async`, `src/coletor/orquestrador.py:223`). Todo push para `main` dispara
+  o auto-deploy do Render (On Commit), o worker é reciclado e a thread morre no meio
+  — **inclusive push doc-only**, que rebuilda a imagem igual e ainda roda o
+  `preDeployCommand` (alembic + o gate de calibração, 1 chamada Haiku real).
+  O estrago é retomável, não silencioso: o serial commita a cada `chunk` (200) e o
+  batch persiste o `batch_id` (`_reatar_batches_abertos` retoma na próxima rodada —
+  o lote segue rodando na Anthropic mesmo com o worker morto); a `ColetaExecucao`
+  fica presa em `rodando` até o reaper de 1h, e o cron `pdpa-watchdog` (6h) recolhe
+  o pós-coleta parcial. **Regra: com run em andamento, o push espera.** Se não puder
+  esperar, confirmar antes que não há execução viva. Watchdog é rede, não licença.
+- **CUSTO REGISTRADO CONSTANTE É ARTEFATO, NÃO MEDIÇÃO.** Um valor idêntico em
+  milhares de chamadas com entrada e saída variáveis nunca é medido — e é **pior
+  que campo nulo, porque parece medido**. Nulo faz desconfiar; número faz usar.
+  Caso (27/ago): 3.513 linhas de `classifier_metrics` com exatamente `$0,0000175`,
+  que é o test-double `input_tokens=10, output_tokens=5`
+  (`tests/test_batch_classificar.py:22`) com o desconto de batch. **A suíte escreve
+  telemetria no banco de dev** — cada `pytest` acrescenta linhas —, então estimativa
+  de custo tirada dessa tabela nasce contaminada. Foi o que aconteceu: o defeito
+  atribuído ao leitor de `usage` do batch (`pos_coleta.py:559`) não existe; o código
+  lê certo.
+  ⚠️ **O defeito real é o outro lado: em PROD a tabela está VAZIA.**
+  `_registrar_metrica` só escreve em SQLite (`_get_db_path`, `classifier_v3.py:331`
+  devolve `None` fora de `sqlite:///`), e prod é Postgres. Consequência que importa:
+  `_obter_gasto_mensal_sonnet()` (`classifier_v3.py:347`) soma dessa tabela e devolve
+  sempre `0.0`, então o teto mensal de Sonnet (`CLASSIFIER_MONTHLY_BUDGET_USD`,
+  default US$ 50) **nunca dispara em produção** — o `sem_orcamento` de
+  `pos_coleta.py:544` é constante `False`. Guard verde na suíte, morto em prod.
+  Mesma família do `custo_apify_centavos` NULL (§4.59.3).
 
 ---
 
-## 8. Estado dos SHAs (todos Live · atual `de16101`)
+## 8. Estado dos SHAs (todos Live · atual `f1c6149`)
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →
