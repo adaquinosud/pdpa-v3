@@ -971,9 +971,50 @@ Apify fixa a memória nesse modelo. A alavanca não existe (e não faz falta).
 (`LIMIAR_MEGA_COMPLAINTS30D`), ledger de coorte, cadência afinada por volume.
 Tudo isso existia para contornar um OOM que vinha da thread.
 
-**O que degrada sem a conversa:** só `respondida_em_disputa` e o "enfrentou a
+~~**O que degrada sem a conversa:** só `respondida_em_disputa` e o "enfrentou a
 causa" derivado da thread. Desfecho determinístico, `causa_resolvida`, taxa de
-resposta e resolução sobrevivem — vêm de campos de topo.
+resposta e resolução sobrevivem — vêm de campos de topo.~~
+
+> ## ⚠️ 4.27.2-bis · ESTA FRASE ERA FALSA (medido em 03/set, US$ 0,03)
+>
+> **Uma premissa errada no registro sustentou uma decisão de arquitetura por um
+> mês.** O modo padrão foi adotado como default em 06-07/ago acreditando que a
+> perda era marginal e periférica. Não era.
+>
+> **1. Degrada a ABERTURA — a voz do cliente, que é o insumo.** Com
+> `includeInteractions: false` o actor **não abre a página da reclamação**
+> (`detailFetched=False`) e `descriptionText` volta sendo literalmente o
+> **`snippet` da listagem**: ~103 caracteres terminados em reticências. Medido no
+> run pago: `descriptionText == snippet == description`, todos 103.
+> **Não é a conversa que se perde — é a queixa.** E é dela que nasce o verbatim,
+> o subpilar, a valência, o tema, o embedding e o ORIGEM.
+> ⚠️ A mesma §4.27.2 escreveu *"o PDPA lê a voz do cliente, e a voz está na
+> abertura"*. A decisão estava certa; a implementação não entregava a abertura.
+>
+> **2. `interactionsCount` NÃO sobrevive** — contra o que a §4.27.1 registrou
+> ("50/50 preenchido"). O mesmo run: `status=ANSWERED` com `interactionsCount=0`.
+> Dois consumidores, e o segundo **fabrica fato de conduta**:
+> `ui/__init__.py:5581` (taxa de resposta lê 0% respondidas) e
+> `caso_classificador.py:43-45` (`if not caso.interactions_count: return
+> "nao_respondida"` — desfecho **determinístico**, sem LLM que duvide, gravando
+> "não respondida" numa reclamação respondida, e daí para o Parecer e a
+> governança). **Amostra n=1** — a contagem em prod por `ra_modo` é o que fecha.
+>
+> **3. `descriptionMaxLength` foi descartado por experimento**, não por
+> raciocínio: enviado como `0` (sem limite) com `includeInteractions:false`, o
+> texto voltou truncado igual. Não há conserto de uma linha.
+>
+> **O que continua de pé do §4.27:** o OOM era mesmo o payload (§4.27.1), e a
+> abertura é mesmo imutável. **O que cai:** que o custo justificasse — US$ 0,025 é
+> **por reclamação**, com ou sem thread (as próprias medições do §4.27.1 já eram
+> 0,025/reclamação). O modo padrão é **mais rápido e mais pobre pelo mesmo preço**.
+>
+> **Classe do erro, para o §7:** a frase não foi verificada porque **tinha forma de
+> fato apurado** — estava num registro de arquitetura, ao lado de números medidos,
+> e foi lida como se também tivesse sido medida. É a §3 do `CLAUDE.md` aplicada a
+> documento em vez de código: *o que entra num registro como fato é aberto antes
+> de entrar*, e **o que foi INFERIDO se marca como inferido** — senão a próxima
+> sessão herda a inferência como medição.
 
 #### 4.27.3 As frentes, em ordem
 | SHA | O que |

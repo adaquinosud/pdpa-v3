@@ -48,22 +48,53 @@ três fontes. **O corte não é nosso:** o adapter grava `descriptionText` ínte
 (`reclame_aqui.py:238-253`), `Verbatim.texto` é TEXT sem limite, e os únicos
 `[:200]` do coletor são entrada de hash de dedup (`pipeline.py:81`).
 
-**Duas causas candidatas, e mandamos NENHUM dos dois parâmetros:**
+### ✅ MEDIDO (03/set · run pago de US$ 0,03) — é o `includeInteractions`
 
-1. **`includeInteractions: false`** → o actor não abre a página da reclamação, e
-   `descriptionText` volta como o resumo da listagem. A doc do actor descreve
-   `includeInteractions` como o que traz a descrição completa, *"adds one request
-   per complaint"*.
-2. **`descriptionMaxLength`** → existe na entrada do actor (**`0` = sem limite**).
-   **Nós não mandamos valor nenhum** — vale o default do actor, que ninguém mediu.
-   Um default de 100 explicaria os 103 (100 + reticências) sozinho, independente
-   do `includeInteractions`.
+Havia duas causas candidatas e o experimento decidiu. Run real no ator, slug
+`bexp-jeep`, 1 reclamação, input **idêntico ao de produção** exceto
+`descriptionMaxLength: 0` (enviado) e `maxComplaintsPerCompany: 1`;
+`includeInteractions` mantido em **`false`**:
 
-⚠️ **O experimento que discrimina é barato e precisa ser feito ANTES de decidir**:
-um run com `descriptionMaxLength: 0` mantendo `includeInteractions: false`. Se o
-texto vier inteiro, a causa é (2) — e o conserto é **uma linha, sem custo extra e
-sem trazer de volta o OOM** que motivou o modo padrão. Se continuar truncado, a
-causa é (1), e aí o modo padrão é mesmo incompatível com ler a voz do cliente.
+```
+id=6NnvbUVYkzOPQNL8  status=ANSWERED
+detailFetched        = False        <-- o actor NÃO abriu a página
+interactionsCount    = 0
+len(descriptionText) = 103          <-- É ISTO QUE VIRA O VERBATIM
+len(description)     = 103
+len(snippet)         = 103
+descriptionText == snippet ?  True  <-- os três campos são o MESMO resumo
+termina em reticências?       True
+'Fui à concessionária Jeep Bext Morumbi no dia 18/07 para conhecer um Jeep Compass e fui muito bem at...'
+```
+
+**Veredito: `descriptionMaxLength` NÃO é a causa** — foi enviado como `0` e o texto
+voltou truncado igual. **A causa é `includeInteractions: false`**: com ele, o actor
+não abre o detalhe (`detailFetched=False`) e `descriptionText` é literalmente o
+`snippet` da listagem. Não existe conserto de uma linha sem custo — **ler a
+abertura inteira exige `includeInteractions: true`**, e com ele volta o payload
+que causou o OOM de julho (§4.27.1).
+
+### ⚠️ SEGUNDO DEFEITO, no mesmo run: `interactionsCount` NÃO sobrevive
+
+O §4.27.1 registrou: *"`interactionsCount` (escalar) SOBREVIVE a
+`includeInteractions:False` (50/50 preenchido) → a taxa de resposta continua
+correta sem a conversa"*. **O run contradiz:** `status=ANSWERED` (o RA diz que a
+empresa respondeu) com `interactionsCount = 0`.
+
+Dois consumidores dependem disso, e o segundo **fabrica fato de conduta**:
+
+1. `ui/__init__.py:5581` — a **taxa de resposta** da aba RA é
+   `sum(1 for c in maduros if (c.interactions_count or 0) > 0)`. Com 0, lê **0%
+   respondidas**.
+2. `caso_classificador.py:43-45` — o desfecho **determinístico**:
+   `if not caso.interactions_count: return "nao_respondida"`. Uma reclamação
+   **respondida** é gravada como `nao_respondida` em `Caso.desfecho`, sem LLM no
+   caminho para duvidar. Isso alimenta Parecer, governança e leitura de conduta.
+
+⚠️ **Amostra: n=1.** É um caso, não uma medição de população. O que fecha, de
+graça, é contar em prod os casos de RA com `status='ANSWERED'` e
+`interactions_count = 0`, **separados por `ra_modo` da fonte** — se as fontes em
+padrão concentram e as em completo não, é sistemático.
 
 ### Preço: `includeInteractions` NÃO muda o custo
 
