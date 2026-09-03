@@ -3346,6 +3346,11 @@ docstring diz *"sem isto o cabeçalho da aba subestima o custo real"*).
 se lê de `sonda_ia_execucoes.custo_usd` **depois** do processamento.
 É a §13: campo de custo que engana é pior que campo ausente.
 
+⚠️ **E há uma TERCEIRA leitura, pior ainda** (achada pelo teste de termo, §6.22.6):
+os adapters devolvem `{vendor, modelo, texto, tokens_in, tokens_out}` e **nenhuma
+chave de custo** — quem lê o retorno do adapter vê **zero**. Só
+`sonda_ia_execucoes.custo_usd` serve.
+
 #### 6.20.5 Em aberto
 - Onde o botão mora: card da empresa (ao lado do toggle de scorecard RA) ou a
   própria aba de Reputação em IA, que é quem exibe o resultado.
@@ -3487,17 +3492,64 @@ Google do Marcelo Magalhães chama-se **"Labmm"**, o `_overlap_nome` do resolver
 o instrumento busca pelo do cadastro.** Já custou um `place_id` à mão; agora custa
 uma sonda inconclusiva. **Dois instrumentos, um defeito.**
 
-#### 6.22.4 Proposta em três camadas (ordem recomendada)
-1. **Enriquecer o prompt** — `setor` + cidade: *"a empresa X, concessionária de
-   veículos em São Paulo"*. **Barata, testável, melhora todo o parque**, e não
-   depende das outras duas.
+#### 6.22.4 ✅ O TESTE DE TERMO — rodado em 03/set, e mudou a proposta
+4 termos × 1 pergunta (identidade) × 3 vendors, chamando os adapters direto, **sem
+escrever em `sonda_ia_*`**:
+
+| Termo | Claude | GPT | Gemini |
+|---|---|---|---|
+| `Grupo BEXP` (o que a sonda usa hoje) | sem info | sem info | **logística + fintech** |
+| `BEXP Jeep` | sem info | vazio | **MINERAÇÃO** |
+| **`Porsche Center São Paulo Oeste`** | ✅ **acerta** | ✅ **acerta** | ✅ **acerta**, com detalhe correto |
+| `BEXP` + setor + cidade | sem info | vazio | **BMW e MINI** |
+
+**Dois achados que redesenham a frente:**
+
+🔻 **A CAMADA 3 CAIU — derrubada por evidência.** Enriquecer o prompt com setor +
+cidade **não melhorou nada**: o Claude seguiu sem informação e o Gemini inventou uma
+**terceira** empresa diferente. A hipótese barata não se sustenta, e era a que eu
+recomendava fazer primeiro. **Contexto não cria reconhecimento onde não há
+reputação** — ele só dá mais superfície para o modelo alucinar em cima.
+
+✅ **A CAMADA 2 TEM PROVA.** *"Porsche Center São Paulo Oeste"* é reconhecido pelos
+**três** modelos, com detalhe correto. **O grão que funciona é a LOJA**, não a razão
+social — e não é opinião, é medição contra o mesmo instrumento na mesma rodada.
+
+⚠️ **O estado 5 do §7 está MEDIDO, não inferido:** *visível na loja, invisível no
+grupo*. **A BEXP construiu reputação nas bandeiras dos fabricantes e nenhuma em nome
+próprio.** Isso é achado comercial, não defeito de instrumento — e é o tipo de coisa
+que o cliente não sabe sobre si.
+
+#### 6.22.5 Proposta revista (a ordem inverteu)
+1. ~~Enriquecer o prompt com setor + cidade~~ — **DERRUBADA** pelo teste (§6.22.4).
 2. **`Empresa.nome_publico` / aliases** — aditivo e opcional, fallback para `nome`.
-   Conserta a **classe**: serve à sonda **e** ao resolver de place_id.
-3. **Sondar por AGRUPAMENTO** no grupo multimarca. ⚠️ **Não cabe no schema atual:**
-   `SondaIAExecucao` tem `UNIQUE(empresa_id, competencia)`
-   (`models/sonda_ia.py:46`), então 3 marcas por mês não entram. É migração, e é a
-   parte cara. Só com decisão de método — muda o que a sonda **é** (leitura de
-   marca, não de empresa).
+   Conserta a **classe**: serve à sonda **e** ao resolver de place_id (§4.59.2).
+3. **Sondar no grão que o mundo conhece** — LOJA (provado) ou agrupamento/bandeira.
+   ⚠️ **Não cabe no schema atual:** `SondaIAExecucao` tem
+   `UNIQUE(empresa_id, competencia)` (`models/sonda_ia.py:46`), então N marcas por
+   mês não entram. É migração, e é a parte cara.
+   ⚠️ **E deixou de ser opcional:** com a camada 3 derrubada, **esta é a única que
+   funciona**. Sem ela a sonda continua perguntando pelo nome que ninguém usa.
+
+#### 6.22.6 ⚠️ Um defeito DO PRÓPRIO TESTE — e ele contamina o §6.20
+O teste imprimiu **custo US$ 0,0000**. **Não foi grátis — não foi medido.**
+Os adapters (`sonda_ia/adapters.py:44, 76, 107`) devolvem
+`{vendor, modelo, texto, tokens_in, tokens_out}` — **nenhuma chave de custo**. O
+custo é derivado uma camada acima, por `_custo(modelo, tin, tout)` contra a tabela
+`PRECO` (`sonda.py:37-39`).
+
+**São agora TRÊS leituras de custo, e duas mentem:**
+
+| Fonte | O que devolve | Veredito |
+|---|---|---|
+| retorno do adapter | só tokens | **zero** — não tem custo nenhum |
+| retorno de `rodar_sonda_mensal` | só os 3 vendors | **subestima** — falta o Sonnet |
+| `sonda_ia_execucoes.custo_usd` | vendors + Sonnet | ✅ **o completo** |
+
+⚠️ **Vale para o botão da §6.20:** ler o retorno da função exibe número errado; ler
+o retorno do adapter exibe **zero**. Só a linha da execução serve. É a §13 no seu
+pior formato — *campo de custo que fica nulo é pior que não existir*, aqui em duas
+camadas de uma vez.
 
 #### 6.22.5 🔒 Trava de medição
 **Nada disto se mede contra a sonda de hoje.** A comparação honesta é
@@ -3529,6 +3581,9 @@ promover a `scripts/`.
      nenhum framework prevê: a reputação **existe**, mas está toda depositada nas
      **bandeiras dos fabricantes**, não na razão social do grupo. É achado de
      método, não defeito de instrumento.
+     ✅ **MEDIDO em 03/set**, não inferido: *"Porsche Center São Paulo Oeste"* é
+     reconhecido pelos **três** modelos com detalhe correto, enquanto *"Grupo BEXP"*
+     e *"BEXP Jeep"* voltam vazios ou inventados (§6.22.4).
   🔒 **Consequência que trava desenho:** o Ato 2 · Vitrine **NÃO bloqueia por
   ausência de reconhecimento — bloqueia por ausência de SONDAGEM.** São coisas
   diferentes. **Sondagem rodada com resultado "não reconhecem" é CONTEÚDO, e
