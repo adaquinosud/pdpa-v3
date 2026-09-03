@@ -2,19 +2,21 @@
 
 Custo US$ 0: só lê o banco. NÃO chama LLM, NÃO chama Apify, NÃO escreve nada.
 
-Frente §6.18: o Teto é ``_normalizar_indice(min(pior_pilar, média))`` e o ``min``
+Frente §6.19: o Teto é ``_normalizar_indice(min(pior_pilar, média))`` e o ``min``
 é **cego a volume por construção** — um pilar com 15 verbatins decide o Teto de uma
 base de 1.006 (caso BEXP, 03/set). Declarar FERIDA INTERNA exige piso 30
 (``VOLUME_CONFIANCA_ALTA``); definir o TETO não exige nada.
 
-Este probe responde a pergunta que decide a URGÊNCIA da frente: a BEXP é exceção
-ou regra? Para cada empresa imprime quem governa o Teto e com quanto volume.
+Este probe respondeu a pergunta que decidiu a URGÊNCIA das duas frentes (03/set):
+**13 de 24 empresas sem pilar mensurável** (o 0,0 fabricado da §6.18 — virou a
+PRIMEIRA da fila) e **só a BEXP** como caso real de piso (§6.19 é pontual). As
+outras 3 abaixo do piso eram 2 bases de teste e 1 com Teto 3,0.
 
 ⚠️ LIMITE DE FIDELIDADE: calcula sobre TODOS os verbatins classificados da empresa,
 sem os filtros do painel (período, fonte, escopo, janela). Serve para ORDENAR o
 parque, não para bater centavo a centavo com a tela. A linha de calibração no fim
-compara a empresa 27 com o que a tela mostrou (Teto 0,0 · PDPA 85,8): se divergir
-muito, é a diferença de filtros — e aí o probe ordena, mas não afirma.
+compara a empresa 27 com o que a tela mostrou (Teto 0,0 · PDPA 85,8). ✅ Conferido
+em 03/set: bateu — o probe é fiel neste caso.
 
 Uso no Render:  PYTHONPATH=. python scripts/probe_piso_do_teto.py
 """
@@ -72,7 +74,7 @@ def main() -> int:
                 sem_medicao.append((e.id, e.nome))
                 print(
                     f"  emp {e.id:3} {str(e.nome)[:30]:30} ☠️ SEM PILAR MENSURÁVEL — "
-                    f"Teto sai 0,0 'crítico' FABRICADO (§6.18.4)"
+                    f"Teto sai 0,0 'crítico' FABRICADO (§6.18)"
                 )
                 continue
 

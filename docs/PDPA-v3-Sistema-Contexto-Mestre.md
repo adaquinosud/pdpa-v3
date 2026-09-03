@@ -3167,19 +3167,70 @@ proposta de 03/set, e continua fechado.
 cobrou caro por conceito que vive em três lugares. Quando abrir, é frente inteira,
 com inventário por grão (§7).
 
-### 6.18 🔥 O TETO DO LASTRO NÃO TEM PISO DE VOLUME — 15 verbatins governam a manchete
-Achado em 03/set, no painel da BEXP já corrigida. **Frente registrada, NÃO aberta.**
+### 6.18 🔥🔥 AUSÊNCIA EXIBIDA COMO VEREDITO — 13 de 24 empresas em "crítico" sem medição
+**PRIMEIRA da fila.** Medido em prod (03/set, `scripts/probe_piso_do_teto.py`):
+**13 das 24 empresas não têm nenhum pilar mensurável** e, mesmo assim, exibem
+**Teto do Lastro = 0,0 · faixa "crítico"**. Entre elas **Azul, Nestlé, Nespresso,
+Iguatemi e TechMahindra** — cadastradas, ainda sem coleta.
 
-**O caso:** **Teto do Lastro = 0,0** definido por **15 verbatins** de Precisão, numa
-base de **1.006**. No mesmo painel, **Índice PDPA = 85,8**. Os dois se contradizem
-na cara do executivo, e ele vai perguntar qual vale.
+**A primeira coisa que o painel diz sobre um cliente novo é o pior veredito
+possível.** É a §9 do `CLAUDE.md` no exemplo que ela própria cita, em escala.
 
-#### 6.18.1 Existe piso hoje? NÃO
+#### 6.18.1 A cadeia, medida
+`_base_indice` (`api/painel.py:599`) com `total_volume == 0` devolve
+`(0.0, None, 0.0)` → `_normalizar_indice(0.0)` = **0,0** →
+`faixa_indice_geral(0.0)` = **"critico"**. Ausência entra como número e sai como
+veredito, indistinguível de uma empresa medida e ruim.
+
+#### 6.18.2 ⚠️ O zero é RE-FABRICADO pelos callers — devolver `None` não basta
+Inventário dos consumidores (§5: *quem consome, e em que momento?*). O `0.0`
+não mora só no `_base_indice`:
+
+| Onde | Código | Efeito |
+|---|---|---|
+| `ia/contexto.py:42` | `calcular_indice_geral(matriz) if matriz else 0.0` | ⚠️ **o contexto do LLM recebe 0,0** — §12: o consumidor que ESCREVE carrega o fóssil para dentro de texto novo |
+| `relatorios/resumo_executivo.py:287` | `n1.get("indice_geral") or (… if matriz else 0.0)` | impresso que vai ao cliente |
+| `relatorios/diagnostico_pontual.py:454` | idem | impresso que vai ao cliente |
+| `ui/__init__.py:5950` | `score=calcular_indice_geral(matriz)` | score do ranking |
+| `governanca/metricas.py:229-230` | `indice0` / `indice1` | delta da Trajetória |
+
+⚠️ **E o `or` é um segundo defeito da mesma família:** `n1.get("indice_geral") or …`
+descarta um Teto **legitimamente 0,0** (falsy) e recomputa. Falsy tratado como
+ausente — o espelho exato do bug principal.
+
+**Consequência de escopo:** a frente é `None` no motor **+ varredura dos 5
+callers**, não uma linha. §11: a varredura cobre **tela E impresso** no mesmo
+passo, e os dois impressos estão na lista.
+
+#### 6.18.3 Por que esta vem primeiro
+- **Não exige decisão de método.** *Ausência não é zero* — não há régua a calibrar,
+  faixa a recortar nem gate comparativo a rodar.
+- **O que declarar é óbvio:** *"sem base para medir"* no lugar de 0,0/crítico.
+- **Gate trivial:** por definição só muda empresa com volume mensurável **zero** —
+  não há leitura a perder, porque não havia leitura.
+- **Alcance:** 13 de 24 hoje, e **toda empresa nova** amanhã, por construção.
+
+#### 6.18.4 Em aberto (execução, não método)
+1. O que o card, a manchete e o Leaderboard mostram no lugar do número. O Índice
+   PDPA já é a manchete desde `4744c9f`, o que reduz o dano.
+2. Se `None` sai do ranking ou entra como "não medido" no fim — **não** como 0.
+3. O `or` falsy: trocar por checagem explícita de `None` nos dois impressos.
+
+---
+
+### 6.19 O piso de volume do Teto do Lastro — frente PONTUAL (só a BEXP)
+**SEGUNDA da fila.** Registrada em 03/set; o probe reduziu o escopo do que
+parecia. Veredito medido: **4 empresas com o Teto governado por pilar abaixo do
+piso 30 — mas 2 são bases de teste (18, 20) e 1 tem Teto 3,0 (25)**. **Só a BEXP
+(27) é caso real:** Teto **0,0** definido por **15 verbatins** de Precisão numa base
+de **1.006**, com **Índice PDPA 85,8** no mesmo painel.
+✅ O probe é fiel: a linha da 27 saiu `Teto 0,0 · PDPA 85,8`, igual à tela.
+
+#### 6.19.1 Existe piso hoje? NÃO
 `_base_indice` (`api/painel.py:599-628`) só exige `total > 0` para um pilar entrar
-na eleição do pior — **um pilar com 1 verbatim é "mensurável"**. O único guard é
-`total_volume == 0`, que devolve `base 0.0`, e aí cai no defeito irmão (§6.18.4).
+na eleição do pior — **um pilar com 1 verbatim é "mensurável"**.
 
-#### 6.18.2 São a mesma agregação? NÃO — e é por isso que divergem
+#### 6.19.2 São a mesma agregação? NÃO — e é por isso que divergem
 Não é bug: são **duas operações diferentes sobre os mesmos 4 pilares**.
 
 | | Índice PDPA (`painel.py:679`) | Teto do Lastro (`painel.py:631`) |
@@ -3191,11 +3242,13 @@ Não é bug: são **duas operações diferentes sobre os mesmos 4 pilares**.
 ⚠️ **O `min` é cego a volume POR CONSTRUÇÃO**, e isso é deliberado: o docstring diz
 que ele "impede que um pilar saturado (Pa1 9.99, alto volume) mascare um pilar
 crítico via média". O argumento anti-masking é bom — **mas pressupõe que os dois
-pilares têm peso probatório comparável.** Com 15 contra ~900, a premissa não vale,
-e o remédio contra o masking vira a doença: o ruído mascara a operação.
+pilares têm peso probatório comparável.** Com 15 contra ~900 a premissa não vale, e
+o remédio vira a doença: em vez de o volume mascarar o crítico, o ruído mascara a
+operação.
 
-#### 6.18.3 ⚠️ A FRASE DA FRENTE
+#### 6.19.3 ⚠️ A FRASE DA FRENTE
 > **A afirmação mais forte tem o requisito probatório mais fraco.**
+
 | Afirmação | Governa o quê | Piso de volume |
 |---|---|---|
 | "este pilar tem FERIDA INTERNA" (Fatia 7) | nada — é declaração secundária | **≥ 30** |
@@ -3211,60 +3264,31 @@ não número novo"*.
 principal.**
 
 ⚠️ **É a §7 (*a régua tem grãos*) na DIREÇÃO INVERSA.** Nos casos anteriores o grão
-de CIMA estava tratado e o de baixo ficava (a marcação de subpilar, o texto
-editorial — §4.56). Aqui é o contrário: a Fatia 7 acertou o raciocínio e o aplicou
-ao grão de BAIXO, e o de cima ficou de fora. **O inventário por grão não tem
-direção preferencial** — varrer de cima para baixo encontra tanto quanto de baixo
-para cima, e quem varreu num sentido ainda não varreu no outro.
+de CIMA estava tratado e o de baixo ficava (§4.56). Aqui é o contrário: a Fatia 7
+acertou o raciocínio e o aplicou ao grão de BAIXO, e o de cima ficou de fora.
+**O inventário por grão não tem direção preferencial** — quem varreu num sentido
+ainda não varreu no outro.
 
-#### 6.18.4 🔥 O IRMÃO MAIS GRAVE: base AUSENTE também vira 0,0
-`_base_indice` com `total_volume == 0` devolve `(0.0, None, 0.0)` →
-`_normalizar_indice(0.0)` = **0,0**, exibido na faixa "crítico". Empresa **sem
-medição nenhuma** recebe o pior veredito possível, indistinguível de uma empresa
-medida e ruim. É a §9 do `CLAUDE.md` no exemplo que ela própria cita.
-
-⚠️ **É o mais grave dos dois, e por alcance:** o da base insuficiente depende de uma
-distribuição específica (pilar minúsculo e podre); este atinge **toda empresa
-recém-cadastrada**, por construção — o cadastro nasce sem verbatim classificado, e
-a primeira coisa que o painel diz sobre ela é **"crítico"**. Ausência exibida como
-veredito, no primeiro contato do cliente com o produto.
-**Mesma frente:** base ausente e base insuficiente produzem o mesmo defeito —
-veredito sem lastro — e o conserto é o mesmo gesto.
-
-#### 6.18.5 O que declarar no lugar (proposta, não decidida)
-`calcular_indice_geral` devolve **`None`**, e o caller **declara o estado**:
-
+#### 6.19.4 O que declarar no lugar (proposta, não decidida)
 > **Teto do Lastro — não determinado.** Precisão tem 15 manifestações (piso: 30).
 > Abaixo do piso o pilar não sustenta veredito; acima dele, o Teto volta a ser
 > calculado.
 
-Honesto, e **é informação**: diz o que falta e o que resolve. O 0,0 exibido como
-crítico é veredito sem lastro — pior que o vazio, porque parece medição.
-
-#### 6.18.6 Em aberto — decidir ANTES de codar
+#### 6.19.5 Em aberto — decidir ANTES de codar
 1. **Piso 30 reusado ou piso próprio?** Reusar `VOLUME_CONFIANCA_ALTA` é
    §7-compatível (não inventa número) e cita precedente da Fatia 7.
 2. **Se o pior pilar não passa no piso, o Teto usa o pior ENTRE OS QUE PASSAM, ou
-   não determina?** São semânticas diferentes: a primeira mantém um número (e pode
-   esconder o pilar frágil); a segunda declara o buraco. ⚠️ Escolher a primeira sem
-   declarar o pilar excluído recria o masking que o `min` existe para evitar.
-3. **`None` não tem faixa.** O que a manchete, o card e o Leaderboard mostram? O
-   Índice PDPA já é a manchete desde `4744c9f`, o que reduz o dano.
-4. ⚠️ **Muda o Teto de TODAS as empresas** → exige gate antes/depois nos moldes da
-   §4.21, com a contagem de quantas mudam de faixa.
+   não determina?** ⚠️ Escolher a primeira sem declarar o pilar excluído recria o
+   masking que o `min` existe para evitar.
+3. ⚠️ **Muda o Teto de empresas com leitura real** → exige gate antes/depois nos
+   moldes da §4.21. É o que a §6.18 **não** exige, e é por isso que vem depois.
 
-#### 6.18.7 Medição que falta (read-only, US$ 0)
-Qual a **menor base que já definiu Teto** no parque — por empresa, o volume do
-pilar que ganhou o `min`. Sem isso não se sabe se a BEXP é exceção ou regra, e o
-número muda a urgência.
-
+#### 6.19.6 A medição que fechou o escopo
 **`scripts/probe_piso_do_teto.py`** — read-only, US$ 0. Por empresa: quem governa o
-Teto, com quanto volume, o Teto e o PDPA lado a lado, e a marca `⚠️ ABAIXO DE 30`.
-Separa também as empresas **sem pilar mensurável** (o §6.18.4).
+Teto, com quanto volume, Teto e PDPA lado a lado, marca `⚠️ ABAIXO DE 30`, e separa
+as empresas sem pilar mensurável (§6.18).
 ⚠️ Calcula sem os filtros do painel (período/fonte/escopo) — serve para **ordenar o
-parque**, não para bater com a tela.
-**Leitura:** `abaixo do piso = 1` (só a BEXP) → frente pontual. Vários → o Teto do
-parque está governado por ruído e a urgência sobe.
+parque**. A fidelidade foi conferida contra a tela na empresa 27 e bateu.
 
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
