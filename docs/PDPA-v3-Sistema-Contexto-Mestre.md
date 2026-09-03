@@ -3355,17 +3355,43 @@ se lê de `sonda_ia_execucoes.custo_usd` **depois** do processamento.
 - Se vale um gate de "empresa sem verbatim" — sondar empresa sem base gera leitura
   que não tem contra o que cruzar.
 
-### 6.21 🔥 O Parecer AFIRMA sobre sondagem de IA inexistente — 4 superfícies
-Frente registrada em 03/set (diagnóstico read-only sobre o Parecer da BEXP).
-**Vale para TODA empresa sem sonda**, não só a BEXP — e a §6.20 mostra que isso
-inclui toda empresa nova até a virada do mês.
+### 6.21 🔥 O Parecer confunde NÃO-SONDADO com NÃO-RECONHECIDO — 4 superfícies
+Frente registrada em 03/set e **refeita no mesmo dia**, depois da decisão de método
+do §7 (*ausência de reputação em IA é leitura, não falha de coleta*). A primeira
+versão desta seção dizia "bloquear quando não há sonda"; estava **incompleta e teria
+gerado o desenho errado**.
 
-⚠️ **É a §9 na forma mais cara: ausência preenchida com afirmação, num impresso que
-vai ao cliente.** A peça **declara** a ausência e **conclui** sobre ela na mesma
-página — o `{% else %}` que escreve *"Sem sondagem de IA ainda"* fica a seis linhas
-das duas colunas que afirmam o que a sonda teria dito.
+#### 6.21.0 🔒 A distinção que governa tudo
+| Estado | O que é | O que a peça faz |
+|---|---|---|
+| **NÃO SONDADO** — o instrumento não rodou | buraco de medição | **BLOQUEIA** o Ato 2 (§10) |
+| **SONDADO, não reconhecem** | **resultado** — estado 3 do §7 | **DECLARA**: é conteúdo, e conteúdo forte |
+| **SONDADO, distorcido/inventado** | estados 2 e 4 | **DECLARA** — é o achado mais vendável da peça |
 
-#### 6.21.1 O inventário, por grão (não é uma correção, são quatro)
+**Bloquear por ausência de RECONHECIMENTO seria transformar o achado em buraco** —
+e é o erro que a versão anterior desta seção induzia.
+
+⚠️ **E hoje o código NÃO CONSEGUE separar os dois.** É o defeito de baixo nível que
+a frente precisa consertar **antes** de qualquer copy:
+
+- `encaminhamentos = list(getattr(snap, "encaminhamentos", []) or []) if snap else []`
+  (`parecer.py:780`) → **`[]` tanto para "não sondado" quanto para "sondado e
+  ninguém foi citado"**.
+- `_defas(cat)` (`parecer.py:783-789`) → `[]` se `rep.defasagem` é ausente **ou**
+  vazia. Mesmo colapso.
+- `snap = getattr(rep, "snapshot", None) if getattr(rep, "tem_dado", False) else None`
+  (`parecer.py:728`) → um único booleano para dois estados diferentes.
+
+**Falsy tratado como ausente** — a mesma família do `or` do §6.18.2 e do
+`dados_hash` NULL lido como fresco (§4.53).
+
+✅ **A primitiva já existe, na aba:** `_explorar_reputacao_ia`
+(`ui/__init__.py:5404-5412`) computa `ultima_falhou` e `ultima_competencia` com o
+comentário *"pra distinguir 'nunca sondou' de 'a última falhou' … no empty state"*.
+**A aba sabe; o Parecer não recebe.** §7 — uma fonte de verdade por conceito, e o
+conceito já está resolvido num lado só.
+
+#### 6.21.1 O inventário, por grão (são quatro, não uma)
 | # | Superfície | Onde | Natureza |
 |---|---|---|---|
 | 1 | Manchete do Ato 2 — *"Eis o que elas respondem sobre você"* | `parecer.html:328` | literal, **sem guard** |
@@ -3373,49 +3399,140 @@ das duas colunas que afirmam o que a sonda teria dito.
 | 3 | Coluna *"Onde a IA ecoa o passado"* | frase literal em `parecer.py:983` | guard só no prefixo |
 | 4 | Linha da vitrine na página 1 | `parecer.html:179` + `parecer.py:894` | dado degrada certo, **a copy não** |
 
-**Nenhuma é saída de LLM** — são strings fixas no template e no Python. Logo não é
-"o prompt não recebeu o estado de ausência": é **copy que assume sondagem**.
+**Nenhuma é saída de LLM** — são strings fixas. Não é "o prompt não recebeu o estado
+de ausência": é **copy que assume sondagem**.
 
 #### 6.21.2 ⚠️ O guard existe e protege a parte errada
-`_defas("ia_otimista")` devolve `[]` sem sonda → `doura.subpilares` vira `None` → o
-`{% if %}` do template omite **o nome do subpilar em negrito**… e **imprime a frase
-assim mesmo**.
+Sem sonda, `_defas` devolve `[]` → `doura.subpilares` vira `None` → o `{% if %}`
+omite **o nome do subpilar em negrito**… e **imprime a frase assim mesmo**.
 
 > **O subpilar é o detalhe; a frase é a conclusão. O mecanismo guarda o detalhe e
 > publica a conclusão.**
 
-Isso é **pior que não ter guard**: dá aparência de tratamento. E o padrão se repete
-na página: dos 4 elementos do Ato 2, **dois têm guard** (encaminhamentos,
-divergência) e **dois não** (manchete, colunas) — §7, a régua tem grãos.
+Pior que não ter guard: dá aparência de tratamento. Dos 4 elementos do Ato 2, **dois
+têm guard** (encaminhamentos, divergência) e **dois não** (manchete, colunas).
 
-Na página 1 é o dual: `n_concorrentes` degrada **corretamente** para `"—"`
-(`parecer.py:894`), e a copy em volta o interpola em *"encaminham o insatisfeito
-para **—** concorrentes nomeados"*. ⚠️ E a primeira metade — *"as IAs já ecoam as
-cobranças"* — afirma sobre a sonda **antes** do travessão: mesmo com o número
-consertado, a frase segue afirmando o não medido.
+Na página 1, o dual: `n_concorrentes` degrada **corretamente** para `"—"`
+(`parecer.py:894`) e a copy o interpola em *"encaminham o insatisfeito para **—**
+concorrentes nomeados"*. ⚠️ E *"as IAs já ecoam as cobranças"*, antes do travessão,
+afirma sobre a sonda mesmo com o número consertado.
 
 #### 6.21.3 O irmão do Ato 1 — dedução vendida como medição
 `parecer.html:197`: *"As IAs sabem o que você vende. Não sabem quem você é."*
-Literal fixo, logo depois de um bloco cujos três campos são condicionais. Sem
-missão/visão/valores cadastrados, o bloco de cima renderiza vazio e a frase de
-baixo afirma sobre as IAs assim mesmo.
-⚠️ Aqui a ausência é **nossa** (cadastro), não da sonda. O correto é declarar:
-*"a empresa não tem missão, visão e valores públicos — não há o que confrontar"* —
-estado declarado, que **é informação** (diz o que resolve).
+Literal fixo, logo após um bloco de campos condicionais. Sem missão/visão/valores
+cadastrados, o de cima renderiza vazio e a frase de baixo afirma assim mesmo.
+⚠️ Aqui a ausência é **nossa** (cadastro), não da sonda — e o correto é declarar:
+*"a empresa não tem missão, visão e valores públicos — não há o que confrontar"*.
 
-#### 6.21.4 A máquina de bloquear JÁ EXISTE nesta peça
-`bloquear_se_acao_stale` (`parecer.py:441-444`, Fatia 3B): *"o Parecer não imprime
-remédio de leitura stale — bloqueia"*. **O gate de bloqueio já é usado neste
-impresso** — falta a dimensão SONDA. Pela §10, sem sonda o Ato 2 **bloqueia**, não
-degrada: ressalva de rodapé num PDF é pior que não gerar.
+#### 6.21.4 A copy que os cinco estados exigem
+Não é uma frase de fallback: são **cinco**, e quatro delas são conteúdo.
+- **Não sondado** → Ato 2 bloqueia, com a mensagem nomeando o que resolve (§10: o
+  lugar de parar é antes do arquivo existir).
+- **Invisível** → *"as IAs não sabem quem você é"* deixa de ser dedução do Ato 1 e
+  passa a ser **medição**, com a competência ao lado.
+- **Distorcida** → o confronto que a peça já sabe fazer (IA positiva × N detratores).
+- **Inventada** → ⚠️ a mais forte, e a que **não existe hoje em lugar nenhum**: a IA
+  afirma o falso, e isso é **verificável contra o cadastro**. Precisa de régua nova.
+- **Visível na loja, invisível no grupo** → depende do grão da sonda (§6.22).
 
-#### 6.21.5 O padrão que atravessa as quatro
+#### 6.21.5 A máquina de bloquear JÁ EXISTE nesta peça
+`bloquear_se_acao_stale` (`parecer.py:441-444`, Fatia 3B). O gate já é usado neste
+impresso — falta a dimensão **sondagem** (não "reconhecimento").
+
+#### 6.21.6 O padrão que atravessa as quatro
 **O dado degrada corretamente e a copy não sabe disso.** `None`, `[]` e `"—"` são
-produzidos com cuidado — e depois interpolados em frases escritas assumindo que
+produzidos com cuidado e depois interpolados em frases escritas assumindo que
 existiriam. É a §8 num grau acima: a copy não reencoda um *limiar*, reencoda a
 **existência do dado**.
 
+### 6.22 A sonda pergunta pela RAZÃO SOCIAL — e o mundo conhece outro nome
+Investigado em 03/set (read-only), levantado por Alexandre a partir do resultado da
+BEXP. **Frente registrada, não aberta.**
+
+#### 6.22.1 O que a sonda pergunta, medido
+`_nome_empresa` (`sonda_ia/sonda.py:42-46`) devolve **`empresa.nome` literal**, e o
+prompt é `tpl.format(empresa=emp_nome)` (`:99`):
+
+> *"O que é a empresa **Grupo BEXP**? Descreva-a em um parágrafo."*
+
+**Não compõe com nada.** `setor`, `site` e `razao_social` existem no modelo
+(`empresa.py:26-29`) e **nenhum é usado**. Sem cidade, sem segmento, sem site.
+
+⚠️ **Isso reclassifica o resultado da BEXP:** "Claude e GPT sem informação, Gemini
+alucinando fintech" é o comportamento esperado de um LLM recebendo uma sigla quase
+inexistente no mundo. **É artefato do termo de busca, não achado sobre a marca** — e
+não sustenta leitura de reputação. (A invenção BMW/MINI do Gemini é o estado 4 do
+§7, mas medida sobre o termo errado.)
+
+#### 6.22.2 Nenhuma noção de agrupamento ou local
+`sondar_empresa(empresa_id, …)` opera **só no grão empresa** — não conhece
+`Agrupamento` nem `Local`, nem por parâmetro nem por composição de prompt.
+
+⚠️ **Num grupo multimarca, a entidade que tem reputação pública não é a razão
+social.** O consumidor não tem relação com "Grupo BEXP"; tem com **Jeep, Porsche e
+Audi**, e a experiência acontece na **loja**. **O grão em que a sonda pergunta é o
+único que não tem capital relacional.** É o estado 5 do §7.
+
+⚠️ **É o espelho da §4.60.4:** lá o RA **coleta** três marcas e joga num pote
+empresa-wide; aqui a sonda **pergunta** pelo pote e ignora as três marcas. Coleta e
+sondagem erram no mesmo grão, em direções opostas.
+
+#### 6.22.3 Não existe alias — e é a mesma classe do §4.59
+Não há campo de "nome público". `Empresa.nome` é `unique`; `razao_social` existe e é
+o **oposto** do que se precisa (mais formal, não menos).
+
+⚠️ **Mesma classe do descompasso que já custou uma correção manual:** a ficha do
+Google do Marcelo Magalhães chama-se **"Labmm"**, o `_overlap_nome` do resolver deu
+0% e pulou a fonte 390 (§4.59.2). **O cadastro diz um nome, o mundo conhece outro, e
+o instrumento busca pelo do cadastro.** Já custou um `place_id` à mão; agora custa
+uma sonda inconclusiva. **Dois instrumentos, um defeito.**
+
+#### 6.22.4 Proposta em três camadas (ordem recomendada)
+1. **Enriquecer o prompt** — `setor` + cidade: *"a empresa X, concessionária de
+   veículos em São Paulo"*. **Barata, testável, melhora todo o parque**, e não
+   depende das outras duas.
+2. **`Empresa.nome_publico` / aliases** — aditivo e opcional, fallback para `nome`.
+   Conserta a **classe**: serve à sonda **e** ao resolver de place_id.
+3. **Sondar por AGRUPAMENTO** no grupo multimarca. ⚠️ **Não cabe no schema atual:**
+   `SondaIAExecucao` tem `UNIQUE(empresa_id, competencia)`
+   (`models/sonda_ia.py:46`), então 3 marcas por mês não entram. É migração, e é a
+   parte cara. Só com decisão de método — muda o que a sonda **é** (leitura de
+   marca, não de empresa).
+
+#### 6.22.5 🔒 Trava de medição
+**Nada disto se mede contra a sonda de hoje.** A comparação honesta é
+**termo-novo × termo-novo na mesma rodada**, nunca contra um resultado que já
+sabemos ser artefato do termo (§4: não calibrar contra a base que está na mão).
+
+**Teste sem tocar no cadastro:** os adapters são injetáveis e `PERGUNTAS` é dict de
+módulo — dá para chamar os 3 vendors direto com qualquer termo **sem escrever nada**
+em `sonda_ia_*`. 4 termos × 1 pergunta × 3 vendors ≈ **US$ 0,05** (pela medição de
+US$ 0,0044/resposta). O heredoc está no transcript de 03/set; se virar rotina,
+promover a `scripts/`.
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
+
+- **AUSÊNCIA DE REPUTAÇÃO EM IA É LEITURA, NÃO FALHA DE COLETA** (03/set). Mesma
+  lógica que o método já usa para o silêncio: **distância zero não é ausência de
+  sinal**. Invisibilidade não é dado faltando — é **o estado da marca no lugar para
+  onde a decisão do consumidor está migrando**, e isso se declara.
+  **Cinco estados, todos declaráveis — nenhum é "sem dado":**
+  1. **Reconhecida e correta** — a IA descreve o que a empresa é.
+  2. **Reconhecida e DISTORCIDA** — a IA fala bem de quem o cliente reclama.
+     Caso: Localiza, IA positiva contra 1.047 detratores.
+  3. **INVISÍVEL** — a IA não sabe quem é. Não é buraco de medição: é resultado.
+  4. ⚠️ **INVENTADA** — a IA afirma o que é falso. Caso: o Gemini diz que a BEXP
+     representa **BMW e MINI**; ela vende **Porsche, Jeep e Audi**. **É pior que
+     invisibilidade — é dano ativo, e é mensurável** (afirmação verificável contra
+     o cadastro).
+  5. ⚠️ **VISÍVEL NA LOJA, INVISÍVEL NO GRUPO** — o quinto, que a BEXP expôs e que
+     nenhum framework prevê: a reputação **existe**, mas está toda depositada nas
+     **bandeiras dos fabricantes**, não na razão social do grupo. É achado de
+     método, não defeito de instrumento.
+  🔒 **Consequência que trava desenho:** o Ato 2 · Vitrine **NÃO bloqueia por
+  ausência de reconhecimento — bloqueia por ausência de SONDAGEM.** São coisas
+  diferentes. **Sondagem rodada com resultado "não reconhecem" é CONTEÚDO, e
+  conteúdo forte.** Confundir os dois transforma um achado em buraco.
 
 - **Escala/valência = sempre 1 a 5** (5★ prom · 4-3★ conv · 2-1★ detr). Pergunta
   mista/nota nasce com 1-5.
