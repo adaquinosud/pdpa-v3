@@ -2466,6 +2466,50 @@ botão "coletar aberturas" volta a renderizar, mas o "🔄 coletar" do local seg
 mandando RA para o scorecard. Enquanto a tela não for corrigida, **a coleta de
 aberturas da BEXP precisa sair do botão da fonte**, um a um.
 
+#### 4.60.6 ✅ A CORREÇÃO — `9a3d298` em prod + recoleta da BEXP (03/set)
+**Código (`9a3d298`, suíte 1893 → 1902, sem migração):**
+1. `includeInteractions: True` **incondicional** em `coletar_threads`.
+   `RA_CAP_THREAD_SEGURO = 250` virou limiar de **aviso**, não de comportamento:
+   acima dele coleta com a thread e loga risco de memória. 🔒 **Decisão travada:**
+   degradar para texto truncado acima do cap reinstalaria o defeito em silêncio, e
+   **justamente nas fontes de maior volume** — o pior lugar possível (§9).
+2. **Guard de `detailFetched`** no mesmo commit: o adapter expõe o campo, o coletor
+   conta em `stats["sem_detalhe"]` e o fim da coleta emite WARNING nomeando quantos
+   vieram sem detalhe. `None` (schema futuro do actor) **não** é tratado como falso.
+3. **Upgrade do texto em caso JÁ EXISTENTE.** Antes o verbatim só nascia no ramo
+   `caso is None` — recoletar pagava o run e **nunca tocava o texto**, o que fazia
+   os truncados serem irrecuperáveis por recoleta. Regra **só-sobe** (nunca troca
+   íntegro por resumo) e invalida na MESMA transação: `subpilar=None` +
+   `reclassificado_em`.
+   ⚠️ Um `return` antecipado nesta parte pularia o bloco que zera `caso.desfecho` —
+   a correção de conduta. Pego antes do merge; há teste travando a regressão.
+4. `test_ra_modo_padrao_omite_interactions` **INVERTIDO** — exigia
+   `includeInteractions is False` com a justificativa "payload leve". Era o defeito
+   virado teste; o docstring carrega por que mudou (§14).
+
+**Recoleta das 3 fontes da BEXP (US$ 1,42 — um caso novo entrou na 424):**
+
+| Eixo | Antes | Depois |
+|---|---|---|
+| Texto | 103 em tudo | **média 1.510** (min 210, máx 5.816) · **zero truncado** |
+| Conduta | `interactions_count=0` em ANSWERED | **`ainda_zerado=0`** · **fabricados restantes = 0** |
+| Guard | inexistente | **`sem_detalhe=0`** nas três |
+
+**Dois resultados que valem além do caso:**
+- ⚠️ **A recoleta corrigiu texto E conduta de uma vez.** Não foram duas frentes: a
+  thread real muda o `hash_thread`, o `_upsert_caso` zera `caso.desfecho`, e o
+  classificador re-deriva. A conduta fabricada some como **efeito** de trazer a
+  abertura inteira — o que também significa que **quem tiver o texto truncado tem a
+  conduta suspeita**, e vice-versa. Um diagnóstico, não dois.
+- ✅ **O guard de `detailFetched` funcionou na PRIMEIRA execução real.** É a §1 na
+  direção rara: mecanismo de observabilidade **demonstrado**, não inspecionado. Se
+  o actor regredir, o próximo truncamento aparece na coleta em que acontecer — não
+  55 verbatins depois.
+
+Estado ao fim do passo 3: **56 verbatins com `subpilar NULL` e casos com
+`desfecho NULL`**, na fila. Embeddings **ainda são os antigos** (a PK de
+`VerbatimEmbedding` é `(verbatim_id, modelo)`, sem hash do texto) — é o passo 4.
+
 #### 4.60.5 ☠️ A LOCALIZA É BASE DE TESTE COM DADO ERRADO CONHECIDO
 Medido em prod (03/set, probe dos passos 0/0b — números relatados por Alexandre a
 partir da saída; não vi o dump bruto):
