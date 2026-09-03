@@ -10,6 +10,15 @@
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
 >
+> **Estado em 03/set:** prod em **`63373eb`** (doc-only desde `de16101`) · suíte
+> 1881. Cadastrado o **Grupo BEXP** (empresa 27), e a coleta de RA expôs **dois
+> defeitos** (§4.60): o roteamento genérico ignora `ra_modo` e manda RA para o
+> scorecard, e o checkbox "coletar automaticamente" **não tem `name`** — nunca
+> submete. Correção de dado registrada em §4.60.3; nova trava no §7
+> (*checkbox sem `name` faz o formulário parecer salvo*). **Nenhuma correção de
+> código feita** — as duas propostas estão em aberto, e a decisão de método
+> travada é: **consertar a TELA, não ramificar `coletar()`**.
+>
 > **Estado em 26/ago:** prod em **`de16101`** · suíte 1881. Nasceu o **`CLAUDE.md`**
 > na raiz do repositório (`87e07b0`) — práticas de trabalho, 19 seções, cada uma
 > com o incidente que a gerou. Este documento descreve **estado**; o `CLAUDE.md`
@@ -2344,6 +2353,133 @@ endereço.
 **É o melhor caso de leitura por unidade do parque** — 13 unidades do mesmo tipo,
 numa cidade só, com volume comparável entre si.
 
+### 4.60 Os dois defeitos de RA que a BEXP expôs (01-03/set · sem código)
+Cadastro do **Grupo BEXP** (empresa 27). O sintoma: a coleta de RA trazia
+**scorecard** com o modo salvo como "padrão (abertura)". Medido em prod: fontes
+423, 424, 425 (`reclame_aqui`, `ativo=True`, `entidade_tipo=local`), três
+execuções `concluido` com `coletados=1 · novos=0 · custo=6 centavos`, **0 casos e
+0 verbatins** — enquanto o Google, na mesma empresa, trouxe 950 normalmente.
+
+`coletados=1 · custo=6` é a **assinatura exata do scorecard**, não da coleta de
+aberturas: `CUSTO_SCORECARD_USD = 0,05 + 0,005 = 0,055` → `round(0.055*100) = 6`
+(`reclame_aqui.py:47-52` e `:369`), o `1` é o record `company`, e o modo A "não
+cria caso/verbatim" por desenho (`:313-315`).
+
+#### 4.60.1 Defeito A — o roteamento genérico ignora `ra_modo`
+`reclame_aqui.coletar()` (`reclame_aqui.py:291-303`) é **alias fixo** de
+`coletar_scorecard` — sem ramo, sem condicional. É o que o mapa
+`src/api/coleta.py:59` liga a `reclame_aqui`. Portanto **todo** caminho genérico
+(botão do local, botão da fonte, `POST /api/coleta/disparar`, noturna) manda RA
+para o scorecard, qualquer que seja o modo salvo. O `ra_modo` só é lido em
+`reclame_aqui.py:440` (dentro de `coletar_threads`), `:764` (`planejar_coortes`,
+que no padrão devolve `{"acao": "amostra"}`) e `ui/__init__.py:3768` (guard do
+botão de aberturas) — **nenhum deles no roteamento.**
+
+O caminho do clique: `local_card.html:26` → `htmx_disparar_local`
+(`ui/__init__.py:3829`) → `disparar_coleta_local_async` → `coletar_local`
+(`orquestrador.py:424`) → `_coletar_fonte_direto(fid)` **sem `coletor_override`**
+→ scorecard. O próprio código já nomeava o desvio em `orquestrador.py:326-327`.
+
+⚠️ **Os três botões existem, e só o do meio faz a coleta de aberturas:** o
+genérico do LOCAL diz "🔄 coletar" e promete "todas as fontes ativas"; o da FONTE
+RA já se chama **"scorecard"** (`fonte_item.html:55`, honesto); e **"coletar
+aberturas"** (`fonte_item.html:57-60` → `ui/__init__.py:3744`) é o único que
+injeta `coletar_amostra`. **A tela da fonte é honesta; a do local não.**
+
+🔒 **Decisão de método travada:** **NÃO ramificar `coletar()` por `ra_modo`.**
+Isso transformaria a noturna e o cron diário de scorecard em coleta paga de
+aberturas sem ninguém pedir — gasto silencioso, que é exatamente o que o §13 do
+`CLAUDE.md` proíbe. **A correção é de TELA.**
+
+#### 4.60.2 Defeito B — o checkbox que não submete
+"coletar automaticamente" (`fonte_item_edit.html:31-32`) **não tem atributo
+`name`** → nunca vai no POST. Quem persiste é `ra_coortes_ativas`, escrito pelo JS
+`recalcRA` (`detalhe.html:289`): `coortesInput.value = onoff.checked ? 1 : 0`.
+Com `0` gravado, `ra_padrao_off` (`ui/__init__.py:165`) desliga o modo padrão, o
+botão "coletar aberturas" **nem renderiza** (`fonte_item.html:56` exige
+`ra_cap_efetivo > 0`) e `planejar_coortes` devolve plano vazio
+(`reclame_aqui.py:759-760`). **O operador salvou o formulário e não tinha como
+saber.** A classe está no §7.
+
+Escritores de `ra_coortes_ativas`: **exatamente dois**, `htmx_criar_fonte`
+(`ui:3417`) e `htmx_salvar_fonte` (`ui:3510`), ambos por `_ra_coortes_do_form`
+(`ui:3322-3335`) — que devolve **1** quando o campo falta ou vem lixo. O
+importador Excel e a API REST **não tocam** o campo (deixam NULL, que o wrapper lê
+como 1). Logo o `0` só pode ter vindo de um `"0"` explícito no corpo do POST, e o
+único emissor desse `"0"` é o checkbox desmarcado.
+
+#### 4.60.3 A correção de dado — exceção declarada da §16 do `CLAUDE.md`
+Conserto de dado real em produção, **não fabricação**. Registro obrigatório:
+
+- **Objeto:** fontes 423, 424, 425 (empresa 27, Grupo BEXP).
+- **Comando:** `UPDATE fontes SET ra_coortes_ativas = 1 WHERE id IN (423,424,425)`
+- **Antes:** `0` nas três. **Depois:** `1` nas três.
+- **Motivo:** o checkbox "coletar automaticamente" não submetia; sem `coortes > 0`
+  a coleta de aberturas fica desligada e o botão não aparece. O valor 1 é o mesmo
+  que `_ra_coortes_do_form` grava por default — restaura o estado que a tela dizia
+  ter, **não inventa configuração nova**.
+- **Executado por:** Alexandre, direto no banco de prod.
+
+⚠️ **A correção destrava o botão; NÃO conserta o defeito A.** Com `coortes=1` o
+botão "coletar aberturas" volta a renderizar, mas o "🔄 coletar" do local segue
+mandando RA para o scorecard. Enquanto a tela não for corrigida, **a coleta de
+aberturas da BEXP precisa sair do botão da fonte**, um a um.
+
+#### 4.60.4 ⚠️ ACHADO — três marcas premium caem num pote só (não corrigido)
+Os três slugs são **DISTINTOS** (confirmado por Alexandre): `bexp-jeep`,
+`porsche-center-sao-paulo-oeste-bexp`, `audi-center-alphaville`. **Não é
+duplicata** — são três marcas diferentes do mesmo grupo, e a leitura **por marca**
+é justamente o valor comercial da conta.
+
+Mas `coletar_threads` fixa `local_id = None` numa linha
+(`reclame_aqui.py:398`), com o comentário *"RA = marca, sempre empresa-wide"*.
+
+**A regra tem história, e ela era certa:** `src/coletor/regrao_ra.py` existe para
+corrigir retroativamente o caso original — uma fonte RA pendurada num **local
+falso** chamado "ReclameAqui" dentro de um agrupamento "Institucional". Carimbar
+as reclamações da marca naquele pseudo-local era grão errado. O §3 do próprio
+documento consagrou: *"RA é sempre empresa-wide"* (linha 178).
+
+⚠️ **A BEXP é a forma oposta, e a regra não distingue as duas.** No caso original,
+o local era ficção de cadastro. Aqui, cada página de RA **é** uma marca real e
+comercialmente separada. A premissa *"RA é a voz da MARCA, não de um lugar"*
+continua verdadeira — só que na BEXP **marca e local coincidem**. A regra colapsa
+duas formas de cadastro diferentes. O discriminador é simples: **uma fonte RA por
+empresa** → empresa-wide é certo; **várias fontes RA com slugs distintos** →
+empresa-wide funde marcas que o mercado vê separadas.
+
+**A boa notícia: a origem NÃO se perde.** `Caso.fonte_id` e `Verbatim.fonte_id`
+são **sempre** gravados (`reclame_aqui.py:188` e `:245`), e `Fonte.entidade_tipo`
++ `entidade_id` mapeiam fonte → local. **Nada precisa ser recoletado**; o que
+falta é só a desnormalização `local_id` que as superfícies por loja filtram.
+
+**O que JÁ dá para ler hoje, sem uma linha de código:** o Explorar tem filtro por
+fonte — `<select name="fonte_id">` no Painel (`explorar_painel.html:93`) e nos
+Verbatins (`explorar_verbatins.html:61`), rotulado `conector_tipo — nome_local`.
+Escolhendo a fonte, Painel e Verbatins já leem **uma marca de cada vez**.
+
+**O que NÃO dá:** tudo que é escopo de LOJA filtra `Verbatim.local_id`
+(`ui:4237`, `:4270`, `:4478`, `:4534`, `:4613`, `:4797`), que é NULL no RA. Então
+as três marcas ficam fora do Leaderboard/ranking, da Previsibilidade por loja, da
+governança por loja e do Impacto em R$ por loja — e, no agregado da empresa,
+somam num pote só.
+
+⚠️ **NÃO rodar `regrao_ra.py`/`corrigir_grao_ra.py` nesta empresa.** O script
+existe para empurrar RA de local→empresa; na BEXP isso é exatamente o movimento
+errado, e ele **apaga o `TemaCache` do agrupamento** junto.
+
+**Medição que falta antes de qualquer proposta** (o heredoc do §4.60 já devolve):
+as três fontes penduram em **três locais distintos**, ou nos mesmos? Só sei que
+`entidade_tipo='local'`; o `entidade_id` das três não foi conferido. Sem isso, não
+dá para dizer se o mapa marca→local já existe ou precisa ser criado.
+
+**Direção provável (não decidida):** trocar a constante da linha 398 por
+`fonte.entidade_id` quando `entidade_tipo == 'local'` preserva a marca sem
+migração nem recoleta — mas **muda o grão de toda empresa com RA sob local**, o
+que inclui as maduras e reabre o caso que o `regrao_ra` fechou. Exige gate
+antes/depois nos moldes da §4.21 e decisão de método. **Frente própria, não
+aberta.**
+
 ## 5. Os cases
 
 **Club Med (id 16, maduro — valida o método):** ferida Pa2 Mutualidade no RA
@@ -2815,6 +2951,57 @@ devendo. Ambos exigem gate comparativo.
   empresas (quantas mudam de rótulo) e decisão de método sobre o que "saudável"
   deve significar na escala do Índice.
 
+### 6.14 Colapsar os dois desligadores do modo padrão do RA — com gate (03/set)
+Opção **B** da frente do checkbox (§4.60.2), **adiada com motivo**. Hoje o modo
+padrão tem **dois** desligadores para um conceito só ("está ligado?"):
+`ra_padrao_off = coortes <= 0 OR cap <= 0` (`ui/__init__.py:165`). É o §7 — uma
+fonte de verdade por conceito — violado na superfície de entrada.
+
+**A proposta:** em `padrao`, a única verdade passa a ser o **cap** (0 = não
+coletar, ≥30 = coletar); `ra_coortes_ativas` volta a significar só "número de
+coortes" no modo completo, e o checkbox desaparece.
+
+⚠️ **Por que NÃO foi feito junto com a Fatia A:** `planejar_coortes` corta em
+`n <= 0` **antes** do ramo do padrão (`reclame_aqui.py:759-760`). Hoje, fonte com
+`coortes=0` e `cap>0` está desligada; sob B ela **passaria a coletar aberturas
+pelo cron**. Isso é aumento de gasto que ninguém pediu — a §13 do `CLAUDE.md`.
+
+**GATE, antes de qualquer linha de código** (read-only, custo US$ 0):
+
+```sql
+SELECT id, empresa_id, ra_modo, ra_coortes_ativas, ra_max_casos
+  FROM fontes
+ WHERE conector_tipo = 'reclame_aqui' AND ativo = true
+   AND COALESCE(ra_coortes_ativas, 1) <= 0
+   AND COALESCE(ra_max_casos, 250) > 0;
+```
+
+**Se voltar zero linhas, B é barata** (nenhuma fonte muda de comportamento) e a
+frente se reavalia. **Se voltar alguma**, cada uma exige decisão: era desligada de
+propósito, ou é vítima do mesmo checkbox? Contar não basta — **listar**, porque a
+resposta é por fonte.
+
+### 6.15 O no-op silencioso do `coletar_local` + o `tem_fontes` que conta fonte inativa
+Frente própria, **deliberadamente fora** da fatia de tela do §4.60 (decisão de
+03/set: *meia correção que parece inteira é pior que nenhuma*). São dois defeitos
+que se sustentam mutuamente, e corrigir só o de cima esconde o de baixo:
+
+- **`tem_fontes = bool(fontes_w)`** (`ui/__init__.py:265`) conta fontes, **não
+  fontes ativas**. É o guard do botão "🔄 coletar" (`local_card.html:25`), então o
+  botão aparece em local com zero fontes ativas. Trocar por `fontes_ativas > 0` é
+  uma linha — e muda a tela de **toda** empresa, inclusive as maduras.
+- **O no-op silencioso** (`orquestrador.py:448`): sem fonte que passe no filtro,
+  `coletar_local` devolve `{"erro": "local não tem fontes ativas"}` **dentro da
+  daemon-thread**, e `_rodar_async` descarta o retorno. **Sem log, sem linha em
+  `coletas_execucoes`** — e a tela já respondeu 202 "🔄 Coletando…". Mesmo padrão
+  em `orq:342` (conector não suportado, antes de criar a execução).
+
+⚠️ **Por que juntos:** consertar só o `tem_fontes` faz o botão sumir no caso
+conhecido e **deixa o no-op de pé** em todos os outros caminhos que chamam
+`coletar_local` (cron, agrupamento, API). O sintoma sai da tela; a mudez fica.
+É a §9 do `CLAUDE.md` — o lugar de corrigir é onde a ausência de execução deixa
+de ser exibida como execução, não onde ela some da vista.
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **Escala/valência = sempre 1 a 5** (5★ prom · 4-3★ conv · 2-1★ detr). Pergunta
@@ -3197,6 +3384,33 @@ devendo. Ambos exigem gate comparativo.
   default US$ 50) **nunca dispara em produção** — o `sem_orcamento` de
   `pos_coleta.py:544` é constante `False`. Guard verde na suíte, morto em prod.
   Mesma família do `custo_apify_centavos` NULL (§4.59.3).
+- **CHECKBOX SEM `name` FAZ O FORMULÁRIO PARECER SALVO.** Um `<input
+  type="checkbox">` sem atributo `name` **nunca é submetido** — o navegador não o
+  inclui no POST. Se um JS traduz o clique para outro campo, o controle vira
+  *proxy*: o que o operador vê e o que o banco recebe são coisas diferentes, e o
+  formulário responde 200 nas duas. **Nada no linter, no teste ou no template
+  acusa** — é a mesma família do toggle aninhado do §4.59 (dois controles
+  parecidos, um não resolve o outro) e do `dados_hash` NULL: **a tela exibe um
+  estado que o banco não tem.**
+  Caso (§4.60): "coletar automaticamente" (`fonte_item_edit.html:31-32`) escreve
+  `ra_coortes_ativas` por `recalcRA` (`detalhe.html:289`); com 0 gravado, o
+  `ra_padrao_off` desliga a coleta de aberturas e **o botão nem renderiza**.
+  ⚠️ **O agravante, e é o que generaliza:** o checkbox **lê de um OU de dois
+  campos e escreve em um só.** `ra_padrao_off = coortes <= 0 OR cap <= 0`
+  (`ui/__init__.py:165`) decide o `checked`; o clique escreve só `coortes`. Com
+  `cap=0` e `coortes=1` o box aparece desmarcado embora o campo que ele controla
+  esteja ligado — marcá-lo não acende nada, e desmarcá-lo (confirmando o que a
+  tela já dizia) **desliga o segundo eixo de verdade**. É o §7 "uma fonte de
+  verdade por conceito" na superfície de entrada: **controle que lê de uma régua
+  composta e escreve numa parte dela mente nas duas direções.**
+  **Regra:** todo controle de formulário ou tem `name` e persiste sozinho, ou
+  declara no template **qual campo ele dirige** — e o teste exercita **o controle
+  que o humano toca**, não o campo que o handler lê. Critério da contagem: os 21
+  `def test` de `tests/test_ra_config.py` são POSTs do test-client Flask, que
+  monta o corpo com os campos passados à mão — **nenhum executa o JS**, logo
+  nenhum poderia ter pego isto. **A suíte fala a língua do campo; o operador fala
+  a língua do checkbox.** Cobrir de verdade exige teste de RENDER (o `checked` que
+  o template emite) ou de browser, não mais um POST.
 
 ---
 
