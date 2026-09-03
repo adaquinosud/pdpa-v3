@@ -27,9 +27,16 @@
           <option value="completo" {% if f.ra_modo == 'completo' %}selected{% endif %}>completo (+ thread)</option>
         </select>
       </label>
+      {# O companion hidden é OBRIGATÓRIO: checkbox desmarcado não submete nada, e
+         "ausente" seria lido como "campo não existe neste form" → o default
+         conservador (1) transformaria "desliguei" em "liguei". Com ele, ra_padrao_on
+         chega SEMPRE. E o `checked` lê ra_coortes_ativas — o campo que este controle
+         escreve —, nunca ra_padrao_off (que é um OU com o cap): controle que lê de
+         régua composta e escreve numa parte dela mente nas duas direções (§7). #}
       <label data-ra-toggle class="flex items-center gap-1 bg-white border border-loyall-400 rounded px-2 py-1 {% if f.ra_modo == 'completo' %}hidden{% endif %}">
-        <input type="checkbox" data-ra-onoff onchange="recalcRA(this)"
-               {% if not f.ra_padrao_off %}checked{% endif %}> coletar automaticamente
+        <input type="hidden" name="ra_padrao_on" value="0">
+        <input type="checkbox" name="ra_padrao_on" value="1" data-ra-onoff onchange="recalcRA(this)"
+               {% if f.ra_coortes_ativas > 0 %}checked{% endif %}> coletar automaticamente
       </label>
       <label data-ra-coortes class="flex items-center gap-1 {% if f.ra_modo != 'completo' %}hidden{% endif %}">coortes
         <input name="ra_coortes_ativas" type="number" min="0" value="{{ f.ra_coortes_ativas }}"

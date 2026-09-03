@@ -286,11 +286,13 @@
     // completo → nº de coortes.
     toggleWrap.classList.toggle('hidden', completo);
     coortesWrap.classList.toggle('hidden', !completo);
-    // No padrão a checkbox dirige o nº de coortes (1/0) — o form envia sempre o número.
-    if (!completo && el === onoff) coortesInput.value = onoff.checked ? 1 : 0;
+    // O checkbox agora SUBMETE sozinho (name=ra_padrao_on + companion hidden): este JS
+    // não persiste mais nada, só prevê o custo. Antes ele era o único caminho do estado
+    // até o banco — e como o box não tinha `name`, o form parecia salvo e não estava
+    // (§4.60.2). No padrão o on/off vem do próprio box; no completo, do nº de coortes.
     var cap = parseInt(capInput.value, 10);
     if (isNaN(cap)) cap = parseInt(capInput.placeholder, 10) || 0;  // vazio → default
-    var coortes = parseInt(coortesInput.value, 10); if (isNaN(coortes)) coortes = 0;
+    var coortes = completo ? (parseInt(coortesInput.value, 10) || 0) : (onoff.checked ? 1 : 0);
     // Aviso de rota (item 6): só no padrão, quando o cap passa do seguro-do-botão.
     warn.classList.toggle('hidden', !(!completo && cap > alerta));
     if (completo) {

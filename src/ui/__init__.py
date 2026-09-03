@@ -263,6 +263,23 @@ def _wrap_local(loc, fontes=None) -> SimpleNamespace:
         fontes=fontes_w,
         fontes_ativas=sum(1 for f in fontes_w if f.ativo),
         tem_fontes=bool(fontes_w),
+        # ── §4.60.1: o botão "🔄 coletar" do local roteia RA para o SCORECARD ──
+        # `coletar_local` chama o roteamento genérico, e nele `reclame_aqui.coletar`
+        # é alias fixo de `coletar_scorecard` (reclame_aqui.py:291-303). Ramificar
+        # `coletar()` por ra_modo está VETADO (viraria coleta paga de aberturas na
+        # noturna e no cron — §13), então quem declara é a TELA. Estes dois contadores
+        # existem só para o template dizer a verdade e dimensionar o custo.
+        # ⚠️ Contam por `ativo`, igual ao `fontes_ativas` acima — o disparo real exige
+        # também `status == 'ativa'` (orquestrador.py:441-442). A assimetria é a do
+        # §4.59 defeito 4 e está registrada na §6.15; NÃO é corrigida aqui.
+        fontes_ativas_ra=sum(1 for f in fontes_w if f.ativo and f.eh_ra),
+        fontes_ativas_nao_ra=sum(1 for f in fontes_w if f.ativo and not f.eh_ra),
+        # Custo do que o clique REALMENTE dispara na parte de RA, somado das fontes.
+        # Derivado da constante (via _wrap_fonte), nunca reescrito na copy — §8: a
+        # copy exibe o valor computado, não reencoda o número.
+        custo_scorecard_ra=round(
+            sum(f.ra_custo_scorecard for f in fontes_w if f.ativo and f.eh_ra), 3
+        ),
     )
 
 
@@ -3319,12 +3336,26 @@ def htmx_deletar_local(local_id: int):
     return ("", 200)
 
 
-def _ra_coortes_do_form(conector: str):
+def _ra_coortes_do_form(conector: str, modo=None):
     """ra_coortes_ativas do form — só p/ reclame_aqui (dois-modos, Fatia 3.5). É o
     controle demo↔cliente do custo de threads; inteiro ≥1, nasce conservador (1) sem
-    input ou com lixo. Não-RA → None (não usa)."""
+    input ou com lixo. Não-RA → None (não usa).
+
+    DOIS CONTROLES, UMA COLUNA (§4.60.2): no modo ``padrao`` quem manda é o checkbox
+    "coletar automaticamente" (``ra_padrao_on``, on/off → 1/0); no ``completo`` é o
+    número de coortes (``ra_coortes_ativas``). O form de edição envia OS DOIS (o card
+    esconde por CSS, e `hidden` não impede o submit), então o modo é o desempate — sem
+    ele, o checkbox do card em modo completo sobrescreveria o número.
+
+    ⚠️ A ordem dos ramos importa: o form de CRIAÇÃO não tem nenhum dos dois campos, e
+    precisa continuar nascendo em 1. Por isso "ausente" cai no default conservador em
+    vez de virar 0 — é o companion hidden do card de edição que garante presença."""
     if conector != "reclame_aqui":
         return None
+    if (modo or "padrao") == "padrao" and "ra_padrao_on" in request.form:
+        # getlist: o companion hidden ("0") vem ANTES do checkbox ("1"); marcado envia
+        # os dois e o último vence. request.form.get devolveria o primeiro.
+        return 1 if request.form.getlist("ra_padrao_on")[-1] == "1" else 0
     v = (request.form.get("ra_coortes_ativas") or "").strip()
     if not v:
         return 1  # conservador (demo/custo-Loyall); operador sobe na tela
@@ -3493,7 +3524,10 @@ def htmx_salvar_fonte(fonte_id: int):
         erro = _check_acesso(f.empresa_id)
         if erro:
             return erro
-        ra_coortes = _ra_coortes_do_form(f.conector_tipo)
+        # ra_modo PRIMEIRO: é ele que decide qual controle manda em ra_coortes_ativas
+        # (checkbox no padrão, número no completo — ver _ra_coortes_do_form).
+        ra_modo = _ra_modo_do_form(f.conector_tipo, f.ra_modo)
+        ra_coortes = _ra_coortes_do_form(f.conector_tipo, ra_modo)
         ra_max_casos, cap_erro = _ra_max_casos_do_form(f.conector_tipo, f.ra_max_casos)
         if cap_erro:
             # Rejeita o save e re-renderiza o form em edição com a mensagem (item 3).
@@ -3502,7 +3536,6 @@ def htmx_salvar_fonte(fonte_id: int):
                 render_template("partials/fonte_item_edit.html", f=f_vm, erro=cap_erro),
                 400,
             )
-        ra_modo = _ra_modo_do_form(f.conector_tipo, f.ra_modo)
         f.url = url
         f.observacao = observacao
         # Só sobrescreve p/ RA (não-RA → None; não zera nada relevante).

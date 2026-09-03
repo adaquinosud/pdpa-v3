@@ -22,12 +22,35 @@
       <span class="px-2 py-0.5 text-xs rounded bg-loyall-200 text-loyall-700">{{ loc.status }}</span>
     {% endif %}
     <div class="ml-auto flex items-center gap-3 text-xs" onclick="event.stopPropagation()">
+      {# §4.60.1 — o botão genérico roteia RA para o SCORECARD, não para as aberturas.
+         Duas saídas, juntas: (a) com fonte não-RA, o botão fica e o confirm ENUMERA o
+         que cada uma faz, com o custo do RA na mesa antes do clique (§13); (b) só com
+         RA, o genérico não aparece — a linha aponta para o controle certo, em vez de
+         prometer "todas as fontes" e entregar scorecard. #}
       {% if loc.tem_fontes and loc.status == 'ativo' %}
+        {% if loc.fontes_ativas_nao_ra > 0 %}
+      <button hx-post="{{ url_for('ui.htmx_disparar_local', local_id=loc.id) }}"
+              hx-target="#loc-{{ loc.id }}-coleta" hx-swap="innerHTML"
+              hx-confirm="Coletar {{ loc.fontes_ativas_nao_ra }} fonte(s) deste local. Gera custo Apify. Cooldown 15 min.{% if loc.fontes_ativas_ra %} ATENÇÃO: {{ loc.fontes_ativas_ra }} fonte(s) ReclameAqui deste local trazem APENAS o scorecard (US$ {{ '%.3f'|format(loc.custo_scorecard_ra) }}) — não as reclamações. Para as aberturas, use 'coletar aberturas' na linha da fonte.{% endif %}"
+              class="text-loyall-700 hover:underline"
+              title="{% if loc.fontes_ativas_ra %}RA vai por scorecard; aberturas só pelo botão da fonte{% else %}Coleta as fontes ativas do local{% endif %}">🔄 coletar</button>
+      <span id="loc-{{ loc.id }}-coleta" class="text-loyall-500"></span>
+        {% elif loc.fontes_ativas_ra > 0 %}
+      <span class="text-loyall-500" title="O botão do local mandaria o RA para o scorecard; as aberturas saem do botão da própria fonte">
+        RA — coletar pela fonte ↓</span>
+        {% else %}
+      {# Local COM fontes e NENHUMA ativa. O botão segue aqui, inalterado e quebrado:
+         é o §4.59 defeito 2 / §6.15 (o guard `tem_fontes` conta fonte inativa, e o
+         `coletar_local` devolve no-op sem log nem ColetaExecucao, com a tela dizendo
+         "🔄 Coletando…" para sempre). Deixá-lo de pé é DELIBERADO — esta fatia é de
+         declaração de rota, não de guard, e meia correção que parece inteira é pior
+         que nenhuma. Quem conserta é a §6.15, junto com o no-op. #}
       <button hx-post="{{ url_for('ui.htmx_disparar_local', local_id=loc.id) }}"
               hx-target="#loc-{{ loc.id }}-coleta" hx-swap="innerHTML"
               hx-confirm="Disparar coleta de TODAS as fontes ativas do local '{{ loc.nome }}'? Gera custo Apify. Cooldown 15 min."
               class="text-loyall-700 hover:underline" title="Coleta todas as fontes ativas">🔄 coletar</button>
       <span id="loc-{{ loc.id }}-coleta" class="text-loyall-500"></span>
+        {% endif %}
       {% endif %}
       <button hx-get="{{ url_for('ui.htmx_editar_local_form', local_id=loc.id) }}"
               hx-target="#loc-{{ loc.id }}" hx-swap="outerHTML"
