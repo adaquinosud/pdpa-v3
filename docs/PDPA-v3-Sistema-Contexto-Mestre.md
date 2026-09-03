@@ -3411,6 +3411,24 @@ de ser exibida como execução, não onde ela some da vista.
   nenhum poderia ter pego isto. **A suíte fala a língua do campo; o operador fala
   a língua do checkbox.** Cobrir de verdade exige teste de RENDER (o `checked` que
   o template emite) ou de browser, não mais um POST.
+- **QUANDO A FATIA DEIXA UM DEFEITO DE FORA, ESCREVA O TESTE QUE TRAVA A
+  NÃO-CORREÇÃO.** Escopo declarado em prosa (no report, no commit, no comentário)
+  **não é executável** — a fatia seguinte não o lê, e a correção "óbvia" entra de
+  carona meses depois sem ninguém notar que era outra frente, com outro alcance e
+  outro gate. O teste que afirma *"aqui continua quebrado, de propósito"* é a única
+  forma de escopo que **falha quando alguém extrapola**.
+  Caso de origem (03/set, §4.60): a 1ª versão da fatia de tela fazia o botão do
+  local **sumir** quando todas as fontes estavam inativas — metade do §6.15 pela
+  porta dos fundos, num commit que dizia não tocar nele. O ramo `{% else %}` foi
+  restaurado com o botão velho intacto e travado por
+  `test_local_com_fontes_todas_inativas_mantem_o_botao_velho`.
+  **Regra:** toda fatia que declara "não conserta X" ganha um teste que **prende o
+  comportamento defeituoso de X**, nomeando no docstring a frente que vai consertá-lo.
+  O teste morre junto com o defeito — é a frente dona que o remove, e ter de removê-lo
+  é o sinal de que ela chegou no lugar certo.
+  ⚠️ Vale só para defeito **deixado de fora por decisão**, com frente registrada.
+  Não é licença para congelar defeito por inércia: sem frente dona no §6, o teste
+  vira cimento.
 
 ---
 
