@@ -3346,7 +3346,7 @@ docstring diz *"sem isto o cabeçalho da aba subestima o custo real"*).
 se lê de `sonda_ia_execucoes.custo_usd` **depois** do processamento.
 É a §13: campo de custo que engana é pior que campo ausente.
 
-⚠️ **E há uma TERCEIRA leitura, pior ainda** (achada pelo teste de termo, §6.22.6):
+⚠️ **E há uma TERCEIRA leitura, pior ainda** (achada pelo teste de termo, §6.22.11):
 os adapters devolvem `{vendor, modelo, texto, tokens_in, tokens_out}` e **nenhuma
 chave de custo** — quem lê o retorno do adapter vê **zero**. Só
 `sonda_ia_execucoes.custo_usd` serve.
@@ -3473,8 +3473,10 @@ existiriam. É a §8 num grau acima: a copy não reencoda um *limiar*, reencoda 
 **existência do dado**.
 
 ### 6.22 A sonda pergunta pela RAZÃO SOCIAL — e o mundo conhece outro nome
-Investigado em 03/set (read-only), levantado por Alexandre a partir do resultado da
-BEXP. **Frente registrada, não aberta.**
+Investigado em 03/set (read-only). **Frente registrada, não aberta.**
+⚠️ **Esta seção foi REESCRITA no mesmo dia** — o primeiro desenho resolvia um
+problema que não existia. O descarte está no §6.22.5, e vale tanto quanto o
+desenho: sem ele o documento guardaria duas versões da mesma coisa (§7).
 
 #### 6.22.1 O que a sonda pergunta, medido
 `_nome_empresa` (`sonda_ia/sonda.py:42-46`) devolve **`empresa.nome` literal**, e o
@@ -3483,194 +3485,168 @@ prompt é `tpl.format(empresa=emp_nome)` (`:99`):
 > *"O que é a empresa **Grupo BEXP**? Descreva-a em um parágrafo."*
 
 **Não compõe com nada.** `setor`, `site` e `razao_social` existem no modelo
-(`empresa.py:26-29`) e **nenhum é usado**. Sem cidade, sem segmento, sem site.
-
-⚠️ **Isso reclassifica o resultado da BEXP:** "Claude e GPT sem informação, Gemini
-alucinando fintech" é o comportamento esperado de um LLM recebendo uma sigla quase
-inexistente no mundo. **É artefato do termo de busca, não achado sobre a marca** — e
-não sustenta leitura de reputação. (A invenção BMW/MINI do Gemini é o estado 4 do
-§7, mas medida sobre o termo errado.)
+(`empresa.py:26-29`) e **nenhum é usado**.
 
 #### 6.22.2 Nenhuma noção de agrupamento ou local
-`sondar_empresa(empresa_id, …)` opera **só no grão empresa** — não conhece
-`Agrupamento` nem `Local`, nem por parâmetro nem por composição de prompt.
+`sondar_empresa(empresa_id, …)` opera **só no grão empresa**.
+⚠️ **Num grupo multimarca, a entidade com reputação pública não é a razão social.**
+O consumidor tem relação com **Jeep, Porsche e Audi**, e a experiência acontece na
+**loja**. **O grão em que a sonda pergunta é o único sem capital relacional** — é o
+estado 5 do §7.
+⚠️ **Espelho da §4.60.4:** lá o RA **coleta** três marcas e joga num pote
+empresa-wide; aqui a sonda **pergunta** pelo pote. Mesmo grão, direções opostas.
 
-⚠️ **Num grupo multimarca, a entidade que tem reputação pública não é a razão
-social.** O consumidor não tem relação com "Grupo BEXP"; tem com **Jeep, Porsche e
-Audi**, e a experiência acontece na **loja**. **O grão em que a sonda pergunta é o
-único que não tem capital relacional.** É o estado 5 do §7.
+#### 6.22.3 Não existe alias — mesma classe do §4.59
+Não há campo de "nome público". `Empresa.nome` é `unique`; `razao_social` é o
+**oposto** do que se precisa. ⚠️ A ficha do Google do Marcelo Magalhães chama-se
+**"Labmm"**, o `_overlap_nome` deu 0% e pulou a fonte 390 (§4.59.2). **O cadastro
+diz um nome, o mundo conhece outro, e o instrumento busca pelo do cadastro.**
+Dois instrumentos, um defeito.
 
-⚠️ **É o espelho da §4.60.4:** lá o RA **coleta** três marcas e joga num pote
-empresa-wide; aqui a sonda **pergunta** pelo pote e ignora as três marcas. Coleta e
-sondagem erram no mesmo grão, em direções opostas.
-
-#### 6.22.3 Não existe alias — e é a mesma classe do §4.59
-Não há campo de "nome público". `Empresa.nome` é `unique`; `razao_social` existe e é
-o **oposto** do que se precisa (mais formal, não menos).
-
-⚠️ **Mesma classe do descompasso que já custou uma correção manual:** a ficha do
-Google do Marcelo Magalhães chama-se **"Labmm"**, o `_overlap_nome` do resolver deu
-0% e pulou a fonte 390 (§4.59.2). **O cadastro diz um nome, o mundo conhece outro, e
-o instrumento busca pelo do cadastro.** Já custou um `place_id` à mão; agora custa
-uma sonda inconclusiva. **Dois instrumentos, um defeito.**
-
-#### 6.22.4 ✅ O TESTE DE TERMO — rodado em 03/set, e mudou a proposta
-4 termos × 1 pergunta (identidade) × 3 vendors, chamando os adapters direto, **sem
-escrever em `sonda_ia_*`**:
+#### 6.22.4 ✅ O TESTE DE TERMO — medido em 03/set
+4 termos × 1 pergunta × 3 vendors, adapters direto, **sem escrever** em `sonda_ia_*`:
 
 | Termo | Claude | GPT | Gemini |
 |---|---|---|---|
 | `Grupo BEXP` (o que a sonda usa hoje) | sem info | sem info | **logística + fintech** |
 | `BEXP Jeep` | sem info | vazio | **MINERAÇÃO** |
-| **`Porsche Center São Paulo Oeste`** | ✅ **acerta** | ✅ **acerta** | ✅ **acerta**, com detalhe correto |
+| **`Porsche Center São Paulo Oeste`** | ✅ acerta | ✅ acerta | ✅ acerta, com detalhe |
 | `BEXP` + setor + cidade | sem info | vazio | **BMW e MINI** |
 
-**Dois achados que redesenham a frente:**
+🔻 **A camada "enriquecer o prompt" CAIU, por evidência.** Setor + cidade **não
+melhorou nada** e o Gemini inventou uma **terceira** empresa. **Contexto não cria
+reconhecimento onde não há reputação** — dá mais superfície para alucinar.
+✅ **O grão de LOJA funciona**, provado contra o mesmo instrumento na mesma rodada.
+⚠️ **Estado 5 do §7 MEDIDO:** a BEXP construiu reputação nas bandeiras dos
+fabricantes e **nenhuma em nome próprio**. Achado comercial, não defeito.
 
-🔻 **A CAMADA 3 CAIU — derrubada por evidência.** Enriquecer o prompt com setor +
-cidade **não melhorou nada**: o Claude seguiu sem informação e o Gemini inventou uma
-**terceira** empresa diferente. A hipótese barata não se sustenta, e era a que eu
-recomendava fazer primeiro. **Contexto não cria reconhecimento onde não há
-reputação** — ele só dá mais superfície para o modelo alucinar em cima.
+#### 6.22.5 ❌ O DESENHO DESCARTADO — e por quê (o registro do descarte)
+**Proposto por mim, derrubado por Alexandre em 03/set.** Era:
+`UNIQUE(empresa_id, escopo_tipo, escopo_id, competencia)` + escopo nas execuções +
+**N execuções por mês** + varredura dos 5 leitores + comparação entidade a entidade.
 
-✅ **A CAMADA 2 TEM PROVA.** *"Porsche Center São Paulo Oeste"* é reconhecido pelos
-**três** modelos, com detalhe correto. **O grão que funciona é a LOJA**, não a razão
-social — e não é opinião, é medição contra o mesmo instrumento na mesma rodada.
+**Por que caiu:** ele tratava as N entidades como **N leituras paralelas** a
+reconciliar. Mas **o grão muda só O QUE SE PERGUNTA**. Depois disso: lê tudo,
+**consolida numa síntese só**, grava onde já grava, compara.
+**Uma execução, uma leitura, por empresa por competência.**
 
-⚠️ **O estado 5 do §7 está MEDIDO, não inferido:** *visível na loja, invisível no
-grupo*. **A BEXP construiu reputação nas bandeiras dos fabricantes e nenhuma em nome
-próprio.** Isso é achado comercial, não defeito de instrumento — e é o tipo de coisa
-que o cliente não sabe sobre si.
+**O que o descarte economiza:** a mudança de chave, `escopo_tipo`/`escopo_id`, a
+varredura dos 5 leitores (`ui:5398-5412`, a série, `SondaIAAvaliacao`,
+`parecer.py:727`) e a comparação loja a loja — **complexidade sem retorno**, porque
+o produto é **a frase**, não a matriz.
 
-#### 6.22.5 Proposta revista (a ordem inverteu)
-1. ~~Enriquecer o prompt com setor + cidade~~ — **DERRUBADA** pelo teste (§6.22.4).
-2. **`Empresa.nome_publico` / aliases** — aditivo e opcional, fallback para `nome`.
-   Conserta a **classe**: serve à sonda **e** ao resolver de place_id (§4.59.2).
-3. **Sondar no grão que o mundo conhece** — LOJA (provado) ou agrupamento/bandeira.
-   ⚠️ **Não cabe no schema atual:** `SondaIAExecucao` tem
-   `UNIQUE(empresa_id, competencia)` (`models/sonda_ia.py:46`), então N marcas por
-   mês não entram. É migração, e é a parte cara.
-   ⚠️ **E deixou de ser opcional:** com a camada 3 derrubada, **esta é a única que
-   funciona**. Sem ela a sonda continua perguntando pelo nome que ninguém usa.
+> **A inteligência mora na CONSOLIDAÇÃO, não no paralelismo.**
 
-#### 6.22.6-bis 🔒 DECISÕES FECHADAS (03/set) — desenho travado
-**O parâmetro é POR EMPRESA:** `Empresa.sonda_grao ∈ {grupo, marca, loja}`, uma
-configuração, e o cliente decide o quanto gasta.
-❌ **Descartada: flag por entidade** — mais granular e mais cara de operar, sem
-ganho que justifique.
+⚠️ **Lição de método:** eu desenhei para o dado e não para o produto. A pergunta que
+teria evitado é a §5 — *quem consome isso, e em que momento?* O consumidor é uma
+frase no Parecer, não um drill entidade a entidade.
 
-**(a) Default `'grupo'`, com AVISO.** É o único default que torna a migração
-**neutra em comportamento e em custo** — qualquer outro faz o próximo cron gastar
-N× sem ninguém pedir (§13). O grão certo é derivável (empresa com >1 agrupamento
-quase certamente não deve sondar por grupo), mas **derivar em silêncio é a classe
-que já custou caro aqui**: explícito vence inferido.
-⚠️ **O aviso vai na CRIAÇÃO da empresa, não só no card depois** — é lá que a
-decisão se toma. No card fica o aviso permanente quando
-`agrupamentos > 1 AND sonda_grao = 'grupo'`.
+#### 6.22.6 🔒 O DESENHO VIGENTE
+1. **`Empresa.sonda_grao ∈ {grupo, marca, loja}`** — migração aditiva.
+2. **O prompt usa o nome da ENTIDADE** em vez de `empresa.nome`: `_nome_empresa`
+   vira resolvedor de entidades; `sondar_empresa` loopa sobre elas.
+3. **`SondaIAResposta.entidade`** gravada (§6.22.7) — migração aditiva.
+4. **O consolidador recebe os N conjuntos e sintetiza UM**, agrupando por entidade.
+5. **Grão GRUPO entra sempre**, como controle (decisão b do §6.22.10).
 
-**(b) 🔒 O grão GRUPO entra SEMPRE, como controle** (+~US$ 0,12). Sem ele o
-**estado 5 do §7 fica indeclarável**: *"visível na loja, invisível no grupo"* é uma
-**comparação**, e precisa das duas leituras. É o que separa *"as lojas são
-conhecidas"* de *"as lojas são conhecidas **e o grupo não**"* — que é o achado da
-BEXP, não um detalhe.
+✅ **`SondaIAResposta` não tem `UniqueConstraint` nenhum** (`models/sonda_ia.py:80-85`
+— só CHECK e índices), então N entidades gravando
+`(execucao_id, vendor, pergunta_tipo, repeticao)` repetidos **não colidem**.
+**A `UNIQUE(empresa_id, competencia)` continua valendo e nenhum leitor quebra.**
 
-**(c) 🔒 O censo, e suas duas regras.** `grão = loja` sonda **todas as lojas
-ativas** — **censo, não amostra**. A dispersão não existe em amostra: o valor não é
-a média, é **quais** e **quantas**.
-- **Loja inativa: FORA** — não tem operação a reconhecer.
-- **Loja sem verbatim: DENTRO** — reconhecimento em IA **independe de termos
-  coletado**, e é justamente onde a IA pode saber mais que nós. ⚠️ Isto contraria o
-  gate atual `_empresas_alvo` (≥1 verbatim), que vale para a empresa e **não deve
-  ser herdado** pelo grão de loja.
+**Duas migrações aditivas, zero mudança de chave.**
+**Custo:** `N × ~US$ 0,12`, grupo incluso. BEXP grão-loja = 9 + 1 = **~US$ 1,20/mês**.
 
-**(d) Custo linear e declarado antes do clique:** `N entidades × ~US$ 0,12`.
-Grupo = 1 · marca num grupo de 4 = 4 · loja na BEXP = 9.
-⚠️ **Linear tem cauda:** empresa de 300 lojas = **US$ 36** e 8.100 chamadas a
-vendor num clique. Exige o padrão do RA — disparo assíncrono com registro de
-execução + teto de alerta análogo ao `RA_CAP_ALERTA_BOTAO`.
+#### 6.22.7 A única coisa que a simplificação quebra: a ATRIBUIÇÃO
+⚠️ **`processar_sonda` trabalha do BANCO, não da memória.**
+`classificar_avaliacoes(execucao_id)`, `sintetizar_leitura(execucao_id)` e
+`cruzar_defasagem(execucao_id)` partem todas do id (`classificador.py:241-243`) —
+o consolidador **relê** as respostas depois.
 
-**A leitura passa a ter DUAS camadas:**
-- **N leituras por entidade** — persistidas, o insumo. Cada uma sozinha é pobre.
-- **UMA leitura de DISPERSÃO** — **o produto**: *"das 9 lojas, 3 são reconhecidas
-  pelos três modelos e 6 são invisíveis; a reputação está nas bandeiras, não no
-  grupo"*. Não substitui as N: calcula-se a partir delas, e o drill precisa de cada
-  uma para nomear **quais**. Mesma arquitetura do Mapa de Lastro.
+Sem atribuição gravada, o Sonnet recebe 27 respostas sobre "Porsche Center"
+misturadas com 27 sobre "Grupo BEXP" **sem rótulo** — e a síntese que É o produto
+(*"as lojas são reconhecidas, o grupo não"*) exige justamente distingui-las.
 
-#### 6.22.6-ter O schema, e o que a migração toca
-**Chave nova:** `UNIQUE(empresa_id, escopo_tipo, escopo_id, competencia)`, com
-`escopo_tipo IN ('empresa','agrupamento','local')` — **o padrão que a casa já usa**
-(o `Respondente` guarda `escopo_tipo`/`escopo_id`, não `local_id` solto).
+⚠️ **E não dá para inferir do texto:** no estado **INVISÍVEL** a resposta é *"não
+tenho informação sobre essa empresa"* — **o nome não aparece**. A atribuição por
+texto falharia **exatamente onde o achado mora**.
 
-✅ **A migração toca UMA tabela.** `SondaIAResposta`, `SondaIAAvaliacao` e
-`SondaIALeitura` penduram todas em `execucao_id` (a avaliação via `resposta_id`) —
-**os filhos herdam o escopo pela FK**, nenhuma coluna nova neles.
-Backfill determinístico: linhas existentes → `escopo_tipo='empresa'`,
-`escopo_id=empresa_id`.
+**Conserto:** `SondaIAResposta.entidade` (String, nullable) = **o termo perguntado**.
+Sem FK, sem UNIQUE nova, sem tocar chave. E fecha de graça um buraco: hoje **não
+gravamos em lugar nenhum o que foi perguntado** — nem auditar a sonda de ontem dá.
 
-⚠️ **Armadilha da migração:** `escopo_id` tem de ser **NOT NULL** (= `empresa_id` no
-escopo empresa). NULL faz o Postgres tratar as linhas como distintas e **a UNIQUE
-não segura** — voltaria a permitir duas execuções do mesmo grupo no mesmo mês.
+#### 6.22.8 ⚠️ DECISÃO PENDENTE — `cruzar_defasagem` sobre a MISTURA dos grãos
+**Não é efeito colateral aceito: é decisão em aberto, e contamina o Parecer.**
 
-⚠️ **A maior parte do trabalho NÃO é a migração — é a varredura dos leitores**, que
-todos assumem uma execução por empresa/mês:
+Com N entidades numa execução, `cruzar_defasagem(execucao_id)` cruza IA ×
+diagnóstico sobre o **pool** das entidades. Se **9 lojas dizem "não sei" e o grupo
+diz algo errado**, a defasagem vira **a do grupo com cara de empresa** — e a
+defasagem alimenta `_defas("ia_otimista"/"ia_atrasada")`, que são **os blocos
+doura/ecoa do Parecer** (§6.21). O artefato do termo entraria no impresso.
 
-| Onde | O que quebra com N |
-|---|---|
-| `ui/__init__.py:5398-5403` | `.order_by(competencia.desc()).first()` → escolhe **uma arbitrária** entre N (o `cands[0]` da §6.9, de novo) |
-| `ui/__init__.py:5406-5412` | `ultima`/`ultima_falhou` → idem |
-| série de `SondaIALeitura` (`:5417+`) | filtra por `empresa_id` → **N linhas por competência**, a série vira serrilha |
-| `SondaIAAvaliacao` | tem `empresa_id` mas **não tem `execucao_id`** → agregar por empresa **mistura entidades**; tem de passar por `resposta → execucao` |
-| `parecer.py:727-728` | consome `_explorar_reputacao_ia` → herda tudo acima |
+**Duas opções, a decidir ANTES de codar:**
+- **(i)** cruzar com **todas** as entidades (pool) — simples, e mistura.
+- **(ii)** cruzar **só com as entidades que RESPONDERAM** — exclui o ruído de quem
+  não reconhece, e mantém a invisibilidade como leitura própria (§7), não como voto.
 
-#### 6.22.6-quater 🔒 Fatiamento — ordem decidida por Alexandre
-1. **§6.21 — o discriminador** (não-sondado × não-reconhecido). **PRIMEIRA.**
-   ⚠️ **A ordem foi INVERTIDA em relação à minha proposta**, e o argumento do
-   Alexandre prevalece: **é ela que destrava a operação** — com o discriminador, o
-   Parecer da BEXP declara corretamente e a conversa das concessionárias acontece
-   **sem esperar a migração**. (Eu punha o custo dos adapters primeiro por ser
-   pré-requisito do botão — mas o botão está fora das três fatias, então não
-   bloqueia nada agora.) E o resto do raciocínio continua: consertar o
-   discriminador em **1** entidade é ordens de magnitude mais barato que em **N**.
-2. **§6.22.6 — o custo dos adapters.** Isolada, pequena, pré-requisito de qualquer
-   tela que mostre custo.
-3. **§6.22 — o grão.** Migração + varredura dos 5 leitores + parâmetro + leitura de
-   dispersão. A cara, e chega num terreno onde os estados já estão separados.
+⚠️ **Gate obrigatório na fatia:** antes/depois nos moldes da §4.21, contando quantos
+subpilares mudam de rótulo de defasagem em cada empresa com sonda. **Muda um número
+que já existe e já foi ao cliente.**
 
-⚠️ **Fora das três:** o botão da §6.20. Depende da fatia 2 (custo) e seu requisito
-de *escopo travado por construção* **muda de forma** depois da fatia 3 — "esta
-empresa" passa a significar "N entidades desta empresa". Construir antes é
-construir duas vezes.
+#### 6.22.9 🔒 REQUISITO (não melhoria) — assíncrono com registro de execução
+BEXP em grão-loja = 10 entidades × 3 vendors × 3 perguntas × 3 reps = **270
+chamadas**. **Não cabe em request síncrono**, e o padrão já existe no RA:
+disparo em daemon-thread + **linha de execução** para o poll acompanhar
+(`disparar_aberturas_fonte_async` + `ColetaExecucao`).
+**Entra na PRIMEIRA fatia da §6.22**, não depois. Sem isso o botão da §6.20 nasce
+estourando o worker.
+⚠️ E a §7 vale: **deploy mata daemon-thread** — a sonda longa precisa do mesmo
+cuidado que a coleta.
 
-#### 6.22.6 ⚠️ Um defeito DO PRÓPRIO TESTE — e ele contamina o §6.20
+#### 6.22.10 🔒 As três decisões que SOBREVIVERAM à simplificação
+Confirmadas em 03/set — são decisões de método, não arquitetura, e o descarte do
+§6.22.5 não as toca:
+1. **Default `'grupo'`, com AVISO na CRIAÇÃO da empresa** (não só no card depois —
+   é lá que a decisão se toma). Único default neutro em comportamento e custo;
+   derivar em silêncio é a classe que já custou caro aqui.
+2. **Grão GRUPO sempre, como controle** (+~US$ 0,12). Sem ele o **estado 5 do §7
+   fica indeclarável** — *"visível na loja, invisível no grupo"* é comparação.
+3. **Censo, não amostra:** `grão = loja` sonda **todas as lojas ativas**.
+   **Loja inativa: FORA.** **Loja sem verbatim: DENTRO** — reconhecimento em IA
+   independe de termos coletado, e é onde a IA pode saber mais que nós. ⚠️ Contraria
+   o gate `_empresas_alvo` (≥1 verbatim), que **não deve ser herdado** pelo grão.
+
+#### 6.22.11 ⚠️ O defeito do custo dos adapters (achado pelo teste de termo)
 O teste imprimiu **custo US$ 0,0000**. **Não foi grátis — não foi medido.**
 Os adapters (`sonda_ia/adapters.py:44, 76, 107`) devolvem
-`{vendor, modelo, texto, tokens_in, tokens_out}` — **nenhuma chave de custo**. O
-custo é derivado uma camada acima, por `_custo(modelo, tin, tout)` contra a tabela
-`PRECO` (`sonda.py:37-39`).
+`{vendor, modelo, texto, tokens_in, tokens_out}` — **nenhuma chave de custo**; ele é
+derivado uma camada acima por `_custo(modelo, tin, tout)` (`sonda.py:37-39`).
 
-**São agora TRÊS leituras de custo, e duas mentem:**
-
-| Fonte | O que devolve | Veredito |
+| Fonte | Devolve | Veredito |
 |---|---|---|
-| retorno do adapter | só tokens | **zero** — não tem custo nenhum |
-| retorno de `rodar_sonda_mensal` | só os 3 vendors | **subestima** — falta o Sonnet |
+| retorno do adapter | só tokens | **zero** |
+| retorno de `rodar_sonda_mensal` | só os 3 vendors | **subestima** (falta o Sonnet) |
 | `sonda_ia_execucoes.custo_usd` | vendors + Sonnet | ✅ **o completo** |
 
-⚠️ **Vale para o botão da §6.20:** ler o retorno da função exibe número errado; ler
-o retorno do adapter exibe **zero**. Só a linha da execução serve. É a §13 no seu
-pior formato — *campo de custo que fica nulo é pior que não existir*, aqui em duas
-camadas de uma vez.
+⚠️ Vale para o botão da §6.20: ler o adapter exibe **zero**. É a §13 no pior
+formato — custo **negado**, não omitido.
 
-#### 6.22.5 🔒 Trava de medição
+#### 6.22.12 🔒 Trava de medição
 **Nada disto se mede contra a sonda de hoje.** A comparação honesta é
-**termo-novo × termo-novo na mesma rodada**, nunca contra um resultado que já
-sabemos ser artefato do termo (§4: não calibrar contra a base que está na mão).
+**termo-novo × termo-novo na mesma rodada** (§4).
 
-**Teste sem tocar no cadastro:** os adapters são injetáveis e `PERGUNTAS` é dict de
-módulo — dá para chamar os 3 vendors direto com qualquer termo **sem escrever nada**
-em `sonda_ia_*`. 4 termos × 1 pergunta × 3 vendors ≈ **US$ 0,05** (pela medição de
-US$ 0,0044/resposta). O heredoc está no transcript de 03/set; se virar rotina,
-promover a `scripts/`.
+#### 6.22.13 🔒 Fatiamento — ordem decidida por Alexandre
+1. **§6.21 — o discriminador.** ⚠️ **Ordem INVERTIDA em relação à minha proposta**,
+   e o argumento do Alexandre prevalece: é ela que **destrava a operação** — o
+   Parecer da BEXP declara certo **sem esperar a migração**. (Eu punha o custo dos
+   adapters primeiro por ser pré-requisito do botão, mas o botão está fora das três
+   fatias.) O resto do meu raciocínio continua: consertar o discriminador em **1**
+   entidade é ordens de magnitude mais barato que em **N**.
+2. **§6.22.11 — o custo dos adapters.** Isolada, pré-requisito de qualquer tela de custo.
+3. **§6.22 — o grão**, com o assíncrono (§6.22.9) dentro e o gate da defasagem (§6.22.8).
+
+⚠️ **Fora das três:** o botão da §6.20 — depende da fatia 2 e muda de forma depois
+da 3.
 
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
