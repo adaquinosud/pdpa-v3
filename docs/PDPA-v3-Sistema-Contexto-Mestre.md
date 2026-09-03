@@ -3078,6 +3078,51 @@ conhecido e **deixa o no-op de pé** em todos os outros caminhos que chamam
 É a §9 do `CLAUDE.md` — o lugar de corrigir é onde a ausência de execução deixa
 de ser exibida como execução, não onde ela some da vista.
 
+### 6.16 Consumir o gerador do Apify em vez de materializar em lista (degrau 2)
+Frente própria, **registrada e não aberta** (03/set). Citada por comentário em
+`reclame_aqui.py` (o aviso do `RA_CAP_THREAD_SEGURO`) — esta seção existe para que
+aquela referência aponte para algo.
+
+`iter_dataset` (`apify.py:144-166`) **já é gerador**, paginado de 1.000. Mas
+`run_and_collect` (`:227-228`) faz `list(iter_dataset(ds))` e **materializa o
+dataset inteiro**; `coletar_threads` depois só faz `for item in items:` — nunca
+precisou da lista.
+
+⚠️ **É aqui que o OOM de julho realmente morava.** O §4.27.1 concluiu *"o OOM era o
+PAYLOAD, não o volume"* e a conclusão está certa, mas incompleta: o payload só
+derruba o worker porque é **multiplicado pelo dataset inteiro em memória**. Com
+consumo lazy, o pico cai para ~1 página, e o tamanho do item deixa de governar.
+
+**O que isso destrava:** foi o medo do OOM que fez o modo padrão nascer sem a
+thread (§4.27.2) e que hoje sustenta o aviso acima de cap 250. Resolvido, o teto
+sai do caminho e backfill grande volta a ser possível pelo worker.
+**Gate quando for implementar:** medir o pico de memória de um run com thread em
+dataset grande, antes e depois — a afirmação "cai para 1 página" é raciocínio, não
+medição.
+
+### 6.17 "Padrão" × "completo" mandam o MESMO input — os dois modos ainda existem?
+Achado de 03/set, **não é problema**: registrado e parado por decisão.
+
+Depois de `9a3d298` (§4.60.6), `includeInteractions` é `True` incondicional. Logo
+os dois modos produzem **input idêntico ao actor** — mesmo payload, mesmo custo,
+mesmo texto. A diferença sobrevivente é só de **cadência e arquitetura**:
+
+| | padrão | completo |
+|---|---|---|
+| input do actor | idêntico | idêntico |
+| `planejar_coortes` | `{"acao":"amostra"}`, LATEST+cap | coorte mensal / mega |
+| cron | `pdpa-ra-aberturas` (semanal) | `pdpa-ra-coortes` (mensal) |
+| ledger de coorte | não | sim |
+
+**A pergunta que fica:** se o que separa os modos é a cadência, o nome deveria ser
+da cadência — não de "quanto se traz", que virou igual. Era o **degrau 3** da
+proposta de 03/set, e continua fechado.
+
+⚠️ **Não abrir junto com outra coisa.** Renomear/fundir modo mexe em
+`ra_modo`, nos dois crons, no card da fonte e no `planejar_coortes` — e o §7 já
+cobrou caro por conceito que vive em três lugares. Quando abrir, é frente inteira,
+com inventário por grão (§7).
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **Escala/valência = sempre 1 a 5** (5★ prom · 4-3★ conv · 2-1★ detr). Pergunta
