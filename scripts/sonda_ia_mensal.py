@@ -8,7 +8,16 @@ IA×diagnóstico). Idempotente por competência (não re-cobra no mesmo mês).
   --competencia YYYY-MM : força a competência (default: mês atual).
   --dry-run             : lista as empresas alvo, SEM sondar (custo zero).
 
-Roda no cron do Render (``run_sonda_ia.sh`` é o wrapper). Custo ~US$0,55/empresa.
+Roda no cron do Render (``run_sonda_ia.sh`` é o wrapper).
+
+Custo ~US$0,12/empresa — MEDIDO em 03/set na BEXP (US$0,118, 27 respostas =
+3 modelos × 3 perguntas × 3 reps). ⚠️ O valor anterior deste docstring era
+US$0,55, ~4,7× o medido, e nunca havia sido conferido. Varia com o tamanho da
+resposta dos 3 vendors: é ordem de grandeza, não teto.
+⚠️ O ``custo_usd`` que ``rodar_sonda_mensal`` DEVOLVE conta só os 3 vendors — o
+Sonnet da classificação/síntese é somado depois, direto na linha da execução
+(``classificador.py:245-252``). O número completo se lê de
+``sonda_ia_execucoes.custo_usd``, não do retorno da função.
 """
 
 from __future__ import annotations

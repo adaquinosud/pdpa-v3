@@ -757,7 +757,7 @@ modelos discordam bastante). *Série temporal*: % de subpilares alinhados (IA �
 diagnóstico) por competência.
 
 **Operação.** Cron mensal (`run_sonda_ia.sh`, dia 1). N repetições por
-pergunta/modelo (respostas variam — agregadas). ~US$0,55/empresa. Vazio até a 1ª
+pergunta/modelo (respostas variam — agregadas). ~US$0,12/empresa (medido: US$0,118 na BEXP, 27 respostas, 03/set). ⚠️ Varia com o tamanho da resposta dos 3 vendors — é ordem de grandeza, não teto. Vazio até a 1ª
 sondagem.
 
 ---

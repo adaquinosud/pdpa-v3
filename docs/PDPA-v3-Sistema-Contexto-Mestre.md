@@ -3290,6 +3290,131 @@ as empresas sem pilar mensurável (§6.18).
 ⚠️ Calcula sem os filtros do painel (período/fonte/escopo) — serve para **ordenar o
 parque**. A fidelidade foi conferida contra a tela na empresa 27 e bateu.
 
+### 6.20 🔥 A sonda de IA não tem botão — e a empresa nova fica um mês afirmando sobre ela
+Frente registrada em 03/set. **O caso de hoje é o argumento:** a sonda foi
+necessária para a BEXP, **não havia onde rodá-la**, e a saída foi shell de
+produção — exatamente o que a §16 diz que deveria ser exceção, não caminho.
+
+#### 6.20.1 O estado, medido
+Varredura das quatro superfícies possíveis:
+
+| Superfície | Resultado |
+|---|---|
+| UI (`src/ui/__init__.py`) | só **leitura** (aba, série por competência) |
+| API (`src/api/`) | **zero** ocorrências de "sonda" |
+| Flask CLI | **25 comandos** registrados, **nenhum** de sonda |
+| Chamadores de `rodar_sonda_mensal` | **um**: `scripts/sonda_ia_mensal.py` |
+
+Único gatilho: cron `pdpa-sonda-ia`, `"0 5 1 * *"` — **dia 1, mensal**
+(`render.yaml:108`). Alvo = `_empresas_alvo()`, toda empresa com ≥1 verbatim, sem
+flag e sem opt-in.
+
+#### 6.20.2 ⚠️ Não é conveniência — é uma janela de um mês afirmando sobre o vazio
+**Empresa cadastrada no dia 2 fica até o dia 1 seguinte sem sonda.** E nessa
+janela o Parecer dela sai afirmando sobre sondagem inexistente — os quatro blocos
+da §6.21. **A BEXP é exatamente esse caso, e é a empresa nova onde a conversa
+comercial está.** Os dois defeitos se multiplicam: um cria a ausência, o outro a
+preenche com conclusão.
+
+#### 6.20.3 Os três requisitos do botão (travados)
+1. 🔒 **Custo declarado ANTES do clique** (§13). Mesmo padrão do card de RA, que já
+   põe o valor no `hx-confirm`. **~US$ 0,12/empresa** — medido em 03/set na BEXP
+   (US$ 0,118, 27 respostas = 3 modelos × 3 perguntas × 3 reps).
+   ⚠️ O docstring dizia **US$ 0,55**, ~4,7× o medido, e nunca havia sido conferido.
+   Corrigido no mesmo commit desta seção, nas **duas** cópias (`sonda_ia_mensal.py`
+   e `DESCRITIVO_EXPLORAR.md`) — §7, e a regra dos dois manuais.
+2. 🔒 **Idempotência VISÍVEL.** `sondar_empresa` já pula competência concluída e não
+   re-cobra (`sonda.py:60-61`) — mas **isso não aparece na tela**, e o operador
+   clica duas vezes achando que gastou de novo. O botão declara o estado da
+   competência corrente ANTES do clique: *"já sondada neste mês — rodar não
+   re-cobra"* × *"não sondada — vai cobrar ~US$ 0,12"*.
+3. 🔒 **Escopo travado por CONSTRUÇÃO, não por parâmetro.** Hoje o que separa
+   US$ 0,12 de ~US$ 13 é lembrar de passar `empresa_ids=[27]` a
+   `rodar_sonda_mensal`. **Num botão de empresa isso não pode ser um argumento** —
+   quem esquecer o filtro não pode conseguir rodar o parque.
+   ✅ **As primitivas por-empresa já existem:** `sondar_empresa(empresa_id,
+   competencia, …)` (`sonda.py:49`) e `processar_sonda(execucao_id, …)`. O botão
+   compõe as duas e **nunca chama `rodar_sonda_mensal`** — a função de fan-out fica
+   sendo do cron, e só.
+
+#### 6.20.4 ⚠️ O número que o botão NÃO pode exibir
+`rodar_sonda_mensal` devolve `stats["custo_usd"]` somando só o retorno de
+`sondar_empresa` — **os 3 vendors**. O Sonnet da classificação/síntese é somado
+**depois**, direto na linha da execução (`classificador.py:245-252`, cujo próprio
+docstring diz *"sem isto o cabeçalho da aba subestima o custo real"*).
+**Se o botão mostrar o retorno da função, mostra número errado.** O custo completo
+se lê de `sonda_ia_execucoes.custo_usd` **depois** do processamento.
+É a §13: campo de custo que engana é pior que campo ausente.
+
+#### 6.20.5 Em aberto
+- Onde o botão mora: card da empresa (ao lado do toggle de scorecard RA) ou a
+  própria aba de Reputação em IA, que é quem exibe o resultado.
+- Se o disparo é síncrono ou daemon-thread. ⚠️ 27 respostas × 3 vendors não é
+  instantâneo — e daemon-thread no worker web morre no deploy (§7). O padrão do
+  RA (`disparar_aberturas_fonte_async` + `ColetaExecucao` + poll) já resolve isto.
+- Se vale um gate de "empresa sem verbatim" — sondar empresa sem base gera leitura
+  que não tem contra o que cruzar.
+
+### 6.21 🔥 O Parecer AFIRMA sobre sondagem de IA inexistente — 4 superfícies
+Frente registrada em 03/set (diagnóstico read-only sobre o Parecer da BEXP).
+**Vale para TODA empresa sem sonda**, não só a BEXP — e a §6.20 mostra que isso
+inclui toda empresa nova até a virada do mês.
+
+⚠️ **É a §9 na forma mais cara: ausência preenchida com afirmação, num impresso que
+vai ao cliente.** A peça **declara** a ausência e **conclui** sobre ela na mesma
+página — o `{% else %}` que escreve *"Sem sondagem de IA ainda"* fica a seis linhas
+das duas colunas que afirmam o que a sonda teria dito.
+
+#### 6.21.1 O inventário, por grão (não é uma correção, são quatro)
+| # | Superfície | Onde | Natureza |
+|---|---|---|---|
+| 1 | Manchete do Ato 2 — *"Eis o que elas respondem sobre você"* | `parecer.html:328` | literal, **sem guard** |
+| 2 | Coluna *"Onde a IA doura"* | frase literal em `parecer.py:978-979` | guard só no prefixo |
+| 3 | Coluna *"Onde a IA ecoa o passado"* | frase literal em `parecer.py:983` | guard só no prefixo |
+| 4 | Linha da vitrine na página 1 | `parecer.html:179` + `parecer.py:894` | dado degrada certo, **a copy não** |
+
+**Nenhuma é saída de LLM** — são strings fixas no template e no Python. Logo não é
+"o prompt não recebeu o estado de ausência": é **copy que assume sondagem**.
+
+#### 6.21.2 ⚠️ O guard existe e protege a parte errada
+`_defas("ia_otimista")` devolve `[]` sem sonda → `doura.subpilares` vira `None` → o
+`{% if %}` do template omite **o nome do subpilar em negrito**… e **imprime a frase
+assim mesmo**.
+
+> **O subpilar é o detalhe; a frase é a conclusão. O mecanismo guarda o detalhe e
+> publica a conclusão.**
+
+Isso é **pior que não ter guard**: dá aparência de tratamento. E o padrão se repete
+na página: dos 4 elementos do Ato 2, **dois têm guard** (encaminhamentos,
+divergência) e **dois não** (manchete, colunas) — §7, a régua tem grãos.
+
+Na página 1 é o dual: `n_concorrentes` degrada **corretamente** para `"—"`
+(`parecer.py:894`), e a copy em volta o interpola em *"encaminham o insatisfeito
+para **—** concorrentes nomeados"*. ⚠️ E a primeira metade — *"as IAs já ecoam as
+cobranças"* — afirma sobre a sonda **antes** do travessão: mesmo com o número
+consertado, a frase segue afirmando o não medido.
+
+#### 6.21.3 O irmão do Ato 1 — dedução vendida como medição
+`parecer.html:197`: *"As IAs sabem o que você vende. Não sabem quem você é."*
+Literal fixo, logo depois de um bloco cujos três campos são condicionais. Sem
+missão/visão/valores cadastrados, o bloco de cima renderiza vazio e a frase de
+baixo afirma sobre as IAs assim mesmo.
+⚠️ Aqui a ausência é **nossa** (cadastro), não da sonda. O correto é declarar:
+*"a empresa não tem missão, visão e valores públicos — não há o que confrontar"* —
+estado declarado, que **é informação** (diz o que resolve).
+
+#### 6.21.4 A máquina de bloquear JÁ EXISTE nesta peça
+`bloquear_se_acao_stale` (`parecer.py:441-444`, Fatia 3B): *"o Parecer não imprime
+remédio de leitura stale — bloqueia"*. **O gate de bloqueio já é usado neste
+impresso** — falta a dimensão SONDA. Pela §10, sem sonda o Ato 2 **bloqueia**, não
+degrada: ressalva de rodapé num PDF é pior que não gerar.
+
+#### 6.21.5 O padrão que atravessa as quatro
+**O dado degrada corretamente e a copy não sabe disso.** `None`, `[]` e `"—"` são
+produzidos com cuidado — e depois interpolados em frases escritas assumindo que
+existiriam. É a §8 num grau acima: a copy não reencoda um *limiar*, reencoda a
+**existência do dado**.
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **Escala/valência = sempre 1 a 5** (5★ prom · 4-3★ conv · 2-1★ detr). Pergunta
