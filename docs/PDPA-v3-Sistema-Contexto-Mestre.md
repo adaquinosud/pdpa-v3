@@ -3167,6 +3167,84 @@ proposta de 03/set, e continua fechado.
 cobrou caro por conceito que vive em três lugares. Quando abrir, é frente inteira,
 com inventário por grão (§7).
 
+### 6.18 🔥 O TETO DO LASTRO NÃO TEM PISO DE VOLUME — 15 verbatins governam a manchete
+Achado em 03/set, no painel da BEXP já corrigida. **Frente registrada, NÃO aberta.**
+
+**O caso:** **Teto do Lastro = 0,0** definido por **15 verbatins** de Precisão, numa
+base de **1.006**. No mesmo painel, **Índice PDPA = 85,8**. Os dois se contradizem
+na cara do executivo, e ele vai perguntar qual vale.
+
+#### 6.18.1 Existe piso hoje? NÃO
+`_base_indice` (`api/painel.py:599-628`) só exige `total > 0` para um pilar entrar
+na eleição do pior — **um pilar com 1 verbatim é "mensurável"**. O único guard é
+`total_volume == 0`, que devolve `base 0.0`, e aí cai no defeito irmão (§6.18.4).
+
+#### 6.18.2 São a mesma agregação? NÃO — e é por isso que divergem
+Não é bug: são **duas operações diferentes sobre os mesmos 4 pilares**.
+
+| | Índice PDPA (`painel.py:679`) | Teto do Lastro (`painel.py:631`) |
+|---|---|---|
+| Fórmula | `(prom + conv·0,5) / (prom+conv+det) × 100` | `_normalizar_indice(min(pior_pilar, média))` |
+| Operação | **proporção ponderada por volume** | **mínimo** |
+| 15 em 1.006 | dilui (é 1,5% do denominador) | **decide sozinho** |
+
+⚠️ **O `min` é cego a volume POR CONSTRUÇÃO**, e isso é deliberado: o docstring diz
+que ele "impede que um pilar saturado (Pa1 9.99, alto volume) mascare um pilar
+crítico via média". O argumento anti-masking é bom — **mas pressupõe que os dois
+pilares têm peso probatório comparável.** Com 15 contra ~900, a premissa não vale,
+e o remédio contra o masking vira a doença: o ruído mascara a operação.
+
+#### 6.18.3 ⚠️ A ASSIMETRIA — a afirmação mais forte tem o requisito mais fraco
+| Afirmação | Governa o quê | Piso de volume |
+|---|---|---|
+| "este pilar tem FERIDA INTERNA" (Fatia 7) | nada — é declaração secundária | **≥ 30** |
+| "o TETO da operação é 0,0" | a manchete, a faixa, o Leaderboard | **nenhum** |
+
+O docstring de `pilares_com_ferida_interna` (`painel.py:538-554`) já escreveu a
+regra que falta aqui: *"Subpilar ABAIXO do piso NÃO gera declaração e NÃO vira
+'saudável': apenas **não sustenta veredito**"* — com o piso sendo
+`VOLUME_CONFIANCA_ALTA` (30), *"o MESMO piso que o sistema já usa no grão subpilar,
+não número novo"*.
+
+**Quinze manifestações sustentam SINAL, não VEREDITO que governa o indicador
+principal.** A Fatia 7 acertou o raciocínio e o aplicou ao grão de baixo; o grão de
+cima ficou de fora. É a §7 — *a régua tem grãos, e o inventário é por grão*.
+
+#### 6.18.4 O irmão: base AUSENTE também vira 0,0
+`_base_indice` com `total_volume == 0` devolve `(0.0, None, 0.0)` →
+`_normalizar_indice(0.0)` = **0,0**, exibido na faixa "crítico". Empresa **sem
+medição nenhuma** recebe o pior veredito possível, indistinguível de uma empresa
+medida e ruim. É a §9 do `CLAUDE.md` no exemplo que ela própria cita.
+**Mesma frente:** base ausente e base insuficiente produzem o mesmo defeito —
+veredito sem lastro — e o conserto é o mesmo gesto.
+
+#### 6.18.5 O que declarar no lugar (proposta, não decidida)
+`calcular_indice_geral` devolve **`None`**, e o caller **declara o estado**:
+
+> **Teto do Lastro — não determinado.** Precisão tem 15 manifestações (piso: 30).
+> Abaixo do piso o pilar não sustenta veredito; acima dele, o Teto volta a ser
+> calculado.
+
+Honesto, e **é informação**: diz o que falta e o que resolve. O 0,0 exibido como
+crítico é veredito sem lastro — pior que o vazio, porque parece medição.
+
+#### 6.18.6 Em aberto — decidir ANTES de codar
+1. **Piso 30 reusado ou piso próprio?** Reusar `VOLUME_CONFIANCA_ALTA` é
+   §7-compatível (não inventa número) e cita precedente da Fatia 7.
+2. **Se o pior pilar não passa no piso, o Teto usa o pior ENTRE OS QUE PASSAM, ou
+   não determina?** São semânticas diferentes: a primeira mantém um número (e pode
+   esconder o pilar frágil); a segunda declara o buraco. ⚠️ Escolher a primeira sem
+   declarar o pilar excluído recria o masking que o `min` existe para evitar.
+3. **`None` não tem faixa.** O que a manchete, o card e o Leaderboard mostram? O
+   Índice PDPA já é a manchete desde `4744c9f`, o que reduz o dano.
+4. ⚠️ **Muda o Teto de TODAS as empresas** → exige gate antes/depois nos moldes da
+   §4.21, com a contagem de quantas mudam de faixa.
+
+#### 6.18.7 Medição que falta (read-only, US$ 0)
+Qual a **menor base que já definiu Teto** no parque — por empresa, o volume do
+pilar que ganhou o `min`. Sem isso não se sabe se a BEXP é exceção ou regra, e o
+número muda a urgência. O probe está no transcript de 03/set.
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **Escala/valência = sempre 1 a 5** (5★ prom · 4-3★ conv · 2-1★ detr). Pergunta
