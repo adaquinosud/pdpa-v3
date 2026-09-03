@@ -142,4 +142,12 @@ def adaptar_reclamacao(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "autor_origem_id": (str(item["userId"]) if item.get("userId") is not None else None),
         # Voz do cliente → o ÚNICO verbatim de valência do caso (a queixa inicial)
         "descricao_texto": descricao,
+        # ⚠️ GUARD (§4.60.6): o actor só devolve a descrição INTEIRA quando abriu a
+        # página da reclamação. Sem isso, `descriptionText` é o `snippet` da listagem
+        # (~103 chars com reticências) e `interactionsCount` vem 0 mesmo em reclamação
+        # respondida. Campo garantido pelo contrato e que nunca líamos — se o
+        # líssemos, o truncamento teria sido erro visível na 1ª coleta, não na 55ª.
+        # None (campo ausente numa versão futura do actor) NÃO é tratado como falso:
+        # ausência de sinal não é sinal de ausência; quem decide é o coletor.
+        "detalhe_aberto": item.get("detailFetched"),
     }

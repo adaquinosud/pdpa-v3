@@ -50,6 +50,12 @@ CUSTO_START_USD = 0.005  # apify-actor-start (por GB, mín. 1) — taxa fixa por
 # Dois-modos: scorecard-only (semanal, barato) = perfil + start; threads-coorte
 # (mensal) = reclamações-do-mês × custo/caso + start (sem perfil, já coletado no modo A).
 CUSTO_SCORECARD_USD = round(CUSTO_PERFIL_USD + CUSTO_START_USD, 3)  # 0.055/empresa/semana
+# ⚠️ Teto de cap abaixo do qual coletar COM thread é seguro no worker web. Acima
+# dele o run segue trazendo a thread (nunca degradamos para texto truncado — §9),
+# mas loga aviso: o OOM de julho (§4.27.1) era payload-com-thread em dataset grande,
+# agravado por `run_and_collect` materializar tudo em lista (frente §6.16). 250 é o
+# default de `ra_max_casos` e menos de uma página do dataset (page_size 1000).
+RA_CAP_THREAD_SEGURO = 250
 RECOLETA_IDADE_DIAS = 7  # cadência semanal
 ABANDONO_DIAS = 90  # não-terminal sem mudança → abandonado
 # Corte de coleta: 15 meses (padrão da casa p/ comentários — COLETA_JANELA_MESES).
@@ -222,13 +228,46 @@ def _upsert_caso(
         caso.ultima_coleta = agora
         # Backfilla a coorte em casos pré-Fatia-3 re-tocados (criado_em_origem estável).
         caso.coorte_ano_mes = _coorte_ano_mes(caso.criado_em_origem)
+        # ── UPGRADE DO TEXTO (§4.60.6) ───────────────────────────────────────────
+        # Antes desta frente o verbatim só nascia no ramo `caso is None`: recoletar um
+        # caso existente atualizava status/thread e NUNCA tocava o texto. Como o modo
+        # padrão gravou ~103 chars (o snippet), os verbatins truncados eram
+        # irrecuperáveis por recoleta — pagava-se o run e o texto continuava pobre.
+        # Regra: só SOBE. Substitui quando o texto novo é estritamente MAIOR — nunca
+        # troca um texto íntegro por um resumo, mesmo que uma coleta futura venha
+        # pobre. E a troca invalida a leitura na MESMA transação (subpilar volta a
+        # NULL → o pos-coleta reclassifica; `reclassificado_em` faz `ratios.py:115`
+        # recomputar os meses tocados). Sem isso o texto novo ficaria com a
+        # classificação do trecho — fóssil silencioso, §12.
+        # ⚠️ NÃO apaga o embedding: a PK de VerbatimEmbedding é (verbatim_id, modelo),
+        # sem hash do texto, então o vetor velho sobrevive. A limpeza é do passo de
+        # invalidação (script dedicado) — declarada, não esquecida.
+        # ⚠️ Sinaliza, NÃO retorna aqui: o bloco de hash_thread abaixo é o que zera
+        # `caso.desfecho` para o classificador re-derivar — sair antes dele deixaria
+        # de pé justamente a conduta fabricada que esta frente veio corrigir.
+        texto_trocado = False
+        texto_novo = (norm.get("descricao_texto") or "").strip()
+        if texto_novo and len(texto_novo) >= MIN_CHARS_PARA_PROCESSAR:
+            vb = (
+                s.query(Verbatim)
+                .filter(
+                    Verbatim.fonte_id == fonte_id,
+                    Verbatim.review_id_externo == norm["origem_id"],
+                )
+                .first()
+            )
+            if vb is not None and len(texto_novo) > len(vb.texto or ""):
+                vb.texto = texto_novo
+                vb.subpilar = None
+                vb.reclassificado_em = agora
+                texto_trocado = True
         if not preservar_thread and norm["hash_thread"] != caso.hash_thread:
             caso.hash_thread = norm["hash_thread"]
             caso.thread_mudou_em = agora
             # Thread mudou → a classificação de desfecho ficou obsoleta. Zera pra
             # o classificador (F3) reprocessar (gatilho = desfecho IS NULL).
             caso.desfecho = None
-        return "atualizado"
+        return "atualizado_com_texto" if texto_trocado else "atualizado"
 
 
 def _criar_verbatim_description(s, caso, empresa_id, fonte_id, local_id, norm) -> bool:
@@ -277,6 +316,13 @@ def _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats) 
     if co is not None and co.date() < corte:
         stats["fora_janela"] += 1
         return
+    # ⚠️ GUARD do detalhe (§4.60.6): `detailFetched is False` significa que o actor
+    # NÃO abriu a reclamação — a descrição é o resumo da listagem. Contamos e
+    # seguimos: o Caso é válido (os fatos de topo vêm certos), mas o texto é suspeito
+    # e o `interactions_count` mente. Falha explícita em vez de silêncio (§9) — quem
+    # lê o stats vê `sem_detalhe > 0` e sabe que a coleta veio pobre.
+    if norm.get("detalhe_aberto") is False:
+        stats["sem_detalhe"] += 1
     r = _upsert_caso(fonte_id, empresa_id, local_id, norm, agora)
     if r == "novo_com_verbatim":
         stats["casos_novos"] += 1
@@ -284,6 +330,9 @@ def _proc_reclamacao(item, fonte_id, empresa_id, local_id, corte, agora, stats) 
     elif r == "novo_sem_descricao":
         stats["casos_novos"] += 1
         stats["sem_descricao"] += 1
+    elif r == "atualizado_com_texto":
+        stats["casos_atualizados"] += 1
+        stats["textos_atualizados"] += 1
     else:
         stats["casos_atualizados"] += 1
 
@@ -404,6 +453,11 @@ def coletar_threads(
         "casos_atualizados": 0,
         "verbatins_novos": 0,
         "sem_descricao": 0,
+        # §4.60.6: texto de caso JÁ EXISTENTE substituído por um maior (recuperação
+        # dos truncados). `sem_detalhe` = itens que vieram sem o detalhe aberto —
+        # texto suspeito e interactions_count não confiável.
+        "textos_atualizados": 0,
+        "sem_detalhe": 0,
         "ignorados": 0,
         "fora_janela": 0,
         "abandonados": 0,
@@ -432,12 +486,29 @@ def coletar_threads(
     # (CORTE_MESES). ra_janela_meses foi APOSENTADA (nunca escrita → sempre NULL; o
     # alcance é o cap). Ver comentário em src/models/fonte.py.
     corte = date.fromisoformat(date_from) if date_from else _data_corte()
+    # ⚠️ includeInteractions=True SEMPRE (§4.27.2-bis, medido 03/set). Era False no
+    # modo padrão, e com ele o actor NÃO abre a página da reclamação
+    # (detailFetched=False): `descriptionText` volta sendo o `snippet` da listagem —
+    # ~103 chars com reticências — e `interactionsCount` volta 0 mesmo em reclamação
+    # ANSWERED. Não é a conversa que se perdia: era a ABERTURA, que é o verbatim do
+    # diagnóstico, e o contador que o desfecho determinístico usa para dizer
+    # "nao_respondida" (caso_classificador.py:43-45). `descriptionMaxLength=0` foi
+    # testado e NÃO resolve — a causa é esta flag.
+    # Custo NÃO muda: US$ 0,025 é por reclamação, com ou sem thread.
+    if cap > RA_CAP_THREAD_SEGURO:
+        # O OOM de julho (§4.27.1) era o payload COM thread em dataset grande, agravado
+        # por `run_and_collect` materializar tudo em lista. Acima deste teto o risco
+        # volta — mas degradar para texto truncado seria voltar ao defeito em silêncio,
+        # que é o que o §9 proíbe. Coleta com a thread e AVISA.
+        logger.warning(
+            f"[reclame_aqui] fonte {fonte_id} cap={cap} > {RA_CAP_THREAD_SEGURO}: "
+            f"coletando COM thread (texto íntegro) — risco de memória no worker. "
+            f"Para lote grande, use o cron. Ver frente 'consumir o gerador' (§6.16)."
+        )
     run_input = {
         "companies": [empresa_param],
         "scrapeComplaints": True,
-        # MODO PADRÃO (default): só a abertura, SEM a thread — payload pequeno, sem OOM.
-        # 'completo' traz as interações (comportamento atual). NULL → padrao → False.
-        "includeInteractions": (fonte.ra_modo or "padrao") == "completo",
+        "includeInteractions": True,
         "includeCompanyProfile": False,  # scorecard vem do modo A
         "statusFilter": ["LATEST"],
         "maxComplaintsPerCompany": cap,
@@ -483,9 +554,19 @@ def coletar_threads(
     logger.warning(
         f"[reclame_aqui] threads fonte {fonte_id} fim: coletados={stats['coletados']} "
         f"novos={stats['casos_novos']} atualizados={stats['casos_atualizados']} "
+        f"textos_atualizados={stats['textos_atualizados']} "
+        f"sem_detalhe={stats['sem_detalhe']} "
         f"abandonados={stats['abandonados']} nao_rastreado={stats['nao_rastreado']} "
         f"erros={stats['erros']}"
     )
+    if stats["sem_detalhe"]:
+        # §1: mecanismo de observabilidade tem de gritar, não só contar. Se isto
+        # aparecer, o actor voltou a não abrir a página e o texto veio truncado.
+        logger.warning(
+            f"[reclame_aqui] ⚠️ fonte {fonte_id}: {stats['sem_detalhe']} de "
+            f"{stats['coletados']} itens SEM detalhe aberto (detailFetched=False) — "
+            f"descrição truncada e interactions_count não confiável nesses casos."
+        )
     return stats
 
 

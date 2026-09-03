@@ -1090,12 +1090,25 @@ def test_cadencia_force_bypassa(db_session, monkeypatch):
 # ── MODO PADRÃO (ra_modo): abertura sem thread ────────────────────────────────
 
 
-def test_ra_modo_padrao_omite_interactions(db_session, monkeypatch):
-    """Fonte padrão (ra_modo NULL→padrao): run_input SEM interações (payload leve)."""
+def test_ra_modo_padrao_tambem_pede_interactions(db_session, monkeypatch):
+    """⚠️ ESTE TESTE FOI INVERTIDO em 03/set (§4.60.6). Antes exigia
+    ``includeInteractions is False`` no modo padrão — "payload leve".
+
+    A premissa era falsa, e medida: com a flag em False o actor NÃO abre a página da
+    reclamação (``detailFetched=False``) e devolve o ``snippet`` da listagem (~103
+    chars) no lugar da descrição, mais ``interactionsCount=0`` em reclamação
+    ANSWERED. Não era a conversa que se perdia — era a ABERTURA, que é o verbatim do
+    diagnóstico, e o contador de que o desfecho determinístico depende.
+
+    O custo NÃO muda (US$ 0,025 por reclamação, com ou sem thread), então o modo
+    padrão era mais rápido e mais pobre pelo mesmo preço. O payload leve continua
+    valendo como preocupação de memória — virou o aviso do ``RA_CAP_THREAD_SEGURO``,
+    não uma degradação silenciosa do texto.
+    """
     e, f = _empresa_fonte(db_session)
     cap = _capturar_input(monkeypatch, [_reclamacao("P2")])
     ra.coletar_threads(f)
-    assert cap["includeInteractions"] is False
+    assert cap["includeInteractions"] is True
 
 
 def test_ra_modo_completo_pede_interactions(db_session, monkeypatch):
