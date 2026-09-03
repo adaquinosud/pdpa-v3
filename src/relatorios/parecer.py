@@ -893,6 +893,16 @@ def montar_dados(
             },
             "vitrine": {"n_concorrentes": f"{n_enc}+" if n_enc else "—"},
         },
+        # ⚠️ §6.21: houve SONDAGEM de IA? É pré-condição de toda afirmação sobre o que
+        # as IAs respondem — o Ato 2 · Vitrine inteiro e a manchete do Ato 1. Antes
+        # desta fatia a peça declarava "Sem sondagem de IA ainda" e, seis linhas
+        # abaixo, concluía sobre a sonda inexistente (§9: ausência preenchida com
+        # afirmação, num impresso que vai ao cliente).
+        # ⚠️ ESCOPO DECLARADO: isto cobre "NUNCA SONDADO". NÃO cobre "sondado com
+        # resultado vazio" — aí `tem_dado` é True, a página renderiza e as frases
+        # FIXAS de `ato2c.doura/ecoa` seguem afirmando. A frente dona é a §6.21
+        # (não-sondado × não-reconhecido), e há teste travando essa não-correção.
+        "tem_sonda": bool(getattr(rep, "tem_dado", False)),
         "ato1": {
             "essencia": essencia,
             "ia_ecoam": None,  # editorial/curadoria → F2

@@ -194,7 +194,19 @@
     {% if _ess.valores %}<p style="margin:0"><strong>Valores.</strong> {{ _ess.valores }}</p>{% endif %}
   </div>
 
+  {# ⚠️ §6.21 — esta frase afirma sobre o que as IAs respondem E sobre a essência
+     declarada: exige AS DUAS pré-condições, que são independentes. A essência vem
+     do CADASTRO (`emp.missao/visao/valores`, parecer.py:675); a sondagem vem do
+     instrumento. Sem uma delas, a frase é conclusão sem premissa — e cada ramo
+     declara o estado E o que o resolve (§9). #}
+  {% set _tem_ess = _ess and (_ess.missao or _ess.visao or _ess.valores) %}
+  {% if not _tem_ess %}
+  <p class="method" style="font-size:13pt;margin:10mm 0 4mm">A empresa não tem missão, visão e valores públicos cadastrados — não há o que confrontar com o que as IAs respondem.</p>
+  {% elif not d.tem_sonda %}
+  <p class="method" style="font-size:13pt;margin:10mm 0 4mm">Sem sondagem de IA nesta competência — a essência declarada ainda não foi confrontada com o que as IAs respondem.</p>
+  {% else %}
   <h3 style="font-size:17pt;margin:10mm 0 4mm">As IAs sabem o que você vende.<br>Não sabem quem você é.</h3>
+  {% endif %}
   {% set _aus = (d.sintese.ausentes if d.sintese else None) or d.ato1.ausentes %}
   {% if _aus %}
   <div class="band" style="border-left:5px solid var(--ouro)">
@@ -323,6 +335,12 @@
 {% endif %}
 
 {# ═══════════ ATO 2 · A VITRINE ═══════════ #}
+{# ⚠️ §6.21 — a página INTEIRA afirma sobre a sondagem: manchete, as duas colunas
+   ("onde a IA doura" / "onde a IA ecoa") e a divergência. Sem sonda ela BLOQUEIA,
+   não degrada (§10: o lugar de parar é antes do arquivo existir; ressalva de
+   rodapé num PDF é pior que não gerar). Mesmo padrão de guard-de-página que a
+   "voz, em detalhe" já usa 30 linhas acima. #}
+{% if d.tem_sonda %}
 <div class="page">
   <div class="eyebrow">Ato 2 · a vitrine</div>
   <h2 class="manchete">45% já pedem recomendação<br>a IAs. Eis o que elas<br>respondem sobre você.</h2>
@@ -349,6 +367,7 @@
   </tr></table>
   {% if d.ato2c.divergencia.n %}<p class="method" style="margin-top:8mm;font-size:11.5pt">“As três IAs divergem em {{ d.ato2c.divergencia.n }} dos {{ d.ato2c.divergencia.total }} subpilares que a sonda avalia — de {{ d.ato2c.divergencia.metodo_total }} do método — {{ d.ato2c.divergencia.frase }}”</p>{% endif %}
 </div>
+{% endif %}
 
 {# ═══════════ P7 · ATO 3 ═══════════ #}
 <div class="page">
