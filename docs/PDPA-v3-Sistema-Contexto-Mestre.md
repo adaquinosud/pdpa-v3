@@ -2466,6 +2466,41 @@ botão "coletar aberturas" volta a renderizar, mas o "🔄 coletar" do local seg
 mandando RA para o scorecard. Enquanto a tela não for corrigida, **a coleta de
 aberturas da BEXP precisa sair do botão da fonte**, um a um.
 
+#### 4.60.5 ☠️ A LOCALIZA É BASE DE TESTE COM DADO ERRADO CONHECIDO
+Medido em prod (03/set, probe dos passos 0/0b — números relatados por Alexandre a
+partir da saída; não vi o dump bruto):
+
+| Empresa | Conduta FABRICADA | Verbatins truncados |
+|---|---|---|
+| **Localiza (17)** | **178 casos** | **415** |
+| Club Med (16) | — | 1 (ruído; fica) |
+| BEXP (27) | (escopo da correção) | 55 |
+
+**Conduta fabricada** = `Caso.desfecho = 'nao_respondida'` num caso com
+`status = 'ANSWERED'`. Não é dado faltando: é **afirmação falsa sobre a conduta da
+empresa**, gravada deterministicamente por `caso_classificador.py:43-45` a partir
+do `interactions_count = 0` que o modo padrão devolve (§4.27.2-bis).
+
+**Decisão (03/set):** a Localiza **morreu como caso comercial** e fica como **base
+de teste**. Os 178 e os 415 **NÃO serão corrigidos** — o escopo da correção é só a
+empresa 27.
+
+> ☠️ **ARMADILHA DECLARADA — leia antes de usar a Localiza para qualquer coisa.**
+> Base de teste com dado errado **conhecido** é pior que base de teste vazia:
+> parece íntegra, tem volume, e é a mais tentadora para calibrar régua. É a §4 do
+> `CLAUDE.md` — *nunca calibrar contra a base congelada* — com um agravante: aqui
+> o defeito **não é o tamanho, é o conteúdo**, e ele mente na direção que mais
+> importa (conduta e voz do cliente).
+>
+> **Se a Localiza voltar a ser usada para além de teste — demo, print, calibração
+> de régua, exemplo em documento, contexto de LLM — os 178 e os 415 precisam ser
+> corrigidos ANTES.** A sequência é a mesma do §4.60.6 (a da BEXP), com o custo
+> escalado: ~415 × US$ 0,025 ≈ **US$ 10,38** de recoleta, mais a reclassificação.
+> ⚠️ A parte de **conduta** é bem mais barata que a de texto e independe do Apify:
+> `desfecho` é DERIVADO, então zerar os 178 e deixar o classificador re-derivar
+> custa centavos de LLM — mas só depois que o `interactions_count` estiver certo,
+> o que exige a recoleta. **Não zerar antes:** re-derivaria o mesmo erro.
+
 #### 4.60.4 ⚠️ ACHADO — três marcas premium caem num pote só (não corrigido)
 Os três slugs são **DISTINTOS** (confirmado por Alexandre): `bexp-jeep`,
 `porsche-center-sao-paulo-oeste-bexp`, `audi-center-alphaville`. **Não é
