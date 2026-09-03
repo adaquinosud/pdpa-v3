@@ -3194,7 +3194,8 @@ crítico via média". O argumento anti-masking é bom — **mas pressupõe que o
 pilares têm peso probatório comparável.** Com 15 contra ~900, a premissa não vale,
 e o remédio contra o masking vira a doença: o ruído mascara a operação.
 
-#### 6.18.3 ⚠️ A ASSIMETRIA — a afirmação mais forte tem o requisito mais fraco
+#### 6.18.3 ⚠️ A FRASE DA FRENTE
+> **A afirmação mais forte tem o requisito probatório mais fraco.**
 | Afirmação | Governa o quê | Piso de volume |
 |---|---|---|
 | "este pilar tem FERIDA INTERNA" (Fatia 7) | nada — é declaração secundária | **≥ 30** |
@@ -3207,14 +3208,26 @@ regra que falta aqui: *"Subpilar ABAIXO do piso NÃO gera declaração e NÃO vi
 não número novo"*.
 
 **Quinze manifestações sustentam SINAL, não VEREDITO que governa o indicador
-principal.** A Fatia 7 acertou o raciocínio e o aplicou ao grão de baixo; o grão de
-cima ficou de fora. É a §7 — *a régua tem grãos, e o inventário é por grão*.
+principal.**
 
-#### 6.18.4 O irmão: base AUSENTE também vira 0,0
+⚠️ **É a §7 (*a régua tem grãos*) na DIREÇÃO INVERSA.** Nos casos anteriores o grão
+de CIMA estava tratado e o de baixo ficava (a marcação de subpilar, o texto
+editorial — §4.56). Aqui é o contrário: a Fatia 7 acertou o raciocínio e o aplicou
+ao grão de BAIXO, e o de cima ficou de fora. **O inventário por grão não tem
+direção preferencial** — varrer de cima para baixo encontra tanto quanto de baixo
+para cima, e quem varreu num sentido ainda não varreu no outro.
+
+#### 6.18.4 🔥 O IRMÃO MAIS GRAVE: base AUSENTE também vira 0,0
 `_base_indice` com `total_volume == 0` devolve `(0.0, None, 0.0)` →
 `_normalizar_indice(0.0)` = **0,0**, exibido na faixa "crítico". Empresa **sem
 medição nenhuma** recebe o pior veredito possível, indistinguível de uma empresa
 medida e ruim. É a §9 do `CLAUDE.md` no exemplo que ela própria cita.
+
+⚠️ **É o mais grave dos dois, e por alcance:** o da base insuficiente depende de uma
+distribuição específica (pilar minúsculo e podre); este atinge **toda empresa
+recém-cadastrada**, por construção — o cadastro nasce sem verbatim classificado, e
+a primeira coisa que o painel diz sobre ela é **"crítico"**. Ausência exibida como
+veredito, no primeiro contato do cliente com o produto.
 **Mesma frente:** base ausente e base insuficiente produzem o mesmo defeito —
 veredito sem lastro — e o conserto é o mesmo gesto.
 
@@ -3243,7 +3256,15 @@ crítico é veredito sem lastro — pior que o vazio, porque parece medição.
 #### 6.18.7 Medição que falta (read-only, US$ 0)
 Qual a **menor base que já definiu Teto** no parque — por empresa, o volume do
 pilar que ganhou o `min`. Sem isso não se sabe se a BEXP é exceção ou regra, e o
-número muda a urgência. O probe está no transcript de 03/set.
+número muda a urgência.
+
+**`scripts/probe_piso_do_teto.py`** — read-only, US$ 0. Por empresa: quem governa o
+Teto, com quanto volume, o Teto e o PDPA lado a lado, e a marca `⚠️ ABAIXO DE 30`.
+Separa também as empresas **sem pilar mensurável** (o §6.18.4).
+⚠️ Calcula sem os filtros do painel (período/fonte/escopo) — serve para **ordenar o
+parque**, não para bater com a tela.
+**Leitura:** `abaixo do piso = 1` (só a BEXP) → frente pontual. Vários → o Teto do
+parque está governado por ruído e a urgência sobe.
 
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
