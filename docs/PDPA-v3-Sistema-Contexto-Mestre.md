@@ -3440,6 +3440,28 @@ Não é uma frase de fallback: são **cinco**, e quatro delas são conteúdo.
   afirma o falso, e isso é **verificável contra o cadastro**. Precisa de régua nova.
 - **Visível na loja, invisível no grupo** → depende do grão da sonda (§6.22).
 
+#### 6.21.4-bis ⚠️ A VITRINE É OBRIGATÓRIA — não há como suprimi-la hoje
+Medido em 03/set. As páginas vizinhas do mesmo arquivo têm guard de página; a
+Vitrine não:
+
+| Página | Guard |
+|---|---|
+| Ato 2 · A voz, em detalhe (`parecer.html:291-323`) | `{% if d.ato2_voz and (…) %}` … `{% endif %}` — **página inteira condicional** |
+| Ato 2b (`:252`) | `{% if d.ato2b.tem_origem %}` |
+| **Ato 2 · A Vitrine (`:325-351`)** | **NENHUM** — `<div class="page">` cru |
+
+E a rota `relatorios_pdf(empresa_id, tipo)` (`ui/__init__.py:2635`) **não aceita
+parâmetro de seção** — não há supressão por querystring.
+
+✅ **O precedente está a 30 linhas de distância, no mesmo arquivo.** O menor recorte
+útil da fatia 1 é exatamente isto: expor `tem_sonda` no `ato2c` (de `rep.tem_dado`,
+que já existe) e envolver a página no `{% if %}`.
+⚠️ **Mas é correção PARCIAL, e tem de ser declarada como tal:** cobre o estado
+*nunca sondado* (o da BEXP) e **não** cobre *sondado com resultado vazio* — que
+segue imprimindo as frases fixas. Pela trava do §7 (*o teste que trava a
+não-correção*), essa fatia leva um teste prendendo o comportamento de
+`tem_dado=True` com resultado vazio, nomeando a §6.21 como frente dona.
+
 #### 6.21.5 A máquina de bloquear JÁ EXISTE nesta peça
 `bloquear_se_acao_stale` (`parecer.py:441-444`, Fatia 3B). O gate já é usado neste
 impresso — falta a dimensão **sondagem** (não "reconhecimento").
@@ -3530,6 +3552,94 @@ que o cliente não sabe sobre si.
    mês não entram. É migração, e é a parte cara.
    ⚠️ **E deixou de ser opcional:** com a camada 3 derrubada, **esta é a única que
    funciona**. Sem ela a sonda continua perguntando pelo nome que ninguém usa.
+
+#### 6.22.6-bis 🔒 DECISÕES FECHADAS (03/set) — desenho travado
+**O parâmetro é POR EMPRESA:** `Empresa.sonda_grao ∈ {grupo, marca, loja}`, uma
+configuração, e o cliente decide o quanto gasta.
+❌ **Descartada: flag por entidade** — mais granular e mais cara de operar, sem
+ganho que justifique.
+
+**(a) Default `'grupo'`, com AVISO.** É o único default que torna a migração
+**neutra em comportamento e em custo** — qualquer outro faz o próximo cron gastar
+N× sem ninguém pedir (§13). O grão certo é derivável (empresa com >1 agrupamento
+quase certamente não deve sondar por grupo), mas **derivar em silêncio é a classe
+que já custou caro aqui**: explícito vence inferido.
+⚠️ **O aviso vai na CRIAÇÃO da empresa, não só no card depois** — é lá que a
+decisão se toma. No card fica o aviso permanente quando
+`agrupamentos > 1 AND sonda_grao = 'grupo'`.
+
+**(b) 🔒 O grão GRUPO entra SEMPRE, como controle** (+~US$ 0,12). Sem ele o
+**estado 5 do §7 fica indeclarável**: *"visível na loja, invisível no grupo"* é uma
+**comparação**, e precisa das duas leituras. É o que separa *"as lojas são
+conhecidas"* de *"as lojas são conhecidas **e o grupo não**"* — que é o achado da
+BEXP, não um detalhe.
+
+**(c) 🔒 O censo, e suas duas regras.** `grão = loja` sonda **todas as lojas
+ativas** — **censo, não amostra**. A dispersão não existe em amostra: o valor não é
+a média, é **quais** e **quantas**.
+- **Loja inativa: FORA** — não tem operação a reconhecer.
+- **Loja sem verbatim: DENTRO** — reconhecimento em IA **independe de termos
+  coletado**, e é justamente onde a IA pode saber mais que nós. ⚠️ Isto contraria o
+  gate atual `_empresas_alvo` (≥1 verbatim), que vale para a empresa e **não deve
+  ser herdado** pelo grão de loja.
+
+**(d) Custo linear e declarado antes do clique:** `N entidades × ~US$ 0,12`.
+Grupo = 1 · marca num grupo de 4 = 4 · loja na BEXP = 9.
+⚠️ **Linear tem cauda:** empresa de 300 lojas = **US$ 36** e 8.100 chamadas a
+vendor num clique. Exige o padrão do RA — disparo assíncrono com registro de
+execução + teto de alerta análogo ao `RA_CAP_ALERTA_BOTAO`.
+
+**A leitura passa a ter DUAS camadas:**
+- **N leituras por entidade** — persistidas, o insumo. Cada uma sozinha é pobre.
+- **UMA leitura de DISPERSÃO** — **o produto**: *"das 9 lojas, 3 são reconhecidas
+  pelos três modelos e 6 são invisíveis; a reputação está nas bandeiras, não no
+  grupo"*. Não substitui as N: calcula-se a partir delas, e o drill precisa de cada
+  uma para nomear **quais**. Mesma arquitetura do Mapa de Lastro.
+
+#### 6.22.6-ter O schema, e o que a migração toca
+**Chave nova:** `UNIQUE(empresa_id, escopo_tipo, escopo_id, competencia)`, com
+`escopo_tipo IN ('empresa','agrupamento','local')` — **o padrão que a casa já usa**
+(o `Respondente` guarda `escopo_tipo`/`escopo_id`, não `local_id` solto).
+
+✅ **A migração toca UMA tabela.** `SondaIAResposta`, `SondaIAAvaliacao` e
+`SondaIALeitura` penduram todas em `execucao_id` (a avaliação via `resposta_id`) —
+**os filhos herdam o escopo pela FK**, nenhuma coluna nova neles.
+Backfill determinístico: linhas existentes → `escopo_tipo='empresa'`,
+`escopo_id=empresa_id`.
+
+⚠️ **Armadilha da migração:** `escopo_id` tem de ser **NOT NULL** (= `empresa_id` no
+escopo empresa). NULL faz o Postgres tratar as linhas como distintas e **a UNIQUE
+não segura** — voltaria a permitir duas execuções do mesmo grupo no mesmo mês.
+
+⚠️ **A maior parte do trabalho NÃO é a migração — é a varredura dos leitores**, que
+todos assumem uma execução por empresa/mês:
+
+| Onde | O que quebra com N |
+|---|---|
+| `ui/__init__.py:5398-5403` | `.order_by(competencia.desc()).first()` → escolhe **uma arbitrária** entre N (o `cands[0]` da §6.9, de novo) |
+| `ui/__init__.py:5406-5412` | `ultima`/`ultima_falhou` → idem |
+| série de `SondaIALeitura` (`:5417+`) | filtra por `empresa_id` → **N linhas por competência**, a série vira serrilha |
+| `SondaIAAvaliacao` | tem `empresa_id` mas **não tem `execucao_id`** → agregar por empresa **mistura entidades**; tem de passar por `resposta → execucao` |
+| `parecer.py:727-728` | consome `_explorar_reputacao_ia` → herda tudo acima |
+
+#### 6.22.6-quater 🔒 Fatiamento — ordem decidida por Alexandre
+1. **§6.21 — o discriminador** (não-sondado × não-reconhecido). **PRIMEIRA.**
+   ⚠️ **A ordem foi INVERTIDA em relação à minha proposta**, e o argumento do
+   Alexandre prevalece: **é ela que destrava a operação** — com o discriminador, o
+   Parecer da BEXP declara corretamente e a conversa das concessionárias acontece
+   **sem esperar a migração**. (Eu punha o custo dos adapters primeiro por ser
+   pré-requisito do botão — mas o botão está fora das três fatias, então não
+   bloqueia nada agora.) E o resto do raciocínio continua: consertar o
+   discriminador em **1** entidade é ordens de magnitude mais barato que em **N**.
+2. **§6.22.6 — o custo dos adapters.** Isolada, pequena, pré-requisito de qualquer
+   tela que mostre custo.
+3. **§6.22 — o grão.** Migração + varredura dos 5 leitores + parâmetro + leitura de
+   dispersão. A cara, e chega num terreno onde os estados já estão separados.
+
+⚠️ **Fora das três:** o botão da §6.20. Depende da fatia 2 (custo) e seu requisito
+de *escopo travado por construção* **muda de forma** depois da fatia 3 — "esta
+empresa" passa a significar "N entidades desta empresa". Construir antes é
+construir duas vezes.
 
 #### 6.22.6 ⚠️ Um defeito DO PRÓPRIO TESTE — e ele contamina o §6.20
 O teste imprimiu **custo US$ 0,0000**. **Não foi grátis — não foi medido.**
