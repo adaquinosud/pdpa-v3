@@ -5397,7 +5397,14 @@ def _explorar_reputacao_ia(s, empresa_id):
 
     execucao = (
         s.query(SondaIAExecucao)
-        .filter(SondaIAExecucao.empresa_id == empresa_id, SondaIAExecucao.status == "concluida")
+        .filter(
+            SondaIAExecucao.empresa_id == empresa_id,
+            SondaIAExecucao.status == "concluida",
+            # ⚠️ INVALIDADA sai da leitura como se não existisse (§6.22): rodou, mas o
+            # insumo não presta. É o que faz o Parecer voltar a tratar a empresa como
+            # NÃO SONDADA — e o `tem_sonda` do §6.21 herda isto de graça.
+            SondaIAExecucao.valida.is_(True),
+        )
         .order_by(SondaIAExecucao.competencia.desc())
         .first()
     )
@@ -5410,6 +5417,11 @@ def _explorar_reputacao_ia(s, empresa_id):
         .first()
     )
     ultima_falhou = ultima is not None and ultima.status == "falhou"
+    # ⚠️ Terceiro estado do empty state. "Invalidada" NÃO é "falhou" (as IAs
+    # retornaram) nem "sem sondagem ainda" (houve rodada) — dizer qualquer um dos
+    # dois seria declarar estado errado, que é o defeito que esta fatia conserta.
+    ultima_invalidada = ultima is not None and not ultima.valida
+    ultima_motivo = ultima.invalidada_motivo if ultima is not None else None
     ultima_competencia = ultima.competencia if ultima is not None else None
 
     # Série (% alinhado por competência) — de TODAS as leituras com defasagem.
@@ -5430,6 +5442,8 @@ def _explorar_reputacao_ia(s, empresa_id):
             tem_dado=False,
             serie=serie,
             ultima_falhou=ultima_falhou,
+            ultima_invalidada=ultima_invalidada,
+            ultima_motivo=ultima_motivo,
             ultima_competencia=ultima_competencia,
         )
 
@@ -5513,6 +5527,11 @@ def _explorar_reputacao_ia(s, empresa_id):
             tem_dado=False,
             serie=serie,
             ultima_falhou=True,
+            # Este ramo é "concluída mas vazia" — degradada, não invalidada. Os campos
+            # existem para o namespace ser o MESMO nos três returns (o template não
+            # deve depender de Undefined virar falsy).
+            ultima_invalidada=False,
+            ultima_motivo=None,
             ultima_competencia=execucao.competencia,
         )
     return SimpleNamespace(

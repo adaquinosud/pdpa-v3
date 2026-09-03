@@ -22,7 +22,18 @@
   mas lado a lado com o diagnóstico para você comparar.</p>
 
 {% if not r.tem_dado %}
-{% if r.ultima_falhou %}
+{# ⚠️ TRÊS estados de vazio, não dois. "Invalidada" não é "falhou" (as IAs
+   retornaram) nem "sem sondagem ainda" (houve rodada) — declarar qualquer um dos
+   dois seria estado errado, que é o defeito que a fatia conserta. #}
+{% if r.ultima_invalidada %}
+<div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-900">
+  <div class="font-semibold">A sondagem{% if r.ultima_competencia %} de {{ r.ultima_competencia }}{% endif %} foi invalidada.</div>
+  <p class="mt-1 text-amber-800">As IAs <strong>responderam</strong> — o que não valeu foi o insumo da medição.
+    {% if r.ultima_motivo %}<br><span class="font-medium">Motivo:</span> {{ r.ultima_motivo }}{% endif %}</p>
+  <p class="mt-2 text-amber-700 text-xs">Uma execução invalidada sai da leitura, mas continua no banco — a evidência
+    do que a IA respondeu não se apaga. Corrija o que causou a invalidação e rode a sonda de novo.</p>
+</div>
+{% elif r.ultima_falhou %}
 <div class="mt-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-800">
   <div class="font-semibold">A última sondagem{% if r.ultima_competencia %} ({{ r.ultima_competencia }}){% endif %} falhou.</div>
   <p class="mt-1 text-rose-700">As IAs não retornaram resposta — geralmente chave de API ausente/inválida no serviço,

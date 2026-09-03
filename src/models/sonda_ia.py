@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -26,6 +27,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,6 +62,27 @@ class SondaIAExecucao(Base):
     modelos_json: Mapped[Optional[str]] = mapped_column(Text)  # ["claude","gpt","gemini"]
     repeticoes: Mapped[Optional[int]] = mapped_column(Integer)  # N por pergunta/modelo
     custo_usd: Mapped[Optional[float]] = mapped_column(Float)
+    # ── VALIDADE (§6.22 · fatia da invalidação) ──────────────────────────────────
+    # ⚠️ DELIBERADAMENTE **não** é um valor novo em ``status``. ``status`` é o CICLO
+    # DE VIDA da máquina (pendente → rodando → concluida/falhou); ``valida`` é um
+    # JULGAMENTO HUMANO sobre o INSUMO. Uma execução pode estar `concluida` (que é o
+    # que ela é: rodou e devolveu) e mesmo assim não valer como medição — foi o caso
+    # da BEXP, sondada por "Grupo BEXP", termo que o §6.22.4 mediu como artefato.
+    # Enfiar os dois conceitos na mesma coluna é "um campo, dois significados" (§7),
+    # e marcá-la 'falhou' escreveria estado FALSO com consumidor visível: a aba diria
+    # "as IAs não retornaram", quando retornaram.
+    # ⚠️ `server_default=text("true")`, NÃO a string "true": a string crua vira o
+    # literal 'true' (typeof=text) no DDL, e aí `.is_(True)` casa ZERO linhas. Foi
+    # medido nesta fatia — o modelo dizia uma coisa e a migration (que já usava
+    # sa.text) outra, então a suíte exercitava um schema que prod não teria. §7: as
+    # duas fontes do mesmo DDL têm de concordar.
+    valida: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    # Motivo OBRIGATÓRIO na invalidação (o critério do §7 exige que fique gravado —
+    # sem ele, invalidar vira botão de apagar resultado inconveniente).
+    invalidada_motivo: Mapped[Optional[str]] = mapped_column(Text)
+    invalidada_em: Mapped[Optional[datetime]] = mapped_column(DateTime)
     iniciado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     concluido_em: Mapped[Optional[datetime]] = mapped_column(DateTime)
 

@@ -960,6 +960,54 @@ def _register_cli_commands(app: Flask) -> None:
         n = re_marca_orfas(limite_segundos=limite_segundos)
         click.echo(f"[coletas-reaper] limite={limite_segundos}s — {n} órfã(s) marcada(s) 'erro'")
 
+    # ── §6.22: flask sonda-invalidar ──────────────────────────────────
+    @app.cli.command("sonda-invalidar")
+    @click.option("--empresa", "empresa_id", type=int, required=True, help="ID da empresa.")
+    @click.option("--competencia", required=True, help="YYYY-MM da execução.")
+    @click.option("--motivo", required=True, help="OBRIGATÓRIO — por que o INSUMO não vale.")
+    @click.option("--reverter", is_flag=True, help="Desfaz: volta a execução a válida.")
+    def sonda_invalidar(empresa_id, competencia, motivo, reverter):
+        """Marca uma execução da sonda como INVÁLIDA (sai da leitura, fica no banco).
+
+        \b
+        🔒 CRITÉRIO (§7): invalida-se por defeito do INSTRUMENTO — termo, prompt,
+        vendor, janela — NUNCA por desgostar do RESULTADO. Sem critério escrito,
+        invalidar vira botão de apagar resultado inconveniente, e um instrumento que
+        apaga o que não gosta deixa de ser instrumento.
+
+        NÃO mexe em `status`: a execução segue 'concluida', que é o que ela é. Não
+        apaga respostas — a evidência do que a IA respondeu permanece. E como o
+        status não muda, o cron NÃO re-cobra a competência.
+        """
+        from datetime import datetime as _dt
+
+        from src.models.sonda_ia import SondaIAExecucao
+        from src.utils.db import db_session
+
+        with db_session() as s:
+            ex = (
+                s.query(SondaIAExecucao)
+                .filter_by(empresa_id=empresa_id, competencia=competencia)
+                .first()
+            )
+            if ex is None:
+                raise click.ClickException(
+                    f"nenhuma execução p/ empresa={empresa_id} competencia={competencia}"
+                )
+            antes = ex.valida
+            if reverter:
+                ex.valida, ex.invalidada_motivo, ex.invalidada_em = True, None, None
+            else:
+                ex.valida = False
+                ex.invalidada_motivo = motivo
+                ex.invalidada_em = _dt.utcnow()
+            click.echo(
+                f"[sonda-invalidar] exec {ex.id} · empresa {empresa_id} · {competencia} · "
+                f"status={ex.status} (INTOCADO) · valida {antes} → {ex.valida}"
+            )
+            if not reverter:
+                click.echo(f"  motivo: {motivo}")
+
     # ── CP local-no-prompt: flask reclassificar-tenant-rejection ──────
     @app.cli.command("reclassificar-tenant-rejection")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
