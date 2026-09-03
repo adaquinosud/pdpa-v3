@@ -3650,6 +3650,27 @@ da 3.
 
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
+- **INVALIDAR MEDIÇÃO SÓ POR DEFEITO DO INSTRUMENTO** (03/set). *Invalida-se por
+  defeito do **INSTRUMENTO** — termo, prompt, vendor, janela — **nunca por
+  desgostar do RESULTADO**. O motivo é obrigatório e fica gravado.*
+  ⚠️ **A razão é o que dá força à trava:** sem critério escrito, invalidar vira
+  **botão de apagar resultado inconveniente** — e **um instrumento que apaga o que
+  não gosta deixa de ser instrumento**. É a honestidade-de-estado (§9) aplicada à
+  própria medição: o mesmo rigor que exigimos do dado, exigido do nosso julgamento
+  sobre o dado.
+  **Forma:** `SondaIAExecucao.valida` (boolean) + `invalidada_motivo` obrigatório,
+  **não** um valor novo em `status`. `status` é o CICLO DE VIDA da máquina;
+  `valida` é JULGAMENTO sobre o INSUMO — "um campo, dois significados" é o §7
+  cobrado caro. Marcar `'falhou'` resolveria a leitura pelo mecanismo certo e
+  **escreveria estado falso com consumidor visível**: a aba diria *"as IAs não
+  retornaram"*, quando retornaram.
+  **A execução invalidada NÃO é apagada** — sai da leitura, fica no banco. A
+  evidência do que a IA respondeu é achado (estados 3 e 4 acima), não lixo.
+  ⚠️ **E o motivo declara a PROCEDÊNCIA do que afirma.** No caso da BEXP o termo
+  perguntado foi **inferido do código** (`_nome_empresa` = `empresa.nome`), não lido
+  de campo — porque a coluna que grava o termo ainda não existe (§6.22.7). O motivo
+  registra isso **como inferência**. É a §3: *eliminação não é verificação*.
+
 - **AUSÊNCIA DE REPUTAÇÃO EM IA É LEITURA, NÃO FALHA DE COLETA** (03/set). Mesma
   lógica que o método já usa para o silêncio: **distância zero não é ausência de
   sinal**. Invisibilidade não é dado faltando — é **o estado da marca no lugar para
