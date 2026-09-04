@@ -3707,6 +3707,54 @@ e não no outro, ou declarada diferente, quebra o teste no commit em que nasce.
 CHECK ou UNIQUE **abre o modelo lado a lado antes do commit** — e a forma canônica
 do default é **`sa.text("…")`**, nunca string crua. Está no §7.
 
+### 6.24 Cinco modais com markup COPIADO — três resolvem altura de três jeitos
+Frente registrada em 04/set, a partir de um defeito que **impedia salvar empresa**.
+**Registrada, NÃO aberta.**
+
+#### 6.24.1 O incidente
+O modal de edição da empresa crescia sem teto e o rodapé com **"Salvar" caía abaixo
+do corte da viewport** — a empresa ficava **impossível de salvar** em tela de altura
+normal. Corrigido em `909044a` (container: `max-h-[85vh]` + coluna flex + rodapé
+`shrink-0`).
+⚠️ **O campo novo da §6.22 fatia 1 REVELOU, não causou:** o form já tinha nome,
+setor, site, observação, missão, visão, valores, 3 taxas e o link de jornada. O
+`<select>` foi a gota — o copo já estava cheio. **Por isso o conserto foi de
+container, não remoção de campo.**
+
+#### 6.24.2 O inventário — nenhum componente comum
+| Arquivo | Trata altura? | Como |
+|---|---|---|
+| `verbatim_detalhes_modal.html:3` | ✅ | `max-h-[85vh] overflow-y-auto` no **card inteiro** |
+| `painel_quarter_detalhe.html:19` | ✅ | drawer, `flex-1 overflow-y-auto` no **corpo** |
+| `painel_temas_modal.html:23` | ✅ | idem |
+| `empresa_edit_modal.html` | ✅ (04/set) | coluna flex, **rodapé fixo** — 3º jeito |
+| `verbatim_reclassificar_modal.html:3` | ❌ | **nenhum** — `w-full max-w-lg p-6` |
+
+**Cinco cópias do mesmo markup, três soluções diferentes para o mesmo problema, e
+uma sem solução.** Não existe `partials/_modal.html` nem macro.
+
+#### 6.24.3 ⚠️ É o §7 na forma que ele já cobrou caro
+*"Unificar uma camada não unifica o conceito"* — aqui nem uma camada foi unificada:
+o conceito "modal" nunca existiu como peça, só como **padrão copiado**. Cada cópia
+resolveu o que doeu nela, e **o próximo modal vai nascer com o defeito de novo**,
+porque não há de onde herdar o conserto.
+⚠️ **E a divergência é invisível até doer:** ninguém compara cinco arquivos de
+markup, e o sintoma só aparece quando o conteúdo cresce o bastante — que foi
+exatamente o que aconteceu, meses depois de o modal nascer.
+
+#### 6.24.4 Pendência imediata (menor que a frente)
+`verbatim_reclassificar_modal.html:3` tem **a mesma classe de defeito**: sem teto de
+altura. Hoje latente — o conteúdo é curto e o blockquote já é limitado por
+`max-h-32`. **Deixado fora da fatia de 04/set por decisão:** é outra tela, com
+outra validação visual, e ampliar sem o dono ver seria erro de escopo.
+
+#### 6.24.5 O que a frente exigiria
+Um `partials/_modal.html` (ou macro) com header/corpo-rolável/rodapé, e as cinco
+telas passando a incluí-lo.
+⚠️ **Custo real não é o componente — é a VALIDAÇÃO:** cinco telas, todas de
+verificação **visual**, e a suíte não valida nenhuma delas. **Teste de dono em
+janela real, cinco vezes.** É o que torna a frente cara e o que a mantém na fila.
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **`server_default`: `sa.text(...)` para EXPRESSÃO, string crua para LITERAL — e
