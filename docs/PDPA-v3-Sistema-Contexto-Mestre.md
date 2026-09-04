@@ -3648,7 +3648,76 @@ formato — custo **negado**, não omitido.
 ⚠️ **Fora das três:** o botão da §6.20 — depende da fatia 2 e muda de forma depois
 da 3.
 
+### 6.23 🔥 MODELO e MIGRATION são DUAS FONTES DO MESMO DDL — e ninguém as compara
+Frente registrada em 03-04/set, a partir de **dois defeitos reais em lados opostos**.
+
+⚠️ **Por que a divergência é SILENCIOSA — e é isto que a torna cara:**
+**a suíte exercita o schema do MODELO** (`Base.metadata.create_all`), **produção
+recebe o da MIGRATION** (alembic no `preDeployCommand`). Se os dois discordam, **o
+teste passa nos dois enquanto mentem** — verde no schema que não existe em prod, e
+prod rodando um schema que nenhum teste tocou.
+
+É a §7 (*uma fonte de verdade por conceito*) num lugar onde ninguém olha: o DDL
+tem duas declarações, e nada no linter, no teste ou no deploy as confronta.
+
+#### 6.23.1 As duas evidências, em direções opostas
+| Caso | Onde estava certo | Onde estava errado | Sintoma |
+|---|---|---|---|
+| **§4.59 defeito 4** (`Fonte.status`) | — | modelo tinha default **só no ORM**, sem `server_default` | carga fora do ORM gravava **NULL**, a tela exibia a fonte normal e **só o filtro do disparo reparava** — em silêncio |
+| **§6.22 fatia da invalidação** (`SondaIAExecucao.valida`) | migration usava `sa.text("true")` | modelo usava `server_default="true"` (**string crua**) | o DDL virou o literal `'true'` com `typeof=text`; **`.is_(True)` casou ZERO linhas** |
+
+**Medido no segundo caso** (03/set, `PRAGMA table_info` nos dois schemas):
+
+```
+valor no banco = 'true' (typeof=text)     ← schema do MODELO, antes do fix
+.is_(True) casa 0 · == True casa 0
+```
+
+⚠️ **A suíte pegou** — mas por acidente de cobertura, não por desenho: os testes da
+aba de reputação quebraram porque o filtro novo excluía tudo. **Se a coluna nova não
+tivesse leitor testado, a divergência chegaria a produção intacta.**
+
+#### 6.23.2 O que a classe abrange
+Não é só `server_default`. Toda declaração que existe **nos dois lados**:
+`nullable`, `server_default`, `CheckConstraint`, `UniqueConstraint`, índices,
+tipo da coluna, `ondelete` das FKs. ⚠️ E o §4.20 já mostrou um vizinho: a UNIQUE
+global trocada por índices parciais precisou de branch SQLite recriando a tabela —
+**a UNIQUE antiga sobrevivia** ao caminho ingênuo.
+
+#### 6.23.3 A proposta — demonstrar, não inspecionar (§1)
+**Um teste que monta os DOIS schemas e aponta a divergência.**
+1. schema A = `Base.metadata.create_all()` num banco temporário;
+2. schema B = `alembic upgrade head` noutro;
+3. compara via `sqlalchemy.inspect` — tabelas, colunas, tipos, nullable, defaults,
+   constraints, índices — e **falha nomeando o que diverge**.
+
+**Pega a classe inteira**, não o caso: qualquer coluna futura declarada em um lado
+e não no outro, ou declarada diferente, quebra o teste no commit em que nasce.
+
+⚠️ **Dois cuidados de desenho:**
+- **Rodar contra Postgres, não SQLite.** SQLite normaliza tipos e ignora sutileza de
+  default — foi exatamente o que quase deixou passar. Já existe
+  `scripts/run_tests_postgres.py` e o gancho `TEST_DATABASE_URL`.
+- **Divergências legítimas precisam de allowlist declarada** (o alembic carrega
+  `alembic_version`; migrations de dados deixam rastro). Allowlist **nomeada e
+  justificada**, senão o teste vira ruído e alguém o desliga.
+
+#### 6.23.4 O que fazer até ela existir
+**Regra manual, barata:** toda migration que declara `server_default`, `nullable`,
+CHECK ou UNIQUE **abre o modelo lado a lado antes do commit** — e a forma canônica
+do default é **`sa.text("…")`**, nunca string crua. Está no §7.
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
+
+- **`server_default` É `sa.text(...)`, NUNCA STRING CRUA — e modelo × migration se
+  conferem lado a lado.** `server_default="true"` grava o **literal `'true'`
+  (typeof=text)**; `server_default=text("true")` grava booleano. Medido em 03/set
+  (§6.23.1): com a string crua, `.is_(True)` casou **zero** linhas.
+  ⚠️ **A divergência é silenciosa por construção:** a suíte exercita o schema do
+  MODELO, prod recebe o da MIGRATION — **o teste passa nos dois enquanto mentem**.
+  **Toda migration que declara `server_default`, `nullable`, CHECK ou UNIQUE abre o
+  modelo ao lado antes do commit.** O conserto estrutural (um teste que monta os
+  dois schemas e aponta a divergência) é a §6.23.
 
 - **INVALIDAR MEDIÇÃO SÓ POR DEFEITO DO INSTRUMENTO** (03/set). *Invalida-se por
   defeito do **INSTRUMENTO** — termo, prompt, vendor, janela — **nunca por
