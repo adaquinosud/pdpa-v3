@@ -28,7 +28,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.8-dois-eixos"
+PROMPT_SINTESE_VER = "v1.9-vitrine-estado"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -534,7 +534,19 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         "ruptura_frase": t["profundidade"]["frase"],
         "consultam_ia_pct": d["ato2c"]["stat"]["pct"],
         "ias": ["ChatGPT", "Gemini", "Claude"],
+        # ⚠️ A5 — o COLAPSO FALSY na terceira superfície (§6.21.0). `encaminhamentos`
+        # chegava como [] tanto para "não sondado" quanto para "sondado e ninguém
+        # citado", e o LLM não tinha como distinguir — escrevia a leitura conservadora
+        # por sorte da instrução, não por saber o estado. Agora o ESTADO vai junto.
+        "sonda_estado": (
+            "nao_sondado"
+            if not d.get("tem_sonda")
+            else ("sem_encaminhamento" if not d["ato2c"]["encaminhamentos"] else "com_dado")
+        ),
         "encaminhamentos": d["ato2c"]["encaminhamentos"],
+        # Só os CONCORRENTES de fato (o resto é canal de reclamação / SAC do
+        # fabricante). None = leitura anterior à categorização.
+        "concorrentes_n": d["tese"]["vitrine"]["n_concorrentes"],
         "topo": [
             {"nome": sp["nome"], "valencia": sp.get("valencia"), "critico": sp.get("critico")}
             for sp in d["ato3"]["topo"]["subpilares"]
@@ -779,6 +791,14 @@ def montar_dados(
     fer_agg = agg.get(fer_sub) if fer_sub else None
     encaminhamentos = list(getattr(snap, "encaminhamentos", []) or []) if snap else []
     n_enc = len(encaminhamentos)
+    # ⚠️ CARD DA VITRINE — só CONCORRENTE conta como concorrente.
+    # `len(encaminhamentos)` incluía Procon, consumidor.gov.br, Reclame Aqui e o SAC
+    # do FABRICANTE. Medido na exec 28: 33 destinos, boa parte não é concorrência —
+    # mandar o cliente ao SAC da própria marca não é perder o cliente para um rival.
+    # {} (leitura anterior ao prompt v3, sem categoria) → None, e o card DECLARA que
+    # não há categorização em vez de contar tudo (§9: nunca chutar para cima).
+    _cats = dict(getattr(snap, "encaminhamentos_categorias", {}) or {}) if snap else {}
+    n_concorrentes = len(_cats.get("concorrentes", [])) if _cats else None
 
     def _defas(cat):
         if not getattr(rep, "defasagem", None):
@@ -896,7 +916,14 @@ def montar_dados(
                 "nivel": ruptura["nivel"] if ruptura else None,  # None → P2 suprime a linha
                 "frase": corrente["ruptura_frase"],
             },
-            "vitrine": {"n_concorrentes": f"{n_enc}+" if n_enc else "—"},
+            # `tem_sonda` governa o card inteiro; `n_concorrentes` é None quando a
+            # leitura é anterior ao v3 (sem categoria) — dois estados distintos, e o
+            # template declara cada um. Nunca mais interpolar "—" dentro da frase.
+            "vitrine": {
+                "n_concorrentes": n_concorrentes,
+                "categorizado": bool(_cats),
+                "n_destinos": n_enc,
+            },
         },
         # ⚠️ §6.21: houve SONDAGEM de IA? É pré-condição de toda afirmação sobre o que
         # as IAs respondem — o Ato 2 · Vitrine inteiro e a manchete do Ato 1. Antes

@@ -294,6 +294,11 @@ def sintetizar_leitura(execucao_id: int, *, gerar_fn: Optional[Callable] = None)
                 encaminhamentos_json=json.dumps(
                     data.get("encaminhamentos") or [], ensure_ascii=False
                 ),
+                encaminhamentos_categorias_json=(
+                    json.dumps(data["encaminhamentos_por_categoria"], ensure_ascii=False)
+                    if data.get("encaminhamentos_por_categoria")
+                    else None  # NULL = o LLM não categorizou → o consumidor declara
+                ),
                 resumo_modelos_json=json.dumps(
                     data.get("resumo_por_modelo") or {}, ensure_ascii=False
                 ),

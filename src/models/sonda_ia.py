@@ -196,6 +196,12 @@ class SondaIALeitura(Base):
     identidade_ecoada: Mapped[Optional[str]] = mapped_column(Text)  # sonda 1 (síntese)
     identidade_vs_essencia: Mapped[Optional[str]] = mapped_column(Text)  # × ORIGEM
     encaminhamentos_json: Mapped[Optional[str]] = mapped_column(Text)  # sonda 3 (destinos)
+    # Os MESMOS destinos, em baldes disjuntos: concorrentes × canais_reclamacao ×
+    # fabricante (prompt v3). ⚠️ Coluna NOVA em vez de mudar a forma do campo acima:
+    # a aba faz `{% for d in snap.encaminhamentos %}` e quebraria com dicts.
+    # NULL = leitura anterior ao v3 — não há backfill (a categoria só existe se o LLM
+    # a produziu). O consumidor DECLARA quando é NULL, não chuta.
+    encaminhamentos_categorias_json: Mapped[Optional[str]] = mapped_column(Text)
     defasagem_json: Mapped[Optional[str]] = mapped_column(Text)  # sonda 4 (× diagnóstico)
     # resumo por modelo: vendor → 1–2 frases do que aquela IA diz da empresa (G3).
     resumo_modelos_json: Mapped[Optional[str]] = mapped_column(Text)

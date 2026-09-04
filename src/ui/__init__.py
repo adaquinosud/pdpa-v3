@@ -5542,6 +5542,13 @@ def _explorar_reputacao_ia(s, empresa_id):
         if (leitura and leitura.encaminhamentos_json)
         else []
     )
+    # Baldes disjuntos (prompt v3). NULL/ausente → {} e o consumidor DECLARA que não
+    # há categorização — nunca assume que tudo é concorrente.
+    encaminhamentos_categorias = (
+        _json.loads(leitura.encaminhamentos_categorias_json)
+        if (leitura and leitura.encaminhamentos_categorias_json)
+        else {}
+    )
     resumo_modelos = (
         _json.loads(leitura.resumo_modelos_json)
         if (leitura and leitura.resumo_modelos_json)
@@ -5555,6 +5562,7 @@ def _explorar_reputacao_ia(s, empresa_id):
         identidade_ecoada=(leitura.identidade_ecoada if leitura else None),
         identidade_vs_essencia=(leitura.identidade_vs_essencia if leitura else None),
         encaminhamentos=encaminhamentos,
+        encaminhamentos_categorias=encaminhamentos_categorias,
         avaliacao=avaliacao,
         resumo_modelos=[{"vendor": v, "texto": t} for v, t in resumo_modelos.items()],
     )

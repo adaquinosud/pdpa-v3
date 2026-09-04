@@ -174,9 +174,28 @@
       <td class="v">a análise ORIGEM localiza a ruptura no <strong>{{ d.tese.profundidade.nivel }}</strong>{% if d.tese.profundidade.frase %} — <em>“{{ d.tese.profundidade.frase }}”</em>{% endif %}</td>
     </tr>
     {% endif %}
+    {# ⚠️ CARD DA VITRINE — três camadas que mentiam por caminhos independentes:
+       (a) a linha não tinha guard nenhum e afirmava SEM sondagem;
+       (b) "as IAs já ecoam as cobranças" era literal fixo que afirmava ANTES do
+           dado, e o "—" era interpolado DUAS vezes (indicador + meio da frase);
+       (c) o número contava Procon, consumidor.gov.br e o SAC do FABRICANTE como
+           concorrente.
+       Agora a frase INTEIRA depende do dado, e cada estado tem a sua. Nenhuma
+       interpolação de placeholder dentro de oração. #}
     <tr>
+      {% if not d.tem_sonda %}
+      <td class="k"><div class="kl">A vitrine</div><div class="kn">—</div></td>
+      <td class="v">sem sondagem de IA nesta competência — <strong>a vitrine não foi medida</strong>.</td>
+      {% elif not d.tese.vitrine.categorizado %}
+      <td class="k"><div class="kl">A vitrine</div><div class="kn">—</div></td>
+      <td class="v">a sondagem desta competência é anterior à separação por categoria — <strong>não dá para dizer quantos destinos são concorrentes</strong> (foram {{ d.tese.vitrine.n_destinos }} destinos ao todo, misturando concorrentes, canais de reclamação e o SAC do fabricante).</td>
+      {% elif d.tese.vitrine.n_concorrentes %}
       <td class="k"><div class="kl">A vitrine</div><div class="kn">{{ d.tese.vitrine.n_concorrentes }}</div></td>
-      <td class="v">as IAs já ecoam as cobranças — e encaminham o insatisfeito para <strong>{{ d.tese.vitrine.n_concorrentes }} concorrentes nomeados</strong>.</td>
+      <td class="v">consultadas por um cliente insatisfeito, as IAs nomearam <strong>{{ d.tese.vitrine.n_concorrentes }} concorrente(s)</strong> — de {{ d.tese.vitrine.n_destinos }} destinos citados (o resto são canais de reclamação e o SAC do fabricante).</td>
+      {% else %}
+      <td class="k"><div class="kl">A vitrine</div><div class="kn">0</div></td>
+      <td class="v">consultadas por um cliente insatisfeito, as IAs <strong>não nomearam nenhum concorrente</strong>{% if d.tese.vitrine.n_destinos %} — os {{ d.tese.vitrine.n_destinos }} destinos citados são canais de reclamação e o SAC do fabricante{% endif %}.</td>
+      {% endif %}
     </tr>
   </table>
 </div>

@@ -70,7 +70,22 @@ Produza OITO saídas:
    pública. §2: a consequência — a conduta reativa que gerencia
    visibilidade sem consertar; e a vitrine (ao serem consultadas por um cliente
    insatisfeito, e ``consultam_ia_pct`` já consultam IAs, as ``ias`` RECOMENDAM os
-   ``encaminhamentos``). Factual, sem inflar. A VITRINE é FATO OBSERVADO (as IAs
+   ``encaminhamentos``). Factual, sem inflar.
+
+   🔒 **ANTES DE ESCREVER SOBRE A VITRINE, LEIA ``sonda_estado``:**
+   - ``"nao_sondado"`` — **NÃO HOUVE SONDAGEM**. É PROIBIDO afirmar qualquer coisa
+     sobre o que as IAs dizem, recomendam ou ecoam. Ou omita a vitrine da prosa, ou
+     diga que não foi medida. ⚠️ Lista vazia aqui NÃO significa "as IAs não citaram
+     ninguém" — significa que ninguém perguntou.
+   - ``"sem_encaminhamento"`` — houve sondagem e **nenhum destino foi citado**. Isso
+     é RESULTADO, e pode ser dito como tal.
+   - ``"com_dado"`` — houve sondagem e há destinos.
+   ⚠️ E o número de CONCORRENTES é ``concorrentes_n``, NÃO o tamanho de
+   ``encaminhamentos``: a lista mistura concorrentes, canais de reclamação (Procon,
+   consumidor.gov.br, Reclame Aqui) e o SAC do próprio fabricante. Chamar tudo de
+   concorrente MENTE. Se ``concorrentes_n`` for ``null``, não cite número.
+
+   A VITRINE é FATO OBSERVADO (as IAs
    recomendam X) — NÃO consequência explicada. PROIBIDO afirmar que a reputação nas IAs foi
    "construída por" / "resultado de" qualquer conjunto de verbatins ou detratores, ou ligar
    a sonda de IA à conduta por CAUSA: NÃO HÁ dado que meça esse elo. Descreva o que as IAs
