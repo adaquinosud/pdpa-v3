@@ -37,7 +37,7 @@ LEITURA_PROMPT = Path(__file__).parent / "prompts" / "leitura_ia_v2.md"
 # §6.22 fatia 3 — versão gravada em SondaIALeitura.prompt_versao. O skip de
 # sintetizar_leitura compara ISTO, não só a existência da linha. Bump ao editar o
 # prompt; a re-síntese das antigas é comando explícito (flask sonda-resintetizar).
-LEITURA_PROMPT_VER = "v2-entidade"
+LEITURA_PROMPT_VER = "v3-coerencia-categoria"
 
 # ⚠️ HEURÍSTICA declarada, não verdade. Marcadores de "a IA respondeu dizendo que não
 # conhece" — distinto de resposta VAZIA (falha/recusa do modelo) e de conteúdo real.
