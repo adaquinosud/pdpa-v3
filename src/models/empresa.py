@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -19,7 +19,13 @@ if TYPE_CHECKING:
 
 class Empresa(Base):
     __tablename__ = "empresas"
-    __table_args__ = (Index("idx_empresas_nome", "nome"),)
+    __table_args__ = (
+        Index("idx_empresas_nome", "nome"),
+        # §6.22 fatia 1 — primeiro CHECK desta tabela.
+        CheckConstraint(
+            "sonda_grao IN ('empresa','agrupamento','loja')", name="ck_empresas_sonda_grao"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nome: Mapped[str] = mapped_column(String, unique=True, nullable=False)
@@ -53,6 +59,21 @@ class Empresa(Base):
     # não-RA). Default TRUE: liga em quase todo mundo (é centavos, alimenta a Vitrine).
     scorecard_ra_ativo: Mapped[bool] = mapped_column(
         Boolean, server_default="true", default=True, nullable=False
+    )
+    # §6.22 (fatia 1) — GRÃO que a sonda de IA pergunta: 'empresa' (razão social),
+    # 'agrupamento' (marca) ou 'loja' (unidade). O teste de termo de 03/set mediu que
+    # "Grupo BEXP" volta artefato (fintech/mineração/BMW-MINI) enquanto "Porsche Center
+    # São Paulo Oeste" é reconhecido pelos três modelos — num grupo multimarca, o grão
+    # em que a sonda pergunta hoje é o único sem capital relacional (§6.22.2/6.22.4).
+    # ⚠️ DORMENTE nesta fatia: NENHUM consumidor lê esta coluna. Quem passa a ler é a
+    # fatia 2 (o termo do prompt). Default 'empresa' = o comportamento de hoje, para a
+    # migração ser neutra em comportamento E em custo (§13) — outro default faria o
+    # próximo cron gastar N× sem ninguém pedir.
+    # ⚠️ server_default STRING CRUA é o certo p/ literal (o SQLAlchemy cita → DEFAULT
+    # 'empresa'); text("empresa") viraria identificador. É o INVERSO do booleano de
+    # SondaIAExecucao.valida, que exige sa.text("true"). Precedente: Fonte.ra_modo.
+    sonda_grao: Mapped[str] = mapped_column(
+        String, nullable=False, default="empresa", server_default="empresa"
     )
     # CP-reprocessar-sujos: flag "suja" setado pela reclassificação manual da UI.
     # A noturna varre empresas com reprocessar_em != NULL, roda reconciliar_vinculos

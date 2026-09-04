@@ -3693,6 +3693,10 @@ def htmx_salvar_empresa(empresa_id: int):
     setor = (request.form.get("setor") or "").strip() or None
     site = (request.form.get("site") or "").strip() or None
     observacao = (request.form.get("observacao") or "").strip() or None
+    # §6.22 fatia 1: grão da sonda de IA. Valor inválido/ausente MANTÉM o atual —
+    # nunca cai para default (padrão do _ra_modo_do_form). DORMENTE: nada lê ainda.
+    _grao_raw = (request.form.get("sonda_grao") or "").strip()
+    sonda_grao = _grao_raw if _grao_raw in ("empresa", "agrupamento", "loja") else None
     # ORIGEM (fatia 1): essência declarada, texto livre. Vazio → NULL.
     missao = (request.form.get("missao") or "").strip() or None
     visao = (request.form.get("visao") or "").strip() or None
@@ -3726,6 +3730,8 @@ def htmx_salvar_empresa(empresa_id: int):
         empresa.missao = missao
         empresa.visao = visao
         empresa.valores = valores
+        if sonda_grao is not None:
+            empresa.sonda_grao = sonda_grao
         empresa.taxa_alto = _taxa("taxa_alto", empresa.taxa_alto)
         empresa.taxa_medio = _taxa("taxa_medio", empresa.taxa_medio)
         empresa.taxa_baixo = _taxa("taxa_baixo", empresa.taxa_baixo)
