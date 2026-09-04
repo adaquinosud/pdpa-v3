@@ -3709,15 +3709,45 @@ do default é **`sa.text("…")`**, nunca string crua. Está no §7.
 
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
-- **`server_default` É `sa.text(...)`, NUNCA STRING CRUA — e modelo × migration se
-  conferem lado a lado.** `server_default="true"` grava o **literal `'true'`
-  (typeof=text)**; `server_default=text("true")` grava booleano. Medido em 03/set
-  (§6.23.1): com a string crua, `.is_(True)` casou **zero** linhas.
+- **`server_default`: `sa.text(...)` para EXPRESSÃO, string crua para LITERAL — e
+  modelo × migration se conferem lado a lado.**
+  ⚠️ **EMENDADA em 04/set.** A primeira redação — *"é `sa.text(...)`, NUNCA string
+  crua"* — **induzia ao erro na metade dos casos**:
+
+  | O default é… | Forma certa | O que a forma errada faz |
+  |---|---|---|
+  | **expressão SQL** (`true`, `false`, `now()`) | `server_default=text("true")` | a string crua vira o literal `'true'` **typeof=text**, e `.is_(True)` casa **zero** linhas |
+  | **literal de string** (`'empresa'`, `'padrao'`) | `server_default="empresa"` | `text("empresa")` viraria **identificador sem aspas** |
+
+  O SQLAlchemy **cita** a string crua → `DEFAULT 'empresa'`; `text()` passa o SQL
+  **cru**. São idiomas opostos para necessidades opostas — e a trava escrita só para
+  metade dos casos é pior que nenhuma, porque tem forma de regra fechada.
+  **Medido nos dois sentidos:** string crua em booleano → `typeof=text`, zero linhas
+  (§6.23.1); string crua em literal → DDL correto, `default="'empresa'"` conferido no
+  `PRAGMA` (fatia 1 da §6.22). **Precedentes:** `SondaIAExecucao.valida` (expressão)
+  × `Fonte.ra_modo` e `Empresa.sonda_grao` (literais).
   ⚠️ **A divergência é silenciosa por construção:** a suíte exercita o schema do
   MODELO, prod recebe o da MIGRATION — **o teste passa nos dois enquanto mentem**.
   **Toda migration que declara `server_default`, `nullable`, CHECK ou UNIQUE abre o
   modelo ao lado antes do commit.** O conserto estrutural (um teste que monta os
   dois schemas e aponta a divergência) é a §6.23.
+
+- **A SUÍTE NÃO EXERCITA MIGRATION — verde não significa que o `alembic upgrade
+  head` roda.** A suíte monta o schema do **modelo** (`Base.metadata.create_all`); o
+  alembic só roda no `preDeployCommand`, em prod. **Uma migration quebrada passa por
+  toda a suíte e falha no deploy.**
+  🔒 **Regra: frente com migração exige executar `upgrade` E `downgrade`
+  explicitamente antes do merge** — em banco descartável, conferindo o **DDL
+  resultante** (`PRAGMA` / `information_schema`), não só o "rodou sem erro".
+  ⚠️ **O incidente que a comprou (04/set, fatia 1 da §6.22):**
+  `op.create_check_constraint` solto levanta `NotImplementedError: No support for
+  ALTER of constraints in SQLite dialect`. Em prod (Postgres) passaria — e **todo
+  `alembic upgrade head` em dev morreria**. A suíte estava **verde**. Pego por
+  execução, corrigido com `op.batch_alter_table` (padrão da casa: `b8c9d0e1f2a3`,
+  `c3d4e5f6a7b8`).
+  É o outro lado da §6.23: lá modelo e migration **divergem**; aqui a migration
+  **nem roda**, e nada na suíte percebe. Nos dois, a §1 é o que salva —
+  **demonstrar, não inspecionar.**
 
 - **INVALIDAR MEDIÇÃO SÓ POR DEFEITO DO INSTRUMENTO** (03/set). *Invalida-se por
   defeito do **INSTRUMENTO** — termo, prompt, vendor, janela — **nunca por
