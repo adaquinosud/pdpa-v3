@@ -1,8 +1,19 @@
-<div id="empresa-edit-modal" class="fixed inset-0 z-50 bg-loyall-900/40 flex items-center justify-center"
+{# ⚠️ Container com TETO DE ALTURA e rolagem só no corpo (04/set). Antes o card
+   crescia sem limite e o rodapé com "Salvar" caía abaixo do corte da viewport —
+   a empresa ficava IMPOSSÍVEL de salvar. O campo novo da §6.22 fatia 1 revelou;
+   não causou: o form já tinha nome/setor/site/observação/missão/visão/valores,
+   3 taxas e o link de jornada.
+   Estrutura: card = coluna flex com max-h; header e rodapé shrink-0 (nunca rolam);
+   só a faixa de campos rola.
+   ⚠️ `min-h-0` é o que faz o overflow ATIVAR — sem ele um filho flex não encolhe
+   abaixo do conteúdo e o card volta a estourar. É o erro clássico deste padrão.
+   Precedente na casa: verbatim_detalhes_modal.html:3 resolve com max-h no card
+   inteiro (mais simples, mas o botão só aparece rolando até o fim). #}
+<div id="empresa-edit-modal" class="fixed inset-0 z-50 bg-loyall-900/40 flex items-center justify-center p-4"
      hx-on:click="if(event.target===this) this.remove()">
-  <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6"
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[85vh]"
        hx-on:click="event.stopPropagation()">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
       <h2 class="text-lg font-semibold">Editar empresa</h2>
       <button onclick="document.getElementById('empresa-edit-modal').remove()"
               class="text-loyall-400 hover:text-loyall-700 text-xl leading-none">×</button>
@@ -10,7 +21,9 @@
     <form hx-put="{{ url_for('ui.htmx_salvar_empresa', empresa_id=empresa.id) }}"
           hx-swap="none"
           hx-on::after-request="if(event.detail.successful) window.location.reload()"
-          class="space-y-3 text-sm">
+          class="flex flex-col min-h-0 flex-1">
+      {# só ESTA faixa rola; o rodapé abaixo fica fixo #}
+      <div class="space-y-3 text-sm overflow-y-auto min-h-0 flex-1 px-6 pb-2">
       <div>
         <label class="block text-loyall-700 mb-1">Nome*</label>
         <input name="nome" value="{{ empresa.nome }}" required
@@ -91,7 +104,10 @@
            class="text-sm text-loyall-700 hover:underline">Configurar jornada do cliente →</a>
         <span class="text-xs text-loyall-400 block">etapas de experiência (reservar · retirar · devolver…) — habilita a aba Jornada</span>
       </div>
-      <div class="flex gap-2 pt-2">
+      </div>{# /faixa rolável #}
+      {# Rodapé FIXO: o botão de salvar nunca sai de vista, por mais longo que o
+         form fique. O submit continua dentro do <form> — sem `form=`, sem JS. #}
+      <div class="flex gap-2 px-6 py-4 border-t border-loyall-100 shrink-0">
         <button type="submit" class="px-4 py-2 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded">Salvar</button>
         <button type="button" onclick="document.getElementById('empresa-edit-modal').remove()"
                 class="px-4 py-2 border border-loyall-200 hover:bg-loyall-100 rounded">Cancelar</button>
