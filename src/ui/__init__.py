@@ -260,6 +260,9 @@ def _wrap_local(loc, fontes=None) -> SimpleNamespace:
         ticket_medio=loc.ticket_medio,
         frequencia=loc.frequencia,
         ltv_origem=loc.ltv_origem,
+        # §6.22 fatia 2 — sem isto no wrapper o template vê Undefined (falsy) e o
+        # checkbox nasce SEMPRE desmarcado, com o banco dizendo outra coisa.
+        sonda_ativa=bool(loc.sonda_ativa),
         fontes=fontes_w,
         fontes_ativas=sum(1 for f in fontes_w if f.ativo),
         tem_fontes=bool(fontes_w),
@@ -292,6 +295,7 @@ def _wrap_agrupamento(a, locais_w=None) -> SimpleNamespace:
         nome=a.nome,
         descricao=a.descricao,
         ativo=bool(a.ativo),
+        sonda_ativa=bool(a.sonda_ativa),  # idem: o template lê do wrapper
         locais=locais_w,
         fontes_ativas=sum(loc.fontes_ativas for loc in locais_w),
         total_fontes=total_fontes,
@@ -3106,6 +3110,9 @@ def htmx_salvar_agrupamento(agrupamento_id: int):
             ), 409
         a.nome = nome
         a.descricao = descricao
+        _sa = _sonda_ativa_do_form()  # None = ausente → mantém
+        if _sa is not None:
+            a.sonda_ativa = _sa
         s.flush()
     # Recarrega com locais+fontes
     a = _carregar_ag(agrupamento_id)
@@ -3277,6 +3284,7 @@ def htmx_salvar_local(local_id: int):
     origem = (request.form.get("ltv_origem") or "").strip() or None
     if (ticket is not None or frequencia is not None) and origem is None:
         origem = "proprio"
+    sonda_ativa = _sonda_ativa_do_form()  # None = ausente → mantém
     with db_session() as s:
         loc = s.get(Local, local_id)
         if loc is None:
@@ -3297,6 +3305,8 @@ def htmx_salvar_local(local_id: int):
         loc.ticket_medio = ticket
         loc.frequencia = frequencia
         loc.ltv_origem = origem
+        if sonda_ativa is not None:
+            loc.sonda_ativa = sonda_ativa
         s.flush()
     # Recarrega com fontes + ag_map
     loc, _ags, ag_map = _carregar_local_e_ags(local_id)
@@ -3334,6 +3344,19 @@ def htmx_deletar_local(local_id: int):
             s.delete(f)
         s.delete(loc)
     return ("", 200)
+
+
+def _sonda_ativa_do_form():
+    """§6.22 fatia 2 — checkbox 'incluir na sondagem de IA', com companion hidden.
+
+    ``None`` = campo AUSENTE (form antigo/parcial) → o caller MANTÉM o atual.
+    Presente → `getlist(...)[-1]`: marcado envia o companion "0" e depois "1", e o
+    último vence (``request.form.get`` devolveria o primeiro). Sem o companion,
+    desmarcado não submeteria nada e seria impossível tirar o visto — o alçapão do
+    §7 (checkbox sem name faz o formulário parecer salvo)."""
+    if "sonda_ativa" not in request.form:
+        return None
+    return request.form.getlist("sonda_ativa")[-1] == "1"
 
 
 def _ra_coortes_do_form(conector: str, modo=None):

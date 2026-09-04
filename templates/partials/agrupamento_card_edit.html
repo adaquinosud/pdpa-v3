@@ -8,6 +8,17 @@
            placeholder="Nome">
     <input name="descricao" value="{{ a.descricao or '' }}" placeholder="Descrição (opcional)"
            class="px-2 py-1 border border-loyall-300 rounded flex-1">
+    {# §6.22 fatia 2 — elegibilidade na sondagem de IA. ⚠️ COMPANION HIDDEN: checkbox
+       desmarcado NÃO submete nada, então sem ele "ausente" seria indistinguível de
+       "desmarcado" e nunca daria para tirar o visto (§7: checkbox sem name faz o
+       formulário parecer salvo). Com ele o campo chega SEMPRE, e ausente volta a
+       significar só "form antigo/parcial" → mantém o atual. #}
+    <label class="flex items-center gap-1 text-xs text-loyall-600 whitespace-nowrap"
+           title="Quando marcada, esta entidade é perguntada às IAs na sondagem mensal">
+      <input type="hidden" name="sonda_ativa" value="0">
+      <input type="checkbox" name="sonda_ativa" value="1" {%- if a.sonda_ativa %} checked{% endif %}>
+      incluir na sondagem de IA
+    </label>
     <button type="submit" class="px-3 py-1 bg-loyall-700 hover:bg-loyall-600 text-loyall-50 rounded text-xs">salvar</button>
     <button type="button"
             hx-get="{{ url_for('ui.htmx_agrupamento_row', agrupamento_id=a.id) }}"

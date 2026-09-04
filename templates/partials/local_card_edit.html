@@ -32,6 +32,18 @@
                class="w-full px-2 py-1 border border-loyall-300 rounded" placeholder="—">
       </label>
       <input type="hidden" name="ltv_origem" value="{{ loc.ltv_origem or '' }}">
+    {# §6.22 fatia 2 — elegibilidade na sondagem de IA. ⚠️ COMPANION HIDDEN: checkbox
+       desmarcado NÃO submete nada, então sem ele "ausente" seria indistinguível de
+       "desmarcado" e nunca daria para tirar o visto (§7: checkbox sem name faz o
+       formulário parecer salvo). Com ele o campo chega SEMPRE, e ausente volta a
+       significar só "form antigo/parcial" → mantém o atual. #}
+    <label class="flex items-center gap-1 text-xs text-loyall-600 whitespace-nowrap"
+           title="Quando marcada, esta entidade é perguntada às IAs na sondagem mensal">
+      <input type="hidden" name="sonda_ativa" value="0">
+      <input type="checkbox" name="sonda_ativa" value="1" {%- if loc.sonda_ativa %} checked{% endif %}>
+      incluir na sondagem de IA
+    </label>
+
       <button type="button"
               hx-get="{{ url_for('locais.sugerir_ltv_local', local_id=loc.id) }}"
               hx-trigger="click" hx-swap="none"

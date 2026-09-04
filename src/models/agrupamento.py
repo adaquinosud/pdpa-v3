@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,6 +49,15 @@ class Agrupamento(Base):
     tipo: Mapped[Optional[str]] = mapped_column(String, default="lista")
     criterio_json: Mapped[Optional[str]] = mapped_column(Text)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    # §6.22 fatia 2 — esta entidade entra na sondagem de IA? Default TRUE: toda
+    # entidade existente entra, e quem NÃO deve é desmarcado no cadastro.
+    # ⚠️ A elegibilidade é a FLAG e SÓ ela: nada de filtrar por status ou por
+    # contagem de verbatim (§6.22.10). ⚠️ É DISTINTA de `ativo` logo acima — `ativo`
+    # é gestão do agrupamento; `sonda_ativa` é elegibilidade na sondagem. Dois
+    # conceitos, duas colunas: juntá-los seria "um campo, dois significados" (§7).
+    sonda_ativa: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     empresa: Mapped["Empresa"] = relationship("Empresa", back_populates="agrupamentos")

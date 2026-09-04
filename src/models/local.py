@@ -6,6 +6,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -15,6 +16,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -63,6 +65,15 @@ class Local(Base):
     ticket_medio: Mapped[Optional[float]] = mapped_column(Float)
     frequencia: Mapped[Optional[float]] = mapped_column(Float)
     ltv_origem: Mapped[Optional[str]] = mapped_column(String)
+    # §6.22 fatia 2 — esta entidade entra na sondagem de IA? Default TRUE: toda
+    # entidade existente entra, e quem NÃO deve (local que é canal de coleta — ex.
+    # as fontes de RA da BEXP cadastradas como loja) é desmarcado no cadastro.
+    # ⚠️ A elegibilidade é a FLAG e SÓ ela: nada de filtrar por status ou por
+    # contagem de verbatim. Loja nova sem coleta ENTRA — reconhecimento em IA
+    # independe de termos coletado, e é onde a IA pode saber mais que nós (§6.22.10).
+    sonda_ativa: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     atualizado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

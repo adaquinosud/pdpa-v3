@@ -118,6 +118,14 @@ class SondaIAResposta(Base):
     modelo: Mapped[str] = mapped_column(String, nullable=False)  # claude-sonnet-4-6 etc.
     pergunta_tipo: Mapped[str] = mapped_column(String, nullable=False)
     repeticao: Mapped[int] = mapped_column(Integer, nullable=False)
+    # §6.22 fatia 2 — o NOME da entidade perguntada. NULL = grão empresa (todo o
+    # histórico). É o que a fatia 3 vai usar para a consolidação saber de qual
+    # entidade veio cada resposta: hoje `_textos()` (classificador.py:185) devolve
+    # lista de strings SEM rótulo, e no estado INVISÍVEL a resposta é "não tenho
+    # informação" — o nome nem aparece no texto. Sem esta coluna, a atribuição
+    # falharia exatamente onde o achado mora (§6.22.7).
+    # ⚠️ GRAVADA nesta fatia, NÃO LIDA: o consolidador segue intacto até a fatia 3.
+    entidade: Mapped[Optional[str]] = mapped_column(String)
     resposta_texto: Mapped[Optional[str]] = mapped_column(Text)
     tokens_in: Mapped[Optional[int]] = mapped_column(Integer)
     tokens_out: Mapped[Optional[int]] = mapped_column(Integer)

@@ -33,17 +33,65 @@ PERGUNTAS = {
 }
 MODELOS_PADRAO = ("claude", "gpt", "gemini")
 
+# §6.22 fatia 2 — no grão ENTIDADE (agrupamento/loja) a sonda faz 2 das 3 perguntas.
+# ⚠️ 'avaliacao' FICA DE FORA de propósito: ela alimenta as SondaIAAvaliacao, que o
+# leitor conta POR PONTO (`por_sub`, ui:5453-5468). N entidades multiplicariam o
+# denominador e mudariam a ESCALA da régua sem ninguém tocar nela — régua que muda
+# sozinha é o pior tipo de mudança. Volta na fatia 3, junto com o consolidador.
+PERGUNTAS_ENTIDADE = ("identidade", "encaminhamento")
+# Repetição mede VARIÂNCIA do modelo sobre a mesma pergunta; no grão entidade o que
+# se quer é COBERTURA (quantas entidades a IA conhece), não variância. Daí 1.
+REPETICOES_ENTIDADE = 1
+
+
+class SondaSemEntidade(RuntimeError):
+    """Grão configurado não tem NENHUMA entidade elegível.
+
+    ⚠️ Levanta em vez de cair para o nome da empresa: fallback silencioso aqui
+    reproduz exatamente o defeito que originou a frente — perguntar pela razão
+    social e o resultado sair artefato, sem ninguém saber por quê (§6.22.4)."""
+
+
+def entidades_da_sonda(s, empresa_id: int):
+    """Entidades que a sonda vai perguntar, conforme ``empresa.sonda_grao``.
+
+    Devolve ``list[(id, nome)]``. ``'empresa'`` → uma só, e é EXATAMENTE o que a
+    sonda faz hoje (não-regressão das 24 empresas existentes).
+
+    ⚠️ A elegibilidade é a FLAG ``sonda_ativa`` e SÓ ela — sem filtro por ``status``
+    e sem piso de verbatim. Loja nova sem coleta ENTRA (reconhecimento em IA
+    independe de termos coletado); local que é canal de coleta NÃO entra porque foi
+    desmarcado no cadastro. Herdar o gate de ``_empresas_alvo`` (≥1 verbatim) aqui
+    seria importar uma régua de outro grão (§6.22.10)."""
+    from src.models.agrupamento import Agrupamento
+    from src.models.empresa import Empresa
+    from src.models.local import Local
+
+    e = s.get(Empresa, empresa_id)
+    if e is None:
+        raise SondaSemEntidade(f"empresa {empresa_id} não existe")
+    grao = e.sonda_grao or "empresa"
+    if grao == "empresa":
+        return [(e.id, e.nome)]
+    modelo = Agrupamento if grao == "agrupamento" else Local
+    linhas = (
+        s.query(modelo.id, modelo.nome)
+        .filter(modelo.empresa_id == empresa_id, modelo.sonda_ativa.is_(True))
+        .order_by(modelo.nome)
+        .all()
+    )
+    if not linhas:
+        raise SondaSemEntidade(
+            f"empresa {empresa_id} ({e.nome}) está no grão '{grao}' e não tem NENHUMA "
+            f"entidade com sonda_ativa=True — a sondagem não roda. Marque ao menos uma "
+            f"no cadastro, ou volte o grão para 'empresa'."
+        )
+    return [(i, n) for i, n in linhas]
+
 
 def _custo(modelo: str, tin: int, tout: int) -> float:
     pin, pout = PRECO.get(modelo, (0.0, 0.0))
     return tin / 1e6 * pin + tout / 1e6 * pout
-
-
-def _nome_empresa(s, empresa_id: int) -> str:
-    from src.models.empresa import Empresa
-
-    e = s.get(Empresa, empresa_id)
-    return e.nome if e else f"empresa {empresa_id}"
 
 
 def sondar_empresa(
@@ -64,7 +112,20 @@ def sondar_empresa(
     stats = {"respostas": 0, "erros": 0, "custo_usd": 0.0, "pulado": False, "execucao_id": None}
 
     with db_session() as s:
-        emp_nome = _nome_empresa(s, empresa_id)
+        # §6.22 fatia 2 — as entidades vêm do grão configurado. No grão 'empresa'
+        # devolve [(id, nome)] e tudo abaixo se comporta como antes.
+        entidades = entidades_da_sonda(s, empresa_id)
+        grao_empresa = len(entidades) == 1 and entidades[0][0] == empresa_id
+        tipos = list(PERGUNTAS) if grao_empresa else list(PERGUNTAS_ENTIDADE)
+        reps = n if grao_empresa else REPETICOES_ENTIDADE
+        # §13 — custo na mesa ANTES de disparar, no log do cron.
+        previstas = len(entidades) * len(modelos) * len(tipos) * reps
+        logger.warning(
+            f"[sonda_ia] empresa {empresa_id} · grão="
+            f"{'empresa' if grao_empresa else 'entidade'} · {len(entidades)} entidade(s) "
+            f"elegível(is) · {len(modelos)} modelos × {len(tipos)} perguntas × {reps} rep "
+            f"= {previstas} chamadas previstas"
+        )
         execucao = (
             s.query(SondaIAExecucao)
             .filter_by(empresa_id=empresa_id, competencia=competencia)
@@ -92,38 +153,46 @@ def sondar_empresa(
         exec_id = execucao.id
         stats["execucao_id"] = exec_id
         custo = 0.0
-        for vendor in modelos:
-            caller = callers.get(vendor)
-            if caller is None:
-                continue
-            for pergunta_tipo, tpl in PERGUNTAS.items():
-                prompt = tpl.format(empresa=emp_nome)
-                for rep in range(1, n + 1):
-                    try:
-                        r = caller(prompt)
-                    except Exception as exc:
-                        stats["erros"] += 1
-                        logger.info(
-                            f"[sonda_ia] {vendor}/{pergunta_tipo}#{rep}: "
-                            f"{type(exc).__name__}: {exc}"
+        for ent_id, ent_nome in entidades:
+            for vendor in modelos:
+                caller = callers.get(vendor)
+                if caller is None:
+                    continue
+                for pergunta_tipo in tipos:
+                    # O nome da ENTIDADE entra aqui — era `emp_nome`, resolvido uma
+                    # vez fora dos loops (§6.22.1).
+                    prompt = PERGUNTAS[pergunta_tipo].format(empresa=ent_nome)
+                    for rep in range(1, reps + 1):
+                        try:
+                            r = caller(prompt)
+                        except Exception as exc:
+                            stats["erros"] += 1
+                            logger.info(
+                                f"[sonda_ia] {vendor}/{pergunta_tipo}#{rep} "
+                                f"({ent_nome}): {type(exc).__name__}: {exc}"
+                            )
+                            continue
+                        tin = int(r.get("tokens_in", 0))
+                        tout = int(r.get("tokens_out", 0))
+                        custo += _custo(r.get("modelo", ""), tin, tout)
+                        s.add(
+                            SondaIAResposta(
+                                execucao_id=exec_id,
+                                empresa_id=empresa_id,
+                                vendor=r.get("vendor", vendor),
+                                modelo=r.get("modelo", ""),
+                                pergunta_tipo=pergunta_tipo,
+                                repeticao=rep,
+                                # NULL no grão empresa (o histórico inteiro é assim);
+                                # o NOME perguntado no grão entidade. Gravado aqui,
+                                # LIDO só na fatia 3.
+                                entidade=None if grao_empresa else ent_nome,
+                                resposta_texto=r.get("texto", ""),
+                                tokens_in=tin,
+                                tokens_out=tout,
+                            )
                         )
-                        continue
-                    tin, tout = int(r.get("tokens_in", 0)), int(r.get("tokens_out", 0))
-                    custo += _custo(r.get("modelo", ""), tin, tout)
-                    s.add(
-                        SondaIAResposta(
-                            execucao_id=exec_id,
-                            empresa_id=empresa_id,
-                            vendor=r.get("vendor", vendor),
-                            modelo=r.get("modelo", ""),
-                            pergunta_tipo=pergunta_tipo,
-                            repeticao=rep,
-                            resposta_texto=r.get("texto", ""),
-                            tokens_in=tin,
-                            tokens_out=tout,
-                        )
-                    )
-                    stats["respostas"] += 1
+                        stats["respostas"] += 1
 
         # Sem NENHUMA resposta = falha (as IAs não retornaram — chaves/rede/modelo).
         # NÃO marca 'concluida': senão a idempotência pularia o retry e a UI mostraria
