@@ -355,6 +355,12 @@
   {% else %}
   <p class="muted" style="font-style:italic">Sem sondagem de IA ainda — sem encaminhamentos a mostrar.</p>
   {% endif %}
+  {# ⚠️ §6.22 fatia 3 — no grão entidade a defasagem não foi medida. As duas colunas
+     abaixo AFIRMAM sobre ela; sem este ramo elas imprimiriam as frases fixas sobre
+     algo que ninguém mediu — num impresso que vai ao cliente (§9/§10). #}
+  {% if d.ato2c.defasagem_nao_medida %}
+  <p class="method" style="margin-top:6mm;font-size:11.5pt">A sondagem desta competência foi feita por <strong>entidade</strong> (loja ou marca). Nesse grão a pergunta de avaliação não é feita, então <strong>não há medição de defasagem</strong> entre o que as IAs dizem e o diagnóstico dos verbatins — não é ausência de defasagem, é ausência de medição.</p>
+  {% else %}
   <table class="cols" style="margin-top:6mm"><tr>
     <td>
       <div class="col-h">Onde a IA doura</div>
@@ -365,6 +371,7 @@
       <p style="margin:0">{% if d.ato2c.ecoa.subpilares %}<strong>{{ d.ato2c.ecoa.subpilares }}</strong> — {% endif %}{{ d.ato2c.ecoa.frase }}</p>
     </td>
   </tr></table>
+  {% endif %}
   {% if d.ato2c.divergencia.n %}<p class="method" style="margin-top:8mm;font-size:11.5pt">“As três IAs divergem em {{ d.ato2c.divergencia.n }} dos {{ d.ato2c.divergencia.total }} subpilares que a sonda avalia — de {{ d.ato2c.divergencia.metodo_total }} do método — {{ d.ato2c.divergencia.frase }}”</p>{% endif %}
 </div>
 {% endif %}

@@ -960,6 +960,55 @@ def _register_cli_commands(app: Flask) -> None:
         n = re_marca_orfas(limite_segundos=limite_segundos)
         click.echo(f"[coletas-reaper] limite={limite_segundos}s — {n} órfã(s) marcada(s) 'erro'")
 
+    # ── §6.22 fatia 3: flask sonda-resintetizar ───────────────────────
+    @app.cli.command("sonda-resintetizar")
+    @click.option("--empresa", "empresa_id", type=int, default=None, help="Só esta empresa.")
+    @click.option("--aplicar", is_flag=True, help="EXECUTA. Sem isto, só REPORTA.")
+    def sonda_resintetizar(empresa_id, aplicar):
+        """Re-sintetiza leituras da sonda cuja `prompt_versao` != a versão atual.
+
+        \b
+        🔒 SEM --aplicar não gasta nada: só conta quantas leituras seriam afetadas e
+        estima o custo. Run pago não dispara sozinho (§13) — quem decide quando
+        rodar é o operador, com o número na mesa.
+
+        A re-síntese APAGA a leitura antiga e chama sintetizar_leitura de novo (o
+        skip compara versão). `prompt_versao` NULL = pré-versionamento e ENTRA.
+        """
+        from src.models.sonda_ia import SondaIALeitura
+        from src.sonda_ia.classificador import LEITURA_PROMPT_VER, sintetizar_leitura
+        from src.utils.db import db_session
+
+        # Estimativa por leitura, medida no §6.22.11: a síntese Sonnet de uma execução
+        # fica na casa de US$ 0,01. É ORDEM DE GRANDEZA, não teto — varia com o nº de
+        # respostas, que agora depende do nº de entidades.
+        USD_POR_LEITURA = 0.01
+        with db_session() as s:
+            q = s.query(SondaIALeitura).filter(
+                (SondaIALeitura.prompt_versao.is_(None))
+                | (SondaIALeitura.prompt_versao != LEITURA_PROMPT_VER)
+            )
+            if empresa_id:
+                q = q.filter(SondaIALeitura.empresa_id == empresa_id)
+            alvos = [(x.id, x.execucao_id, x.empresa_id, x.competencia, x.prompt_versao) for x in q]
+        click.echo(f"[sonda-resintetizar] versão atual do prompt: {LEITURA_PROMPT_VER}")
+        click.echo(f"  {len(alvos)} leitura(s) em versão diferente:")
+        for _lid, exid, emp, comp, ver in alvos:
+            click.echo(f"    exec {exid} · empresa {emp} · {comp} · versão={ver!r}")
+        click.echo(
+            f"  custo ESTIMADO se aplicar: ~US$ {len(alvos) * USD_POR_LEITURA:.2f} "
+            f"({len(alvos)} × ~US$ {USD_POR_LEITURA:.2f}) — ordem de grandeza, não teto"
+        )
+        if not aplicar:
+            click.echo("  (dry-run — nada foi gasto. Use --aplicar para executar.)")
+            return
+        for _lid, exid, _emp, _comp, _ver in alvos:
+            with db_session() as s:
+                s.query(SondaIALeitura).filter_by(execucao_id=exid).delete()
+            r = sintetizar_leitura(exid)
+            click.echo(f"    exec {exid}: {r}")
+        click.echo(f"[sonda-resintetizar] {len(alvos)} re-sintetizada(s).")
+
     # ── §6.22: flask sonda-invalidar ──────────────────────────────────
     @app.cli.command("sonda-invalidar")
     @click.option("--empresa", "empresa_id", type=int, required=True, help="ID da empresa.")

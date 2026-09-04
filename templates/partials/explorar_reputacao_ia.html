@@ -93,7 +93,17 @@
 {% endif %}
 
 {# ── 2. DEFASAGEM ── #}
-{% if r.defasagem %}
+{# ⚠️ §6.22 fatia 3 — grão entidade não mede defasagem, e a tela DIZ isso. Sumir em
+   silêncio faria o leitor concluir "não há defasagem", que é resultado, quando a
+   verdade é "não foi medida" — a §6.18 do outro lado. #}
+{% if r.defasagem_nao_medida %}
+<div class="mt-6 rounded-lg border border-loyall-200 bg-loyall-50 px-4 py-3 text-sm text-loyall-700">
+  <span class="font-semibold">Defasagem não medida neste grão.</span>
+  <p class="mt-1 text-loyall-600">A sondagem foi feita por <strong>entidade</strong> (loja ou marca), e
+    nesse grão a pergunta de avaliação não é feita — sem ela não há lado-IA para cruzar
+    com o diagnóstico dos verbatins. Não é ausência de defasagem: é ausência de medição.</p>
+</div>
+{% elif r.defasagem %}
 <div class="mt-6">
   <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Defasagem · IA × diagnóstico dos verbatins {% if glossario_i is defined %}{{ glossario_i('defasagem-ia') }}{% endif %}</div>
   <div class="space-y-1.5">

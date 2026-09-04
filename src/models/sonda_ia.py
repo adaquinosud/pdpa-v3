@@ -199,6 +199,10 @@ class SondaIALeitura(Base):
     defasagem_json: Mapped[Optional[str]] = mapped_column(Text)  # sonda 4 (× diagnóstico)
     # resumo por modelo: vendor → 1–2 frases do que aquela IA diz da empresa (G3).
     resumo_modelos_json: Mapped[Optional[str]] = mapped_column(Text)
+    # §6.22 fatia 3 — versão do prompt que gerou ESTA leitura. NULL = pré-versionamento.
+    # Sem isto, trocar o prompt não invalida nada: o skip de sintetizar_leitura olha só
+    # a existência da linha. A re-síntese é comando explícito, nunca automática (§13).
+    prompt_versao: Mapped[Optional[str]] = mapped_column(String)
     gerado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self) -> str:

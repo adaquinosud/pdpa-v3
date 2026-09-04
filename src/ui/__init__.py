@@ -5524,6 +5524,15 @@ def _explorar_reputacao_ia(s, empresa_id):
         )
     n_discordam = sum(1 for x in div_linhas if x["discordam"])
 
+    # ⚠️ §6.22 fatia 3 — no grão ENTIDADE a defasagem NÃO é medida (a 'avaliacao' não
+    # é perguntada, então não há lado-IA). `defasagem_json` fica NULL, e NULL aqui é
+    # "não medida", não "medida e vazia": o consumidor DECLARA em vez de omitir.
+    # Omitir em silêncio é a §6.18 do outro lado — ausência exibida como resultado.
+    defasagem_nao_medida = bool(
+        s.query(SondaIAResposta.id)
+        .filter(SondaIAResposta.execucao_id == execucao.id, SondaIAResposta.entidade.isnot(None))
+        .first()
+    )
     defasagem = sorted(
         (_json.loads(leitura.defasagem_json) if (leitura and leitura.defasagem_json) else []),
         key=lambda x: _DEFASAGEM_ORDEM.get(x.get("defasagem"), 9),
@@ -5567,6 +5576,7 @@ def _explorar_reputacao_ia(s, empresa_id):
         tem_dado=True,
         snapshot=snapshot,
         defasagem=defasagem,
+        defasagem_nao_medida=defasagem_nao_medida,
         divergencia=SimpleNamespace(vendors=vendors, linhas=div_linhas, n_discordam=n_discordam),
         serie=serie,
         # série real só a partir da 2ª competência (cron mensal) — a nota de 1 ponto

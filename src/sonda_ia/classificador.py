@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+from src.models.empresa import Empresa
 from src.models.sonda_ia import (
     SondaIAAvaliacao,
     SondaIAExecucao,
@@ -31,7 +33,47 @@ import logging
 logger = logging.getLogger(__name__)
 
 AVALIACAO_PROMPT = Path(__file__).parent / "prompts" / "avaliacao_pdpa_v1.md"
-LEITURA_PROMPT = Path(__file__).parent / "prompts" / "leitura_ia_v1.md"
+LEITURA_PROMPT = Path(__file__).parent / "prompts" / "leitura_ia_v2.md"
+# §6.22 fatia 3 — versão gravada em SondaIALeitura.prompt_versao. O skip de
+# sintetizar_leitura compara ISTO, não só a existência da linha. Bump ao editar o
+# prompt; a re-síntese das antigas é comando explícito (flask sonda-resintetizar).
+LEITURA_PROMPT_VER = "v2-entidade"
+
+# ⚠️ HEURÍSTICA declarada, não verdade. Marcadores de "a IA respondeu dizendo que não
+# conhece" — distinto de resposta VAZIA (falha/recusa do modelo) e de conteúdo real.
+# FALSO-NEGATIVO ESPERADO: uma recusa formulada fora destes padrões passa como
+# 'conteudo'. Por isso o estado vai ao LLM como SINAL, e o prompt manda confiar no
+# texto quando ele contradisser o rótulo. Não inventar regex esperto: a lista é
+# explícita de propósito, para ser lida e discutida.
+_MARCADORES_DESCONHECE = (
+    "não tenho informações",
+    "nao tenho informacoes",
+    "não tenho informação",
+    "não encontrei informações",
+    "não possuo informações",
+    "não conheço",
+    "nao conheco",
+    "não tenho dados",
+    "não há informações",
+    "no tengo información",
+    "i don't have information",
+    "i do not have information",
+)
+
+
+def classificar_estado(texto: Optional[str]) -> str:
+    """'vazio' | 'desconhece' | 'conteudo' — determinístico, sem LLM.
+
+    ⚠️ Os três NÃO colapsam (§6.21): 'vazio' é o modelo não devolver nada (achado de
+    instrumento), 'desconhece' é a IA dizer que não conhece (achado de reputação — a
+    marca é invisível), e nenhum dos dois é ausência de sondagem.
+    Antes desta fatia o 'vazio' era DESCARTADO em silêncio no filtro de
+    sintetizar_leitura, sem contagem e sem registro."""
+    if not (texto or "").strip():
+        return "vazio"
+    baixo = texto.lower()
+    return "desconhece" if any(m in baixo for m in _MARCADORES_DESCONHECE) else "conteudo"
+
 
 _SUBPILARES = {
     "P1",
@@ -173,30 +215,75 @@ def sintetizar_leitura(execucao_id: int, *, gerar_fn: Optional[Callable] = None)
         execucao = s.get(SondaIAExecucao, execucao_id)
         if execucao is None:
             return {"pulado": True, "motivo": "sem execução"}
-        if s.query(SondaIALeitura).filter_by(execucao_id=execucao_id).first() is not None:
-            return {"pulado": True, "motivo": "já sintetizada"}
+        ja = s.query(SondaIALeitura).filter_by(execucao_id=execucao_id).first()
+        if ja is not None and ja.prompt_versao == LEITURA_PROMPT_VER:
+            return {"pulado": True, "motivo": "já sintetizada nesta versão do prompt"}
+        if ja is not None:
+            # Versão diferente (ou NULL = pré-versionamento): NÃO re-sintetiza sozinho.
+            # Run pago não dispara sem alguém pedir (§13) — quem re-sintetiza é o
+            # comando explícito `flask sonda-resintetizar`.
+            return {"pulado": True, "motivo": f"leitura em versão {ja.prompt_versao!r}"}
 
-        respostas = [
-            r
-            for r in s.query(SondaIAResposta).filter_by(execucao_id=execucao_id)
-            if (r.resposta_texto or "").strip()
-        ]
+        # TODAS as respostas, inclusive as vazias: o vazio é ACHADO e precisa ser
+        # contado. Antes desta fatia ele era filtrado aqui e sumia sem registro.
+        todas = list(s.query(SondaIAResposta).filter_by(execucao_id=execucao_id))
+        grao_entidade = any(r.entidade for r in todas)
+        emp = s.get(Empresa, execucao.empresa_id)
+        rotulo_empresa = emp.nome if emp else f"empresa {execucao.empresa_id}"
+
+        def _rot(r):
+            # Grão empresa (as 24 de hoje): entidade é NULL → o rótulo é a empresa.
+            return r.entidade or rotulo_empresa
 
         def _textos(tipo):
-            return [r.resposta_texto for r in respostas if r.pergunta_tipo == tipo]
+            out = []
+            for r in todas:
+                if r.pergunta_tipo != tipo:
+                    continue
+                estado = classificar_estado(r.resposta_texto)
+                item = {"entidade": _rot(r), "vendor": r.vendor, "estado": estado}
+                if estado != "vazio":
+                    item["texto"] = r.resposta_texto
+                out.append(item)
+            return out
 
-        por_modelo = {}  # vendor → todas as respostas do modelo (p/ o resumo por IA)
-        for r in respostas:
-            por_modelo.setdefault(r.vendor, []).append(r.resposta_texto)
+        ident, encam = _textos("identidade"), _textos("encaminhamento")
 
-        data = gerar(
-            {
-                "identidade": _textos("identidade"),
-                "encaminhamento": _textos("encaminhamento"),
-                "essencia": _essencia(s, execucao.empresa_id),
-                "por_modelo": por_modelo,
+        def _cont(itens):
+            por_estado = Counter(i["estado"] for i in itens)
+            vazio_por_vendor = Counter(i["vendor"] for i in itens if i["estado"] == "vazio")
+            return {
+                "total": len(itens),
+                "por_estado": dict(por_estado),
+                "vazio_por_vendor": dict(vazio_por_vendor),
             }
-        )
+
+        cobertura = {
+            "grao": "entidade" if grao_entidade else "empresa",
+            "entidades": sorted({_rot(r) for r in todas}),
+            "identidade": _cont(ident),
+            "encaminhamento": _cont(encam),
+        }
+
+        payload = {
+            "grao": cobertura["grao"],
+            "identidade": ident,
+            "encaminhamento": encam,
+            "cobertura": cobertura,
+            "essencia": _essencia(s, execucao.empresa_id),
+        }
+        # ⚠️ `por_modelo` SAI no grão entidade: ele agrupa só por vendor, e com N
+        # entidades "os modelos divergem" pode ser "as entidades divergem" — dois
+        # eixos colapsados num. O resumo por modelo volta quando a leitura souber
+        # separar vendor × entidade. No grão empresa segue como sempre.
+        if not grao_entidade:
+            por_modelo = {}
+            for r in todas:
+                if (r.resposta_texto or "").strip():
+                    por_modelo.setdefault(r.vendor, []).append(r.resposta_texto)
+            payload["por_modelo"] = por_modelo
+
+        data = gerar(payload)
         s.add(
             SondaIALeitura(
                 execucao_id=execucao_id,
@@ -210,6 +297,7 @@ def sintetizar_leitura(execucao_id: int, *, gerar_fn: Optional[Callable] = None)
                 resumo_modelos_json=json.dumps(
                     data.get("resumo_por_modelo") or {}, ensure_ascii=False
                 ),
+                prompt_versao=LEITURA_PROMPT_VER,
             )
         )
         return {

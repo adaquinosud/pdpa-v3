@@ -11,10 +11,14 @@ entra na base do cliente.
 
 from __future__ import annotations
 
+import logging
+
 from typing import Any, Dict, Optional
 
 from src.models.sonda_ia import SondaIAAvaliacao, SondaIAExecucao, SondaIALeitura, SondaIAResposta
 from src.utils.db import db_session
+
+logger = logging.getLogger(__name__)
 
 # categorias da defasagem (IA × verbatim)
 _ATRASADA = "ia_atrasada"  # IA negativa, cliente OK → ecoa problema resolvido
@@ -58,6 +62,23 @@ def cruzar_defasagem(execucao_id: int) -> Dict[str, Any]:
         if execucao is None:
             return {"subpilares": [], "resumo": {}}
         empresa_id = execucao.empresa_id
+
+        # ⚠️ §6.22 fatia 3 — NO GRÃO ENTIDADE A DEFASAGEM NÃO RODA.
+        # O lado-IA sai de SondaIAAvaliacao, que só existe para respostas
+        # `pergunta_tipo='avaliacao'` — e a 'avaliacao' NÃO é perguntada no grão
+        # entidade (fatia 2), porque ela alimenta a contagem POR PONTO e N entidades
+        # mudariam a escala da régua.
+        # Sem isso, `ia_val` seria None em todo subpilar e `_defasagem(None, verb)`
+        # devolveria 'exclusiva_verbatim' — que SIGNIFICA "o cliente falou e a IA
+        # não", quando a verdade é "não perguntamos à IA". Medição fabricada, com
+        # cara de resultado, indo para a aba e para os blocos doura/ecoa do Parecer.
+        # Declara e sai; NÃO grava defasagem_json (o consumidor lê a ausência).
+        if any(r.entidade for r in s.query(SondaIAResposta).filter_by(execucao_id=execucao_id)):
+            logger.warning(
+                f"[sonda_ia] defasagem NÃO medida na execução {execucao_id}: grão "
+                f"entidade não pergunta 'avaliacao', então não há lado-IA para cruzar."
+            )
+            return {"subpilares": [], "resumo": {}, "nao_medida": "grao_entidade"}
 
         # Lado IA: valência dominante por subpilar (dos pontos classificados da execução).
         ia_counts: Dict[str, Counter] = {}

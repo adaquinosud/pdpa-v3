@@ -790,6 +790,11 @@ def montar_dados(
         ]
 
     doura, ecoa = _defas("ia_otimista"), _defas("ia_atrasada")
+    # ⚠️ §6.22 fatia 3 — a defasagem NÃO é medida no grão entidade (a 'avaliacao' não
+    # é perguntada). `_defas` devolveria [] igual ao caso "medida e sem defasagem" —
+    # o colapso falsy do §6.21.0 de novo. Este flag separa os dois, e o impresso
+    # DECLARA em vez de imprimir a frase fixa sobre algo que ninguém mediu.
+    defasagem_nao_medida = bool(getattr(rep, "defasagem_nao_medida", False))
     div = getattr(rep, "divergencia", None)
 
     # Ponto cego vs consciência — a DIREÇÃO importa (o confronto.py já a calcula).
@@ -983,6 +988,8 @@ def montar_dados(
             "stat": {"pct": 45, "fonte": "BrightLocal LCRS 2026"},
             "encaminhamentos": encaminhamentos[:4],
             "n_extra": f"+{n_enc - 4} outros" if n_enc > 4 else None,
+            # Consumido pelo template: com isto True, as duas colunas declaram.
+            "defasagem_nao_medida": defasagem_nao_medida,
             "doura": {
                 "subpilares": " e ".join(doura) if doura else None,
                 "frase": "a IA vê promotor onde os casos públicos são detratores; "
