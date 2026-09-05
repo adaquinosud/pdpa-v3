@@ -1,4 +1,4 @@
-# PDPA v3 · Sistema — Contexto Mestre (agosto/2026 · atualizado 26/ago)
+# PDPA v3 · Sistema — Contexto Mestre (setembro/2026 · atualizado 04/set)
 
 > **Documento de bootstrap do projeto.** Leia primeiro a cada sessão. Irmão do
 > `PDPA-Loyall-Contexto-Mestre.md` (comercial/método); este cobre o **sistema**.
@@ -2600,6 +2600,69 @@ que inclui as maduras e reabre o caso que o `regrao_ra` fechou. Exige gate
 antes/depois nos moldes da §4.21 e decisão de método. **Frente própria, não
 aberta.**
 
+
+---
+
+### 4.61 O Parecer para de contar a mesma fonte duas vezes (`945e438` · 04/set)
+
+**O que a BEXP expôs.** A tese apresentava duas leituras que "se confirmam": o
+ReclameAqui e "todas as fontes". Medido: dos **35 detratores** do subpilar-ferida
+(Mutualidade), **26 são do RA** — e o RA é **56 de 1.006** verbatins da empresa
+(**5,6% da base**). A segunda leitura é **74% a primeira**. O agregado não confirma
+a fonte: ele a **contém**. **Fora do RA sobram 9 detratores para 2 promotores** — o
+sinal existe, mas é outro sinal, com outra ordem de grandeza.
+
+⚠️ É a §7 do CLAUDE.md pela porta dos fundos: não são duas fontes discordando, são
+**duas apresentações do mesmo dado** vendidas como corroboração. E a forma "duas
+leituras independentes convergem" é **exatamente o que dá autoridade** ao número no
+Parecer — o defeito estava no lugar de maior alavancagem retórica da peça.
+
+**As cinco correções (itens 1, 2, 3, 5a, 5c · 4 e 5b viraram §6.25 e §6.26):**
+
+1. **`_ferida_por_fonte()`** decompõe det/prom do subpilar-ferida **por conector**:
+   totais, fonte dominante, peso dela, e det/prom **sem** a dominante. Entra em
+   `_facts_sintese` como `ferida_por_fonte`. Sem isso o LLM **não tinha como saber**
+   que contava duas vezes — a instrução no prompt sozinha seria pedido de bom
+   comportamento, não informação. O ratio de cada recorte fica com quem lê
+   (`calcular_ratio`, régua única — §8).
+2. **Regra travada no prompt:** `dominante_pct > 50` → **proibido** apresentar o
+   agregado como confirmação, corroboração ou segunda leitura; o peso tem de ser
+   **nomeado**. O ratio agregado pode aparecer — vendê-lo como independente, não.
+   `det_sem_dominante == 0` → dizer que fora daquela fonte **não há sinal**, jamais
+   inventar convergência.
+3. **A dek deixou de ser literal:** conta **INSTRUMENTOS distintos**, derivado do
+   dado. "Voz pública" e "conduta" saem **ambas do RA** e contam **uma vez**. Com
+   uma só leitura, a copy não promete convergência.
+   ⚠️ Era o mesmo erro da tese, uma camada acima: a dek **contava superfícies de
+   exibição** achando que contava fontes de evidência.
+5a. **`virg` nos QUATRO decimais do impresso.**
+   ⚠️ **Correção do meu diagnóstico inicial:** não foi "tela varrida, impresso
+   esquecido" (§11). `virg` está em **5 impressos e 3 partials** e **zero** vezes no
+   `parecer.html` — **a peça INTEIRA ficou fora da varredura da §4.57.** A §11 diz
+   *"varra tela E impresso"*; o que faltou aqui foi a §5: **quem consome, e em que
+   momento** — a varredura passou por arquivo, não por consumidor.
+5c. **População dos 45%:** *"dos consumidores INSATISFEITOS"*, não *"consumidores"*.
+   Trocar infla — e com a fonte (BrightLocal LCRS 2026) citada ao lado, **infla com
+   aparência de lastro**. Corrigido na manchete e nos facts.
+
+**Custo (§13):** facts + bump `PROMPT_SINTESE_VER` (`v1.9-vitrine-estado` →
+`v2.0-fonte-dominante`) invalidam o `dados_hash`. **5 pareceres × R$ 0,09 = R$ 0,45**,
+na primeira abertura de cada. Aprovado antes.
+
+**7 testes. Sem migração. Suíte 1957 → 1964. Live em `945e438`.**
+
+⚠️ **Dois defeitos MEUS nesta fatia, ambos de processo:**
+- **`| virg` derrubou 22 testes** e o meu arquivo novo **passava** — eu registrara o
+  filtro localmente. Compensação local de um problema global; conserto foi nos
+  harnesses, **não no template** (`| virg` é a regra da casa). Virou a §6.27.
+- **Implementei e commitei direto na `main`**, sem branch. Nada fora empurrado, e a
+  forma foi restaurada antes do push (branch no commit → `main` de volta ao SHA de
+  prod → FF-merge), de modo que o histórico ficou idêntico ao do protocolo. Mas o
+  **PARE aconteceu com o commit já na `main` local** — reportado, não descoberto.
+
+**Conferência pós-deploy (Alexandre), três gates:** `26 de 35` na decomposição ·
+`9 para 2` sem a dominante · `ReclameAqui` **uma vez só** na dek.
+
 ## 5. Os cases
 
 **Club Med (id 16, maduro — valida o método):** ferida Pa2 Mutualidade no RA
@@ -3755,6 +3818,99 @@ telas passando a incluí-lo.
 verificação **visual**, e a suíte não valida nenhuma delas. **Teste de dono em
 janela real, cinco vezes.** É o que torna a frente cara e o que a mantém na fila.
 
+
+---
+
+### 6.25 🔥 PRIORIDADE · 29 × 33 — a lista e as categorias saem do MESMO LLM e ninguém as reconcilia
+
+**Não é fila. É prioridade**, por decisão de Alexandre (04/set), porque o número
+categorizado é o que o **card da Vitrine imprime ao cliente**.
+
+#### 6.25.1 O mecanismo
+`src/sonda_ia/classificador.py:293-300` grava **dois campos da mesma resposta de
+LLM**, um ao lado do outro:
+
+```python
+encaminhamentos_json=json.dumps(data.get("encaminhamentos") or [], ...)
+encaminhamentos_categorias_json=json.dumps(data["encaminhamentos_por_categoria"], ...)
+```
+
+São **duas listas independentes** produzidas na mesma geração. **Nada no código
+verifica que a segunda particiona a primeira** — nem que os elementos são os
+mesmos, nem que a soma bate. Medido na exec 28: **33 na lista plana, 29 somando as
+categorias.** Quatro destinos existem num campo e não no outro, e ninguém sabe quais
+nem em que direção.
+
+#### 6.25.2 Por que isso chega ao cliente
+`parecer.py:875-885` lê os dois campos e o card da Vitrine imprime
+**"N concorrente(s) de 33 destinos citados"** — `n_concorrentes` do campo
+categorizado, `n_destinos` do campo plano. **O card compara dois números que
+saíram de listas que não se conferem**, e apresenta o resultado como fração de um
+mesmo conjunto. É a §7 do CLAUDE.md na forma mais direta: **duas fontes de verdade
+do mesmo conceito, divergindo em silêncio.**
+
+⚠️ E o defeito é **instável, não fixo**: uma re-síntese pode devolver 31 × 33, ou
+33 × 33, sem que nada mude no dado de entrada. Não há como distinguir "o LLM
+deduplicou destinos repetidos" (comportamento desejável) de "o LLM esqueceu quatro"
+(perda silenciosa) — **os dois produzem exatamente a mesma evidência.**
+
+#### 6.25.3 O que a frente precisa decidir
+1. **Uma lista, não duas.** O prompt devolve **só** o categorizado, e a lista plana
+   passa a ser **derivada** dele (`sum(categorias.values(), [])`). Uma fonte por
+   conceito, dedup incluído no que o LLM já faz — e o que ele deduplicar some dos
+   dois lados de uma vez, em vez de só de um.
+2. **Ou** manter os dois campos e **gravar a reconciliação**: quando a soma não
+   bate, isso é **estado**, e o consumidor declara (§9) em vez de imprimir a fração
+   como se fechasse.
+⚠️ A opção 1 é mais barata e mata a classe; a 2 preserva a auditoria do que o LLM
+descartou. **Decisão de Alexandre.**
+
+#### 6.25.4 O que NÃO fazer
+Recontar do lado do código (dedup por `.strip().lower()` sobre a lista plana) —
+isso inventa um **terceiro** número, com a mesma autoridade e nenhuma verificação a
+mais. O problema não é a contagem: é haver duas.
+
+---
+
+### 6.26 As "5 críticas" do Ato 4 — a §6.9 mora DENTRO do gerador de ações
+
+Ficou **fora da fatia da fonte dominante por decisão** (04/set), junto com a 6.25.
+
+O Ato 4 do Parecer afirma um número de "críticas" que vem do **texto cacheado do
+gerador de ações**, não de contagem viva. É a §6.9 (fóssil de número em texto
+gerado) numa superfície que a frente 2 não varreu — o gerador de ações escreve o
+número **para dentro da prosa**, e a partir daí nenhum recálculo o alcança: não há
+hash que denuncie, porque o hash cobre a entrada, não a aritmética que o LLM fez.
+
+⚠️ **Consumidor que ESCREVE tem prioridade sobre os que exibem** (§12 do CLAUDE.md):
+enquanto isso não for consertado, cada re-síntese pode **replicar o número morto
+num artefato novo e limpo**.
+**Requisito da frente:** o gerador **recebe** a contagem pronta e a interpola —
+nunca a produz. É a mesma regra da §15 (*"regra reencodada em prompt é fóssil
+esperando acontecer"*), aplicada a número em vez de régua.
+
+---
+
+### 6.27 O `Environment` do Jinja está copiado em QUATRO arquivos de teste
+
+Pendência aberta pela fatia da fonte dominante (04/set), e ela **já cobrou uma vez**.
+
+`tests/test_parecer.py`, `tests/test_parecer_sem_sonda.py`, `tests/test_card_vitrine.py`
+e `tests/test_parecer_fonte_dominante.py` montam cada um o seu
+`Environment(loader=FileSystemLoader("templates"))` e registram `virg` à mão. O app
+registra o filtro em `src/app.py:87`; os testes o **reconstroem**.
+
+⚠️ **O incidente:** aplicar `| virg` ao `parecer.html` derrubou **22 testes** de uma
+vez — os três harnesses sem o filtro. E **o meu arquivo novo passava**, porque eu
+tinha registrado o filtro nele: **compensação local de um problema global**, que é
+o que fez o defeito parecer menor do que era.
+
+**Frente:** uma fixture em `conftest.py` que monte o Environment **do mesmo jeito
+que o app** — idealmente lendo o registro de filtros de uma função única, para que
+**um filtro novo no app apareça nos testes sem ninguém editar nada**. Enquanto
+forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, de
+**uma cópia certa mascarando três erradas.**
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **`server_default`: `sa.text(...)` para EXPRESSÃO, string crua para LITERAL — e
@@ -4269,9 +4425,39 @@ janela real, cinco vezes.** É o que torna a frente cara e o que a mantém na fi
   Não é licença para congelar defeito por inércia: sem frente dona no §6, o teste
   vira cimento.
 
+
+- **PREVIEW QUE RODA NO SHELL SÓ USA SÍMBOLO QUE JÁ EXISTE EM PROD.** Se a
+  validação depende de código da própria branch, ela é **pós-merge por natureza** —
+  e o honesto é **dizer isso na proposta**, em vez de prometer preview e descobrir
+  no `ImportError`.
+  ⚠️ **Três vezes em um dia (04/set)**, sempre pelo mesmo gesto: escrevi o bloco
+  olhando o código **que eu acabara de escrever**, não o que está **rodando**. O
+  símbolo estava na minha frente; que ele não existisse em prod não aparece em lugar
+  nenhum enquanto se escreve.
+
+  | Fatia | O que o bloco importava | Existia em prod? |
+  |---|---|---|
+  | §6.22 fatia 3 · preview de prosa | `classificar_estado` | não |
+  | Card da Vitrine · preview | o `parecer.html` novo | não |
+  | Fonte dominante · preview de facts | `leituras_independentes`, `_ferida_por_fonte` | não |
+
+  🔒 **A checagem é MECÂNICA, não lembrança:** antes de entregar bloco de preview,
+  `git show <SHA-de-prod>:<arquivo> | grep <símbolo>` para **cada** símbolo
+  importado. É o mesmo gesto da §3 do CLAUDE.md — referência que entra em documento
+  é aberta antes de entrar.
+  ⚠️ **E o dano não é o bloco que não roda.** A promessa de preview **entrou na
+  decisão de aprovar** as três fatias: foi uma garantia oferecida no momento exato
+  em que Alexandre decidia, e que eu não podia dar. O critério que separa os dois
+  casos:
+  - **Preview possível ANTES do merge** — o bloco só chama o que já está em prod
+    (probe da ferida, probe de contagem dos pareceres cacheados).
+  - **Validação PÓS-MERGE por natureza** — qualquer coisa que exercite função nova,
+    template alterado ou coluna nova. Aqui a proposta declara *"não há preview
+    prévio; a conferência é depois do deploy, e estes são os gates"* — e nomeia os
+    gates, que é o que dá ao humano o mesmo poder de veto, só que depois.
 ---
 
-## 8. Estado dos SHAs (todos Live · atual `f1c6149`)
+## 8. Estado dos SHAs (todos Live · atual `945e438`)
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →
