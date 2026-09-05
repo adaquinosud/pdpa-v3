@@ -28,7 +28,16 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v2.0-fonte-dominante"
+# ⚠️ SEM EXCEÇÃO POR CUSTO. Ao remover a saída `essencia` do prompt eu argumentei
+# para não bumpar: o campo não era lido por ninguém, e o bump custaria R$ 0,45 sem
+# mudar o produto. O argumento de custo estava certo e a conclusão errada — uma
+# versão cobrindo DOIS textos de prompt é a divergência silenciosa desta casa
+# inteira (a mesma família do `dados_hash` que não distingue medido-zero de
+# não-medido, e das duas camadas formatando o mesmo decimal). Registrar a ressalva
+# no Contexto-Mestre não substitui: o doc serve a quem lê o doc, a versão serve a
+# quem lê o código. Prompt mudou → bump, e o custo entra na mesa (§13), não no
+# lugar da regra.
+PROMPT_SINTESE_VER = "v2.1-essencia-literal"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -725,7 +734,6 @@ def sintetizar_parecer(
         "fecho": data.get("fecho"),
         "ausentes": data.get("ausentes") or None,  # 3 pilares que a IA não menciona
         "ausentes_frase": data.get("ausentes_frase"),
-        "essencia": data.get("essencia") or None,  # missao/visao/valores comprimidos
         "leitura_topo": data.get("leitura_topo"),  # leitura da ferida individual (P7)
         "corrente": data.get("corrente_nucleo") or {},  # {nivel: frase-núcleo 1 linha}
         "corrente_ancorado": corrente_ancorado,  # 6b: {nivel: frase ancorada validada}
@@ -989,7 +997,15 @@ def montar_dados(
                 # período ao lado do total. None quando não há caso RA com data.
                 "janela_ini": ra_ini.strftime("%d/%m/%Y") if ra_ini else None,
                 "janela_fim": ra_fim.strftime("%d/%m/%Y") if ra_fim else None,
-                "ratio": f"{fer_agg['ratio']:.2f}".replace(".", ",") if fer_agg else "—",
+                # ⚠️ REGRA: quando a camada de DADO formata, a de EXIBIÇÃO não formata —
+                # e vice-versa. UMA fonte por decimal. Este campo saía daqui como
+                # STRING já com vírgula (`f"{x:.2f}".replace(".", ",")`), o template
+                # passou a aplicar `| virg`, e `virg("0,06")` faz `float("0,06")` →
+                # ValueError → "—". O ratio 0,06 virou travessão em duas superfícies,
+                # e a suíte passou porque asserção de TEXTO aceita placeholder.
+                # O `else "—"` também sai: placeholder é decisão da exibição, não do
+                # dado — foi ele que produziu o "— —" (o segundo é literal da frase).
+                "ratio": fer_agg["ratio"] if fer_agg else None,
                 "detratores": fer_agg["det"] if fer_agg else 0,
                 "promotores": fer_agg["prom"] if fer_agg else 0,
             },
@@ -1062,7 +1078,11 @@ def montar_dados(
                 "nao_respondidas_maduras": casos.resp_base - casos.resp_num,
                 "avaliados": casos.n_avaliados,
             },
-            "nota_media": casos.nota_media if casos.nota_media is not None else "—",
+            # Número ou None — o template formata com `| virg(1)`. Era `else "—"`:
+            # a MESMA bomba de :991, já armada e ainda invisível porque `virg("—")`
+            # devolve "—" por acaso (cai no except). Trocar o literal de fallback
+            # bastaria para expor. Ver :999.
+            "nota_media": casos.nota_media,
             "n_avaliados": casos.n_avaliados,
             # citação parametrizada pela lente do dado (ver bloco acima):
             "compensa": {
@@ -1090,7 +1110,7 @@ def montar_dados(
                 "det_pct": ferida["det_pct"] if ferida else 0,
                 "det": ferida["det"] if ferida else 0,
                 "total": ferida["total"] if ferida else 0,
-                "ratio": f"{fer_agg['ratio']:.2f}".replace(".", ",") if fer_agg else "—",
+                "ratio": fer_agg["ratio"] if fer_agg else None,  # número ou None (ver :999)
             },
             "gap": ponto_cego,
         },

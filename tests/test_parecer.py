@@ -651,7 +651,11 @@ def test_montar_dados_degrada_sem_dado(db_session):
     d = montar_dados(e.id)
     assert d is not None
     assert d["tese"]["subpilar_nome"] == "Relação"  # fallback
-    assert d["tese"]["voz"]["total"] == 0 and d["tese"]["voz"]["ratio"] == "—"
+    # ⚠️ INVERTIDO: esta linha exigia `ratio == "—"` — o placeholder de EXIBIÇÃO
+    # assado na camada de DADO. Era o defeito virado teste, e foi ele que fez a
+    # regressão do `| virg` parecer conformidade. Ausência é ESTADO: o dado devolve
+    # None e o impresso decide como mostrar (ver test_parecer_decimal_e_essencia).
+    assert d["tese"]["voz"]["total"] == 0 and d["tese"]["voz"]["ratio"] is None
     assert d["ato2b"]["gap"] is None and d["ato2b"]["corrente"] == []
     assert d["ato2c"]["encaminhamentos"] == []
     # degradação NÃO pode quebrar o template

@@ -55,10 +55,14 @@ DISTINTOS, ver a REGRA MÁXIMA; ``conduta`` (``responde_pct``/``resolve_pct``/
 ``enfrenta_a_causa_pct``); ``ruptura_nivel`` +
 ``ruptura_frase``; ``consultam_ia_pct``, ``ias``, ``encaminhamentos``; ``topo`` /
 ``base`` (subpilares em risco, cada um com nome+valência); ``essencia_declarada``
-(missão/visão/valores crus); ``identidade_ia_vs_essencia`` (o que as IAs veem × a
-essência — cita explicitamente o que a IA NÃO menciona).
+(missão/visão/valores crus). ⚠️ ENTRADA para a análise, NUNCA saída: o texto
+declarado jamais volta na resposta — nem reescrito, nem resumido, nem "essencial".
+Ele é impresso LITERAL do cadastro, e o Ato 1 confronta o declarado com o que as
+IAs respondem: parafrasear o declarado faria o confronto comparar duas paráfrases.
+Também: ``identidade_ia_vs_essencia`` (o que as IAs veem × a essência — cita
+explicitamente o que a IA NÃO menciona).
 
-Produza OITO saídas:
+Produza SETE saídas:
 
 1. ``abertura`` — 2 parágrafos (máx. ~95 palavras cada). §1: a tese — onde a marca
    trai a promessa e por quê (ferida + ruptura + os DOIS fatos públicos, cada um
@@ -125,19 +129,15 @@ Produza OITO saídas:
    primeiro"). Se ``elo_travado.pilar`` for null, nomeie só a ferida e um contraponto seu.
    Autoridade, sem clichê motivacional, sem prometer número.
 
-3. ``essencia`` — objeto ``{"missao","visao","valores"}`` com cada campo REESCRITO
-   em 1-2 linhas, essencial, SEM detalhe operacional (nada de cifras tipo "R$ 300
-   milhões", nº de resorts, datas). Só o que a marca declara SER.
-
-4. ``ausentes`` — lista dos 3 (máx.) pilares/valores da ``essencia_declarada`` que
+3. ``ausentes`` — lista dos 3 (máx.) pilares/valores da ``essencia_declarada`` que
    o ``identidade_ia_vs_essencia`` indica que as IAs NÃO mencionam (ex.:
    sustentabilidade, multiculturalidade, propósito). Nomes curtos. Se o campo não
    permitir inferir, devolva lista vazia.
 
-5. ``ausentes_frase`` — 1 frase curta sobre o que essa ausência revela (ex.: "a
+4. ``ausentes_frase`` — 1 frase curta sobre o que essa ausência revela (ex.: "a
    identidade de propósito não transpassa ao conhecimento público").
 
-6. ``leitura_topo`` — 1-2 frases que nomeiam os DOIS eixos DISTINTOS, nunca colados:
+5. ``leitura_topo`` — 1-2 frases que nomeiam os DOIS eixos DISTINTOS, nunca colados:
    a FERIDA (``ferida``, onde dói) e o ELO TRAVADO (``elo_travado.pilar`` +
    ``elo_travado.subpilares``, o que trava primeiro na sequência do Lastro). REGRA: ferida e
    elo travado JAMAIS na mesma frase sem a palavra que os separa ("onde dói" × "o que trava
@@ -151,7 +151,7 @@ Produza OITO saídas:
    - ``elo_travado.pilar`` null → nada trava antes da ferida: aí, e SÓ aí, a ferida se corrige
      na RELAÇÃO, caso a caso.
 
-7. ``corrente_nucleo`` — objeto ``{nivel: frase}`` onde, para CADA elo de
+6. ``corrente_nucleo`` — objeto ``{nivel: frase}`` onde, para CADA elo de
    ``corrente_elos``, você extrai a FRASE-NÚCLEO da justificativa em UMA linha
    (máx. ~15 palavras), preservando o sentido. A chave é o ``nivel`` exato do elo
    (ex.: "Significado", "Essência"). É pra caber num diagrama — a versão longa NÃO
@@ -160,7 +160,7 @@ Produza OITO saídas:
    (singular), o verbo fica no singular — ex. "Acessibilidade que falha EXCLUI o
    hóspede", nunca "Acessibilidade falha excluem".
 
-8. ``corrente_ancorado`` — objeto ``{nivel: frase}`` para CADA elo de
+7. ``corrente_ancorado`` — objeto ``{nivel: frase}`` para CADA elo de
    ``corrente_degradada`` (elos ABAIXO da ruptura, sem dado próprio). Reescreva a
    ``frase_canonica`` de modo que ela: (i) PRESERVE o núcleo conceitual do
    ``nucleo`` (a ideia do rótulo — ex. "busca sem rumo" mantém a ideia de falta de
@@ -179,7 +179,6 @@ Responda SOMENTE com JSON, sem texto fora:
 {
   "abertura": "…§1…\n\n…§2…",
   "fecho": "…",
-  "essencia": {"missao": "…", "visao": "…", "valores": "…"},
   "ausentes": ["…", "…", "…"],
   "ausentes_frase": "…",
   "leitura_topo": "…",

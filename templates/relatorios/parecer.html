@@ -210,7 +210,16 @@
   <div class="eyebrow">Ato 1</div>
   <h2 class="manchete">O que a empresa<br>declara ser.</h2>
   <div class="rule"></div>
-  {% set _ess = (d.sintese.essencia if (d.sintese and d.sintese.essencia) else d.ato1.essencia) %}
+  {# ⚠️ LITERAL DO CADASTRO, SEMPRE. Esta linha PREFERIA `d.sintese.essencia` — a
+     paráfrase do LLM — sob o rótulo "A essência declarada". Medido na 27: a visão
+     "de acordo com os nossos indicadores e das montadoras" saiu impressa como
+     "reconhecido por clientes e montadoras". O LLM TROCOU O JUIZ DECLARADO, e num
+     Parecer cujo Ato 3 acusa falha com o cliente isso atribui à empresa uma promessa
+     que ela não fez. O texto mudava entre gerações sem ninguém editar o cadastro.
+     O Ato 1 é o confronto declarado × o que as IAs respondem: com o declarado
+     parafraseado, o confronto compara duas paráfrases. `essencia` saiu do prompt e
+     da síntese — não há mais o que preferir. #}
+  {% set _ess = d.ato1.essencia %}
   <div class="band">
     <div class="band-lab">A essência declarada</div>
     {% if _ess.missao %}<p style="margin:0 0 2mm"><strong>Missão.</strong> {{ _ess.missao }}</p>{% endif %}
@@ -220,9 +229,12 @@
 
   {# ⚠️ §6.21 — esta frase afirma sobre o que as IAs respondem E sobre a essência
      declarada: exige AS DUAS pré-condições, que são independentes. A essência vem
-     do CADASTRO (`emp.missao/visao/valores`, parecer.py:675); a sondagem vem do
-     instrumento. Sem uma delas, a frase é conclusão sem premissa — e cada ramo
-     declara o estado E o que o resolve (§9). #}
+     do CADASTRO (`emp.missao/visao/valores`, montadas em `parecer.py:770`); a
+     sondagem vem do instrumento. Sem uma delas, a frase é conclusão sem premissa —
+     e cada ramo declara o estado E o que o resolve (§9).
+     ⚠️ Este comentário afirmava "vem do CADASTRO" enquanto a linha acima preferia a
+     paráfrase do LLM, e apontava `parecer.py:675`, que não é a linha. Comentário
+     errado é pior que nenhum: nada no linter ou no teste o verifica. #}
   {% set _tem_ess = _ess and (_ess.missao or _ess.visao or _ess.valores) %}
   {% if not _tem_ess %}
   <p class="method" style="font-size:13pt;margin:10mm 0 4mm">A empresa não tem missão, visão e valores públicos cadastrados — não há o que confrontar com o que as IAs respondem.</p>
