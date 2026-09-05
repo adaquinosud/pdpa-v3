@@ -152,7 +152,12 @@
 <div class="page">
   <div class="eyebrow">A tese</div>
   <h2 class="manchete">A ferida tem endereço:<br>a {{ d.tese.subpilar_nome }}.</h2>
-  <div class="dek">Quatro leituras independentes apontam o mesmo lugar: quando algo dá errado, o cliente não sente a empresa do seu lado.</div>
+  {# ⚠️ A dek contava LINHAS da tabela ("quatro leituras independentes") como literal
+     fixo. Na BEXP são três linhas, e DUAS delas (voz pública e conduta) saem do MESMO
+     instrumento — o ReclameAqui. Agora conta INSTRUMENTOS distintos, derivado do dado.
+     Uma só → não promete convergência que não existe. #}
+  {% set _lt = d.tese.leituras or [] %}
+  <div class="dek">{% if _lt|length > 1 %}{{ _lt|length }} leituras independentes ({{ _lt|join(', ') }}) apontam o mesmo lugar{% elif _lt|length == 1 %}A leitura disponível ({{ _lt[0] }}) aponta para um lugar{% else %}A leitura aponta para um lugar{% endif %}: quando algo dá errado, o cliente não sente a empresa do seu lado.</div>
   <div class="rule"></div>
   {% if d.sintese and d.sintese.abertura %}
     {% for par in d.sintese.abertura.split('\n\n') %}<p class="lead">{{ par }}</p>{% endfor %}
@@ -162,7 +167,7 @@
   <table class="tese-grid">
     <tr>
       <td class="k"><div class="kl">A voz pública</div><div class="kn">{{ d.tese.voz.pct }}%</div></td>
-      <td class="v">das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}). No diagnóstico geral, o ratio é <strong>{{ d.tese.voz.ratio }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
+      <td class="v">das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}). No diagnóstico geral, o ratio é <strong>{{ d.tese.voz.ratio | virg }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
     </tr>
     <tr>
       <td class="k"><div class="kl">A conduta</div><div class="kn">{% if d.ato2a.maturidade.madura %}{{ d.tese.conduta.resolve }}%{% else %}{{ d.tese.conduta.responde }}%{% endif %}</div></td>
@@ -269,7 +274,7 @@
     <div class="seg"><div class="bn">{{ seg.n }}</div><div class="bl">{{ seg.label }}</div></div>
     {% endfor %}
   </div>
-  <p class="muted" style="text-align:center;font-size:9.5pt;margin-top:1mm">nota média {{ d.ato2a.nota_media }}/10 · {{ d.ato2a.n_avaliados }} avaliados</p>
+  <p class="muted" style="text-align:center;font-size:9.5pt;margin-top:1mm">nota média {{ d.ato2a.nota_media | virg(1) }}/10 · {{ d.ato2a.n_avaliados }} avaliados</p>
   {% set rc = d.ato2a.reconciliacao %}
   <p class="muted" style="text-align:center;font-size:8.5pt;margin-top:1mm">Bases: {{ rc.respondidas }} respondidas + {{ rc.nao_respondidas_maduras }} não respondidas = {{ rc.maduros }} casos maduros · {{ rc.total }} no total = {{ rc.maduros }} maduros + {{ rc.imaturos }} recentes · nota sobre {{ rc.avaliados }} avaliados.</p>
 
@@ -308,12 +313,12 @@
     <td>
       <div class="col-h">A intensidade da dor</div>
       <div><span class="heroi-sm" style="color:var(--crit)">{{ d.ato2b.concentracao.det_pct }}%</span></div>
-      <div class="muted" style="margin-top:1mm">das manifestações públicas sobre <strong>{{ d.ato2b.concentracao.subpilar_nome }}</strong> são detratoras ({{ d.ato2b.concentracao.det }} de {{ d.ato2b.concentracao.total }}, todas as fontes) · ratio {{ d.ato2b.concentracao.ratio }}</div>
+      <div class="muted" style="margin-top:1mm">das manifestações públicas sobre <strong>{{ d.ato2b.concentracao.subpilar_nome }}</strong> são detratoras ({{ d.ato2b.concentracao.det }} de {{ d.ato2b.concentracao.total }}, todas as fontes) · ratio {{ d.ato2b.concentracao.ratio | virg }}</div>
     </td>
     <td>
       <div class="col-h">{% if d.ato2b.gap and d.ato2b.gap.tipo == 'consciencia' %}A consciência do time{% else %}O ponto cego do time{% endif %}</div>
       {% if d.ato2b.gap %}
-      <p style="margin:0">Em <strong>{{ d.ato2b.gap.subpilar_nome }}</strong>, {% if d.ato2b.gap.time_val %}o time se avalia <strong>{{ d.ato2b.gap.time_val }}</strong>{% if d.ato2b.gap.time_nota %} (nota {{ d.ato2b.gap.time_nota }}){% endif %}; o cliente é <strong>{{ d.ato2b.gap.cliente_val }}</strong>{% else %}o cliente é <strong>{{ d.ato2b.gap.cliente_val }}</strong>; o time não sinaliza{% endif %}. <em class="muted">{{ d.ato2b.gap.frase }}.</em></p>
+      <p style="margin:0">Em <strong>{{ d.ato2b.gap.subpilar_nome }}</strong>, {% if d.ato2b.gap.time_val %}o time se avalia <strong>{{ d.ato2b.gap.time_val }}</strong>{% if d.ato2b.gap.time_nota %} (nota {{ d.ato2b.gap.time_nota | virg(1) }}){% endif %}; o cliente é <strong>{{ d.ato2b.gap.cliente_val }}</strong>{% else %}o cliente é <strong>{{ d.ato2b.gap.cliente_val }}</strong>; o time não sinaliza{% endif %}. <em class="muted">{{ d.ato2b.gap.frase }}.</em></p>
       {% else %}<p class="muted" style="margin:0;font-style:italic">Sem confronto cliente × time para esta empresa.</p>{% endif %}
     </td>
   </tr></table>
@@ -362,7 +367,9 @@
 {% if d.tem_sonda %}
 <div class="page">
   <div class="eyebrow">Ato 2 · a vitrine</div>
-  <h2 class="manchete">45% já pedem recomendação<br>a IAs. Eis o que elas<br>respondem sobre você.</h2>
+  {# ⚠️ A população é INSATISFEITOS, não "consumidores" — trocar infla a alegação, e
+     com a fonte citada logo abaixo infla com aparência de lastro. #}
+  <h2 class="manchete">{{ d.ato2c.stat.pct }}% {{ d.ato2c.stat.populacao }}<br>já pedem recomendação a IAs.<br>Eis o que elas respondem.</h2>
   <div class="muted" style="font-size:8.5pt;margin-top:2mm">fonte: {{ d.ato2c.stat.fonte }}</div>
   <div class="rule"></div>
   {% if d.ato2c.encaminhamentos %}

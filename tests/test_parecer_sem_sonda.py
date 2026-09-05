@@ -18,10 +18,17 @@ from __future__ import annotations
 
 from jinja2 import Environment, FileSystemLoader
 
+from src.utils.fmt import virg as _virg
+
 from src.models.empresa import Empresa
 from src.relatorios.parecer import montar_dados
 
+# ⚠️ O `virg` é registrado como FILTRO no app (`src/app.py:87`), e `parecer.html` o
+# usa nos decimais. Um `Environment` puro não o tem, e o render quebra com
+# "No filter named 'virg'" — o template tem de renderizar aqui do mesmo jeito que em
+# produção. Fonte única da função: `src.utils.fmt.virg`.
 _ENV = Environment(loader=FileSystemLoader("templates"))
+_ENV.filters["virg"] = _virg
 
 MANCHETE_VITRINE = "Eis o que elas"
 FRASE_DOURA = "a IA vê promotor onde os casos públicos são detratores"

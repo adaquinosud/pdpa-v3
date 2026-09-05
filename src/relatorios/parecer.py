@@ -28,7 +28,7 @@ FONTS_BASE_URL = (Path(__file__).parent / "fonts").as_uri() + "/"
 PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # Versão da síntese: entra no dados_hash → mexer no prompt invalida o cache
 # (senão o parecer regenerado devolve a prosa velha). Bump ao editar o prompt.
-PROMPT_SINTESE_VER = "v1.9-vitrine-estado"
+PROMPT_SINTESE_VER = "v2.0-fonte-dominante"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -98,6 +98,60 @@ def _conc_ra(s, empresa_id: int) -> Dict[str, Any]:
     )
     por_sub = {sub: int(n) for sub, n in rows}
     return {"por_sub": por_sub, "total": sum(por_sub.values())}
+
+
+def _ferida_por_fonte(s, empresa_id: int, subpilar: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Decompõe os detratores/promotores do subpilar-FERIDA por conector de fonte.
+
+    ⚠️ Existe porque a tese apresentava o ReclameAqui e "todas as fontes" como duas
+    leituras que se confirmam — e na BEXP a segunda é 74% a primeira (26 dos 35
+    detratores de Mutualidade são RA, e o RA é 56 de 1.006 verbatins da empresa).
+    Sem esta quebra o LLM não tem como saber que está contando a mesma fonte duas
+    vezes.
+
+    Devolve ``{det, prom, dominante, dominante_det, dominante_pct, det_sem_dominante,
+    prom_sem_dominante, por_fonte}`` — ou ``None`` sem subpilar/base. O ratio de cada
+    recorte NÃO é calculado aqui: quem lê aplica ``calcular_ratio`` (régua única)."""
+    from sqlalchemy import func
+
+    from src.models.fonte import Fonte
+    from src.models.verbatim import Verbatim
+
+    if not subpilar:
+        return None
+    rows = (
+        s.query(Fonte.conector_tipo, Verbatim.tipo, func.count(Verbatim.id))
+        .join(Verbatim, Verbatim.fonte_id == Fonte.id)
+        .filter(Verbatim.empresa_id == empresa_id, Verbatim.subpilar == subpilar)
+        .group_by(Fonte.conector_tipo, Verbatim.tipo)
+        .all()
+    )
+    if not rows:
+        return None
+    por_fonte: Dict[str, Dict[str, int]] = {}
+    for conector, tipo, n in rows:
+        d = por_fonte.setdefault(conector, {"det": 0, "prom": 0})
+        if tipo == "detrator":
+            d["det"] += n
+        elif tipo == "promotor":
+            d["prom"] += n
+    det = sum(v["det"] for v in por_fonte.values())
+    prom = sum(v["prom"] for v in por_fonte.values())
+    if not det:
+        return None
+    dominante = max(por_fonte, key=lambda k: por_fonte[k]["det"])
+    dd = por_fonte[dominante]
+    return {
+        "det": det,
+        "prom": prom,
+        "dominante": dominante,
+        "dominante_det": dd["det"],
+        "dominante_prom": dd["prom"],
+        "dominante_pct": round(100 * dd["det"] / det),
+        "det_sem_dominante": det - dd["det"],
+        "prom_sem_dominante": prom - dd["prom"],
+        "por_fonte": por_fonte,
+    }
 
 
 def _janela_ra(s, empresa_id: int):
@@ -463,6 +517,29 @@ def _ato4(s, empresa_id: int, empresa_nome: str) -> Dict[str, Any]:
     return {"praticas": praticas, "rs": rs}
 
 
+def leituras_independentes(d: Dict[str, Any]) -> List[str]:
+    """Instrumentos DISTINTOS que sustentam a tese — não linhas da tabela.
+
+    ⚠️ A dek dizia "quatro leituras independentes" como literal fixo, e na BEXP são
+    três linhas — das quais DUAS (voz pública e conduta) saem do MESMO instrumento,
+    o ReclameAqui. Contar linhas infla; o que importa é de quantos instrumentos
+    diferentes o sinal vem. Derivado do dado, nunca escrito à mão."""
+    fontes = []
+    if (d.get("tese", {}).get("voz", {}) or {}).get("total"):
+        fontes.append("ReclameAqui")  # voz pública E conduta saem daqui — conta UMA vez
+    elif d.get("ato2a", {}).get("maturidade", {}).get("n_casos"):
+        fontes.append("ReclameAqui")
+    if (d.get("tese", {}).get("profundidade", {}) or {}).get("nivel"):
+        fontes.append("análise ORIGEM")
+    if d.get("tem_sonda"):
+        fontes.append("sondagem de IA")
+    _ff = (d.get("tese", {}) or {}).get("ferida_fontes") or {}
+    outras = [f for f in (_ff.get("por_fonte") or {}) if f != "reclame_aqui"]
+    if outras and "demais fontes públicas" not in fontes:
+        fontes.append("demais fontes públicas")
+    return fontes
+
+
 def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
     """Fatos crus (sem prosa) que alimentam a síntese Sonnet + o hash do cache.
     Chaves AUTO-DESCRITIVAS: a concentração RA e o diagnóstico do subpilar são
@@ -473,6 +550,11 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         "empresa": d["empresa_nome"],
         # EIXO 1 — ONDE DÓI: a ferida (subpilar de mais detratores no agregado).
         "ferida": t["subpilar_nome"],
+        # ⚠️ A ferida DECOMPOSTA POR FONTE. Sem isto o LLM apresentava o ReclameAqui e
+        # "todas as fontes" como duas leituras que se confirmam — e na BEXP a segunda é
+        # 74% a primeira (26 dos 35 detratores). O agregado NÃO é leitura independente
+        # quando uma fonte domina; ele CONTÉM a primeira.
+        "ferida_por_fonte": t.get("ferida_fontes"),
         # EIXO 2 — O QUE TRAVA PRIMEIRO: o elo travado (pilar do gargalo sequencial +
         # subpilar(es) crítico/fraco dele). DISTINTO da ferida — o prompt exige separá-los.
         # pilar None → nada trava antes da ferida (aí, e só aí, vale "caso a caso").
@@ -533,6 +615,7 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         "ruptura_nivel": t["profundidade"]["nivel"],
         "ruptura_frase": t["profundidade"]["frase"],
         "consultam_ia_pct": d["ato2c"]["stat"]["pct"],
+        "consultam_ia_populacao": d["ato2c"]["stat"]["populacao"],
         "ias": ["ChatGPT", "Gemini", "Claude"],
         # ⚠️ A5 — o COLAPSO FALSY na terceira superfície (§6.21.0). `encaminhamentos`
         # chegava como [] tanto para "não sondado" quanto para "sondado e ninguém
@@ -696,6 +779,7 @@ def montar_dados(
         # o eleitor da ferida. Sem detrator em lugar nenhum → None (degrada p/ "Relação").
         ferida = ferida_de_agg(agg)  # régua canônica (grão subpilar) — sem 2ª cópia
         fer_sub = ferida["subpilar"] if ferida else None
+        ferida_fontes = _ferida_por_fonte(s, empresa_id, fer_sub)
         casos = _explorar_casos(s, empresa_id).painel
         # Bug 2: a citação do funil é parametrizada pelo dado real — nada hardcoded,
         # e a lente segue o dado: se há resolvidos que SÓ compensam, conta-os; se
@@ -884,13 +968,15 @@ def montar_dados(
         )
         _manchete = {"l1": _l1, "l2": _l2}
 
-    return {
+    d_out = {
         "gerado_em": now,
         "empresa_nome": empresa_nome,
         "subtitulo": f"Diagnóstico do Capital Relacional · {empresa_nome} · "
         f"{_MESES[now.month]} {now.year}",
         "tese": {
             "subpilar_nome": ferida["nome"] if ferida else "Relação",
+            # Quebra por fonte da FERIDA — alimenta os facts e a regra do prompt.
+            "ferida_fontes": ferida_fontes,
             "voz": {
                 "pct": (
                     round(100 * ra["por_sub"].get(fer_sub, 0) / ra["total"])
@@ -1012,7 +1098,13 @@ def montar_dados(
         # Base = todas as fontes com texto (bate com a P5); rating-only não temiza.
         "ato2_voz": _temas_voz(s, empresa_id),
         "ato2c": {
-            "stat": {"pct": 45, "fonte": "BrightLocal LCRS 2026"},
+            # ⚠️ A população é INSATISFEITOS, não "consumidores". Trocar infla a
+            # alegação — e com fonte citada ao lado, infla com aparência de lastro.
+            "stat": {
+                "pct": 45,
+                "populacao": "dos consumidores insatisfeitos",
+                "fonte": "BrightLocal LCRS 2026",
+            },
             "encaminhamentos": encaminhamentos[:4],
             "n_extra": f"+{n_enc - 4} outros" if n_enc > 4 else None,
             # Consumido pelo template: com isto True, as duas colunas declaram.
@@ -1057,3 +1149,8 @@ def montar_dados(
         "ato4": ato4,
         "sintese": None,  # preenchido pelo route via sintetizar_parecer (sob demanda)
     }
+    # A dek conta INSTRUMENTOS distintos (derivado do dado), não linhas da tabela:
+    # voz pública e conduta saem AMBAS do ReclameAqui e contam UMA vez. Ver
+    # `leituras_independentes`. Calculado aqui porque depende do dict já montado.
+    d_out["tese"]["leituras"] = leituras_independentes(d_out)
+    return d_out

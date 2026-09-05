@@ -72,6 +72,26 @@ Produza OITO saídas:
    insatisfeito, e ``consultam_ia_pct`` já consultam IAs, as ``ias`` RECOMENDAM os
    ``encaminhamentos``). Factual, sem inflar.
 
+   🔒 **A FERIDA E A FONTE — NÃO CONTE A MESMA FONTE DUAS VEZES.**
+   ``ferida_por_fonte`` traz a decomposição: ``det``/``prom`` totais, quem é a
+   ``dominante``, ``dominante_det``, ``dominante_pct``, e ``det_sem_dominante`` /
+   ``prom_sem_dominante``.
+   ⚠️ Quando ``dominante_pct`` > 50, o agregado **NÃO é leitura independente da fonte
+   dominante — ele a CONTÉM**. É PROIBIDO apresentar "o ReclameAqui" e "todas as
+   fontes" como duas evidências que se confirmam, ou usar o agregado como
+   "confirmação"/"corroboração"/"segunda leitura". Nomeie o peso.
+   Forma de referência (**não copiar literalmente**):
+   *"A Mutualidade concentra 35 detratores contra 2 promotores. O peso vem do
+   ReclameAqui — 26 dos 35. Nas demais fontes o sinal é mais fraco, mas aponta na
+   mesma direção: 9 detratores para 2 promotores."*
+   O ratio agregado **pode** aparecer; o que não pode é ser vendido como confirmação
+   independente. Se ``det_sem_dominante`` for 0, diga que **fora daquela fonte não há
+   sinal** — não invente convergência.
+
+   🔒 **POPULAÇÃO DO DADO DE IA:** ``consultam_ia_pct`` refere-se a
+   ``consultam_ia_populacao`` (insatisfeitos), NÃO a "consumidores" em geral. Usar a
+   população errada infla a alegação — e há fonte citada ao lado, o que agrava.
+
    🔒 **ANTES DE ESCREVER SOBRE A VITRINE, LEIA ``sonda_estado``:**
    - ``"nao_sondado"`` — **NÃO HOUVE SONDAGEM**. É PROIBIDO afirmar qualquer coisa
      sobre o que as IAs dizem, recomendam ou ecoam. Ou omita a vitrine da prosa, ou
