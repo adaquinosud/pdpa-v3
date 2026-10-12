@@ -34,6 +34,8 @@ umap-learn==0.5.12   # redução de dimensão antes do HDBSCAN (Bloco 6 temas/cl
 # Geração de documentos
 python-docx==1.1.0
 openpyxl==3.1.2
+python-pptx==1.0.2  # Avaliador: leitura de .pptx (puxa XlsxWriter; lxml/pillow já no lock)
+pypdf==6.20.1  # Avaliador: leitura de .pdf (Python puro; NÃO PyMuPDF — AGPL)
 weasyprint==68.1  # PDF (B0): requer libs nativas — ver Dockerfile (pango/harfbuzz/fontconfig)
 
 # Segurança
