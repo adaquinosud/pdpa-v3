@@ -13,3 +13,7 @@ PYTHONPATH=. FLASK_APP=src.app:create_app "$PY" -m flask pos-coleta-watchdog "$@
 # Housekeeping pendurado no watchdog (a cada 6h, sem serviço novo): reapa órfãs de
 # coleta presas em 'rodando' (container morto). Só UPDATE em banco — zero Apify.
 PYTHONPATH=. FLASK_APP=src.app:create_app "$PY" -m flask coletas-reaper
+
+# Avaliador: marca 'falhou' a análise cuja thread morreu (deploy) e apaga o texto
+# extraído das análises sem uso há AVALIADOR_DIAS_RETENCAO_TEXTO dias. Só UPDATE.
+PYTHONPATH=. FLASK_APP=src.app:create_app "$PY" -m flask avaliador-housekeeping

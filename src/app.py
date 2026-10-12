@@ -960,6 +960,22 @@ def _register_cli_commands(app: Flask) -> None:
         n = re_marca_orfas(limite_segundos=limite_segundos)
         click.echo(f"[coletas-reaper] limite={limite_segundos}s — {n} órfã(s) marcada(s) 'erro'")
 
+    # ── Avaliador: flask avaliador-housekeeping (watchdog, a cada 6h) ──────
+    @app.cli.command("avaliador-housekeeping")
+    def avaliador_housekeeping():
+        """Marca FALHOU a análise do Avaliador cuja thread morreu (deploy) e APAGA o
+        texto extraído das análises sem uso há AVALIADOR_DIAS_RETENCAO_TEXTO dias.
+        Só UPDATE — zero chamada paga. Idempotente."""
+        from src.avaliador.servico import dias_retencao, housekeeping
+        from src.utils.db import db_session as _db_session
+
+        with _db_session() as s:
+            r = housekeeping(s)
+        click.echo(
+            f"[avaliador-housekeeping] {r['orfas']} interrompida(s) marcada(s) falhou; "
+            f"{r['textos_apagados']} texto(s) apagado(s) por {dias_retencao()} dias sem uso"
+        )
+
     # ── §6.22 fatia 3: flask sonda-resintetizar ───────────────────────
     @app.cli.command("sonda-resintetizar")
     @click.option("--empresa", "empresa_id", type=int, default=None, help="Só esta empresa.")

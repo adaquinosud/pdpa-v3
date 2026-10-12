@@ -370,6 +370,11 @@ def agregar_p1(res: dict, preco_em_anexo: Optional[bool]) -> dict:
         "confianca": res.get("confianca"),
         "alerta": alertas[0] if alertas else None,
         "pergunta_anexo": pergunta_anexo and preco_em_anexo is None,
+        # Depois do "não há anexo", o bloco do preço troca a pergunta por ESTA frase
+        # (escolhida de antemão pelo modelo) — independente da frase do P1 inteiro.
+        "frase_id_preco": (
+            res.get("frase_id_sem_anexo") if pergunta_anexo and preco_em_anexo is False else None
+        ),
     }
 
 
