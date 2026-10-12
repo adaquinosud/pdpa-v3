@@ -1,0 +1,220 @@
+{
+  "versao": "2026-10-12f",
+  "nota": "Doze perguntas, do lado do comprador, uma por subpilar do PDPA. O conceito de cada subpilar vem do Manual de Operação, não do prompt do classificador: o prompt é instrumento calibrado para ler manifestação curta e tem restrições que não valem como definição. Os nomes oficiais vêm de NOME_SUBPILAR em painel.py, em tempo de execução, e não são copiados para cá.",
+  "blocos": [
+    {
+      "codigo": "B1",
+      "pergunta": "A sua palavra se sustenta?",
+      "porque": "O comprador não tem como conferir isto sem o documento. Ele pede por escrito."
+    },
+    {
+      "codigo": "B2",
+      "pergunta": "Eu consigo te alcançar?",
+      "porque": "O comprador só descobre isto depois de contratar. Ele pede por escrito."
+    },
+    {
+      "codigo": "B3",
+      "pergunta": "Você está do meu lado?",
+      "porque": "Parcialmente verificável na conversa, não no papel."
+    },
+    {
+      "codigo": "B4",
+      "pergunta": "Você sabe mais do que eu?",
+      "porque": "Aqui ficam as duas únicas perguntas que o comprador confere sozinho em dez minutos, A1 e A2, porque reputação e referência são públicas. O A3 não: ele pede ideia nova para este cliente."
+    }
+  ],
+  "perguntas": [
+    {
+      "codigo": "P1",
+      "bloco": "B1",
+      "pergunta": "O que você me vendeu é o que eu vou receber?",
+      "aberta_quando": "O documento não fecha o que será entregue, quando, o que fica de fora, ou quanto custa.",
+      "partes": [
+        {
+          "id": "escopo",
+          "o_que": "o que exatamente será entregue, em substantivo verificável"
+        },
+        {
+          "id": "prazo",
+          "o_que": "data ou duração da entrega e das etapas"
+        },
+        {
+          "id": "fora",
+          "o_que": "o que está declarado fora do escopo"
+        },
+        {
+          "id": "preco",
+          "o_que": "o número, quando o documento tem seção comercial",
+          "regra": "Se o documento não tem NENHUMA seção comercial, não acuse: pergunte se o preço está em anexo separado."
+        }
+      ],
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "P2",
+      "bloco": "B1",
+      "pergunta": "O que eu receber vai atender ao padrão que deveria?",
+      "aberta_quando": "Não há régua: nota alvo, nível mínimo, critério de aceite, ou o limite abaixo do qual o fornecedor age sem ninguém pedir.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "P3",
+      "bloco": "B1",
+      "pergunta": "Vai ser igual na próxima vez, e no outro site?",
+      "aberta_quando": "O resultado depende de pessoa, unidade, turno ou onda, e não há compromisso de variação máxima.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "D1",
+      "bloco": "B2",
+      "pergunta": "Quando eu precisar de você, eu alcanço uma pessoa?",
+      "aberta_quando": "Falta ponto de contato com nome, canal, horário de cobertura, prazo de resposta, caminho de escalada, ou rota fora do horário. Cadência de reunião é contato agendado, não acesso: não fecha esta pergunta.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "D2",
+      "bloco": "B2",
+      "pergunta": "Quando der errado, vai ser resolvido?",
+      "aberta_quando": "O documento só descreve o caminho em que tudo funciona, ou descreve socorro sem duração, proporção e critério de saída.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "D3",
+      "bloco": "B2",
+      "pergunta": "Eu vou saber do problema por você, ou vou descobrir sozinho?",
+      "aberta_quando": "Não há obrigação do fornecedor de comunicar atraso, mudança ou risco antes de o cliente sentir. Aviso dado dentro do próprio documento sobre um risco já conhecido NÃO conta: o ponto é o compromisso permanente.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "Pa1",
+      "bloco": "B3",
+      "pergunta": "As pessoas que me atendem se importam de verdade?",
+      "aberta_quando": "O documento serviria para qualquer cliente, ou cuida do próprio time e não da situação do cliente nem de quem vai ser atendido por ele.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "Pa2",
+      "bloco": "B3",
+      "pergunta": "O que eu pago corresponde ao que eu recebo?",
+      "aberta_quando": "Há preço, ou afirmação sobre preço, e não há a conta do lado do cliente: o que ele ganha, economiza, ou o custo de não fazer.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "Pa3",
+      "bloco": "B3",
+      "pergunta": "Você vai continuar interessado depois de fechar?",
+      "aberta_quando": "O plano termina na entrega ou na rampa. Não há estado estável, continuidade, evolução nem transferência de conhecimento.",
+      "verificavel_sozinho": false
+    },
+    {
+      "codigo": "A1",
+      "bloco": "B4",
+      "pergunta": "Escolher você é uma escolha que eu consigo defender?",
+      "aberta_quando": "Falta a razão de ser este fornecedor, prova em caso parecido, ou tratamento do risco de dar errado.",
+      "verificavel_sozinho": true
+    },
+    {
+      "codigo": "A2",
+      "bloco": "B4",
+      "pergunta": "Você sabe mais do que eu, e vai me contar?",
+      "aberta_quando": "O documento responde exatamente o que foi pedido e nada além, ou traz leitura própria escondida em célula de tabela.",
+      "verificavel_sozinho": true
+    },
+    {
+      "codigo": "A3",
+      "bloco": "B4",
+      "pergunta": "Você vai me dizer o que eu deveria querer e ainda não sei?",
+      "aberta_quando": "Nenhuma ideia que o cliente não tenha fornecido. Nenhum escopo alternativo, nenhuma ordem, nenhum caminho que ele não pediu.",
+      "verificavel_sozinho": false
+    }
+  ],
+  "regras_de_rigor": [
+    {
+      "numero": 1,
+      "regra": "A evidência só conta se for compromisso com ESTE cliente neste trabalho. Resultado obtido em outro cliente, caso de sucesso, número de case, credencial, certificação e histórico da empresa não respondem pergunta nenhuma.",
+      "excecao": "O bloco B4 contém a exceção, e só nas perguntas A1 e A2. Prova de terceiro (caso parecido, reputação, credencial, referência) responde A1 e A2, e nunca responde P, D ou Pa. O A3 fica FORA da exceção: ele pede ideia para ESTE cliente, e resultado de outro não responde isso. É a exceção do A1 e do A2 que faz essas duas perguntas, e só elas, serem marcadas como verificáveis sozinho.",
+      "porque": "Num deck institucional o motor deu 'conseguir ser atendido' como respondido citando tempo de resposta obtido em outro cliente, e 'o que eu pago corresponde' citando economia obtida em outro cliente. Deck de venda é feito de número alheio."
+    },
+    {
+      "numero": 2,
+      "regra": "Implicação, tom tranquilizador e menção vaga não respondem. Precisa de texto explícito. Mas não acuse falta de algo que está escrito: se achou, cite o trecho."
+    },
+    {
+      "numero": 3,
+      "regra": "Em parte é o veredito mais comum num documento bem feito, e o mais útil. Use quando a coisa existe pela metade: o aparato está descrito e a régua não, há socorro e não há duração, há prazo e não há data de início. Não arredonde."
+    }
+  ],
+  "tipos": [
+    {
+      "codigo": "proposta",
+      "nome": "Proposta",
+      "definicao": "Promete uma entrega a um cliente com nome.",
+      "nao_valem": []
+    },
+    {
+      "codigo": "edital",
+      "nome": "Resposta a edital",
+      "definicao": "Responde ao questionário de um comprador.",
+      "nao_valem": []
+    },
+    {
+      "codigo": "institucional",
+      "nome": "Apresentação institucional",
+      "definicao": "Mostra a empresa e o que ela sabe fazer, sem propor entrega específica.",
+      "nao_valem": [
+        "P1",
+        "P2",
+        "P3",
+        "D2",
+        "D3",
+        "Pa3"
+      ],
+      "condicionais": {
+        "Pa2": "só vale se o documento discutir preço, custo ou economia"
+      }
+    },
+    {
+      "codigo": "diagnostico",
+      "nome": "Diagnóstico",
+      "definicao": "Análise com recomendação, para um cliente que já contratou.",
+      "nao_valem": [
+        "P1",
+        "A1"
+      ],
+      "porque_a1": "O fornecedor já foi escolhido, então a razão de ser ele não cabe mais."
+    }
+  ],
+  "bibliotecas": [
+    {
+      "codigo": "falta_no_seu_texto",
+      "nome": "Falta no seu texto",
+      "tom": "correcao",
+      "quando": "O documento é do próprio usuário.",
+      "entra_na_primeira_entrega": true
+    },
+    {
+      "codigo": "o_outro_deixou_aberto",
+      "nome": "O que o outro deixou aberto",
+      "tom": "abertura",
+      "quando": "O documento chegou de fora: edital, pedido de proposta, texto de concorrente.",
+      "entra_na_primeira_entrega": false
+    },
+    {
+      "codigo": "dito_contra_respondido",
+      "nome": "Dito contra respondido",
+      "tom": "reconciliacao",
+      "quando": "Compara o que o cliente disse com o que foi respondido.",
+      "entra_na_primeira_entrega": false
+    }
+  ],
+  "pendencias": [
+    "O P1 diz 'O que você me vendeu é o que eu vou receber?'. O 'é' estava na tela desenhada em 11/10 e no quadro original do Alexandre; o arquivo sem acento o havia virado 'e'. Foi restauracao, nao mudanca de texto de autor.",
+    "A frase EP-Pa2-05 ('Há número de outro cliente e nenhum do dele') está no conjunto 'em parte', mas pela regra 1 número de outro cliente não conta para Pa2, então o veredito seria 'sem resposta'. Recomendação: mover o texto para o conjunto de ausência do Pa2. Decisão de autor, e renumera o id.",
+    "Duas frases estão repetidas entre a parte do preço (P1d) e o Pa2 na primeira biblioteca: a do desconto antes da justificativa, e a do preço sem referência. Precisa decidir de que lado ficam. Decisão de autor.",
+    "A fronteira entre A2 e A3 merece ser afiada pelos autores: 'sabe mais e vai me contar' e 'diz o que eu deveria querer' se tocam.",
+    "As bibliotecas 2 e 3 não entram na primeira entrega e não têm frases do estado em_parte.",
+    "Nada foi testado no nível do bloco, só no nível das doze perguntas.",
+    "O gabarito dos oito documentos NAO e leitura humana: foi produzido por oito leitores-modelo em 11/10, antes de existir ferramenta. Vale como primeira passada, nao como critério de aceite. Alem disso, as perguntas de P, D e Pa foram lidas antes de a regra 1 existir. A1 e A2 sao compativeis com a excecao."
+  ],
+  "nota_verificavel": "A marca verificavel_sozinho fica na PERGUNTA, não no bloco. Só A1 e A2 são verificáveis sozinho, e são exatamente as duas que aceitam prova de terceiro pela exceção da regra 1. A leitura do fim lê esta marca por pergunta."
+}
