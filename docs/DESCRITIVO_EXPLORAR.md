@@ -954,6 +954,57 @@ cross-fonte dela). O link é visível só para Loyall (a tela de pessoa é restr
 
 ---
 
+## AVALIADOR (leitura de documento comercial — só admin)
+
+**Só admin Loyall nesta primeira versão.** A liberação para cliente é decisão separada, depois do
+gabarito humano.
+
+O Avaliador lê um documento comercial da empresa (proposta, resposta a edital, apresentação
+institucional, diagnóstico) do ponto de vista de **quem está pensando em contratá-la**: as doze
+perguntas que o comprador carrega, **uma por subpilar do PDPA**. O conceito de cada subpilar é o do
+Manual de Operação; o nome é o oficial do modelo.
+
+**O que entra:** PowerPoint (.pptx) ou PDF. O formato é reconhecido pelo conteúdo do arquivo, não pela
+extensão. Word, .ppt antigo e PDF com senha são recusados com a mensagem do que fazer.
+
+**Para cada pergunta:**
+
+- **Veredito** — *respondida*, *em parte* ou *sem resposta*. "Em parte" é o mais comum num documento
+  bem feito e não é arredondado.
+- **Onde está hoje** — página e trecho **literal** do documento. O trecho é conferido contra o texto
+  extraído; o que não for achado aparece como **"citação não encontrada no documento"**, nunca como
+  citação.
+- **A frase** — escolhida, por identificador, da biblioteca escrita pelos autores; só nos vereditos
+  em parte e sem resposta.
+- **O que deveria dizer** — concreto, usando o que já existe no documento.
+
+No fim, a **leitura do padrão**: duas ou três frases sobre onde estão as respostas firmes e onde
+estão as abertas.
+
+**O tipo do documento decide o que é cobrado.** Apresentação institucional não promete entrega, então
+prazo, padrão e caminho de falha não são cobrados dela; diagnóstico é para quem já contratou, então
+"por que vocês" não cabe. As perguntas que não valem aparecem como **"não cobrada em <tipo>"** — nunca
+somem. O tipo aparece na tela e se corrige num clique; a correção relê só as perguntas que passam a
+valer.
+
+**Prova de terceiro** (caso de outro cliente, credencial, reputação) só responde as perguntas que o
+comprador consegue conferir sozinho (A1 e A2). Nas de Precisão, Disponibilidade e Parceria, número
+de outro cliente não conta.
+
+**Preço:** se o documento não tem seção comercial, a ferramenta **pergunta** se o preço está num
+anexo separado, em vez de acusar a falta. "Está em anexo" tira o ponto; "não há anexo" mostra a frase
+do caso.
+
+**Páginas sem texto** (slide desenhado como imagem) são listadas com o critério — o conteúdo delas não
+foi lido.
+
+**Custo e retenção:** cada leitura grava o custo em US$. Há um **teto mensal por empresa**; teto zero
+desliga a ferramenta. O texto do documento fica guardado só enquanto a análise está aberta: é apagado
+ao **concluir**, ou sozinho depois dos dias configurados sem uso (hoje 7). Ficam só os vereditos e os
+trechos citados.
+
+---
+
 ## Telas fora do Explorar
 
 Estas telas internas não fazem parte do funil do Explorar — são telas próprias do sistema, usadas no dia

@@ -4120,6 +4120,16 @@ _EXPLORAR_TABS = [
     # GOVERNANÇA & SAÍDA
     {"id": "governanca", "label": "Governança", "grupo": "saida", "escopo_aceito": _ESCOPO_FULL},
     {"id": "relatorios", "label": "Relatórios", "grupo": "saida", "escopo_aceito": _ESCOPO_FULL},
+    # Avaliador de documentos — SÓ admin Loyall nesta entrega (so_loyall). O gate vale
+    # na tab bar (_tabs_visiveis), nas rotas de aba (_explorar_render/explorar_tab) e
+    # em cada rota própria do avaliador (src/ui/avaliador.py).
+    {
+        "id": "avaliador",
+        "label": "Avaliador",
+        "grupo": "saida",
+        "escopo_aceito": [],
+        "so_loyall": True,
+    },
     # IA (transversal — renderizada à direita, fora do funil)
     {"id": "ia", "label": "✨ IA", "grupo": "ia", "escopo_aceito": _ESCOPO_FULL},
 ]
@@ -4136,6 +4146,18 @@ _EXPLORAR_GRUPOS = [
 ]
 # Set de ids para validação rápida (substitui o antigo `tab in _EXPLORAR_TABS`).
 _EXPLORAR_TAB_IDS = {t["id"] for t in _EXPLORAR_TABS}
+_EXPLORAR_TABS_SO_LOYALL = {t["id"] for t in _EXPLORAR_TABS if t.get("so_loyall")}
+
+
+def _tab_permitida(tab, user):
+    """Aba que só admin vê não abre para cliente nem pela URL (cai no Painel)."""
+    if tab not in _EXPLORAR_TAB_IDS:
+        return "painel"
+    if tab in _EXPLORAR_TABS_SO_LOYALL and (user is None or user.papel != PAPEL_LOYALL):
+        return "painel"
+    return tab
+
+
 # Mapa id→escopo_aceito p/ o contexto do template (chip + header condicional).
 _EXPLORAR_ESCOPO_ACEITO = {t["id"]: t["escopo_aceito"] for t in _EXPLORAR_TABS}
 
@@ -4143,9 +4165,15 @@ _EXPLORAR_ESCOPO_ACEITO = {t["id"]: t["escopo_aceito"] for t in _EXPLORAR_TABS}
 def _tabs_visiveis(ctx):
     """Frente Jornada: a aba 'jornada' fica DARK (fora da tab bar) enquanto a empresa
     não tem jornada configurada — jornada errada é pior que jornada nenhuma."""
+    user = get_current_user()
+    tabs = [
+        t
+        for t in _EXPLORAR_TABS
+        if not t.get("so_loyall") or (user is not None and user.papel == PAPEL_LOYALL)
+    ]
     if ctx.get("jornada_configurada"):
-        return _EXPLORAR_TABS
-    return [t for t in _EXPLORAR_TABS if t["id"] != "jornada"]
+        return tabs
+    return [t for t in tabs if t["id"] != "jornada"]
 
 
 # Abas que ainda usam full-load (não HTMX swap). VAZIO desde o CP-UX2b: todas as
@@ -6431,8 +6459,7 @@ def _explorar_render(empresa_id, tab):
     user = get_current_user()
     if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
         return render_template("403.html"), 403
-    if tab not in _EXPLORAR_TAB_IDS:
-        tab = "painel"
+    tab = _tab_permitida(tab, user)
     ctx = _explorar_contexto(empresa_id, tab)
     if ctx is None:
         return render_template("404.html"), 404
@@ -6461,8 +6488,7 @@ def explorar_tab(empresa_id: int, tab: str):
     user = get_current_user()
     if user.papel != PAPEL_LOYALL and user.empresa_id != empresa_id:
         return render_template("403.html"), 403
-    if tab not in _EXPLORAR_TAB_IDS:
-        tab = "painel"
+    tab = _tab_permitida(tab, user)
     ctx = _explorar_contexto(empresa_id, tab)
     if ctx is None:
         return render_template("404.html"), 404
@@ -7118,6 +7144,9 @@ def _bad_request_html(e):
 # Rotas do Motor de Pesquisa (CP-Pesquisa-F1.5) — registradas no fim para o
 # ui_bp/decorators já existirem. O import tem o efeito de anexar as rotas.
 from src.ui import pesquisa as _pesquisa_routes  # noqa: E402,F401
+
+# Avaliador de documentos (só admin nesta entrega). Mesmo padrão: import no fim.
+from src.ui import avaliador as _avaliador_routes  # noqa: E402,F401
 
 # Rotas dos Casos (ReclameAqui — sequência viva). Mesmo padrão: import no fim.
 from src.ui import casos as _casos_routes  # noqa: E402,F401

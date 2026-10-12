@@ -15,11 +15,24 @@ import pytest
 
 from src.avaliador import servico
 from src.avaliador.servico import AvaliacaoRecusada
-from src.config import Config
 from src.models.avaliador import STATUS_FALHOU, STATUS_LENDO, STATUS_PRONTA, AvaliadorAnalise
 from src.models.empresa import Empresa
 
 SENTINELA = "SENTINELA-DOCUMENTO-CONFIDENCIAL-9F3A"
+
+
+def config_avaliador(monkeypatch, **valores):
+    """Troca valores de config SÓ para o serviço do Avaliador (o único que os lê).
+    Patch na instância devolvida, não na classe Config — imune a outros testes."""
+    from src.config import get_config as real
+
+    def fake():
+        c = real()
+        for k, v in valores.items():
+            setattr(c, k, v)
+        return c
+
+    monkeypatch.setattr(servico, "get_config", fake)
 
 
 def _pptx() -> bytes:
@@ -112,7 +125,7 @@ def empresa(db_session):
 
 @pytest.fixture
 def teto(monkeypatch):
-    monkeypatch.setattr(Config, "AVALIADOR_TETO_MENSAL_USD", 10.0)
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0)
 
 
 def _criar(db_session, empresa):
@@ -134,7 +147,7 @@ def test_teto_zero_desliga_antes_de_gravar_e_de_gastar(db_session, empresa):
 
 
 def test_teto_estourado_recusa(db_session, empresa, monkeypatch):
-    monkeypatch.setattr(Config, "AVALIADOR_TETO_MENSAL_USD", 0.0001)
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=0.0001)
     with pytest.raises(AvaliacaoRecusada, match="passaria do teto"):
         servico.criar_analise(db_session, empresa.id, None, "x.pptx", _pptx())
 
@@ -240,7 +253,7 @@ def test_housekeeping_marca_orfa_e_apaga_texto_sem_uso(db_session, empresa, teto
 
 
 def test_retencao_segue_a_constante_de_config(db_session, empresa, teto, monkeypatch):
-    monkeypatch.setattr(Config, "AVALIADOR_DIAS_RETENCAO_TEXTO", 2)
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_DIAS_RETENCAO_TEXTO=2)
     a = db_session.get(AvaliadorAnalise, _criar(db_session, empresa))
     a.status, a.usado_em = STATUS_PRONTA, datetime.utcnow() - timedelta(days=3)
     db_session.commit()

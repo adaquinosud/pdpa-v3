@@ -95,6 +95,9 @@ PLANO: list[tuple[str, str, str]] = [
     # imutáveis). Independentes de FK entre si — direto por empresa_id.
     ("visão financeira: input", "visao_financeira_input", _DIRETO),
     ("visão financeira: snapshots", "visao_financeira_snapshot", _DIRETO),
+    # Avaliador de documentos: leituras da empresa (vereditos + trechos citados). Mesma
+    # regra das pesquisas e da visão financeira — o wipe por cliente leva tudo da empresa.
+    ("avaliador: análises", "avaliador_analises", _DIRETO),
     # Motor de Pesquisa: filhas antes das mães. Coleta (Fase 2) antes de
     # perguntas/pesquisas — resposta → respondente → pesquisa_perguntas → pesquisas.
     ("respostas de pesquisa", "resposta", _FILHO_RESPONDENTE),

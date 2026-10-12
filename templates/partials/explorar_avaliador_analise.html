@@ -1,0 +1,129 @@
+{# Uma análise do Avaliador. Enquanto processa, recarrega a si mesma a cada 3 s; nos
+   estados finais (pronta/falhou) o polling para. Citação NÃO conferida no texto
+   extraído nunca é exibida como citação. #}
+{% set url_self = url_for('ui.avaliador_analise', empresa_id=empresa_id, aid=a.id) %}
+<div id="avaliador-analise" class="border border-loyall-200 rounded p-4 space-y-4 bg-white"
+     {% if processando %}hx-get="{{ url_self }}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+
+  <div class="flex flex-wrap items-start justify-between gap-2">
+    <div>
+      <div class="text-sm font-semibold text-loyall-800">{{ a.arquivo_nome }}</div>
+      <div class="text-xs text-loyall-500">{{ a.n_paginas }} páginas · {{ a.criado_em.strftime('%d/%m/%Y %H:%M') }} · modelo {{ a.modelo }} · US$ {{ a.custo_usd | virg(4) }}</div>
+    </div>
+    <div class="text-xs px-2 py-1 rounded {% if a.status == 'falhou' %}bg-rose-100 text-rose-800{% elif a.status == 'pronta' %}bg-emerald-100 text-emerald-800{% else %}bg-loyall-100 text-loyall-700{% endif %}">
+      {{ rotulo_status.get(a.status, a.status) }}{% if progresso %} ({{ progresso[0] }} de {{ progresso[1] }}){% endif %}
+    </div>
+  </div>
+
+  {% if erro %}
+  <div class="border border-rose-300 bg-rose-50 rounded p-2 text-sm text-rose-800">{{ erro }}</div>
+  {% endif %}
+
+  {% if a.status == 'falhou' %}
+  <div class="border border-rose-300 bg-rose-50 rounded p-3 text-sm text-rose-800 flex flex-wrap items-center justify-between gap-2">
+    <span>A leitura não terminou: {{ a.erro_motivo or 'motivo não registrado' }}.</span>
+    {% if texto_disponivel %}
+    <button hx-post="{{ url_for('ui.avaliador_retomar', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML"
+            class="px-3 py-1 rounded bg-rose-700 text-white text-xs">Retomar (só o que falta)</button>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Tipo do documento: visível e corrigível num clique ─────────────── #}
+  {% if tipo %}
+  <form hx-post="{{ url_for('ui.avaliador_tipo', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML"
+        class="flex flex-wrap items-center gap-2 text-sm">
+    <span class="text-loyall-500">Tipo do documento:</span>
+    <select name="tipo" class="border border-loyall-300 rounded px-2 py-1 text-sm" {% if processando or not texto_disponivel %}disabled{% endif %}>
+      {% for t in tipos %}<option value="{{ t.codigo }}" {% if t.codigo == a.tipo %}selected{% endif %}>{{ t.nome }}</option>{% endfor %}
+    </select>
+    {% if not processando and texto_disponivel %}<button class="px-3 py-1 rounded border border-loyall-300 text-loyall-700 text-xs hover:bg-loyall-50">Refazer leitura com este tipo</button>{% endif %}
+    {% if a.tipo_corrigido %}<span class="text-xs text-loyall-400">(corrigido; detectado: {{ a.tipo_detectado }})</span>{% endif %}
+  </form>
+  <p class="text-xs text-loyall-500 -mt-2">{{ tipo.definicao }}</p>
+  {% endif %}
+
+  {# ── Páginas sem texto: declaradas, nunca escondidas ────────────────── #}
+  {% if paginas_sem_texto %}
+  <div class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+    {{ paginas_sem_texto | length }} de {{ a.n_paginas }} páginas sem texto: {{ paginas_sem_texto | join(', ') }} — o conteúdo delas não foi lido (critério: menos de {{ min_caracteres_pagina }} caracteres de texto no corpo da página; slide desenhado como imagem cai aqui).
+  </div>
+  {% endif %}
+
+  {# ── Preço: pergunta antes, frase depois ─────────────────────────────── #}
+  {% if preco and preco.pergunta %}
+  <div class="border border-loyall-300 rounded p-3 text-sm flex flex-wrap items-center justify-between gap-2">
+    <span class="text-loyall-700">{{ preco.pergunta }}</span>
+    <span class="flex gap-2">
+      <button hx-post="{{ url_for('ui.avaliador_preco_anexo', empresa_id=empresa_id, aid=a.id) }}" hx-vals='{"em_anexo": "sim"}' hx-target="#avaliador-analise" hx-swap="outerHTML"
+              class="px-3 py-1 rounded border border-loyall-300 text-xs">Sim, está em anexo</button>
+      <button hx-post="{{ url_for('ui.avaliador_preco_anexo', empresa_id=empresa_id, aid=a.id) }}" hx-vals='{"em_anexo": "nao"}' hx-target="#avaliador-analise" hx-swap="outerHTML"
+              class="px-3 py-1 rounded border border-loyall-300 text-xs">Não há anexo</button>
+    </span>
+  </div>
+  {% elif preco and preco.frase %}
+  <div class="border border-loyall-200 rounded p-3 text-sm text-loyall-700"><span class="text-xs uppercase tracking-wider text-loyall-400">Preço</span><br>{{ preco.frase }}</div>
+  {% endif %}
+
+  {# ── Leitura do fim ──────────────────────────────────────────────────── #}
+  {% if a.leitura_fim %}
+  <div class="border-l-4 border-loyall-600 bg-loyall-50 p-3 text-sm text-loyall-800">{{ a.leitura_fim }}</div>
+  {% endif %}
+
+  {# ── As perguntas, por bloco ─────────────────────────────────────────── #}
+  {% for b in blocos %}
+  <div>
+    <h4 class="text-xs uppercase tracking-wider text-loyall-500 mb-1">{{ b.pergunta }}</h4>
+    <div class="space-y-2">
+    {% for it in b.itens %}
+      {% set v = it.v %}
+      {% if not it.vale %}
+      <div class="text-xs text-loyall-400 border border-dashed border-loyall-200 rounded px-3 py-1.5">{{ it.p.pergunta }} — não cobrada em {{ tipo.nome if tipo else 'este tipo' }}.</div>
+      {% else %}
+      <div class="border border-loyall-200 rounded p-3 text-sm">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div><span class="font-medium text-loyall-800">{{ it.p.pergunta }}</span> <span class="text-xs text-loyall-400">{{ it.p.codigo }} · {{ it.p.nome }}</span></div>
+          {% if v and v.veredito %}
+          <span class="text-xs px-2 py-0.5 rounded {% if v.veredito == 'respondida' %}bg-emerald-100 text-emerald-800{% elif v.veredito == 'em_parte' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">{{ rotulo_veredito[v.veredito] }}</span>
+          {% elif v and v.erro %}
+          <span class="text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-800">falhou: {{ v.erro }}</span>
+          {% else %}
+          <span class="text-xs text-loyall-400">aguardando</span>
+          {% endif %}
+        </div>
+        {% if v and v.veredito %}
+          {% if v.alerta %}<div class="mt-1 text-xs text-rose-700">⚠ {{ v.alerta }}</div>{% endif %}
+          {% if v.evidencias %}
+          <div class="mt-2 space-y-1">
+            <div class="text-xs text-loyall-400">Onde está hoje</div>
+            {% for e in v.evidencias %}
+              {% if e.conferido %}
+              <div class="text-xs text-loyall-700">p. {{ e.pagina_encontrada }} — “{{ e.trecho }}”{% if e.pagina and e.pagina != e.pagina_encontrada %} <span class="text-loyall-400">(o modelo citou a p. {{ e.pagina }})</span>{% endif %}</div>
+              {% else %}
+              <div class="text-xs text-rose-700">citação não encontrada no documento{% if e.pagina %} (indicada na p. {{ e.pagina }}){% endif %}</div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if it.frase %}<div class="mt-2 text-sm text-loyall-800">{{ it.frase }}</div>{% endif %}
+          {% if v.complemento %}<div class="mt-1 text-xs text-loyall-600"><span class="text-loyall-400">O que deveria dizer:</span> {{ v.complemento }}</div>{% endif %}
+        {% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {# ── Concluir: apaga o texto agora ───────────────────────────────────── #}
+  {% if texto_disponivel and not processando %}
+  <div class="flex items-center justify-between gap-2 border-t border-loyall-100 pt-3">
+    <span class="text-xs text-loyall-500">Texto do documento guardado até você concluir ou {{ dias_retencao }} dias sem uso.</span>
+    <button hx-post="{{ url_for('ui.avaliador_concluir', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML"
+            hx-confirm="Concluir apaga o texto do documento agora. Corrigir o tipo depois vai exigir subir o arquivo de novo. Concluir?"
+            class="px-3 py-1 rounded bg-loyall-700 text-white text-xs">Concluir</button>
+  </div>
+  {% elif not texto_disponivel %}
+  <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto do documento apagado em {{ a.texto_apagado_em.strftime('%d/%m/%Y %H:%M') if a.texto_apagado_em else '—' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados.</div>
+  {% endif %}
+</div>

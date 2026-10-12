@@ -64,6 +64,10 @@
   {% include 'partials/explorar_propagacao.html' %}
 {% elif tab == 'relatorios' %}
   {% include 'partials/explorar_relatorios.html' %}
+{% elif tab == 'avaliador' %}
+  {# Carrega da rota própria (só admin): _explorar_contexto não é tocado. #}
+  <div hx-get="{{ url_for('ui.avaliador_painel', empresa_id=empresa.id) }}" hx-trigger="load" hx-swap="outerHTML"
+       class="text-sm text-loyall-400 py-8 text-center">Carregando o Avaliador…</div>
 {% else %}
   <div class="text-center text-loyall-400 py-16 border border-dashed border-loyall-200 rounded-lg">
     <div class="text-lg font-medium text-loyall-500">{{ tab }}</div>
