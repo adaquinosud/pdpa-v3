@@ -36,6 +36,16 @@ class Config:
     CLASSIFIER_MONTHLY_BUDGET_USD = float(os.getenv("CLASSIFIER_MONTHLY_BUDGET_USD", "50.0"))
     CLASSIFIER_SONNET_MODEL = os.getenv("CLASSIFIER_SONNET_MODEL", "claude-sonnet-4-5-20250929")
 
+    # Avaliador de documentos (docs/AVALIADOR_ESPECIFICACAO.md). Modelo SEM preço em
+    # PRICING_USD_PER_MTOK é recusado antes de rodar (custo zero por falta de preço é
+    # a armadilha do §7). Teto mensal POR EMPRESA em US$: 0 = DESLIGADO (default —
+    # nada gasta até alguém pôr um número de propósito, depois de medir).
+    AVALIADOR_MODEL = os.getenv("AVALIADOR_MODEL", "claude-sonnet-4-6")
+    AVALIADOR_TETO_MENSAL_USD = float(os.getenv("AVALIADOR_TETO_MENSAL_USD", "0"))
+    # Dias SEM USO até o texto extraído ser apagado sozinho. O aviso da tela lê ESTE
+    # valor — aviso e comportamento não podem divergir.
+    AVALIADOR_DIAS_RETENCAO_TEXTO = int(os.getenv("AVALIADOR_DIAS_RETENCAO_TEXTO", "7"))
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
