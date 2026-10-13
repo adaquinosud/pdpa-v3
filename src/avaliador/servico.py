@@ -125,18 +125,21 @@ def _estimativa(regua: Regua, m: str, sistema: str, usuario: str, modelo: str) -
 
 def organizar(regua: Regua, a: AvaliadorAnalise) -> List[dict]:
     """Itens por pilar → subpilar → forte/falta/melhorar, na ordem do Manual. Subpilar sem
-    item aparece declarado ("sem observação"), não some."""
+    item aparece declarado ("sem observação"), não some. Descartados pelo limite de três
+    não aparecem; a contagem vai em ``descartados``."""
     itens = json.loads(a.itens_json or "[]")
     out = []
     for p in regua.pilares:
         subs = []
         for s in p.subpilares:
-            dele = [i for i in itens if i["subpilar"] == s.codigo]
+            todos = [i for i in itens if i["subpilar"] == s.codigo]
+            dele = motor.validos(todos)
             subs.append(
                 {
                     "subpilar": s,
                     "por_tipo": {t: [i for i in dele if i["tipo"] == t] for t in motor.TIPOS_ITEM},
                     "vazio": not dele,
+                    "descartados": len(todos) - len(dele),
                 }
             )
         out.append({"pilar": p, "subpilares": subs})
@@ -287,7 +290,8 @@ def processar(analise_id: int, client=None) -> None:
             a.itens_json = json.dumps(res["itens"], ensure_ascii=False)
             a.regua_versao = regua.versao
             a.status = STATUS_PRONTA
-            a.erro_motivo = None
+            falhou = res.get("resumo_falhou")
+            a.erro_motivo = f"resumo: {falhou}" if falhou else None
             a.atualizado_em = datetime.utcnow()
         except Exception as e:  # noqa: BLE001 — toda falha vira estado visível
             a.status = STATUS_FALHOU

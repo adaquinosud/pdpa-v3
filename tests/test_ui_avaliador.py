@@ -228,3 +228,18 @@ def test_pagina_exibida_e_a_conferida_e_a_lista_se_atualiza(
     assert 'id="avaliador-lista" hx-swap-oob="true"' in html
     lista = html.split('id="avaliador-lista"', 1)[1]
     assert "Pronta" in lista and "Na fila" not in lista and "US$ 0,0000" not in lista
+
+
+def test_descartados_e_resumo_ausente_aparecem_declarados(client_loyall, db_session, empresa, teto):
+    aid = _pronta(client_loyall, db_session, empresa)
+    a = db_session.get(AvaliadorAnalise, aid)
+    item = {"subpilar": "D2", "tipo": "falta", "evidencias": [], "alerta": None}
+    a.itens_json = json.dumps(
+        [dict(item, texto=f"Achado {n}.", descartado=n >= 3) for n in range(5)]
+    )
+    a.resumo, a.erro_motivo = None, "resumo: OrcamentoEsgotado"
+    db_session.commit()
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Achado 2." in html and "Achado 3." not in html and "Achado 4." not in html
+    assert "Mais 2 itens descartados pelo limite de três por subpilar." in html
+    assert "Resumo não gerado (resumo: OrcamentoEsgotado). Os itens abaixo estão completos." in html

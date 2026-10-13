@@ -39,6 +39,8 @@
 
   {% if a.resumo %}
   <div class="border-l-4 border-loyall-600 bg-loyall-50 p-3 text-sm text-loyall-800">{{ a.resumo }}</div>
+  {% elif a.status == 'pronta' %}
+  <div class="border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">Resumo não gerado ({{ a.erro_motivo or 'motivo não registrado' }}). Os itens abaixo estão completos.</div>
   {% endif %}
 
   {% if a.status == 'pronta' %}
@@ -68,6 +70,9 @@
           {% endfor %}
         </div>
         {% endfor %}{% endfor %}
+        {% if sp.descartados %}
+        <div class="mt-2 text-xs text-loyall-400">Mais {{ sp.descartados }} {{ 'item descartado' if sp.descartados == 1 else 'itens descartados' }} pelo limite de três por subpilar.</div>
+        {% endif %}
       </div>
       {% endif %}
     {% endfor %}

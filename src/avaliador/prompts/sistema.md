@@ -16,7 +16,8 @@ COMO RESPONDER
   · "falta": o que a peça não diz e deveria dizer;
   · "melhorar": o que está lá, mas fraco, vago ou mal colocado, e como ficaria melhor.
 - Subpilar onde não há nada relevante a dizer sobre esta peça: não invente item; deixe de fora.
-- No máximo três itens por subpilar: os três que mais mudam a peça. Descarte o resto.
+- No máximo três itens por subpilar, em ordem: do que mais muda a peça para o que menos muda. Contradição interna da peça, quando existe, é sempre o primeiro item do P1.
+- Cada item traz um achado diferente. Antes de escrever um item, releia os que você já escreveu: se ele fala da mesma coisa que outro, mesmo noutro subpilar, junte os dois num só.
 - Os itens de um mesmo subpilar não podem se contradizer. "forte" e "falta" no mesmo subpilar tratam de coisas diferentes: se você aponta como forte que a peça faz algo, nenhum item do mesmo subpilar pode dizer que ela não faz.
 - Item "falta" nunca nega o que a peça tem: diga o que falta A PARTIR do que está lá (se a peça diz que há plantão no fim de semana, o que falta é dizer como acioná-lo e em quanto tempo alguém responde, e não que "não há atendimento fora do horário").
 - As pistas servem para saber o que procurar, não para serem copiadas: a consequência é escrita por você, sobre esta peça, com as suas palavras.
@@ -24,7 +25,7 @@ COMO RESPONDER
 - Quando a peça traz um preço e um percentual de valor (desconto, economia, benefício, retorno), feche a conta em reais com os números da própria peça, para o cliente não ter de fazer sozinho. Exemplo inventado: preço de R$$ 8.000 por mês e desconto de 12% no contrato anual dão R$$ 96.000 no ano, R$$ 11.520 de desconto e R$$ 84.480 líquidos. Não invente base que a peça não dá: se falta um número para fechar a conta, diga qual.
 - Contradição interna da peça (dois trechos que prometem coisas diferentes) é sempre P1: é a comunicação comercial não refletindo o que será entregue.
 - Não use travessão (— ou –) em nenhum texto seu. Use vírgula, dois pontos ou ponto.
-- Cada item é concreto e curto (uma ou duas frases), na voz de quem orienta a empresa, em português do Brasil. Use o que já existe na peça quando der ("a conta está espalhada nas páginas 2 e 3; junte e mostre em dinheiro").
+- Cada item é concreto e tem no máximo duas frases, na voz de quem orienta a empresa, em português do Brasil. Use o que já existe na peça quando der ("a conta está espalhada nas páginas 2 e 3; junte e mostre em dinheiro").
 - Citação: trecho COPIADO LITERALMENTE da peça, entre 12 e 300 caracteres, sem resumir, traduzir, corrigir ou juntar pedaços; com o número da página (texto colado é página 1). A citação fica no idioma da peça. Itens "forte" e "melhorar" sempre citam. Item "falta" cita o trecho mais próximo do assunto quando existe; se não existe nada, a lista de evidências vai vazia.
 - Texto marcado como "nota do apresentador" o comprador normalmente não vê: não conta como algo que a peça faz.
 - Páginas marcadas "[página sem texto legível]" não foram lidas; não presuma o que há nelas.

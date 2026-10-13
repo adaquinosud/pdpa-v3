@@ -263,3 +263,13 @@ def test_modo_desconhecido_recusa_antes_de_gravar(db_session, empresa, monkeypat
     with pytest.raises(AvaliacaoRecusada, match="AVALIADOR_MODO"):
         _criar(db_session, empresa)
     assert db_session.query(AvaliadorAnalise).count() == 0
+
+
+def test_por_pilar_sem_resumo_fica_pronta_com_motivo(db_session, empresa, monkeypatch):
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="por_pilar")
+    aid = _criar(db_session, empresa)
+    _rodar(db_session, aid, Dublê([{"itens": []}] * 4 + ["x", "y"]))
+    db_session.expire_all()
+    a = db_session.get(AvaliadorAnalise, aid)
+    assert a.status == STATUS_PRONTA and a.resumo is None
+    assert a.erro_motivo == "resumo: RespostaInvalida" and a.custo_usd > 0

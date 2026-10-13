@@ -30,7 +30,7 @@ from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSAO = "avaliador-v5"
+PROMPT_VERSAO = "avaliador-v6"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")
@@ -217,20 +217,32 @@ def _validar_itens(doc: Documento, brutos: Any, permitidos=None) -> List[dict]:
             raise RespostaInvalida(f"tipo de item fora da lista: {tipo!r}")
         if not texto:
             raise RespostaInvalida(f"item de {cod} sem texto")
-        if sum(1 for x in brutos if isinstance(x, dict) and x.get("subpilar") == cod) > (
-            MAX_ITENS_POR_SUBPILAR
-        ):
-            raise RespostaInvalida(f"mais de {MAX_ITENS_POR_SUBPILAR} itens em {cod}")
         evid = _evidencias(doc, it.get("evidencias"))
         alerta = None
         # "forte" e "melhorar" afirmam que algo ESTÁ na peça: sem trecho conferido, o item
         # fica com alerta visível (não é apagado nem reescrito).
         if tipo in ("forte", "melhorar") and not any(e["conferido"] for e in evid):
             alerta = "sem citação conferida na peça"
+        # Limite de três por subpilar SEM nova tentativa (decisão de 13/10): o pedido manda
+        # ordenar do que mais muda a peça para o que menos muda; do 4º em diante o item fica
+        # guardado como descartado (a tela conta, não exibe). Nunca some sem registro.
+        ja = sum(1 for x in itens if x["subpilar"] == cod)
         itens.append(
-            {"subpilar": cod, "tipo": tipo, "texto": texto, "evidencias": evid, "alerta": alerta}
+            {
+                "subpilar": cod,
+                "tipo": tipo,
+                "texto": texto,
+                "evidencias": evid,
+                "alerta": alerta,
+                "descartado": ja >= MAX_ITENS_POR_SUBPILAR,
+            }
         )
     return itens
+
+
+def validos(itens: List[dict]) -> List[dict]:
+    """Os itens que contam: sem os descartados pelo limite de três."""
+    return [i for i in itens if not i.get("descartado")]
 
 
 def _validar_resumo(obj: dict) -> str:
@@ -283,7 +295,7 @@ def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tupl
 # Motivo (preview de 13/10): na chamada única o P3 saiu raso duas vezes e um item do Pa2
 # sumiu entre duas leituras da mesma peça.
 
-PROMPT_VERSAO_POR_PILAR = "avaliador-v6-pilar"
+PROMPT_VERSAO_POR_PILAR = "avaliador-v7-pilar"
 MAX_TOKENS_PILAR = 3500
 MAX_TOKENS_RESUMO = 800
 # Folga de entrada para a instrução do pilar + os itens já apontados (no máximo 9 por
@@ -315,7 +327,7 @@ def estimar_custo_por_pilar_usd(sistema: str, usuario: str, modelo: str, n_pilar
 def _ja_apontado(itens: List[dict]) -> str:
     if not itens:
         return ""
-    linhas = "\n".join(f"- {i['subpilar']} ({i['tipo']}): {i['texto']}" for i in itens)
+    linhas = "\n".join(f"- {i['subpilar']} ({i['tipo']}): {i['texto']}" for i in validos(itens))
     return (
         "\n\nJÁ APONTADO NOS PILARES ANTERIORES (não repita estes achados sob outro ângulo; "
         f"se o achado é o mesmo, ele já está dito):\n{linhas}"
@@ -327,7 +339,8 @@ def _instrucao_pilar(pilar) -> str:
     if "P1" in codigos:
         contra = (
             "- Procure na peça inteira trechos que prometem coisas diferentes entre si: "
-            "contradição interna é sempre P1."
+            "contradição interna é sempre P1 e, quando existe, é o primeiro item do P1, "
+            "à frente de qualquer outro."
         )
     else:
         contra = "- Contradição interna da peça é do P1 e é lida em outro pedido: não a traga aqui."
@@ -388,8 +401,9 @@ def ler_por_pilar(
     doc: Documento,
     orcamento_usd=None,
 ) -> Tuple[dict, Uso]:
-    """Lê pilar por pilar e escreve o resumo por último. Qualquer falha levanta com o uso
-    acumulado em ``err.uso`` (o gasto conta mesmo na falha)."""
+    """Lê pilar por pilar e escreve o resumo por último. Falha num pilar levanta com o uso
+    acumulado em ``err.uso`` (o gasto conta mesmo na falha). Falha só no resumo devolve os
+    itens com ``resumo`` None e o motivo em ``resumo_falhou``."""
     orc = {"total": Uso(), "limite": orcamento_usd}
     itens: List[dict] = []
     try:
@@ -406,16 +420,26 @@ def ler_por_pilar(
                 orc,
             )
         para_resumo = json.dumps(
-            [{"subpilar": i["subpilar"], "tipo": i["tipo"], "texto": i["texto"]} for i in itens],
+            [
+                {"subpilar": i["subpilar"], "tipo": i["tipo"], "texto": i["texto"]}
+                for i in validos(itens)
+            ],
             ensure_ascii=False,
         )
         sufixo = Template((PROMPTS / "resumo.md").read_text(encoding="utf-8")).substitute(
             itens=para_resumo
         )
-        resumo = _chamar(
-            client, modelo, sistema, usuario, sufixo, MAX_TOKENS_RESUMO, _validar_resumo, orc
-        )
     except (RespostaInvalida, OrcamentoEsgotado) as e:
         e.uso = orc["total"]  # type: ignore[attr-defined]
         raise
-    return {"resumo": resumo, "itens": itens}, orc["total"]
+    # Falha SÓ no resumo não joga fora os pilares já pagos (decisão de 13/10): a leitura
+    # fica pronta sem resumo, e o motivo vai declarado em "resumo_falhou".
+    try:
+        resumo = _chamar(
+            client, modelo, sistema, usuario, sufixo, MAX_TOKENS_RESUMO, _validar_resumo, orc
+        )
+        falhou = None
+    except (RespostaInvalida, OrcamentoEsgotado) as e:
+        logger.warning(f"[avaliador] resumo não gerado: {type(e).__name__}")
+        resumo, falhou = None, type(e).__name__
+    return {"resumo": resumo, "itens": itens, "resumo_falhou": falhou}, orc["total"]

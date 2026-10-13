@@ -272,14 +272,41 @@ def test_estimativa_por_pilar_cobre_o_pior_caso_das_cinco_chamadas():
     assert est > 4 * _pior_caso_usd(MODELO, 8000, MAX_TOKENS_PILAR)
 
 
-def test_mais_de_tres_itens_no_subpilar_gera_nova_tentativa(caplog):
+def test_quarto_item_do_subpilar_fica_descartado_sem_nova_tentativa():
+    from src.avaliador.motor import validos
+
     item = {"subpilar": "D1", "tipo": "falta", "texto": "x", "evidencias": []}
-    demais = {"resumo": "r", "itens": [dict(item, texto=f"x{n}") for n in range(4)]}
-    cli = Dublê([demais, _ok()])
+    demais = {"resumo": "r", "itens": [dict(item, texto=f"x{n}") for n in range(5)]}
+    cli = Dublê([demais])
     res, _ = ler(cli, MODELO, "s", "u", _doc())
-    assert len(cli.chamadas) == 2 and len(res["itens"]) == 3
-    assert "mais de 3 itens em D1" in cli.chamadas[1]["messages"][0]["content"]
-    assert "resposta recusada, nova tentativa: mais de 3 itens em D1" in caplog.text
+    assert len(cli.chamadas) == 1  # sem nova tentativa
+    assert [i["descartado"] for i in res["itens"]] == [False, False, False, True, True]
+    assert [i["texto"] for i in validos(res["itens"])] == ["x0", "x1", "x2"]  # a ordem manda
+
+
+def test_por_pilar_falha_so_no_resumo_guarda_os_itens(caplog):
+    from src.avaliador.motor import ler_por_pilar
+
+    respostas = _por_pilar_ok()[:4] + ["sem json", "de novo sem json"]
+    res, uso = ler_por_pilar(Dublê(respostas), MODELO, carregar_regua(), "s", "peça", _doc())
+    assert [i["subpilar"] for i in res["itens"]] == ["P1", "D1"]
+    assert res["resumo"] is None and res["resumo_falhou"] == "RespostaInvalida"
+    assert uso.tokens_in == 18000  # as 6 chamadas contam
+    assert "resumo não gerado: RespostaInvalida" in caplog.text
+
+
+def test_pedido_por_pilar_tem_as_regras_de_dentro_do_pilar():
+    from src.avaliador.motor import _instrucao_pilar
+
+    r = carregar_regua()
+    p1, d = _instrucao_pilar(r.pilares[0]), _instrucao_pilar(r.pilares[1])
+    assert "é o primeiro item do P1, à frente de qualquer outro" in p1
+    for s in (p1, d):
+        assert "Dentro deste pilar, cada item traz um achado diferente" in s
+        assert "Um item nunca desdiz outro" in s and "no máximo duas frases" in s
+    s = montar_sistema(r, ORIGEM_ARQUIVO)
+    assert "do que mais muda a peça para o que menos muda" in s
+    assert "é sempre o primeiro item do P1" in s and "tem no máximo duas frases" in s
 
 
 def test_por_pilar_passa_os_itens_anteriores_para_nao_repetir():
