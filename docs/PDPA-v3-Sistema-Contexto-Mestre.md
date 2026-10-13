@@ -1,4 +1,4 @@
-# PDPA v3 · Sistema — Contexto Mestre (setembro/2026 · atualizado 04/set)
+# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 13/out)
 
 > **Documento de bootstrap do projeto.** Leia primeiro a cada sessão. Irmão do
 > `PDPA-Loyall-Contexto-Mestre.md` (comercial/método); este cobre o **sistema**.
@@ -9,6 +9,14 @@
 > versão corrente ia até §4.58 — quatro fatias de diferença. É a §18 do
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
+>
+> **Estado em 13/out:** prod em **`a8a04fc`** · suíte 2044. Entrou o **Avaliador de
+> documentos** (§4.63), aba do Explorar **só para admin**, desligada até o Alexandre
+> definir `AVALIADOR_TETO_MENSAL_USD` no Render (decidido: US$ 20 **por empresa**).
+> Especificação em `docs/AVALIADOR_ESPECIFICACAO.md` (v2, o que está em prod). Três
+> travas novas no §7: exemplo de pedido não sai da peça de teste; resultado pago não
+> se descarta por falha de etapa posterior; reverter código com migration nova
+> mantém o arquivo da migration.
 >
 > **Estado em 03/set:** prod em **`63373eb`** (doc-only desde `de16101`) · suíte
 > 1881. Cadastrado o **Grupo BEXP** (empresa 27), e a coleta de RA expôs **dois
@@ -2752,6 +2760,77 @@ R$ 0,09/parecer foram **MEDIDOS**, não calculados.
 `black` moveu as linhas para `:999`. Corrigido antes do commit — é a §3 na forma mais
 banal: referência tem forma de fato apurado.
 
+### 4.63 Avaliador de documentos (`a8a04fc` · 12-13/out · só admin)
+
+**O que é.** O admin sobe uma peça do relacionamento (proposta, apresentação, PDF ou
+`.pptx`) ou cola o texto de uma conversa, diz em uma linha o que é a peça e para que
+serve, e recebe por subpilar **forte / falta / melhorar**, cada afirmação com o trecho
+citado e **conferido literalmente** no texto extraído. Desenho completo em
+`docs/AVALIADOR_ESPECIFICACAO.md`.
+
+**Como chegou aqui.** A especificação nasceu no claude.ai, sem o repositório, e passou
+por nove versões. Em 12/10 foram construídas seis fatias (tipos de peça, vereditos,
+bibliotecas por id). Em 13/10 o Alexandre achou o desenho complicado demais e escolheu
+a **direção 1**: a régua é o **capítulo 2 do Manual, literal**; saem tipos, vereditos
+e bibliotecas por id; as bibliotecas dos autores viram **pistas** nos 12 subpilares
+(L1 para documento, L3 para conversa); entra texto colado.
+
+**Medido (Office Total, 4 páginas, banco descartável, câmbio fixo R$ 5,80):**
+
+| Leitura | Modo | Itens | Citações conferidas | Custo |
+|---|---|---|---|---|
+| probe | única | 23 | 24/24 | ≈ R$ 0,46 |
+| 1-2 | única | 26 / 26 | 24/24 · 28/28 | R$ 0,53 cada |
+| 3 | por pilar, sem limite | 52 | 51/51 | R$ 1,42 |
+| 4 | por pilar, limite com nova tentativa | falhou (orçamento) | n/a | R$ 1,26 |
+| 5 | por pilar, limite com nova tentativa | 35 | 35/36 | R$ 1,05 |
+| 6-7 | por pilar, versão final | 29 / 34 | 31/31 · 39/39 | R$ 0,95 · 0,85 |
+
+Critério de "núcleo estável" (6 × 7): o mesmo achado no mesmo subpilar nas duas
+leituras. As duas trazem a contradição "reuniões trimestrais × mensais" no P1 e a conta
+em reais da Lei do Bem no Pa2; o que varia são itens de margem. A **única** saiu rasa
+nas três leituras (probe, 1 e 2): P3 com um item só; o melhor item do Pa2, a conta em
+reais, apareceu na 1 e sumiu na 2.
+
+**Decisões do Alexandre (13/10):** por pilar é o padrão **no código**; três itens por
+subpilar (excedente guardado como descartado, a tela conta); contradição interna sempre
+entre os três do P1; conta começada é conta terminada; P3 fica como está; repetição entre
+pilares não se mexe mais (é ruído); teto US$ 20 por empresa; **merge liberado sem a
+leitura humana e sem a segunda peça**, porque a tela é só admin. A Office Total não
+calibra mais nada (sete leituras).
+
+**Reversão provada** em Postgres local: código antigo falha no `alembic upgrade head`
+(`Can't locate revision identified by 'a8c9d0e1f2b3'`) sem tocar o banco, e o Render só
+promove depois do pre-deploy sair 0, então a versão nova ficaria no ar. Código antigo
+**com o arquivo da migration mantido** passa sem fazer nada, e o app sobe. As outras
+reversões não pedem deploy: teto 0 desliga; `AVALIADOR_MODO=unica` volta à chamada única.
+
+**71 testes próprios. Migration aditiva `a8c9d0e1f2b3`. Suíte 2044. Live em
+`a8a04fc` (14 commits, `7fe0662` → `a8a04fc`).** Leituras 6 e 7 exportadas **fora do
+repositório** (conteúdo da proposta com preço e nome de cliente), para comparar com a
+leitura do Dener.
+
+**Aberto para liberar a cliente:** leitura humana do Dener sobre a Office Total; uma
+segunda peça e uma conversa real colada (a L3 nunca rodou paga); a frase de aviso
+revisada como texto de consentimento; teto global e custo por cliente; a fatia que tira
+o "só admin"; a fatia do Word (.docx). Fora da frente, separados: `requirements-dev.lock`
+desatualizado; abas escondidas do Explorar abrem por endereço direto (achado de 12/10).
+
+⚠️ **Defeitos MEUS nesta frente, todos reportados antes de alguém perguntar:**
+- **Validei a v1 da especificação contra o prompt do classificador**, não contra o
+  Manual, e chamei de divergência o que o Manual sustentava (A1, A2, Pa2). Revertido.
+  Virou a regra: conceito de subpilar para superfície nova vem do Manual.
+- **O exemplo da regra "falta não nega o que a peça tem" saiu do comentário do
+  Alexandre sobre a própria Office Total**, e a leitura seguinte o reproduziu quase
+  literal. A peça deixou de servir para medir essa regra. Trava nova no §7.
+- **A leitura 4 descartou os itens dos quatro pilares, já pagos**, porque só o resumo
+  estourou o orçamento. Corrigido (falha só no resumo guarda os itens). Trava nova no §7.
+- **Usei câmbio de R$ 5,22 num relatório e R$ 5,80 no outro.** Fixado R$ 5,80 em todos.
+- **A estimativa de custo contava 4 caracteres por token**; medido 3,1 em português.
+  Corrigido para 3.
+
+---
+
 ## 5. Os cases
 
 **Club Med (id 16, maduro — valida o método):** ferida Pa2 Mutualidade no RA
@@ -4598,9 +4677,43 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   a saída do LLM nunca pode vencê-lo — nem por preferência de template, nem por
   cache antigo. **O teste trava os dois lados:** que o literal aparece, e que a
   paráfrase de um cache velho **não** aparece.
+
+- **EXEMPLO DE PEDIDO A LLM NÃO SAI DA PEÇA QUE ESTÁ SENDO MEDIDA.** Exemplo é
+  instrução: o modelo o reproduz quando a peça casa com ele. Se o exemplo nasceu do
+  comentário sobre a peça de teste, a próxima leitura dessa peça **mede o exemplo, não a
+  regra**, e o acerto tem forma de prova.
+  ⚠️ **O caso que comprou (13/10, Avaliador):** o exemplo de "falta não nega o que a
+  peça tem" (nome e e-mail → canal, horário, prazo) veio da Office Total; a leitura
+  seguinte da Office Total saiu com esse item quase literal. 🔒 **Regra:** exemplo de
+  pedido é **inventado** e conferido contra a peça de teste (a palavra-chave não pode
+  aparecer nela). E a mesma peça não calibra indefinidamente: depois de algumas
+  leituras ela é a régua, não o teste (§4 do `CLAUDE.md`).
+
+- **RESULTADO PAGO NÃO SE DESCARTA POR FALHA DE UMA ETAPA POSTERIOR.** Quando um
+  processo em etapas paga cada etapa, a falha da etapa N **não** apaga o que as etapas
+  anteriores já entregaram: o resultado parcial é gravado e a falha é **declarada** no
+  que faltou.
+  ⚠️ **O caso (13/10, leitura 4 do Avaliador):** os quatro pilares estavam lidos e
+  pagos; o resumo estourou o orçamento da leitura e o motor levantou a exceção da
+  leitura inteira. R$ 1,26 sem nenhum item na tela. Hoje a análise fica pronta com os
+  itens e "Resumo não gerado (motivo)". É a §9 do `CLAUDE.md`: degradar de forma
+  auditável, nunca jogar fora.
+
+- **REVERTER CÓDIGO QUE TROUXE MIGRATION NOVA MANTÉM O ARQUIVO DA MIGRATION.** O
+  `alembic upgrade head` do código antigo não conhece a revisão gravada no banco e
+  falha; com `set -e` no pre-deploy, o deploy aborta. **Medido em 13/10** (Postgres
+  local): `Can't locate revision identified by 'a8c9d0e1f2b3'`, banco intacto. O commit
+  de reversão tira o código e **deixa o arquivo da migration**; o upgrade vira no-op e o
+  app sobe. Desfazer a migration (downgrade) apaga registro em prod, e isso é vetado.
 ---
 
-## 8. Estado dos SHAs (todos Live · atual `ada97fa`)
+## 8. Estado dos SHAs (todos Live · atual `a8a04fc`)
+
+**Avaliador de documentos (só admin):** `7fe0662` (régua + dados) → `37e81aa`
+(extração + conferência de citação) → `ee248c5` (tabela) → `9cb4bc0` (motor) →
+`cfee054` (serviço, gate, retenção) → `fbe69e5` (tela) → `d3413dc` (direção 1) →
+`61fc694` → `01c70f3` (preview) → `507a778` (por pilar) → `b74e662` → `3835eaa`
+→ `a8a04fc` (por pilar padrão). §4.63.
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →
