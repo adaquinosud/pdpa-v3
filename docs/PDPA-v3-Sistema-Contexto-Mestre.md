@@ -13,10 +13,11 @@
 > **Estado em 13/out:** prod em **`a8a04fc`** · suíte 2044. Entrou o **Avaliador de
 > documentos** (§4.63), aba do Explorar **só para admin**, desligada até o Alexandre
 > definir `AVALIADOR_TETO_MENSAL_USD` no Render (decidido: US$ 20 **por empresa**).
-> Especificação em `docs/AVALIADOR_ESPECIFICACAO.md` (v2, o que está em prod). Três
+> Especificação em `docs/AVALIADOR_ESPECIFICACAO.md` (v2, o que está em prod). Quatro
 > travas novas no §7: exemplo de pedido não sai da peça de teste; resultado pago não
 > se descarta por falha de etapa posterior; reverter código com migration nova
-> mantém o arquivo da migration.
+> mantém o arquivo da migration; peça de gabarito é lida por pessoa antes de a
+> ferramenta rodar nela, uma vez só.
 >
 > **Estado em 03/set:** prod em **`63373eb`** (doc-only desde `de16101`) · suíte
 > 1881. Cadastrado o **Grupo BEXP** (empresa 27), e a coleta de RA expôs **dois
@@ -2814,18 +2815,19 @@ reversões não pedem deploy: teto 0 desliga; `AVALIADOR_MODO=unica` volta à ch
 
 **71 testes próprios. Migration aditiva `a8c9d0e1f2b3`. Suíte 2044. Live em
 `a8a04fc` (14 commits, `7fe0662` → `a8a04fc`).** Leituras 6 e 7 exportadas **fora do
-repositório** (conteúdo da proposta com preço e nome de cliente), para comparar com a
-leitura do Dener.
+repositório** (conteúdo da proposta com preço e nome de cliente), como registro da
+medição de estabilidade. Não servem de comparação com gabarito: a peça está queimada
+(abaixo).
 
-⚠️ **A Office Total NÃO tem gabarito.** Em 12/10 o Alexandre e o Dener leram a proposta
-e concordaram com a leitura do modelo, **mas leram depois de ver essa leitura**. Isso é
-**concordância, não medição**, e não serve de gabarito. O único pedaço independente é a
-linha do preço (soma e conta da Lei do Bem), que qualquer um confere sozinho na peça.
-Consequência para o item abaixo: se o Dener já viu a leitura do modelo em 12/10, a
-"leitura humana sem ver o resultado" **não é mais possível nesta peça**; precisa de
-outra peça, lida antes de qualquer resultado.
+⚠️ **A Office Total está QUEIMADA como gabarito, para os dois autores.** Em 12/10 o
+Alexandre e o Dener viram juntos a leitura do modelo e depois concordaram com ela. Isso
+é **concordância, não medição**, e não serve de gabarito. O único pedaço independente é
+a linha do preço (soma e conta da Lei do Bem), que qualquer um confere sozinho na peça.
+O Grupo BEXP também não serve de gabarito (decisão do Alexandre, 13/10).
 
-**Aberto para liberar a cliente:** leitura humana do Dener sobre a Office Total; uma
+**Aberto para liberar a cliente:** o **gabarito**, que é uma leitura humana de uma peça
+da Loyall ainda não lida por ferramenta nenhuma, feita antes de qualquer resultado
+existir (Office Total e BEXP não servem; trava no §7); uma
 segunda peça e uma conversa real colada (a L3 nunca rodou paga); a frase de aviso
 revisada como texto de consentimento; teto global e custo por cliente; a fatia que tira
 o "só admin"; a fatia do Word (.docx). Fora da frente, separados: `requirements-dev.lock`
@@ -4733,6 +4735,17 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   testado no Render). O commit
   de reversão tira o código e **deixa o arquivo da migration**; o upgrade vira no-op e o
   app sobe. Desfazer a migration (downgrade) apaga registro em prod, e isso é vetado.
+
+- **PEÇA DE GABARITO É LIDA POR PESSOA ANTES DE A FERRAMENTA RODAR NELA, UMA VEZ SÓ.**
+  Depois que alguém vê o resultado da ferramenta sobre uma peça, aquela peça **não volta
+  a ser gabarito nunca mais**, para ninguém que viu. Ler depois e concordar é
+  concordância, não medição: o resultado já ancorou a leitura.
+  ⚠️ **Aconteceu duas vezes na frente do Avaliador:** os oito documentos de 11/10 (o
+  "gabarito" foi gerado por leitores-modelo e descrito como lido à mão) e a Office
+  Total (o Alexandre e o Dener viram a leitura do modelo em 12/10 antes de ler).
+  🔒 **Regra:** a peça de gabarito é escolhida, lida por pessoa e registrada **antes**
+  de a ferramenta tocá-la; o registro diz quem leu, quando, e que nenhum resultado
+  existia. Peça já vista por alguém fica fora, inclusive "só para conferir".
 ---
 
 ## 8. Estado dos SHAs (todos Live · atual `a8a04fc`)

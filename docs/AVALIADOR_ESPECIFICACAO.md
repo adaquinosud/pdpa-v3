@@ -162,11 +162,12 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
 
 ## 13. Para liberar para cliente
 
-1. Leitura humana do Dener sobre a Office Total, sem ver o resultado, comparada às leituras 6 e 7
-   (exportadas fora do repositório). ⚠️ **A Office Total não tem gabarito:** em 12/10 o Alexandre
-   e o Dener concordaram com a leitura do modelo **depois de vê-la**; isso é concordância, não
-   medição. Só a linha do preço é conferível de forma independente. Se o Dener já viu a leitura,
-   este item pede outra peça, lida antes de qualquer resultado.
+1. O gabarito: uma leitura humana de uma peça da Loyall ainda não lida por ferramenta nenhuma,
+   feita antes de qualquer resultado existir. A Office Total e o Grupo BEXP não servem: na Office
+   Total, o Alexandre e o Dener viram a leitura do modelo em 12/10 antes de concordar com ela
+   (concordância, não medição; só a linha do preço é conferível de forma independente). Trava no
+   §7 do Contexto-Mestre: peça de gabarito é lida por pessoa antes de a ferramenta rodar nela, uma
+   vez só.
 2. Uma segunda peça e uma conversa real colada (a biblioteca L3 nunca rodou paga).
 3. A frase de aviso revisada como texto de consentimento.
 4. Teto e custo por cliente: quanto cada empresa-cliente gasta, quem paga, se o cliente vê o custo.
