@@ -139,7 +139,8 @@ O aviso da tela nomeia a Anthropic e lê o número de dias da **mesma** constant
 71 testes próprios (régua, extração, modelo, motor, serviço, tela), todos com cliente LLM dublado,
 sem gasto. Suíte inteira 2044 em `a8a04fc`. A reversão foi provada em Postgres local: código antigo
 falha no `alembic upgrade head` (`Can't locate revision identified by 'a8c9d0e1f2b3'`) sem tocar o
-banco; código antigo **com o arquivo da migration mantido** passa sem fazer nada e o app sobe.
+banco; código antigo **com o arquivo da migration mantido** passa sem fazer nada e o app sobe. Que o
+Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedução, NÃO medida**.
 
 ## 12. Decisões do Alexandre (12 e 13/10)
 
@@ -162,7 +163,10 @@ banco; código antigo **com o arquivo da migration mantido** passa sem fazer nad
 ## 13. Para liberar para cliente
 
 1. Leitura humana do Dener sobre a Office Total, sem ver o resultado, comparada às leituras 6 e 7
-   (exportadas fora do repositório).
+   (exportadas fora do repositório). ⚠️ **A Office Total não tem gabarito:** em 12/10 o Alexandre
+   e o Dener concordaram com a leitura do modelo **depois de vê-la**; isso é concordância, não
+   medição. Só a linha do preço é conferível de forma independente. Se o Dener já viu a leitura,
+   este item pede outra peça, lida antes de qualquer resultado.
 2. Uma segunda peça e uma conversa real colada (a biblioteca L3 nunca rodou paga).
 3. A frase de aviso revisada como texto de consentimento.
 4. Teto e custo por cliente: quanto cada empresa-cliente gasta, quem paga, se o cliente vê o custo.

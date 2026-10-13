@@ -2779,12 +2779,16 @@ e bibliotecas por id; as bibliotecas dos autores viram **pistas** nos 12 subpila
 
 | Leitura | Modo | Itens | Citações conferidas | Custo |
 |---|---|---|---|---|
-| probe | única | 23 | 24/24 | ≈ R$ 0,46 |
+| probe | única | 23 | 24/24 | ≈ R$ 0,46 ⚠️ NÃO MEDIDO¹ |
 | 1-2 | única | 26 / 26 | 24/24 · 28/28 | R$ 0,53 cada |
 | 3 | por pilar, sem limite | 52 | 51/51 | R$ 1,42 |
 | 4 | por pilar, limite com nova tentativa | falhou (orçamento) | n/a | R$ 1,26 |
 | 5 | por pilar, limite com nova tentativa | 35 | 35/36 | R$ 1,05 |
 | 6-7 | por pilar, versão final | 29 / 34 | 31/31 · 39/39 | R$ 0,95 · 0,85 |
+
+¹ **NÃO MEDIDO:** US$ 0,08 arredondado no relatório daquele dia, convertido a R$ 5,80. O
+banco desse teste não foi guardado; não há como conferir. Itens e citações da linha
+vêm do mesmo relatório. As demais linhas foram lidas do banco do preview em 13/10.
 
 Critério de "núcleo estável" (6 × 7): o mesmo achado no mesmo subpilar nas duas
 leituras. As duas trazem a contradição "reuniões trimestrais × mensais" no P1 e a conta
@@ -2800,8 +2804,11 @@ leitura humana e sem a segunda peça**, porque a tela é só admin. A Office Tot
 calibra mais nada (sete leituras).
 
 **Reversão provada** em Postgres local: código antigo falha no `alembic upgrade head`
-(`Can't locate revision identified by 'a8c9d0e1f2b3'`) sem tocar o banco, e o Render só
-promove depois do pre-deploy sair 0, então a versão nova ficaria no ar. Código antigo
+(`Can't locate revision identified by 'a8c9d0e1f2b3'`) sem tocar o banco. ⚠️ **NÃO
+MEDIDO:** que o Render, com o pre-deploy falhando, mantém a versão nova no ar é
+**dedução** a partir de `set -euo pipefail` em `scripts/deploy_pre.sh` e de uma nota de
+sessão anterior sobre o Render, fora deste repositório; nenhuma reversão foi testada no
+Render. Código antigo
 **com o arquivo da migration mantido** passa sem fazer nada, e o app sobe. As outras
 reversões não pedem deploy: teto 0 desliga; `AVALIADOR_MODO=unica` volta à chamada única.
 
@@ -2809,6 +2816,14 @@ reversões não pedem deploy: teto 0 desliga; `AVALIADOR_MODO=unica` volta à ch
 `a8a04fc` (14 commits, `7fe0662` → `a8a04fc`).** Leituras 6 e 7 exportadas **fora do
 repositório** (conteúdo da proposta com preço e nome de cliente), para comparar com a
 leitura do Dener.
+
+⚠️ **A Office Total NÃO tem gabarito.** Em 12/10 o Alexandre e o Dener leram a proposta
+e concordaram com a leitura do modelo, **mas leram depois de ver essa leitura**. Isso é
+**concordância, não medição**, e não serve de gabarito. O único pedaço independente é a
+linha do preço (soma e conta da Lei do Bem), que qualquer um confere sozinho na peça.
+Consequência para o item abaixo: se o Dener já viu a leitura do modelo em 12/10, a
+"leitura humana sem ver o resultado" **não é mais possível nesta peça**; precisa de
+outra peça, lida antes de qualquer resultado.
 
 **Aberto para liberar a cliente:** leitura humana do Dener sobre a Office Total; uma
 segunda peça e uma conversa real colada (a L3 nunca rodou paga); a frase de aviso
@@ -2828,6 +2843,17 @@ desatualizado; abas escondidas do Explorar abrem por endereço direto (achado de
 - **Usei câmbio de R$ 5,22 num relatório e R$ 5,80 no outro.** Fixado R$ 5,80 em todos.
 - **A estimativa de custo contava 4 caracteres por token**; medido 3,1 em português.
   Corrigido para 3.
+
+⚠️ **Erro da especificação feita no claude.ai, registrado a pedido do autor (13/10):** em
+12/10 ele afirmou que cinco subpilares tinham sido estreitados (eficácia operacional,
+proatividade, mutualidade, comprometimento e exemplo), comparando contra os **títulos de
+um slide**, não contra o Manual. Aberto o capítulo 2, quatro dos cinco estavam certos;
+só o A1 era desvio de verdade. Custou uma hora e quase provocou mudança no modelo dos
+autores. Mesma família dos cinco acima: **dedução tratada como fato conferido.** Da
+mesma família, os dois casos do mesmo autor apontados por mim em 12/10 (até aqui fora
+deste documento): o número "24 divergências"
+atribuído a mim, e o gabarito dos 8 documentos descrito como "lido à mão" quando foi
+gerado por leitores-modelo.
 
 ---
 
@@ -4701,8 +4727,10 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
 
 - **REVERTER CÓDIGO QUE TROUXE MIGRATION NOVA MANTÉM O ARQUIVO DA MIGRATION.** O
   `alembic upgrade head` do código antigo não conhece a revisão gravada no banco e
-  falha; com `set -e` no pre-deploy, o deploy aborta. **Medido em 13/10** (Postgres
-  local): `Can't locate revision identified by 'a8c9d0e1f2b3'`, banco intacto. O commit
+  falha. **Medido em 13/10** (Postgres local): `Can't locate revision identified by
+  'a8c9d0e1f2b3'`, banco intacto. Que o deploy então aborta com a versão anterior no ar
+  é ⚠️ **dedução, NÃO medida** (`set -e` no pre-deploy + comportamento do Render; nunca
+  testado no Render). O commit
   de reversão tira o código e **deixa o arquivo da migration**; o upgrade vira no-op e o
   app sobe. Desfazer a migration (downgrade) apaga registro em prod, e isso é vetado.
 ---
