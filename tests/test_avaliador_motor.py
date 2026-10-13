@@ -164,7 +164,12 @@ def test_pedido_tem_as_regras_novas_e_nenhum_travessao_proprio():
     r = carregar_regua()
     s = montar_sistema(r, ORIGEM_ARQUIVO)
     assert "Contradição interna da peça" in s and "é sempre P1" in s
-    assert "estabilidade entre lojas, períodos E situações" in s
+    assert "SE a peça disser que o cliente tem mais de uma unidade" in s
+    assert "No máximo três itens por subpilar" in s and "não podem se contradizer" in s
+    assert "R$ 96.000 no ano, R$ 11.520 de desconto e R$ 84.480 líquidos" in s  # $ escapado
+    assert "Não invente base que a peça não dá" in s
+    # o exemplo do "falta" não vem de peça real (a Office Total trazia nome e e-mail)
+    assert "nome e um e-mail" not in s and "plantão no fim de semana" in s
     # travessão só pode vir das linhas literais do Manual (e da regra que o proíbe)
     manual = {p.titulo for p in r.pilares} | {p.descricao for p in r.pilares}
     manual |= {f"- {sp.texto}" for p in r.pilares for sp in p.subpilares}
@@ -265,3 +270,24 @@ def test_estimativa_por_pilar_cobre_o_pior_caso_das_cinco_chamadas():
 
     est = estimar_custo_por_pilar_usd("s" * 4000, "u" * 4000, MODELO, 4)
     assert est > 4 * _pior_caso_usd(MODELO, 8000, MAX_TOKENS_PILAR)
+
+
+def test_mais_de_tres_itens_no_subpilar_gera_nova_tentativa(caplog):
+    item = {"subpilar": "D1", "tipo": "falta", "texto": "x", "evidencias": []}
+    demais = {"resumo": "r", "itens": [dict(item, texto=f"x{n}") for n in range(4)]}
+    cli = Dublê([demais, _ok()])
+    res, _ = ler(cli, MODELO, "s", "u", _doc())
+    assert len(cli.chamadas) == 2 and len(res["itens"]) == 3
+    assert "mais de 3 itens em D1" in cli.chamadas[1]["messages"][0]["content"]
+    assert "resposta recusada, nova tentativa: mais de 3 itens em D1" in caplog.text
+
+
+def test_por_pilar_passa_os_itens_anteriores_para_nao_repetir():
+    from src.avaliador.motor import ler_por_pilar
+
+    cli = Dublê(_por_pilar_ok())
+    ler_por_pilar(cli, MODELO, carregar_regua(), "s", "peça", _doc())
+    sufixos = [c["messages"][0]["content"][1]["text"] for c in cli.chamadas]
+    assert "JÁ APONTADO" not in sufixos[0]
+    assert "JÁ APONTADO" in sufixos[1] and "P1 (melhorar): Prazo sem início." in sufixos[1]
+    assert "D1 (forte): Horário, declarado." in sufixos[2]

@@ -17,6 +17,7 @@ literalmente no texto extraído — a que não existe nunca aparece como citaç�
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,13 +28,18 @@ from src.api.painel import SUBPILARES_ORDEM
 from src.avaliador.extracao import Documento, conferir_trecho
 from src.avaliador.regua import Regua
 
-PROMPT_VERSAO = "avaliador-v4"
+logger = logging.getLogger(__name__)
+
+PROMPT_VERSAO = "avaliador-v5"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")
 MAX_TOKENS = 8000
 TENTATIVAS = 2  # 1 + 1 nova tentativa quando a resposta não valida
-_CHARS_POR_TOKEN = 4  # estimativa do gate de custo, antes de gastar
+# Estimativa do gate de custo, antes de gastar. Medido em 13/10 na Office Total (português):
+# 24.370 caracteres viraram 7.896 tokens, 3,1 por token. 3 arredonda para o lado caro.
+_CHARS_POR_TOKEN = 3
+MAX_ITENS_POR_SUBPILAR = 3  # decisão do Alexandre (13/10): volume não é profundidade
 
 
 class RespostaInvalida(ValueError):
@@ -211,6 +217,10 @@ def _validar_itens(doc: Documento, brutos: Any, permitidos=None) -> List[dict]:
             raise RespostaInvalida(f"tipo de item fora da lista: {tipo!r}")
         if not texto:
             raise RespostaInvalida(f"item de {cod} sem texto")
+        if sum(1 for x in brutos if isinstance(x, dict) and x.get("subpilar") == cod) > (
+            MAX_ITENS_POR_SUBPILAR
+        ):
+            raise RespostaInvalida(f"mais de {MAX_ITENS_POR_SUBPILAR} itens em {cod}")
         evid = _evidencias(doc, it.get("evidencias"))
         alerta = None
         # "forte" e "melhorar" afirmam que algo ESTÁ na peça: sem trecho conferido, o item
@@ -255,6 +265,7 @@ def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tupl
         try:
             return validar_saida(doc, _extrair_json(texto)), total
         except RespostaInvalida as e:
+            logger.warning(f"[avaliador] resposta recusada, nova tentativa: {e}")
             ultimo = e
             msg = (
                 usuario + f"\n\nATENÇÃO: a resposta anterior foi recusada ({e}). "
@@ -268,12 +279,16 @@ def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tupl
 # ── leitura por pilar ─────────────────────────────────────────────────────
 # Quatro chamadas (uma por pilar) e uma quinta só para o resumo. A peça e o pedido
 # comum ficam no cache do provedor: a partir da segunda chamada a entrada custa 10%.
+# Cada pilar recebe, no fim do pedido, os itens dos pilares anteriores, para não repetir.
 # Motivo (preview de 13/10): na chamada única o P3 saiu raso duas vezes e um item do Pa2
 # sumiu entre duas leituras da mesma peça.
 
-PROMPT_VERSAO_POR_PILAR = "avaliador-v5-pilar"
+PROMPT_VERSAO_POR_PILAR = "avaliador-v6-pilar"
 MAX_TOKENS_PILAR = 3500
 MAX_TOKENS_RESUMO = 800
+# Folga de entrada para a instrução do pilar + os itens já apontados (no máximo 9 por
+# pilar, 3 por subpilar) que vão no fim de cada pedido.
+_FOLGA_SUFIXO = 20_000
 
 
 class OrcamentoEsgotado(RuntimeError):
@@ -291,9 +306,19 @@ def _pior_caso_usd(modelo: str, entrada_chars: int, max_saida: int) -> float:
 def estimar_custo_por_pilar_usd(sistema: str, usuario: str, modelo: str, n_pilares: int) -> float:
     """Para o gate do teto: as chamadas por pilar e a do resumo, sem nova tentativa (o
     orçamento da leitura é que limita as tentativas)."""
-    base = len(sistema) + len(usuario)
+    base = len(sistema) + len(usuario) + _FOLGA_SUFIXO
     return n_pilares * _pior_caso_usd(modelo, base, MAX_TOKENS_PILAR) + _pior_caso_usd(
-        modelo, base + 20_000, MAX_TOKENS_RESUMO
+        modelo, base, MAX_TOKENS_RESUMO
+    )
+
+
+def _ja_apontado(itens: List[dict]) -> str:
+    if not itens:
+        return ""
+    linhas = "\n".join(f"- {i['subpilar']} ({i['tipo']}): {i['texto']}" for i in itens)
+    return (
+        "\n\nJÁ APONTADO NOS PILARES ANTERIORES (não repita estes achados sob outro ângulo; "
+        f"se o achado é o mesmo, ele já está dito):\n{linhas}"
     )
 
 
@@ -345,6 +370,7 @@ def _chamar(client, modelo, sistema, usuario, sufixo, max_tokens, validar, orc):
         try:
             return validar(_extrair_json(texto))
         except RespostaInvalida as e:
+            logger.warning(f"[avaliador] resposta recusada, nova tentativa: {e}")
             ultimo = e
             msg_sufixo = (
                 sufixo + f"\n\nATENÇÃO: a resposta anterior foi recusada ({e}). "
@@ -374,7 +400,7 @@ def ler_por_pilar(
                 modelo,
                 sistema,
                 usuario,
-                _instrucao_pilar(pilar),
+                _instrucao_pilar(pilar) + _ja_apontado(itens),
                 MAX_TOKENS_PILAR,
                 lambda obj, pm=permitidos: _validar_itens(doc, obj.get("itens"), pm),
                 orc,

@@ -16,9 +16,12 @@ COMO RESPONDER
   · "falta": o que a peça não diz e deveria dizer;
   · "melhorar": o que está lá, mas fraco, vago ou mal colocado, e como ficaria melhor.
 - Subpilar onde não há nada relevante a dizer sobre esta peça: não invente item; deixe de fora.
-- Item "falta" nunca nega o que a peça tem: diga o que falta A PARTIR do que está lá (se a peça traz um nome e um e-mail, o que falta é dizer que esse é o canal do dia a dia, o horário e o prazo de resposta, e não que "não há contato").
+- No máximo três itens por subpilar: os três que mais mudam a peça. Descarte o resto.
+- Os itens de um mesmo subpilar não podem se contradizer. "forte" e "falta" no mesmo subpilar tratam de coisas diferentes: se você aponta como forte que a peça faz algo, nenhum item do mesmo subpilar pode dizer que ela não faz.
+- Item "falta" nunca nega o que a peça tem: diga o que falta A PARTIR do que está lá (se a peça diz que há plantão no fim de semana, o que falta é dizer como acioná-lo e em quanto tempo alguém responde, e não que "não há atendimento fora do horário").
 - As pistas servem para saber o que procurar, não para serem copiadas: a consequência é escrita por você, sobre esta peça, com as suas palavras.
-- Percorra cada parte da definição do Manual de cada subpilar, não só a mais óbvia (P3, por exemplo, é estabilidade entre lojas, períodos E situações: veja as três, à luz do que a peça diz sobre a operação do cliente).
+- Percorra cada parte da definição do Manual de cada subpilar, não só a mais óbvia. No P3: veja se a entrega se mantém igual ao longo do tempo e entre situações; e, SE a peça disser que o cliente tem mais de uma unidade, praça ou região, pergunte se a entrega sai igual entre elas. Se a peça não disser isso, não fale de unidades.
+- Quando a peça traz um preço e um percentual de valor (desconto, economia, benefício, retorno), feche a conta em reais com os números da própria peça, para o cliente não ter de fazer sozinho. Exemplo inventado: preço de R$$ 8.000 por mês e desconto de 12% no contrato anual dão R$$ 96.000 no ano, R$$ 11.520 de desconto e R$$ 84.480 líquidos. Não invente base que a peça não dá: se falta um número para fechar a conta, diga qual.
 - Contradição interna da peça (dois trechos que prometem coisas diferentes) é sempre P1: é a comunicação comercial não refletindo o que será entregue.
 - Não use travessão (— ou –) em nenhum texto seu. Use vírgula, dois pontos ou ponto.
 - Cada item é concreto e curto (uma ou duas frases), na voz de quem orienta a empresa, em português do Brasil. Use o que já existe na peça quando der ("a conta está espalhada nas páginas 2 e 3; junte e mostre em dinheiro").
