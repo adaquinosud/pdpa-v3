@@ -16,6 +16,8 @@ COMO RESPONDER
   · "falta": o que a peça não diz e deveria dizer;
   · "melhorar": o que está lá, mas fraco, vago ou mal colocado — e como ficaria melhor.
 - Subpilar onde não há nada relevante a dizer sobre esta peça: não invente item; deixe de fora.
+- Item "falta" nunca nega o que a peça tem: diga o que falta A PARTIR do que está lá (se a peça traz um nome e um e-mail, o que falta é dizer que esse é o canal do dia a dia, o horário e o prazo de resposta — não que "não há contato").
+- As pistas servem para saber o que procurar, não para serem copiadas: a consequência é escrita por você, sobre esta peça, com as suas palavras.
 - Cada item é concreto e curto (uma ou duas frases), na voz de quem orienta a empresa, em português do Brasil. Use o que já existe na peça quando der ("a conta está espalhada nas páginas 2 e 3; junte e mostre em dinheiro").
 - Citação: trecho COPIADO LITERALMENTE da peça, entre 12 e 300 caracteres, sem resumir, traduzir, corrigir ou juntar pedaços; com o número da página (texto colado é página 1). A citação fica no idioma da peça. Itens "forte" e "melhorar" sempre citam. Item "falta" cita o trecho mais próximo do assunto quando existe; se não existe nada, a lista de evidências vai vazia.
 - Texto marcado como "nota do apresentador" o comprador normalmente não vê: não conta como algo que a peça faz.

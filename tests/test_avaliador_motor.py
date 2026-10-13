@@ -82,6 +82,7 @@ def test_pedido_leva_manual_regras_pistas_e_descricao():
     assert "Há canal, não há horário." in sistema  # pista da biblioteca 1
     assert "Ele perguntou com quem fala" not in sistema  # biblioteca 3 só para texto
     assert "Ele perguntou com quem fala" in montar_sistema(r, ORIGEM_TEXTO)
+    assert "nunca nega o que a peça tem" in sistema and "não para serem copiadas" in sistema
     u = montar_usuario("Proposta de renovação para cliente de TI", _doc())
     assert "Proposta de renovação para cliente de TI" in u and "=== PÁGINA 2 ===" in u
 

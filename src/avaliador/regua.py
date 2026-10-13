@@ -36,11 +36,9 @@ BIBLIOTECA_POR_ORIGEM = {ORIGEM_ARQUIVO: "L1", ORIGEM_TEXTO: "L3"}
 # pista.
 _GRUPOS_P1_L1 = ("P1a", "P1b", "P1c", "P1d", "P1d_sem_anexo")
 
-# Grupos fora das pistas, com o motivo. A biblioteca 3 ainda tem a redação ANTERIOR do A1
-# (escrita contra uma régua que estreitava o subpilar) — volta quando os autores revisarem.
-PISTAS_FORA: Dict[tuple, str] = {
-    ("L3", "A1"): "redação anterior à correção do A1 contra o Manual; aguarda os autores",
-}
+# Grupos fora das pistas, com o motivo — (biblioteca, subpilar): motivo. Vazio desde
+# 12/10/2026: o A1 das bibliotecas 1 e 3 foi reescrito pelos autores contra o Manual.
+PISTAS_FORA: Dict[tuple, str] = {}
 
 
 class ReguaInvalida(ValueError):

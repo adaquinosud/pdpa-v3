@@ -1,7 +1,7 @@
 {
   "biblioteca": "dito_contra_respondido",
   "tom": "reconciliacao",
-  "nota": "Copiada literal de frases_lib3.json (autores). Ids gerados L3-<grupo>-NN na ordem do arquivo. O grupo A1 tem a redacao ANTERIOR a correcao do A1 contra o Manual: o codigo nao o usa como pista ate os autores revisarem.",
+  "nota": "A1 reescrito em 12/10/2026 contra a definicao do Manual, capitulo 2: 'a empresa e citada como padrao de excelencia em seu segmento'. As oito anteriores foram para frases-A1-lib3-antigas-para-decidir.json. Estrutura mantida: o que ele disse contra o que a resposta fez. Demais grupos copiados literal de frases_lib3.json (autores).",
   "frases": {
     "P1": [
       {
@@ -312,35 +312,35 @@
     "A1": [
       {
         "id": "L3-A1-01",
-        "texto": "Ele disse que precisa justificar isso internamente. A resposta não deu com o que justificar."
+        "texto": "Ele perguntou quem mais no setor dele usa isso. A resposta falou do tamanho da empresa."
       },
       {
         "id": "L3-A1-02",
-        "texto": "Ele perguntou por que você e não o outro. A resposta falou das suas qualidades, não da diferença."
+        "texto": "Ele pediu para conversar com alguém que já tivesse passado por isso. A resposta ofereceu um case escrito."
       },
       {
         "id": "L3-A1-03",
-        "texto": "Ele falou do chefe dele e a resposta continuou falando só com ele. O documento tem que servir para os dois."
+        "texto": "Ele citou um concorrente seu como a referência do mercado. A resposta não disputou esse lugar nem reconheceu."
       },
       {
         "id": "L3-A1-04",
-        "texto": "Ele pediu referência e recebeu lista de clientes. Lista não é referência."
+        "texto": "Ele perguntou o que o mercado fala de vocês. A resposta falou do que vocês falam de vocês."
       },
       {
         "id": "L3-A1-05",
-        "texto": "Ele levantou o risco de trocar de fornecedor. A resposta minimizou. Minimizar o risco de quem assina aumenta o medo dele."
+        "texto": "Ele contou que procurou e não achou nada sobre vocês. A resposta tratou isso como detalhe."
       },
       {
         "id": "L3-A1-06",
-        "texto": "Ele disse que já descartou uma alternativa. A resposta propôs algo parecido com ela."
+        "texto": "Ele perguntou se vocês escrevem ou falam sobre o assunto em algum lugar. A resposta voltou para o serviço."
       },
       {
         "id": "L3-A1-07",
-        "texto": "Ele perguntou o que acontece se não der certo. A resposta falou de confiança. Ele precisava de mecanismo."
+        "texto": "Ele disse que nunca tinha ouvido falar de vocês. A resposta listou clientes, e nenhum do setor dele."
       },
       {
         "id": "L3-A1-08",
-        "texto": "Ele contou qual é o critério de decisão interno. A resposta não se organizou em volta desse critério."
+        "texto": "Ele perguntou quem procura vocês quando esse problema aparece. A resposta falou de quem vocês procuram."
       }
     ],
     "A2": [

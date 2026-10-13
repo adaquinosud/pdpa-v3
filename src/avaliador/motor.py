@@ -24,7 +24,7 @@ from src.api.painel import SUBPILARES_ORDEM
 from src.avaliador.extracao import Documento, conferir_trecho
 from src.avaliador.regua import Regua
 
-PROMPT_VERSAO = "avaliador-v2"
+PROMPT_VERSAO = "avaliador-v3"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")

@@ -57,7 +57,7 @@ def test_pistas_por_origem():
     assert "Não encontrei preço neste documento" not in " ".join(r.pistas("P1", ORIGEM_ARQUIVO))
     assert r.pistas("A1", ORIGEM_ARQUIVO)[0].startswith("Quem diz que a empresa é boa")
     assert len(r.pistas("D1", ORIGEM_TEXTO)) == 8
-    assert r.pistas("A1", ORIGEM_TEXTO) == []  # A1 da biblioteca 3 ainda é a redação antiga
+    assert r.pistas("A1", ORIGEM_TEXTO)[0].startswith("Ele perguntou quem mais no setor")
 
 
 def test_contagens_das_bibliotecas():
