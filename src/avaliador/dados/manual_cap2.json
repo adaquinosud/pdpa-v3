@@ -1,0 +1,106 @@
+{
+  "fonte": "PDPA_Manual_Operacao_v3.docx, capítulo 2",
+  "abertura": "O Lastro Relacional Loyall é organizado em quatro pilares progressivos. Cada um se subdivide em três subpilares específicos.",
+  "pilares": [
+    {
+      "titulo": "Pilar 1 — PRECISÃO",
+      "nome": "PRECISÃO",
+      "descricao": "Mede o quanto a empresa cumpre o que prometeu ao cliente.",
+      "subpilares": [
+        {
+          "codigo": "P1",
+          "nome": "Calibração da Promessa",
+          "pergunta": "a comunicação comercial reflete fielmente o produto ou serviço entregue?",
+          "texto": "P1 — Calibração da Promessa: a comunicação comercial reflete fielmente o produto ou serviço entregue?"
+        },
+        {
+          "codigo": "P2",
+          "nome": "Qualidade da Entrega",
+          "pergunta": "o produto ou serviço atende ao padrão de qualidade esperado?",
+          "texto": "P2 — Qualidade da Entrega: o produto ou serviço atende ao padrão de qualidade esperado?"
+        },
+        {
+          "codigo": "P3",
+          "nome": "Consistência ao Longo do Tempo",
+          "pergunta": "a entrega se mantém estável entre lojas, períodos e situações?",
+          "texto": "P3 — Consistência ao Longo do Tempo: a entrega se mantém estável entre lojas, períodos e situações?"
+        }
+      ]
+    },
+    {
+      "titulo": "Pilar 2 — DISPONIBILIDADE",
+      "nome": "DISPONIBILIDADE",
+      "descricao": "Mede a facilidade que o cliente tem de acessar a empresa e ter problemas resolvidos.",
+      "subpilares": [
+        {
+          "codigo": "D1",
+          "nome": "Acessibilidade",
+          "pergunta": "o cliente consegue chegar ao serviço, ser atendido, abordar o balcão?",
+          "texto": "D1 — Acessibilidade: o cliente consegue chegar ao serviço, ser atendido, abordar o balcão?"
+        },
+        {
+          "codigo": "D2",
+          "nome": "Eficácia Operacional",
+          "pergunta": "quando algo dá errado, a empresa resolve com agilidade e eficiência?",
+          "texto": "D2 — Eficácia Operacional: quando algo dá errado, a empresa resolve com agilidade e eficiência?"
+        },
+        {
+          "codigo": "D3",
+          "nome": "Proatividade Estruturada",
+          "pergunta": "a empresa antecipa problemas e comunica mudanças antes que o cliente seja impactado?",
+          "texto": "D3 — Proatividade Estruturada: a empresa antecipa problemas e comunica mudanças antes que o cliente seja impactado?"
+        }
+      ]
+    },
+    {
+      "titulo": "Pilar 3 — PARCERIA",
+      "nome": "PARCERIA",
+      "descricao": "Mede a qualidade do vínculo humano e contratual entre empresa e cliente.",
+      "subpilares": [
+        {
+          "codigo": "Pa1",
+          "nome": "Empatia Comercial",
+          "pergunta": "o cliente percebe que a equipe se importa genuinamente com ele?",
+          "texto": "Pa1 — Empatia Comercial: o cliente percebe que a equipe se importa genuinamente com ele?"
+        },
+        {
+          "codigo": "Pa2",
+          "nome": "Mutualidade",
+          "pergunta": "existe troca justa entre o que o cliente paga e o que recebe?",
+          "texto": "Pa2 — Mutualidade: existe troca justa entre o que o cliente paga e o que recebe?"
+        },
+        {
+          "codigo": "Pa3",
+          "nome": "Comprometimento Relacional",
+          "pergunta": "a empresa demonstra interesse continuado na relação ao longo do tempo?",
+          "texto": "Pa3 — Comprometimento Relacional: a empresa demonstra interesse continuado na relação ao longo do tempo?"
+        }
+      ]
+    },
+    {
+      "titulo": "Pilar 4 — ACONSELHAMENTO",
+      "nome": "ACONSELHAMENTO",
+      "descricao": "Mede o nível mais avançado da relação — quando o cliente toma a empresa como referência.",
+      "subpilares": [
+        {
+          "codigo": "A1",
+          "nome": "Exemplo",
+          "pergunta": "a empresa é citada como padrão de excelência em seu segmento?",
+          "texto": "A1 — Exemplo: a empresa é citada como padrão de excelência em seu segmento?"
+        },
+        {
+          "codigo": "A2",
+          "nome": "Orientação",
+          "pergunta": "a empresa oferece orientação técnica que o cliente valoriza?",
+          "texto": "A2 — Orientação: a empresa oferece orientação técnica que o cliente valoriza?"
+        },
+        {
+          "codigo": "A3",
+          "nome": "Recomendação Proativa",
+          "pergunta": "a empresa antecipa novidades e direciona a escolha do cliente?",
+          "texto": "A3 — Recomendação Proativa: a empresa antecipa novidades e direciona a escolha do cliente?"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,415 @@
+{
+  "biblioteca": "dito_contra_respondido",
+  "tom": "reconciliacao",
+  "nota": "Copiada literal de frases_lib3.json (autores). Ids gerados L3-<grupo>-NN na ordem do arquivo. O grupo A1 tem a redacao ANTERIOR a correcao do A1 contra o Manual: o codigo nao o usa como pista ate os autores revisarem.",
+  "frases": {
+    "P1": [
+      {
+        "id": "L3-P1-01",
+        "texto": "Ele falou de prazo e a resposta falou de etapas. Para ele, etapa sem data é prazo não respondido."
+      },
+      {
+        "id": "L3-P1-02",
+        "texto": "Ele perguntou quanto custa e recebeu o que está incluído. São perguntas diferentes, e ele vai repetir a dele."
+      },
+      {
+        "id": "L3-P1-03",
+        "texto": "Ele disse para quando precisa e a resposta deu quando fica pronto. Essas duas datas não são a mesma, e ele guardou a dele."
+      },
+      {
+        "id": "L3-P1-04",
+        "texto": "Ele perguntou o que não está incluído. A resposta listou o que está. Ele vai supor que o resto está dentro."
+      },
+      {
+        "id": "L3-P1-05",
+        "texto": "Ele pediu para fechar o escopo e a resposta explicou o método. Método não é escopo, e ele percebeu."
+      },
+      {
+        "id": "L3-P1-06",
+        "texto": "Ele trouxe um número e a resposta não falou de número. Silêncio sobre o número dele é concordância, na leitura dele."
+      },
+      {
+        "id": "L3-P1-07",
+        "texto": "Ele perguntou duas coisas e a resposta tratou uma. A que ficou sem resposta é a que ele vai lembrar."
+      },
+      {
+        "id": "L3-P1-08",
+        "texto": "Ele descreveu o resultado que quer e a resposta descreveu o trabalho que faz. Ele não liga para o trabalho."
+      }
+    ],
+    "P2": [
+      {
+        "id": "L3-P2-01",
+        "texto": "Ele perguntou como sabe se ficou bom e a resposta disse quem faz. Quem faz não é critério."
+      },
+      {
+        "id": "L3-P2-02",
+        "texto": "Ele falou de uma entrega anterior de que não gostou. A resposta não disse o que muda agora."
+      },
+      {
+        "id": "L3-P2-03",
+        "texto": "Ele pediu critério de aceite e recebeu descrição de processo. Processo cumprido com resultado ruim é a reclamação dele."
+      },
+      {
+        "id": "L3-P2-04",
+        "texto": "Ele perguntou quantas revisões cabem. A resposta disse que ajusta o necessário. Para ele, isso virou ilimitado."
+      },
+      {
+        "id": "L3-P2-05",
+        "texto": "Ele deu um exemplo do que considera bom e a resposta não comentou o exemplo. Ele vai cobrar por aquele exemplo."
+      },
+      {
+        "id": "L3-P2-06",
+        "texto": "Ele perguntou o mínimo aceitável e recebeu o padrão desejado. São dois números e ele vai cobrar o maior."
+      },
+      {
+        "id": "L3-P2-07",
+        "texto": "Ele falou de inconsistência que já viu e a resposta falou de qualidade em geral. Geral não responde ao caso dele."
+      },
+      {
+        "id": "L3-P2-08",
+        "texto": "Ele quis saber quem aprova e a resposta disse que entrega. Falta a ponte entre entregar e ser aceito."
+      }
+    ],
+    "P3": [
+      {
+        "id": "L3-P3-01",
+        "texto": "Ele perguntou se vale para todas as unidades e a resposta falou de uma. Ele vai aplicar a resposta a todas."
+      },
+      {
+        "id": "L3-P3-02",
+        "texto": "Ele perguntou o que acontece se a pessoa sair. A resposta elogiou a equipe. Elogio não é continuidade."
+      },
+      {
+        "id": "L3-P3-03",
+        "texto": "Ele falou de volume crescendo e a resposta manteve o mesmo preço sem dizer até quando. Ele entendeu que vale sempre."
+      },
+      {
+        "id": "L3-P3-04",
+        "texto": "Ele perguntou se o segundo ciclo é igual ao primeiro. A resposta não separou os dois. Ele vai esperar igual e mais barato."
+      },
+      {
+        "id": "L3-P3-05",
+        "texto": "Ele contou que já tentou padronizar e não deu certo. A resposta não perguntou por quê. Ficou a impressão de que ninguém quis saber."
+      },
+      {
+        "id": "L3-P3-06",
+        "texto": "Ele perguntou quem faz quando o titular falta. A resposta deu o nome do titular de novo."
+      },
+      {
+        "id": "L3-P3-07",
+        "texto": "Ele falou de picos de demanda e a resposta descreveu a operação normal. O pico é onde a conta dele dói."
+      },
+      {
+        "id": "L3-P3-08",
+        "texto": "Ele quis saber se depende de uma pessoa. A resposta disse que a pessoa é muito boa. Isso confirmou o medo dele."
+      }
+    ],
+    "D1": [
+      {
+        "id": "L3-D1-01",
+        "texto": "Ele perguntou com quem fala e recebeu o nome da empresa. Empresa não atende telefone."
+      },
+      {
+        "id": "L3-D1-02",
+        "texto": "Ele perguntou em quanto tempo tem resposta e ouviu que é rápido. Rápido, para ele, é hoje."
+      },
+      {
+        "id": "L3-D1-03",
+        "texto": "Ele falou de um horário em que precisa de alguém e a resposta não confirmou o horário. Ele vai ligar naquele horário."
+      },
+      {
+        "id": "L3-D1-04",
+        "texto": "Ele perguntou o que faz se não conseguir falar com você. A resposta repetiu o canal principal."
+      },
+      {
+        "id": "L3-D1-05",
+        "texto": "Ele pediu um segundo contato e recebeu o mesmo. Um contato só é um ponto de falha, e ele sabe disso."
+      },
+      {
+        "id": "L3-D1-06",
+        "texto": "Ele perguntou para quem sobe se travar. A resposta não deu nome. No vácuo ele sobe para quem conhece, e pode ser um cliente dele."
+      },
+      {
+        "id": "L3-D1-07",
+        "texto": "Ele falou de dificuldade de contato no passado e a resposta não reconheceu. Problema não reconhecido é problema que vai repetir, na leitura dele."
+      },
+      {
+        "id": "L3-D1-08",
+        "texto": "Ele perguntou se tem atendimento fora do horário comercial. A resposta falou de dedicação. Dedicação não tem horário escrito."
+      }
+    ],
+    "D2": [
+      {
+        "id": "L3-D2-01",
+        "texto": "Ele perguntou o que acontece se der errado e a resposta explicou por que não vai dar. Ele ouviu que você não pensou nisso."
+      },
+      {
+        "id": "L3-D2-02",
+        "texto": "Ele contou um problema que teve com outro fornecedor. A resposta falou das suas qualidades. Ele queria saber do seu plano B."
+      },
+      {
+        "id": "L3-D2-03",
+        "texto": "Ele perguntou quem paga se atrasar. A resposta disse que não vai atrasar. A pergunta continua de pé."
+      },
+      {
+        "id": "L3-D2-04",
+        "texto": "Ele levantou um risco concreto e a resposta tratou como improvável. Improvável não é tratado."
+      },
+      {
+        "id": "L3-D2-05",
+        "texto": "Ele perguntou como você avisa de problema e a resposta falou da frequência das reuniões. Reunião agendada não cobre problema de terça."
+      },
+      {
+        "id": "L3-D2-06",
+        "texto": "Ele quis saber o que é falha para você. A resposta não definiu. Então ele vai definir, e no pior momento."
+      },
+      {
+        "id": "L3-D2-07",
+        "texto": "Ele perguntou se dá para desfazer. A resposta falou do resultado final. Ele está pensando no meio do caminho."
+      },
+      {
+        "id": "L3-D2-08",
+        "texto": "Ele mencionou uma dependência que não controla. A resposta não disse de quem é a conta do tempo parado."
+      }
+    ],
+    "D3": [
+      {
+        "id": "L3-D3-01",
+        "texto": "Ele pediu para não ser pego de surpresa. A resposta prometeu transparência. Transparência não tem gatilho nem prazo."
+      },
+      {
+        "id": "L3-D3-02",
+        "texto": "Ele perguntou quando é avisado de mudança de preço. A resposta falou de reajuste anual. Não é a mesma pergunta."
+      },
+      {
+        "id": "L3-D3-03",
+        "texto": "Ele contou que já soube de um atraso tarde demais. A resposta não ofereceu nada diferente."
+      },
+      {
+        "id": "L3-D3-04",
+        "texto": "Ele perguntou com quanta antecedência você avisa. A resposta disse assim que souber. Para ele, isso virou nunca."
+      },
+      {
+        "id": "L3-D3-05",
+        "texto": "Ele pediu aviso de troca de equipe. A resposta garantiu a qualidade da substituição. Ele não perguntou da qualidade, perguntou do aviso."
+      },
+      {
+        "id": "L3-D3-06",
+        "texto": "Ele falou de uma decisão interna dele que depende do seu aviso. A resposta não ligou as duas coisas."
+      },
+      {
+        "id": "L3-D3-07",
+        "texto": "Ele perguntou o que você faz quando percebe que vai estourar. A resposta descreveu o controle que evita estourar."
+      },
+      {
+        "id": "L3-D3-08",
+        "texto": "Ele pediu previsibilidade e a resposta ofereceu disponibilidade. São coisas diferentes e ele queria a primeira."
+      }
+    ],
+    "Pa1": [
+      {
+        "id": "L3-Pa1-01",
+        "texto": "Ele contou a situação dele e a resposta começou pela empresa. Ele ouviu que o assunto é você."
+      },
+      {
+        "id": "L3-Pa1-02",
+        "texto": "Ele usou um termo próprio do negócio dele e a resposta não usou. Ele notou."
+      },
+      {
+        "id": "L3-Pa1-03",
+        "texto": "Ele falou do que está em jogo para ele e a resposta falou de entrega. O que está em jogo ficou sem destinatário."
+      },
+      {
+        "id": "L3-Pa1-04",
+        "texto": "Ele mencionou uma pessoa afetada pelo problema. A resposta não voltou nela."
+      },
+      {
+        "id": "L3-Pa1-05",
+        "texto": "Ele perguntou se você já viu um caso parecido. A resposta listou clientes grandes. Grande não é parecido."
+      },
+      {
+        "id": "L3-Pa1-06",
+        "texto": "Ele disse o que não quer que aconteça. A resposta falou do que vai acontecer. O medo dele ficou sem resposta."
+      },
+      {
+        "id": "L3-Pa1-07",
+        "texto": "Ele deu um detalhe específico e a resposta veio igual a qualquer outra. O detalhe era o teste, e a resposta falhou nele."
+      },
+      {
+        "id": "L3-Pa1-08",
+        "texto": "Ele falou de urgência e a resposta falou de processo. Para ele, processo é o oposto de urgência."
+      }
+    ],
+    "Pa2": [
+      {
+        "id": "L3-Pa2-01",
+        "texto": "Ele disse que está caro e a resposta explicou o que está incluído. Ele não perguntou o que tem, perguntou por que vale."
+      },
+      {
+        "id": "L3-Pa2-02",
+        "texto": "Ele comparou com outra proposta e a resposta defendeu a sua. Não disse em que as duas são diferentes."
+      },
+      {
+        "id": "L3-Pa2-03",
+        "texto": "Ele perguntou o retorno e recebeu o prazo de entrega. Retorno é outro assunto."
+      },
+      {
+        "id": "L3-Pa2-04",
+        "texto": "Ele pediu desconto e recebeu desconto. O valor nunca foi explicado, então o próximo pedido vem maior."
+      },
+      {
+        "id": "L3-Pa2-05",
+        "texto": "Ele falou do orçamento que tem. A resposta não se mexeu em relação a esse número. Ele entendeu que você não quis adequar."
+      },
+      {
+        "id": "L3-Pa2-06",
+        "texto": "Ele perguntou o que perde se não fizer. A resposta falou do que ganha se fizer. Não é o mesmo argumento, e ele queria o primeiro."
+      },
+      {
+        "id": "L3-Pa2-07",
+        "texto": "Ele trouxe o custo atual do problema dele. A resposta não usou esse número. Era o número mais forte da mesa."
+      },
+      {
+        "id": "L3-Pa2-08",
+        "texto": "Ele quis saber se pode começar menor. A resposta manteve o pacote inteiro. Ele ouviu tudo ou nada."
+      }
+    ],
+    "Pa3": [
+      {
+        "id": "L3-Pa3-01",
+        "texto": "Ele perguntou o que vem depois da entrega e a resposta detalhou a entrega. O depois ficou vazio."
+      },
+      {
+        "id": "L3-Pa3-02",
+        "texto": "Ele falou de longo prazo e a resposta falou deste projeto. Ele estava oferecendo mais e não foi ouvido."
+      },
+      {
+        "id": "L3-Pa3-03",
+        "texto": "Ele perguntou quem cuida dele depois. A resposta deu o nome de quem vende."
+      },
+      {
+        "id": "L3-Pa3-04",
+        "texto": "Ele quis saber do suporte e recebeu a garantia. São coisas diferentes, e ele vai descobrir isso tarde."
+      },
+      {
+        "id": "L3-Pa3-05",
+        "texto": "Ele perguntou se precisa de você de novo no ano que vem. A resposta disse que fica à disposição. Ficar à disposição não é compromisso."
+      },
+      {
+        "id": "L3-Pa3-06",
+        "texto": "Ele mencionou uma segunda etapa possível. A resposta não perguntou dela. A oportunidade ficou na mesa."
+      },
+      {
+        "id": "L3-Pa3-07",
+        "texto": "Ele perguntou se a equipe dele aprende a fazer. A resposta ofereceu continuar fazendo. Ele ouviu dependência."
+      },
+      {
+        "id": "L3-Pa3-08",
+        "texto": "Ele falou do que acontece quando o contrato acabar. A resposta falou do contrato."
+      }
+    ],
+    "A1": [
+      {
+        "id": "L3-A1-01",
+        "texto": "Ele disse que precisa justificar isso internamente. A resposta não deu com o que justificar."
+      },
+      {
+        "id": "L3-A1-02",
+        "texto": "Ele perguntou por que você e não o outro. A resposta falou das suas qualidades, não da diferença."
+      },
+      {
+        "id": "L3-A1-03",
+        "texto": "Ele falou do chefe dele e a resposta continuou falando só com ele. O documento tem que servir para os dois."
+      },
+      {
+        "id": "L3-A1-04",
+        "texto": "Ele pediu referência e recebeu lista de clientes. Lista não é referência."
+      },
+      {
+        "id": "L3-A1-05",
+        "texto": "Ele levantou o risco de trocar de fornecedor. A resposta minimizou. Minimizar o risco de quem assina aumenta o medo dele."
+      },
+      {
+        "id": "L3-A1-06",
+        "texto": "Ele disse que já descartou uma alternativa. A resposta propôs algo parecido com ela."
+      },
+      {
+        "id": "L3-A1-07",
+        "texto": "Ele perguntou o que acontece se não der certo. A resposta falou de confiança. Ele precisava de mecanismo."
+      },
+      {
+        "id": "L3-A1-08",
+        "texto": "Ele contou qual é o critério de decisão interno. A resposta não se organizou em volta desse critério."
+      }
+    ],
+    "A2": [
+      {
+        "id": "L3-A2-01",
+        "texto": "Ele pediu uma coisa específica e recebeu exatamente ela, sem nenhuma observação. Ele contratou um executor, não um conselheiro."
+      },
+      {
+        "id": "L3-A2-02",
+        "texto": "Ele descreveu a solução que escolheu. A resposta aceitou sem comentar. Se a escolha estiver errada, a culpa vai ser dividida."
+      },
+      {
+        "id": "L3-A2-03",
+        "texto": "Ele falou do sintoma e a resposta tratou o sintoma. A causa vai voltar, e com o seu nome."
+      },
+      {
+        "id": "L3-A2-04",
+        "texto": "Ele perguntou se tem outro jeito. A resposta reafirmou o jeito proposto. Ele queria a comparação."
+      },
+      {
+        "id": "L3-A2-05",
+        "texto": "Ele pediu sua opinião e recebeu seu orçamento. Opinião é o que ele estava comprando."
+      },
+      {
+        "id": "L3-A2-06",
+        "texto": "Ele deixou passar uma informação que muda tudo. A resposta não pegou. Ele vai lembrar que você não pegou."
+      },
+      {
+        "id": "L3-A2-07",
+        "texto": "Ele perguntou o que você faria no lugar dele. A resposta voltou para o que você faz. A pergunta era outra."
+      },
+      {
+        "id": "L3-A2-08",
+        "texto": "Ele apresentou um plano com um furo. A resposta seguiu o plano. O furo continua lá e agora é de vocês dois."
+      }
+    ],
+    "A3": [
+      {
+        "id": "L3-A3-01",
+        "texto": "Ele perguntou por onde começar e recebeu a lista inteira. Lista inteira é a dúvida que paralisa."
+      },
+      {
+        "id": "L3-A3-02",
+        "texto": "Ele quis saber a ordem. A resposta deu as opções. Opção sem ordem devolve a decisão para ele."
+      },
+      {
+        "id": "L3-A3-03",
+        "texto": "Ele falou do problema de hoje. A resposta resolveu o de hoje. O de seis meses ficou sem ninguém."
+      },
+      {
+        "id": "L3-A3-04",
+        "texto": "Ele perguntou o próximo passo e a resposta pediu uma decisão. Decisão não é passo, é cobrança."
+      },
+      {
+        "id": "L3-A3-05",
+        "texto": "Ele mencionou outro projeto que pode colidir com este. A resposta não tratou da colisão."
+      },
+      {
+        "id": "L3-A3-06",
+        "texto": "Ele perguntou o que fazer se parar no meio. A resposta falou do resultado completo. Parar no meio é o cenário mais provável."
+      },
+      {
+        "id": "L3-A3-07",
+        "texto": "Ele quis saber o que muda na rotina da equipe dele. A resposta falou do que você entrega."
+      },
+      {
+        "id": "L3-A3-08",
+        "texto": "Ele perguntou o que vem depois disso dar certo. A resposta não tinha depois. Aí o projeto virou fim, e não começo."
+      }
+    ]
+  }
+}

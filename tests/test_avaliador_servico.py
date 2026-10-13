@@ -1,13 +1,10 @@
-"""Serviço do Avaliador com cliente LLM DUBLADO (nenhuma chamada paga) e banco de teste:
-gate de custo antes de gastar, processamento idempotente, falha visível, correção de
-tipo que só chama o que falta, retenção do texto e housekeeping."""
+"""Serviço do Avaliador com cliente LLM DUBLADO (nenhuma chamada paga) e banco de teste."""
 
 from __future__ import annotations
 
+import io
 import json
 import logging
-import re
-import threading
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -19,6 +16,7 @@ from src.models.avaliador import STATUS_FALHOU, STATUS_LENDO, STATUS_PRONTA, Ava
 from src.models.empresa import Empresa
 
 SENTINELA = "SENTINELA-DOCUMENTO-CONFIDENCIAL-9F3A"
+DESCRICAO = "Proposta comercial para renovar o contrato de um cliente de TI"
 
 
 def config_avaliador(monkeypatch, **valores):
@@ -36,8 +34,6 @@ def config_avaliador(monkeypatch, **valores):
 
 
 def _pptx() -> bytes:
-    import io
-
     from pptx import Presentation
     from pptx.util import Inches
 
@@ -54,63 +50,47 @@ def _pptx() -> bytes:
     return buf.getvalue()
 
 
-def _resp_pergunta(codigo):
-    return {"veredito": "sem_resposta", "evidencias": [], "frase_id": f"L1-{codigo}-01"}
-
-
-def _resp_p1():
-    sem = lambda f: {"veredito": "sem_resposta", "evidencias": [], "frase_id": f}  # noqa: E731
+def resposta_ok():
     return {
-        "partes": {"escopo": sem("L1-P1a-01"), "prazo": sem("L1-P1b-01"), "fora": sem("L1-P1c-01")},
-        "frase_id_em_parte": "EP-P1-01",
-        "frase_id_sem_anexo": "L1-P1d_sem_anexo-01",
-        "confianca": "media",
+        "resumo": "Padrão de teste.",
+        "itens": [
+            {
+                "subpilar": "D1",
+                "tipo": "forte",
+                "texto": "Horário declarado.",
+                "evidencias": [{"pagina": 2, "trecho": "segunda a sexta das 8h às 18h"}],
+            },
+            {"subpilar": "D1", "tipo": "falta", "texto": "Rota fora do horário.", "evidencias": []},
+            {
+                "subpilar": "A1",
+                "tipo": "melhorar",
+                "texto": "Referência afirmada sem quem a cite.",
+                "evidencias": [{"pagina": 3, "trecho": "Somos referência no setor há vinte anos"}],
+            },
+        ],
     }
 
 
 class Dublê:
-    """Responde pelo CONTEÚDO do prompt (as perguntas rodam em paralelo). Thread-safe."""
-
-    def __init__(self, tipo="institucional", secao=False, discute=False, ruins=(), quebra=()):
-        self.tipo, self.secao, self.discute = tipo, secao, discute
-        self.ruins, self.quebra = set(ruins), set(quebra)
+    def __init__(self, respostas=None, quebra=False):
+        self.respostas = list(respostas or [resposta_ok()])
+        self.quebra = quebra
         self.chamadas = []
-        self._lock = threading.Lock()
         self.messages = self
 
-    def perguntas_chamadas(self):
-        out = []
-        for kw in self.chamadas:
-            u = kw["messages"][0]["content"]
-            m = re.search(r"Pergunta (\w+): \"", u)
-            if "A PERGUNTA P1" in u:
-                out.append("P1")
-            elif m:
-                out.append(m.group(1))
-        return out
-
     def create(self, **kw):
-        with self._lock:
-            self.chamadas.append(kw)
-        u = kw["messages"][0]["content"]
-        if "ETAPA 1" in u:
-            r = {"tipo": self.tipo, "secao_comercial": self.secao, "discute_preco": self.discute}
-        elif "A PERGUNTA P1" in u:
-            r = _resp_p1()
-        elif "LEITURA DO FIM" in u:
-            r = {"leitura": "Padrão de teste."}
-        else:
-            c = re.search(r"Pergunta (\w+): \"", u).group(1)
-            if c in self.quebra:
-                raise ConnectionError("rede caiu")
-            r = {"veredito": "talvez"} if c in self.ruins else _resp_pergunta(c)
+        self.chamadas.append(kw)
+        if self.quebra:
+            raise ConnectionError("rede caiu")
+        r = self.respostas.pop(0)
+        texto = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
         return SimpleNamespace(
-            content=[SimpleNamespace(type="text", text=json.dumps(r))],
+            content=[SimpleNamespace(type="text", text=texto)],
             usage=SimpleNamespace(
-                input_tokens=100,
-                output_tokens=50,
+                input_tokens=3000,
+                output_tokens=800,
                 cache_creation_input_tokens=0,
-                cache_read_input_tokens=1000,
+                cache_read_input_tokens=0,
             ),
         )
 
@@ -128,8 +108,10 @@ def teto(monkeypatch):
     config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0)
 
 
-def _criar(db_session, empresa):
-    a = servico.criar_analise(db_session, empresa.id, None, "proposta.pptx", _pptx())
+def _criar(db_session, empresa, **kw):
+    if not kw:
+        kw = {"nome": "proposta.pptx", "dados": _pptx()}
+    a = servico.criar_analise(db_session, empresa.id, None, DESCRICAO, **kw)
     db_session.commit()
     return a.id
 
@@ -140,88 +122,84 @@ def _rodar(db_session, aid, cli):
     return db_session.get(AvaliadorAnalise, aid)
 
 
-def test_teto_zero_desliga_antes_de_gravar_e_de_gastar(db_session, empresa):
+def test_teto_zero_desliga_antes_de_gravar(db_session, empresa):
     with pytest.raises(AvaliacaoRecusada, match="desligado"):
-        servico.criar_analise(db_session, empresa.id, None, "x.pptx", _pptx())
+        servico.criar_analise(db_session, empresa.id, None, DESCRICAO, dados=_pptx())
     assert db_session.query(AvaliadorAnalise).count() == 0
 
 
 def test_teto_estourado_recusa(db_session, empresa, monkeypatch):
     config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=0.0001)
     with pytest.raises(AvaliacaoRecusada, match="passaria do teto"):
-        servico.criar_analise(db_session, empresa.id, None, "x.pptx", _pptx())
+        servico.criar_analise(db_session, empresa.id, None, DESCRICAO, dados=_pptx())
 
 
-def test_caminho_feliz_institucional(db_session, empresa, teto):
+def test_descricao_e_uma_entrada_sao_obrigatorias(db_session, empresa, teto):
+    with pytest.raises(AvaliacaoRecusada, match="o que é a peça"):
+        servico.criar_analise(db_session, empresa.id, None, "  ", dados=_pptx())
+    with pytest.raises(AvaliacaoRecusada, match="um dos dois"):
+        servico.criar_analise(db_session, empresa.id, None, DESCRICAO)
+    with pytest.raises(AvaliacaoRecusada, match="um dos dois"):
+        servico.criar_analise(
+            db_session, empresa.id, None, DESCRICAO, dados=_pptx(), texto="x" * 50
+        )
+
+
+def test_caminho_feliz_arquivo(db_session, empresa, teto):
     aid = _criar(db_session, empresa)
-    cli = Dublê(tipo="institucional", secao=False, discute=False)
+    cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.leitura_fim == "Padrão de teste."
-    # institucional sem discussão de preço: D1, Pa1, A1, A2, A3 (Pa2 sai pela condicional)
-    assert sorted(cli.perguntas_chamadas()) == sorted(["D1", "Pa1", "A1", "A2", "A3"])
-    assert len(cli.chamadas) == 1 + 5 + 1
-    assert a.custo_usd > 0 and a.tokens_cache_leitura == 7000
-    assert [v["codigo"] for v in servico.vereditos_visiveis(servico.carregar_regua(), a)] == [
-        "D1",
-        "Pa1",
-        "A1",
-        "A2",
-        "A3",
-    ]
+    assert a.status == STATUS_PRONTA and a.resumo == "Padrão de teste."
+    assert len(cli.chamadas) == 1  # UMA chamada
+    assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"]
+    assert a.custo_usd > 0 and a.origem == "arquivo" and a.formato == "pptx"
+    org = servico.organizar(servico.carregar_regua(), a)
+    disp = org[1]["subpilares"][0]  # Disponibilidade → D1
+    assert disp["subpilar"].codigo == "D1" and len(disp["por_tipo"]["forte"]) == 1
+    assert org[0]["subpilares"][0]["vazio"] is True  # P1 sem observação, declarado
 
 
-def test_pergunta_invalida_deixa_falhou_sem_leitura_e_retomar_so_refaz_ela(
+def test_texto_colado_usa_a_biblioteca_de_conversa(db_session, empresa, teto):
+    conversa = "Cliente: com quem eu falo se der problema?\nVendedor: fica tranquilo, é rápido."
+    aid = _criar(db_session, empresa, texto=conversa)
+    cli = Dublê([{"resumo": "Faltou nome e prazo.", "itens": []}])
+    a = _rodar(db_session, aid, cli)
+    assert a.status == STATUS_PRONTA and a.origem == "texto" and a.formato == "texto"
+    assert "Ele perguntou com quem fala" in cli.chamadas[0]["system"]
+    assert "=== TEXTO COLADO ===" in cli.chamadas[0]["messages"][0]["content"]
+
+
+def test_falha_fica_visivel_sem_vazar_texto_e_tentar_de_novo_funciona(
     db_session, empresa, teto, caplog
 ):
     aid = _criar(db_session, empresa)
     with caplog.at_level(logging.WARNING):
-        a = _rodar(db_session, aid, Dublê(ruins={"A2"}))
-    assert a.status == STATUS_FALHOU and "A2" in a.erro_motivo and a.leitura_fim is None
-    assert a.custo_usd > 0  # as duas tentativas da A2 foram cobradas
-    assert SENTINELA not in caplog.text and SENTINELA not in (a.erro_motivo or "")
-    servico.retomar(a)
+        a = _rodar(db_session, aid, Dublê(quebra=True))
+    assert a.status == STATUS_FALHOU and a.erro_motivo == "leitura: ConnectionError"
+    assert SENTINELA not in caplog.text
+    servico.refazer(db_session, a)
     db_session.commit()
-    cli = Dublê()
-    a = _rodar(db_session, aid, cli)
-    assert cli.perguntas_chamadas() == ["A2"]  # só a que faltava; etapa 1 não repete
-    assert a.status == STATUS_PRONTA and a.leitura_fim
+    a = _rodar(db_session, aid, Dublê())
+    assert a.status == STATUS_PRONTA
 
 
-def test_erro_de_rede_numa_pergunta_nao_descarta_as_outras(db_session, empresa, teto):
+def test_resposta_invalida_duas_vezes_cobra_e_falha(db_session, empresa, teto):
     aid = _criar(db_session, empresa)
-    a = _rodar(db_session, aid, Dublê(quebra={"Pa1"}))
-    res = json.loads(a.resultado_json)
-    assert a.status == STATUS_FALHOU and "Pa1" in a.erro_motivo
-    assert res["Pa1"]["erro"] == "erro na chamada (ConnectionError)"
-    assert all("veredito" in res[c] for c in ("D1", "A1", "A2", "A3"))
+    a = _rodar(db_session, aid, Dublê(["lixo", "lixo"]))
+    assert a.status == STATUS_FALHOU and "RespostaInvalida" in a.erro_motivo
+    assert a.tokens_in == 6000 and a.custo_usd > 0
 
 
-def test_corrigir_tipo_chama_so_as_que_faltam_e_refaz_a_leitura(db_session, empresa, teto):
+def test_refazer_com_nova_descricao(db_session, empresa, teto):
     aid = _criar(db_session, empresa)
     a = _rodar(db_session, aid, Dublê())
-    servico.corrigir_tipo(db_session, a, "proposta")
+    servico.refazer(db_session, a, "Apresentação institucional para um evento do setor")
     db_session.commit()
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert sorted(cli.perguntas_chamadas()) == sorted(["P1", "P2", "P3", "D2", "D3", "Pa2", "Pa3"])
-    assert a.tipo == "proposta" and a.status == STATUS_PRONTA
-    assert "LEITURA DO FIM" in cli.chamadas[-1]["messages"][0]["content"]
-    # P1 sem seção comercial: a tela pergunta o anexo
-    p1 = servico.vereditos_visiveis(servico.carregar_regua(), a)[0]
-    assert p1["codigo"] == "P1" and p1["pergunta_anexo"] is True
-
-
-def test_resposta_do_anexo_sem_chamada_e_leitura_refeita_se_o_p1_mudar(db_session, empresa, teto):
-    aid = _criar(db_session, empresa)
-    a = _rodar(db_session, aid, Dublê(tipo="proposta"))
-    p1 = servico.vereditos_visiveis(servico.carregar_regua(), a)[0]
-    assert p1["veredito"] == "sem_resposta"  # escopo/prazo/fora todos sem resposta
-    # "está em anexo": preço continua fora → P1 não muda → leitura fica
-    assert servico.responder_anexo(a, True) is False and a.leitura_fim
-    # "não há anexo": preço entra como sem resposta → P1 continua sem resposta
-    assert servico.responder_anexo(a, False) is False
-    p1 = servico.vereditos_visiveis(servico.carregar_regua(), a)[0]
-    assert p1["veredito"] == "sem_resposta" and p1["pergunta_anexo"] is False
+    assert a.descricao.startswith("Apresentação institucional")
+    assert "Apresentação institucional" in cli.chamadas[0]["messages"][0]["content"]
+    assert a.tokens_in == 6000  # as duas leituras somam
 
 
 def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
@@ -230,9 +208,9 @@ def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
     servico.concluir(a)
     db_session.commit()
     assert a.texto_json is None and a.texto_apagado_motivo == "concluida"
-    assert a.texto_apagado_em is not None and json.loads(a.resultado_json)  # vereditos ficam
+    assert a.resumo and json.loads(a.itens_json)  # resultado fica
     with pytest.raises(AvaliacaoRecusada, match="já foi apagado"):
-        servico.retomar(a)
+        servico.refazer(db_session, a)
 
 
 def test_housekeeping_marca_orfa_e_apaga_texto_sem_uso(db_session, empresa, teto):
@@ -244,35 +222,19 @@ def test_housekeeping_marca_orfa_e_apaga_texto_sem_uso(db_session, empresa, teto
     nova = db_session.get(AvaliadorAnalise, _criar(db_session, empresa))
     nova.status, nova.usado_em = STATUS_PRONTA, agora - timedelta(days=6)
     db_session.commit()
-    r = servico.housekeeping(db_session, agora)
-    assert r == {"orfas": 1, "textos_apagados": 1}
+    assert servico.housekeeping(db_session, agora) == {"orfas": 1, "textos_apagados": 1}
     assert orfa.status == STATUS_FALHOU and "reinício" in orfa.erro_motivo
     assert velha.texto_json is None and velha.texto_apagado_motivo == "expirada"
     assert nova.texto_json is not None
     assert servico.housekeeping(db_session, agora) == {"orfas": 0, "textos_apagados": 0}
 
 
-def test_retencao_segue_a_constante_de_config(db_session, empresa, teto, monkeypatch):
+def test_retencao_segue_a_constante_de_config(db_session, empresa, monkeypatch):
     config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_DIAS_RETENCAO_TEXTO=2)
     a = db_session.get(AvaliadorAnalise, _criar(db_session, empresa))
     a.status, a.usado_em = STATUS_PRONTA, datetime.utcnow() - timedelta(days=3)
     db_session.commit()
     assert servico.housekeeping(db_session)["textos_apagados"] == 1
-
-
-def test_nao_ha_anexo_que_muda_o_p1_reabre_a_leitura_do_fim(db_session, empresa, teto):
-    aid = _criar(db_session, empresa)
-    a = _rodar(db_session, aid, Dublê(tipo="proposta"))
-    res = json.loads(a.resultado_json)
-    ok = {"veredito": "respondida", "evidencias": [], "frase_id": None, "complemento": None}
-    res["P1"]["partes"].update(escopo=ok, prazo=ok, fora=ok)
-    a.resultado_json = json.dumps(res)
-    assert servico.vereditos_visiveis(servico.carregar_regua(), a)[0]["veredito"] == "respondida"
-    assert servico.responder_anexo(a, False) is True  # preço entra aberto → em parte
-    assert a.leitura_fim is None and a.status == "pendente"
-    p1 = servico.vereditos_visiveis(servico.carregar_regua(), a)[0]
-    assert p1["veredito"] == "em_parte" and p1["frase_id"] == "EP-P1-01"
-    assert p1["frase_id_preco"] == "L1-P1d_sem_anexo-01"
 
 
 def test_comando_do_watchdog_roda(client, empresa):

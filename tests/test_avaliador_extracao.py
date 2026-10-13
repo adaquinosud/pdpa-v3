@@ -183,3 +183,14 @@ def test_citacao_inexistente_ou_parafraseada_nao_confere():
 
 def test_citacao_curta_demais_nao_prova_nada():
     assert conferir_trecho(_doc(), 1, "sexta") == (False, None)
+
+
+def test_texto_colado_vira_documento_de_uma_pagina():
+    from src.avaliador.extracao import documento_de_texto
+
+    doc = documento_de_texto("Cliente: com quem eu falo?\nVendedor: comigo, das 8h às 18h.")
+    assert doc.formato == "texto" and doc.n_paginas == 1
+    assert "=== TEXTO COLADO ===" in doc.para_prompt()
+    assert conferir_trecho(doc, 1, "comigo, das 8h às 18h") == (True, 1)
+    with pytest.raises(DocumentoRecusado, match="vazio"):
+        documento_de_texto("   ")

@@ -1,9 +1,9 @@
-"""Análise do Avaliador de documentos — uma linha por documento lido.
+"""Análise do Avaliador — uma linha por peça lida (arquivo ou texto colado).
 
 Retenção (decisão do Alexandre, 12/10): ``texto_json`` guarda o texto extraído só
-enquanto a análise está aberta (corrigir o tipo / retomar sem novo upload). Concluir
-apaga na hora; ``DIAS_RETENCAO_TEXTO`` sem uso apaga sozinho (housekeeping do watchdog).
-Depois disso ficam vereditos, ids de frase, trechos citados, custo e hash — nunca o texto.
+enquanto a análise está aberta (refazer com outra descrição / retomar sem reenviar).
+Concluir apaga na hora; ``AVALIADOR_DIAS_RETENCAO_TEXTO`` sem uso apaga sozinho
+(housekeeping do watchdog). Depois disso ficam resumo, itens, trechos citados, custo e hash.
 
 ``custo_usd`` é NOT NULL e acumula a cada chamada: custo nulo parece grátis (CLAUDE.md §13).
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -21,14 +21,12 @@ from src.models.base import Base
 if TYPE_CHECKING:
     from src.models.empresa import Empresa
 
-# Estados do processamento. Finais: PRONTA e FALHOU — o polling da tela para neles.
+# Estados. Finais: PRONTA e FALHOU — o polling da tela para neles.
 STATUS_PENDENTE = "pendente"
-STATUS_CLASSIFICANDO = "classificando"  # etapa 1: tipo do documento
-STATUS_LENDO = "lendo"  # etapa 2: as perguntas
-STATUS_FECHANDO = "fechando"  # etapa 3: a leitura do fim
+STATUS_LENDO = "lendo"
 STATUS_PRONTA = "pronta"
 STATUS_FALHOU = "falhou"
-STATUS_EM_PROCESSAMENTO = (STATUS_PENDENTE, STATUS_CLASSIFICANDO, STATUS_LENDO, STATUS_FECHANDO)
+STATUS_EM_PROCESSAMENTO = (STATUS_PENDENTE, STATUS_LENDO)
 
 
 class AvaliadorAnalise(Base):
@@ -47,12 +45,14 @@ class AvaliadorAnalise(Base):
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
-    # Último uso pela pessoa (abrir, corrigir, retomar): conta os dias da retenção.
+    # Último uso pela pessoa (abrir, refazer, retomar): conta os dias da retenção.
     usado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    arquivo_nome: Mapped[str] = mapped_column(String, nullable=False)
-    arquivo_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    arquivo_formato: Mapped[str] = mapped_column(String(8), nullable=False)
+    origem: Mapped[str] = mapped_column(String(8), nullable=False)  # arquivo | texto
+    descricao: Mapped[str] = mapped_column(Text, nullable=False)  # o que é e para que serve
+    arquivo_nome: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    conteudo_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    formato: Mapped[str] = mapped_column(String(8), nullable=False)  # pptx | pdf | texto
     n_paginas: Mapped[int] = mapped_column(Integer, nullable=False)
     paginas_sem_texto_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 
@@ -61,19 +61,11 @@ class AvaliadorAnalise(Base):
     texto_apagado_motivo: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
 
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=STATUS_PENDENTE)
-    # Nunca contém texto do documento nem resposta do modelo: tipo de erro + etapa.
+    # Nunca contém texto da peça nem resposta do modelo: tipo de erro + etapa.
     erro_motivo: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    tipo_detectado: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
-    tipo_corrigido: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
-    secao_comercial: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    discute_preco: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    # Resposta aos dois botões ("o preço está em anexo?"). NULL = não perguntado/respondido.
-    preco_em_anexo: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    etapa1_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    resultado_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
-    leitura_fim: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    resumo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    itens_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 
     modelo: Mapped[str] = mapped_column(String, nullable=False)
     regua_versao: Mapped[str] = mapped_column(String, nullable=False)
@@ -85,8 +77,3 @@ class AvaliadorAnalise(Base):
     custo_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     empresa: Mapped["Empresa"] = relationship("Empresa")
-
-    @property
-    def tipo(self) -> Optional[str]:
-        """Tipo efetivo: a correção da pessoa vence a detecção."""
-        return self.tipo_corrigido or self.tipo_detectado

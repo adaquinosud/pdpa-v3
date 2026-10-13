@@ -954,53 +954,39 @@ cross-fonte dela). O link é visível só para Loyall (a tela de pessoa é restr
 
 ---
 
-## AVALIADOR (leitura de documento comercial — só admin)
+## AVALIADOR (leitura de uma peça do relacionamento — só admin)
 
-**Só admin Loyall nesta primeira versão.** A liberação para cliente é decisão separada, depois do
-gabarito humano.
+**Só admin Loyall nesta primeira versão.** A liberação para cliente é decisão separada.
 
-O Avaliador lê um documento comercial da empresa (proposta, resposta a edital, apresentação
-institucional, diagnóstico) do ponto de vista de **quem está pensando em contratá-la**: as doze
-perguntas que o comprador carrega, **uma por subpilar do PDPA**. O conceito de cada subpilar é o do
-Manual de Operação; o nome é o oficial do modelo.
+O Avaliador lê uma **peça do relacionamento com o cliente** — documento, apresentação, proposta ou
+o **texto de uma conversa** colado — pelos pilares do PDPA, e devolve, por subpilar, **o que está
+forte, o que falta e o que melhorar**. Antes de enviar, a pessoa diz em uma linha **o que é a peça e
+para que ela serve**; a leitura leva isso em conta.
 
-**O que entra:** PowerPoint (.pptx) ou PDF. O formato é reconhecido pelo conteúdo do arquivo, não pela
-extensão. Word, .ppt antigo e PDF com senha são recusados com a mensagem do que fazer.
+**A régua é o capítulo 2 do Manual de Operação, literal** — os quatro pilares e os doze subpilares
+com o texto do Manual, sem versão paralela.
 
-**Para cada pergunta:**
+**Duas regras:**
 
-- **Veredito** — *respondida*, *em parte* ou *sem resposta*. "Em parte" é o mais comum num documento
-  bem feito e não é arredondado.
-- **Onde está hoje** — página e trecho **literal** do documento. O trecho é conferido contra o texto
-  extraído; o que não for achado aparece como **"citação não encontrada no documento"**, nunca como
-  citação.
-- **A frase** — escolhida, por identificador, da biblioteca escrita pelos autores; só nos vereditos
-  em parte e sem resposta.
-- **O que deveria dizer** — concreto, usando o que já existe no documento.
+- **Toda afirmação vem com o trecho citado da peça.** O trecho é conferido contra o texto extraído; o
+  que não for achado aparece como **"citação não encontrada na peça"**, nunca como citação. Um "falta"
+  pode não ter trecho — ausência não se cita.
+- **Resultado de outro cliente, case ou credencial não conta como prova para este cliente.**
 
-No fim, a **leitura do padrão**: duas ou três frases sobre onde estão as respostas firmes e onde
-estão as abertas.
+**Pistas:** a leitura usa como pista (não como resposta pronta) as frases de buracos comuns escritas
+pelos autores do método — a biblioteca de documento para arquivo, a de conversa para texto colado.
 
-**O tipo do documento decide o que é cobrado.** Apresentação institucional não promete entrega, então
-prazo, padrão e caminho de falha não são cobrados dela; diagnóstico é para quem já contratou, então
-"por que vocês" não cabe. As perguntas que não valem aparecem como **"não cobrada em <tipo>"** — nunca
-somem. O tipo aparece na tela e se corrige num clique; a correção relê só as perguntas que passam a
-valer.
+**O que entra:** PowerPoint (.pptx), PDF ou texto colado. O formato do arquivo é reconhecido pelo
+conteúdo, não pela extensão. Word, .ppt antigo e PDF com senha são recusados com a mensagem do que
+fazer. **Páginas sem texto** (slide desenhado como imagem) são listadas com o critério — o conteúdo
+delas não foi lido. Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
 
-**Prova de terceiro** (caso de outro cliente, credencial, reputação) só responde as perguntas que o
-comprador consegue conferir sozinho (A1 e A2). Nas de Precisão, Disponibilidade e Parceria, número
-de outro cliente não conta.
-
-**Preço:** se o documento não tem seção comercial, a ferramenta **pergunta** se o preço está num
-anexo separado, em vez de acusar a falta. "Está em anexo" tira o ponto; "não há anexo" mostra a frase
-do caso.
-
-**Páginas sem texto** (slide desenhado como imagem) são listadas com o critério — o conteúdo delas não
-foi lido.
+**Reler:** a análise aberta pode ser relida com outra descrição, sem enviar a peça de novo (uma
+leitura nova, com custo).
 
 **Custo e retenção:** cada leitura grava o custo em US$. Há um **teto mensal por empresa**; teto zero
-desliga a ferramenta. O texto do documento fica guardado só enquanto a análise está aberta: é apagado
-ao **concluir**, ou sozinho depois dos dias configurados sem uso (hoje 7). Ficam só os vereditos e os
+desliga a ferramenta. O texto da peça fica guardado só enquanto a análise está aberta: é apagado ao
+**concluir**, ou sozinho depois dos dias configurados sem uso (hoje 7). Ficam o resumo, os itens e os
 trechos citados.
 
 ---

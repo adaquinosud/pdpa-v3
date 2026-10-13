@@ -1,17 +1,14 @@
-"""Motor do Avaliador — chamadas ao modelo e as validações DETERMINÍSTICAS em volta.
+"""Motor do Avaliador — UMA chamada ao modelo e as validações determinísticas em volta.
 
-Sem banco aqui: o serviço (servico.py) orquestra, persiste e cobra. O motor recebe um
-``client`` (Anthropic ou dublê de teste) e devolve resultado + uso.
+Sem banco aqui: o serviço orquestra, persiste e cobra. O motor recebe um ``client``
+(Anthropic ou dublê de teste) e devolve resultado + uso.
 
-Ordem e cache (docs/AVALIADOR_ESPECIFICACAO.md §6.1):
-1. etapa 1 SOZINHA (tipo, seção comercial, discute preço) — grava o prefixo cacheado;
-2. uma chamada por pergunta que vale, em paralelo, lendo o cache — o prompt da pergunta
-   NÃO recebe o tipo, então o veredito é reaproveitado quando a pessoa corrige o tipo;
-3. leitura do fim, só com os vereditos (não reabre o documento).
-Prefixo = [regras + perguntas + tipos] + [documento], os dois ``cache_control: ephemeral``.
+Pedido: [capítulo 2 do Manual + as duas regras + pistas da biblioteca da origem] no
+sistema; [o que é a peça e para que serve, dito pelo usuário] + [a peça] no turno.
+Resposta: um resumo e itens forte/falta/melhorar por subpilar, cada um com citação.
 
-O que é código, não prompt: id de frase dentro do conjunto certo (nunca sorteio),
-citação conferida literalmente no texto extraído, agregação do P1 por parte.
+O que é código, não prompt: subpilar e tipo de item válidos, e TODA citação conferida
+literalmente no texto extraído — a que não existe nunca aparece como citação.
 """
 
 from __future__ import annotations
@@ -21,27 +18,19 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
+from src.api.painel import SUBPILARES_ORDEM
 from src.avaliador.extracao import Documento, conferir_trecho
-from src.avaliador.regua import GRUPO_PRECO_SEM_ANEXO, VEREDITOS, Regua
+from src.avaliador.regua import Regua
 
-PROMPT_VERSAO = "avaliador-v1"
+PROMPT_VERSAO = "avaliador-v2"
 PROMPTS = Path(__file__).parent / "prompts"
 
-MAX_TOKENS_ETAPA1 = 1000
-MAX_TOKENS_PERGUNTA = 1500
-MAX_TOKENS_P1 = 2500
-MAX_TOKENS_FIM = 500
-TENTATIVAS_PERGUNTA = 2  # 1 + 1 nova tentativa quando a resposta não valida
-PERGUNTAS_EM_PARALELO = 4
-
-ORDEM_PARTES_P1 = ("escopo", "prazo", "fora", "preco")
-CONFIANCAS = ("alta", "media", "baixa")
-# Para a estimativa do gate de custo (antes de qualquer chamada).
-_CHARS_POR_TOKEN = 4
-_TOKENS_INSTRUCAO = 1800
-_TOKENS_SAIDA_PERGUNTA = 700
+TIPOS_ITEM = ("forte", "falta", "melhorar")
+MAX_TOKENS = 8000
+TENTATIVAS = 2  # 1 + 1 nova tentativa quando a resposta não valida
+_CHARS_POR_TOKEN = 4  # estimativa do gate de custo, antes de gastar
 
 
 class RespostaInvalida(ValueError):
@@ -102,86 +91,52 @@ def _uso_de(resp: Any, modelo: str) -> Uso:
     )
 
 
-def estimar_custo_usd(sistema: List[dict], n_perguntas: int, modelo: str) -> float:
-    """Estimativa ANTES de gastar: 1 escrita do prefixo + leituras dele em cada pergunta,
-    instrução e saída por chamada, e a leitura do fim. Serve ao gate do teto — é
-    deliberadamente conservadora (arredonda para cima, não para baixo)."""
+def estimar_custo_usd(sistema: str, usuario: str, modelo: str) -> float:
+    """Estimativa ANTES de gastar, para o gate do teto: a entrada inteira a preço cheio e a
+    saída no máximo, vezes as tentativas possíveis. Conservadora de propósito."""
     p = _precos(modelo)
-    prefixo = sum(len(b["text"]) for b in sistema) // _CHARS_POR_TOKEN + 1
-    chamadas = 1 + n_perguntas
-    usd = prefixo * p["cache_creation"]
-    usd += prefixo * n_perguntas * p["cache_read"]
-    usd += chamadas * _TOKENS_INSTRUCAO * p["input"]
-    usd += chamadas * _TOKENS_SAIDA_PERGUNTA * p["output"]
-    usd += (3000 * p["input"]) + (MAX_TOKENS_FIM * p["output"])  # leitura do fim
-    return usd / 1_000_000 * 1.2
+    entrada = (len(sistema) + len(usuario)) // _CHARS_POR_TOKEN + 1
+    por_chamada = entrada * p["input"] + MAX_TOKENS * p["output"]
+    return por_chamada * TENTATIVAS / 1_000_000
 
 
-# ── prompts ───────────────────────────────────────────────────────────────
+# ── pedido ────────────────────────────────────────────────────────────────
 
 
-def _tpl(nome: str) -> Template:
-    return Template((PROMPTS / nome).read_text(encoding="utf-8"))
-
-
-def _bloco_regras(regua: Regua) -> str:
-    linhas = []
-    for r in regua.regras:
-        linhas.append(f"{r['numero']}. {r['regra']}")
-        if r.get("excecao"):
-            linhas.append(f"   Exceção: {r['excecao']}")
+def _bloco_manual(regua: Regua) -> str:
+    linhas = [regua.abertura]
+    for p in regua.pilares:
+        linhas.append(f"\n{p.titulo}\n{p.descricao}")
+        linhas.extend(f"- {s.texto}" for s in p.subpilares)
     return "\n".join(linhas)
 
 
-def _aceita_terceiro(regua: Regua, codigo: str) -> bool:
-    """A exceção da regra 1 vale exatamente para as perguntas marcadas verificáveis
-    sozinho (A1 e A2) — é o mesmo recorte, por construção da régua."""
-    return regua.pergunta(codigo).verificavel_sozinho
-
-
-def _bloco_perguntas(regua: Regua) -> str:
+def _bloco_pistas(regua: Regua, origem: str) -> str:
     linhas = []
-    for p in regua.perguntas:
-        terceiro = "aceita" if _aceita_terceiro(regua, p.codigo) else "NÃO aceita"
-        linhas.append(
-            f'- {p.codigo} ({p.nome}) — "{p.pergunta}" Aberta quando: {p.aberta_quando} '
-            f"Prova de terceiro: {terceiro}."
-        )
-        for parte in p.partes:
-            extra = f" Regra: {parte['regra']}" if parte.get("regra") else ""
-            linhas.append(f"    · parte \"{parte['id']}\": {parte['o_que']}.{extra}")
+    for c in SUBPILARES_ORDEM:
+        s = regua.subpilar(c)
+        pistas = regua.pistas(c, origem)
+        linhas.append(f"\n{c} — {s.nome}:")
+        if pistas:
+            linhas.extend(f"- {t}" for t in pistas)
+        else:
+            linhas.append("- (sem pistas para este subpilar — use só o Manual)")
     return "\n".join(linhas)
 
 
-def _bloco_tipos(regua: Regua) -> str:
-    linhas = []
-    for t in regua.tipos.values():
-        linhas.append(f"- {t.codigo} ({t.nome}): {t.definicao}")
-    return "\n".join(linhas)
+def montar_sistema(regua: Regua, origem: str) -> str:
+    tpl = Template((PROMPTS / "sistema.md").read_text(encoding="utf-8"))
+    return tpl.substitute(manual=_bloco_manual(regua), pistas=_bloco_pistas(regua, origem))
 
 
-def montar_sistema(regua: Regua, doc: Documento) -> List[dict]:
-    """O prefixo cacheado: idêntico em todas as chamadas da mesma análise."""
-    moldura = _tpl("sistema.md").substitute(
-        regras=_bloco_regras(regua),
-        perguntas=_bloco_perguntas(regua),
-        tipos=_bloco_tipos(regua),
+def montar_usuario(descricao: str, doc: Documento) -> str:
+    return (
+        "O QUE É A PEÇA E PARA QUE SERVE (nas palavras de quem enviou):\n"
+        f"{descricao.strip()}\n\nA PEÇA\n\n{doc.para_prompt()}"
     )
-    return [
-        {"type": "text", "text": moldura, "cache_control": {"type": "ephemeral"}},
-        {
-            "type": "text",
-            "text": "DOCUMENTO\n\n" + doc.para_prompt(),
-            "cache_control": {"type": "ephemeral"},
-        },
-    ]
 
 
-def _lista_frases(regua: Regua, ids: List[str]) -> str:
-    return "\n".join(f"- {i}: {regua.texto_frase(i)}" for i in ids)
-
-
-# ── chamada + parse ───────────────────────────────────────────────────────
+# ── chamada + validação ───────────────────────────────────────────────────
 
 
 def _extrair_json(texto: str) -> dict:
@@ -191,34 +146,12 @@ def _extrair_json(texto: str) -> dict:
     if ini < 0 or fim <= ini:
         raise RespostaInvalida("resposta sem objeto JSON")
     try:
-        corpo = t[ini:][: fim - ini + 1]
-        obj = json.loads(corpo)
+        obj = json.loads(t[ini:][: fim - ini + 1])
     except json.JSONDecodeError as e:
         raise RespostaInvalida(f"JSON inválido ({e.msg})") from None
     if not isinstance(obj, dict):
         raise RespostaInvalida("JSON não é objeto")
     return obj
-
-
-def _chamar(client, modelo: str, system: Any, usuario: str, max_tokens: int) -> Tuple[dict, Uso]:
-    resp = client.messages.create(
-        model=modelo,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": usuario}],
-    )
-    uso = _uso_de(resp, modelo)
-    texto = "".join(
-        getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text"
-    )
-    try:
-        return _extrair_json(texto), uso
-    except RespostaInvalida as e:
-        e.uso = uso  # type: ignore[attr-defined] — o gasto existiu mesmo com resposta ruim
-        raise
-
-
-# ── validação determinística ──────────────────────────────────────────────
 
 
 def _evidencias(doc: Documento, bruto: Any) -> List[dict]:
@@ -247,269 +180,61 @@ def _evidencias(doc: Documento, bruto: Any) -> List[dict]:
     return out
 
 
-def _veredito(v: Any) -> str:
-    if v not in VEREDITOS:
-        raise RespostaInvalida(f"veredito fora da lista: {v!r}")
-    return v
-
-
-def _frase(v: Any, permitidos: List[str], contexto: str) -> str:
-    if v not in permitidos:
-        raise RespostaInvalida(f"frase_id {v!r} fora do conjunto de {contexto}")
-    return v
-
-
-def _alerta_citacao(veredito: str, evidencias: List[dict]) -> Optional[str]:
-    """Respondida/em parte afirmam que algo ESTÁ no documento: sem nenhum trecho
-    conferido, o veredito fica com alerta visível (não é reescrito — regra 3)."""
-    if veredito in ("respondida", "em_parte") and not any(e["conferido"] for e in evidencias):
-        return "sem citação conferida no documento"
-    return None
-
-
-def validar_pergunta(regua: Regua, doc: Documento, codigo: str, obj: dict) -> dict:
-    veredito = _veredito(obj.get("veredito"))
-    evid = _evidencias(doc, obj.get("evidencias"))
-    if veredito == "respondida":
-        frase_id = None
-    elif veredito == "em_parte":
-        frase_id = _frase(obj.get("frase_id"), regua.ids_em_parte(codigo), f"em parte de {codigo}")
-    else:
-        frase_id = _frase(
-            obj.get("frase_id"), regua.ids_sem_resposta(codigo), f"sem resposta de {codigo}"
+def validar_saida(doc: Documento, obj: dict) -> dict:
+    resumo = (obj.get("resumo") or "").strip()
+    if not resumo:
+        raise RespostaInvalida("resposta sem resumo")
+    brutos = obj.get("itens")
+    if not isinstance(brutos, list):
+        raise RespostaInvalida("'itens' não é lista")
+    itens = []
+    for it in brutos:
+        if not isinstance(it, dict):
+            raise RespostaInvalida("item não é objeto")
+        cod, tipo, texto = it.get("subpilar"), it.get("tipo"), (it.get("texto") or "").strip()
+        if cod not in SUBPILARES_ORDEM:
+            raise RespostaInvalida(f"subpilar fora do modelo: {cod!r}")
+        if tipo not in TIPOS_ITEM:
+            raise RespostaInvalida(f"tipo de item fora da lista: {tipo!r}")
+        if not texto:
+            raise RespostaInvalida(f"item de {cod} sem texto")
+        evid = _evidencias(doc, it.get("evidencias"))
+        alerta = None
+        # "forte" e "melhorar" afirmam que algo ESTÁ na peça: sem trecho conferido, o item
+        # fica com alerta visível (não é apagado nem reescrito).
+        if tipo in ("forte", "melhorar") and not any(e["conferido"] for e in evid):
+            alerta = "sem citação conferida na peça"
+        itens.append(
+            {"subpilar": cod, "tipo": tipo, "texto": texto, "evidencias": evid, "alerta": alerta}
         )
-    conf = obj.get("confianca") if obj.get("confianca") in CONFIANCAS else None
-    return {
-        "codigo": codigo,
-        "veredito": veredito,
-        "evidencias": evid,
-        "frase_id": frase_id,
-        "complemento": (obj.get("complemento") or None) if veredito != "respondida" else None,
-        "confianca": conf,
-        "alerta": _alerta_citacao(veredito, evid),
-    }
+    return {"resumo": resumo, "itens": itens}
 
 
-def validar_p1(regua: Regua, doc: Documento, obj: dict, secao_comercial: bool) -> dict:
-    partes_brutas = obj.get("partes")
-    if not isinstance(partes_brutas, dict):
-        raise RespostaInvalida("P1 sem 'partes'")
-    partes: Dict[str, Optional[dict]] = {}
-    for parte in ORDEM_PARTES_P1:
-        bruto = partes_brutas.get(parte)
-        if parte == "preco" and not secao_comercial:
-            partes[parte] = None  # sem seção comercial: não se julga, pergunta-se o anexo
-            continue
-        if not isinstance(bruto, dict):
-            raise RespostaInvalida(f"P1 sem a parte {parte}")
-        veredito = _veredito(bruto.get("veredito"))
-        evid = _evidencias(doc, bruto.get("evidencias"))
-        frase_id = None
-        if veredito == "sem_resposta":
-            frase_id = _frase(
-                bruto.get("frase_id"), regua.ids_sem_resposta("P1", parte), f"P1/{parte}"
-            )
-        partes[parte] = {
-            "veredito": veredito,
-            "evidencias": evid,
-            "frase_id": frase_id,
-            "complemento": bruto.get("complemento") or None if veredito != "respondida" else None,
-            "alerta": _alerta_citacao(veredito, evid),
-        }
-    frase_ep = _frase(obj.get("frase_id_em_parte"), regua.ids_em_parte("P1"), "em parte de P1")
-    frase_sem_anexo = None
-    if not secao_comercial:
-        frase_sem_anexo = _frase(
-            obj.get("frase_id_sem_anexo"), regua.ids_grupo(GRUPO_PRECO_SEM_ANEXO), "P1/sem anexo"
-        )
-    return {
-        "codigo": "P1",
-        "partes": partes,
-        "frase_id_em_parte": frase_ep,
-        "frase_id_sem_anexo": frase_sem_anexo,
-        "confianca": obj.get("confianca") if obj.get("confianca") in CONFIANCAS else None,
-    }
-
-
-def agregar_p1(res: dict, preco_em_anexo: Optional[bool]) -> dict:
-    """Veredito do P1 a partir das partes — determinístico, sem chamada.
-
-    Sem seção comercial: enquanto a pessoa não responde, o preço fica FORA da conta e
-    a tela pergunta; "está em anexo" mantém fora; "não há anexo" entra como sem resposta
-    com a frase ``P1d_sem_anexo`` escolhida de antemão pelo modelo.
-    Todas respondidas → respondida; todas sem resposta → sem resposta; senão em parte.
-    """
-    partes = dict(res["partes"])
-    pergunta_anexo = partes.get("preco") is None
-    if pergunta_anexo and preco_em_anexo is False:
-        partes["preco"] = {
-            "veredito": "sem_resposta",
-            "evidencias": [],
-            "frase_id": res["frase_id_sem_anexo"],
-            "complemento": None,
-            "alerta": None,
-        }
-    julgadas = [(n, p) for n, p in ((n, partes.get(n)) for n in ORDEM_PARTES_P1) if p]
-    vs = {p["veredito"] for _, p in julgadas}
-    if vs == {"respondida"}:
-        veredito, frase_id = "respondida", None
-    elif vs == {"sem_resposta"}:
-        veredito = "sem_resposta"
-        frase_id = julgadas[0][1]["frase_id"]
-    else:
-        veredito, frase_id = "em_parte", res["frase_id_em_parte"]
-    evid = [e for _, p in julgadas for e in p["evidencias"]]
-    complementos = [p["complemento"] for _, p in julgadas if p.get("complemento")]
-    alertas = [p["alerta"] for _, p in julgadas if p.get("alerta")]
-    return {
-        "codigo": "P1",
-        "veredito": veredito,
-        "evidencias": evid,
-        "frase_id": frase_id,
-        "complemento": " ".join(complementos) or None,
-        "confianca": res.get("confianca"),
-        "alerta": alertas[0] if alertas else None,
-        "pergunta_anexo": pergunta_anexo and preco_em_anexo is None,
-        # Depois do "não há anexo", o bloco do preço troca a pergunta por ESTA frase
-        # (escolhida de antemão pelo modelo) — independente da frase do P1 inteiro.
-        "frase_id_preco": (
-            res.get("frase_id_sem_anexo") if pergunta_anexo and preco_em_anexo is False else None
-        ),
-    }
-
-
-# ── etapas ────────────────────────────────────────────────────────────────
-
-
-def etapa1(client, modelo: str, sistema: List[dict], regua: Regua, doc: Documento):
-    usuario = _tpl("etapa1.md").substitute(codigos_tipo=", ".join(regua.tipos))
-    obj, uso = _chamar(client, modelo, sistema, usuario, MAX_TOKENS_ETAPA1)
-    tipo = obj.get("tipo")
-    if tipo not in regua.tipos:
-        raise RespostaInvalida(f"tipo fora da lista: {tipo!r}")
-    out = {
-        "tipo": tipo,
-        "tipo_motivo": obj.get("tipo_motivo"),
-        "secao_comercial": bool(obj.get("secao_comercial")),
-        "discute_preco": bool(obj.get("discute_preco")),
-    }
-    for k in ("tipo_evidencias", "secao_comercial_evidencias", "discute_preco_evidencias"):
-        out[k] = _evidencias(doc, obj.get(k))
-    return out, uso
-
-
-def _usuario_pergunta(regua: Regua, codigo: str, secao_comercial: bool) -> str:
-    p = regua.pergunta(codigo)
-    if codigo != "P1":
-        return _tpl("pergunta.md").substitute(
-            codigo=codigo,
-            pergunta=p.pergunta,
-            aberta_quando=p.aberta_quando,
-            prova_terceiro=(
-                "RESPONDE esta pergunta (exceção da regra 1)."
-                if _aceita_terceiro(regua, codigo)
-                else "NÃO responde esta pergunta."
-            ),
-            frases_sem=_lista_frases(regua, regua.ids_sem_resposta(codigo)),
-            frases_ep=_lista_frases(regua, regua.ids_em_parte(codigo)),
-        )
-    blocos = []
-    for parte in p.partes:
-        if parte["id"] == "preco" and not secao_comercial:
-            continue
-        blocos.append(
-            f"Parte \"{parte['id']}\": {parte['o_que']}.\n"
-            f'Frases para "sem_resposta" desta parte:\n'
-            + _lista_frases(regua, regua.ids_sem_resposta("P1", parte["id"]))
-        )
-    if secao_comercial:
-        regra_preco = 'O documento TEM seção comercial: julgue a parte "preco" normalmente.'
-        partes_fmt = ", ".join(f'"{n}": {{...}}' for n in ORDEM_PARTES_P1)
-        instr_sem_anexo, fmt_sem_anexo = "", ""
-    else:
-        regra_preco = (
-            "O documento NÃO tem seção comercial. NÃO julgue o preço e não acuse falta de "
-            "preço: a tela vai perguntar à pessoa se ele está num anexo separado."
-        )
-        partes_fmt = ", ".join(f'"{n}": {{...}}' for n in ORDEM_PARTES_P1 if n != "preco")
-        instr_sem_anexo = (
-            "\nSe a pessoa responder que NÃO há anexo comercial, a tela dirá uma destas "
-            "frases. Escolha agora, pelo id, a que melhor descreve este documento:\n"
-            + _lista_frases(regua, regua.ids_grupo(GRUPO_PRECO_SEM_ANEXO))
-        )
-        fmt_sem_anexo = '\n "frase_id_sem_anexo": "<L1-P1d_sem_anexo-..>",'
-    return _tpl("pergunta_p1.md").substitute(
-        pergunta=p.pergunta,
-        aberta_quando=p.aberta_quando,
-        partes="\n\n".join(blocos),
-        regra_preco=regra_preco,
-        frases_ep=_lista_frases(regua, regua.ids_em_parte("P1")),
-        instrucao_sem_anexo=instr_sem_anexo,
-        formato_partes=partes_fmt,
-        formato_sem_anexo=fmt_sem_anexo,
-    )
-
-
-def ler_pergunta(
-    client,
-    modelo: str,
-    sistema: List[dict],
-    regua: Regua,
-    doc: Documento,
-    codigo: str,
-    secao_comercial: bool,
-) -> Tuple[dict, Uso]:
-    """Uma pergunta, com UMA nova tentativa se a resposta não validar (id de frase fora
-    do conjunto, veredito inválido, JSON quebrado). Na segunda falha levanta
-    ``RespostaInvalida`` com o uso acumulado — o gasto é contado mesmo na falha."""
-    base = _usuario_pergunta(regua, codigo, secao_comercial)
-    usuario = base
+def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tuple[dict, Uso]:
+    """A leitura, com UMA nova tentativa se a resposta não validar. Na segunda falha
+    levanta ``RespostaInvalida`` com o uso acumulado — o gasto conta mesmo na falha."""
     total = Uso()
-    ultimo: Optional[RespostaInvalida] = None
-    for tentativa in range(1, TENTATIVAS_PERGUNTA + 1):
+    msg = usuario
+    ultimo = None
+    for _ in range(TENTATIVAS):
+        resp = client.messages.create(
+            model=modelo,
+            max_tokens=MAX_TOKENS,
+            system=sistema,
+            messages=[{"role": "user", "content": msg}],
+        )
+        total = total.somar(_uso_de(resp, modelo))
+        texto = "".join(
+            getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text"
+        )
         try:
-            obj, uso = _chamar(
-                client,
-                modelo,
-                sistema,
-                usuario,
-                MAX_TOKENS_P1 if codigo == "P1" else MAX_TOKENS_PERGUNTA,
-            )
-            total = total.somar(uso)
-            if codigo == "P1":
-                res = validar_p1(regua, doc, obj, secao_comercial)
-            else:
-                res = validar_pergunta(regua, doc, codigo, obj)
-            res["tentativas"] = tentativa
-            return res, total
+            return validar_saida(doc, _extrair_json(texto)), total
         except RespostaInvalida as e:
-            total = total.somar(getattr(e, "uso", None) or Uso())
             ultimo = e
-            usuario = (
-                base + f"\n\nATENÇÃO: a resposta anterior foi recusada ({e}). "
-                "Responda de novo seguindo o formato e usando só ids das listas."
+            msg = (
+                usuario + f"\n\nATENÇÃO: a resposta anterior foi recusada ({e}). "
+                "Responda de novo, só com o JSON no formato pedido."
             )
     err = RespostaInvalida(str(ultimo))
     err.uso = total  # type: ignore[attr-defined]
     raise err
-
-
-def leitura_do_fim(
-    client, modelo: str, regua: Regua, tipo: str, resultados: List[dict]
-) -> Tuple[str, Uso]:
-    linhas = []
-    for r in resultados:
-        p = regua.pergunta(r["codigo"])
-        sozinho = "sim" if p.verificavel_sozinho else "não"
-        linhas.append(
-            f"- \"{p.pergunta}\" → {r['veredito']} (verificável sozinho: {sozinho})"
-            + (f". Falta: {r['complemento']}" if r.get("complemento") else "")
-        )
-    usuario = _tpl("fim.md").substitute(tipo=regua.tipos[tipo].nome, vereditos="\n".join(linhas))
-    obj, uso = _chamar(client, modelo, "Responda só com JSON válido.", usuario, MAX_TOKENS_FIM)
-    leitura = (obj.get("leitura") or "").strip()
-    if not leitura:
-        e = RespostaInvalida("leitura do fim vazia")
-        e.uso = uso  # type: ignore[attr-defined]
-        raise e
-    return leitura, uso

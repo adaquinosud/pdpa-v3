@@ -91,7 +91,8 @@ class Documento:
         blocos = []
         for p in self.paginas:
             corpo = p.texto.strip() or "[página sem texto legível]"
-            bloco = f"=== PÁGINA {p.numero} ===\n{corpo}"
+            rotulo = "TEXTO COLADO" if self.formato == "texto" else f"PÁGINA {p.numero}"
+            bloco = f"=== {rotulo} ===\n{corpo}"
             if p.notas.strip():
                 bloco += (
                     "\n--- nota do apresentador (o comprador normalmente NÃO vê) ---\n"
@@ -217,6 +218,20 @@ def extrair(dados: bytes) -> Documento:
             "A leitura de imagem ainda não existe."
         )
     return doc
+
+
+def documento_de_texto(texto: str) -> Documento:
+    """Texto colado (uma conversa, um e-mail, uma transcrição). Vira um documento de uma
+    "página" só — a citação é conferida contra ele inteiro. Mesmos limites do arquivo."""
+    t = _nfc(texto or "").strip()
+    if len(re.sub(r"\s", "", t)) < MIN_CARACTERES_PAGINA:
+        raise DocumentoRecusado("Cole o texto da conversa ou do documento (está vazio).")
+    if len(t) > LIMITE_CARACTERES:
+        raise DocumentoRecusado(
+            f"O texto é longo demais para uma leitura ({len(t):,} caracteres; o limite é "
+            f"{LIMITE_CARACTERES:,}).".replace(",", ".")
+        )
+    return Documento("texto", [Pagina(1, t)])
 
 
 # ── conferência de citação ────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 """avaliador_analises — Avaliador de documentos (fatia 3)
 
-ADITIVA: tabela nova, nenhuma tabela existente é tocada. Uma linha por documento
-lido. ``texto_json`` é apagado ao concluir ou após N dias sem uso (retenção da
-análise aberta); vereditos, ids de frase, trechos citados e custo permanecem.
+ADITIVA: tabela nova, nenhuma tabela existente é tocada. Uma linha por peça lida
+(arquivo ou texto colado). ``texto_json`` é apagado ao concluir ou após N dias sem uso
+(retenção da análise aberta); resumo, itens, trechos citados e custo permanecem.
 
 Revision ID: a8c9d0e1f2b3
 Revises: e2b3c4d5f6a7
@@ -38,9 +38,11 @@ def upgrade() -> None:
         sa.Column("criado_em", sa.DateTime(), nullable=False),
         sa.Column("atualizado_em", sa.DateTime(), nullable=False),
         sa.Column("usado_em", sa.DateTime(), nullable=False),
-        sa.Column("arquivo_nome", sa.String(), nullable=False),
-        sa.Column("arquivo_hash", sa.String(length=64), nullable=False),
-        sa.Column("arquivo_formato", sa.String(length=8), nullable=False),
+        sa.Column("origem", sa.String(length=8), nullable=False),
+        sa.Column("descricao", sa.Text(), nullable=False),
+        sa.Column("arquivo_nome", sa.String(), nullable=True),
+        sa.Column("conteudo_hash", sa.String(length=64), nullable=False),
+        sa.Column("formato", sa.String(length=8), nullable=False),
         sa.Column("n_paginas", sa.Integer(), nullable=False),
         sa.Column("paginas_sem_texto_json", sa.Text(), nullable=False, server_default="[]"),
         sa.Column("texto_json", sa.Text(), nullable=True),
@@ -48,14 +50,8 @@ def upgrade() -> None:
         sa.Column("texto_apagado_motivo", sa.String(length=16), nullable=True),
         sa.Column("status", sa.String(length=16), nullable=False, server_default="pendente"),
         sa.Column("erro_motivo", sa.String(), nullable=True),
-        sa.Column("tipo_detectado", sa.String(length=16), nullable=True),
-        sa.Column("tipo_corrigido", sa.String(length=16), nullable=True),
-        sa.Column("secao_comercial", sa.Boolean(), nullable=True),
-        sa.Column("discute_preco", sa.Boolean(), nullable=True),
-        sa.Column("preco_em_anexo", sa.Boolean(), nullable=True),
-        sa.Column("etapa1_json", sa.Text(), nullable=True),
-        sa.Column("resultado_json", sa.Text(), nullable=False, server_default="{}"),
-        sa.Column("leitura_fim", sa.Text(), nullable=True),
+        sa.Column("resumo", sa.Text(), nullable=True),
+        sa.Column("itens_json", sa.Text(), nullable=False, server_default="[]"),
         sa.Column("modelo", sa.String(), nullable=False),
         sa.Column("regua_versao", sa.String(), nullable=False),
         sa.Column("prompt_versao", sa.String(), nullable=False),

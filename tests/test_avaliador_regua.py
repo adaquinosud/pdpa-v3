@@ -1,14 +1,17 @@
-"""Régua do Avaliador: os dados de autor fecham com o modelo do PDPA e entre si."""
+"""Régua do Avaliador = capítulo 2 do Manual, literal, + pistas de autor."""
 
 from __future__ import annotations
 
 import copy
+import json
+from pathlib import Path
 
 import pytest
 
 from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
 from src.avaliador.regua import (
-    GRUPO_PARTE_P1,
+    ORIGEM_ARQUIVO,
+    ORIGEM_TEXTO,
     Regua,
     ReguaInvalida,
     _ler,
@@ -16,87 +19,85 @@ from src.avaliador.regua import (
     validar,
 )
 
+DOCX = Path("data/PDPA_Manual_Operacao_v3.docx")
+
 
 def _crus():
-    return _ler("regua.json"), _ler("frases_l1.json"), _ler("frases_ep.json")
+    return _ler("manual_cap2.json"), _ler("frases_l1.json"), _ler("frases_l3.json")
 
 
-def test_carrega_e_valida():
+def test_regua_e_o_capitulo_2_do_manual_na_ordem_do_pdpa():
     r = carregar_regua()
-    assert [p.codigo for p in r.perguntas] == SUBPILARES_ORDEM
+    assert [s.codigo for p in r.pilares for s in p.subpilares] == SUBPILARES_ORDEM
+    for c in SUBPILARES_ORDEM:
+        assert r.subpilar(c).nome == NOME_SUBPILAR[c]
+    assert r.subpilar("A1").texto == (
+        "A1 — Exemplo: a empresa é citada como padrão de excelência em seu segmento?"
+    )
+    assert r.pilares[1].descricao == (
+        "Mede a facilidade que o cliente tem de acessar a empresa e ter problemas resolvidos."
+    )
 
 
-def test_nome_vem_de_nome_subpilar_e_nao_do_json():
+@pytest.mark.skipif(not DOCX.exists(), reason="Manual .docx não está nesta máquina")
+def test_extrato_bate_com_o_docx_do_manual():
+    """Fonte única: o extrato versionado tem de ser IGUAL ao que o script tira do .docx.
+    Mudou o Manual → rode scripts/extrair_manual_cap2.py."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("x", "scripts/extrair_manual_cap2.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.extrair(DOCX) == _ler("manual_cap2.json")
+
+
+def test_pistas_por_origem():
     r = carregar_regua()
-    for p in r.perguntas:
-        assert p.nome == NOME_SUBPILAR[p.codigo]
-    regua, _, _ = _crus()
-    assert all("nome_canonico" not in p for p in regua["perguntas"])
-
-
-def test_so_a1_e_a2_sao_verificaveis_sozinho():
-    r = carregar_regua()
-    assert {p.codigo for p in r.perguntas if p.verificavel_sozinho} == {"A1", "A2"}
+    assert len(r.pistas("P1", ORIGEM_ARQUIVO)) == 24  # P1a-d (20) + sem_anexo (4)
+    assert "Não encontrei preço neste documento" not in " ".join(r.pistas("P1", ORIGEM_ARQUIVO))
+    assert r.pistas("A1", ORIGEM_ARQUIVO)[0].startswith("Quem diz que a empresa é boa")
+    assert len(r.pistas("D1", ORIGEM_TEXTO)) == 8
+    assert r.pistas("A1", ORIGEM_TEXTO) == []  # A1 da biblioteca 3 ainda é a redação antiga
 
 
 def test_contagens_das_bibliotecas():
-    r = carregar_regua()
-    assert sum(len(v) for v in r.frases_l1.values()) == 115
-    assert sum(len(v) for v in r.frases_ep.values()) == 60
+    _, l1, l3 = _crus()
+    assert sum(len(v) for v in l1["frases"].values()) == 115
+    assert sum(len(v) for v in l3["frases"].values()) == 96
 
 
-def test_p1_tem_as_quatro_partes_e_cada_parte_tem_frases():
-    r = carregar_regua()
-    assert {p["id"] for p in r.pergunta("P1").partes} == set(GRUPO_PARTE_P1)
-    for parte in GRUPO_PARTE_P1:
-        assert r.ids_sem_resposta("P1", parte)
+def test_nome_divergente_do_painel_levanta():
+    manual, l1, l3 = _crus()
+    manual = copy.deepcopy(manual)
+    manual["pilares"][3]["subpilares"][1]["nome"] = "Orientação Técnica"
+    with pytest.raises(ReguaInvalida, match="A2: Manual diz"):
+        validar(Regua(manual, l1, l3, "t"))
 
 
-def test_perguntas_que_valem_por_tipo():
-    r = carregar_regua()
-    assert r.perguntas_que_valem("proposta", discute_preco=False) == SUBPILARES_ORDEM
-    assert r.perguntas_que_valem("diagnostico", discute_preco=True) == [
-        c for c in SUBPILARES_ORDEM if c not in ("P1", "A1")
-    ]
-    inst = r.perguntas_que_valem("institucional", discute_preco=True)
-    assert inst == ["D1", "Pa1", "Pa2", "A1", "A2", "A3"]
-    # condicional do Pa2: sem discussão de preço, sai
-    assert "Pa2" not in r.perguntas_que_valem("institucional", discute_preco=False)
-
-
-def test_codigo_divergente_de_subpilares_ordem_levanta():
-    regua, l1, ep = _crus()
-    regua = copy.deepcopy(regua)
-    regua["perguntas"][0]["codigo"] = "X9"
-    with pytest.raises(ReguaInvalida, match="SUBPILARES_ORDEM"):
-        validar(Regua(regua, l1, ep))
-
-
-def test_id_repetido_ou_fora_do_padrao_levanta():
-    regua, l1, ep = _crus()
+def test_id_repetido_e_pista_faltando_levantam():
+    manual, l1, l3 = _crus()
     l1 = copy.deepcopy(l1)
     l1["frases"]["P2"][1]["id"] = l1["frases"]["P2"][0]["id"]
     with pytest.raises(ReguaInvalida, match="id repetido"):
-        validar(Regua(regua, l1, ep))
-    l1 = copy.deepcopy(_crus()[1])
-    l1["frases"]["P2"][0]["id"] = "L1-P3-99"
-    with pytest.raises(ReguaInvalida, match="fora do padrão"):
-        validar(Regua(regua, l1, ep))
+        validar(Regua(manual, l1, l3, "t"))
+    l3 = copy.deepcopy(_crus()[2])
+    del l3["frases"]["D2"]
+    with pytest.raises(ReguaInvalida, match="biblioteca L3 sem pista para D2"):
+        validar(Regua(manual, _crus()[1], l3, "t"))
 
 
-def test_grupo_faltando_levanta():
-    regua, l1, ep = _crus()
-    ep = copy.deepcopy(ep)
-    del ep["frases"]["D3"]
-    with pytest.raises(ReguaInvalida, match="em parte' sem o grupo D3"):
-        validar(Regua(regua, l1, ep))
+def test_versao_muda_quando_um_arquivo_muda(tmp_path, monkeypatch):
+    from src.avaliador import regua as mod
 
-
-def test_condicional_desconhecida_levanta_em_vez_de_ser_ignorada():
-    regua, l1, ep = _crus()
-    regua = copy.deepcopy(regua)
-    inst = next(t for t in regua["tipos"] if t["codigo"] == "institucional")
-    inst["condicionais"]["D1"] = "só vale se..."
-    r = Regua(regua, l1, ep)
-    with pytest.raises(ReguaInvalida, match="condicional sem regra"):
-        r.perguntas_que_valem("institucional", discute_preco=True)
+    v1 = carregar_regua().versao
+    for nome in mod.ARQUIVOS:
+        (tmp_path / nome).write_bytes((mod.DADOS / nome).read_bytes())
+    l1 = json.loads((tmp_path / "frases_l1.json").read_text())
+    l1["frases"]["P2"][0]["texto"] += " (editado)"
+    (tmp_path / "frases_l1.json").write_text(json.dumps(l1, ensure_ascii=False))
+    monkeypatch.setattr(mod, "DADOS", tmp_path)
+    mod.carregar_regua.cache_clear()
+    try:
+        assert mod.carregar_regua().versao != v1
+    finally:
+        mod.carregar_regua.cache_clear()

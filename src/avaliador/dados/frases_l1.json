@@ -3,155 +3,500 @@
   "tom": "correcao",
   "frases": {
     "P1a": [
-      {"id": "L1-P1a-01", "texto": "A entrega está descrita em adjetivo: completo, robusto, sob medida. Adjetivo não se cumpre nem se descumpre, só gera discussão na hora de aceitar."},
-      {"id": "L1-P1a-02", "texto": "O documento diz o que o trabalho é e não diz quanto dele. Sem quantidade, a conta de quem recebe começa sempre maior que a de quem entrega."},
-      {"id": "L1-P1a-03", "texto": "A entrega aparece como nome de etapa e não como coisa entregue. O cliente não sabe o que vai ter na mão no fim."},
-      {"id": "L1-P1a-04", "texto": "Há lista de atividades e nenhum resultado. Atividade cumprida sem resultado combinado é a forma mais comum de retrabalho não pago."},
-      {"id": "L1-P1a-05", "texto": "O escopo muda de tamanho entre dois trechos do documento. Quem lê vai se lembrar do maior."}
+      {
+        "id": "L1-P1a-01",
+        "texto": "A entrega está descrita em adjetivo: completo, robusto, sob medida. Adjetivo não se cumpre nem se descumpre, só gera discussão na hora de aceitar."
+      },
+      {
+        "id": "L1-P1a-02",
+        "texto": "O documento diz o que o trabalho é e não diz quanto dele. Sem quantidade, a conta de quem recebe começa sempre maior que a de quem entrega."
+      },
+      {
+        "id": "L1-P1a-03",
+        "texto": "A entrega aparece como nome de etapa e não como coisa entregue. O cliente não sabe o que vai ter na mão no fim."
+      },
+      {
+        "id": "L1-P1a-04",
+        "texto": "Há lista de atividades e nenhum resultado. Atividade cumprida sem resultado combinado é a forma mais comum de retrabalho não pago."
+      },
+      {
+        "id": "L1-P1a-05",
+        "texto": "O escopo muda de tamanho entre dois trechos do documento. Quem lê vai se lembrar do maior."
+      }
     ],
     "P1b": [
-      {"id": "L1-P1b-01", "texto": "Não há prazo escrito em nenhum lugar. Enquanto o prazo não está no papel, vale o que o cliente imaginou, e ele imagina sempre mais curto."},
-      {"id": "L1-P1b-02", "texto": "Há duração total e não há data de início. Prazo que começa após o aceite é prazo que o cliente conta a partir de hoje."},
-      {"id": "L1-P1b-03", "texto": "As etapas aparecem sem duração. Na primeira que atrasar, ninguém vai saber dizer se atrasou."},
-      {"id": "L1-P1b-04", "texto": "Há data de entrega e não há data de uso. Quando as duas não coincidem, é a segunda que vai ser cobrada de você."},
-      {"id": "L1-P1b-05", "texto": "O prazo depende de algo do cliente que não tem data. Essa dependência sem data é o atraso que vai entrar no seu nome."}
+      {
+        "id": "L1-P1b-01",
+        "texto": "Não há prazo escrito em nenhum lugar. Enquanto o prazo não está no papel, vale o que o cliente imaginou, e ele imagina sempre mais curto."
+      },
+      {
+        "id": "L1-P1b-02",
+        "texto": "Há duração total e não há data de início. Prazo que começa após o aceite é prazo que o cliente conta a partir de hoje."
+      },
+      {
+        "id": "L1-P1b-03",
+        "texto": "As etapas aparecem sem duração. Na primeira que atrasar, ninguém vai saber dizer se atrasou."
+      },
+      {
+        "id": "L1-P1b-04",
+        "texto": "Há data de entrega e não há data de uso. Quando as duas não coincidem, é a segunda que vai ser cobrada de você."
+      },
+      {
+        "id": "L1-P1b-05",
+        "texto": "O prazo depende de algo do cliente que não tem data. Essa dependência sem data é o atraso que vai entrar no seu nome."
+      }
     ],
     "P1c": [
-      {"id": "L1-P1c-01", "texto": "Nada aqui está declarado fora do escopo. Tudo que não foi excluído será pedido, e será pedido como se estivesse incluído."},
-      {"id": "L1-P1c-02", "texto": "Não há limite de rodadas de ajuste. Até ficar bom não tem fim nem preço."},
-      {"id": "L1-P1c-03", "texto": "Falta dizer o que acontece quando o cliente pedir algo novo no meio. Sem essa regra, cada pedido novo é negociado no pior momento possível."},
-      {"id": "L1-P1c-04", "texto": "O documento não separa o que é obrigação sua do que é obrigação dele. O que não foi atribuído cai sempre do seu lado."},
-      {"id": "L1-P1c-05", "texto": "Há entre outros ou etc. na descrição da entrega. Essas duas palavras custam dinheiro depois."}
+      {
+        "id": "L1-P1c-01",
+        "texto": "Nada aqui está declarado fora do escopo. Tudo que não foi excluído será pedido, e será pedido como se estivesse incluído."
+      },
+      {
+        "id": "L1-P1c-02",
+        "texto": "Não há limite de rodadas de ajuste. Até ficar bom não tem fim nem preço."
+      },
+      {
+        "id": "L1-P1c-03",
+        "texto": "Falta dizer o que acontece quando o cliente pedir algo novo no meio. Sem essa regra, cada pedido novo é negociado no pior momento possível."
+      },
+      {
+        "id": "L1-P1c-04",
+        "texto": "O documento não separa o que é obrigação sua do que é obrigação dele. O que não foi atribuído cai sempre do seu lado."
+      },
+      {
+        "id": "L1-P1c-05",
+        "texto": "Há entre outros ou etc. na descrição da entrega. Essas duas palavras custam dinheiro depois."
+      }
     ],
     "P1d": [
-      {"id": "L1-P1d-01", "texto": "Há seção comercial e não há número. O cliente vai estimar sozinho, e a estimativa dele nunca é a sua."},
-      {"id": "L1-P1d-02", "texto": "O desconto aparece antes da justificativa do valor. Nessa ordem, o desconto confirma que o preço era inflado."},
-      {"id": "L1-P1d-03", "texto": "Há preço e não há o que está incluído nele. Preço sem fronteira é preço que será revisto."},
-      {"id": "L1-P1d-04", "texto": "Há condição de pagamento e não há valor. Isso diz ao cliente que o número ainda está sendo decidido."},
-      {"id": "L1-P1d-05", "texto": "O preço aparece sem referência nenhuma. Número sem referência é sempre caro."}
+      {
+        "id": "L1-P1d-01",
+        "texto": "Há seção comercial e não há número. O cliente vai estimar sozinho, e a estimativa dele nunca é a sua."
+      },
+      {
+        "id": "L1-P1d-02",
+        "texto": "O desconto aparece antes da justificativa do valor. Nessa ordem, o desconto confirma que o preço era inflado."
+      },
+      {
+        "id": "L1-P1d-03",
+        "texto": "Há preço e não há o que está incluído nele. Preço sem fronteira é preço que será revisto."
+      },
+      {
+        "id": "L1-P1d-04",
+        "texto": "Há condição de pagamento e não há valor. Isso diz ao cliente que o número ainda está sendo decidido."
+      },
+      {
+        "id": "L1-P1d-05",
+        "texto": "O preço aparece sem referência nenhuma. Número sem referência é sempre caro."
+      }
     ],
     "P1d_pergunta": [
-      {"id": "L1-P1d_pergunta-01", "texto": "Não encontrei preço neste documento. Ele está num anexo comercial separado?"},
-      {"id": "L1-P1d_pergunta-02", "texto": "Este documento não fala de valor. Se o preço vai em outra peça, posso ignorar este ponto."},
-      {"id": "L1-P1d_pergunta-03", "texto": "Sem seção comercial aqui. Me diga se existe proposta de preço à parte."}
+      {
+        "id": "L1-P1d_pergunta-01",
+        "texto": "Não encontrei preço neste documento. Ele está num anexo comercial separado?"
+      },
+      {
+        "id": "L1-P1d_pergunta-02",
+        "texto": "Este documento não fala de valor. Se o preço vai em outra peça, posso ignorar este ponto."
+      },
+      {
+        "id": "L1-P1d_pergunta-03",
+        "texto": "Sem seção comercial aqui. Me diga se existe proposta de preço à parte."
+      }
     ],
     "P1d_sem_anexo": [
-      {"id": "L1-P1d_sem_anexo-01", "texto": "Não há preço aqui e não há anexo comercial. Então a decisão não pode ser tomada com o que está escrito: quem lê vai ter que pedir o número, e pedir número é a hora em que a conversa volta para o começo."},
-      {"id": "L1-P1d_sem_anexo-02", "texto": "O documento promete a entrega e não diz quanto ela custa. Quem lê inventa um valor para conseguir pensar, e o valor que ele inventa é sempre menor que o seu."},
-      {"id": "L1-P1d_sem_anexo-03", "texto": "Sem número em lugar nenhum, a comparação com o concorrente é feita pelo preço do concorrente. O seu chega depois, sozinho, sem nada ao lado para explicá-lo."},
-      {"id": "L1-P1d_sem_anexo-04", "texto": "Falta o número e falta também o que ele cobriria. As duas coisas juntas transformam a próxima reunião numa negociação, quando ela deveria ser uma aprovação."}
+      {
+        "id": "L1-P1d_sem_anexo-01",
+        "texto": "Não há preço aqui e não há anexo comercial. Então a decisão não pode ser tomada com o que está escrito: quem lê vai ter que pedir o número, e pedir número é a hora em que a conversa volta para o começo."
+      },
+      {
+        "id": "L1-P1d_sem_anexo-02",
+        "texto": "O documento promete a entrega e não diz quanto ela custa. Quem lê inventa um valor para conseguir pensar, e o valor que ele inventa é sempre menor que o seu."
+      },
+      {
+        "id": "L1-P1d_sem_anexo-03",
+        "texto": "Sem número em lugar nenhum, a comparação com o concorrente é feita pelo preço do concorrente. O seu chega depois, sozinho, sem nada ao lado para explicá-lo."
+      },
+      {
+        "id": "L1-P1d_sem_anexo-04",
+        "texto": "Falta o número e falta também o que ele cobriria. As duas coisas juntas transformam a próxima reunião numa negociação, quando ela deveria ser uma aprovação."
+      }
     ],
     "P2": [
-      {"id": "L1-P2-01", "texto": "Não há critério de pronto. Sem ele, quem decide se ficou bom é o humor de quem recebe."},
-      {"id": "L1-P2-02", "texto": "O documento diz o que será entregue, não como se reconhece que ficou certo. É aí que nasce o retrabalho não pago."},
-      {"id": "L1-P2-03", "texto": "Falta o padrão mínimo. Se você não o define, cada cliente usa como referência o melhor trabalho que já viu."},
-      {"id": "L1-P2-04", "texto": "Dois clientes vão ler isso e esperar duas coisas diferentes. Os dois vão achar que estavam certos."},
-      {"id": "L1-P2-05", "texto": "Sem padrão descrito, sua melhor entrega cria a expectativa e sua entrega média cria a reclamação."},
-      {"id": "L1-P2-06", "texto": "Quem executa também lê este documento. Se ele não diz o padrão, cada pessoa da sua equipe entrega o que considera suficiente."},
-      {"id": "L1-P2-07", "texto": "Falta dizer quantas rodadas de ajuste estão incluídas. Sem isso, a resposta é: quantas o cliente quiser."},
-      {"id": "L1-P2-08", "texto": "A entrega está descrita pelo que tem dentro. Falta o que ela precisa atender para ser aceita, e é isso que decide se houve retrabalho."}
+      {
+        "id": "L1-P2-01",
+        "texto": "Não há critério de pronto. Sem ele, quem decide se ficou bom é o humor de quem recebe."
+      },
+      {
+        "id": "L1-P2-02",
+        "texto": "O documento diz o que será entregue, não como se reconhece que ficou certo. É aí que nasce o retrabalho não pago."
+      },
+      {
+        "id": "L1-P2-03",
+        "texto": "Falta o padrão mínimo. Se você não o define, cada cliente usa como referência o melhor trabalho que já viu."
+      },
+      {
+        "id": "L1-P2-04",
+        "texto": "Dois clientes vão ler isso e esperar duas coisas diferentes. Os dois vão achar que estavam certos."
+      },
+      {
+        "id": "L1-P2-05",
+        "texto": "Sem padrão descrito, sua melhor entrega cria a expectativa e sua entrega média cria a reclamação."
+      },
+      {
+        "id": "L1-P2-06",
+        "texto": "Quem executa também lê este documento. Se ele não diz o padrão, cada pessoa da sua equipe entrega o que considera suficiente."
+      },
+      {
+        "id": "L1-P2-07",
+        "texto": "Falta dizer quantas rodadas de ajuste estão incluídas. Sem isso, a resposta é: quantas o cliente quiser."
+      },
+      {
+        "id": "L1-P2-08",
+        "texto": "A entrega está descrita pelo que tem dentro. Falta o que ela precisa atender para ser aceita, e é isso que decide se houve retrabalho."
+      }
     ],
     "P3": [
-      {"id": "L1-P3-01", "texto": "O resultado descrito aqui é o da melhor pessoa da sua equipe. Falta dizer o que o cliente recebe das outras."},
-      {"id": "L1-P3-02", "texto": "Nada aqui garante que a segunda compra será igual à primeira. O cliente só descobre isso na segunda."},
-      {"id": "L1-P3-03", "texto": "Falta dizer se o resultado depende de quem executa. Se depender, o cliente está comprando uma pessoa, não a sua empresa."},
-      {"id": "L1-P3-04", "texto": "Sem padrão escrito, a experiência varia de unidade para unidade, e a reputação é formada pela pior delas."},
-      {"id": "L1-P3-05", "texto": "A proposta descreve a primeira entrega. O cliente decide se volta olhando a terceira, e ela não está aqui."},
-      {"id": "L1-P3-06", "texto": "Falta o que acontece quando quem atendia sai. Para o cliente, é o teste de se ele contratou a empresa ou um favor."},
-      {"id": "L1-P3-07", "texto": "Uma entrega excelente seguida de uma morna não soma: a segunda apaga a primeira e vira a sua média na cabeça dele."},
-      {"id": "L1-P3-08", "texto": "Não há nada aqui que o cliente possa contar que vai se repetir. Ele não vai reclamar disso. Vai só não contar com você da próxima vez."}
+      {
+        "id": "L1-P3-01",
+        "texto": "O resultado descrito aqui é o da melhor pessoa da sua equipe. Falta dizer o que o cliente recebe das outras."
+      },
+      {
+        "id": "L1-P3-02",
+        "texto": "Nada aqui garante que a segunda compra será igual à primeira. O cliente só descobre isso na segunda."
+      },
+      {
+        "id": "L1-P3-03",
+        "texto": "Falta dizer se o resultado depende de quem executa. Se depender, o cliente está comprando uma pessoa, não a sua empresa."
+      },
+      {
+        "id": "L1-P3-04",
+        "texto": "Sem padrão escrito, a experiência varia de unidade para unidade, e a reputação é formada pela pior delas."
+      },
+      {
+        "id": "L1-P3-05",
+        "texto": "A proposta descreve a primeira entrega. O cliente decide se volta olhando a terceira, e ela não está aqui."
+      },
+      {
+        "id": "L1-P3-06",
+        "texto": "Falta o que acontece quando quem atendia sai. Para o cliente, é o teste de se ele contratou a empresa ou um favor."
+      },
+      {
+        "id": "L1-P3-07",
+        "texto": "Uma entrega excelente seguida de uma morna não soma: a segunda apaga a primeira e vira a sua média na cabeça dele."
+      },
+      {
+        "id": "L1-P3-08",
+        "texto": "Não há nada aqui que o cliente possa contar que vai se repetir. Ele não vai reclamar disso. Vai só não contar com você da próxima vez."
+      }
     ],
     "D1": [
-      {"id": "L1-D1-01", "texto": "Falta dizer por onde falar com você e em quanto tempo há resposta. Na ausência disso, logo significa agora."},
-      {"id": "L1-D1-02", "texto": "O documento não diz quem é a pessoa. Cliente sem nome para procurar procura o dono."},
-      {"id": "L1-D1-03", "texto": "Há canal, não há horário. O cliente vai testar o canal exatamente no horário em que você não está."},
-      {"id": "L1-D1-04", "texto": "Falta o que fazer fora do horário. Toda urgência acontece fora do horário."},
-      {"id": "L1-D1-05", "texto": "Prazo de resposta não escrito é prazo de resposta cobrado como imediato."},
-      {"id": "L1-D1-06", "texto": "Não diz o que acontece se a primeira tentativa não for respondida. É nesse silêncio que o cliente decide que você não liga."},
-      {"id": "L1-D1-07", "texto": "O documento abre três canais e não diz qual vale. A mensagem vai cair no que ninguém olha, e o cliente vai achar que você não respondeu."},
-      {"id": "L1-D1-08", "texto": "Falta o caminho de escalada. Sem ele, a escalada acontece de qualquer forma, e passa por fora de você."}
+      {
+        "id": "L1-D1-01",
+        "texto": "Falta dizer por onde falar com você e em quanto tempo há resposta. Na ausência disso, logo significa agora."
+      },
+      {
+        "id": "L1-D1-02",
+        "texto": "O documento não diz quem é a pessoa. Cliente sem nome para procurar procura o dono."
+      },
+      {
+        "id": "L1-D1-03",
+        "texto": "Há canal, não há horário. O cliente vai testar o canal exatamente no horário em que você não está."
+      },
+      {
+        "id": "L1-D1-04",
+        "texto": "Falta o que fazer fora do horário. Toda urgência acontece fora do horário."
+      },
+      {
+        "id": "L1-D1-05",
+        "texto": "Prazo de resposta não escrito é prazo de resposta cobrado como imediato."
+      },
+      {
+        "id": "L1-D1-06",
+        "texto": "Não diz o que acontece se a primeira tentativa não for respondida. É nesse silêncio que o cliente decide que você não liga."
+      },
+      {
+        "id": "L1-D1-07",
+        "texto": "O documento abre três canais e não diz qual vale. A mensagem vai cair no que ninguém olha, e o cliente vai achar que você não respondeu."
+      },
+      {
+        "id": "L1-D1-08",
+        "texto": "Falta o caminho de escalada. Sem ele, a escalada acontece de qualquer forma, e passa por fora de você."
+      }
     ],
     "D2": [
-      {"id": "L1-D2-01", "texto": "O documento só descreve o caminho em que tudo dá certo. O cliente vai julgar você pelo outro."},
-      {"id": "L1-D2-02", "texto": "Falta dizer o que acontece se falhar. Quem não escreve isso está dizendo ao cliente que nunca falha."},
-      {"id": "L1-D2-03", "texto": "Não há prazo para correção. Prazo de correção não escrito é medido em dias de paciência."},
-      {"id": "L1-D2-04", "texto": "Falta quem responde quando dá errado. No vácuo, responde quem o cliente conhece, provavelmente você."},
-      {"id": "L1-D2-05", "texto": "Não diz de quem é o custo do erro. Essa conversa vai acontecer uma vez, no pior momento possível."},
-      {"id": "L1-D2-06", "texto": "Sem regra de correção, cada caso será negociado do zero e sua equipe decidirá por conta própria o que ceder."},
-      {"id": "L1-D2-07", "texto": "O documento tem garantia e não tem o procedimento de acioná-la. Garantia sem procedimento é uma frase."},
-      {"id": "L1-D2-08", "texto": "Falta o reconhecimento de que algo pode dar errado. Cliente não espera perfeição: espera saber o que acontece quando não é."}
+      {
+        "id": "L1-D2-01",
+        "texto": "O documento só descreve o caminho em que tudo dá certo. O cliente vai julgar você pelo outro."
+      },
+      {
+        "id": "L1-D2-02",
+        "texto": "Falta dizer o que acontece se falhar. Quem não escreve isso está dizendo ao cliente que nunca falha."
+      },
+      {
+        "id": "L1-D2-03",
+        "texto": "Não há prazo para correção. Prazo de correção não escrito é medido em dias de paciência."
+      },
+      {
+        "id": "L1-D2-04",
+        "texto": "Falta quem responde quando dá errado. No vácuo, responde quem o cliente conhece, provavelmente você."
+      },
+      {
+        "id": "L1-D2-05",
+        "texto": "Não diz de quem é o custo do erro. Essa conversa vai acontecer uma vez, no pior momento possível."
+      },
+      {
+        "id": "L1-D2-06",
+        "texto": "Sem regra de correção, cada caso será negociado do zero e sua equipe decidirá por conta própria o que ceder."
+      },
+      {
+        "id": "L1-D2-07",
+        "texto": "O documento tem garantia e não tem o procedimento de acioná-la. Garantia sem procedimento é uma frase."
+      },
+      {
+        "id": "L1-D2-08",
+        "texto": "Falta o reconhecimento de que algo pode dar errado. Cliente não espera perfeição: espera saber o que acontece quando não é."
+      }
     ],
     "D3": [
-      {"id": "L1-D3-01", "texto": "Nada aqui obriga você a avisar antes. O cliente vai descobrir o problema sozinho, e aí o problema é outro."},
-      {"id": "L1-D3-02", "texto": "Falta dizer quando o cliente será informado de mudança de prazo. Sem isso, ele é informado no dia em que o prazo venceu."},
-      {"id": "L1-D3-03", "texto": "Atraso avisado é contratempo; atraso descoberto é quebra de confiança. O documento não trata nenhum dos dois."},
-      {"id": "L1-D3-04", "texto": "Entre a assinatura e a entrega não está previsto nenhum sinal de vida. Ninguém lê silêncio como está tudo correndo bem."},
-      {"id": "L1-D3-05", "texto": "Não há aviso de mudança de preço, de equipe ou de condição. O cliente só saberá quando já não puder reagir."},
-      {"id": "L1-D3-06", "texto": "Falta dizer quem avisa. Aviso que depende de alguém se lembrar não acontece."},
-      {"id": "L1-D3-07", "texto": "O documento prevê relatório no fim. Até lá, qualquer desvio só chega ao cliente quando já não dá para corrigir."},
-      {"id": "L1-D3-08", "texto": "Não diz o que fazer quando você souber de um problema antes do cliente. Se ele descobrir primeiro, você perde a única vantagem que tinha: ter sabido antes."}
+      {
+        "id": "L1-D3-01",
+        "texto": "Nada aqui obriga você a avisar antes. O cliente vai descobrir o problema sozinho, e aí o problema é outro."
+      },
+      {
+        "id": "L1-D3-02",
+        "texto": "Falta dizer quando o cliente será informado de mudança de prazo. Sem isso, ele é informado no dia em que o prazo venceu."
+      },
+      {
+        "id": "L1-D3-03",
+        "texto": "Atraso avisado é contratempo; atraso descoberto é quebra de confiança. O documento não trata nenhum dos dois."
+      },
+      {
+        "id": "L1-D3-04",
+        "texto": "Entre a assinatura e a entrega não está previsto nenhum sinal de vida. Ninguém lê silêncio como está tudo correndo bem."
+      },
+      {
+        "id": "L1-D3-05",
+        "texto": "Não há aviso de mudança de preço, de equipe ou de condição. O cliente só saberá quando já não puder reagir."
+      },
+      {
+        "id": "L1-D3-06",
+        "texto": "Falta dizer quem avisa. Aviso que depende de alguém se lembrar não acontece."
+      },
+      {
+        "id": "L1-D3-07",
+        "texto": "O documento prevê relatório no fim. Até lá, qualquer desvio só chega ao cliente quando já não dá para corrigir."
+      },
+      {
+        "id": "L1-D3-08",
+        "texto": "Não diz o que fazer quando você souber de um problema antes do cliente. Se ele descobrir primeiro, você perde a única vantagem que tinha: ter sabido antes."
+      }
     ],
     "Pa1": [
-      {"id": "L1-Pa1-01", "texto": "Este documento serve para qualquer cliente. É por isso que nenhum se reconhece nele."},
-      {"id": "L1-Pa1-02", "texto": "Falta qualquer sinal de que você entendeu o caso dele. Proposta sem isso é tabela de preços com capa."},
-      {"id": "L1-Pa1-03", "texto": "O texto fala do que você faz e não do que ele tem. Quem lê conclui que você não perguntou."},
-      {"id": "L1-Pa1-04", "texto": "Não há uma linha sobre o problema específico que levou o cliente a te procurar. Era a primeira coisa que ele queria ver escrita."},
-      {"id": "L1-Pa1-05", "texto": "O documento trata o cliente como etapa de um processo seu. Ele está tratando isso como a solução de um problema dele."},
-      {"id": "L1-Pa1-06", "texto": "O nome dele e a situação dele não aparecem em lugar nenhum. É o primeiro sinal que o cliente usa para saber se você leu o caso ou pegou um modelo."},
-      {"id": "L1-Pa1-07", "texto": "Nada aqui diferencia este cliente dos outros que você atende. Se não há diferença no papel, ele vai supor que não há no atendimento."},
-      {"id": "L1-Pa1-08", "texto": "O documento usa as suas palavras, não as do cliente. Ele não vai pedir tradução: vai concluir que não é para ele."}
+      {
+        "id": "L1-Pa1-01",
+        "texto": "Este documento serve para qualquer cliente. É por isso que nenhum se reconhece nele."
+      },
+      {
+        "id": "L1-Pa1-02",
+        "texto": "Falta qualquer sinal de que você entendeu o caso dele. Proposta sem isso é tabela de preços com capa."
+      },
+      {
+        "id": "L1-Pa1-03",
+        "texto": "O texto fala do que você faz e não do que ele tem. Quem lê conclui que você não perguntou."
+      },
+      {
+        "id": "L1-Pa1-04",
+        "texto": "Não há uma linha sobre o problema específico que levou o cliente a te procurar. Era a primeira coisa que ele queria ver escrita."
+      },
+      {
+        "id": "L1-Pa1-05",
+        "texto": "O documento trata o cliente como etapa de um processo seu. Ele está tratando isso como a solução de um problema dele."
+      },
+      {
+        "id": "L1-Pa1-06",
+        "texto": "O nome dele e a situação dele não aparecem em lugar nenhum. É o primeiro sinal que o cliente usa para saber se você leu o caso ou pegou um modelo."
+      },
+      {
+        "id": "L1-Pa1-07",
+        "texto": "Nada aqui diferencia este cliente dos outros que você atende. Se não há diferença no papel, ele vai supor que não há no atendimento."
+      },
+      {
+        "id": "L1-Pa1-08",
+        "texto": "O documento usa as suas palavras, não as do cliente. Ele não vai pedir tradução: vai concluir que não é para ele."
+      }
     ],
     "Pa2": [
-      {"id": "L1-Pa2-01", "texto": "O documento diz o preço e não diz o que o preço evita. Cliente não compara preço com valor: compara preço com preço."},
-      {"id": "L1-Pa2-02", "texto": "Falta a conta do lado dele. Sem ela, o seu valor é um custo."},
-      {"id": "L1-Pa2-03", "texto": "O preço está aqui; a conta que o justifica, não. Quem assina vai pedir essa conta, e o cliente não tem como fazer."},
-      {"id": "L1-Pa2-04", "texto": "O preço aparece sem referência. Número sem referência é sempre caro."},
-      {"id": "L1-Pa2-05", "texto": "Falta dizer o que acontece se ele não fizer nada. Enquanto esse número não aparece, não fazer nada custa zero na cabeça dele."},
-      {"id": "L1-Pa2-06", "texto": "O documento lista o que você entrega, não o que muda na empresa dele. Sem a segunda lista, a primeira é só despesa."},
-      {"id": "L1-Pa2-07", "texto": "Não diz em quanto tempo isso se paga. Essa é a pergunta que trava a assinatura."},
-      {"id": "L1-Pa2-08", "texto": "O desconto aparece antes da justificativa do valor. Nessa ordem, o desconto confirma que o preço era inflado."}
+      {
+        "id": "L1-Pa2-01",
+        "texto": "O documento diz o preço e não diz o que o preço evita. Cliente não compara preço com valor: compara preço com preço."
+      },
+      {
+        "id": "L1-Pa2-02",
+        "texto": "Falta a conta do lado dele. Sem ela, o seu valor é um custo."
+      },
+      {
+        "id": "L1-Pa2-03",
+        "texto": "O preço está aqui; a conta que o justifica, não. Quem assina vai pedir essa conta, e o cliente não tem como fazer."
+      },
+      {
+        "id": "L1-Pa2-04",
+        "texto": "O preço aparece sem referência. Número sem referência é sempre caro."
+      },
+      {
+        "id": "L1-Pa2-05",
+        "texto": "Falta dizer o que acontece se ele não fizer nada. Enquanto esse número não aparece, não fazer nada custa zero na cabeça dele."
+      },
+      {
+        "id": "L1-Pa2-06",
+        "texto": "O documento lista o que você entrega, não o que muda na empresa dele. Sem a segunda lista, a primeira é só despesa."
+      },
+      {
+        "id": "L1-Pa2-07",
+        "texto": "Não diz em quanto tempo isso se paga. Essa é a pergunta que trava a assinatura."
+      },
+      {
+        "id": "L1-Pa2-08",
+        "texto": "O desconto aparece antes da justificativa do valor. Nessa ordem, o desconto confirma que o preço era inflado."
+      }
     ],
     "Pa3": [
-      {"id": "L1-Pa3-01", "texto": "O documento termina na entrega. Para o cliente, é ali que o problema dele começa."},
-      {"id": "L1-Pa3-02", "texto": "Falta dizer o que acontece depois. Silêncio depois da entrega é lido como consegui o que eu queria."},
-      {"id": "L1-Pa3-03", "texto": "Não há acompanhamento previsto. A segunda venda nasce nesse período, e ele não existe no papel."},
-      {"id": "L1-Pa3-04", "texto": "Falta quem cuida do cliente depois que o vendedor sai de cena. Essa troca de mãos é onde a maioria dos clientes se perde."},
-      {"id": "L1-Pa3-05", "texto": "O documento prevê suporte por tempo determinado e não diz o que vem após. O cliente lê a data de validade da sua atenção."},
-      {"id": "L1-Pa3-06", "texto": "O documento prevê a entrega e não prevê nada sobre colocá-la para funcionar. Entrega parada vira a prova de que não valia o preço."},
-      {"id": "L1-Pa3-07", "texto": "Falta o momento de revisão. Sem data marcada, a conversa seguinte só acontece se houver problema."},
-      {"id": "L1-Pa3-08", "texto": "O relacionamento termina quando a nota fiscal é emitida. Está escrito, mesmo que sem essas palavras."}
+      {
+        "id": "L1-Pa3-01",
+        "texto": "O documento termina na entrega. Para o cliente, é ali que o problema dele começa."
+      },
+      {
+        "id": "L1-Pa3-02",
+        "texto": "Falta dizer o que acontece depois. Silêncio depois da entrega é lido como consegui o que eu queria."
+      },
+      {
+        "id": "L1-Pa3-03",
+        "texto": "Não há acompanhamento previsto. A segunda venda nasce nesse período, e ele não existe no papel."
+      },
+      {
+        "id": "L1-Pa3-04",
+        "texto": "Falta quem cuida do cliente depois que o vendedor sai de cena. Essa troca de mãos é onde a maioria dos clientes se perde."
+      },
+      {
+        "id": "L1-Pa3-05",
+        "texto": "O documento prevê suporte por tempo determinado e não diz o que vem após. O cliente lê a data de validade da sua atenção."
+      },
+      {
+        "id": "L1-Pa3-06",
+        "texto": "O documento prevê a entrega e não prevê nada sobre colocá-la para funcionar. Entrega parada vira a prova de que não valia o preço."
+      },
+      {
+        "id": "L1-Pa3-07",
+        "texto": "Falta o momento de revisão. Sem data marcada, a conversa seguinte só acontece se houver problema."
+      },
+      {
+        "id": "L1-Pa3-08",
+        "texto": "O relacionamento termina quando a nota fiscal é emitida. Está escrito, mesmo que sem essas palavras."
+      }
     ],
     "A1": [
-      {"id": "L1-A1-01", "texto": "Falta o motivo de ser a sua empresa e não outra. Quem não acha esse motivo no papel procura a diferença no único lugar onde ela sempre aparece: a última linha."},
-      {"id": "L1-A1-02", "texto": "O documento não dá ao cliente nenhum argumento para usar internamente. Quem defende sua proposta lá dentro está desarmado."},
-      {"id": "L1-A1-03", "texto": "Não há prova. Prova não é elogio: é um caso parecido com o dele, com o que mudou."},
-      {"id": "L1-A1-04", "texto": "Falta dizer o risco de te contratar e como ele é controlado. Quem não fala do risco faz o cliente imaginá-lo maior."},
-      {"id": "L1-A1-05", "texto": "O texto afirma competência e não a demonstra. Afirmação não sustenta a decisão de quem vai assinar."},
-      {"id": "L1-A1-06", "texto": "Falta a comparação com a alternativa. Se você não a faz, o cliente faz, e com a informação do seu concorrente."},
-      {"id": "L1-A1-07", "texto": "Nada aqui ajuda quem decide a explicar a escolha se der errado. É disso que ele tem medo."},
-      {"id": "L1-A1-08", "texto": "Falta dizer o que você não faz. A lista do que fica de fora é o que prova que você escolheu alguma coisa."}
+      {
+        "id": "L1-A1-01",
+        "texto": "Quem diz que a empresa é boa é a própria empresa. Reconhecimento que sai da própria boca não é reconhecimento, é adjetivo."
+      },
+      {
+        "id": "L1-A1-02",
+        "texto": "Há prêmio e certificado, e nenhum cliente do mesmo setor dizendo alguma coisa. O comprador quer saber se alguém como ele já apostou nisso."
+      },
+      {
+        "id": "L1-A1-03",
+        "texto": "A lista de clientes está aqui, e o que eles dizem não está. Logotipo prova que houve contrato, não prova que deu certo."
+      },
+      {
+        "id": "L1-A1-04",
+        "texto": "Nada mostra a empresa sendo procurada por saber do assunto. Referência se mede por quem vem perguntar, não por quem se descreve."
+      },
+      {
+        "id": "L1-A1-05",
+        "texto": "O elogio é genérico e sem dono. Elogio sem nome e sem caso não sobrevive à primeira pergunta de quem decide."
+      },
+      {
+        "id": "L1-A1-06",
+        "texto": "O texto afirma liderança e não diz de onde ela vem. Afirmação de liderança sem origem é a mais fácil de desmontar."
+      },
+      {
+        "id": "L1-A1-07",
+        "texto": "Não há nenhum caso do mesmo segmento. O comprador não quer saber se funciona, quer saber se funcionou com alguém parecido com ele."
+      },
+      {
+        "id": "L1-A1-08",
+        "texto": "O método está descrito, e ninguém de fora aparece usando ou citando ele. Padrão de excelência é o que os outros repetem, não o que você publica."
+      }
     ],
     "A2": [
-      {"id": "L1-A2-01", "texto": "O documento responde exatamente o que foi pedido. Não há nada aqui que o cliente já não soubesse."},
-      {"id": "L1-A2-02", "texto": "Falta a sua leitura do problema. Orçamento qualquer um faz; opinião é o que ele está comprando."},
-      {"id": "L1-A2-03", "texto": "Tudo que está aqui o cliente já sabia: ele mesmo pediu. O que ele paga é pelo que você sabe e ele não pensou em pedir."},
-      {"id": "L1-A2-04", "texto": "Falta dizer o que você faria diferente do que ele pediu. Se concorda com tudo, você é cotação."},
-      {"id": "L1-A2-05", "texto": "O documento executa o pedido sem questionar a premissa. Se a premissa estiver errada, você entregou bem a coisa errada."},
-      {"id": "L1-A2-06", "texto": "Falta o que a sua experiência diz sobre casos como esse. É a única parte que o concorrente não copia."},
-      {"id": "L1-A2-07", "texto": "Falta o aviso de onde esse tipo de trabalho costuma travar. Quem já passou por isso dez vezes sabe, e é a parte que o cliente não compra de mais ninguém."},
-      {"id": "L1-A2-08", "texto": "O texto traz um caminho só. Se ele não servir, o cliente não pede outro. Pede outro orçamento."}
+      {
+        "id": "L1-A2-01",
+        "texto": "O documento responde exatamente o que foi pedido. Não há nada aqui que o cliente já não soubesse."
+      },
+      {
+        "id": "L1-A2-02",
+        "texto": "Falta a sua leitura do problema. Orçamento qualquer um faz; opinião é o que ele está comprando."
+      },
+      {
+        "id": "L1-A2-03",
+        "texto": "Tudo que está aqui o cliente já sabia: ele mesmo pediu. O que ele paga é pelo que você sabe e ele não pensou em pedir."
+      },
+      {
+        "id": "L1-A2-04",
+        "texto": "Falta dizer o que você faria diferente do que ele pediu. Se concorda com tudo, você é cotação."
+      },
+      {
+        "id": "L1-A2-05",
+        "texto": "O documento executa o pedido sem questionar a premissa. Se a premissa estiver errada, você entregou bem a coisa errada."
+      },
+      {
+        "id": "L1-A2-06",
+        "texto": "Falta o que a sua experiência diz sobre casos como esse. É a única parte que o concorrente não copia."
+      },
+      {
+        "id": "L1-A2-07",
+        "texto": "Falta o aviso de onde esse tipo de trabalho costuma travar. Quem já passou por isso dez vezes sabe, e é a parte que o cliente não compra de mais ninguém."
+      },
+      {
+        "id": "L1-A2-08",
+        "texto": "O texto traz um caminho só. Se ele não servir, o cliente não pede outro. Pede outro orçamento."
+      }
     ],
     "A3": [
-      {"id": "L1-A3-01", "texto": "O documento resolve o problema de hoje e não diz qual é o próximo que vem. O próximo é o que o cliente ainda não sabe que tem."},
-      {"id": "L1-A3-02", "texto": "Falta o próximo passo. Sem ele, o próximo passo do cliente será com outra pessoa."},
-      {"id": "L1-A3-03", "texto": "Falta o que ele deveria estar olhando e não está. É o que faz o cliente ligar de volta antes de precisar."},
-      {"id": "L1-A3-04", "texto": "Falta a ordem. Você listou o que fazer e não disse o que fazer primeiro. É a dúvida que paralisa."},
-      {"id": "L1-A3-05", "texto": "O documento é uma resposta, não uma recomendação. Resposta se compara; recomendação se segue."},
-      {"id": "L1-A3-06", "texto": "Você listou tudo e não disse o que acontece se ele parar na metade. Ele vai parar na metade, e vai achar que o resultado fraco foi seu."},
-      {"id": "L1-A3-07", "texto": "Não há horizonte. Sem o que vem em seis meses, essa compra é um gasto isolado na cabeça dele."},
-      {"id": "L1-A3-08", "texto": "Falta o aviso do que vai mudar no mercado dele. Quem traz isso não precisa disputar preço."}
+      {
+        "id": "L1-A3-01",
+        "texto": "O documento resolve o problema de hoje e não diz qual é o próximo que vem. O próximo é o que o cliente ainda não sabe que tem."
+      },
+      {
+        "id": "L1-A3-02",
+        "texto": "Falta o próximo passo. Sem ele, o próximo passo do cliente será com outra pessoa."
+      },
+      {
+        "id": "L1-A3-03",
+        "texto": "Falta o que ele deveria estar olhando e não está. É o que faz o cliente ligar de volta antes de precisar."
+      },
+      {
+        "id": "L1-A3-04",
+        "texto": "Falta a ordem. Você listou o que fazer e não disse o que fazer primeiro. É a dúvida que paralisa."
+      },
+      {
+        "id": "L1-A3-05",
+        "texto": "O documento é uma resposta, não uma recomendação. Resposta se compara; recomendação se segue."
+      },
+      {
+        "id": "L1-A3-06",
+        "texto": "Você listou tudo e não disse o que acontece se ele parar na metade. Ele vai parar na metade, e vai achar que o resultado fraco foi seu."
+      },
+      {
+        "id": "L1-A3-07",
+        "texto": "Não há horizonte. Sem o que vem em seis meses, essa compra é um gasto isolado na cabeça dele."
+      },
+      {
+        "id": "L1-A3-08",
+        "texto": "Falta o aviso do que vai mudar no mercado dele. Quem traz isso não precisa disputar preço."
+      }
     ]
   },
-  "nota": "A1, A2 e Pa2 voltaram à redação original, alinhada ao Manual. Id fixo em todas. P1d_sem_anexo (4 frases) incluído em 12/10: o que a tela diz depois de o usuário confirmar que não há anexo comercial.",
+  "nota": "A1 reescrito em 12/10/2026 contra a definicao do Manual, capitulo 2: 'a empresa e citada como padrao de excelencia em seu segmento'. As oito frases anteriores do A1 foram para frases-A1-antigas-para-decidir.json. Os ids L1-A1-01 a 08 foram reaproveitados porque o texto novo responde a outra pergunta, e nenhuma tela em producao usa esses ids ainda. Pa2, Pa3, D2 e D3 foram conferidos frase a frase contra o Manual e nao mudaram.",
   "formato": "Cada frase é um objeto com id fixo e texto. O id nunca muda, nem se o texto for reescrito ou a ordem mudar. O motor devolve o id; o texto se busca aqui."
 }

@@ -1,23 +1,32 @@
-{# Avaliador de documentos — painel (aviso + upload + lista). SÓ admin Loyall nesta
-   entrega. O aviso é a frase mais sensível da tela: o número de dias vem da MESMA
-   constante que apaga o texto (servico.dias_retencao) — nunca escrito à mão. #}
+{# Avaliador — painel (aviso + envio + lista). SÓ admin Loyall nesta entrega. O aviso é a
+   frase mais sensível da tela: o número de dias vem da MESMA constante que apaga o texto
+   (servico.dias_retencao) — nunca escrito à mão. #}
 <div id="avaliador-painel" class="space-y-4">
   <div>
-    <h3 class="text-sm font-semibold text-loyall-700">Avaliador de documentos <span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 uppercase">só admin</span></h3>
-    <p class="text-xs text-loyall-500">Lê um documento comercial do ponto de vista de quem está pensando em contratar: as doze perguntas que o comprador carrega.</p>
+    <h3 class="text-sm font-semibold text-loyall-700">Avaliador <span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 uppercase">só admin</span></h3>
+    <p class="text-xs text-loyall-500">Lê uma peça do relacionamento — documento, apresentação, proposta ou conversa — pelos pilares do PDPA e devolve o que está forte, o que falta e o que melhorar.</p>
   </div>
 
   <div id="avaliador-aviso" class="border border-amber-300 bg-amber-50 rounded p-3 text-sm text-amber-900">
-    O documento vai para um modelo externo da Anthropic para ser lido. O texto fica guardado enquanto esta análise estiver aberta, para você poder corrigir o tipo e reler sem subir o arquivo de novo. Ele é apagado quando você clicar em concluir, e apagado sozinho depois de {{ dias_retencao }} dias sem uso. Depois disso ficam só os trechos citados na leitura.
+    O documento vai para um modelo externo da Anthropic para ser lido. O texto fica guardado enquanto esta análise estiver aberta, para você poder reler sem enviar de novo. Ele é apagado quando você clicar em concluir, e apagado sozinho depois de {{ dias_retencao }} dias sem uso. Depois disso ficam só os trechos citados na leitura.
   </div>
 
   <form hx-post="{{ url_for('ui.avaliador_novo', empresa_id=empresa_id) }}"
         hx-encoding="multipart/form-data" hx-target="#avaliador-painel" hx-swap="outerHTML"
-        class="flex flex-wrap items-center gap-2">
-    <input type="file" name="arquivo" accept=".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-           class="text-sm text-loyall-700">
-    <button type="submit" class="px-4 py-2 rounded bg-loyall-700 text-white text-sm font-medium hover:bg-loyall-800">Ler documento</button>
-    <span class="text-xs text-loyall-400">PowerPoint (.pptx) ou PDF, até {{ limite_mb }} MB.</span>
+        class="space-y-2">
+    <label class="block text-sm text-loyall-700">O que é esta peça e para que ela serve?
+      <input type="text" name="descricao" required maxlength="500" value="{{ form.descricao or '' }}"
+             placeholder="Ex.: proposta comercial para renovar o contrato de um cliente de TI"
+             class="mt-1 w-full border border-loyall-300 rounded px-3 py-2 text-sm">
+    </label>
+    <div class="flex flex-wrap items-center gap-2">
+      <input type="file" name="arquivo" accept=".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+             class="text-sm text-loyall-700">
+      <span class="text-xs text-loyall-400">PowerPoint (.pptx) ou PDF, até {{ limite_mb }} MB — ou cole o texto abaixo.</span>
+    </div>
+    <textarea name="texto" rows="5" placeholder="Cole aqui o texto de uma conversa, e-mail ou mensagem (se não enviou arquivo)."
+              class="w-full border border-loyall-300 rounded px-3 py-2 text-sm">{{ form.texto or '' }}</textarea>
+    <button type="submit" class="px-4 py-2 rounded bg-loyall-700 text-white text-sm font-medium hover:bg-loyall-800">Ler a peça</button>
   </form>
 
   {% if erro %}
@@ -31,7 +40,7 @@
     <h4 class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Leituras desta empresa</h4>
     <table class="w-full text-sm">
       <thead><tr class="text-left text-xs text-loyall-500 border-b border-loyall-200">
-        <th class="py-1 pr-2">Data</th><th class="pr-2">Arquivo</th><th class="pr-2">Tipo</th><th class="pr-2">Situação</th><th class="text-right">Custo</th>
+        <th class="py-1 pr-2">Data</th><th class="pr-2">Peça</th><th class="pr-2">Situação</th><th class="text-right">Custo</th>
       </tr></thead>
       <tbody>
       {% for x in analises %}
@@ -39,8 +48,7 @@
             hx-get="{{ url_for('ui.avaliador_analise', empresa_id=empresa_id, aid=x.id) }}"
             hx-target="#avaliador-analise-slot" hx-swap="innerHTML">
           <td class="py-1 pr-2 text-loyall-500">{{ x.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
-          <td class="pr-2 text-loyall-700">{{ x.arquivo_nome }}</td>
-          <td class="pr-2 text-loyall-600">{{ x.tipo or '—' }}</td>
+          <td class="pr-2 text-loyall-700">{{ x.arquivo_nome or 'texto colado' }} <span class="text-xs text-loyall-400">— {{ x.descricao[:80] }}</span></td>
           <td class="pr-2 text-loyall-600">{{ rotulo_status.get(x.status, x.status) }}{% if x.texto_json is none %} · texto apagado{% endif %}</td>
           <td class="text-right text-loyall-600">US$ {{ x.custo_usd | virg(4) }}</td>
         </tr>
