@@ -241,3 +241,25 @@ def test_comando_do_watchdog_roda(client, empresa):
     r = client.application.test_cli_runner().invoke(args=["avaliador-housekeeping"])
     assert r.exit_code == 0, r.output
     assert "0 interrompida(s)" in r.output and "7 dias sem uso" in r.output
+
+
+def test_modo_por_pilar_grava_versao_e_soma_o_custo(db_session, empresa, monkeypatch):
+    from src.avaliador import motor
+
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="por_pilar")
+    aid = _criar(db_session, empresa)
+    assert db_session.get(AvaliadorAnalise, aid).prompt_versao == motor.PROMPT_VERSAO_POR_PILAR
+    resp = [{"itens": []}] * 4 + [{"resumo": "Resumo por pilar."}]
+    cli = Dublê(resp)
+    _rodar(db_session, aid, cli)
+    db_session.expire_all()
+    a = db_session.get(AvaliadorAnalise, aid)
+    assert a.status == STATUS_PRONTA and a.resumo == "Resumo por pilar."
+    assert len(cli.chamadas) == 5 and a.tokens_in == 15000 and a.custo_usd > 0
+
+
+def test_modo_desconhecido_recusa_antes_de_gravar(db_session, empresa, monkeypatch):
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="duas")
+    with pytest.raises(AvaliacaoRecusada, match="AVALIADOR_MODO"):
+        _criar(db_session, empresa)
+    assert db_session.query(AvaliadorAnalise).count() == 0

@@ -175,3 +175,93 @@ def test_pedido_tem_as_regras_novas_e_nenhum_travessao_proprio():
         if traco.search(ln) and ln not in manual and "Não use travessão" not in ln
     ]
     assert proprios == []
+
+
+# ── leitura por pilar ──────────────────────────────────────────────────────
+
+
+def _por_pilar_ok():
+    return [
+        {
+            "itens": [
+                {
+                    "subpilar": "P1",
+                    "tipo": "melhorar",
+                    "texto": "Prazo sem início.",
+                    "evidencias": [{"pagina": 2, "trecho": "diagnóstico completo em 30 dias"}],
+                }
+            ]
+        },
+        {
+            "itens": [
+                {
+                    "subpilar": "D1",
+                    "tipo": "forte",
+                    "texto": "Horário — declarado.",
+                    "evidencias": [{"pagina": 1, "trecho": "segunda a sexta das 8h às 18h"}],
+                }
+            ]
+        },
+        {"itens": []},
+        {"itens": []},
+        {"resumo": "Junte prazo e horário — num só lugar."},
+    ]
+
+
+def test_por_pilar_faz_uma_chamada_por_pilar_e_uma_de_resumo():
+    from src.avaliador.motor import ler_por_pilar
+
+    r = carregar_regua()
+    cli = Dublê(_por_pilar_ok())
+    res, uso = ler_por_pilar(cli, MODELO, r, "s", "peça", _doc())
+    assert len(cli.chamadas) == 5 and uso.tokens_in == 15000
+    assert [i["subpilar"] for i in res["itens"]] == ["P1", "D1"]
+    assert res["itens"][1]["texto"] == "Horário, declarado."
+    assert res["resumo"] == "Junte prazo e horário, num só lugar."
+    # a peça vai num bloco em cache, igual em todas; a instrução do pilar vem depois
+    blocos = [c["messages"][0]["content"] for c in cli.chamadas]
+    assert all(
+        b[0] == {"type": "text", "text": "peça", "cache_control": {"type": "ephemeral"}}
+        for b in blocos
+    )
+    assert "subpilares P1, P2, P3" in blocos[0][1]["text"]
+    assert "contradição interna é sempre P1" in blocos[0][1]["text"]
+    assert "subpilares D1, D2, D3" in blocos[1][1]["text"]
+    assert "não a traga aqui" in blocos[1][1]["text"]
+    assert "Prazo sem início." in blocos[4][1]["text"]  # o resumo vê os itens
+
+
+def test_por_pilar_recusa_item_de_outro_pilar():
+    from src.avaliador.motor import ler_por_pilar
+
+    respostas = _por_pilar_ok()
+    intruso = {"itens": [{"subpilar": "A1", "tipo": "falta", "texto": "x", "evidencias": []}]}
+    respostas.insert(0, intruso)
+    cli = Dublê(respostas)
+    res, _ = ler_por_pilar(cli, MODELO, carregar_regua(), "s", "peça", _doc())
+    assert len(cli.chamadas) == 6
+    assert "fora do pilar pedido" in cli.chamadas[1]["messages"][0]["content"][1]["text"]
+    assert "A1" not in [i["subpilar"] for i in res["itens"]]
+
+
+def test_por_pilar_para_antes_de_passar_do_orcamento():
+    from src.avaliador.motor import (
+        MAX_TOKENS_PILAR,
+        OrcamentoEsgotado,
+        _pior_caso_usd,
+        ler_por_pilar,
+    )
+
+    # cabe a primeira chamada no pior caso, não a segunda depois do gasto da primeira
+    pior = _pior_caso_usd(MODELO, 200, MAX_TOKENS_PILAR)
+    cli = Dublê(_por_pilar_ok())
+    with pytest.raises(OrcamentoEsgotado) as exc:
+        ler_por_pilar(cli, MODELO, carregar_regua(), "s", "peça", _doc(), orcamento_usd=pior * 1.2)
+    assert len(cli.chamadas) == 1 and exc.value.uso.custo_usd > 0  # gasto conta
+
+
+def test_estimativa_por_pilar_cobre_o_pior_caso_das_cinco_chamadas():
+    from src.avaliador.motor import MAX_TOKENS_PILAR, _pior_caso_usd, estimar_custo_por_pilar_usd
+
+    est = estimar_custo_por_pilar_usd("s" * 4000, "u" * 4000, MODELO, 4)
+    assert est > 4 * _pior_caso_usd(MODELO, 8000, MAX_TOKENS_PILAR)

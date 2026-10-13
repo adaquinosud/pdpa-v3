@@ -42,6 +42,10 @@ class Config:
     # nada gasta até alguém pôr um número de propósito, depois de medir).
     AVALIADOR_MODEL = os.getenv("AVALIADOR_MODEL", "claude-sonnet-4-6")
     AVALIADOR_TETO_MENSAL_USD = float(os.getenv("AVALIADOR_TETO_MENSAL_USD", "0"))
+    # "unica" = uma chamada para os 12 subpilares; "por_pilar" = uma por pilar + resumo
+    # (mais funda, ~3x o custo). Em teste no preview de 13/10; o default não muda até
+    # a decisão do Alexandre.
+    AVALIADOR_MODO = os.getenv("AVALIADOR_MODO", "unica")
     # Dias SEM USO até o texto extraído ser apagado sozinho. O aviso da tela lê ESTE
     # valor — aviso e comportamento não podem divergir.
     AVALIADOR_DIAS_RETENCAO_TEXTO = int(os.getenv("AVALIADOR_DIAS_RETENCAO_TEXTO", "7"))

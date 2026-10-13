@@ -1,7 +1,8 @@
 """Serviço do Avaliador — ciclo de vida da análise, gate de custo, retenção.
 
 Fluxo: ``criar_analise`` (extrai, cobra o teto, grava PENDENTE) → ``disparar`` (daemon-
-thread, padrão ``_rodar_async`` do app) → ``processar`` (uma chamada ao modelo).
+thread, padrão ``_rodar_async`` do app) → ``processar`` (uma chamada ao modelo, ou uma
+por pilar + resumo, conforme ``AVALIADOR_MODO``).
 
 Falha é visível, nunca "processando" eterno:
 - erro → FALHOU com ``erro_motivo`` (tipo do erro; NUNCA texto da peça nem resposta do
@@ -97,6 +98,28 @@ def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento):
     return motor.montar_sistema(regua, a_origem), motor.montar_usuario(descricao, doc)
 
 
+MODO_UNICA, MODO_POR_PILAR = "unica", "por_pilar"
+
+
+def modo() -> str:
+    m = get_config().AVALIADOR_MODO
+    if m not in (MODO_UNICA, MODO_POR_PILAR):
+        raise AvaliacaoRecusada(f"AVALIADOR_MODO desconhecido: {m!r} (use unica ou por_pilar).")
+    return m
+
+
+def _versao_prompt(m: str) -> str:
+    return motor.PROMPT_VERSAO_POR_PILAR if m == MODO_POR_PILAR else motor.PROMPT_VERSAO
+
+
+def _estimativa(regua: Regua, m: str, sistema: str, usuario: str, modelo: str) -> float:
+    """O que o gate cobra. No modo por pilar é TAMBÉM o orçamento da leitura: o motor não
+    passa dele, nem com nova tentativa."""
+    if m == MODO_POR_PILAR:
+        return motor.estimar_custo_por_pilar_usd(sistema, usuario, modelo, len(regua.pilares))
+    return motor.estimar_custo_usd(sistema, usuario, modelo)
+
+
 # ── leitura do estado ─────────────────────────────────────────────────────
 
 
@@ -152,8 +175,9 @@ def criar_analise(
     else:
         doc, origem, bruto = documento_de_texto(texto), ORIGEM_TEXTO, texto.encode("utf-8")
     regua = carregar_regua()
+    m = modo()
     sistema, usuario = _pedido(regua, origem, descricao, doc)
-    checar_teto(s, empresa_id, motor.estimar_custo_usd(sistema, usuario, modelo))
+    checar_teto(s, empresa_id, _estimativa(regua, m, sistema, usuario, modelo))
     a = AvaliadorAnalise(
         empresa_id=empresa_id,
         usuario_id=usuario_id,
@@ -169,7 +193,7 @@ def criar_analise(
         itens_json="[]",
         modelo=modelo,
         regua_versao=regua.versao,
-        prompt_versao=motor.PROMPT_VERSAO,
+        prompt_versao=_versao_prompt(m),
         tokens_in=0,
         tokens_out=0,
         tokens_cache_criacao=0,
@@ -206,8 +230,10 @@ def refazer(s: Session, a: AvaliadorAnalise, descricao: Optional[str] = None) ->
     doc = _exigir_texto(a)
     if descricao is not None:
         a.descricao = _descricao(descricao)
-    sistema, usuario = _pedido(carregar_regua(), a.origem, a.descricao, doc)
-    checar_teto(s, a.empresa_id, motor.estimar_custo_usd(sistema, usuario, a.modelo))
+    regua, m = carregar_regua(), modo()
+    sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
+    checar_teto(s, a.empresa_id, _estimativa(regua, m, sistema, usuario, a.modelo))
+    a.prompt_versao = _versao_prompt(m)
     a.status = STATUS_PENDENTE
     a.erro_motivo = None
     marcar_uso(a)
@@ -246,8 +272,14 @@ def processar(analise_id: int, client=None) -> None:
             s.commit()
             sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
             try:
-                res, uso = motor.ler(client, a.modelo, sistema, usuario, doc)
-            except motor.RespostaInvalida as err:
+                if a.prompt_versao == motor.PROMPT_VERSAO_POR_PILAR:
+                    orc = _estimativa(regua, MODO_POR_PILAR, sistema, usuario, a.modelo)
+                    res, uso = motor.ler_por_pilar(
+                        client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
+                    )
+                else:
+                    res, uso = motor.ler(client, a.modelo, sistema, usuario, doc)
+            except (motor.RespostaInvalida, motor.OrcamentoEsgotado) as err:
                 _somar_uso(a, getattr(err, "uso", None) or motor.Uso())
                 raise
             _somar_uso(a, uso)
