@@ -168,6 +168,7 @@ def test_pedido_tem_as_regras_novas_e_nenhum_travessao_proprio():
     assert "No máximo três itens por subpilar" in s and "não podem se contradizer" in s
     assert "R$ 96.000 no ano, R$ 11.520 de desconto e R$ 84.480 líquidos" in s  # $ escapado
     assert "Não invente base que a peça não dá" in s
+    assert "Conta começada é conta terminada" in s
     # o exemplo do "falta" não vem de peça real (a Office Total trazia nome e e-mail)
     assert "nome e um e-mail" not in s and "plantão no fim de semana" in s
     # travessão só pode vir das linhas literais do Manual (e da regra que o proíbe)
@@ -300,13 +301,13 @@ def test_pedido_por_pilar_tem_as_regras_de_dentro_do_pilar():
 
     r = carregar_regua()
     p1, d = _instrucao_pilar(r.pilares[0]), _instrucao_pilar(r.pilares[1])
-    assert "é o primeiro item do P1, à frente de qualquer outro" in p1
+    assert "está sempre entre os três itens do P1" in p1
     for s in (p1, d):
         assert "Dentro deste pilar, cada item traz um achado diferente" in s
         assert "Um item nunca desdiz outro" in s and "no máximo duas frases" in s
     s = montar_sistema(r, ORIGEM_ARQUIVO)
     assert "do que mais muda a peça para o que menos muda" in s
-    assert "é sempre o primeiro item do P1" in s and "tem no máximo duas frases" in s
+    assert "está sempre entre os três itens do P1" in s and "tem no máximo duas frases" in s
 
 
 def test_por_pilar_passa_os_itens_anteriores_para_nao_repetir():

@@ -42,10 +42,11 @@ class Config:
     # nada gasta até alguém pôr um número de propósito, depois de medir).
     AVALIADOR_MODEL = os.getenv("AVALIADOR_MODEL", "claude-sonnet-4-6")
     AVALIADOR_TETO_MENSAL_USD = float(os.getenv("AVALIADOR_TETO_MENSAL_USD", "0"))
-    # "unica" = uma chamada para os 12 subpilares; "por_pilar" = uma por pilar + resumo
-    # (mais funda, ~3x o custo). Em teste no preview de 13/10; o default não muda até
-    # a decisão do Alexandre.
-    AVALIADOR_MODO = os.getenv("AVALIADOR_MODO", "unica")
+    # "por_pilar" (padrão) = uma chamada por pilar + uma de resumo; "unica" = uma chamada
+    # para os 12 subpilares. Decisão do Alexandre (13/10): a única saiu rasa nas três
+    # leituras da Office Total e a por pilar deu núcleo estável nas duas; R$ 0,90 contra
+    # R$ 0,40 por leitura não paga a diferença de qualidade.
+    AVALIADOR_MODO = os.getenv("AVALIADOR_MODO", "por_pilar")
     # Dias SEM USO até o texto extraído ser apagado sozinho. O aviso da tela lê ESTE
     # valor — aviso e comportamento não podem divergir.
     AVALIADOR_DIAS_RETENCAO_TEXTO = int(os.getenv("AVALIADOR_DIAS_RETENCAO_TEXTO", "7"))

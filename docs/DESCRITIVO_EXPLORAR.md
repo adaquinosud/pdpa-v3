@@ -981,6 +981,14 @@ conteúdo, não pela extensão. Word, .ppt antigo e PDF com senha são recusados
 fazer. **Páginas sem texto** (slide desenhado como imagem) são listadas com o critério; o conteúdo
 delas não foi lido. Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
 
+**No máximo três itens por subpilar**, os que mais mudam a peça. O que passar disso não aparece:
+fica guardado, e o subpilar mostra uma linha curta com a contagem (**"Mais N itens descartados pelo
+limite de três por subpilar"**), para avisar que existe mais sem encher a página.
+
+**Como a leitura é feita:** um pilar por vez (quatro leituras) e, no fim, o resumo. Leva cerca de
+dois minutos; a tela se atualiza sozinha. Se só o resumo falhar, a análise fica pronta com os itens e
+a tela diz **"Resumo não gerado (motivo). Os itens abaixo estão completos."**
+
 **Reler:** a análise aberta pode ser relida com outra descrição, sem enviar a peça de novo (uma
 leitura nova, com custo).
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -82,7 +83,20 @@ class Dublê:
         self.chamadas.append(kw)
         if self.quebra:
             raise ConnectionError("rede caiu")
-        r = self.respostas.pop(0)
+        conteudo = kw["messages"][0]["content"]
+        r = self.respostas[0]
+        if isinstance(conteudo, list) and isinstance(r, dict) and "resumo" in r and "itens" in r:
+            # modo por pilar (o padrão): a mesma resposta completa, fatiada por pilar; o
+            # pedido do resumo devolve só o resumo e consome a resposta
+            pedido = conteudo[-1]["text"]
+            if 'escreva só o "resumo"' in pedido:
+                self.respostas.pop(0)
+                r = {"resumo": r["resumo"]}
+            else:
+                cods = re.search(r"subpilares ([A-Za-z0-9, ]+)\.", pedido).group(1).split(", ")
+                r = {"itens": [i for i in r["itens"] if i["subpilar"] in cods]}
+        else:
+            self.respostas.pop(0)
         texto = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
         return SimpleNamespace(
             content=[SimpleNamespace(type="text", text=texto)],
@@ -150,8 +164,8 @@ def test_caminho_feliz_arquivo(db_session, empresa, teto):
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.resumo == "Padrão de teste."
-    assert len(cli.chamadas) == 1  # UMA chamada
-    assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"]
+    assert len(cli.chamadas) == 5  # padrão: uma por pilar + o resumo
+    assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"][0]["text"]
     assert a.custo_usd > 0 and a.origem == "arquivo" and a.formato == "pptx"
     org = servico.organizar(servico.carregar_regua(), a)
     disp = org[1]["subpilares"][0]  # Disponibilidade → D1
@@ -166,7 +180,7 @@ def test_texto_colado_usa_a_biblioteca_de_conversa(db_session, empresa, teto):
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.origem == "texto" and a.formato == "texto"
     assert "Ele perguntou com quem fala" in cli.chamadas[0]["system"]
-    assert "=== TEXTO COLADO ===" in cli.chamadas[0]["messages"][0]["content"]
+    assert "=== TEXTO COLADO ===" in cli.chamadas[0]["messages"][0]["content"][0]["text"]
 
 
 def test_falha_fica_visivel_sem_vazar_texto_e_tentar_de_novo_funciona(
@@ -198,8 +212,8 @@ def test_refazer_com_nova_descricao(db_session, empresa, teto):
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.descricao.startswith("Apresentação institucional")
-    assert "Apresentação institucional" in cli.chamadas[0]["messages"][0]["content"]
-    assert a.tokens_in == 6000  # as duas leituras somam
+    assert "Apresentação institucional" in cli.chamadas[0]["messages"][0]["content"][0]["text"]
+    assert a.tokens_in == 30000  # as duas leituras somam (5 chamadas de 3000 cada)
 
 
 def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
@@ -273,3 +287,20 @@ def test_por_pilar_sem_resumo_fica_pronta_com_motivo(db_session, empresa, monkey
     a = db_session.get(AvaliadorAnalise, aid)
     assert a.status == STATUS_PRONTA and a.resumo is None
     assert a.erro_motivo == "resumo: RespostaInvalida" and a.custo_usd > 0
+
+
+def test_modo_unica_continua_disponivel(db_session, empresa, monkeypatch):
+    from src.avaliador import motor
+
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="unica")
+    aid = _criar(db_session, empresa)
+    cli = Dublê()
+    a = _rodar(db_session, aid, cli)
+    assert a.status == STATUS_PRONTA and a.prompt_versao == motor.PROMPT_VERSAO
+    assert len(cli.chamadas) == 1 and DESCRICAO in cli.chamadas[0]["messages"][0]["content"]
+
+
+def test_padrao_de_codigo_e_por_pilar():
+    from src.config import Config
+
+    assert Config.AVALIADOR_MODO == "por_pilar"
