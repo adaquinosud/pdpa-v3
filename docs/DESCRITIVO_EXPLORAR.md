@@ -954,31 +954,31 @@ cross-fonte dela). O link é visível só para Loyall (a tela de pessoa é restr
 
 ---
 
-## AVALIADOR (leitura de uma peça do relacionamento — só admin)
+## AVALIADOR (leitura de uma peça do relacionamento, só admin)
 
 **Só admin Loyall nesta primeira versão.** A liberação para cliente é decisão separada.
 
-O Avaliador lê uma **peça do relacionamento com o cliente** — documento, apresentação, proposta ou
-o **texto de uma conversa** colado — pelos pilares do PDPA, e devolve, por subpilar, **o que está
+O Avaliador lê uma **peça do relacionamento com o cliente** (documento, apresentação, proposta ou
+o **texto de uma conversa** colado) pelos pilares do PDPA, e devolve, por subpilar, **o que está
 forte, o que falta e o que melhorar**. Antes de enviar, a pessoa diz em uma linha **o que é a peça e
 para que ela serve**; a leitura leva isso em conta.
 
-**A régua é o capítulo 2 do Manual de Operação, literal** — os quatro pilares e os doze subpilares
+**A régua é o capítulo 2 do Manual de Operação, literal**: os quatro pilares e os doze subpilares
 com o texto do Manual, sem versão paralela.
 
 **Duas regras:**
 
 - **Toda afirmação vem com o trecho citado da peça.** O trecho é conferido contra o texto extraído; o
   que não for achado aparece como **"citação não encontrada na peça"**, nunca como citação. Um "falta"
-  pode não ter trecho — ausência não se cita.
+  pode não ter trecho, porque ausência não se cita.
 - **Resultado de outro cliente, case ou credencial não conta como prova para este cliente.**
 
 **Pistas:** a leitura usa como pista (não como resposta pronta) as frases de buracos comuns escritas
-pelos autores do método — a biblioteca de documento para arquivo, a de conversa para texto colado.
+pelos autores do método: a biblioteca de documento para arquivo, a de conversa para texto colado.
 
 **O que entra:** PowerPoint (.pptx), PDF ou texto colado. O formato do arquivo é reconhecido pelo
 conteúdo, não pela extensão. Word, .ppt antigo e PDF com senha são recusados com a mensagem do que
-fazer. **Páginas sem texto** (slide desenhado como imagem) são listadas com o critério — o conteúdo
+fazer. **Páginas sem texto** (slide desenhado como imagem) são listadas com o critério; o conteúdo
 delas não foi lido. Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
 
 **Reler:** a análise aberta pode ser relida com outra descrição, sem enviar a peça de novo (uma

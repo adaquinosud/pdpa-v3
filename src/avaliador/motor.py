@@ -24,7 +24,7 @@ from src.api.painel import SUBPILARES_ORDEM
 from src.avaliador.extracao import Documento, conferir_trecho
 from src.avaliador.regua import Regua
 
-PROMPT_VERSAO = "avaliador-v3"
+PROMPT_VERSAO = "avaliador-v4"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")
@@ -116,11 +116,11 @@ def _bloco_pistas(regua: Regua, origem: str) -> str:
     for c in SUBPILARES_ORDEM:
         s = regua.subpilar(c)
         pistas = regua.pistas(c, origem)
-        linhas.append(f"\n{c} — {s.nome}:")
+        linhas.append(f"\n{c}, {s.nome}:")
         if pistas:
             linhas.extend(f"- {t}" for t in pistas)
         else:
-            linhas.append("- (sem pistas para este subpilar — use só o Manual)")
+            linhas.append("- (sem pistas para este subpilar: use só o Manual)")
     return "\n".join(linhas)
 
 
@@ -180,8 +180,18 @@ def _evidencias(doc: Documento, bruto: Any) -> List[dict]:
     return out
 
 
+_TRAVESSAO = re.compile(r"\s*[\u2014\u2013]\s*")
+
+
+def sem_travessao(texto: str) -> str:
+    """Regra do Alexandre (12/10): nenhum travessão no texto que o Avaliador escreve. O
+    pedido proíbe; aqui é a garantia. Só no texto do modelo, NUNCA no trecho citado
+    (que é literal da peça do cliente)."""
+    return _TRAVESSAO.sub(", ", texto or "").strip(" ,")
+
+
 def validar_saida(doc: Documento, obj: dict) -> dict:
-    resumo = (obj.get("resumo") or "").strip()
+    resumo = sem_travessao((obj.get("resumo") or "").strip())
     if not resumo:
         raise RespostaInvalida("resposta sem resumo")
     brutos = obj.get("itens")
@@ -191,7 +201,8 @@ def validar_saida(doc: Documento, obj: dict) -> dict:
     for it in brutos:
         if not isinstance(it, dict):
             raise RespostaInvalida("item não é objeto")
-        cod, tipo, texto = it.get("subpilar"), it.get("tipo"), (it.get("texto") or "").strip()
+        cod, tipo = it.get("subpilar"), it.get("tipo")
+        texto = sem_travessao((it.get("texto") or "").strip())
         if cod not in SUBPILARES_ORDEM:
             raise RespostaInvalida(f"subpilar fora do modelo: {cod!r}")
         if tipo not in TIPOS_ITEM:

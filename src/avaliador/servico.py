@@ -286,7 +286,7 @@ def housekeeping(s: Session, agora: Optional[datetime] = None) -> Dict[str, int]
     ).all()
     for a in orfas:
         a.status = STATUS_FALHOU
-        a.erro_motivo = "interrompida — provável reinício do servidor; use retomar"
+        a.erro_motivo = "interrompida, provável reinício do servidor; use tentar de novo"
         a.atualizado_em = agora
     expiradas = s.scalars(
         select(AvaliadorAnalise).where(

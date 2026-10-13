@@ -135,12 +135,13 @@ def test_render_da_analise_pronta(client_loyall, db_session, empresa, teto):
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert 'hx-trigger="every 3s"' not in html
     assert "Padrão de teste." in html  # resumo
-    assert "Pilar 2 — DISPONIBILIDADE" in html  # título literal do Manual
+    assert "Pilar 2: DISPONIBILIDADE" in html  # título do Manual, sem travessão na tela
     assert "D1 · Acessibilidade" in html
     assert "o cliente consegue chegar ao serviço, ser atendido, abordar o balcão?" in html
     assert ">Forte<" in html and ">Falta<" in html and ">Melhorar<" in html
-    assert "“segunda a sexta das 8h às 18h”" in html and "p. 2" in html
-    assert "P1 · Calibração da Promessa — sem observação nesta peça." in html
+    assert "p. 2: “segunda a sexta das 8h às 18h”" in html
+    assert "P1 · Calibração da Promessa: sem observação nesta peça." in html
+    assert "—" not in html and "–" not in html  # nenhum travessão na tela
     assert "Reler com esta descrição" in html and "Concluir" in html
 
 
@@ -206,3 +207,24 @@ def test_concluir_apaga_o_texto(client_loyall, db_session, empresa, teto):
     assert "Texto da peça apagado em" in html and "Reler com esta descrição" not in html
     db_session.expire_all()
     assert db_session.get(AvaliadorAnalise, aid).texto_json is None
+
+
+def test_pagina_exibida_e_a_conferida_e_a_lista_se_atualiza(
+    client_loyall, db_session, empresa, teto
+):
+    aid = _pronta(client_loyall, db_session, empresa)
+    a = db_session.get(AvaliadorAnalise, aid)
+    itens = json.loads(a.itens_json)
+    # o modelo citou a p. 3; o trecho está na p. 2 — a tela mostra a p. 2, e só ela
+    itens[0]["evidencias"] = [
+        {"pagina": 3, "trecho": "segunda a sexta", "conferido": True, "pagina_encontrada": 2}
+    ]
+    a.itens_json = json.dumps(itens)
+    db_session.commit()
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "p. 2: “segunda a sexta”" in html
+    assert "p. 3: “segunda a sexta”" not in html and "citou" not in html
+    # a lista de baixo vem junto, fora da área trocada, com o estado e o custo atuais
+    assert 'id="avaliador-lista" hx-swap-oob="true"' in html
+    lista = html.split('id="avaliador-lista"', 1)[1]
+    assert "Pronta" in lista and "Na fila" not in lista and "US$ 0,0000" not in lista

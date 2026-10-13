@@ -214,7 +214,7 @@ def extrair(dados: bytes) -> Documento:
         )
     if len(doc.paginas_sem_texto) == doc.n_paginas:
         raise DocumentoRecusado(
-            "Nenhuma página tem texto legível — o documento parece ser só imagem. "
+            "Nenhuma página tem texto legível: o documento parece ser só imagem. "
             "A leitura de imagem ainda não existe."
         )
     return doc

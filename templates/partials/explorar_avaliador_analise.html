@@ -33,7 +33,7 @@
 
   {% if paginas_sem_texto %}
   <div class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
-    {{ paginas_sem_texto | length }} de {{ a.n_paginas }} páginas sem texto: {{ paginas_sem_texto | join(', ') }} — o conteúdo delas não foi lido (critério: menos de {{ min_caracteres_pagina }} caracteres de texto na página; slide desenhado como imagem cai aqui).
+    {{ paginas_sem_texto | length }} de {{ a.n_paginas }} páginas sem texto: {{ paginas_sem_texto | join(', ') }}. O conteúdo delas não foi lido (critério: menos de {{ min_caracteres_pagina }} caracteres de texto na página; slide desenhado como imagem cai aqui).
   </div>
   {% endif %}
 
@@ -44,16 +44,16 @@
   {% if a.status == 'pronta' %}
   {% for bloco in pilares %}
   <div>
-    <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ bloco.pilar.titulo }}</h4>
-    <p class="text-xs text-loyall-400 mb-1">{{ bloco.pilar.descricao }}</p>
+    <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ bloco.pilar.titulo | replace(" — ", ": ") }}</h4>
+    <p class="text-xs text-loyall-400 mb-1">{{ bloco.pilar.descricao | replace(" — ", ", ") }}</p>
     <div class="space-y-2">
     {% for sp in bloco.subpilares %}
       {% if sp.vazio %}
-      <div class="text-xs text-loyall-400 border border-dashed border-loyall-200 rounded px-3 py-1.5">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }} — sem observação nesta peça.</div>
+      <div class="text-xs text-loyall-400 border border-dashed border-loyall-200 rounded px-3 py-1.5">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}: sem observação nesta peça.</div>
       {% else %}
       <div class="border border-loyall-200 rounded p-3 text-sm">
         <div class="font-medium text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</div>
-        <div class="text-xs text-loyall-400 mb-1">{{ sp.subpilar.pergunta }}</div>
+        <div class="text-xs text-loyall-400 mb-1">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
         {% for tipo, itens in sp.por_tipo.items() %}{% for it in itens %}
         <div class="mt-2">
           <span class="text-xs px-1.5 py-0.5 rounded {% if tipo == 'forte' %}bg-emerald-100 text-emerald-800{% elif tipo == 'falta' %}bg-rose-100 text-rose-800{% else %}bg-amber-100 text-amber-800{% endif %}">{{ rotulo_tipo[tipo] }}</span>
@@ -61,9 +61,9 @@
           {% if it.alerta %}<div class="text-xs text-rose-700">⚠ {{ it.alerta }}</div>{% endif %}
           {% for e in it.evidencias %}
             {% if e.conferido %}
-            <div class="text-xs text-loyall-600 ml-2">{% if a.formato != 'texto' %}p. {{ e.pagina_encontrada }} — {% endif %}“{{ e.trecho }}”{% if a.formato != 'texto' and e.pagina and e.pagina != e.pagina_encontrada %} <span class="text-loyall-400">(o modelo citou a p. {{ e.pagina }})</span>{% endif %}</div>
+            <div class="text-xs text-loyall-600 ml-2">{% if a.formato != 'texto' %}p. {{ e.pagina_encontrada }}: {% endif %}“{{ e.trecho }}”</div>
             {% else %}
-            <div class="text-xs text-rose-700 ml-2">citação não encontrada na peça{% if a.formato != 'texto' and e.pagina %} (indicada na p. {{ e.pagina }}){% endif %}</div>
+            <div class="text-xs text-rose-700 ml-2">citação não encontrada na peça</div>
             {% endif %}
           {% endfor %}
         </div>
@@ -90,6 +90,7 @@
             class="px-3 py-1 rounded bg-loyall-700 text-white text-xs">Concluir</button>
   </div>
   {% elif not texto_disponivel %}
-  <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em.strftime('%d/%m/%Y %H:%M') if a.texto_apagado_em else '—' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados.</div>
+  <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em.strftime('%d/%m/%Y %H:%M') if a.texto_apagado_em else 'data não registrada' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados.</div>
   {% endif %}
 </div>
+{% if lista_oob %}{{ lista_oob | safe }}{% endif %}

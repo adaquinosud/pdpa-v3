@@ -1,0 +1,26 @@
+{# Lista de leituras da empresa. Com oob=True vai junto da análise (polling/ações) e se
+   troca sozinha: a linha não fica parada em "Na fila", custo zero, depois de pronta. #}
+<div id="avaliador-lista"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if analises %}
+  <div>
+    <h4 class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Leituras desta empresa</h4>
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-loyall-500 border-b border-loyall-200">
+        <th class="py-1 pr-2">Data</th><th class="pr-2">Peça</th><th class="pr-2">Situação</th><th class="text-right">Custo</th>
+      </tr></thead>
+      <tbody>
+      {% for x in analises %}
+        <tr class="border-b border-loyall-100 hover:bg-loyall-50 cursor-pointer"
+            hx-get="{{ url_for('ui.avaliador_analise', empresa_id=empresa_id, aid=x.id) }}"
+            hx-target="#avaliador-analise-slot" hx-swap="innerHTML">
+          <td class="py-1 pr-2 text-loyall-500">{{ x.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td class="pr-2 text-loyall-700">{{ x.arquivo_nome or 'texto colado' }} <div class="text-xs text-loyall-400">{{ x.descricao[:80] }}</div></td>
+          <td class="pr-2 text-loyall-600">{{ rotulo_status.get(x.status, x.status) }}{% if x.texto_json is none %} · texto apagado{% endif %}</td>
+          <td class="text-right text-loyall-600">US$ {{ x.custo_usd | virg(4) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>

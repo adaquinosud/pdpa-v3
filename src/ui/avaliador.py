@@ -61,12 +61,26 @@ def _painel(s, empresa_id: int, erro=None, analise_html=None, form=None):
     )
 
 
-def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None) -> str:
+def _render_lista(s, empresa_id: int, oob: bool) -> str:
+    return render_template(
+        "partials/explorar_avaliador_lista.html",
+        empresa_id=empresa_id,
+        analises=_lista(s, empresa_id),
+        rotulo_status=ROTULO_STATUS,
+        oob=oob,
+    )
+
+
+def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> str:
+    """Com ``s``: a lista de baixo vai junto, fora da área trocada (hx-swap-oob), e se
+    atualiza a cada polling/ação. Sem ``s``: a análise vai dentro do painel, que já
+    renderiza a lista."""
     return render_template(
         "partials/explorar_avaliador_analise.html",
         empresa_id=empresa_id,
         a=a,
         erro=erro,
+        lista_oob=_render_lista(s, empresa_id, oob=True) if s is not None else None,
         pilares=servico.organizar(carregar_regua(), a),
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
         min_caracteres_pagina=MIN_CARACTERES_PAGINA,
@@ -131,7 +145,8 @@ def avaliador_analise(empresa_id: int, aid: int):
         if a is None:
             return render_template("404.html"), 404
         servico.marcar_uso(a)
-        return _render_analise(empresa_id, a)
+        s.flush()
+        return _render_analise(empresa_id, a, s=s)
 
 
 def _acao(empresa_id: int, aid: int, fn):
@@ -144,11 +159,11 @@ def _acao(empresa_id: int, aid: int, fn):
         try:
             fn(s, a)
         except AvaliacaoRecusada as e:
-            return _render_analise(empresa_id, a, erro=str(e))
+            return _render_analise(empresa_id, a, erro=str(e), s=s)
         s.commit()
         if a.status == STATUS_PENDENTE:
             servico.disparar(a.id, app=current_app._get_current_object())
-        return _render_analise(empresa_id, a)
+        return _render_analise(empresa_id, a, s=s)
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/refazer", methods=["POST"])

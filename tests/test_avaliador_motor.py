@@ -134,3 +134,44 @@ def test_estimativa_cresce_com_o_tamanho_da_peca():
         < estimar_custo_usd("s", "u" * 1000, MODELO)
         < estimar_custo_usd("s", "u" * 100000, MODELO)
     )
+
+
+def test_travessao_sai_do_texto_do_modelo_mas_nao_da_citacao():
+    from src.avaliador.motor import validar_saida
+
+    doc = Documento("texto", [Pagina(1, "Prazo — 30 dias corridos para a entrega final.")])
+    obj = {
+        "resumo": "Bom documento — mas falta prazo.",
+        "itens": [
+            {
+                "subpilar": "P1",
+                "tipo": "forte",
+                "texto": "Prazo declarado – claro.",
+                "evidencias": [{"pagina": 1, "trecho": "Prazo — 30 dias corridos"}],
+            }
+        ],
+    }
+    res = validar_saida(doc, obj)
+    assert res["resumo"] == "Bom documento, mas falta prazo."
+    assert res["itens"][0]["texto"] == "Prazo declarado, claro."
+    assert res["itens"][0]["evidencias"][0]["trecho"] == "Prazo — 30 dias corridos"  # literal
+    assert res["itens"][0]["evidencias"][0]["conferido"] is True
+
+
+def test_pedido_tem_as_regras_novas_e_nenhum_travessao_proprio():
+    import re
+
+    r = carregar_regua()
+    s = montar_sistema(r, ORIGEM_ARQUIVO)
+    assert "Contradição interna da peça" in s and "é sempre P1" in s
+    assert "estabilidade entre lojas, períodos E situações" in s
+    # travessão só pode vir das linhas literais do Manual (e da regra que o proíbe)
+    manual = {p.titulo for p in r.pilares} | {p.descricao for p in r.pilares}
+    manual |= {f"- {sp.texto}" for p in r.pilares for sp in p.subpilares}
+    traco = re.compile("[\u2014\u2013]")
+    proprios = [
+        ln
+        for ln in s.splitlines()
+        if traco.search(ln) and ln not in manual and "Não use travessão" not in ln
+    ]
+    assert proprios == []
