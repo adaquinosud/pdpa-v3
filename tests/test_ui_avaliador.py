@@ -332,7 +332,9 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
     corpo = (
         _p(f"Proposta comercial para a Empresa X, com os planos e valores abaixo. {SENTINELA}")
         + "<w:tbl><w:tr><w:tc>" + _p("Essencial") + "</w:tc><w:tc>"
-        + _p("Até 10 unidades, R$ 8.000 por diagnóstico") + "</w:tc></w:tr></w:tbl>"
+        + _p("Até 10 unidades, R$ 8.000 por diagnóstico") + "</w:tc></w:tr>"
+        + "<w:tr><w:tc>" + _p("Completo") + "</w:tc><w:tc>" + _p("Até 30 unidades")
+        + "</w:tc></w:tr></w:tbl>"
     )  # fmt: skip
     resposta = {
         "resumo": "r",
@@ -342,7 +344,12 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
                 "tipo": "forte",
                 "texto": "Preço por faixa declarado.",
                 "evidencias": [
-                    {"pagina": 1, "trecho": "Essencial | Até 10 unidades, R$ 8.000 por diagnóstico"}
+                    {
+                        "pagina": 1,
+                        "trecho": "Essencial | Até 10 unidades, R$ 8.000 por diagnóstico",
+                    },
+                    # trecho que junta duas linhas (leitura 12): uma parte por linha
+                    {"pagina": 1, "trecho": "R$ 8.000 por diagnóstico\nCompleto | Até 30"},
                 ],
             }
         ],
@@ -357,3 +364,4 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
         "“Até 10 unidades, R$ 8.000 por diagnóstico”"
     ) in html
     assert "Essencial | Até" not in html
+    assert "“R$ 8.000 por diagnóstico” · “Completo” · “Até 30”" in html

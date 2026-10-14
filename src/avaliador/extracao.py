@@ -56,7 +56,8 @@ FORMATOS_POR_SECAO = frozenset({"web", "docx"})
 ABERTURA = {"web": "abertura da página", "docx": "abertura do documento"}
 # Linha de tabela (PowerPoint, Word) vira uma linha de texto com as células separadas por
 # isto. O separador é NOSSO, não existe no documento: a tela mostra a citação de linha de
-# tabela célula por célula, para o Ctrl+F achar cada pedaço.
+# tabela célula por célula (e linha por linha, quando o trecho junta duas linhas), para o
+# Ctrl+F achar cada pedaço.
 SEPARADOR_CELULA = " | "
 FORMATOS_COM_TABELA = frozenset({"pptx", "docx"})
 # Quantas palavras do parágrafo nomeiam o lugar da citação quando a seção não tem título.
