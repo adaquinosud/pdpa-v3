@@ -60,6 +60,37 @@ def test_extrai_por_secao_sem_menu_rodape_script_nem_formulario():
     assert doc.paginas_sem_texto == []  # seção curta não é "página sem texto"
 
 
+def test_titulo_que_embrulha_bloco_e_conteiner_e_quebra_de_linha_vira_espaco():
+    # as duas formas vêm do HTML real de loyallcompany.com (Elementor), 14/10
+    html = f"""<html><body><main>
+<h2 class="elementor-heading-title"><h2 class="sistema-h2">Uma metodologia<br/>sem sistema é<br/>
+<em>um livro.</em></h2></h2>
+<p>{PARAGRAFO}</p>
+<h2 class="elementor-heading-title"><div class="container-pdpa">
+<h2><i>A próxima conversa começa com a pergunta certa.</i></h2>
+<p>{PARAGRAFO2}</p><ol><li>Diagnóstico externo.</li><li>Confronto de visões.</li></ol>
+</div></h2>
+<h3><div>Título com div solta</div></h3><p>{PARAGRAFO}</p>
+</main></body></html>"""
+    doc = extrair_html(html.encode(), "https://exemplo.com.br/")
+    titulos = [p.titulo for p in doc.paginas]
+    assert titulos == [
+        "Uma metodologia sem sistema é um livro.",
+        "A próxima conversa começa com a pergunta certa.",
+        "Título com div solta",
+    ]
+    # o bloco embrulhado vira texto da seção, um parágrafo por bloco, não título
+    assert doc.paginas[1].texto.split("\n")[1:] == [
+        PARAGRAFO2,
+        "Diagnóstico externo.",
+        "Confronto de visões.",
+    ]
+    ok, n = conferir_trecho(doc, None, "Confronto de visões.")
+    assert (
+        ok and referencia(doc, n, "x") == "seção “A próxima conversa começa com a pergunta certa.”"
+    )
+
+
 def test_pagina_montada_por_script_nao_vira_leitura_vazia():
     html = b"<html><body><div id='app'></div><noscript>Ative o JavaScript</noscript>"
     html += b"<script>render()</script></body></html>"

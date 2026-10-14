@@ -58,6 +58,10 @@ _BLOCOS = {
     "h1", "h2", "h3", "h4", "h5", "h6",
 }  # fmt: skip
 _TITULOS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+# título que tem um destes dentro é contêiner, não título (div solta dentro dele não conta)
+_DENTRO_DE_TITULO_NAO = [
+    "h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "dl", "table", "blockquote", "pre",
+]  # fmt: skip
 _FORA = {
     "script", "style", "noscript", "template", "svg", "canvas", "iframe", "object",
     "embed", "nav", "footer", "form", "button", "select", "input", "textarea", "dialog",
@@ -239,6 +243,17 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
         if texto:
             secoes[-1][1].append(texto)
 
+    def texto_titulo(tag) -> str:
+        # quebra de linha e bloco dentro do título viram espaço ("Uma metodologia<br>sem
+        # sistema" não pode virar "metodologiasem"); inline continua colado ("<em>")
+        partes: List[str] = []
+        for d in tag.descendants:
+            if isinstance(d, NavigableString) and not isinstance(d, Comment):
+                partes.append(str(d))
+            elif isinstance(d, Tag) and d.name in _BLOCOS:
+                partes.append(" ")
+        return _espacos("".join(partes))
+
     def andar(no):
         for filho in no.children:
             if isinstance(filho, Comment):
@@ -248,9 +263,16 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
                 continue
             if not isinstance(filho, Tag):
                 continue
+            if filho.name in _TITULOS and filho.find(_DENTRO_DE_TITULO_NAO) is not None:
+                # construtor de site (Elementor) embrulha bloco inteiro num título: é
+                # contêiner, não título; o título de verdade, se houver, está dentro
+                fechar_linha()
+                andar(filho)
+                fechar_linha()
+                continue
             if filho.name in _TITULOS:
                 fechar_linha()
-                t = _espacos(filho.get_text())
+                t = texto_titulo(filho)
                 if t:
                     secoes.append((t, [t]))
                 continue
