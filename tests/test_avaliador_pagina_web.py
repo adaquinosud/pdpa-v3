@@ -124,7 +124,10 @@ def _resolve_para(monkeypatch, *ips):
 
 @pytest.mark.parametrize(
     "ip",
-    ["127.0.0.1", "10.0.0.5", "192.168.1.10", "172.16.0.1", "169.254.169.254", "::1", "0.0.0.0"],
+    [
+        "127.0.0.1", "10.0.0.5", "192.168.1.10", "172.16.0.1", "169.254.169.254", "::1",
+        "0.0.0.0", "100.64.0.1", "::ffff:10.0.0.1", "64:ff9b::a00:1", "64:ff9b::a9fe:a9fe",
+    ],  # fmt: skip
 )
 def test_endereco_que_resolve_para_rede_interna_e_recusado(monkeypatch, ip):
     _resolve_para(monkeypatch, ip)

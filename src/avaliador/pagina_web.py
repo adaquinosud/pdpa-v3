@@ -104,11 +104,26 @@ def _validar_destino(url: str) -> None:
         raise PaginaRecusada(f"Não encontrei o endereço {p.hostname}. Confira se está certo.")
     ips = {info[4][0] for info in infos}
     for ip in ips:
-        end = ipaddress.ip_address(ip.split("%")[0])
-        if not end.is_global or end.is_multicast:
+        if not _ip_publico(ipaddress.ip_address(ip.split("%")[0])):
             raise PaginaRecusada(
                 "Esse endereço aponta para uma rede interna, não para uma página pública."
             )
+
+
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _ip_publico(end) -> bool:
+    """Público de verdade, inclusive o IPv4 escondido dentro de um IPv6 (mapeado, 6to4,
+    Teredo, NAT64): ``is_global`` sozinho aceita 64:ff9b::a00:1, que é o 10.0.0.1."""
+    if not end.is_global or end.is_multicast:
+        return False
+    if end.version == 6:
+        dentro = [end.ipv4_mapped, end.sixtofour, end.teredo[1] if end.teredo else None]
+        if end in _NAT64:
+            dentro.append(ipaddress.IPv4Address(int(end) & 0xFFFFFFFF))
+        return all(_ip_publico(v4) for v4 in dentro if v4 is not None)
+    return True
 
 
 def buscar(url: str, sessao=None) -> Tuple[str, bytes]:
