@@ -1,6 +1,7 @@
 """Flask app principal — PDPA v3."""
 
 import os
+import shutil
 
 import click
 from flask import Flask
@@ -161,7 +162,14 @@ def create_app() -> Flask:
         # deploy está no ar via ``curl /healthz`` (sem painel/API do Render). Fora
         # do Render (dev/local), cai pra "dev".
         commit = os.environ.get("RENDER_GIT_COMMIT") or "dev"
-        return {"status": "ok", "version": "3.0.0-dev", "commit": commit[:7]}
+        # ``pdftotext``: o extrator de PDF do Avaliador está na imagem? Sem ele o PDF é
+        # lido só pelo pypdf (e o log avisa); aqui se confirma depois do deploy.
+        return {
+            "status": "ok",
+            "version": "3.0.0-dev",
+            "commit": commit[:7],
+            "pdftotext": shutil.which("pdftotext") is not None,
+        }
 
     return app
 

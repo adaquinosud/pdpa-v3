@@ -1008,7 +1008,11 @@ fazer. **Páginas sem texto** (slide desenhado como imagem) e **páginas com tex
 (o programa que gerou o PDF codificou o texto de um jeito que sai como caracteres de controle no
 lugar das letras) são listadas com o critério; o conteúdo delas não foi lido. Se o arquivo
 inteiro sai ilegível, ele é recusado antes de qualquer custo, com a mensagem do que fazer (gerar o
-PDF por outro programa ou colar o texto). Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
+PDF por outro programa ou colar o texto). **PDF com palavras grudadas** ("quetrava", "maisvolume", comum no PDF
+exportado pelo Mac): o PDF é lido por dois extratores e fica o que sai melhor; se os dois saem
+grudados, a leitura é recusada antes de qualquer custo, com o número na tela ("5 de 1.500
+palavras") e o que fazer (enviar o arquivo original, gerar o PDF por outro programa ou colar o
+texto). Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
 
 **No máximo três itens por subpilar**, os que mais mudam a peça. O que passar disso não aparece:
 fica guardado, e o subpilar mostra uma linha curta com a contagem (**"Mais N itens descartados pelo

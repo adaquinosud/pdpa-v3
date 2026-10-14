@@ -46,3 +46,13 @@ def test_healthz_commit_expoe_sha_do_render(client, monkeypatch):
     monkeypatch.setenv("RENDER_GIT_COMMIT", "8bce4cbdeadbeef0123456789abcdef")
     resp = client.get("/healthz")
     assert resp.get_json()["commit"] == "8bce4cb"
+
+
+def test_healthz_diz_se_o_pdftotext_existe(client, monkeypatch):
+    """O extrator de PDF do Avaliador é programa à parte: /healthz confirma no deploy."""
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda nome: None)
+    assert client.get("/healthz").get_json()["pdftotext"] is False
+    monkeypatch.setattr(shutil, "which", lambda nome: f"/usr/bin/{nome}")
+    assert client.get("/healthz").get_json()["pdftotext"] is True

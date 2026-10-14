@@ -39,6 +39,8 @@ FROM python:3.11-slim-bookworm
 # Libs NATIVAS de runtime:
 # - WeasyPrint 68 (NÃO usa cairo desde a v53): Pango + HarfBuzz + fontconfig + 1 fonte.
 # - libgomp1: OpenMP, usado por scikit-learn / lightgbm (merlion) em runtime.
+# - poppler-utils: o pdftotext, extrator principal de PDF do Avaliador (programa à parte,
+#   chamado por subprocess; GPL aprovado pelo Alexandre em 14/10). /healthz diz se existe.
 # psycopg[binary] já embute a libpq → NÃO precisa de libpq5.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libpango-1.0-0 \
@@ -47,6 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libfontconfig1 \
         fonts-dejavu-core \
         libgomp1 \
+        poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/opt/venv/bin:$PATH" \

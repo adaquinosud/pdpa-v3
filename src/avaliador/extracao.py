@@ -8,19 +8,27 @@
   nota do apresentador. A nota fica SEPARADA do corpo do slide: o comprador vê o slide,
   normalmente não vê a nota — o motor recebe as duas marcadas, e "página sem texto" é
   julgada pelo corpo.
+- PDF (14/10): dois extratores, o pdftotext (poppler, programa à parte, pela entrada
+  padrão, sem disco) e o pypdf; fica o que sai com menos página ilegível e menos palavra
+  colada. Os dois colados = recusa com o número na tela, antes de cobrar.
 - Limites (decisão do Alexandre, 12/10): 60 MB, 120 páginas, 150 mil caracteres. O de
   caracteres é o que contém custo; o de bytes só barra arquivo absurdo.
 """
 
 from __future__ import annotations
 
+import collections
 import io
 import json
+import logging
 import re
+import subprocess
 import unicodedata
 import zipfile
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 LIMITE_BYTES = 60 * 1024 * 1024
 LIMITE_PAGINAS = 120
@@ -70,6 +78,11 @@ class Pagina:
 class Documento:
     formato: str
     paginas: List[Pagina] = field(default_factory=list)
+    # Só do PDF, só na extração (não vai para o banco): qual extrator ficou e quantas
+    # palavras saíram coladas nele.
+    extrator: str = ""
+    palavras: int = 0
+    coladas: List[str] = field(default_factory=list)
 
     @property
     def n_paginas(self) -> int:
@@ -232,7 +245,130 @@ def _extrair_pptx(dados: bytes) -> Documento:
     return Documento("pptx", paginas)
 
 
+# ── PDF: dois extratores e a medição de palavra colada ────────────────────
+
+TEMPO_PDFTOTEXT_S = 60
+# Recusa por palavra colada: pelo menos isto de palavras E desta fração, no MELHOR dos dois
+# extratores. ⚠️ NÃO CALIBRADO (14/10): em 140 PDFs locais o maior valor limpo foi 0,21% e
+# nenhum PDF teve os dois extratores colados; a proposta BEXP v9 (PowerPoint → PDF do
+# macOS) tem 0,33% no pypdf e 0% no pdftotext. O corte fica 5× acima do maior limpo até os
+# PDFs dos caminhos da Apple (Keynote, Pages, Word e PowerPoint para Mac, Safari, Canva).
+MIN_COLADAS_RECUSA = 5
+FRACAO_COLADAS_RECUSA = 0.01
+# Colada = palavra de 7+ letras, rara no documento, que se parte em PALAVRA DE LIGAÇÃO +
+# palavra que aparece solta ("que·trava", "mais·volume", "muito·parecida"), ou palavra +
+# ligação longa que não é final de palavra ("custo·para"). Ligação curta no fim ("·do",
+# "·da", "·quem") é final de palavra real ("estrutura·do") e não conta.
+_LIGACAO_INICIO = frozenset(
+    """de da do das dos em no na nos nas um uma uns umas que se por para pra com sem sob
+    sobre entre até ao aos à às o os a as e ou mas mais menos muito muita muitos muitas
+    pouco onde quando como qual quais quem cada todo toda todos todas seu sua seus suas
+    nosso nossa nossos nossas este esta estes estas esse essa esses essas isso isto já não
+    sim também só ainda bem mal ser é são foi está estão há tem têm vai pelo pela pelos
+    pelas num numa""".split()
+)
+_LIGACAO_FIM = frozenset(
+    "para com sobre entre onde quando como mais muito não pelo pela pelos pelas cada".split()
+)
+_PALAVRAS_REAIS = frozenset(
+    """porque porquanto portanto entretanto sobretudo contudo todavia embora enquanto
+    conquanto debaixo depois demais deveras outrossim apenas acerca através abaixo acima
+    adiante""".split()
+)
+
+
+def _palavras(texto: str) -> List[str]:
+    return re.findall(r"[^\W\d_]+", texto)
+
+
+def palavras_coladas(texto: str, vocab: "collections.Counter[str]") -> List[str]:
+    """As palavras coladas do texto, julgadas contra ``vocab`` (contagem das palavras, em
+    minúsculas, de TODOS os extratores do mesmo arquivo)."""
+    out = []
+    for w in _palavras(texto):
+        p = w.lower()
+        if len(p) < 7 or vocab[p] > 2 or p in _PALAVRAS_REAIS:
+            continue
+        for i in range(2, len(p) - 1):
+            a, b = p[:i], p[i:]
+            if (a in _LIGACAO_INICIO and len(b) >= 3 and vocab[b] >= 2) or (
+                b in _LIGACAO_FIM and len(a) >= 3 and vocab[a] >= 2
+            ):
+                out.append(w)
+                break
+    return out
+
+
+def _pct(fracao: float) -> str:
+    return f"{100 * fracao:.1f}%".replace(".", ",")
+
+
+def _paginas_pdftotext(dados: bytes) -> Optional[List[str]]:
+    """Texto por página pelo pdftotext (poppler; GPL, chamado como programa à parte,
+    decisão do Alexandre de 14/10). None se o programa não existe ou falha: o pypdf segue
+    sozinho, e o log diz por quê."""
+    try:
+        r = subprocess.run(
+            ["pdftotext", "-enc", "UTF-8", "-", "-"],
+            input=dados,
+            capture_output=True,
+            timeout=TEMPO_PDFTOTEXT_S,
+        )
+    except FileNotFoundError:
+        logger.warning("[avaliador] pdftotext não instalado; PDF lido só pelo pypdf")
+        return None
+    except subprocess.TimeoutExpired:
+        logger.warning("[avaliador] pdftotext passou do tempo; PDF lido só pelo pypdf")
+        return None
+    if r.returncode != 0:
+        logger.warning(f"[avaliador] pdftotext falhou (código {r.returncode}); só pypdf")
+        return None
+    paginas = r.stdout.decode("utf-8", "replace").split("\f")
+    if paginas and not paginas[-1].strip():
+        paginas.pop()  # o pdftotext fecha toda página com \f
+    return paginas
+
+
 def _extrair_pdf(dados: bytes) -> Documento:
+    textos_pypdf = _paginas_pypdf(dados)
+    candidatos = [("pypdf", textos_pypdf)]
+    textos_poppler = _paginas_pdftotext(dados)
+    if textos_poppler is not None:
+        if len(textos_poppler) == len(textos_pypdf):
+            candidatos.insert(0, ("pdftotext", textos_poppler))  # empate: fica o pdftotext
+        else:
+            logger.warning(
+                f"[avaliador] pdftotext leu {len(textos_poppler)} páginas e o pypdf "
+                f"{len(textos_pypdf)}; fica o pypdf"
+            )
+    vocab = collections.Counter(
+        w.lower() for _, textos in candidatos for t in textos for w in _palavras(t)
+    )
+
+    def nota(c):
+        textos = c[1]
+        ilegiveis = sum(1 for t in textos if _ilegivel(t))
+        legivel = "\n".join(t for t in textos if not _ilegivel(t))
+        n = max(len(_palavras(legivel)), 1)
+        return (ilegiveis, len(palavras_coladas(legivel, vocab)) / n)
+
+    nome, textos = min(candidatos, key=nota)  # min é estável: no empate, o primeiro
+    legivel = "\n".join(t for t in textos if not _ilegivel(t))
+    doc = Documento(
+        "pdf",
+        [Pagina(i, _nfc(t)) for i, t in enumerate(textos, start=1)],
+        extrator=nome,
+        palavras=len(_palavras(legivel)),
+        coladas=palavras_coladas(legivel, vocab),
+    )
+    logger.info(
+        f"[avaliador] PDF: extrator {nome}, {len(doc.coladas)} de {doc.palavras} palavras "
+        "coladas"
+    )
+    return doc
+
+
+def _paginas_pypdf(dados: bytes) -> List[str]:
     from pypdf import PdfReader
 
     try:
@@ -244,14 +380,13 @@ def _extrair_pdf(dados: bytes) -> Documento:
         raise
     except Exception:  # noqa: BLE001
         raise DocumentoRecusado(f"Não consegui abrir o PDF. Envie {FORMATOS_ACEITOS}.")
-    paginas: List[Pagina] = []
-    for i, pg in enumerate(paginas_pdf, start=1):
+    textos: List[str] = []
+    for pg in paginas_pdf:
         try:
-            texto = pg.extract_text() or ""
+            textos.append(pg.extract_text() or "")
         except Exception:  # noqa: BLE001 — página ilegível conta como sem texto, não derruba
-            texto = ""
-        paginas.append(Pagina(i, _nfc(texto)))
-    return Documento("pdf", paginas)
+            textos.append("")
+    return textos
 
 
 _BRANCOS_DE_CONTROLE = frozenset("\t\n\r\x0b\x0c")
@@ -319,6 +454,20 @@ def extrair(dados: bytes) -> Documento:
         raise DocumentoRecusado(
             "O documento não tem texto para ler: está vazio, ou o conteúdo é só imagem. "
             "A leitura de imagem ainda não existe."
+        )
+    if (
+        doc.formato == "pdf"
+        and len(doc.coladas) >= MIN_COLADAS_RECUSA
+        and len(doc.coladas) >= FRACAO_COLADAS_RECUSA * doc.palavras
+    ):
+        exemplos = ", ".join(f"“{w}”" for w in doc.coladas[:3])
+        raise DocumentoRecusado(
+            f"O texto deste PDF sai com palavras grudadas: {len(doc.coladas)} de "
+            f"{doc.palavras} palavras ({_pct(len(doc.coladas) / doc.palavras)}; o limite é "
+            f"{_pct(FRACAO_COLADAS_RECUSA)}), por exemplo {exemplos}. A leitura seria feita "
+            "sobre um texto pior que a peça. Isso vem do programa que gerou o PDF: envie o "
+            "arquivo original (PowerPoint ou Word), gere o PDF por outro programa ou cole o "
+            "texto da peça."
         )
     if len(doc.paginas_sem_texto) == doc.n_paginas:
         raise DocumentoRecusado(
