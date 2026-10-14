@@ -16,6 +16,7 @@ from flask import current_app, render_template, request
 from src.auth import get_current_user
 from src.avaliador import servico
 from src.avaliador.extracao import (
+    FORMATOS_POR_SECAO,
     FRACAO_CONTROLES_ILEGIVEL,
     LIMITE_BYTES,
     LIMITE_CARACTERES,
@@ -84,6 +85,7 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
         lista_oob=_render_lista(s, empresa_id, oob=True) if s is not None else None,
         pilares=servico.organizar(carregar_regua(), a),
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
+        por_secao=a.formato in FORMATOS_POR_SECAO,
         min_caracteres_pagina=MIN_CARACTERES_PAGINA,
         pct_controles_ilegivel=round(FRACAO_CONTROLES_ILEGIVEL * 100),
         rotulo_status=ROTULO_STATUS,

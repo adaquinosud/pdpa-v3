@@ -120,8 +120,7 @@ def test_formato_pelo_conteudo_e_nao_pela_extensao():
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("word/document.xml", "<w/>")
-    with pytest.raises(DocumentoRecusado, match="Word"):
-        detectar_formato(buf.getvalue())
+    assert detectar_formato(buf.getvalue()) == "docx"  # pelo conteúdo, não por ".docx"
     with pytest.raises(DocumentoRecusado, match="não reconhecido"):
         detectar_formato(b"\xd0\xcf\x11\xe0 ppt antigo")
 

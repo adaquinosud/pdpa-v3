@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import io
 import json
-import zipfile
 
 import pytest
 
@@ -118,13 +117,29 @@ def test_sem_descricao_recusa_e_preserva_o_texto(client_loyall, db_session, empr
     assert db_session.query(AvaliadorAnalise).count() == 0
 
 
-def test_word_e_recusado_com_mensagem(client_loyall, db_session, empresa, teto):
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("word/document.xml", "<w/>")
-    html = _enviar(client_loyall, empresa, buf.getvalue()).get_data(as_text=True)
-    assert "Documento do Word ainda não é aceito" in html
+def test_doc_antigo_e_recusado_com_instrucao(client_loyall, db_session, empresa, teto):
+    doc = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64 + "WordDocument".encode("utf-16-le")
+    html = _enviar(client_loyall, empresa, doc, nome="contrato.doc").get_data(as_text=True)
+    assert "Documento do Word antigo (.doc). Abra no Word e salve como .docx" in html
     assert db_session.query(AvaliadorAnalise).count() == 0
+
+
+def test_render_de_word_cita_secao_e_conta_secoes(client_loyall, db_session, empresa, teto):
+    from tests.test_avaliador_word import _docx, _p
+
+    corpo = (
+        _p(f"Proposta comercial para a Empresa X. {SENTINELA}")
+        + _p("Atendimento", "Ttulo1")
+        + _p("Atendimento de segunda a sexta das 8h às 18h pelo gerente de conta.")
+        + _p("Quem somos", "Ttulo1")
+        + _p("Somos referência no setor há vinte anos, com clientes em todo o país.")
+    )
+    aid = _pronta(client_loyall, db_session, empresa, dados=_docx(corpo), nome="proposta.docx")
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "3 seções" in html and "páginas" not in html.split("modelo")[0][-200:]
+    assert "seção “Atendimento”: “segunda a sexta das 8h às 18h”" in html
+    assert "seção “Quem somos”: “Somos referência no setor há vinte anos”" in html
+    assert "p. 2" not in html
 
 
 def test_envio_mostra_processando_com_polling(client_loyall, empresa, teto):

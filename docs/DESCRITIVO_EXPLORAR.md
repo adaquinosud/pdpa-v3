@@ -976,8 +976,17 @@ com o texto do Manual, sem versão paralela.
 **Pistas:** a leitura usa como pista (não como resposta pronta) as frases de buracos comuns escritas
 pelos autores do método: a biblioteca de documento para arquivo, a de conversa para texto colado.
 
-**O que entra:** PowerPoint (.pptx), PDF, texto colado, ou o **endereço de uma página pública do
-site**.
+**O que entra:** PowerPoint (.pptx), Word (.docx), PDF, texto colado, ou o **endereço de uma
+página pública do site**.
+
+**Word (.docx):** entra o texto do corpo e as tabelas (uma linha da tabela por linha, células
+separadas por "|"). Cabeçalho, rodapé, comentários de margem, notas de rodapé e texto oculto ficam
+de fora, e o sumário automático também. **Alteração marcada vale como está:** o que foi riscado não
+entra na leitura; o que foi inserido entra. Sem número de página, a citação vem com o **título da
+seção** (parágrafo com estilo de título) ou, antes do primeiro título ou num documento sem
+títulos, com **as primeiras palavras do parágrafo**. Numeração automática de cláusula e de lista
+não aparece no texto lido. .doc antigo, .rtf e arquivo do LibreOffice são recusados com a
+instrução de salvar como .docx ou exportar como PDF; Word com senha também.
 
 **Página do site:** **uma página por vez**, não o site inteiro. A ferramenta busca a página, tira
 menu, rodapé, scripts e formulários, e lê o texto que sobra. A tela diz **qual endereço foi lido**
@@ -994,7 +1003,7 @@ treinar modelos, e por quanto tempo o texto fica guardado. Com um endereço pree
 frase passa a falar do **texto da página**.
 
 **Arquivos:** O formato do arquivo é reconhecido pelo
-conteúdo, não pela extensão. Word, .ppt antigo e PDF com senha são recusados com a mensagem do que
+conteúdo, não pela extensão. .ppt antigo e PDF com senha são recusados com a mensagem do que
 fazer. **Páginas sem texto** (slide desenhado como imagem) e **páginas com texto ilegível**
 (o programa que gerou o PDF codificou o texto de um jeito que sai como caracteres de controle no
 lugar das letras) são listadas com o critério; o conteúdo delas não foi lido. Se o arquivo

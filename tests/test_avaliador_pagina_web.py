@@ -8,8 +8,8 @@ import socket
 import pytest
 
 from src.avaliador import pagina_web
-from src.avaliador.extracao import Documento, Pagina, conferir_trecho
-from src.avaliador.pagina_web import PaginaRecusada, buscar, extrair_html, referencia
+from src.avaliador.extracao import Documento, Pagina, conferir_trecho, referencia
+from src.avaliador.pagina_web import PaginaRecusada, buscar, extrair_html
 
 PARAGRAFO = (
     "Atendemos empresas de todos os portes com equipes dedicadas em cada região, e o "

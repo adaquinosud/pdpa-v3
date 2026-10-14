@@ -22,9 +22,9 @@
              class="mt-1 w-full border border-loyall-300 rounded px-3 py-2 text-sm">
     </label>
     <div class="flex flex-wrap items-center gap-2">
-      <input type="file" name="arquivo" accept=".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      <input type="file" name="arquivo" accept=".pptx,.docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
              class="text-sm text-loyall-700">
-      <span class="text-xs text-loyall-400">PowerPoint (.pptx) ou PDF, até {{ limite_mb }} MB, ou cole o texto abaixo.</span>
+      <span class="text-xs text-loyall-400">PowerPoint (.pptx), Word (.docx) ou PDF, até {{ limite_mb }} MB, ou cole o texto abaixo.</span>
     </div>
     <label class="block text-sm text-loyall-700">Ou o endereço de uma página pública do site
       <input type="url" name="url" value="{{ form.url or '' }}" maxlength="2000"

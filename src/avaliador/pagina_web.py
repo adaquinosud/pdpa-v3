@@ -24,7 +24,7 @@ import ipaddress
 import re
 import socket
 import time
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from urllib.parse import urljoin, urlsplit
 
 from src.avaliador.extracao import (
@@ -43,7 +43,6 @@ LIMITE_BYTES_HTML = 5 * 1024 * 1024
 # Página com menos que isto de texto (depois de tirar menu, rodapé e script) = "não
 # consegui ler": é página montada por script, tela de login ou bloqueio. Critério na tela.
 MIN_CARACTERES_PAGINA_WEB = 300
-PALAVRAS_REFERENCIA = 8
 AGENTE = "PDPA-Avaliador/1.0 (leitura de uma página a pedido de um usuário da Loyall)"
 
 SUGESTAO_PDF = (
@@ -305,22 +304,3 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
             f"caracteres; o limite é {LIMITE_CARACTERES:,}).".replace(",", ".")
         )
     return doc
-
-
-def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
-    """Onde o usuário acha o trecho numa página da web: o título da seção; sem título
-    (a abertura da página), as primeiras palavras do parágrafo onde o trecho está."""
-    from src.avaliador.extracao import _normalizar
-
-    pag = next((p for p in doc.paginas if p.numero == numero), None)
-    if pag is None:
-        return ""
-    if pag.titulo:
-        return f"seção “{pag.titulo}”"
-    alvo = _normalizar(trecho)
-    paragrafos = pag.texto.split("\n")
-    achado = next((x for x in paragrafos if alvo and alvo in _normalizar(x)), paragrafos[0])
-    palavras = achado.split()
-    inicio = " ".join(palavras[:PALAVRAS_REFERENCIA])
-    reticencias = "…" if len(palavras) > PALAVRAS_REFERENCIA else ""
-    return f"parágrafo que começa “{inicio}{reticencias}”"

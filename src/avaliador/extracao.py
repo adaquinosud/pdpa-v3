@@ -40,7 +40,14 @@ FRACAO_CONTROLES_ILEGIVEL = 0.02
 # Trecho citado mais curto que isto não prova nada (uma palavra casa em qualquer lugar).
 MIN_CARACTERES_TRECHO = 12
 
-FORMATOS_ACEITOS = "PowerPoint (.pptx) ou PDF"
+FORMATOS_ACEITOS = "PowerPoint (.pptx), Word (.docx) ou PDF"
+# Formatos SEM página: o texto é lido por seção (um título abre uma seção; o que vem antes
+# do primeiro título é a abertura) e a citação mostra o título da seção ou o começo do
+# parágrafo, nunca um número. Fonte única: motor, tela e prompt perguntam aqui.
+FORMATOS_POR_SECAO = frozenset({"web", "docx"})
+ABERTURA = {"web": "abertura da página", "docx": "abertura do documento"}
+# Quantas palavras do parágrafo nomeiam o lugar da citação quando a seção não tem título.
+PALAVRAS_REFERENCIA = 8
 
 
 class DocumentoRecusado(ValueError):
@@ -69,8 +76,16 @@ class Documento:
         return len(self.paginas)
 
     @property
+    def por_secao(self) -> bool:
+        return self.formato in FORMATOS_POR_SECAO
+
+    @property
+    def nome_abertura(self) -> str:
+        return ABERTURA.get(self.formato, "abertura")
+
+    @property
     def paginas_sem_texto(self) -> List[int]:
-        if self.formato == "web":  # seção curta é seção curta, não slide-imagem
+        if self.por_secao:  # seção curta é seção curta, não slide-imagem
             return []
         return [p.numero for p in self.paginas if p.sem_texto]
 
@@ -109,8 +124,8 @@ class Documento:
             corpo = p.texto.strip() or "[página sem texto legível]"
             if self.formato == "texto":
                 rotulo = "TEXTO COLADO"
-            elif self.formato == "web":
-                rotulo = f"SEÇÃO {p.numero}: {p.titulo or 'abertura da página'}"
+            elif self.por_secao:
+                rotulo = f"SEÇÃO {p.numero}: {p.titulo or self.nome_abertura}"
             else:
                 rotulo = f"PÁGINA {p.numero}"
             bloco = f"=== {rotulo} ===\n{corpo}"
@@ -127,21 +142,47 @@ def _nfc(s: str) -> str:
     return unicodedata.normalize("NFC", s or "")
 
 
+# Arquivo antigo do Office (.doc, .ppt) e arquivo do Office com SENHA usam o mesmo
+# contêiner (OLE2); o que diz qual é qual é o nome do fluxo interno, gravado em UTF-16.
+_OLE2 = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
+def _tem_fluxo(dados: bytes, nome: str) -> bool:
+    return nome.encode("utf-16-le") in dados
+
+
 def detectar_formato(dados: bytes) -> str:
     if dados.startswith(b"%PDF-"):
         return "pdf"
     if dados[:4] == b"PK\x03\x04":
         try:
-            nomes = set(zipfile.ZipFile(io.BytesIO(dados)).namelist())
+            z = zipfile.ZipFile(io.BytesIO(dados))
+            nomes = set(z.namelist())
         except zipfile.BadZipFile:
             raise DocumentoRecusado(f"Arquivo corrompido. Envie {FORMATOS_ACEITOS}.")
         if "ppt/presentation.xml" in nomes:
             return "pptx"
         if "word/document.xml" in nomes:
+            return "docx"
+        if "mimetype" in nomes and b"opendocument" in z.read("mimetype")[:100]:
             raise DocumentoRecusado(
-                f"Documento do Word ainda não é aceito. Envie {FORMATOS_ACEITOS} "
-                "(no Word: Arquivo › Salvar como › PDF)."
+                "Arquivo do LibreOffice (.odt ou .odp). Abra e salve como Word (.docx) "
+                f"ou PowerPoint (.pptx), ou exporte como PDF. Aceito: {FORMATOS_ACEITOS}."
             )
+    if dados.startswith(_OLE2):
+        if _tem_fluxo(dados, "EncryptedPackage"):
+            raise DocumentoRecusado(
+                "O arquivo tem senha. Abra, tire a senha e envie de novo, ou exporte como PDF."
+            )
+        if _tem_fluxo(dados, "WordDocument"):
+            raise DocumentoRecusado(
+                "Documento do Word antigo (.doc). Abra no Word e salve como .docx (Arquivo › "
+                "Salvar como › Documento do Word), ou exporte como PDF, e envie de novo."
+            )
+    if dados.lstrip()[:5] == b"{\\rtf":
+        raise DocumentoRecusado(
+            "Arquivo .rtf. Abra no Word e salve como .docx, ou exporte como PDF, e envie de novo."
+        )
     raise DocumentoRecusado(
         f"Formato não reconhecido. Envie {FORMATOS_ACEITOS}. "
         "Apresentação antiga (.ppt) precisa ser salva como .pptx antes."
@@ -247,10 +288,16 @@ def extrair(dados: bytes) -> Documento:
             "Reduza as imagens ou exporte como PDF."
         )
     formato = detectar_formato(dados)
-    doc = _extrair_pptx(dados) if formato == "pptx" else _extrair_pdf(dados)
+    if formato == "docx":
+        from src.avaliador.word import extrair_docx
+
+        doc = extrair_docx(dados)
+    else:
+        doc = _extrair_pptx(dados) if formato == "pptx" else _extrair_pdf(dados)
     if doc.n_paginas == 0:
         raise DocumentoRecusado("O documento não tem páginas.")
-    if doc.n_paginas > LIMITE_PAGINAS:
+    # seção não é página: documento por seção é limitado só pelos caracteres
+    if not doc.por_secao and doc.n_paginas > LIMITE_PAGINAS:
         raise DocumentoRecusado(
             f"O documento tem {doc.n_paginas} páginas; o limite é {LIMITE_PAGINAS}."
         )
@@ -265,7 +312,13 @@ def extrair(dados: bytes) -> Documento:
             f"O texto deste arquivo saiu ilegível: em {len(ilegiveis)} de {doc.n_paginas} "
             "páginas, a extração devolve caracteres de controle no lugar das letras. Isso "
             "vem do programa que gerou o arquivo, e uma leitura em cima disso seria "
-            "inventada. Gere o PDF por outro programa ou cole o texto da peça."
+            "inventada. Gere o arquivo por outro programa ou cole o texto da peça."
+        )
+    if doc.por_secao and all(_ilegivel(p.texto) or p.sem_texto for p in doc.paginas):
+        # por seção não há "página sem texto"; documento inteiro vazio é recusado aqui
+        raise DocumentoRecusado(
+            "O documento não tem texto para ler: está vazio, ou o conteúdo é só imagem. "
+            "A leitura de imagem ainda não existe."
         )
     if len(doc.paginas_sem_texto) == doc.n_paginas:
         raise DocumentoRecusado(
@@ -287,6 +340,24 @@ def documento_de_texto(texto: str) -> Documento:
             f"{LIMITE_CARACTERES:,}).".replace(",", ".")
         )
     return Documento("texto", [Pagina(1, t)])
+
+
+def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
+    """Onde o usuário acha o trecho num documento por seção (página da web, Word): o
+    título da seção; sem título (a abertura), as primeiras palavras do parágrafo onde o
+    trecho está."""
+    pag = next((p for p in doc.paginas if p.numero == numero), None)
+    if pag is None:
+        return ""
+    if pag.titulo:
+        return f"seção “{pag.titulo}”"
+    alvo = _normalizar(trecho)
+    paragrafos = pag.texto.split("\n")
+    achado = next((x for x in paragrafos if alvo and alvo in _normalizar(x)), paragrafos[0])
+    palavras = achado.split()
+    inicio = " ".join(palavras[:PALAVRAS_REFERENCIA])
+    reticencias = "…" if len(palavras) > PALAVRAS_REFERENCIA else ""
+    return f"parágrafo que começa “{inicio}{reticencias}”"
 
 
 # ── conferência de citação ────────────────────────────────────────────────

@@ -25,12 +25,12 @@ from string import Template
 from typing import Any, Dict, List, Tuple
 
 from src.api.painel import SUBPILARES_ORDEM
-from src.avaliador.extracao import Documento, conferir_trecho
+from src.avaliador.extracao import Documento, conferir_trecho, referencia
 from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSAO = "avaliador-v8"
+PROMPT_VERSAO = "avaliador-v10"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")
@@ -184,11 +184,9 @@ def _evidencias(doc: Documento, bruto: Any) -> List[dict]:
             "conferido": conferido,
             "pagina_encontrada": achada,
         }
-        if doc.formato == "web" and conferido:
-            # página da web não tem número de página: vai o título da seção ou o começo
-            # do parágrafo, calculado sobre onde o trecho FOI achado
-            from src.avaliador.pagina_web import referencia
-
+        if doc.por_secao and conferido:
+            # página da web e Word não têm número de página: vai o título da seção ou o
+            # começo do parágrafo, calculado sobre onde o trecho FOI achado
             ev["referencia"] = referencia(doc, achada, trecho)
         out.append(ev)
     return out
@@ -208,23 +206,24 @@ _NUMERO_SECAO = re.compile(r"\b([Ss]eç(?:ão|ões))\s+(\d+(?:\s*(?:,|e|a|até)\
 
 
 def sem_numero_de_secao(doc: Documento, texto: str) -> str:
-    """Página da web: o modelo vê as seções numeradas, mas a tela mostra o TÍTULO; "a
-    seção 22" no texto do item não leva o leitor a lugar nenhum. Troca o número pelo
-    título. Medido em 14/10: a regra no pedido não segurou (7 e depois 11 de 28 itens com
-    número), por isso é código. Número que não existe na peça fica como veio."""
-    if doc.formato != "web":
+    """Documento por seção (página da web, Word): o modelo vê as seções numeradas, mas a
+    tela mostra o TÍTULO; "a seção 22" no texto do item não leva o leitor a lugar nenhum.
+    Troca o número pelo título. Medido em 14/10: a regra no pedido não segurou (7 e
+    depois 11 de 28 itens com número), por isso é código. Número que não existe na peça
+    fica como veio."""
+    if not doc.por_secao:
         return texto
     titulos = {p.numero: p.titulo for p in doc.paginas}
 
     def nome(n: int) -> str:
-        return f"“{titulos[n]}”" if titulos[n] else "abertura da página"
+        return f"“{titulos[n]}”" if titulos[n] else doc.nome_abertura
 
     def troca(m):
         nums = [int(x) for x in re.findall(r"\d+", m.group(2))]
         if any(n not in titulos for n in nums):
             return m.group(0)
         if len(nums) == 1 and not titulos[nums[0]]:
-            return "abertura da página"
+            return doc.nome_abertura
         return m.group(1) + " " + re.sub(r"\d+", lambda d: nome(int(d.group())), m.group(2))
 
     return _NUMERO_SECAO.sub(troca, texto)
@@ -326,7 +325,7 @@ def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tupl
 # Motivo (preview de 13/10): na chamada única o P3 saiu raso duas vezes e um item do Pa2
 # sumiu entre duas leituras da mesma peça.
 
-PROMPT_VERSAO_POR_PILAR = "avaliador-v9-pilar"
+PROMPT_VERSAO_POR_PILAR = "avaliador-v11-pilar"
 MAX_TOKENS_PILAR = 3500
 MAX_TOKENS_RESUMO = 800
 # Folga de entrada para a instrução do pilar + os itens já apontados (no máximo 9 por
