@@ -210,3 +210,23 @@ def test_caractere_de_controle_no_xml_e_arquivo_quebrado_nao_leitura_de_lixo():
 def test_limite_de_paginas_nao_vale_para_secao(monkeypatch):
     monkeypatch.setattr(extracao, "LIMITE_PAGINAS", 2)
     assert extrair(_docx(CORPO)).n_paginas == 4
+
+
+def test_titulo_repetido_leva_a_ordem_na_citacao_e_no_texto():
+    corpo = (
+        _p("Concentração de Detratores", "Ttulo1")
+        + _p("Primeira leitura da concentração por loja e por canal de venda.")
+        + _p("Outro assunto", "Ttulo1")
+        + _p("Texto do meio do documento, sem relação com a concentração.")
+        + _p("Concentração de Detratores", "Ttulo1")
+        + _p("Segunda leitura da concentração, agora por período do ano.")
+    )
+    doc = extrair(_docx(corpo))
+    ok, n = conferir_trecho(doc, None, "agora por período do ano")
+    assert referencia(doc, n, "x") == "seção “Concentração de Detratores” (2ª)"
+    ok, n = conferir_trecho(doc, None, "por loja e por canal de venda")
+    assert referencia(doc, n, "x") == "seção “Concentração de Detratores” (1ª)"
+    assert referencia(doc, 2, "x") == "seção “Outro assunto”"  # título único: sem ordem
+    assert sem_numero_de_secao(doc, "a seção 3 e a seção 2") == (
+        "a seção “Concentração de Detratores” (2ª) e a seção “Outro assunto”"
+    )

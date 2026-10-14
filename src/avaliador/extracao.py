@@ -342,6 +342,17 @@ def documento_de_texto(texto: str) -> Documento:
     return Documento("texto", [Pagina(1, t)])
 
 
+def nome_secao(doc: Documento, numero: int) -> str:
+    """“Título” da seção; título que se repete no documento leva a ordem ("“Preços” (2ª)"),
+    senão a citação não diz qual das duas. Sem título: "" (quem chama decide)."""
+    pag = next((p for p in doc.paginas if p.numero == numero), None)
+    if pag is None or not pag.titulo:
+        return ""
+    iguais = [p.numero for p in doc.paginas if p.titulo == pag.titulo]
+    ordem = f" ({iguais.index(numero) + 1}ª)" if len(iguais) > 1 else ""
+    return f"“{pag.titulo}”{ordem}"
+
+
 def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
     """Onde o usuário acha o trecho num documento por seção (página da web, Word): o
     título da seção; sem título (a abertura), as primeiras palavras do parágrafo onde o
@@ -350,7 +361,7 @@ def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
     if pag is None:
         return ""
     if pag.titulo:
-        return f"seção “{pag.titulo}”"
+        return f"seção {nome_secao(doc, pag.numero)}"
     alvo = _normalizar(trecho)
     paragrafos = pag.texto.split("\n")
     achado = next((x for x in paragrafos if alvo and alvo in _normalizar(x)), paragrafos[0])

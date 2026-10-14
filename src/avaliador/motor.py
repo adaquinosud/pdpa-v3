@@ -25,7 +25,7 @@ from string import Template
 from typing import Any, Dict, List, Tuple
 
 from src.api.painel import SUBPILARES_ORDEM
-from src.avaliador.extracao import Documento, conferir_trecho, referencia
+from src.avaliador.extracao import Documento, conferir_trecho, nome_secao, referencia
 from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
@@ -216,7 +216,7 @@ def sem_numero_de_secao(doc: Documento, texto: str) -> str:
     titulos = {p.numero: p.titulo for p in doc.paginas}
 
     def nome(n: int) -> str:
-        return f"“{titulos[n]}”" if titulos[n] else doc.nome_abertura
+        return nome_secao(doc, n) if titulos[n] else doc.nome_abertura
 
     def troca(m):
         nums = [int(x) for x in re.findall(r"\d+", m.group(2))]
