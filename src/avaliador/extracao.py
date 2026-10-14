@@ -54,6 +54,11 @@ FORMATOS_ACEITOS = "PowerPoint (.pptx), Word (.docx) ou PDF"
 # parágrafo, nunca um número. Fonte única: motor, tela e prompt perguntam aqui.
 FORMATOS_POR_SECAO = frozenset({"web", "docx"})
 ABERTURA = {"web": "abertura da página", "docx": "abertura do documento"}
+# Linha de tabela (PowerPoint, Word) vira uma linha de texto com as células separadas por
+# isto. O separador é NOSSO, não existe no documento: a tela mostra a citação de linha de
+# tabela célula por célula, para o Ctrl+F achar cada pedaço.
+SEPARADOR_CELULA = " | "
+FORMATOS_COM_TABELA = frozenset({"pptx", "docx"})
 # Quantas palavras do parágrafo nomeiam o lugar da citação quando a seção não tem título.
 PALAVRAS_REFERENCIA = 8
 
@@ -218,7 +223,7 @@ def _textos_forma(shape) -> List[str]:
         for row in shape.table.rows:
             celulas = [c.text.strip() for c in row.cells if c.text.strip()]
             if celulas:
-                out.append(" | ".join(celulas))
+                out.append(SEPARADOR_CELULA.join(celulas))
     return out
 
 
@@ -514,6 +519,8 @@ def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
     alvo = _normalizar(trecho)
     paragrafos = pag.texto.split("\n")
     achado = next((x for x in paragrafos if alvo and alvo in _normalizar(x)), paragrafos[0])
+    if doc.formato in FORMATOS_COM_TABELA and SEPARADOR_CELULA in achado:
+        return f"linha da tabela que começa “{achado.split(SEPARADOR_CELULA)[0].strip()}”"
     palavras = achado.split()
     inicio = " ".join(palavras[:PALAVRAS_REFERENCIA])
     reticencias = "…" if len(palavras) > PALAVRAS_REFERENCIA else ""

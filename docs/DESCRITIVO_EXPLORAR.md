@@ -983,8 +983,10 @@ página pública do site**.
 separadas por "|"). Cabeçalho, rodapé, comentários de margem, notas de rodapé e texto oculto ficam
 de fora, e o sumário automático também. **Alteração marcada vale como está:** o que foi riscado não
 entra na leitura; o que foi inserido entra. Sem número de página, a citação vem com o **título da
-seção** (parágrafo com estilo de título) ou, antes do primeiro título ou num documento sem
-títulos, com **as primeiras palavras do parágrafo**. Numeração automática de cláusula e de lista
+seção** (parágrafo com estilo de título, ou parágrafo curto, de até 60 caracteres, todo em
+maiúsculas e sem ponto final, como "PRAZO") ou, antes do primeiro título ou num documento sem
+títulos, com **as primeiras palavras do parágrafo**. Título que se repete no documento leva a ordem
+("“Preços” (2ª)"). Numeração automática de cláusula e de lista
 não aparece no texto lido. .doc antigo, .rtf e arquivo do LibreOffice são recusados com a
 instrução de salvar como .docx ou exportar como PDF; Word com senha também.
 
@@ -1014,9 +1016,14 @@ grudados, a leitura é recusada antes de qualquer custo, com o número na tela (
 palavras") e o que fazer (enviar o arquivo original, gerar o PDF por outro programa ou colar o
 texto). Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
 
-**No máximo três itens por subpilar**, os que mais mudam a peça. O que passar disso não aparece:
+**No máximo três itens por subpilar.** Se a peça responde alguma coisa no subpilar, pelo menos um
+dos três é um **forte**; os outros são os que mais mudam a peça. O que passar disso não aparece:
 fica guardado, e o subpilar mostra uma linha curta com a contagem (**"Mais N itens descartados pelo
 limite de três por subpilar"**), para avisar que existe mais sem encher a página.
+
+Citação de **linha de tabela** (PowerPoint, Word) aparece célula por célula (“Essencial” ·
+“R$ 8.000”): a divisão entre células não existe como texto no documento, e assim cada pedaço se
+acha com a busca.
 
 **Como a leitura é feita:** um pilar por vez (quatro leituras) e, no fim, o resumo. Leva cerca de
 dois minutos; a tela se atualiza sozinha. Se só o resumo falhar, a análise fica pronta com os itens e

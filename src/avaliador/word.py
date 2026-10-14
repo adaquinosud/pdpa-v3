@@ -23,11 +23,22 @@ import re
 import zipfile
 from typing import Dict, Iterator, List, Optional, Tuple
 
-from src.avaliador.extracao import Documento, DocumentoRecusado, Pagina, _nfc
+from src.avaliador.extracao import (
+    SEPARADOR_CELULA,
+    Documento,
+    DocumentoRecusado,
+    Pagina,
+    _nfc,
+)
 
 # Teto do XML descompactado: um .docx de 60 MB de imagens tem document.xml pequeno; XML
 # acima disto é arquivo fabricado para estourar memória (zip bomb), não peça comercial.
 LIMITE_XML_BYTES = 50 * 1024 * 1024
+
+# Parágrafo curto, todo em MAIÚSCULAS e sem ponto final = título, mesmo sem estilo de título
+# (decisão de 14/10: 22 de 65 .docx locais não usam estilo; "PRAZO", "INVESTIMENTO" na
+# proposta da casa). Acima disto de caracteres é frase em maiúsculas, não título.
+MAX_CARACTERES_TITULO_MAIUSCULAS = 60
 
 _FORA_DA_LEITURA = {"del", "moveFrom", "Fallback", "instrText", "delText", "pPr", "rPr"}
 _ESTILO_TITULO = re.compile(r"^(heading|t[ií]tulo|title)( ?\d)?$", re.IGNORECASE)
@@ -111,6 +122,15 @@ class _Estilos:
         return bool(_ESTILO_SUMARIO.match(self._nome.get(sid, "").strip()))
 
 
+def _titulo_em_maiusculas(texto: str) -> bool:
+    return (
+        len(texto) <= MAX_CARACTERES_TITULO_MAIUSCULAS
+        and texto == texto.upper()
+        and any(c.isalpha() for c in texto)
+        and not texto.endswith(".")
+    )
+
+
 def _oculto(run) -> bool:
     rpr = _filho(run, "rPr")
     v = _filho(rpr, "vanish") if rpr is not None else None
@@ -147,7 +167,7 @@ def _texto_paragrafo(p) -> Tuple[str, List]:
 
 
 def _blocos(el, estilos: _Estilos) -> Iterator[Tuple[str, str]]:
-    """("titulo"|"texto", linha) na ordem do documento."""
+    """("titulo"|"rotulo"|"texto", linha) na ordem do documento."""
     for c in el:
         nome = _local(c)
         if nome == "p":
@@ -162,7 +182,12 @@ def _blocos(el, estilos: _Estilos) -> Iterator[Tuple[str, str]]:
                     nivel = int(_attr(ol, "val") or 9)
             texto, caixas = _texto_paragrafo(c)
             if texto and not estilos.sumario(sid):
-                tipo = "titulo" if (nivel < 9 or estilos.titulo(sid)) else "texto"
+                if nivel < 9 or estilos.titulo(sid):
+                    tipo = "titulo"
+                elif _titulo_em_maiusculas(texto):
+                    tipo = "rotulo"  # título sem estilo, pelas maiúsculas
+                else:
+                    tipo = "texto"
                 yield tipo, texto
             for cx in caixas:
                 yield from _blocos(cx, estilos)
@@ -188,8 +213,8 @@ def _linhas(tbl) -> Iterator:
 
 
 def _tabela(tbl, estilos: _Estilos) -> Iterator[Tuple[str, str]]:
-    """Uma linha de tabela = uma linha de texto, células separadas por " | " (o mesmo
-    formato da tabela do PowerPoint)."""
+    """Uma linha de tabela = uma linha de texto, células separadas por SEPARADOR_CELULA
+    (o mesmo formato da tabela do PowerPoint)."""
     for tr in _linhas(tbl):
         celulas = []
         for tc in tr:
@@ -204,7 +229,7 @@ def _tabela(tbl, estilos: _Estilos) -> Iterator[Tuple[str, str]]:
                         if t:
                             celulas.append(t)
         if celulas:
-            yield "texto", " | ".join(celulas)
+            yield "texto", SEPARADOR_CELULA.join(celulas)
 
 
 def extrair_docx(dados: bytes) -> Documento:
@@ -226,11 +251,20 @@ def extrair_docx(dados: bytes) -> Documento:
             ".docx e envie, ou exporte como PDF."
         )
     secoes: List[Tuple[str, List[str]]] = [("", [])]
+    rotulo_sozinho = False
     for tipo, linha in _blocos(corpo, estilos):
-        if tipo == "titulo":
-            secoes.append((linha, [linha]))
+        if tipo in ("titulo", "rotulo"):
+            if rotulo_sozinho:
+                # "SEÇÃO 3" em maiúsculas logo antes do título de verdade: uma seção só,
+                # "SEÇÃO 3 · Título", e não uma seção vazia com o rótulo
+                titulo, linhas = secoes.pop()
+                secoes.append((f"{titulo} · {linha}", linhas + [linha]))
+            else:
+                secoes.append((linha, [linha]))
+            rotulo_sozinho = tipo == "rotulo"
         else:
             secoes[-1][1].append(linha)
+            rotulo_sozinho = False
     paginas: List[Pagina] = []
     for titulo, linhas in secoes:
         if linhas:

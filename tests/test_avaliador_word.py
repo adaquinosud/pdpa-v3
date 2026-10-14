@@ -230,3 +230,21 @@ def test_titulo_repetido_leva_a_ordem_na_citacao_e_no_texto():
     assert sem_numero_de_secao(doc, "a seção 3 e a seção 2") == (
         "a seção “Concentração de Detratores” (2ª) e a seção “Outro assunto”"
     )
+
+
+def test_paragrafo_curto_em_maiusculas_e_titulo_e_rotulo_junta_com_o_titulo_seguinte():
+    corpo = (
+        _p("Proposta de diagnóstico do capital relacional para a diretoria.")
+        + _p("PRAZO")
+        + _p("Até 10 dias úteis entre a delimitação e a entrega do Parecer.")
+        + _p("SEÇÃO 3")
+        + _p("Investimento e condições", "Ttulo1")
+        + _p("Unidade, até 10 unidades: R$ 8.000.")
+        + _p("ESTA FRASE EM MAIÚSCULAS TERMINA COM PONTO.")
+        + _p("UMA FRASE INTEIRA EM MAIÚSCULAS QUE PASSA DE SESSENTA CARACTERES NÃO É TÍTULO")
+    )
+    doc = extrair(_docx(corpo))
+    assert [p.titulo for p in doc.paginas] == ["", "PRAZO", "SEÇÃO 3 · Investimento e condições"]
+    ok, n = conferir_trecho(doc, None, "entre a delimitação e a entrega")
+    assert referencia(doc, n, "x") == "seção “PRAZO”"
+    assert "ESTA FRASE EM MAIÚSCULAS TERMINA COM PONTO." in doc.paginas[2].texto

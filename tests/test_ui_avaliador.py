@@ -323,3 +323,37 @@ def test_pagina_que_nao_pode_ser_lida_mostra_o_motivo_e_nao_cria(
     assert "A página pede senha. Salve como PDF." in html and 'value="exemplo.com"' in html
     assert "O texto da página vai" in html  # o aviso fica na versão da página
     assert db_session.query(AvaliadorAnalise).count() == 0
+
+
+def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_session, empresa, teto):
+    # o "|" entre células é nosso, não existe no documento: a tela não pode mostrá-lo
+    from tests.test_avaliador_word import _docx, _p
+
+    corpo = (
+        _p(f"Proposta comercial para a Empresa X, com os planos e valores abaixo. {SENTINELA}")
+        + "<w:tbl><w:tr><w:tc>" + _p("Essencial") + "</w:tc><w:tc>"
+        + _p("Até 10 unidades, R$ 8.000 por diagnóstico") + "</w:tc></w:tr></w:tbl>"
+    )  # fmt: skip
+    resposta = {
+        "resumo": "r",
+        "itens": [
+            {
+                "subpilar": "Pa2",
+                "tipo": "forte",
+                "texto": "Preço por faixa declarado.",
+                "evidencias": [
+                    {"pagina": 1, "trecho": "Essencial | Até 10 unidades, R$ 8.000 por diagnóstico"}
+                ],
+            }
+        ],
+    }
+    aid = _pronta(
+        client_loyall, db_session, empresa, cli=Dublê([resposta]), dados=_docx(corpo),
+        nome="proposta.docx",
+    )  # fmt: skip
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert (
+        "linha da tabela que começa “Essencial”: “Essencial” · "
+        "“Até 10 unidades, R$ 8.000 por diagnóstico”"
+    ) in html
+    assert "Essencial | Até" not in html
