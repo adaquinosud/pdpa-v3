@@ -204,6 +204,32 @@ def sem_travessao(texto: str) -> str:
     return _TRAVESSAO.sub(", ", texto or "").strip(" ,")
 
 
+_NUMERO_SECAO = re.compile(r"\b([Ss]eç(?:ão|ões))\s+(\d+(?:\s*(?:,|e|a|até)\s*\d+)*)")
+
+
+def sem_numero_de_secao(doc: Documento, texto: str) -> str:
+    """Página da web: o modelo vê as seções numeradas, mas a tela mostra o TÍTULO; "a
+    seção 22" no texto do item não leva o leitor a lugar nenhum. Troca o número pelo
+    título. Medido em 14/10: a regra no pedido não segurou (7 e depois 11 de 28 itens com
+    número), por isso é código. Número que não existe na peça fica como veio."""
+    if doc.formato != "web":
+        return texto
+    titulos = {p.numero: p.titulo for p in doc.paginas}
+
+    def nome(n: int) -> str:
+        return f"“{titulos[n]}”" if titulos[n] else "abertura da página"
+
+    def troca(m):
+        nums = [int(x) for x in re.findall(r"\d+", m.group(2))]
+        if any(n not in titulos for n in nums):
+            return m.group(0)
+        if len(nums) == 1 and not titulos[nums[0]]:
+            return "abertura da página"
+        return m.group(1) + " " + re.sub(r"\d+", lambda d: nome(int(d.group())), m.group(2))
+
+    return _NUMERO_SECAO.sub(troca, texto)
+
+
 def _validar_itens(doc: Documento, brutos: Any, permitidos=None) -> List[dict]:
     """``permitidos``: códigos aceitos nesta chamada (leitura por pilar); None = os 12."""
     if not isinstance(brutos, list):
@@ -213,7 +239,7 @@ def _validar_itens(doc: Documento, brutos: Any, permitidos=None) -> List[dict]:
         if not isinstance(it, dict):
             raise RespostaInvalida("item não é objeto")
         cod, tipo = it.get("subpilar"), it.get("tipo")
-        texto = sem_travessao((it.get("texto") or "").strip())
+        texto = sem_numero_de_secao(doc, sem_travessao((it.get("texto") or "").strip()))
         if cod not in SUBPILARES_ORDEM:
             raise RespostaInvalida(f"subpilar fora do modelo: {cod!r}")
         if permitidos is not None and cod not in permitidos:
@@ -258,7 +284,7 @@ def _validar_resumo(obj: dict) -> str:
 
 
 def validar_saida(doc: Documento, obj: dict) -> dict:
-    resumo = _validar_resumo(obj)
+    resumo = sem_numero_de_secao(doc, _validar_resumo(obj))
     return {"resumo": resumo, "itens": _validar_itens(doc, obj.get("itens"))}
 
 
@@ -443,6 +469,7 @@ def ler_por_pilar(
         resumo = _chamar(
             client, modelo, sistema, usuario, sufixo, MAX_TOKENS_RESUMO, _validar_resumo, orc
         )
+        resumo = sem_numero_de_secao(doc, resumo)
         falhou = None
     except (RespostaInvalida, OrcamentoEsgotado) as e:
         logger.warning(f"[avaliador] resumo não gerado: {type(e).__name__}")
