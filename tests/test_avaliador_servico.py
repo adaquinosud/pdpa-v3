@@ -151,9 +151,9 @@ def test_teto_estourado_recusa(db_session, empresa, monkeypatch):
 def test_descricao_e_uma_entrada_sao_obrigatorias(db_session, empresa, teto):
     with pytest.raises(AvaliacaoRecusada, match="o que é a peça"):
         servico.criar_analise(db_session, empresa.id, None, "  ", dados=_pptx())
-    with pytest.raises(AvaliacaoRecusada, match="um dos dois"):
+    with pytest.raises(AvaliacaoRecusada, match="um só"):
         servico.criar_analise(db_session, empresa.id, None, DESCRICAO)
-    with pytest.raises(AvaliacaoRecusada, match="um dos dois"):
+    with pytest.raises(AvaliacaoRecusada, match="um só"):
         servico.criar_analise(
             db_session, empresa.id, None, DESCRICAO, dados=_pptx(), texto="x" * 50
         )
@@ -304,3 +304,32 @@ def test_padrao_de_codigo_e_por_pilar():
     from src.config import Config
 
     assert Config.AVALIADOR_MODO == "por_pilar"
+
+
+def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, teto, monkeypatch):
+    from tests.test_avaliador_pagina_web import HTML, Resp, Sessao, _resolve_para
+
+    _resolve_para(monkeypatch, "93.184.216.34")
+    s = Sessao(
+        {
+            "https://exemplo.com.br": Resp(301, headers={"Location": "/inicio"}),
+            "https://exemplo.com.br/inicio": Resp(200, HTML.encode()),
+        }
+    )
+    a = servico.criar_analise(
+        db_session, empresa.id, None, DESCRICAO, url="exemplo.com.br", sessao_http=s
+    )
+    assert a.origem == "pagina" and a.formato == "web" and a.n_paginas == 3
+    assert a.arquivo_nome == "https://exemplo.com.br/inicio"  # o que foi LIDO
+    from src.avaliador.extracao import Documento
+
+    doc = Documento.de_json(a.texto_json)
+    sistema, _ = servico._pedido(servico.carregar_regua(), a.origem, a.descricao, doc)
+    assert "Há canal, não há horário." in sistema  # página é documento: biblioteca 1
+
+
+def test_duas_entradas_ao_mesmo_tempo_sao_recusadas(db_session, empresa, teto):
+    with pytest.raises(AvaliacaoRecusada, match="um só"):
+        servico.criar_analise(
+            db_session, empresa.id, None, DESCRICAO, texto="Cliente: oi", url="exemplo.com"
+        )

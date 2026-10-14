@@ -52,6 +52,7 @@ class Pagina:
     numero: int
     texto: str
     notas: str = ""
+    titulo: str = ""  # página da web: o título da seção ("" = abertura da página)
 
     @property
     def sem_texto(self) -> bool:
@@ -69,6 +70,8 @@ class Documento:
 
     @property
     def paginas_sem_texto(self) -> List[int]:
+        if self.formato == "web":  # seção curta é seção curta, não slide-imagem
+            return []
         return [p.numero for p in self.paginas if p.sem_texto]
 
     @property
@@ -80,7 +83,8 @@ class Documento:
             {
                 "formato": self.formato,
                 "paginas": [
-                    {"n": p.numero, "texto": p.texto, "notas": p.notas} for p in self.paginas
+                    {"n": p.numero, "texto": p.texto, "notas": p.notas, "titulo": p.titulo}
+                    for p in self.paginas
                 ],
             },
             ensure_ascii=False,
@@ -91,7 +95,10 @@ class Documento:
         d = json.loads(raw)
         return cls(
             formato=d["formato"],
-            paginas=[Pagina(p["n"], p["texto"], p.get("notas", "")) for p in d["paginas"]],
+            paginas=[
+                Pagina(p["n"], p["texto"], p.get("notas", ""), p.get("titulo", ""))
+                for p in d["paginas"]
+            ],
         )
 
     def para_prompt(self) -> str:
@@ -100,7 +107,12 @@ class Documento:
         blocos = []
         for p in self.paginas:
             corpo = p.texto.strip() or "[página sem texto legível]"
-            rotulo = "TEXTO COLADO" if self.formato == "texto" else f"PÁGINA {p.numero}"
+            if self.formato == "texto":
+                rotulo = "TEXTO COLADO"
+            elif self.formato == "web":
+                rotulo = f"SEÇÃO {p.numero}: {p.titulo or 'abertura da página'}"
+            else:
+                rotulo = f"PÁGINA {p.numero}"
             bloco = f"=== {rotulo} ===\n{corpo}"
             if p.notas.strip():
                 bloco += (

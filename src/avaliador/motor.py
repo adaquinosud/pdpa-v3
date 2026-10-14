@@ -30,7 +30,7 @@ from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSAO = "avaliador-v7"
+PROMPT_VERSAO = "avaliador-v8"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")
@@ -178,14 +178,19 @@ def _evidencias(doc: Documento, bruto: Any) -> List[dict]:
         except (TypeError, ValueError):
             pagina = None
         conferido, achada = conferir_trecho(doc, pagina, trecho)
-        out.append(
-            {
-                "pagina": pagina,
-                "trecho": trecho,
-                "conferido": conferido,
-                "pagina_encontrada": achada,
-            }
-        )
+        ev = {
+            "pagina": pagina,
+            "trecho": trecho,
+            "conferido": conferido,
+            "pagina_encontrada": achada,
+        }
+        if doc.formato == "web" and conferido:
+            # página da web não tem número de página: vai o título da seção ou o começo
+            # do parágrafo, calculado sobre onde o trecho FOI achado
+            from src.avaliador.pagina_web import referencia
+
+            ev["referencia"] = referencia(doc, achada, trecho)
+        out.append(ev)
     return out
 
 
@@ -295,7 +300,7 @@ def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tupl
 # Motivo (preview de 13/10): na chamada única o P3 saiu raso duas vezes e um item do Pa2
 # sumiu entre duas leituras da mesma peça.
 
-PROMPT_VERSAO_POR_PILAR = "avaliador-v8-pilar"
+PROMPT_VERSAO_POR_PILAR = "avaliador-v9-pilar"
 MAX_TOKENS_PILAR = 3500
 MAX_TOKENS_RESUMO = 800
 # Folga de entrada para a instrução do pilar + os itens já apontados (no máximo 9 por

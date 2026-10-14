@@ -29,7 +29,8 @@ ARQUIVOS = ("manual_cap2.json", "frases_l1.json", "frases_l3.json")
 
 ORIGEM_ARQUIVO = "arquivo"
 ORIGEM_TEXTO = "texto"
-BIBLIOTECA_POR_ORIGEM = {ORIGEM_ARQUIVO: "L1", ORIGEM_TEXTO: "L3"}
+ORIGEM_PAGINA = "pagina"  # página pública do site: é documento, usa a biblioteca 1
+BIBLIOTECA_POR_ORIGEM = {ORIGEM_ARQUIVO: "L1", ORIGEM_TEXTO: "L3", ORIGEM_PAGINA: "L1"}
 
 # Grupos da biblioteca que viram pista de cada subpilar. No P1 a biblioteca 1 é dividida
 # por parte (escopo/prazo/fora/preço); P1d_pergunta é texto de tela de outro desenho, não

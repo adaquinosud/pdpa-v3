@@ -976,7 +976,24 @@ com o texto do Manual, sem versão paralela.
 **Pistas:** a leitura usa como pista (não como resposta pronta) as frases de buracos comuns escritas
 pelos autores do método: a biblioteca de documento para arquivo, a de conversa para texto colado.
 
-**O que entra:** PowerPoint (.pptx), PDF ou texto colado. O formato do arquivo é reconhecido pelo
+**O que entra:** PowerPoint (.pptx), PDF, texto colado, ou o **endereço de uma página pública do
+site**.
+
+**Página do site:** **uma página por vez**, não o site inteiro. A ferramenta busca a página, tira
+menu, rodapé, scripts e formulários, e lê o texto que sobra. A tela diz **qual endereço foi lido**
+(se o site redirecionou, é o endereço final). Sem número de página, a citação vem com o **título da
+seção** onde o trecho está, ou, na abertura da página, com **as primeiras palavras do parágrafo**.
+Quando a página não pode ser lida, nada é cobrado e a tela diz o motivo e o que fazer: página que
+pede senha ou bloqueia leitura automática, montada por script (menos de 300 caracteres de texto),
+que não existe, que é um PDF, grande demais, ou que demora demais. Na maioria dos casos a saída é
+**salvar a página como PDF no navegador e enviar o PDF**. Endereço de rede interna não é buscado.
+
+**Aviso:** antes de enviar, a tela diz que a peça vai para um modelo externo da Anthropic, que pelos
+termos comerciais da Anthropic o conteúdo é tratado como confidencial e não pode ser usado para
+treinar modelos, e por quanto tempo o texto fica guardado. Com um endereço preenchido, a primeira
+frase passa a falar do **texto da página**.
+
+**Arquivos:** O formato do arquivo é reconhecido pelo
 conteúdo, não pela extensão. Word, .ppt antigo e PDF com senha são recusados com a mensagem do que
 fazer. **Páginas sem texto** (slide desenhado como imagem) e **páginas com texto ilegível**
 (o programa que gerou o PDF codificou o texto de um jeito que sai como caracteres de controle no

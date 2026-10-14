@@ -111,8 +111,9 @@ def avaliador_painel(empresa_id: int):
 def avaliador_novo(empresa_id: int):
     descricao = request.form.get("descricao", "")
     texto = request.form.get("texto", "")
+    url = request.form.get("url", "")
     arquivo = request.files.get("arquivo")
-    form = {"descricao": descricao, "texto": texto}
+    form = {"descricao": descricao, "texto": texto, "url": url}
     with db_session() as s:
         if (request.content_length or 0) > LIMITE_BYTES + 1024 * 1024:
             return _painel(
@@ -131,6 +132,7 @@ def avaliador_novo(empresa_id: int):
                 nome=arquivo.filename if dados else None,
                 dados=dados,
                 texto=texto if not dados else None,
+                url=url if not dados else None,
             )
         except (DocumentoRecusado, AvaliacaoRecusada) as e:
             return _painel(s, empresa_id, erro=str(e), form=form)

@@ -8,9 +8,14 @@
 
   <div class="flex flex-wrap items-start justify-between gap-2">
     <div>
+      {% if a.formato == 'web' %}
+      <div class="text-sm font-semibold text-loyall-800">Página lida: <a href="{{ a.arquivo_nome }}" target="_blank" rel="noopener noreferrer nofollow" class="underline break-all">{{ a.arquivo_nome }}</a></div>
+      <div class="text-xs text-loyall-400">Só esta página foi lida, não o site inteiro.</div>
+      {% else %}
       <div class="text-sm font-semibold text-loyall-800">{{ a.arquivo_nome or 'Texto colado' }}</div>
+      {% endif %}
       <div class="text-xs text-loyall-500">{{ a.descricao }}</div>
-      <div class="text-xs text-loyall-400">{% if a.formato != 'texto' %}{{ a.n_paginas }} páginas · {% endif %}{{ a.criado_em.strftime('%d/%m/%Y %H:%M') }} · modelo {{ a.modelo }} · US$ {{ a.custo_usd | virg(4) }}</div>
+      <div class="text-xs text-loyall-400">{% if a.formato == 'web' %}{{ a.n_paginas }} {{ 'seção' if a.n_paginas == 1 else 'seções' }} · {% elif a.formato != 'texto' %}{{ a.n_paginas }} páginas · {% endif %}{{ a.criado_em.strftime('%d/%m/%Y %H:%M') }} · modelo {{ a.modelo }} · US$ {{ a.custo_usd | virg(4) }}</div>
     </div>
     <div class="text-xs px-2 py-1 rounded {% if a.status == 'falhou' %}bg-rose-100 text-rose-800{% elif a.status == 'pronta' %}bg-emerald-100 text-emerald-800{% else %}bg-loyall-100 text-loyall-700{% endif %}">
       {{ rotulo_status.get(a.status, a.status) }}
@@ -63,7 +68,7 @@
           {% if it.alerta %}<div class="text-xs text-rose-700">⚠ {{ it.alerta }}</div>{% endif %}
           {% for e in it.evidencias %}
             {% if e.conferido %}
-            <div class="text-xs text-loyall-600 ml-2">{% if a.formato != 'texto' %}p. {{ e.pagina_encontrada }}: {% endif %}“{{ e.trecho }}”</div>
+            <div class="text-xs text-loyall-600 ml-2">{% if a.formato == 'web' %}{% if e.referencia %}{{ e.referencia }}: {% endif %}{% elif a.formato != 'texto' %}p. {{ e.pagina_encontrada }}: {% endif %}“{{ e.trecho }}”</div>
             {% else %}
             <div class="text-xs text-rose-700 ml-2">citação não encontrada na peça</div>
             {% endif %}

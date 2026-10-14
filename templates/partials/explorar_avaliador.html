@@ -4,11 +4,13 @@
 <div id="avaliador-painel" class="space-y-4">
   <div>
     <h3 class="text-sm font-semibold text-loyall-700">Avaliador <span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 uppercase">só admin</span></h3>
-    <p class="text-xs text-loyall-500">Lê uma peça do relacionamento (documento, apresentação, proposta ou conversa) pelos pilares do PDPA e devolve o que está forte, o que falta e o que melhorar.</p>
+    <p class="text-xs text-loyall-500">Lê uma peça do relacionamento (documento, apresentação, proposta, página do site ou conversa) pelos pilares do PDPA e devolve o que está forte, o que falta e o que melhorar.</p>
   </div>
 
   <div id="avaliador-aviso" class="border border-amber-300 bg-amber-50 rounded p-3 text-sm text-amber-900">
-    O documento vai para um modelo externo da Anthropic para ser lido. O texto fica guardado enquanto esta análise estiver aberta, para você poder reler sem enviar de novo. Ele é apagado quando você clicar em concluir, e apagado sozinho depois de {{ dias_retencao }} dias sem uso. Depois disso ficam só os trechos citados na leitura.
+    {# Redação aprovada pelo Alexandre em 12/10; para página da web, só a primeira frase muda
+       (14/10). O número de dias vem da MESMA constante que apaga. #}
+    <span data-aviso="documento"{% if form.url %} hidden{% endif %}>O documento vai para um modelo externo da Anthropic para ser lido.</span><span data-aviso="pagina"{% if not form.url %} hidden{% endif %}>O texto da página vai para um modelo externo da Anthropic para ser lido.</span> Pelos termos comerciais da Anthropic, o conteúdo enviado é tratado como informação confidencial e não pode ser usado para treinar modelos. O texto fica guardado enquanto esta análise estiver aberta, para você poder reler sem enviar de novo. Ele é apagado quando você clicar em concluir, e apagado sozinho depois de {{ dias_retencao }} dias sem uso. Depois disso ficam só os trechos citados na leitura.
   </div>
 
   <form hx-post="{{ url_for('ui.avaliador_novo', empresa_id=empresa_id) }}"
@@ -24,7 +26,14 @@
              class="text-sm text-loyall-700">
       <span class="text-xs text-loyall-400">PowerPoint (.pptx) ou PDF, até {{ limite_mb }} MB, ou cole o texto abaixo.</span>
     </div>
-    <textarea name="texto" rows="5" placeholder="Cole aqui o texto de uma conversa, e-mail ou mensagem (se não enviou arquivo)."
+    <label class="block text-sm text-loyall-700">Ou o endereço de uma página pública do site
+      <input type="url" name="url" value="{{ form.url or '' }}" maxlength="2000"
+             placeholder="https://www.exemplo.com.br/servicos"
+             oninput="var p=this.value.trim()!=='';document.querySelectorAll('#avaliador-aviso [data-aviso]').forEach(function(e){e.hidden=(e.dataset.aviso==='pagina')!==p;})"
+             class="mt-1 w-full border border-loyall-300 rounded px-3 py-2 text-sm">
+      <span class="block text-xs text-loyall-400">Uma página por vez, não o site inteiro. Menu, rodapé e scripts ficam de fora.</span>
+    </label>
+    <textarea name="texto" rows="5" placeholder="Ou cole aqui o texto de uma conversa, e-mail ou mensagem."
               class="w-full border border-loyall-300 rounded px-3 py-2 text-sm">{{ form.texto or '' }}</textarea>
     <button type="submit" class="px-4 py-2 rounded bg-loyall-700 text-white text-sm font-medium hover:bg-loyall-800">Ler a peça</button>
   </form>

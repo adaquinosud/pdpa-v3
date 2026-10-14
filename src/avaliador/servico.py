@@ -28,7 +28,13 @@ from sqlalchemy.orm import Session
 
 from src.avaliador import motor
 from src.avaliador.extracao import Documento, documento_de_texto, extrair
-from src.avaliador.regua import ORIGEM_ARQUIVO, ORIGEM_TEXTO, Regua, carregar_regua
+from src.avaliador.regua import (
+    ORIGEM_ARQUIVO,
+    ORIGEM_PAGINA,
+    ORIGEM_TEXTO,
+    Regua,
+    carregar_regua,
+)
 from src.config import get_config
 from src.models.avaliador import (
     STATUS_EM_PROCESSAMENTO,
@@ -165,18 +171,30 @@ def criar_analise(
     nome: Optional[str] = None,
     dados: Optional[bytes] = None,
     texto: Optional[str] = None,
+    url: Optional[str] = None,
+    sessao_http=None,
 ) -> AvaliadorAnalise:
-    """Arquivo (``dados``) OU texto colado (``texto``). Extrai, cobra o teto e grava
-    PENDENTE. Levanta ``DocumentoRecusado`` ou ``AvaliacaoRecusada`` antes de gastar."""
+    """Arquivo (``dados``), texto colado (``texto``) OU endereço de página (``url``), um
+    só. Extrai (a página é buscada AGORA, na requisição, para o erro aparecer na hora),
+    cobra o teto e grava PENDENTE. Levanta ``DocumentoRecusado`` (inclui
+    ``PaginaRecusada``) ou ``AvaliacaoRecusada`` antes de gastar."""
     descricao = _descricao(descricao)
-    if bool(dados) == bool((texto or "").strip()):
-        raise AvaliacaoRecusada("Envie um arquivo OU cole um texto (um dos dois).")
+    entradas = [bool(dados), bool((texto or "").strip()), bool((url or "").strip())]
+    if sum(entradas) != 1:
+        raise AvaliacaoRecusada(
+            "Envie um arquivo, cole um texto ou informe o endereço de uma página (um só)."
+        )
     modelo = get_config().AVALIADOR_MODEL
     motor.garantir_preco(modelo)
     if dados:
         doc, origem, bruto = extrair(dados), ORIGEM_ARQUIVO, dados
-    else:
+    elif entradas[1]:
         doc, origem, bruto = documento_de_texto(texto), ORIGEM_TEXTO, texto.encode("utf-8")
+    else:
+        from src.avaliador.pagina_web import buscar, extrair_html
+
+        nome, bruto = buscar(url, sessao=sessao_http)  # nome = o endereço que foi LIDO
+        doc, origem = extrair_html(bruto, nome), ORIGEM_PAGINA
     regua = carregar_regua()
     m = modo()
     sistema, usuario = _pedido(regua, origem, descricao, doc)
@@ -186,7 +204,7 @@ def criar_analise(
         usuario_id=usuario_id,
         origem=origem,
         descricao=descricao,
-        arquivo_nome=(nome or "")[:200] or None,
+        arquivo_nome=(nome or "")[: 2000 if origem == ORIGEM_PAGINA else 200] or None,
         conteudo_hash=hashlib.sha256(bruto).hexdigest(),
         formato=doc.formato,
         n_paginas=doc.n_paginas,

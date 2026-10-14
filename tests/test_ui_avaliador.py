@@ -32,8 +32,8 @@ def _url(e, sufixo=""):
     return f"/empresas/{e.id}/explorar/avaliador{sufixo}"
 
 
-def _enviar(client, e, dados=None, nome="proposta.pptx", texto="", descricao=DESCRICAO):
-    data = {"descricao": descricao, "texto": texto}
+def _enviar(client, e, dados=None, nome="proposta.pptx", texto="", descricao=DESCRICAO, url=""):
+    data = {"descricao": descricao, "texto": texto, "url": url}
     if dados is not False:
         data["arquivo"] = (io.BytesIO(dados or _pptx()), nome)
     return client.post(_url(e), data=data, content_type="multipart/form-data")
@@ -90,7 +90,13 @@ def test_analise_de_outra_empresa_e_404(client_loyall, db_session, empresa, teto
 
 def test_aviso_le_a_mesma_constante_que_apaga(client_loyall, empresa, monkeypatch):
     html = client_loyall.get(_url(empresa)).get_data(as_text=True)
-    assert "modelo externo da Anthropic" in html and "depois de 7 dias sem uso" in html
+    assert "O documento vai para um modelo externo da Anthropic para ser lido." in html
+    assert (
+        "Pelos termos comerciais da Anthropic, o conteúdo enviado é tratado como informação "
+        "confidencial e não pode ser usado para treinar modelos." in html
+    )
+    assert "O texto da página vai para um modelo externo da Anthropic para ser lido." in html
+    assert "depois de 7 dias sem uso" in html
     assert "ficam só os trechos citados na leitura" in html
     assert "O que é esta peça e para que ela serve?" in html
     config_avaliador(monkeypatch, AVALIADOR_DIAS_RETENCAO_TEXTO=3)
@@ -255,3 +261,50 @@ def test_descartados_e_resumo_ausente_aparecem_declarados(client_loyall, db_sess
     assert "Achado 2." in html and "Achado 3." not in html and "Achado 4." not in html
     assert "Mais 2 itens descartados pelo limite de três por subpilar." in html
     assert "Resumo não gerado (resumo: OrcamentoEsgotado). Os itens abaixo estão completos." in html
+
+
+def test_pagina_da_web_mostra_o_endereco_lido_e_a_referencia(
+    client_loyall, db_session, empresa, teto, monkeypatch
+):
+    from src.avaliador import pagina_web
+    from tests.test_avaliador_pagina_web import HTML
+
+    monkeypatch.setattr(
+        pagina_web,
+        "buscar",
+        lambda url, sessao=None: ("https://exemplo.com.br/inicio", HTML.encode()),
+    )
+    resp = {
+        "resumo": "Falta rota fora do horário.",
+        "itens": [
+            {
+                "subpilar": "D1",
+                "tipo": "forte",
+                "texto": "Prazo de resposta declarado.",
+                "evidencias": [{"pagina": 2, "trecho": "responde em até quatro horas úteis"}],
+            }
+        ],
+    }
+    aid = _pronta(
+        client_loyall, db_session, empresa, Dublê([resp]), dados=False, url="exemplo.com.br"
+    )
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Página lida:" in html and "https://exemplo.com.br/inicio" in html
+    assert "Só esta página foi lida, não o site inteiro." in html and "3 seções" in html
+    assert "seção “Como atendemos”: “responde em até quatro horas úteis”" in html
+    assert "p. 2" not in html
+
+
+def test_pagina_que_nao_pode_ser_lida_mostra_o_motivo_e_nao_cria(
+    client_loyall, db_session, empresa, teto, monkeypatch
+):
+    from src.avaliador import pagina_web
+
+    def recusa(url, sessao=None):
+        raise pagina_web.PaginaRecusada("A página pede senha. Salve como PDF.")
+
+    monkeypatch.setattr(pagina_web, "buscar", recusa)
+    html = _enviar(client_loyall, empresa, dados=False, url="exemplo.com").get_data(as_text=True)
+    assert "A página pede senha. Salve como PDF." in html and 'value="exemplo.com"' in html
+    assert "O texto da página vai" in html  # o aviso fica na versão da página
+    assert db_session.query(AvaliadorAnalise).count() == 0
