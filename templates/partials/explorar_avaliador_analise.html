@@ -33,7 +33,7 @@
 
   {% if paginas_sem_texto %}
   <div class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
-    {{ paginas_sem_texto | length }} de {{ a.n_paginas }} páginas sem texto: {{ paginas_sem_texto | join(', ') }}. O conteúdo delas não foi lido (critério: menos de {{ min_caracteres_pagina }} caracteres de texto na página; slide desenhado como imagem cai aqui).
+    {{ paginas_sem_texto | length }} de {{ a.n_paginas }} páginas sem texto: {{ paginas_sem_texto | join(', ') }}. O conteúdo delas não foi lido (critério: menos de {{ min_caracteres_pagina }} caracteres de texto na página, slide desenhado como imagem cai aqui; ou texto ilegível, com mais de {{ pct_controles_ilegivel }}% de caracteres de controle no lugar das letras).
   </div>
   {% endif %}
 

@@ -978,8 +978,11 @@ pelos autores do método: a biblioteca de documento para arquivo, a de conversa 
 
 **O que entra:** PowerPoint (.pptx), PDF ou texto colado. O formato do arquivo é reconhecido pelo
 conteúdo, não pela extensão. Word, .ppt antigo e PDF com senha são recusados com a mensagem do que
-fazer. **Páginas sem texto** (slide desenhado como imagem) são listadas com o critério; o conteúdo
-delas não foi lido. Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
+fazer. **Páginas sem texto** (slide desenhado como imagem) e **páginas com texto ilegível**
+(o programa que gerou o PDF codificou o texto de um jeito que sai como caracteres de controle no
+lugar das letras) são listadas com o critério; o conteúdo delas não foi lido. Se o arquivo
+inteiro sai ilegível, ele é recusado antes de qualquer custo, com a mensagem do que fazer (gerar o
+PDF por outro programa ou colar o texto). Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
 
 **No máximo três itens por subpilar**, os que mais mudam a peça. O que passar disso não aparece:
 fica guardado, e o subpilar mostra uma linha curta com a contagem (**"Mais N itens descartados pelo

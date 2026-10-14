@@ -145,6 +145,18 @@ def test_render_da_analise_pronta(client_loyall, db_session, empresa, teto):
     assert "Reler com esta descrição" in html and "Concluir" in html
 
 
+def test_pagina_sem_texto_mostra_os_dois_criterios(client_loyall, db_session, empresa, teto):
+    from src.avaliador.extracao import FRACAO_CONTROLES_ILEGIVEL, MIN_CARACTERES_PAGINA
+
+    aid = _pronta(client_loyall, db_session, empresa)
+    db_session.get(AvaliadorAnalise, aid).paginas_sem_texto_json = "[2]"
+    db_session.commit()
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert f"menos de {MIN_CARACTERES_PAGINA} caracteres" in html
+    pct = round(FRACAO_CONTROLES_ILEGIVEL * 100)
+    assert f"texto ilegível, com mais de {pct}% de caracteres de controle" in html
+
+
 def test_texto_colado_sem_paginas(client_loyall, db_session, empresa, teto):
     conversa = (
         "Cliente: com quem eu falo se der problema?\nVendedor: comigo, Fulano, das 8h às 18h."

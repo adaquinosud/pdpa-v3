@@ -16,6 +16,7 @@ from flask import current_app, render_template, request
 from src.auth import get_current_user
 from src.avaliador import servico
 from src.avaliador.extracao import (
+    FRACAO_CONTROLES_ILEGIVEL,
     LIMITE_BYTES,
     LIMITE_CARACTERES,
     MIN_CARACTERES_PAGINA,
@@ -84,6 +85,7 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
         pilares=servico.organizar(carregar_regua(), a),
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
         min_caracteres_pagina=MIN_CARACTERES_PAGINA,
+        pct_controles_ilegivel=round(FRACAO_CONTROLES_ILEGIVEL * 100),
         rotulo_status=ROTULO_STATUS,
         rotulo_tipo=ROTULO_TIPO,
         processando=a.status in STATUS_EM_PROCESSAMENTO,

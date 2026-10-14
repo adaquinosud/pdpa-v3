@@ -144,6 +144,37 @@ def test_so_imagem_recusado():
         extrair(_pdf(["", ""]))
 
 
+# A forma real (resumo executivo do próprio app, WeasyPrint, pypdf 6.20.1, 14/10): um
+# nulo antes de cada letra. O arquivo real não entra na suíte; a forma, sim.
+LIXO = "".join("\x00" + c for c in "DIAGNÓSTICO PONTUAL · PDPA Grupo Exemplo " * 3)
+
+
+def _com_paginas(monkeypatch, textos):
+    doc = Documento("pdf", [Pagina(i, t) for i, t in enumerate(textos, start=1)])
+    monkeypatch.setattr(extracao, "_extrair_pdf", lambda dados: doc)
+    return _pdf(["x"])
+
+
+def test_pdf_com_texto_ilegivel_e_recusado_e_nao_vira_leitura(monkeypatch):
+    dados = _com_paginas(monkeypatch, [LIXO, LIXO])
+    with pytest.raises(DocumentoRecusado, match="ilegível: em 2 de 2 páginas.*cole o texto"):
+        extrair(dados)
+
+
+def test_pagina_ilegivel_no_meio_nao_vai_ao_modelo_e_e_listada(monkeypatch):
+    doc = extrair(_com_paginas(monkeypatch, [TEXTO_LONGO, LIXO, TEXTO_LONGO]))
+    assert doc.paginas_sem_texto == [2]
+    assert "\x00" not in doc.para_prompt()
+    assert "=== PÁGINA 2 ===\n[página sem texto legível]" in doc.para_prompt()
+
+
+def test_nulo_solto_em_pagina_curta_nao_e_ilegivel(monkeypatch):
+    # 1 nulo numa página de 10 letras passa de 2%, mas não do mínimo absoluto (20)
+    texto = TEXTO_LONGO + "\n\x00"
+    doc = extrair(_com_paginas(monkeypatch, [texto, "try/catch\n\x00"]))
+    assert doc.paginas[0].texto == texto
+
+
 def test_limites(monkeypatch):
     dados = _pptx()
     monkeypatch.setattr(extracao, "LIMITE_PAGINAS", 3)

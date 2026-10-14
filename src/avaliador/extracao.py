@@ -28,6 +28,15 @@ LIMITE_CARACTERES = 150_000
 # Página com menos que isto de caracteres não-brancos no corpo = "sem texto" (critério
 # exibido na tela junto com a lista das páginas).
 MIN_CARACTERES_PAGINA = 20
+# Página cujo texto extraído traz caracteres de controle (categoria Cc, fora tabulação e
+# quebra de linha) no lugar das letras = "texto ilegível": o gerador do PDF codificou o
+# texto de um jeito que o extrator não decodifica ("\x00D\x00I\x00A..." no resumo
+# executivo do próprio app, WeasyPrint, 14/10). O texto NÃO vai para o modelo: a leitura
+# seria de lixo, com cara de leitura certa. Medido em 150 PDFs locais em 14/10: só os
+# resumos executivos do app (todas as páginas) e um mapa astral (1 página, símbolos sem
+# letra) passam dos dois cortes; o mínimo absoluto tira página quase vazia (1 nulo em 10).
+MIN_CONTROLES_ILEGIVEL = 20
+FRACAO_CONTROLES_ILEGIVEL = 0.02
 # Trecho citado mais curto que isto não prova nada (uma palavra casa em qualquer lugar).
 MIN_CARACTERES_TRECHO = 12
 
@@ -192,6 +201,32 @@ def _extrair_pdf(dados: bytes) -> Documento:
     return Documento("pdf", paginas)
 
 
+_BRANCOS_DE_CONTROLE = frozenset("\t\n\r\x0b\x0c")
+
+
+def _ilegivel(texto: str) -> bool:
+    controles = sum(
+        1 for c in texto if c not in _BRANCOS_DE_CONTROLE and unicodedata.category(c) == "Cc"
+    )
+    letras = len(re.sub(r"\s", "", texto))
+    return controles >= MIN_CONTROLES_ILEGIVEL and controles > FRACAO_CONTROLES_ILEGIVEL * letras
+
+
+def _tirar_ilegiveis(doc: Documento) -> List[int]:
+    """Esvazia o texto das páginas ilegíveis (viram "sem texto legível", listadas na tela
+    com o critério) e devolve os números delas."""
+    numeros = []
+    for p in doc.paginas:
+        sujo = False
+        if _ilegivel(p.texto):
+            p.texto, sujo = "", True
+        if _ilegivel(p.notas):
+            p.notas, sujo = "", True
+        if sujo:
+            numeros.append(p.numero)
+    return numeros
+
+
 def extrair(dados: bytes) -> Documento:
     """Detecta o formato e extrai. Levanta ``DocumentoRecusado`` com mensagem de tela."""
     if len(dados) > LIMITE_BYTES:
@@ -211,6 +246,14 @@ def extrair(dados: bytes) -> Documento:
         raise DocumentoRecusado(
             f"O documento tem texto demais para uma leitura ({doc.total_caracteres:,} "
             f"caracteres; o limite é {LIMITE_CARACTERES:,}).".replace(",", ".")
+        )
+    ilegiveis = _tirar_ilegiveis(doc)
+    if len(doc.paginas_sem_texto) == doc.n_paginas and ilegiveis:
+        raise DocumentoRecusado(
+            f"O texto deste arquivo saiu ilegível: em {len(ilegiveis)} de {doc.n_paginas} "
+            "páginas, a extração devolve caracteres de controle no lugar das letras. Isso "
+            "vem do programa que gerou o arquivo, e uma leitura em cima disso seria "
+            "inventada. Gere o PDF por outro programa ou cole o texto da peça."
         )
     if len(doc.paginas_sem_texto) == doc.n_paginas:
         raise DocumentoRecusado(
