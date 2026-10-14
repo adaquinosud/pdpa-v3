@@ -30,7 +30,7 @@ from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSAO = "avaliador-v10"
+PROMPT_VERSAO = "avaliador-v11"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")
@@ -267,6 +267,24 @@ def _validar_itens(doc: Documento, brutos: Any, permitidos=None) -> List[dict]:
                 "descartado": ja >= MAX_ITENS_POR_SUBPILAR,
             }
         )
+    return _forte_fica(itens)
+
+
+def _forte_fica(itens: List[dict]) -> List[dict]:
+    """O limite de três não pode tirar o único "forte" do subpilar (decisão de 14/10:
+    leituras 6, 7 e 11 com 0, 1 e 0 fortes; buraco sempre "muda mais" que acerto e o forte
+    perdia a vaga). Se o modelo mandou mais de três e o forte veio depois do terceiro, ele
+    fica com a vaga do último que não é forte. O pedido manda pôr o forte; isto é a garantia
+    para quando ele vem fora de ordem."""
+    for cod in {i["subpilar"] for i in itens}:
+        do_sub = [i for i in itens if i["subpilar"] == cod]
+        ficam = [i for i in do_sub if not i["descartado"]]
+        if any(i["tipo"] == "forte" for i in ficam):
+            continue
+        forte = next((i for i in do_sub if i["descartado"] and i["tipo"] == "forte"), None)
+        if forte is None:
+            continue
+        ficam[-1]["descartado"], forte["descartado"] = True, False
     return itens
 
 
@@ -325,7 +343,7 @@ def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tupl
 # Motivo (preview de 13/10): na chamada única o P3 saiu raso duas vezes e um item do Pa2
 # sumiu entre duas leituras da mesma peça.
 
-PROMPT_VERSAO_POR_PILAR = "avaliador-v11-pilar"
+PROMPT_VERSAO_POR_PILAR = "avaliador-v12-pilar"
 MAX_TOKENS_PILAR = 3500
 MAX_TOKENS_RESUMO = 800
 # Folga de entrada para a instrução do pilar + os itens já apontados (no máximo 9 por

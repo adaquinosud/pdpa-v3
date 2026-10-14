@@ -16,7 +16,7 @@ COMO RESPONDER
   · "falta": o que a peça não diz e deveria dizer;
   · "melhorar": o que está lá, mas fraco, vago ou mal colocado, e como ficaria melhor.
 - Subpilar onde não há nada relevante a dizer sobre esta peça: não invente item; deixe de fora.
-- No máximo três itens por subpilar, em ordem: do que mais muda a peça para o que menos muda. Contradição interna da peça, quando existe, está sempre entre os três itens do P1.
+- No máximo três itens por subpilar. Se a peça responde alguma coisa naquele subpilar, pelo menos um dos três é um "forte", sobre o que ela já faz bem: quem recebe a leitura sabe que a peça tem acertos, e uma leitura sem nenhum não é levada a sério. As outras vagas vão em ordem, do que mais muda a peça para o que menos muda. Contradição interna da peça, quando existe, está sempre entre os três itens do P1.
 - Cada item traz um achado diferente. Antes de escrever um item, releia os que você já escreveu: se ele fala da mesma coisa que outro, mesmo noutro subpilar, junte os dois num só.
 - Os itens de um mesmo subpilar não podem se contradizer. "forte" e "falta" no mesmo subpilar tratam de coisas diferentes: se você aponta como forte que a peça faz algo, nenhum item do mesmo subpilar pode dizer que ela não faz.
 - Item "falta" nunca nega o que a peça tem: diga o que falta A PARTIR do que está lá (se a peça diz que há plantão no fim de semana, o que falta é dizer como acioná-lo e em quanto tempo alguém responde, e não que "não há atendimento fora do horário").

@@ -285,6 +285,22 @@ def test_quarto_item_do_subpilar_fica_descartado_sem_nova_tentativa():
     assert [i["texto"] for i in validos(res["itens"])] == ["x0", "x1", "x2"]  # a ordem manda
 
 
+def test_limite_de_tres_nao_tira_o_unico_forte_do_subpilar():
+    # 14/10: leituras 6, 7 e 11 com 0, 1 e 0 fortes; o forte perdia a vaga para o buraco
+    from src.avaliador.motor import validos
+
+    item = {"subpilar": "D1", "tipo": "falta", "texto": "x", "evidencias": []}
+    forte = dict(item, tipo="forte", texto="bom", evidencias=[{"pagina": 1, "trecho": "x" * 5}])
+    outro = dict(item, subpilar="A1")
+    res, _ = ler(Dublê([{"resumo": "r", "itens": [
+        dict(item, texto="x0"), dict(item, texto="x1"), dict(item, texto="x2"), forte, outro,
+    ]}]), MODELO, "s", "u", _doc())  # fmt: skip
+    assert [(i["subpilar"], i["texto"]) for i in validos(res["itens"])] == [
+        ("D1", "x0"), ("D1", "x1"), ("D1", "bom"), ("A1", "x"),
+    ]  # fmt: skip
+    assert [i["texto"] for i in res["itens"] if i["descartado"]] == ["x2"]  # contado, não some
+
+
 def test_por_pilar_falha_so_no_resumo_guarda_os_itens(caplog):
     from src.avaliador.motor import ler_por_pilar
 
