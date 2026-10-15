@@ -1,6 +1,7 @@
 # Avaliador de documentos: especificação técnica
 
-**Versão:** 2 · 13/10/2026 · descreve o que está em produção em `a8a04fc`.
+**Versão:** 3 · 15/10/2026 · descreve o código em `2fb4974` (merge em etapas pelo Alexandre;
+⚠️ estado em produção a confirmar no `/healthz`). Versão 2 (13/10) descrevia `a8a04fc`.
 **Status:** EM PRODUÇÃO, só para admin Loyall. Desligado até o Alexandre definir
 `AVALIADOR_TETO_MENSAL_USD` no Render (teto 0 = desligado).
 **Versão 1 (12/10):** descrevia o desenho anterior (tipos de peça, vereditos por subpilar, bibliotecas
@@ -14,8 +15,9 @@ Toda referência a arquivo abaixo foi aberta antes de entrar aqui. O que foi med
 
 ## 1. O que é
 
-O usuário sobe uma peça do relacionamento com o cliente (proposta, apresentação, documento) ou cola
-o texto de uma conversa, diz em uma linha **o que é a peça e para que ela serve**, e recebe por
+O usuário sobe uma peça do relacionamento com o cliente (proposta, apresentação, documento em
+PowerPoint, Word ou PDF), informa o endereço de uma página pública do site, ou cola o texto de uma
+conversa, diz em uma linha **o que é a peça e para que ela serve**, e recebe por
 subpilar **o que está forte, o que falta e o que melhorar**, cada afirmação com o trecho citado.
 
 Aba **Avaliador** do Explorar (grupo saída), `so_loyall=True`. Cliente não vê a aba, a URL da aba cai
@@ -39,7 +41,10 @@ compara o extrato com o `.docx` quando ele existe na máquina. `carregar_regua()
 ```
 src/avaliador/
   regua.py      régua (Manual + pistas), validação contra SUBPILARES_ORDEM
-  extracao.py   pptx/pdf/texto → páginas; limites; conferir_trecho
+  extracao.py   pptx/pdf/texto → páginas; limites; conferir_trecho; referência por seção;
+                PDF por dois extratores, ilegível e palavra colada
+  word.py       .docx → seções (XML direto, alteração marcada valendo como está)
+  pagina_web.py endereço → página (guarda de rede) → seções
   motor.py      pedido, chamadas, validação determinística, custo
   servico.py    ciclo de vida, gate de custo, retenção, housekeeping
   prompts/      sistema.md, pilar.md, resumo.md
@@ -60,8 +65,27 @@ Classificada em `scripts/zerar_cliente.py`.
 
 ## 5. Entrada
 
-- Formato reconhecido pelo conteúdo, não pela extensão: `.pptx` e PDF. Word, `.ppt` antigo e PDF
-  com senha são recusados com a mensagem do que fazer.
+- Formato reconhecido pelo conteúdo, não pela extensão: `.pptx`, `.docx` e PDF. `.doc` antigo,
+  `.rtf`, `.odt`, `.ppt` antigo, Office com senha e PDF com senha são recusados com a mensagem do
+  que fazer.
+- **Por página** (PDF, PowerPoint) ou **por seção** (`FORMATOS_POR_SECAO`: página da web, Word).
+  Por seção, um título abre a seção; antes do primeiro título é a abertura. A citação mostra o
+  título (título repetido leva "(2ª)") ou "parágrafo que começa “…”"; "seção N" no texto do
+  modelo vira o título, por código (`sem_numero_de_secao`). Linha de tabela é citada célula por
+  célula e linha por linha (o separador " | " é nosso).
+- **PDF:** pdftotext (poppler, programa à parte, pela entrada padrão) e pypdf; fica o de menos
+  página ilegível e menos palavra colada (empate: pdftotext). Página com 20+ caracteres de
+  controle e mais de 2% das letras = "sem texto legível"; arquivo todo assim é recusado. Palavra
+  colada = ligação + palavra solta ("que·trava"); os dois extratores com 5+ e 1%+ = recusa com o
+  número na tela. ⚠️ O corte de 1% **não está calibrado** (§4.64 do Contexto-Mestre).
+- **Word:** corpo e tabelas; fora cabeçalho, rodapé, comentários, notas, texto oculto e sumário
+  automático. Riscado não entra, inserido entra. Título por estilo ou parágrafo de até 60
+  caracteres, todo em maiúsculas, sem ponto final. XML lido sem rede nem entidade, teto de 50 MB
+  descompactado. Numeração automática não aparece.
+- **Página da web:** uma por vez; só http/https, portas 80/443, todos os IPs públicos,
+  redirecionamento revalidado (até 5), 20 s e 5 MB; menu, rodapé, script, formulário e oculto
+  saem; menos de 300 caracteres = recusa com sugestão de salvar como PDF. ⚠️ Troca de DNS no meio
+  da busca aceita enquanto a aba for só admin.
 - Texto colado vira um documento de uma página ("=== TEXTO COLADO ===") e usa a biblioteca L3.
 - Limites: 60 MB, 120 páginas, 150 mil caracteres. Página com menos de 20 caracteres é "sem texto"
   e aparece listada na tela com o critério.
@@ -77,7 +101,8 @@ para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disp
 **Regras do pedido** (`sistema.md`, `pilar.md`):
 - duas regras de fundo: toda afirmação vem com o trecho citado; resultado de outro cliente, case
   ou credencial não conta como prova para este cliente;
-- no máximo três itens por subpilar, do que mais muda a peça para o que menos muda;
+- no máximo três itens por subpilar; se a peça responde algo no subpilar, pelo menos um é
+  "forte" (14/10: leituras 6, 7 e 11 com 0, 1 e 0 fortes); as outras vagas por impacto;
 - cada item traz um achado diferente; itens do mesmo subpilar não se contradizem; forte e falta
   tratam de coisas diferentes;
 - "falta" nunca nega o que a peça tem (exemplo do pedido é inventado, não vem de peça real);
@@ -96,7 +121,7 @@ para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disp
   "citação não encontrada na peça", nunca como citação;
 - "forte" e "melhorar" sem citação conferida ganham alerta visível;
 - do 4º item em diante no subpilar, o item fica guardado com `descartado: true` (sem nova
-  tentativa); a tela mostra só a contagem;
+  tentativa); a tela mostra só a contagem; o único "forte" nunca é o descartado (`_forte_fica`);
 - travessão removido do texto do modelo (`sem_travessao`); trecho citado fica literal;
 - falha só no resumo: a análise fica pronta com os itens e `erro_motivo = "resumo: <tipo>"`;
 - toda recusa de resposta vai para o log com o motivo (nunca com texto da peça).
@@ -111,6 +136,8 @@ para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disp
   o motor confere o pior caso antes de cada envio e para antes de passar, inclusive na nova tentativa.
 - **Medido** na Office Total (4 páginas, câmbio fixo R$ 5,80): gate cobra US$ 0,51 (R$ 2,94) por
   leitura; gasto real US$ 0,15 a 0,16 (R$ 0,85 a 0,95), cerca de 2 minutos.
+- **Medido** em 14-15/10: página (loyallcompany.com) R$ 0,89; Word de 2,8 mil caracteres
+  R$ 0,74 a 0,86; PDF da BEXP R$ 0,87. O gate segue o tamanho do texto, não o formato.
 - Teto decidido para produção: US$ 20 por empresa (cerca de 39 leituras pelo gate).
 
 ## 8. Execução e falha visível
@@ -136,7 +163,7 @@ O aviso da tela nomeia a Anthropic e lê o número de dias da **mesma** constant
 
 ## 11. Testes
 
-71 testes próprios (régua, extração, modelo, motor, serviço, tela), todos com cliente LLM dublado,
+145 testes próprios em `2fb4974` (régua, extração, Word, página, PDF colado, modelo, motor, serviço, tela; eram 71 em `a8a04fc`), todos com cliente LLM dublado,
 sem gasto. Suíte inteira 2044 em `a8a04fc`. A reversão foi provada em Postgres local: código antigo
 falha no `alembic upgrade head` (`Can't locate revision identified by 'a8c9d0e1f2b3'`) sem tocar o
 banco; código antigo **com o arquivo da migration mantido** passa sem fazer nada e o app sobe. Que o
@@ -159,6 +186,10 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
   porta da liberação para cliente.
 - A Office Total não serve mais para calibrar (sete leituras; um exemplo do pedido chegou a sair do
   comentário sobre ela).
+- 14/10: página pública e Word antes de 29/10; pdftotext aprovado (GPL, programa à parte); forte
+  garantido entre os três; título pelas maiúsculas no Word; cláusula sem número fica para depois
+  de 29/10; **uma leitura por peça** em operação (leituras da mesma peça podem divergir no
+  mérito); mudança no pedido só vale medida por leitura paga.
 
 ## 13. Para liberar para cliente
 
@@ -172,8 +203,10 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
 3. A frase de aviso revisada como texto de consentimento.
 4. Teto e custo por cliente: quanto cada empresa-cliente gasta, quem paga, se o cliente vê o custo.
 5. A fatia que tira o "só admin", com os perfis de cliente decididos e testes de acesso.
-6. A fatia do Word (.docx), com citação por parágrafo ou seção.
+6. ~~A fatia do Word (.docx)~~ feita em 14/10.
 7. Teto global, além do teto por empresa.
+8. Fechar a troca de DNS no meio da busca da página (aceita só enquanto a aba é de admin).
+9. Calibrar o corte de palavra colada com PDFs dos caminhos da Apple.
 
 Fora desta frente, separados: `requirements-dev.lock` desatualizado; abas escondidas do Explorar
 abrem por endereço direto.

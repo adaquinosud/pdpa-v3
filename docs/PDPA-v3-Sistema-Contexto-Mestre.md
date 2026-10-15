@@ -1,4 +1,4 @@
-# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 13/out)
+# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 15/out)
 
 > **Documento de bootstrap do projeto.** Leia primeiro a cada sessão. Irmão do
 > `PDPA-Loyall-Contexto-Mestre.md` (comercial/método); este cobre o **sistema**.
@@ -9,6 +9,14 @@
 > versão corrente ia até §4.58 — quatro fatias de diferença. É a §18 do
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
+>
+> **Estado em 14-15/out:** o Avaliador ganhou **três entradas e quatro consertos de
+> leitura** (§4.64): endereço de página pública, Word (.docx), PDF lido por dois
+> extratores com recusa de texto colado ou ilegível, forte garantido entre os três itens
+> e títulos achados pelas maiúsculas. Cinco branches empilhadas, merge pelo Alexandre
+> uma por vez (SHAs no §8, ⚠️ a confirmar no `/healthz` a cada etapa). Três travas novas
+> no §7: mudança no pedido só vale medida por leitura paga; uma leitura por peça;
+> varredura local exclui arquivo de cliente vetado ANTES de abrir.
 >
 > **Estado em 13/out:** prod em **`a8a04fc`** · suíte 2044. Entrou o **Avaliador de
 > documentos** (§4.63), aba do Explorar **só para admin**, desligada até o Alexandre
@@ -2857,6 +2865,100 @@ deste documento): o número "24 divergências"
 atribuído a mim, e o gabarito dos 8 documentos descrito como "lido à mão" quando foi
 gerado por leitores-modelo.
 
+### 4.64 Avaliador: página, Word, PDF honesto e o forte de volta (14-15/out · só admin)
+
+Cinco leituras pagas (8 a 12), **R$ 4,25** a R$ 5,80/US$. Banco descartável do preview,
+empresa fictícia; nada em produção. Números da tabela lidos do banco do preview em 15/10.
+
+| Leitura | Peça | Pedido | Itens (forte/falta/melhorar) | Citações | Custo |
+|---|---|---|---|---|---|
+| 8 | proposta BEXP v9 (PDF) | v9-pilar | 30 (7/19/4) | 28/30¹ | R$ 0,87 |
+| 9 | loyallcompany.com (página) | v9-pilar | 28 (3/17/8) | 25/25 | R$ 0,89 |
+| 10 | loyallcompany.com (página) | v10-pilar² | 28 (4/16/8) | 29/30 | R$ 0,89 |
+| 11 | Loyall-PDPA-Proposta-Parecer.docx | v11-pilar | 25 (0/18/7) | 24/24 | R$ 0,74 |
+| 12 | a mesma .docx | v12-pilar | 34 (9/16/9) | 31/31 | R$ 0,86 |
+
+¹ As duas não conferidas são frases reais que o pypdf extraiu sem espaço
+("respostaésempre"); foi o que abriu a frente do PDF colado. ² Pedido com a regra "número da seção só na
+citação", **desfeita** (abaixo).
+
+**O que entrou (código; SHAs no §8):**
+1. **PDF ilegível não vai ao modelo.** O resumo executivo do próprio app (WeasyPrint)
+   sai do pypdf com um caractere nulo antes de cada letra e passava pela checagem de
+   página sem texto: o modelo leria lixo e a tela não avisaria. Página com 20+
+   caracteres de controle e mais de 2% das letras vira "sem texto legível"; arquivo
+   inteiro assim é recusado antes do gate. Varredura de 150 PDFs locais.
+2. **Endereço de página pública.** Uma página por vez; a tela diz qual endereço foi lido
+   (depois de redirecionamento). Guarda de rede: só http/https nas portas 80/443, todos
+   os IPs públicos (inclusive IPv4 escondido em IPv6: o Python tinha `64:ff9b::a00:1`
+   por público), redirecionamento revalidado a cada salto, sem cookie, tempo e tamanho
+   limitados. **Aceito pelo Alexandre:** a troca de DNS no meio da busca (DNS
+   rebinding) fica aberta enquanto a aba for só admin; volta para a lista antes de
+   liberar a cliente. O site da Loyall expôs dois defeitos consertados: título que
+   embrulha bloco inteiro (Elementor, 802 caracteres como nome de seção) e "seção 22" no
+   texto do item.
+3. **Word (.docx), por seção.** Corpo e tabelas entram; cabeçalho, rodapé, comentários,
+   notas, texto oculto e sumário automático ficam de fora. **Alteração marcada vale como
+   está:** riscado não entra, inserido entra (3 arquivos reais: 0 de 49 riscados
+   vazaram, 0 de 74 inseridos faltaram). Título por estilo **ou** parágrafo curto (até
+   60 caracteres), todo em maiúsculas, sem ponto final; título repetido leva a ordem
+   ("(2ª)"). .doc, .rtf, .odt e Office com senha: recusa com instrução. Numeração
+   automática de cláusula não aparece no texto (fica para depois de 29/10).
+4. **PDF por dois extratores.** pdftotext (poppler, programa à parte, GPL aprovado pelo
+   Alexandre: executado como programa de fora, não embutido; se o app virar produto
+   licenciado a terceiro, volta à mesa) e pypdf; fica o de menos página ilegível e menos
+   palavra colada. Os dois colados = recusa com o número na tela. Em 148 PDFs locais
+   nenhum perdeu texto; 4 recusados passaram a ser lidos com razão. **Aceito:** o corte
+   de 1% NÃO está calibrado (maior limpo 0,21%; nenhum PDF real colado nos dois); par
+   colado que se repete 3+ vezes escapa; Docker não testado localmente, provado pelo
+   `/healthz` (`"pdftotext": true`).
+5. **Forte de volta.** Leituras 6, 7 e 11: 0, 1 e 0 fortes (Office Total e a proposta em
+   Word); as 8, 9 e 10, com o mesmo pedido, tiveram 7, 3 e 4, então o zero não era
+   universal. Causa: a regra "três itens,
+   do que mais muda a peça" faz buraco sempre ganhar de acerto. Pedido: "se a peça
+   responde alguma coisa no subpilar, pelo menos um dos três é forte"; código: o forte
+   que veio depois do terceiro fica com a vaga. **Medido na leitura 12:** 9 fortes em 12
+   subpilares; os sem forte (D1, D3) são os em que a peça não responde nada, e o Pa3 é
+   discutível. Combinado antes: se viesse zero de novo, não haveria quarta redação; o
+   forte passaria a ser pergunta própria por subpilar.
+6. **Citação achável.** "seção N" no texto do item vira o título (código); citação de
+   linha de tabela aparece célula por célula e linha por linha (o "|" é nosso).
+
+⚠️ **Regra no pedido falhou três vezes nesta frente, e uma vez segurou.** "Número da seção
+só na citação" foi medida e piorou (7 de 28 → 11 de 28 itens com número): desfeita e
+trocada por código. Segundo o autor do brief de 14/10, duas mudanças anteriores também não
+seguraram o que prometiam (não reconferido aqui). A do forte segurou (leitura 12). Trava no §7: mudança no pedido só vale medida.
+
+⚠️ **Divergência de mérito entre leituras da mesma peça.** Na proposta em Word, a leitura
+11 diz que a garantia de devolução "transfere o risco ao cliente" (Pa2, melhorar); a 12
+diz que ela "inverte o ônus" (Pa2, forte). **Leituras diferentes da mesma peça podem
+divergir no mérito, não só na seleção.** Não é repetição entre pilares (que é cosmética):
+é o veredito mudando de lado. Talvez não tenha conserto por regra, porque a ambiguidade é
+da peça. **Regra de operação para 29/10: uma leitura por peça** (trava no §7).
+
+**Observação para o preview, não para mexer agora:** na leitura 12 a mesma garantia é
+forte em três subpilares (P2, D2, Pa2). No envelope, o mesmo fato elogiado três vezes
+parece enchimento.
+
+⚠️ **Defeitos MEUS nesta frente:**
+- **Abri um arquivo da Tech Mahindra** ("TM x HRST", que passou pelo filtro de nomes
+  "tech|mahindra|ambev") duas vezes, na contagem de seções dos Word locais. Só contagem
+  local; nada gravado no app, no banco, no repositório ou nos testes. Antes, um PDF da
+  Tech Mahindra entrou na contagem de caracteres de controle. Sem consequência (decisão
+  do Alexandre); trava no §7.
+- **Escondi 50 linhas do resultado** da conferência dos PDFs com um filtro de avisos que
+  comia as linhas "(pypdf)". Percebido pela soma (98 de 148) antes de concluir; refeito.
+- **Push negado pelo modo automático do Claude Code**: o merge passou a ser rodado pelo
+  Alexandre, uma etapa por vez.
+
+**A observação do autor do claude.ai que estava certa:** o "marcapromete" que ele viu no
+parecer é do pypdf 5.9.0; o 6.20.1 (produção) põe a quebra de linha. O parecer não chega
+colado ao app; a proposta BEXP v9 chega, mesmo no 6.20.1.
+
+**Aberto:** PDFs dos caminhos da Apple (Keynote, Pages, Word e PowerPoint para Mac,
+Safari, Canva) para calibrar o corte de 1%; numeração automática de cláusula no Word;
+especificação v3 (`docs/AVALIADOR_ESPECIFICACAO.md`).
+
 ---
 
 ## 5. Os cases
@@ -4746,6 +4848,29 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   🔒 **Regra:** a peça de gabarito é escolhida, lida por pessoa e registrada **antes**
   de a ferramenta tocá-la; o registro diz quem leu, quando, e que nenhum resultado
   existia. Peça já vista por alguém fica fora, inclusive "só para conferir".
+- **MUDANÇA NO PEDIDO A LLM SÓ VALE DEPOIS DE MEDIDA POR LEITURA PAGA.** Regra escrita no
+  pedido é intenção; o modelo a segue ou não. Sem uma leitura paga que mostre o efeito, a
+  regra é hipótese, e regra que não segurou e **fica** no pedido é pior que nenhuma:
+  daqui a três meses alguém acha que o problema está resolvido.
+  ⚠️ **O caso (14/10, Avaliador):** "número da seção só na citação" piorou de 7 para 11
+  itens em 28. 🔒 **Regra:** toda mudança no
+  pedido sobe a versão e é medida por leitura paga antes do merge; a que não segurou sai
+  do pedido no mesmo passo e, quando der, vira código. Na terceira falha da mesma regra,
+  não há quarta redação: muda a pergunta.
+
+- **UMA LEITURA POR PEÇA.** A peça não é relida para comparar saídas e escolher a melhor.
+  Leituras da mesma peça podem divergir **no mérito**, não só na seleção (§4.64: a mesma
+  garantia lida como "transfere o risco" e como "inverte o ônus"). Escolher entre leituras
+  é escolher o veredito. 🔒 **Regra (operação de 29/10 em diante):** se a leitura sai
+  ruim, o defeito é da ferramenta e se conserta na ferramenta, não na escolha do que
+  entregar.
+
+- **VARREDURA LOCAL EXCLUI ARQUIVO DE CLIENTE VETADO ANTES DE ABRIR.** Contar, medir ou
+  extrair "só localmente" ainda é abrir o arquivo. ⚠️ **O caso (14/10):** um PDF e um
+  Word da Tech Mahindra ("TM x HRST" passou pelo filtro "tech|mahindra|ambev") foram
+  abertos em varreduras de calibração. 🔒 **Regra:** a lista de exclusão (Tech Mahindra,
+  Ambev, "TM x" e o que mais for vetado) é aplicada à lista de arquivos **antes** de
+  qualquer leitura, e a lista final é conferida a olho quando o acervo é pessoal.
 ---
 
 ## 8. Estado dos SHAs (todos Live · atual `a8a04fc`)
@@ -4754,7 +4879,11 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
 (extração + conferência de citação) → `ee248c5` (tabela) → `9cb4bc0` (motor) →
 `cfee054` (serviço, gate, retenção) → `fbe69e5` (tela) → `d3413dc` (direção 1) →
 `61fc694` → `01c70f3` (preview) → `507a778` (por pilar) → `b74e662` → `3835eaa`
-→ `a8a04fc` (por pilar padrão). §4.63.
+→ `a8a04fc` (por pilar padrão). §4.63. **14-15/out** (⚠️ a confirmar no `/healthz` a
+cada etapa): `d0bd1cb` (PDF ilegível) → `76e5c50` → `4486a5f` → `1ee8880` → `e5e3d16`
+→ `b67bd2a` → `f09f701` (página pública) → `9ffcc8b` → `b73e2ad` (Word) → `2e2aba1`
+(PDF por dois extratores) → `a760865` → `d3eb28e` → `2fb4974` (forte, maiúsculas,
+tabela). §4.64.
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →
