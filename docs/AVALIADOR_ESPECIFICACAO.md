@@ -74,7 +74,12 @@ Classificada em `scripts/zerar_cliente.py`.
   modelo vira o título, por código (`sem_numero_de_secao`). Linha de tabela é citada célula por
   célula e linha por linha (o separador " | " é nosso).
 - **PDF:** pdftotext (poppler, programa à parte, pela entrada padrão) e pypdf; fica o de menos
-  página ilegível e menos palavra colada (empate: pdftotext). Página com 20+ caracteres de
+  página ilegível e menos palavra colada ou com ligadura perdida (empate: pdftotext). Ligadura
+  ("ﬁ") desfeita na saída dos dois; ligadura perdida = palavra que o outro extrator tem inteira e
+  este tem só o resto ("Con guracao", "uma la"), mais pedaço solto ("fi"). Lista de ligaduras
+  observada (ff, fi, fl, ffi, ffl); fora dela passa sem aviso. PowerPoint e Word do Mac são
+  decididos por empate em zero: a colagem do pypdf ("relatorio·executivo") é invisível às duas
+  réguas. Página com 20+ caracteres de
   controle e mais de 2% das letras = "sem texto legível"; arquivo todo assim é recusado. Palavra
   colada = ligação + palavra solta ("que·trava"); os dois extratores com 5+ e 1%+ = recusa com o
   número na tela. ⚠️ O corte de 1% **não está calibrado** (§4.64 do Contexto-Mestre).
@@ -206,7 +211,10 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
 6. ~~A fatia do Word (.docx)~~ feita em 14/10.
 7. Teto global, além do teto por empresa.
 8. Fechar a troca de DNS no meio da busca da página (aceita só enquanto a aba é de admin).
-9. Calibrar o corte de palavra colada com PDFs dos caminhos da Apple.
+9. Calibrar o corte de palavra colada com PDFs dos caminhos da Apple. Medidos em 15/10 (Keynote,
+   Pages, PowerPoint e Word para Mac): 0% no melhor extrator nos quatro, o corte segue sem
+   calibração. Pendência registrada: a régua de coladas não vê palavra + palavra comum
+   ("relatorio·executivo", 13 no pypdf do PowerPoint); alargar exige calibração própria.
 
 Fora desta frente, separados: `requirements-dev.lock` desatualizado; abas escondidas do Explorar
 abrem por endereço direto.

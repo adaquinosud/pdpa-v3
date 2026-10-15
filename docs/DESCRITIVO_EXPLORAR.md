@@ -1011,7 +1011,9 @@ fazer. **Páginas sem texto** (slide desenhado como imagem) e **páginas com tex
 lugar das letras) são listadas com o critério; o conteúdo delas não foi lido. Se o arquivo
 inteiro sai ilegível, ele é recusado antes de qualquer custo, com a mensagem do que fazer (gerar o
 PDF por outro programa ou colar o texto). **PDF com palavras grudadas** ("quetrava", "maisvolume", comum no PDF
-exportado pelo Mac): o PDF é lido por dois extratores e fica o que sai melhor; se os dois saem
+exportado pelo Mac) ou **palavras partidas pela ligadura** ("Con guracao" no lugar de
+"Configuracao", no PDF do Keynote e do Pages): o PDF é lido por dois extratores e fica o que sai
+melhor; se os dois saem
 grudados, a leitura é recusada antes de qualquer custo, com o número na tela ("5 de 1.500
 palavras") e o que fazer (enviar o arquivo original, gerar o PDF por outro programa ou colar o
 texto). Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.

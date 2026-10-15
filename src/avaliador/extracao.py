@@ -10,7 +10,8 @@
   julgada pelo corpo.
 - PDF (14/10): dois extratores, o pdftotext (poppler, programa à parte, pela entrada
   padrão, sem disco) e o pypdf; fica o que sai com menos página ilegível e menos palavra
-  colada. Os dois colados = recusa com o número na tela, antes de cobrar.
+  colada ou com ligadura perdida (15/10). Os dois colados = recusa com o número na tela,
+  antes de cobrar.
 - Limites (decisão do Alexandre, 12/10): 60 MB, 120 páginas, 150 mil caracteres. O de
   caracteres é o que contém custo; o de bytes só barra arquivo absurdo.
 """
@@ -84,11 +85,12 @@ class Pagina:
 class Documento:
     formato: str
     paginas: List[Pagina] = field(default_factory=list)
-    # Só do PDF, só na extração (não vai para o banco): qual extrator ficou e quantas
-    # palavras saíram coladas nele.
+    # Só do PDF, só na extração (não vai para o banco): qual extrator ficou, quantas
+    # palavras saíram coladas nele e quantas perderam a ligadura (palavra ou pedaço solto).
     extrator: str = ""
     palavras: int = 0
     coladas: List[str] = field(default_factory=list)
+    ligaduras: List[str] = field(default_factory=list)
 
     @property
     def n_paginas(self) -> int:
@@ -259,6 +261,8 @@ TEMPO_PDFTOTEXT_S = 60
 # nenhum PDF teve os dois extratores colados; a proposta BEXP v9 (PowerPoint → PDF do
 # macOS) tem 0,33% no pypdf e 0% no pdftotext. O corte fica 5× acima do maior limpo até os
 # PDFs dos caminhos da Apple (Keynote, Pages, Word e PowerPoint para Mac, Safari, Canva).
+# Medidos em 15/10 (Keynote, Pages, Word e PowerPoint para Mac): 0% no melhor extrator nos
+# quatro; não dizem nada sobre o corte, que segue sem calibração.
 MIN_COLADAS_RECUSA = 5
 FRACAO_COLADAS_RECUSA = 0.01
 # Colada = palavra de 7+ letras, rara no documento, que se parte em PALAVRA DE LIGAÇÃO +
@@ -305,6 +309,50 @@ def palavras_coladas(texto: str, vocab: "collections.Counter[str]") -> List[str]
     return out
 
 
+# Ligadura (15/10, PDFs do Keynote e do Pages pelo Quartz do macOS): a fonte desenha "fi"
+# num glifo só. O pypdf devolve o caractere único (U+FB01), que a normalização NFC não
+# desfaz; o pdftotext tira as letras de dentro da palavra e solta o pedaço adiante
+# ("Con guracao", "uma la", "ao nal" ... "fi"). Os dois saem com a ligadura desfeita e o
+# escolhedor conta a perda.
+_LIGADURAS = {chr(c): unicodedata.normalize("NFKC", chr(c)) for c in range(0xFB00, 0xFB07)}
+# ⚠️ Lista OBSERVADA até aqui (só "fi" apareceu de fato). Ligadura fora dela passa sem
+# aviso: a palavra chega partida e nenhuma régua conta.
+PEDACOS_LIGADURA = ("ffi", "ffl", "ff", "fi", "fl")
+
+
+def desfazer_ligaduras(texto: str) -> str:
+    return "".join(_LIGADURAS.get(ch, ch) for ch in texto)
+
+
+def ligaduras_perdidas(este: List[str], outro: List[str]) -> List[str]:
+    """Palavras com letras de ligadura que ``outro`` tem inteiras e ``este`` não tem, MAS
+    tem o resto delas sem essas letras ("configuracao" → "con" e "guracao"), mais cada
+    pedaço de ligadura solto em ``este``. Comparação direta entre os extratores, sem
+    dicionário; pedaço solto do outro lado não conta como palavra inteira.
+
+    Limites conhecidos (aceitos pelo Alexandre em 15/10, revistos depois de 29/10):
+    - se ``este`` legitimamente não tem a palavra e por coincidência tem o resto dela,
+      conta um ponto falso;
+    - PowerPoint e Word são decididos por EMPATE em zero, não por esta medida nem pela de
+      coladas: as 13 coladas do pypdf no PowerPoint ("relatorio·executivo") são
+      invisíveis às duas réguas. Arquivo em que o pdftotext cola e o pypdf não erra o
+      desempate e nada avisa."""
+    tem = collections.Counter(w.lower() for w in este)
+    inteiras = collections.Counter(w.lower() for w in outro if w.lower() not in PEDACOS_LIGADURA)
+
+    def tem_o_resto(w: str) -> bool:
+        for p in PEDACOS_LIGADURA:
+            for m in re.finditer(p, w):
+                i, j = m.span()
+                resto = [r for r in (w[:i], w[j:]) if r]
+                if resto and all(tem[r] for r in resto):
+                    return True
+        return False
+
+    out = [w for w in (inteiras - tem).elements() if tem_o_resto(w)]
+    return out + [w for w in este if w.lower() in PEDACOS_LIGADURA]
+
+
 def _pct(fracao: float) -> str:
     return f"{100 * fracao:.1f}%".replace(".", ",")
 
@@ -336,10 +384,11 @@ def _paginas_pdftotext(dados: bytes) -> Optional[List[str]]:
 
 
 def _extrair_pdf(dados: bytes) -> Documento:
-    textos_pypdf = _paginas_pypdf(dados)
+    textos_pypdf = [desfazer_ligaduras(t) for t in _paginas_pypdf(dados)]
     candidatos = [("pypdf", textos_pypdf)]
     textos_poppler = _paginas_pdftotext(dados)
     if textos_poppler is not None:
+        textos_poppler = [desfazer_ligaduras(t) for t in textos_poppler]
         if len(textos_poppler) == len(textos_pypdf):
             candidatos.insert(0, ("pdftotext", textos_poppler))  # empate: fica o pdftotext
         else:
@@ -351,25 +400,33 @@ def _extrair_pdf(dados: bytes) -> Documento:
         w.lower() for _, textos in candidatos for t in textos for w in _palavras(t)
     )
 
+    def legivel(textos):
+        return "\n".join(t for t in textos if not _ilegivel(t))
+
+    def perdidas(nome):
+        este = _palavras(legivel(dict(candidatos)[nome]))
+        outros = [w for n, ts in candidatos if n != nome for w in _palavras(legivel(ts))]
+        return ligaduras_perdidas(este, outros)
+
     def nota(c):
-        textos = c[1]
+        nome, textos = c
         ilegiveis = sum(1 for t in textos if _ilegivel(t))
-        legivel = "\n".join(t for t in textos if not _ilegivel(t))
-        n = max(len(_palavras(legivel)), 1)
-        return (ilegiveis, len(palavras_coladas(legivel, vocab)) / n)
+        n = max(len(_palavras(legivel(textos))), 1)
+        defeitos = len(palavras_coladas(legivel(textos), vocab)) + len(perdidas(nome))
+        return (ilegiveis, defeitos / n)
 
     nome, textos = min(candidatos, key=nota)  # min é estável: no empate, o primeiro
-    legivel = "\n".join(t for t in textos if not _ilegivel(t))
     doc = Documento(
         "pdf",
         [Pagina(i, _nfc(t)) for i, t in enumerate(textos, start=1)],
         extrator=nome,
-        palavras=len(_palavras(legivel)),
-        coladas=palavras_coladas(legivel, vocab),
+        palavras=len(_palavras(legivel(textos))),
+        coladas=palavras_coladas(legivel(textos), vocab),
+        ligaduras=perdidas(nome),
     )
     logger.info(
         f"[avaliador] PDF: extrator {nome}, {len(doc.coladas)} de {doc.palavras} palavras "
-        "coladas"
+        f"coladas, {len(doc.ligaduras)} com ligadura perdida"
     )
     return doc
 
