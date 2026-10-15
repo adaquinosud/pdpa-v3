@@ -10,11 +10,13 @@
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
 >
-> **Estado em 14-15/out:** o Avaliador ganhou **três entradas e quatro consertos de
+> **Estado em 15/out:** prod em **`2fb4974`** (`/healthz` 15/10 10:21, `"pdftotext":
+> true`). O Avaliador ganhou **três entradas e quatro consertos de
 > leitura** (§4.64): endereço de página pública, Word (.docx), PDF lido por dois
 > extratores com recusa de texto colado ou ilegível, forte garantido entre os três itens
-> e títulos achados pelas maiúsculas. Cinco branches empilhadas, merge pelo Alexandre
-> uma por vez (SHAs no §8, ⚠️ a confirmar no `/healthz` a cada etapa). Três travas novas
+> e títulos achados pelas maiúsculas. Cinco branches empilhadas, merge FF pelo Alexandre
+> uma por vez, cada SHA conferido no `/healthz` (15/10: `d0bd1cb` 08:29, `f09f701`
+> 09:30, `b73e2ad` 09:37, `2e2aba1` 09:56, `2fb4974` 10:21). Três travas novas
 > no §7: mudança no pedido só vale medida por leitura paga; uma leitura por peça;
 > varredura local exclui arquivo de cliente vetado ANTES de abrir.
 >
@@ -4879,8 +4881,8 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
 (extração + conferência de citação) → `ee248c5` (tabela) → `9cb4bc0` (motor) →
 `cfee054` (serviço, gate, retenção) → `fbe69e5` (tela) → `d3413dc` (direção 1) →
 `61fc694` → `01c70f3` (preview) → `507a778` (por pilar) → `b74e662` → `3835eaa`
-→ `a8a04fc` (por pilar padrão). §4.63. **14-15/out** (⚠️ a confirmar no `/healthz` a
-cada etapa): `d0bd1cb` (PDF ilegível) → `76e5c50` → `4486a5f` → `1ee8880` → `e5e3d16`
+→ `a8a04fc` (por pilar padrão). §4.63. **14-15/out** (Live, cada etapa conferida no
+`/healthz` em 15/10): `d0bd1cb` (PDF ilegível) → `76e5c50` → `4486a5f` → `1ee8880` → `e5e3d16`
 → `b67bd2a` → `f09f701` (página pública) → `9ffcc8b` → `b73e2ad` (Word) → `2e2aba1`
 (PDF por dois extratores) → `a760865` → `d3eb28e` → `2fb4974` (forte, maiúsculas,
 tabela). §4.64.

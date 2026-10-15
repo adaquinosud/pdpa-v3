@@ -1,7 +1,7 @@
 # Avaliador de documentos: especificação técnica
 
 **Versão:** 3 · 15/10/2026 · descreve o código em `2fb4974` (merge em etapas pelo Alexandre;
-⚠️ estado em produção a confirmar no `/healthz`). Versão 2 (13/10) descrevia `a8a04fc`.
+Live, `/healthz` 15/10 10:21). Versão 2 (13/10) descrevia `a8a04fc`.
 **Status:** EM PRODUÇÃO, só para admin Loyall. Desligado até o Alexandre definir
 `AVALIADOR_TETO_MENSAL_USD` no Render (teto 0 = desligado).
 **Versão 1 (12/10):** descrevia o desenho anterior (tipos de peça, vereditos por subpilar, bibliotecas
