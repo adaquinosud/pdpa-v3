@@ -43,7 +43,10 @@ LIMITE_BYTES_HTML = 5 * 1024 * 1024
 # Página com menos que isto de texto (depois de tirar menu, rodapé e script) = "não
 # consegui ler": é página montada por script, tela de login ou bloqueio. Critério na tela.
 MIN_CARACTERES_PAGINA_WEB = 300
-AGENTE = "PDPA-Avaliador/1.0 (leitura de uma página a pedido de um usuário da Loyall)"
+# O app se apresenta como é, nunca como navegador: quem usa a ferramenta nem sempre é o dono
+# do site, e passar por cima da regra de bloqueio faria dela raspador de página (decisão do
+# Alexandre, 15/10). O endereço é para o administrador do site saber quem é.
+AGENTE = "PDPA-Avaliador/1.0 (+https://loyallcompany.com.br)"
 
 SUGESTAO_PDF = (
     "Abra a página no navegador e salve como PDF (Imprimir › Salvar como PDF), "
@@ -169,8 +172,17 @@ def buscar(url: str, sessao=None) -> Tuple[str, bytes]:
 
 def _checar_resposta(resp) -> None:
     c = resp.status_code
-    if c in (401, 403, 407):
-        raise PaginaRecusada("A página pede senha ou bloqueia leitura automática. " + SUGESTAO_PDF)
+    if c in (401, 407):
+        raise PaginaRecusada(
+            "A página pede senha. Abra no navegador, salve como PDF (Imprimir, depois Salvar "
+            "como PDF) e envie o PDF."
+        )
+    if c == 403:  # grupocarbel.com.br, 15/10: o balanceador recusa quem não é navegador
+        raise PaginaRecusada(
+            "O site recusa leitura automática. Abra a página no navegador, salve como PDF "
+            "(Imprimir, depois Salvar como PDF) e envie o PDF. Funciona porque o site libera "
+            "quem abre pelo navegador."
+        )
     if c == 404 or c == 410:
         raise PaginaRecusada("A página não existe (erro 404). Confira o endereço.")
     if c == 429:

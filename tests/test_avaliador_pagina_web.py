@@ -290,8 +290,9 @@ def test_redirecionamento_em_circulo_para(publico):
 @pytest.mark.parametrize(
     "resp, msg",
     [
-        (Resp(403), "pede senha ou bloqueia leitura automática.*salve como PDF"),
-        (Resp(401), "pede senha"),
+        (Resp(403), "^O site recusa leitura automática.*salve como PDF.*libera quem abre"),
+        (Resp(401), "^A página pede senha\\. .*salve como PDF"),
+        (Resp(407), "^A página pede senha\\. .*salve como PDF"),
         (Resp(404), "não existe"),
         (Resp(500), "erro \\(500\\)"),
         (Resp(200, b"%PDF-1.4", {"Content-Type": "application/pdf"}), "é um PDF"),
@@ -302,6 +303,15 @@ def test_pagina_que_nao_pode_ser_lida_diz_por_que(publico, resp, msg):
     with pytest.raises(PaginaRecusada, match=msg):
         buscar("https://exemplo.com/", sessao=Sessao({"https://exemplo.com/": resp}))
     assert resp.fechada
+
+
+def test_app_se_apresenta_como_e_com_contato_e_nunca_como_navegador(publico):
+    s = Sessao({"https://exemplo.com/": Resp(403)})
+    with pytest.raises(PaginaRecusada):
+        buscar("https://exemplo.com/", sessao=s)
+    agente = s.pedidos[0][1]["headers"]["User-Agent"]
+    assert agente == "PDPA-Avaliador/1.0 (+https://loyallcompany.com.br)"
+    assert "Mozilla" not in agente
 
 
 def test_pagina_grande_demais_para_de_baixar(publico, monkeypatch):

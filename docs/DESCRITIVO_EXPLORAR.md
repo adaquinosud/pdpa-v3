@@ -995,7 +995,8 @@ menu, rodapé, scripts e formulários, e lê o texto que sobra. A tela diz **qua
 (se o site redirecionou, é o endereço final). Sem número de página, a citação vem com o **título da
 seção** onde o trecho está, ou, na abertura da página, com **as primeiras palavras do parágrafo**.
 Quando a página não pode ser lida, nada é cobrado e a tela diz o motivo e o que fazer: página que
-pede senha ou bloqueia leitura automática, montada por script (menos de 300 caracteres de texto),
+pede senha, site que recusa leitura automática (o app se apresenta como é, não como navegador),
+montada por script (menos de 300 caracteres de texto),
 que não existe, que é um PDF, grande demais, ou que demora demais. Na maioria dos casos a saída é
 **salvar a página como PDF no navegador e enviar o PDF**. Endereço de rede interna não é buscado.
 
