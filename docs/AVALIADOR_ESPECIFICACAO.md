@@ -1,7 +1,8 @@
 # Avaliador de documentos: especificação técnica
 
-**Versão:** 3 · 15/10/2026 · descreve o código em `2fb4974` (merge em etapas pelo Alexandre;
-Live, `/healthz` 15/10 10:21). Versão 2 (13/10) descrevia `a8a04fc`.
+**Versão:** 3.1 · 15/10/2026 · descreve o código em `0517adb` (ligadura `0aae9ee` e mensagens
+de bloqueio `b90875f` Live no `/healthz` 15/10; coerência do forte `0517adb` ⚠️ a confirmar no
+`/healthz`). Versão 3 descrevia `2fb4974`; versão 2 (13/10), `a8a04fc`.
 **Status:** EM PRODUÇÃO, só para admin Loyall. Desligado até o Alexandre definir
 `AVALIADOR_TETO_MENSAL_USD` no Render (teto 0 = desligado).
 **Versão 1 (12/10):** descrevia o desenho anterior (tipos de peça, vereditos por subpilar, bibliotecas
@@ -89,8 +90,12 @@ Classificada em `scripts/zerar_cliente.py`.
   descompactado. Numeração automática não aparece.
 - **Página da web:** uma por vez; só http/https, portas 80/443, todos os IPs públicos,
   redirecionamento revalidado (até 5), 20 s e 5 MB; menu, rodapé, script, formulário e oculto
-  saem; menos de 300 caracteres = recusa com sugestão de salvar como PDF. ⚠️ Troca de DNS no meio
-  da busca aceita enquanto a aba for só admin.
+  saem; menos de 300 caracteres = recusa com sugestão de salvar como PDF. 401/407 = "a página
+  pede senha"; 403 = "o site recusa leitura automática" (grupocarbel.com.br, 15/10: o balanceador
+  recusa quem não é navegador), os dois com o caminho do PDF. O agente é
+  `PDPA-Avaliador/1.0 (+https://loyallcompany.com.br)` e **nunca** se passa por navegador
+  (decisão do Alexandre, 15/10: quem usa a ferramenta nem sempre é o dono do site). ⚠️ Troca de
+  DNS no meio da busca aceita enquanto a aba for só admin.
 - Texto colado vira um documento de uma página ("=== TEXTO COLADO ===") e usa a biblioteca L3.
 - Limites: 60 MB, 120 páginas, 150 mil caracteres. Página com menos de 20 caracteres é "sem texto"
   e aparece listada na tela com o critério.
@@ -108,8 +113,11 @@ para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disp
   ou credencial não conta como prova para este cliente;
 - no máximo três itens por subpilar; se a peça responde algo no subpilar, pelo menos um é
   "forte" (14/10: leituras 6, 7 e 11 com 0, 1 e 0 fortes); as outras vagas por impacto;
-- cada item traz um achado diferente; itens do mesmo subpilar não se contradizem; forte e falta
-  tratam de coisas diferentes;
+- cada item traz um achado diferente; **coerência dentro do subpilar** (15/10, só no
+  `sistema.md`): o forte não apresenta como claro, definido ou suficiente o elemento que outro
+  item do mesmo subpilar aponta como ausente, indefinido ou insuficiente; forte, falta e melhorar
+  podem tratar do mesmo elemento por ângulos diferentes, sem afirmar o oposto. Pedido
+  `avaliador-v12` / `avaliador-v13-pilar`;
 - "falta" nunca nega o que a peça tem (exemplo do pedido é inventado, não vem de peça real);
 - percorrer cada parte da definição do Manual; no P3, unidades só **se** a peça disser que o
   cliente tem mais de uma;
@@ -126,7 +134,11 @@ para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disp
   "citação não encontrada na peça", nunca como citação;
 - "forte" e "melhorar" sem citação conferida ganham alerta visível;
 - do 4º item em diante no subpilar, o item fica guardado com `descartado: true` (sem nova
-  tentativa); a tela mostra só a contagem; o único "forte" nunca é o descartado (`_forte_fica`);
+  tentativa); a tela mostra só a contagem; o único "forte" nunca é o descartado (`_forte_fica`).
+  ⚠️ **Brecha conhecida (aceita em 15/10):** se o modelo mandar como 4º item um forte desmentido
+  por outro item do subpilar, o código o promove e desfaz a regra de coerência. Não se trava em
+  código: conferir contradição é julgamento, não comparação de texto, e tirar a promoção desfaria
+  o conserto da leitura 11;
 - travessão removido do texto do modelo (`sem_travessao`); trecho citado fica literal;
 - falha só no resumo: a análise fica pronta com os itens e `erro_motivo = "resumo: <tipo>"`;
 - toda recusa de resposta vai para o log com o motivo (nunca com texto da peça).
@@ -195,6 +207,9 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
   garantido entre os três; título pelas maiúsculas no Word; cláusula sem número fica para depois
   de 29/10; **uma leitura por peça** em operação (leituras da mesma peça podem divergir no
   mérito); mudança no pedido só vale medida por leitura paga.
+- 15/10: ligadura desfeita nos dois extratores e contada no escolhedor; 403 separado de senha; o
+  app não se passa por navegador; coerência do forte substitui a regra forte × falta (vence a
+  regra do forte: o subpilar respondido continua com forte).
 
 ## 13. Para liberar para cliente
 

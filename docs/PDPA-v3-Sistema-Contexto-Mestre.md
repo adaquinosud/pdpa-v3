@@ -10,7 +10,13 @@
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
 >
-> **Estado em 15/out:** prod em **`2fb4974`** (`/healthz` 15/10 10:21, `"pdftotext":
+> **Estado em 15/out (noite):** prod em **`b90875f`** (`/healthz` 15/10 20:21). Três
+> consertos do Avaliador (§4.65): ligadura do PDF do Keynote e do Pages (`0aae9ee`), 403
+> separado de senha sem o app se passar por navegador (`b90875f`) e coerência do forte no
+> pedido (`0517adb`, ⚠️ a confirmar no `/healthz`; verificação por leitura paga depois do
+> merge). Trava nova no §7: número previsto em especificação se mede antes de construir.
+>
+> **Estado em 15/out (manhã):** prod em **`2fb4974`** (`/healthz` 15/10 10:21, `"pdftotext":
 > true`). O Avaliador ganhou **três entradas e quatro consertos de
 > leitura** (§4.64): endereço de página pública, Word (.docx), PDF lido por dois
 > extratores com recusa de texto colado ou ilegível, forte garantido entre os três itens
@@ -2961,6 +2967,62 @@ colado ao app; a proposta BEXP v9 chega, mesmo no 6.20.1.
 Safari, Canva) para calibrar o corte de 1%; numeração automática de cláusula no Word;
 especificação v3 (`docs/AVALIADOR_ESPECIFICACAO.md`).
 
+### 4.65 Avaliador: ligadura, bloqueio de página e coerência do forte (15/out · só admin)
+
+**1. Ligadura no PDF do Mac (`0aae9ee`, Live 15/10 13:39).** Medido em quatro PDFs de
+calibração (Keynote, Pages, PowerPoint e Word para Mac; o "Safari" era cópia byte a byte do
+Keynote): a régua de coladas deu 0 nos quatro, mas o pdftotext arranca o "fi" de dentro da
+palavra no Keynote e no Pages ("Con guracao", "uma la", "ao nal", e o "fi" solto adiante)
+e o pypdf devolve o caractere único U+FB01. O escolhedor empatava em zero e ficava com o
+pdftotext, o pior dos dois. Relatado pelo autor do brief: na leitura de produção do
+keynote.pdf (15/10 15:04, `0f58a84`), 7 das 21 citações saíram com palavra quebrada.
+Conserto: ligadura desfeita na saída dos dois extratores; medida nova **ligadura perdida**
+(palavra que o outro extrator tem inteira e este tem só o resto sem as letras da ligadura,
+mais cada pedaço solto); escolhedor soma coladas + ligadura perdida, empate no pdftotext.
+Medido antes de construir: pdftotext 5/5/0/0 palavras perdidas (+3 e +5 pedaços soltos no
+Keynote e no Pages), pypdf zero nos quatro. Keynote e Pages passam ao pypdf; PowerPoint e
+Word ficam no pdftotext. Os quatro PDFs entraram em `tests/dados/pdf_mac` (texto inventado,
+sem autor nos metadados nem no XMP). Sete mutações, sete mortas.
+**Limites aceitos:** lista de ligaduras é a observada (ff, fi, fl, ffi, ffl), fora dela passa
+sem aviso; coincidência de resto conta ponto falso; PowerPoint e Word decididos por empate
+em zero: as 13 coladas do pypdf no PowerPoint ("relatorio·executivo") são invisíveis às
+duas réguas, e arquivo em que o pdftotext cola e o pypdf não erra o desempate sem aviso.
+**Pendência:** alargar a régua de coladas exige calibração própria. O corte de 1% segue
+**sem calibração** (os quatro deram 0% no melhor extrator).
+
+**2. Página que recusa leitor automático (`b90875f`, Live 15/10 20:21).** O Alexandre
+recebeu "pede senha ou bloqueia" em grupocarbel.com.br. Medido: o balanceador da Amazon
+(`awselb/2.0`) responde **403** ao agente do app, a "Mozilla/5.0" sozinho, ao curl e ao
+python-requests, e **200** a um Chrome completo (sobrariam 2.115 caracteres, mínimo 300).
+Reproduzido de endereço residencial, então não é o IP do Render. A mensagem nunca vinha de
+pouco texto (essa já era outra). Conserto: 401/407 = "a página pede senha"; 403 = "o site
+recusa leitura automática", com o porquê de o PDF funcionar; agente com contato
+(`+https://loyallcompany.com.br`). **Recusado:** o app se passar por navegador. Motivo
+(Alexandre): quem usa a ferramenta nem sempre é o dono do site, e passar por cima do
+bloqueio faz dela raspador de página; o custo de não fazer é imprimir como PDF.
+
+**3. Coerência do forte (`0517adb`, ⚠️ a confirmar no `/healthz`).** Relatado pelo autor do
+brief: na leitura de 15:04 o forte do P2 dizia que a garantia dá "um parâmetro concreto" e o
+melhorar, citando a mesma frase, que "não define o que é esse indicador"; na leitura de
+22:51 do mesmo arquivo não se repetiu (uma em duas; horários como relatados, não conferidos
+no banco). A frase pedida mandava "deixar o subpilar sem forte", o que brigava com a regra
+do forte (subpilar respondido tem forte): parei e reportei. **Decisão:** vence a regra do
+forte; a frase nova substitui a regra antiga forte × falta e cobre os três tipos; só no
+`sistema.md` (regra repetida em dois arquivos diverge); pedido `avaliador-v12` /
+`avaliador-v13-pilar`. **Brecha aceita:** `_forte_fica` promove um forte desmentido que
+venha como 4º item; não se trava em código (contradição é julgamento) nem se tira a
+promoção (desfaria o conserto da leitura 11). **Verificação:** leitura paga depois do
+merge, com o desfazer na mão (`git revert 0517adb`). ⚠️ Isso inverte a ordem da trava
+"mudança no pedido só vale medida" do §7, que pede a leitura **antes** do merge; a ordem
+foi decisão do Alexandre nesta frente.
+
+⚠️ **O que quase deu errado, duas vezes no mesmo dia:** a especificação da ligadura trazia
+uma tabela de resultado ("keynote e pages passam ao pypdf…") apresentada como conferência
+e nunca rodada; a medida proposta, rodada, punia o extrator certo no PowerPoint e não via
+nada no Keynote. Depois, o número que **eu** previ para o Pages (7) estava errado: era 5;
+confundi palavras com pedaços soltos. Os dois foram pegos porque a medição veio antes do
+código. Trava no §7.
+
 ---
 
 ## 5. Os cases
@@ -4873,6 +4935,15 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   abertos em varreduras de calibração. 🔒 **Regra:** a lista de exclusão (Tech Mahindra,
   Ambev, "TM x" e o que mais for vetado) é aplicada à lista de arquivos **antes** de
   qualquer leitura, e a lista final é conferida a olho quando o acervo é pessoal.
+
+- **NÚMERO PREVISTO EM ESPECIFICAÇÃO SE MEDE ANTES DE CONSTRUIR.** Tabela de resultado que
+  descreve o que o conserto "vai dar" tem a forma de conferência e não é. ⚠️ **O caso
+  (15/10, ligadura):** a especificação dizia que a medida de palavra partida poria o
+  Keynote no pypdf e manteria o PowerPoint no pdftotext; rodada, fazia o contrário nos dois.
+  Na rodada seguinte, a minha previsão para o Pages (7) estava errada (5). 🔒 **Regra:** a
+  medida roda primeiro como medição, fora do código; se o número não bate com o previsto,
+  para e reporta antes de escrever código. Vale para previsão de quem escreve a
+  especificação e de quem implementa.
 ---
 
 ## 8. Estado dos SHAs (todos Live · atual `a8a04fc`)
@@ -4885,7 +4956,9 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
 `/healthz` em 15/10): `d0bd1cb` (PDF ilegível) → `76e5c50` → `4486a5f` → `1ee8880` → `e5e3d16`
 → `b67bd2a` → `f09f701` (página pública) → `9ffcc8b` → `b73e2ad` (Word) → `2e2aba1`
 (PDF por dois extratores) → `a760865` → `d3eb28e` → `2fb4974` (forte, maiúsculas,
-tabela). §4.64.
+tabela). §4.64. **15/out:** `0f58a84` (docs) → `0aae9ee` (ligadura, Live 13:39) →
+`b90875f` (403 × senha, Live 20:21) → `0517adb` (coerência do forte, ⚠️ a confirmar no
+`/healthz`). §4.65.
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →
