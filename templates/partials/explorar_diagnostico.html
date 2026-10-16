@@ -46,7 +46,7 @@
     ♻️ Regenerar leituras diagnósticas
   </button>
   <span id="regen-loading-diag" class="htmx-indicator text-xs text-loyall-400">gerando… (pode levar ~1 min)</span>
-  {% if d.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ d.ultima_geracao.strftime('%d/%m %H:%M') }}</span>{% endif %}
+  {% if d.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ d.ultima_geracao | hora_br('%d/%m %H:%M') }}</span>{% endif %}
 </div>
 
 {# ── Mapa de Lastro ── (partial compartilhado com a tela de respostas v2) #}
@@ -126,7 +126,7 @@
           {# Selo de staleness: o hash do payload atual ≠ dados_hash salvo → os números
              citados no texto podem divergir da tabela ao vivo. Botão regenera só este subpilar. #}
           <div class="mt-1.5 flex items-center gap-2 text-[11px] text-amber-700">
-            <span title="O texto foi gerado a partir de números anteriores; a tabela ao lado está ao vivo.">⚠️ Leitura gerada em {{ c.gerado_em.strftime('%d/%m %H:%M') if c.gerado_em else '—' }} — dados atualizados</span>
+            <span title="O texto foi gerado a partir de números anteriores; a tabela ao lado está ao vivo.">⚠️ Leitura gerada em {{ c.gerado_em | hora_br('%d/%m %H:%M') if c.gerado_em else '—' }} — dados atualizados</span>
             <button hx-post="{{ url_for('ui.explorar_regenerar_subpilar', empresa_id=empresa.id) }}?subpilar={{ c.subpilar }}&agrupamento_id={{ filtros.agrupamento_id }}&local_id={{ filtros.local_id }}"
                     hx-target="#explorar-conteudo" hx-swap="innerHTML" hx-indicator="#regen-sp-{{ c.subpilar }}"
                     class="px-1.5 py-0.5 rounded border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100">regenerar</button>

@@ -24,7 +24,7 @@
   <h1 class="text-2xl font-semibold mt-1">Temas {{ glossario_i('tema') }}</h1>
   <div class="mt-0.5">{% include 'partials/ultima_coleta.html' %}</div>
   <p class="text-xs text-loyall-500 mt-1">
-    Temas: últimos 6 meses{% if data_corte %} (desde {{ data_corte.strftime('%d/%m/%Y') }}){% endif %}.
+    Temas: últimos 6 meses{% if data_corte %} (desde {{ data_corte | hora_br('%d/%m/%Y') }}){% endif %}.
   </p>
   <div class="mt-2 flex flex-wrap gap-2 text-sm">
     <span class="px-2 py-0.5 rounded bg-loyall-100 text-loyall-700">{{ totais.temas }} temas</span>

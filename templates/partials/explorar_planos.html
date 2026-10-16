@@ -192,7 +192,7 @@
         </button>
         {{ glossario_i('sugestao-estrutural') }}
         <span id="regen-loading" class="htmx-indicator text-xs text-loyall-400">gerando… (pode levar ~1 min)</span>
-        {% if p.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ p.ultima_geracao.strftime('%d/%m %H:%M') }}</span>{% endif %}
+        {% if p.ultima_geracao %}<span class="text-[11px] text-loyall-400">Última geração: {{ p.ultima_geracao | hora_br('%d/%m %H:%M') }}</span>{% endif %}
       </div>
     </div>
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">

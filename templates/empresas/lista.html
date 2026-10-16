@@ -44,7 +44,7 @@
           <td class="px-4 py-2 text-sm">
             {% if e.site %}<a href="{{ e.site }}" target="_blank" class="text-loyall-600 hover:underline">{{ e.site }}</a>{% else %}—{% endif %}
           </td>
-          <td class="px-4 py-2 text-sm text-loyall-400">{{ e.criada_em.strftime('%Y-%m-%d') if e.criada_em else '' }}</td>
+          <td class="px-4 py-2 text-sm text-loyall-400">{{ e.criada_em | hora_br('%Y-%m-%d') }}</td>
         </tr>
       {% endfor %}
       </tbody>

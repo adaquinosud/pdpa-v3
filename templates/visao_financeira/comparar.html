@@ -19,14 +19,14 @@
     <span>comparar</span>
     <select name="a" onchange="this.form.submit()" style="border:0.5px solid #D3D1C7;border-radius:6px;padding:5px 8px;">
       {% for sn in snapshots %}
-      <option value="{{ sn.id }}"{% if sel_a == sn.id|string %} selected{% endif %}>{{ sn.nome }} · {{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}</option>
+      <option value="{{ sn.id }}"{% if sel_a == sn.id|string %} selected{% endif %}>{{ sn.nome }} · {{ sn.gerado_em | hora_br }}</option>
       {% endfor %}
     </select>
     <span>com</span>
     <select name="b" onchange="this.form.submit()" style="border:0.5px solid #D3D1C7;border-radius:6px;padding:5px 8px;">
       <option value="atual"{% if sel_b == 'atual' %} selected{% endif %}>estado atual</option>
       {% for sn in snapshots %}
-      <option value="{{ sn.id }}"{% if sel_b == sn.id|string %} selected{% endif %}>{{ sn.nome }} · {{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}</option>
+      <option value="{{ sn.id }}"{% if sel_b == sn.id|string %} selected{% endif %}>{{ sn.nome }} · {{ sn.gerado_em | hora_br }}</option>
       {% endfor %}
     </select>
     <noscript><button style="background:#3B6D11;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;">Comparar</button></noscript>

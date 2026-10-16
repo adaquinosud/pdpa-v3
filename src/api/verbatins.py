@@ -40,6 +40,7 @@ from src.models.local import Local
 from src.models.verbatim import Verbatim
 from src.models.verbatim_reclassificacao import VerbatimReclassificacao
 from src.utils.db import db_session
+from src.utils.fuso import hora_br
 
 
 verbatins_bp = Blueprint("verbatins", __name__, url_prefix="/api/verbatins")
@@ -395,7 +396,7 @@ def exportar_xlsx_da_empresa(empresa_id: int):
             fonte_str = f"{f.conector_tipo} — {f.url}" if f else ""
             hist = reclassif_map.get(v.id, [])
             hist_str = " | ".join(
-                f"{(r.reclassificado_em.isoformat() if r.reclassificado_em else '')}"
+                f"{hora_br(r.reclassificado_em, '%Y-%m-%dT%H:%M:%S')}"
                 f" {r.subpilar_anterior}→{r.subpilar_novo}"
                 f" {r.tipo_anterior}→{r.tipo_novo}"
                 f" por_user_id={r.reclassificado_por or ''}"

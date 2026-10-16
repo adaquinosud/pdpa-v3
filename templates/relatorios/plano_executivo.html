@@ -170,7 +170,7 @@
 <div class="assinatura-final">
   <div class="nomes">Alexandre D'Aquino · Dener Pereira</div>
   <div class="loyall">Loyall Company</div>
-  <div style="margin-top:4pt">Gerado em {{ d.gerado_em.strftime('%d/%m/%Y às %H:%M UTC') }}
+  <div style="margin-top:4pt">Gerado em {{ d.gerado_em | hora_br('%d/%m/%Y às %H:%M') }} (horário de Brasília)
        · {{ d.total }} ações consolidadas · sem custo LLM (assembly do cache).</div>
 </div>
 {% endblock %}

@@ -12,7 +12,7 @@
      style="font-size:13px;color:#888780;text-decoration:none;">← Visão financeira</a>
   <div style="font-size:20px;font-weight:500;margin-top:6px;">Foto “{{ meta.nome }}”</div>
   <div style="background:#F1EFE8;color:#5F5E5A;border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.5;margin:10px 0 1.25rem;">
-    📸 Exatamente o que a tela mostrava em {{ meta.gerado_em.strftime('%d/%m/%Y %H:%M') if meta.gerado_em else foto.gerado_em }}{% if meta.gerado_por %} · {{ meta.gerado_por }}{% endif %}. Recompute posterior da régua não altera nada aqui.</div>
+    📸 Exatamente o que a tela mostrava em {{ (meta.gerado_em or foto.gerado_em) | hora_br }}{% if meta.gerado_por %} · {{ meta.gerado_por }}{% endif %}. Recompute posterior da régua não altera nada aqui.</div>
 
   {# saúde congelada #}
   <div style="font-size:13px;color:#888780;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">A saúde no instante</div>

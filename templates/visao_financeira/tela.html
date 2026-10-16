@@ -141,7 +141,7 @@
     <a href="{{ url_for('ui.visao_financeira_snapshot_reabrir', empresa_id=empresa_id, snap_id=sn.id) }}"
        style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;font-size:13px;color:#2C2C2A;text-decoration:none;{% if not loop.first %}border-top:0.5px solid #D3D1C7;{% endif %}">
       <span style="color:#185FA5;">{{ sn.nome }}</span>
-      <span style="font-size:12px;color:#888780;">{{ sn.gerado_em.strftime('%d/%m/%Y %H:%M') if sn.gerado_em else '' }}{% if sn.gerado_por %} · {{ sn.gerado_por }}{% endif %}</span>
+      <span style="font-size:12px;color:#888780;">{{ sn.gerado_em | hora_br }}{% if sn.gerado_por %} · {{ sn.gerado_por }}{% endif %}</span>
     </a>
     {% endfor %}
   </div>

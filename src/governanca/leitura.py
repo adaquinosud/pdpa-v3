@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple
 
+from src.utils.fuso import hora_br
+
 
 def garantir_governanca(empresa_id: int) -> None:
     """Popula a governança se Proximity OU Gini estiverem vazios p/ a empresa
@@ -194,7 +196,7 @@ def trajetoria_governanca(s, empresa_id: int, *, hoje=None) -> Dict[str, Any]:
     fresco = _freshness_empresa(s, empresa_id)
     agora = hoje or datetime.utcnow()
     if fresco is None or (agora - fresco).days > TRAJETORIA_FRESCOR_MAX_DIAS:
-        quando = fresco.strftime("%Y-%m-%d") if fresco else "nunca"
+        quando = hora_br(fresco, "%Y-%m-%d") if fresco else "nunca"
         return _indisp(f"base não atualizada desde {quando}")
 
     # Série mensal de PDPA agregado (agrega subpilares→pilares por período).

@@ -15,7 +15,7 @@
       <div class="text-sm font-semibold text-loyall-800">{{ a.arquivo_nome or 'Texto colado' }}</div>
       {% endif %}
       <div class="text-xs text-loyall-500">{{ a.descricao }}</div>
-      <div class="text-xs text-loyall-400">{% if por_secao %}{{ a.n_paginas }} {{ 'seção' if a.n_paginas == 1 else 'seções' }} · {% elif a.formato != 'texto' %}{{ a.n_paginas }} páginas · {% endif %}{{ a.criado_em.strftime('%d/%m/%Y %H:%M') }} · modelo {{ a.modelo }} · US$ {{ a.custo_usd | virg(4) }}</div>
+      <div class="text-xs text-loyall-400">{% if por_secao %}{{ a.n_paginas }} {{ 'seção' if a.n_paginas == 1 else 'seções' }} · {% elif a.formato != 'texto' %}{{ a.n_paginas }} páginas · {% endif %}{{ a.criado_em | hora_br }} · modelo {{ a.modelo }} · US$ {{ a.custo_usd | virg(4) }}</div>
     </div>
     <div class="text-xs px-2 py-1 rounded {% if a.status == 'falhou' %}bg-rose-100 text-rose-800{% elif a.status == 'pronta' %}bg-emerald-100 text-emerald-800{% else %}bg-loyall-100 text-loyall-700{% endif %}">
       {{ rotulo_status.get(a.status, a.status) }}
@@ -100,7 +100,7 @@
             class="px-3 py-1 rounded bg-loyall-700 text-white text-xs">Concluir</button>
   </div>
   {% elif not texto_disponivel %}
-  <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em.strftime('%d/%m/%Y %H:%M') if a.texto_apagado_em else 'data não registrada' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados.</div>
+  <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em | hora_br if a.texto_apagado_em else 'data não registrada' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados.</div>
   {% endif %}
 </div>
 {% if lista_oob %}{{ lista_oob | safe }}{% endif %}

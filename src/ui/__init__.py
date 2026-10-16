@@ -57,6 +57,7 @@ from src.models.usuario import Usuario
 from src.models.verbatim import Verbatim
 from src.models.verbatim_reclassificacao import VerbatimReclassificacao
 from src.utils.db import db_session
+from src.utils.fuso import hora_br
 
 
 # ── View-model wrappers (sem ORM relationships) ──────────────────────────
@@ -3793,7 +3794,7 @@ def htmx_disparar_fonte(fonte_id: int):
     if ult is not None:
         return (
             f"<div class='text-amber-700 text-xs'>⏳ Cooldown {COOLDOWN_MINUTOS} min. "
-            f"Última: {ult.isoformat()[:16]}</div>"
+            f"Última: {hora_br(ult)}</div>"
         )
 
     disparar_coleta_fonte_async(fonte_id, empresa_id)
@@ -3852,7 +3853,7 @@ def htmx_disparar_aberturas(fonte_id: int):
     if ult is not None:
         return (
             f"<div class='text-amber-700 text-xs'>⏳ Cooldown {COOLDOWN_MINUTOS} min. "
-            f"Última: {ult.isoformat()[:16]}</div>"
+            f"Última: {hora_br(ult)}</div>"
         )
 
     disparar_aberturas_fonte_async(fonte_id, empresa_id)
@@ -3869,7 +3870,7 @@ def _fmt_stats_coleta(stats: dict) -> str:
         if stats.get("em_cooldown"):
             return (
                 f"<div class='text-amber-700 text-xs'>"
-                f"⏳ Cooldown 15 min. Última: {stats.get('ultima_coleta', '?')[:16]}</div>"
+                f"⏳ Cooldown 15 min. Última: {hora_br(stats.get('ultima_coleta')) or '?'}</div>"
             )
         if stats.get("em_andamento"):
             return "<div class='text-amber-700 text-xs'>⏳ Coleta em andamento</div>"
@@ -3913,7 +3914,7 @@ def htmx_disparar_local(local_id: int):
     if ult is not None:
         return (
             f"<div class='text-amber-700 text-xs'>⏳ Cooldown {COOLDOWN_MINUTOS} min. "
-            f"Última: {ult.isoformat()[:16]}</div>"
+            f"Última: {hora_br(ult)}</div>"
         )
 
     disparar_coleta_local_async(local_id)

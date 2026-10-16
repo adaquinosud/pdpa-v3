@@ -41,7 +41,7 @@
             {% if v.subpilar_anterior %}
               <strong>{{ v.subpilar_anterior }}</strong> / {{ v.tipo_anterior }}
               {% if v.reclassificado_em %}
-                <div class="text-xs text-loyall-400 mt-1">em {{ v.reclassificado_em[:10] }}</div>
+                <div class="text-xs text-loyall-400 mt-1">em {{ v.reclassificado_em | hora_br('%Y-%m-%d') }}</div>
               {% endif %}
             {% else %}
               <span class="text-loyall-400 italic">(nunca reclassificado)</span>
@@ -61,7 +61,7 @@
               → <strong>{{ h.subpilar_novo }}</strong>/{{ h.tipo_novo }}
             </div>
             {% if h.justificativa %}<div class="text-loyall-700 italic mt-0.5">{{ h.justificativa }}</div>{% endif %}
-            <div class="text-loyall-400">{{ h.reclassificado_em[:16].replace('T', ' ') }} · usuário #{{ h.reclassificado_por or '?' }}</div>
+            <div class="text-loyall-400">{{ h.reclassificado_em | hora_br('%Y-%m-%d %H:%M') }} · usuário #{{ h.reclassificado_por or '?' }}</div>
           </li>
           {% endfor %}
         </ul>

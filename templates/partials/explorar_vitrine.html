@@ -37,7 +37,7 @@
       </div>
       {# Apoio, sem SOMAR fontes: universo oficial (Reputação RA) OU N + M-90d (Nota outras fontes) #}
       {% if sig.universo %}
-      <div class="text-[11px] text-loyall-400 mt-0.5">sobre {{ "{:,}".format(sig.universo).replace(",", ".") }} reclamações · últimos 6 meses{% if sig.data_snapshot %} · coletado {{ sig.data_snapshot.strftime('%d/%m/%Y') }}{% endif %}</div>
+      <div class="text-[11px] text-loyall-400 mt-0.5">sobre {{ "{:,}".format(sig.universo).replace(",", ".") }} reclamações · últimos 6 meses{% if sig.data_snapshot %} · coletado {{ sig.data_snapshot | hora_br('%d/%m/%Y') }}{% endif %}</div>
       {% elif sig.n_base %}
       <div class="text-[11px] text-loyall-400 mt-0.5">{{ sig.n_base }} avaliações{% if sig.n_recente %}, {{ sig.n_recente }} nos últimos 90d{% endif %}</div>
       {% endif %}

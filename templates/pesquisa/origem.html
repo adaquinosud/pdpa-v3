@@ -57,7 +57,7 @@
   {% else %}
   {% if gerado_em %}
   {# Defasagem visível: quando a análise foi gerada (achado do 'Reler'). #}
-  <p class="mt-3 text-xs text-loyall-400">Análise gerada em {{ gerado_em.strftime('%d/%m/%Y %H:%M') }} (UTC).</p>
+  <p class="mt-3 text-xs text-loyall-400">Análise gerada em {{ gerado_em | hora_br }}.</p>
   {% endif %}
 
   {% if sintese %}

@@ -28,11 +28,11 @@
       {% if e.tipo == 'pos_coleta' %}
       {# Falha do pipeline (rotulagem LLM), NÃO do Apify — selo distinto pra não confundir. #}
       <span class="text-[10px] uppercase px-1 py-0.5 rounded bg-rose-100 text-rose-700">pós-coleta</span>
-      <span class="text-loyall-400">· {% if e.ultima %}{{ e.ultima.strftime('%d/%m') }}{% endif %} · "{{ e.motivo }}"</span>
+      <span class="text-loyall-400">· {% if e.ultima %}{{ e.ultima | hora_br('%d/%m') }}{% endif %} · "{{ e.motivo }}"</span>
       {% else %}
       <span class="text-[10px] uppercase px-1 py-0.5 rounded bg-amber-100 text-amber-700">coleta</span>
       <span class="text-amber-700">{{ e.n }} falha{{ 's' if e.n != 1 }}</span>
-      <span class="text-loyall-400">· última {% if e.ultima %}{{ e.ultima.strftime('%d/%m') }}{% endif %} · "{{ e.motivo }}"</span>
+      <span class="text-loyall-400">· última {% if e.ultima %}{{ e.ultima | hora_br('%d/%m') }}{% endif %} · "{{ e.motivo }}"</span>
       <a href="{{ url_for('ui.monitoramento') }}?status=erro&amp;empresa_id={{ e.empresa_id }}&amp;desde={{ falhas_desde }}"
          class="text-loyall-600 hover:underline">ver</a>
       {% endif %}

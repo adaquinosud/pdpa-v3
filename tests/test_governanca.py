@@ -1737,7 +1737,8 @@ def test_trajetoria_indisponivel_base_velha(db_session):
     _serie(db_session, e.id, _SEIS_MESES)
     r = trajetoria_governanca(db_session, e.id, hoje=_HOJE_TRAJ)
     assert r["estado"] == "indisponivel"
-    assert "não atualizada desde 2025-05-01" in r["motivo"]
+    # meia-noite UTC de 01/05 é 21h de 30/04 em Brasília (o banco guarda UTC)
+    assert "não atualizada desde 2025-04-30" in r["motivo"]
 
 
 def test_trajetoria_capitalizando(db_session):

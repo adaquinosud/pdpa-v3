@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from src.utils.mascarar_pii import mascarar_identificadores
+from src.utils.fuso import para_brasilia
 
 # Fontes bundladas (Gelasio — clone métrico de Georgia, Apache) p/ o @font-face:
 # base_url passado ao WeasyPrint resolve url('Gelasio.ttf').
@@ -980,7 +981,7 @@ def montar_dados(
         "gerado_em": now,
         "empresa_nome": empresa_nome,
         "subtitulo": f"Diagnóstico do Capital Relacional · {empresa_nome} · "
-        f"{_MESES[now.month]} {now.year}",
+        f"{_MESES[para_brasilia(now).month]} {para_brasilia(now).year}",
         "tese": {
             "subpilar_nome": ferida["nome"] if ferida else "Relação",
             # Quebra por fonte da FERIDA — alimenta os facts e a regra do prompt.

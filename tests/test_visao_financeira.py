@@ -597,7 +597,7 @@ def test_comparar_rota_normaliza_ordem_cronologica(client_loyall, db_session):
     body = client_loyall.get(
         f"/empresas/{eid}/visao-financeira/comparar?a={new.id}&b={old.id}"
     ).get_data(as_text=True)
-    assert "antes <strong>10/01/2026 09:00</strong>" in body
+    assert "antes <strong>10/01/2026 06:00</strong>" in body  # 09:00 UTC em Brasília
 
 
 def test_comparar_rota_snapshot_vs_atual_default(client_loyall, db_session):

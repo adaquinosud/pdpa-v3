@@ -39,6 +39,7 @@ from src.models.empresa import Empresa
 from src.models.visao_financeira import VisaoFinanceiraInput, VisaoFinanceiraSnapshot
 from src.ui import _require_loyall_html, loyall_required_ui, ui_bp
 from src.utils.db import db_session
+from src.utils.fuso import hora_br
 
 
 def _nome_operador():
@@ -269,11 +270,9 @@ def visao_financeira_snapshot_reabrir(empresa_id, snap_id):
 
 
 def _fmt_data(iso):
-    """ISO → 'dd/mm/aaaa HH:MM' (fallback: string crua se não parsear)."""
-    try:
-        return datetime.fromisoformat(iso).strftime("%d/%m/%Y %H:%M")
-    except (ValueError, TypeError):
-        return str(iso or "")
+    """ISO (UTC, como o snapshot grava) → 'dd/mm/aaaa HH:MM' em Brasília (fallback: string
+    crua se não parsear)."""
+    return hora_br(iso) if iso else ""
 
 
 def _foto_atual(s, empresa_id):

@@ -88,6 +88,12 @@ def create_app() -> Flask:
     app.add_template_filter(_virg, "virg")
     app.add_template_filter(_acento, "acento")
 
+    # Horário na tela e no impresso: o banco guarda UTC, quem lê vê Brasília. Todo horário
+    # exibido passa por ``| hora_br``, nunca ``.strftime`` direto (sai 3 h adiantado).
+    from src.utils.fuso import hora_br as _hora_br
+
+    app.add_template_filter(_hora_br, "hora_br")
+
     # R$ pt-BR (Visão Financeira): 1234567.5 → "R$ 1.234.568" (sem centavos, milhar
     # com ponto). Valores grandes de projeção — centavos poluem a leitura C-Level.
     @app.template_filter("moeda")
