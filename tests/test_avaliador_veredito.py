@@ -331,3 +331,5 @@ def test_correcoes_da_medicao_de_17_10_nos_pedidos():
     assert 'o pior veredito possível é "parcial"' in sistema
     assert "o que especificamente está aberto na base desta peça" in lastro
     assert "Proibido repetir a escada" in lastro and "$ordem" not in lastro
+    pilar = (PROMPTS / "veredito_pilar.md").read_text(encoding="utf-8")
+    assert "numa frase curta e concreta" in pilar
