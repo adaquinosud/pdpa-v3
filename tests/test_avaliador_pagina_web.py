@@ -394,7 +394,10 @@ def test_varias_paginas_com_uma_que_falha_diz_qual(publico):
             "https://exemplo.com.br/fechada": Resp(401),
         }
     )
-    with pytest.raises(pagina_web.PaginaRecusada, match="Na página exemplo.com.br/fechada: "):
+    with pytest.raises(
+        pagina_web.PaginaRecusada,
+        match="Na página exemplo.com.br/fechada: .*tire esta página da lista",
+    ):
         pagina_web.ler_paginas("exemplo.com.br\nexemplo.com.br/fechada", sessao=s)
 
 

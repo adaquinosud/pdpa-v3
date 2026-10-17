@@ -143,7 +143,10 @@ def ler_paginas(texto: str, sessao=None) -> Tuple[List[str], bytes, Documento]:
         except PaginaRecusada as err:
             if len(enderecos) == 1:
                 raise
-            raise PaginaRecusada(f"Na página {e}: {err}") from None
+            raise PaginaRecusada(
+                f"Na página {e}: {err} Para seguir com as outras, tire esta página da lista "
+                "ou corrija o endereço. Nada foi lido nem cobrado."
+            ) from None
         lidas.append((lido, doc))
         brutos.append(html)
     return [lido for lido, _ in lidas], b"\n".join(brutos), juntar(lidas)

@@ -1,0 +1,5 @@
+{
+  "fonte": "Duas leituras humanas independentes do site da Loyall, 17/10/2026; nenhuma viu a outra nem o app (Alexandre).",
+  "referencia_1": {"paginas": 5, "vereditos": {"P1": "sim", "P2": "parcial", "P3": "nao", "D1": "sim", "D2": "nao", "D3": "parcial", "Pa1": "sim", "Pa2": "parcial", "Pa3": "parcial", "A1": "nao", "A2": "sim", "A3": "parcial"}},
+  "referencia_2": {"paginas": 7, "vereditos": {"P1": "sim", "P2": "sim", "P3": "parcial", "D1": "sim", "D2": "nao", "D3": "nao", "Pa1": "sim", "Pa2": "parcial", "Pa3": "parcial", "A1": "nao", "A2": "sim", "A3": "parcial"}}
+}

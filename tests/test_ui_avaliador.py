@@ -495,3 +495,26 @@ def test_varias_paginas_numa_leitura_so(client_loyall, db_session, empresa, teto
     assert "Lidas juntas as 2 páginas enviadas" in html and "/, /prazos." in html
     lista = html.split('id="avaliador-lista"', 1)[1]
     assert "https://exemplo.com.br/ e mais 1 página" in lista
+
+
+def test_uma_pagina_que_falha_recusa_antes_de_gastar_e_diz_o_que_fazer(
+    client_loyall, db_session, empresa, teto, monkeypatch
+):
+    from src.avaliador import pagina_web, servico
+    from tests.test_avaliador_pagina_web import HTML
+
+    def buscar(url, sessao=None):
+        if url.endswith("/fechada"):
+            raise pagina_web.PaginaRecusada("A página pede senha. Salve como PDF.")
+        return "https://exemplo.com.br/", HTML.encode()
+
+    chamadas = []
+    monkeypatch.setattr(pagina_web, "buscar", buscar)
+    monkeypatch.setattr(servico, "disparar", lambda *a, **k: chamadas.append(a))
+    html = _enviar(
+        client_loyall, empresa, dados=False, url="exemplo.com.br\nexemplo.com.br/fechada"
+    ).get_data(as_text=True)
+    assert "Na página exemplo.com.br/fechada: A página pede senha." in html
+    assert "tire esta página da lista ou corrija o endereço. Nada foi lido nem cobrado." in html
+    assert db_session.query(AvaliadorAnalise).count() == 0  # nada gravado, nenhum custo
+    assert chamadas == []  # o modelo não foi chamado
