@@ -419,3 +419,37 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
     ) in html
     assert "Essencial | Até" not in html
     assert "“R$ 8.000 por diagnóstico” · “Completo” · “Até 30”" in html
+
+
+# ── dois leitores: formato 1 (itens) e formato 2 (veredito) ────────────────
+
+
+def test_formato_da_leitura_reconhece_o_gravado(db_session, empresa):
+    a = AvaliadorAnalise(itens_json="[]")
+    assert servico.formato_da_leitura(a) == servico.FORMATO_ITENS
+    a.itens_json = json.dumps({"formato": 2, "doze": []})
+    assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
+    for estranho in ('{"doze": []}', '"texto"', "{quebrado"):
+        a.itens_json = estranho
+        assert servico.formato_da_leitura(a) is None, estranho
+
+
+def test_leitura_antiga_ganha_aviso_so_quando_o_formato_atual_e_outro(
+    client_loyall, db_session, empresa, teto, monkeypatch
+):
+    aid = _pronta(client_loyall, db_session, empresa)
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Leitura no formato anterior" not in html and ">Forte<" in html
+    monkeypatch.setattr(servico, "FORMATO_ATUAL", servico.FORMATO_VEREDITO)
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Leitura no formato anterior" in html and ">Forte<" in html  # continua legível
+
+
+def test_formato_nao_reconhecido_e_declarado_sem_quebrar(client_loyall, db_session, empresa, teto):
+    aid = _pronta(client_loyall, db_session, empresa)
+    db_session.get(AvaliadorAnalise, aid).itens_json = '{"outra": "coisa"}'
+    db_session.commit()
+    r = client_loyall.get(_url(empresa, f"/{aid}"))
+    html = r.get_data(as_text=True)
+    assert r.status_code == 200 and "formato que a tela não reconhece" in html
+    assert ">Forte<" not in html

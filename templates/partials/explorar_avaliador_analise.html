@@ -42,48 +42,13 @@
   </div>
   {% endif %}
 
-  {% if a.resumo %}
-  <div class="border-l-4 border-loyall-600 bg-loyall-50 p-3 text-sm text-loyall-800">{{ a.resumo }}</div>
-  {% elif a.status == 'pronta' %}
-  <div class="border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">Resumo não gerado ({{ a.erro_motivo or 'motivo não registrado' }}). Os itens abaixo estão completos.</div>
+  {% if formato_leitura == 1 %}
+  {% if aviso_formato_anterior %}
+  <div class="text-xs text-loyall-500 border border-loyall-200 rounded px-3 py-1.5">Leitura no formato anterior (forte, falta e melhorar por subpilar). Para ler no formato atual, use "Reler com esta descrição" enquanto o texto da peça estiver guardado, ou envie a peça de novo.</div>
   {% endif %}
-
-  {% if a.status == 'pronta' %}
-  {% for bloco in pilares %}
-  <div>
-    <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ bloco.pilar.titulo | replace(" — ", ": ") }}</h4>
-    <p class="text-xs text-loyall-400 mb-1">{{ bloco.pilar.descricao | replace(" — ", ", ") }}</p>
-    <div class="space-y-2">
-    {% for sp in bloco.subpilares %}
-      {% if sp.vazio %}
-      <div class="text-xs text-loyall-400 border border-dashed border-loyall-200 rounded px-3 py-1.5">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}: sem observação nesta peça.</div>
-      {% else %}
-      <div class="border border-loyall-200 rounded p-3 text-sm">
-        <div class="font-medium text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</div>
-        <div class="text-xs text-loyall-400 mb-1">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
-        {% for tipo, itens in sp.por_tipo.items() %}{% for it in itens %}
-        <div class="mt-2">
-          <span class="text-xs px-1.5 py-0.5 rounded {% if tipo == 'forte' %}bg-emerald-100 text-emerald-800{% elif tipo == 'falta' %}bg-rose-100 text-rose-800{% else %}bg-amber-100 text-amber-800{% endif %}">{{ rotulo_tipo[tipo] }}</span>
-          <span class="text-loyall-800">{{ it.texto }}</span>
-          {% if it.alerta %}<div class="text-xs text-rose-700">⚠ {{ it.alerta }}</div>{% endif %}
-          {% for e in it.evidencias %}
-            {% if e.conferido %}
-            <div class="text-xs text-loyall-600 ml-2">{% if por_secao %}{% if e.referencia %}{{ e.referencia }}: {% endif %}{% elif a.formato != 'texto' %}p. {{ e.pagina_encontrada }}: {% endif %}{% if separa_celulas %}{% for parte in e.trecho.replace('\n', separador_celula).split(separador_celula) %}{% if not loop.first %} · {% endif %}“{{ parte | trim }}”{% endfor %}{% else %}“{{ e.trecho }}”{% endif %}</div>
-            {% else %}
-            <div class="text-xs text-rose-700 ml-2">citação não encontrada na peça</div>
-            {% endif %}
-          {% endfor %}
-        </div>
-        {% endfor %}{% endfor %}
-        {% if sp.descartados %}
-        <div class="mt-2 text-xs text-loyall-400">Mais {{ sp.descartados }} {{ 'item descartado' if sp.descartados == 1 else 'itens descartados' }} pelo limite de três por subpilar.</div>
-        {% endif %}
-      </div>
-      {% endif %}
-    {% endfor %}
-    </div>
-  </div>
-  {% endfor %}
+  {% include 'partials/_avaliador_leitura_v1.html' %}
+  {% elif formato_leitura is none %}
+  <div class="border border-rose-300 bg-rose-50 rounded p-2 text-sm text-rose-800">O resultado gravado desta leitura está num formato que a tela não reconhece; nada foi exibido para não mostrar errado.</div>
   {% endif %}
 
   {% if texto_disponivel and not processando %}

@@ -31,6 +31,7 @@ from src.models.avaliador import (
     STATUS_APAGADA,
     STATUS_EM_PROCESSAMENTO,
     STATUS_PENDENTE,
+    STATUS_PRONTA,
     AvaliadorAnalise,
 )
 from src.ui import loyall_required_ui, ui_bp
@@ -85,13 +86,20 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
     """Com ``s``: a lista de baixo vai junto, fora da área trocada (hx-swap-oob), e se
     atualiza a cada polling/ação. Sem ``s``: a análise vai dentro do painel, que já
     renderiza a lista."""
+    formato = servico.formato_da_leitura(a)
     return render_template(
         "partials/explorar_avaliador_analise.html",
         empresa_id=empresa_id,
         a=a,
         erro=erro,
         lista_oob=_render_lista(s, empresa_id, oob=True) if s is not None else None,
-        pilares=servico.organizar(carregar_regua(), a),
+        formato_leitura=formato,
+        aviso_formato_anterior=(
+            formato == servico.FORMATO_ITENS
+            and a.status == STATUS_PRONTA
+            and servico.FORMATO_ATUAL != servico.FORMATO_ITENS
+        ),
+        pilares=servico.organizar(carregar_regua(), a) if formato == servico.FORMATO_ITENS else [],
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
         por_secao=a.formato in FORMATOS_POR_SECAO,
         separa_celulas=a.formato in FORMATOS_COM_TABELA,

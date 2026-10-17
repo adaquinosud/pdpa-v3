@@ -129,6 +129,29 @@ def _estimativa(regua: Regua, m: str, sistema: str, usuario: str, modelo: str) -
 
 # ── leitura do estado ─────────────────────────────────────────────────────
 
+# Formato do que fica gravado em ``itens_json`` (o nome da coluna é do formato 1 e ficou,
+# sem migração; decisão de 17/10). Formato 1: LISTA de itens forte/falta/melhorar.
+# Formato 2 (avaliador-v20-veredito): OBJETO com "formato": 2. A tela tem um leitor
+# para cada um; a leitura gravada nunca é convertida.
+FORMATO_ITENS = 1
+FORMATO_VEREDITO = 2
+# O formato que o motor grava hoje. Leitura pronta em formato diferente deste ganha o
+# aviso de "formato anterior" na tela.
+FORMATO_ATUAL = FORMATO_ITENS
+
+
+def formato_da_leitura(a: AvaliadorAnalise) -> Optional[int]:
+    """1, 2 ou None quando o gravado não é nenhum dos dois (a tela declara, não quebra)."""
+    try:
+        gravado = json.loads(a.itens_json or "[]")
+    except json.JSONDecodeError:
+        return None
+    if isinstance(gravado, list):
+        return FORMATO_ITENS
+    if isinstance(gravado, dict) and gravado.get("formato") == FORMATO_VEREDITO:
+        return FORMATO_VEREDITO
+    return None
+
 
 def organizar(regua: Regua, a: AvaliadorAnalise) -> List[dict]:
     """Itens por pilar → subpilar → forte/falta/melhorar, na ordem do Manual. Subpilar sem
