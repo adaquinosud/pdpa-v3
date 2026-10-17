@@ -1,0 +1,10 @@
+{# As citações de um item ou veredito do Avaliador, nos DOIS formatos de leitura (um lugar
+   só para a regra: citação não conferida nunca aparece como citação). Importar com
+   contexto: usa por_secao, separa_celulas, separador_celula e a. #}
+{% macro citacoes(evidencias) %}{% for e in evidencias %}
+            {% if e.conferido %}
+            <div class="text-xs text-loyall-600 ml-2">{% if por_secao %}{% if e.referencia %}{{ e.referencia }}: {% endif %}{% elif a.formato != 'texto' %}p. {{ e.pagina_encontrada }}: {% endif %}{% if separa_celulas %}{% for parte in e.trecho.replace('\n', separador_celula).split(separador_celula) %}{% if not loop.first %} · {% endif %}“{{ parte | trim }}”{% endfor %}{% else %}“{{ e.trecho }}”{% endif %}</div>
+            {% else %}
+            <div class="text-xs text-rose-700 ml-2">citação não encontrada na peça</div>
+            {% endif %}
+          {% endfor %}{% endmacro %}

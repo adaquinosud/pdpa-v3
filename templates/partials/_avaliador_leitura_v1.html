@@ -2,6 +2,7 @@
    subpilar. Fica para as leituras já gravadas nesse formato; a leitura nova (formato 2,
    veredito por subpilar) tem template próprio. Incluído por explorar_avaliador_analise.html,
    com o mesmo contexto. #}
+{% import 'partials/_avaliador_citacoes.html' as cit with context %}
   {% if a.resumo %}
   <div class="border-l-4 border-loyall-600 bg-loyall-50 p-3 text-sm text-loyall-800">{{ a.resumo }}</div>
   {% elif a.status == 'pronta' %}
@@ -26,13 +27,7 @@
           <span class="text-xs px-1.5 py-0.5 rounded {% if tipo == 'forte' %}bg-emerald-100 text-emerald-800{% elif tipo == 'falta' %}bg-rose-100 text-rose-800{% else %}bg-amber-100 text-amber-800{% endif %}">{{ rotulo_tipo[tipo] }}</span>
           <span class="text-loyall-800">{{ it.texto }}</span>
           {% if it.alerta %}<div class="text-xs text-rose-700">⚠ {{ it.alerta }}</div>{% endif %}
-          {% for e in it.evidencias %}
-            {% if e.conferido %}
-            <div class="text-xs text-loyall-600 ml-2">{% if por_secao %}{% if e.referencia %}{{ e.referencia }}: {% endif %}{% elif a.formato != 'texto' %}p. {{ e.pagina_encontrada }}: {% endif %}{% if separa_celulas %}{% for parte in e.trecho.replace('\n', separador_celula).split(separador_celula) %}{% if not loop.first %} · {% endif %}“{{ parte | trim }}”{% endfor %}{% else %}“{{ e.trecho }}”{% endif %}</div>
-            {% else %}
-            <div class="text-xs text-rose-700 ml-2">citação não encontrada na peça</div>
-            {% endif %}
-          {% endfor %}
+          {{ cit.citacoes(it.evidencias) }}
         </div>
         {% endfor %}{% endfor %}
         {% if sp.descartados %}

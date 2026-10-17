@@ -2,7 +2,9 @@
 
 Fluxo: ``criar_analise`` (extrai, cobra o teto, grava PENDENTE) → ``disparar`` (daemon-
 thread, padrão ``_rodar_async`` do app) → ``processar`` (uma chamada ao modelo, ou uma
-por pilar + resumo, conforme ``AVALIADOR_MODO``).
+por pilar + resumo, conforme ``AVALIADOR_MODO``). ``processar`` segue a versão GRAVADA
+na leitura; a do veredito (``avaliador-v20-veredito``, ver ``veredito.py``) já é lida e
+exibida, mas leitura nova só passa a usá-la na virada.
 
 Falha é visível, nunca "processando" eterno:
 - erro → FALHOU com ``erro_motivo`` (tipo do erro; NUNCA texto da peça nem resposta do
@@ -26,7 +28,8 @@ from typing import Dict, List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.avaliador import motor
+from src.api.painel import NOME_PILAR
+from src.avaliador import motor, veredito
 from src.avaliador.extracao import Documento, documento_de_texto, extrair
 from src.avaliador.regua import (
     ORIGEM_ARQUIVO,
@@ -101,8 +104,13 @@ def _somar_uso(a: AvaliadorAnalise, uso: motor.Uso) -> None:
     a.custo_usd += uso.custo_usd
 
 
-def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento):
-    return motor.montar_sistema(regua, a_origem), motor.montar_usuario(descricao, doc)
+def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento, versao: str):
+    """O pedido da versão gravada na leitura (formato 1 ou o veredito)."""
+    if versao == veredito.PROMPT_VERSAO:
+        sistema = veredito.montar_sistema(regua, a_origem)
+    else:
+        sistema = motor.montar_sistema(regua, a_origem)
+    return sistema, motor.montar_usuario(descricao, doc)
 
 
 MODO_UNICA, MODO_POR_PILAR = "unica", "por_pilar"
@@ -119,10 +127,12 @@ def _versao_prompt(m: str) -> str:
     return motor.PROMPT_VERSAO_POR_PILAR if m == MODO_POR_PILAR else motor.PROMPT_VERSAO
 
 
-def _estimativa(regua: Regua, m: str, sistema: str, usuario: str, modelo: str) -> float:
-    """O que o gate cobra. No modo por pilar é TAMBÉM o orçamento da leitura: o motor não
-    passa dele, nem com nova tentativa."""
-    if m == MODO_POR_PILAR:
+def _estimativa(regua: Regua, versao: str, sistema: str, usuario: str, modelo: str) -> float:
+    """O que o gate cobra. No veredito e no modo por pilar é TAMBÉM o orçamento da
+    leitura: o motor não passa dele, nem com nova tentativa."""
+    if versao == veredito.PROMPT_VERSAO:
+        return veredito.estimar_custo_usd(sistema, usuario, modelo, len(regua.pilares))
+    if versao == motor.PROMPT_VERSAO_POR_PILAR:
         return motor.estimar_custo_por_pilar_usd(sistema, usuario, modelo, len(regua.pilares))
     return motor.estimar_custo_usd(sistema, usuario, modelo)
 
@@ -176,6 +186,50 @@ def organizar(regua: Regua, a: AvaliadorAnalise) -> List[dict]:
     return out
 
 
+def organizar_veredito(regua: Regua, a: AvaliadorAnalise) -> dict:
+    """O que a tela mostra de uma leitura no formato 2, na ordem do parecer (situar,
+    achados, contradições, Lastro, posições vagas, placar, os doze). Placar, vagas, ponto
+    de partida e ordem são RECALCULADOS dos doze pelas mesmas funções que alimentaram o
+    pedido: a tela nunca lê um número que o modelo escreveu."""
+    g = json.loads(a.itens_json)
+    doze = g["doze"]
+    por_cod = {d["subpilar"]: d for d in doze}
+    pp = veredito.ponto_de_partida(doze)
+    nome_pp = NOME_PILAR[pp] if pp else None
+    texto = g["lastro"].get("texto")
+    pilares = [
+        {
+            "pilar": p,
+            "linhas": [
+                {**por_cod[s.codigo], "subpilar": s} for s in p.subpilares if s.codigo in por_cod
+            ],
+        }
+        for p in regua.pilares
+    ]
+    return {
+        "situar": g["situar"],
+        "cobertura": veredito.declarar_cobertura(g["cobertura"]),
+        "achados": g["achados"],
+        "contradicoes": g["contradicoes"],
+        "lastro": {
+            "texto": texto,
+            "texto_falhou": g["lastro"].get("texto_falhou"),
+            "ponto_de_partida": nome_pp,
+            # conferência texto × cálculo (critério de medição de 17/10), visível na tela
+            "texto_diverge": bool(texto and nome_pp and nome_pp.lower() not in texto.lower()),
+            "ordem": [
+                {"subpilar": regua.subpilar(c), "veredito": por_cod[c]["veredito"]}
+                for c in veredito.ordem_recomendacoes(doze)
+            ],
+        },
+        "vagas": [
+            {**por_cod[c], "subpilar": regua.subpilar(c)} for c in veredito.posicoes_vagas(doze)
+        ],
+        "placar": veredito.placar(doze),
+        "pilares": pilares,
+    }
+
+
 # ── criação e ações da pessoa ─────────────────────────────────────────────
 
 
@@ -220,9 +274,9 @@ def criar_analise(
         nome, bruto = buscar(url, sessao=sessao_http)  # nome = o endereço que foi LIDO
         doc, origem = extrair_html(bruto, nome), ORIGEM_PAGINA
     regua = carregar_regua()
-    m = modo()
-    sistema, usuario = _pedido(regua, origem, descricao, doc)
-    checar_teto(s, empresa_id, _estimativa(regua, m, sistema, usuario, modelo))
+    versao = _versao_prompt(modo())
+    sistema, usuario = _pedido(regua, origem, descricao, doc, versao)
+    checar_teto(s, empresa_id, _estimativa(regua, versao, sistema, usuario, modelo))
     a = AvaliadorAnalise(
         empresa_id=empresa_id,
         usuario_id=usuario_id,
@@ -238,7 +292,7 @@ def criar_analise(
         itens_json="[]",
         modelo=modelo,
         regua_versao=regua.versao,
-        prompt_versao=_versao_prompt(m),
+        prompt_versao=versao,
         tokens_in=0,
         tokens_out=0,
         tokens_cache_criacao=0,
@@ -275,10 +329,10 @@ def refazer(s: Session, a: AvaliadorAnalise, descricao: Optional[str] = None) ->
     doc = _exigir_texto(a)
     if descricao is not None:
         a.descricao = _descricao(descricao)
-    regua, m = carregar_regua(), modo()
-    sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
-    checar_teto(s, a.empresa_id, _estimativa(regua, m, sistema, usuario, a.modelo))
-    a.prompt_versao = _versao_prompt(m)
+    regua, versao = carregar_regua(), _versao_prompt(modo())
+    sistema, usuario = _pedido(regua, a.origem, a.descricao, doc, versao)
+    checar_teto(s, a.empresa_id, _estimativa(regua, versao, sistema, usuario, a.modelo))
+    a.prompt_versao = versao
     a.status = STATUS_PENDENTE
     a.erro_motivo = None
     marcar_uso(a)
@@ -329,10 +383,14 @@ def processar(analise_id: int, client=None) -> None:
             a.status = STATUS_LENDO
             a.atualizado_em = datetime.utcnow()
             s.commit()
-            sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
+            sistema, usuario = _pedido(regua, a.origem, a.descricao, doc, a.prompt_versao)
+            orc = _estimativa(regua, a.prompt_versao, sistema, usuario, a.modelo)
             try:
-                if a.prompt_versao == motor.PROMPT_VERSAO_POR_PILAR:
-                    orc = _estimativa(regua, MODO_POR_PILAR, sistema, usuario, a.modelo)
+                if a.prompt_versao == veredito.PROMPT_VERSAO:
+                    res, uso = veredito.ler(
+                        client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
+                    )
+                elif a.prompt_versao == motor.PROMPT_VERSAO_POR_PILAR:
                     res, uso = motor.ler_por_pilar(
                         client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
                     )
@@ -342,12 +400,18 @@ def processar(analise_id: int, client=None) -> None:
                 _somar_uso(a, getattr(err, "uso", None) or motor.Uso())
                 raise
             _somar_uso(a, uso)
-            a.resumo = res["resumo"]
-            a.itens_json = json.dumps(res["itens"], ensure_ascii=False)
+            if a.prompt_versao == veredito.PROMPT_VERSAO:
+                a.resumo = None  # formato 2 não tem resumo: tudo vai no objeto gravado
+                a.itens_json = veredito.para_gravar(res)
+                falhou = res["lastro"]["texto_falhou"]
+                a.erro_motivo = f"lastro: {falhou}" if falhou else None
+            else:
+                a.resumo = res["resumo"]
+                a.itens_json = json.dumps(res["itens"], ensure_ascii=False)
+                falhou = res.get("resumo_falhou")
+                a.erro_motivo = f"resumo: {falhou}" if falhou else None
             a.regua_versao = regua.versao
             a.status = STATUS_PRONTA
-            falhou = res.get("resumo_falhou")
-            a.erro_motivo = f"resumo: {falhou}" if falhou else None
             a.atualizado_em = datetime.utcnow()
         except Exception as e:  # noqa: BLE001 — toda falha vira estado visível
             a.status = STATUS_FALHOU

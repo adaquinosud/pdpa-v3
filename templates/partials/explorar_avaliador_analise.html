@@ -47,6 +47,8 @@
   <div class="text-xs text-loyall-500 border border-loyall-200 rounded px-3 py-1.5">Leitura no formato anterior (forte, falta e melhorar por subpilar). Para ler no formato atual, use "Reler com esta descrição" enquanto o texto da peça estiver guardado, ou envie a peça de novo.</div>
   {% endif %}
   {% include 'partials/_avaliador_leitura_v1.html' %}
+  {% elif formato_leitura == 2 %}
+  {% include 'partials/_avaliador_leitura_v2.html' %}
   {% elif formato_leitura is none %}
   <div class="border border-rose-300 bg-rose-50 rounded p-2 text-sm text-rose-800">O resultado gravado desta leitura está num formato que a tela não reconhece; nada foi exibido para não mostrar errado.</div>
   {% endif %}

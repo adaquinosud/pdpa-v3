@@ -72,6 +72,47 @@ def resposta_ok():
     }
 
 
+def veredito_de(cod, ver="nao", trecho=None, pagina=1, onde=None, deveria="Dizer como e quando."):
+    return {
+        "subpilar": cod,
+        "veredito": ver,
+        "onde": onde or ("Esta conversa não existe na peça." if ver == "nao" else "Está na peça."),
+        "deveria_ter": "" if ver == "sim" and deveria == "Dizer como e quando." else deveria,
+        "evidencias": [{"pagina": pagina, "trecho": trecho}] if trecho else [],
+    }
+
+
+def resposta_v20(vereditos=None, situar=None, lastro="Padrão de teste. Comece pela Precisão."):
+    """Leitura no formato 2, dublada: D1 "sim" e A1 "parcial" com trecho da peça do
+    _pptx(), os outros dez "nao". ``vereditos`` troca subpilares; ``lastro=None`` faz a
+    etapa final responder sem JSON (falha)."""
+    from src.api.painel import SUBPILARES_ORDEM
+
+    ver = {c: veredito_de(c) for c in SUBPILARES_ORDEM}
+    ver["D1"] = veredito_de(
+        "D1", "sim", "segunda a sexta das 8h às 18h", 2, onde="Horário declarado."
+    )
+    ver["A1"] = veredito_de(
+        "A1",
+        "parcial",
+        "Somos referência no setor há vinte anos",
+        3,
+        onde="Referência afirmada sem quem a cite.",
+        deveria="Quem cita a empresa como referência.",
+    )
+    ver.update(vereditos or {})
+    sit = {
+        "tipo_peca": "Proposta comercial.",
+        "leitor": "Quem decide sozinho.",
+        "situacao": "Lida antes da reunião.",
+        "consequencia_cobertura": "",
+        "achados": [],
+        "contradicoes": [],
+    }
+    sit.update(situar or {})
+    return {"v20": True, "situar": sit, "vereditos": ver, "lastro": lastro}
+
+
 class Dublê:
     def __init__(self, respostas=None, quebra=False):
         self.respostas = list(respostas or [resposta_ok()])
@@ -85,7 +126,22 @@ class Dublê:
             raise ConnectionError("rede caiu")
         conteudo = kw["messages"][0]["content"]
         r = self.respostas[0]
-        if isinstance(conteudo, list) and isinstance(r, dict) and "resumo" in r and "itens" in r:
+        if isinstance(conteudo, list) and isinstance(r, dict) and r.get("v20"):
+            # formato 2: responde pela etapa pedida no fim da mensagem; a resposta inteira
+            # é consumida na etapa final válida (a inválida se repete na nova tentativa)
+            pedido = conteudo[-1]["text"]
+            if pedido.startswith("ETAPA 1"):
+                r = r["situar"]
+            elif pedido.startswith("ETAPA FINAL"):
+                if r["lastro"] is None:
+                    r = "sem json"  # etapa final inválida: a leitura fica sem o texto
+                else:
+                    r = {"lastro": r["lastro"]}
+                    self.respostas.pop(0)
+            else:
+                cods = re.search(r"subpilares ([A-Za-z0-9, ]+)\.", pedido).group(1).split(", ")
+                r = {"vereditos": [r["vereditos"][c] for c in cods]}
+        elif isinstance(conteudo, list) and isinstance(r, dict) and "resumo" in r and "itens" in r:
             # modo por pilar (o padrão): a mesma resposta completa, fatiada por pilar; o
             # pedido do resumo devolve só o resumo e consome a resposta
             pedido = conteudo[-1]["text"]
@@ -324,7 +380,9 @@ def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, tet
     from src.avaliador.extracao import Documento
 
     doc = Documento.de_json(a.texto_json)
-    sistema, _ = servico._pedido(servico.carregar_regua(), a.origem, a.descricao, doc)
+    sistema, _ = servico._pedido(
+        servico.carregar_regua(), a.origem, a.descricao, doc, a.prompt_versao
+    )
     assert "Há canal, não há horário." in sistema  # página é documento: biblioteca 1
 
 

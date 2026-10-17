@@ -1,0 +1,101 @@
+{# Leitura no FORMATO 2 (avaliador-v20-veredito): um veredito por subpilar, na ordem do
+   parecer da especificação de 17/10 (situar, achados que atravessam, contradição interna,
+   Lastro, posições vagas, placar, os doze). ``leitura`` vem de servico.organizar_veredito:
+   placar, vagas, ponto de partida e ordem são do código, nunca do texto do modelo.
+   Incluído por explorar_avaliador_analise.html, com o mesmo contexto. #}
+{% import 'partials/_avaliador_citacoes.html' as cit with context %}
+{% if a.status == 'pronta' and leitura %}
+{% set L = leitura %}
+{% macro badge(v) %}<span class="text-xs px-1.5 py-0.5 rounded {% if v == 'sim' %}bg-emerald-100 text-emerald-800{% elif v == 'parcial' %}bg-amber-100 text-amber-800{% else %}bg-loyall-100 text-loyall-700{% endif %}">{{ rotulo_veredito[v] }}</span>{% endmacro %}
+
+<section data-secao="situar" class="text-sm text-loyall-800 space-y-1">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">A peça</h4>
+  <div>{{ L.situar.tipo_peca }}</div>
+  <div><span class="text-loyall-500">Leitor:</span> {{ L.situar.leitor }}</div>
+  <div><span class="text-loyall-500">Situação:</span> {{ L.situar.situacao }}</div>
+  <div class="text-xs text-loyall-500">O que foi lido: {{ L.cobertura | join(' ') }}{% if L.situar.consequencia_cobertura %} {{ L.situar.consequencia_cobertura }}{% endif %}</div>
+</section>
+
+<section data-secao="achados" class="text-sm">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Achados que atravessam</h4>
+  {% for x in L.achados %}
+  <div class="mt-2 text-loyall-800">{{ x.texto }}
+    {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
+    {{ cit.citacoes(x.evidencias) }}
+  </div>
+  {% else %}
+  <div class="text-xs text-loyall-400">Nenhum achado fora dos doze nesta peça.</div>
+  {% endfor %}
+</section>
+
+<section data-secao="contradicoes" class="text-sm">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Contradição interna</h4>
+  {% for x in L.contradicoes %}
+  <div class="mt-2 text-loyall-800">{{ x.texto }}
+    {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
+    {{ cit.citacoes(x.evidencias) }}
+  </div>
+  {% else %}
+  <div class="text-xs text-loyall-400">Nenhuma contradição no texto lido.</div>
+  {% endfor %}
+</section>
+
+<section data-secao="lastro" class="border-l-4 border-loyall-600 bg-loyall-50 p-3 text-sm text-loyall-800 space-y-1">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">O Lastro</h4>
+  {% if L.lastro.ponto_de_partida %}
+  <div><span class="text-loyall-500">Ponto de partida:</span> {{ L.lastro.ponto_de_partida }}</div>
+  {% else %}
+  <div>Base de pé: todos os subpilares em Sim.</div>
+  {% endif %}
+  {% if L.lastro.texto %}
+  <div>{{ L.lastro.texto }}</div>
+  {% if L.lastro.texto_diverge %}<div class="text-xs text-rose-700">⚠ o texto não nomeia o ponto de partida calculado ({{ L.lastro.ponto_de_partida }})</div>{% endif %}
+  {% else %}
+  <div class="text-xs text-amber-900">Texto do Lastro não gerado ({{ L.lastro.texto_falhou or 'motivo não registrado' }}). O ponto de partida e a ordem abaixo são do cálculo e estão completos.</div>
+  {% endif %}
+  {% if L.lastro.ordem %}
+  <div class="text-xs text-loyall-500 mt-1">Ordem das recomendações:</div>
+  <ol class="list-decimal ml-5 text-sm">
+    {% for o in L.lastro.ordem %}<li>{{ o.subpilar.codigo }} · {{ o.subpilar.nome }} {{ badge(o.veredito) }}</li>{% endfor %}
+  </ol>
+  {% endif %}
+</section>
+
+<section data-secao="vagas" class="text-sm">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Posições vagas: conversas que a peça nunca levanta</h4>
+  {% for x in L.vagas %}
+  <div class="mt-2"><span class="font-medium text-loyall-800">{{ x.subpilar.codigo }} · {{ x.subpilar.nome }}.</span> <span class="text-loyall-800">{{ x.onde }}</span>{% if x.deveria_ter %} <span class="text-loyall-600">{{ x.deveria_ter }}</span>{% endif %}</div>
+  {% else %}
+  <div class="text-xs text-loyall-400">Nenhuma: a peça levanta as doze conversas.</div>
+  {% endfor %}
+</section>
+
+<section data-secao="placar" class="text-sm text-loyall-800">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Placar</h4>
+  <div>{{ badge('sim') }} {{ L.placar.sim }} · {{ badge('parcial') }} {{ L.placar.parcial }} · {{ badge('nao') }} {{ L.placar.nao }}</div>
+</section>
+
+<section data-secao="doze" class="space-y-3">
+  {% for bloco in L.pilares %}
+  <div>
+    <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ bloco.pilar.titulo | replace(" — ", ": ") }}</h4>
+    <p class="text-xs text-loyall-400 mb-1">{{ bloco.pilar.descricao | replace(" — ", ", ") }}</p>
+    <div class="space-y-2">
+    {% for x in bloco.linhas %}
+      <div class="border border-loyall-200 rounded p-3 text-sm">
+        <div class="flex items-center justify-between gap-2">
+          <div class="font-medium text-loyall-800">{{ x.subpilar.codigo }} · {{ x.subpilar.nome }}</div>
+          {{ badge(x.veredito) }}
+        </div>
+        <div class="text-xs text-loyall-400 mb-1">{{ x.subpilar.pergunta | replace(" — ", ", ") }}</div>
+        <div class="text-loyall-800">{{ x.onde }}</div>
+        {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
+        {{ cit.citacoes(x.evidencias) }}
+        {% if x.deveria_ter %}<div class="mt-1 text-loyall-700"><span class="text-xs text-loyall-500">Deveria ter:</span> {{ x.deveria_ter }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}

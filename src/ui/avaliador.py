@@ -44,6 +44,7 @@ ROTULO_STATUS = {
     "falhou": "Falhou",
 }
 ROTULO_TIPO = {"forte": "Forte", "falta": "Falta", "melhorar": "Melhorar"}
+ROTULO_VEREDITO = {"sim": "Sim", "parcial": "Parcial", "nao": "Não"}
 
 
 def _lista(s, empresa_id: int):
@@ -100,6 +101,12 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
             and servico.FORMATO_ATUAL != servico.FORMATO_ITENS
         ),
         pilares=servico.organizar(carregar_regua(), a) if formato == servico.FORMATO_ITENS else [],
+        leitura=(
+            servico.organizar_veredito(carregar_regua(), a)
+            if formato == servico.FORMATO_VEREDITO
+            else None
+        ),
+        rotulo_veredito=ROTULO_VEREDITO,
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
         por_secao=a.formato in FORMATOS_POR_SECAO,
         separa_celulas=a.formato in FORMATOS_COM_TABELA,
