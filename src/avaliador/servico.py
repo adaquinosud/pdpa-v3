@@ -1,10 +1,10 @@
 """Serviço do Avaliador — ciclo de vida da análise, gate de custo, retenção.
 
 Fluxo: ``criar_analise`` (extrai, cobra o teto, grava PENDENTE) → ``disparar`` (daemon-
-thread, padrão ``_rodar_async`` do app) → ``processar`` (uma chamada ao modelo, ou uma
-por pilar + resumo, conforme ``AVALIADOR_MODO``). ``processar`` segue a versão GRAVADA
-na leitura; a do veredito (``avaliador-v20-veredito``, ver ``veredito.py``) já é lida e
-exibida, mas leitura nova só passa a usá-la na virada.
+thread, padrão ``_rodar_async`` do app) → ``processar``. Leitura nova é sempre o
+veredito (``avaliador-v20-veredito``, 17/10: seis chamadas, ver ``veredito.py``);
+``processar`` segue a versão GRAVADA na leitura, então a que estava na fila em formato 1
+na virada termina no formato dela.
 
 Falha é visível, nunca "processando" eterno:
 - erro → FALHOU com ``erro_motivo`` (tipo do erro; NUNCA texto da peça nem resposta do
@@ -105,26 +105,13 @@ def _somar_uso(a: AvaliadorAnalise, uso: motor.Uso) -> None:
 
 
 def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento, versao: str):
-    """O pedido da versão gravada na leitura (formato 1 ou o veredito)."""
+    """O pedido da versão gravada na leitura. Leitura nova é sempre o veredito (17/10); as
+    versões do formato 1 ficam só para a leitura que já estava na fila na virada."""
     if versao == veredito.PROMPT_VERSAO:
         sistema = veredito.montar_sistema(regua, a_origem)
     else:
         sistema = motor.montar_sistema(regua, a_origem)
     return sistema, motor.montar_usuario(descricao, doc)
-
-
-MODO_UNICA, MODO_POR_PILAR = "unica", "por_pilar"
-
-
-def modo() -> str:
-    m = get_config().AVALIADOR_MODO
-    if m not in (MODO_UNICA, MODO_POR_PILAR):
-        raise AvaliacaoRecusada(f"AVALIADOR_MODO desconhecido: {m!r} (use unica ou por_pilar).")
-    return m
-
-
-def _versao_prompt(m: str) -> str:
-    return motor.PROMPT_VERSAO_POR_PILAR if m == MODO_POR_PILAR else motor.PROMPT_VERSAO
 
 
 def _estimativa(regua: Regua, versao: str, sistema: str, usuario: str, modelo: str) -> float:
@@ -147,7 +134,7 @@ FORMATO_ITENS = 1
 FORMATO_VEREDITO = 2
 # O formato que o motor grava hoje. Leitura pronta em formato diferente deste ganha o
 # aviso de "formato anterior" na tela.
-FORMATO_ATUAL = FORMATO_ITENS
+FORMATO_ATUAL = FORMATO_VEREDITO
 
 
 def formato_da_leitura(a: AvaliadorAnalise) -> Optional[int]:
@@ -274,7 +261,7 @@ def criar_analise(
         nome, bruto = buscar(url, sessao=sessao_http)  # nome = o endereço que foi LIDO
         doc, origem = extrair_html(bruto, nome), ORIGEM_PAGINA
     regua = carregar_regua()
-    versao = _versao_prompt(modo())
+    versao = veredito.PROMPT_VERSAO
     sistema, usuario = _pedido(regua, origem, descricao, doc, versao)
     checar_teto(s, empresa_id, _estimativa(regua, versao, sistema, usuario, modelo))
     a = AvaliadorAnalise(
@@ -329,7 +316,7 @@ def refazer(s: Session, a: AvaliadorAnalise, descricao: Optional[str] = None) ->
     doc = _exigir_texto(a)
     if descricao is not None:
         a.descricao = _descricao(descricao)
-    regua, versao = carregar_regua(), _versao_prompt(modo())
+    regua, versao = carregar_regua(), veredito.PROMPT_VERSAO
     sistema, usuario = _pedido(regua, a.origem, a.descricao, doc, versao)
     checar_teto(s, a.empresa_id, _estimativa(regua, versao, sistema, usuario, a.modelo))
     a.prompt_versao = versao

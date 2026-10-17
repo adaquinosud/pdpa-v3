@@ -115,7 +115,7 @@ def resposta_v20(vereditos=None, situar=None, lastro="Padrão de teste. Comece p
 
 class Dublê:
     def __init__(self, respostas=None, quebra=False):
-        self.respostas = list(respostas or [resposta_ok()])
+        self.respostas = list(respostas or [resposta_v20()])
         self.quebra = quebra
         self.chamadas = []
         self.messages = self
@@ -219,20 +219,27 @@ def test_caminho_feliz_arquivo(db_session, empresa, teto):
     aid = _criar(db_session, empresa)
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.resumo == "Padrão de teste."
-    assert len(cli.chamadas) == 5  # padrão: uma por pilar + o resumo
+    assert a.status == STATUS_PRONTA and a.resumo is None and a.erro_motivo is None
+    assert a.prompt_versao == "avaliador-v20-veredito"
+    assert len(cli.chamadas) == 6  # a peça inteira, uma por pilar e o Lastro
     assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"][0]["text"]
     assert a.custo_usd > 0 and a.origem == "arquivo" and a.formato == "pptx"
-    org = servico.organizar(servico.carregar_regua(), a)
-    disp = org[1]["subpilares"][0]  # Disponibilidade → D1
-    assert disp["subpilar"].codigo == "D1" and len(disp["por_tipo"]["forte"]) == 1
-    assert org[0]["subpilares"][0]["vazio"] is True  # P1 sem observação, declarado
+    assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
+    org = servico.organizar_veredito(servico.carregar_regua(), a)
+    assert org["placar"] == {"sim": 1, "parcial": 1, "nao": 10}
+    d1 = org["pilares"][1]["linhas"][0]  # Disponibilidade → D1
+    assert d1["subpilar"].codigo == "D1" and d1["veredito"] == "sim"
+    assert d1["evidencias"][0]["conferido"] and d1["evidencias"][0]["pagina_encontrada"] == 2
+    assert org["lastro"]["texto"] == "Padrão de teste. Comece pela Precisão."
+    assert org["lastro"]["ponto_de_partida"] == "Precisão" and not org["lastro"]["texto_diverge"]
+    assert [x["subpilar"].codigo for x in org["vagas"]][:3] == ["P1", "P2", "P3"]
+    assert org["cobertura"][0] == "Lidas 3 páginas."
 
 
 def test_texto_colado_usa_a_biblioteca_de_conversa(db_session, empresa, teto):
     conversa = "Cliente: com quem eu falo se der problema?\nVendedor: fica tranquilo, é rápido."
     aid = _criar(db_session, empresa, texto=conversa)
-    cli = Dublê([{"resumo": "Faltou nome e prazo.", "itens": []}])
+    cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.origem == "texto" and a.formato == "texto"
     assert "Ele perguntou com quem fala" in cli.chamadas[0]["system"]
@@ -269,7 +276,7 @@ def test_refazer_com_nova_descricao(db_session, empresa, teto):
     a = _rodar(db_session, aid, cli)
     assert a.descricao.startswith("Apresentação institucional")
     assert "Apresentação institucional" in cli.chamadas[0]["messages"][0]["content"][0]["text"]
-    assert a.tokens_in == 30000  # as duas leituras somam (5 chamadas de 3000 cada)
+    assert a.tokens_in == 36000  # as duas leituras somam (6 chamadas de 3000 cada)
 
 
 def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
@@ -278,7 +285,7 @@ def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
     servico.concluir(a)
     db_session.commit()
     assert a.texto_json is None and a.texto_apagado_motivo == "concluida"
-    assert a.resumo and json.loads(a.itens_json)  # resultado fica
+    assert len(json.loads(a.itens_json)["doze"]) == 12  # resultado fica
     with pytest.raises(AvaliacaoRecusada, match="já foi apagado"):
         servico.refazer(db_session, a)
 
@@ -313,53 +320,61 @@ def test_comando_do_watchdog_roda(client, empresa):
     assert "0 interrompida(s)" in r.output and "7 dias sem uso" in r.output
 
 
-def test_modo_por_pilar_grava_versao_e_soma_o_custo(db_session, empresa, monkeypatch):
+def test_leitura_que_estava_na_fila_na_virada_termina_no_formato_dela(db_session, empresa, teto):
+    """Leitura criada em avaliador-v14-pilar antes do deploy da virada é processada no
+    formato 1, com o pedido dela; a leitura nova é sempre o veredito."""
     from src.avaliador import motor
 
-    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="por_pilar")
     aid = _criar(db_session, empresa)
-    assert db_session.get(AvaliadorAnalise, aid).prompt_versao == motor.PROMPT_VERSAO_POR_PILAR
-    resp = [{"itens": []}] * 4 + [{"resumo": "Resumo por pilar."}]
-    cli = Dublê(resp)
-    _rodar(db_session, aid, cli)
-    db_session.expire_all()
-    a = db_session.get(AvaliadorAnalise, aid)
-    assert a.status == STATUS_PRONTA and a.resumo == "Resumo por pilar."
-    assert len(cli.chamadas) == 5 and a.tokens_in == 15000 and a.custo_usd > 0
-
-
-def test_modo_desconhecido_recusa_antes_de_gravar(db_session, empresa, monkeypatch):
-    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="duas")
-    with pytest.raises(AvaliacaoRecusada, match="AVALIADOR_MODO"):
-        _criar(db_session, empresa)
-    assert db_session.query(AvaliadorAnalise).count() == 0
-
-
-def test_por_pilar_sem_resumo_fica_pronta_com_motivo(db_session, empresa, monkeypatch):
-    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="por_pilar")
-    aid = _criar(db_session, empresa)
-    _rodar(db_session, aid, Dublê([{"itens": []}] * 4 + ["x", "y"]))
-    db_session.expire_all()
-    a = db_session.get(AvaliadorAnalise, aid)
-    assert a.status == STATUS_PRONTA and a.resumo is None
-    assert a.erro_motivo == "resumo: RespostaInvalida" and a.custo_usd > 0
-
-
-def test_modo_unica_continua_disponivel(db_session, empresa, monkeypatch):
-    from src.avaliador import motor
-
-    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0, AVALIADOR_MODO="unica")
-    aid = _criar(db_session, empresa)
-    cli = Dublê()
+    db_session.get(AvaliadorAnalise, aid).prompt_versao = motor.PROMPT_VERSAO_POR_PILAR
+    db_session.commit()
+    cli = Dublê([resposta_ok()])
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.prompt_versao == motor.PROMPT_VERSAO
-    assert len(cli.chamadas) == 1 and DESCRICAO in cli.chamadas[0]["messages"][0]["content"]
+    assert a.status == STATUS_PRONTA and a.resumo == "Padrão de teste."
+    assert servico.formato_da_leitura(a) == servico.FORMATO_ITENS
+    assert '"forte"' in cli.chamadas[0]["system"]  # o pedido antigo, não o v20
+    assert len(cli.chamadas) == 5
 
 
-def test_padrao_de_codigo_e_por_pilar():
-    from src.config import Config
+def test_falha_so_no_texto_do_lastro_fica_pronta_com_motivo(db_session, empresa, teto):
+    aid = _criar(db_session, empresa)
+    a = _rodar(db_session, aid, Dublê([resposta_v20(lastro=None)]))
+    assert a.status == STATUS_PRONTA and a.erro_motivo == "lastro: RespostaInvalida"
+    g = json.loads(a.itens_json)
+    assert g["lastro"]["texto"] is None and g["lastro"]["ponto_de_partida"] == "P"
+    assert a.custo_usd > 0
 
-    assert Config.AVALIADOR_MODO == "por_pilar"
+
+def test_reler_leitura_antiga_gera_o_formato_novo(db_session, empresa, teto):
+    from src.avaliador import motor
+
+    aid = _criar(db_session, empresa)
+    db_session.get(AvaliadorAnalise, aid).prompt_versao = motor.PROMPT_VERSAO_POR_PILAR
+    db_session.commit()
+    a = _rodar(db_session, aid, Dublê([resposta_ok()]))
+    servico.refazer(db_session, a)
+    db_session.commit()
+    a = _rodar(db_session, aid, Dublê())
+    assert a.prompt_versao == "avaliador-v20-veredito"
+    assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO and a.resumo is None
+
+
+def test_gate_cobra_as_seis_chamadas(db_session, empresa, monkeypatch):
+    from src.avaliador import veredito
+
+    cobrado = {}
+    monkeypatch.setattr(servico, "checar_teto", lambda s, e, est: cobrado.setdefault("usd", est))
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0)
+    a = db_session.get(AvaliadorAnalise, _criar(db_session, empresa))
+    from src.avaliador.extracao import Documento
+
+    regua = servico.carregar_regua()
+    sistema, usuario = servico._pedido(
+        regua, a.origem, a.descricao, Documento.de_json(a.texto_json), a.prompt_versao
+    )
+    assert cobrado["usd"] == pytest.approx(
+        veredito.estimar_custo_usd(sistema, usuario, a.modelo, 4)
+    )
 
 
 def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, teto, monkeypatch):

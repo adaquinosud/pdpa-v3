@@ -46,6 +46,8 @@ class Config:
     # para os 12 subpilares. Decisão do Alexandre (13/10): a única saiu rasa nas três
     # leituras da Office Total e a por pilar deu núcleo estável nas duas; R$ 0,90 contra
     # R$ 0,40 por leitura não paga a diferença de qualidade.
+    # ⚠️ Sem efeito desde a virada para o veredito (17/10): leitura nova é sempre
+    # avaliador-v20-veredito. Sai na fatia 4, junto com o código do formato 1.
     AVALIADOR_MODO = os.getenv("AVALIADOR_MODO", "por_pilar")
     # Dias SEM USO até o texto extraído ser apagado sozinho. O aviso da tela lê ESTE
     # valor — aviso e comportamento não podem divergir.

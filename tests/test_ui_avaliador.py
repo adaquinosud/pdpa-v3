@@ -11,7 +11,15 @@ import pytest
 from src.avaliador import servico
 from src.models.avaliador import AvaliadorAnalise
 from src.models.empresa import Empresa
-from tests.test_avaliador_servico import DESCRICAO, SENTINELA, Dublê, _pptx, config_avaliador
+from tests.test_avaliador_servico import (
+    DESCRICAO,
+    SENTINELA,
+    Dublê,
+    _pptx,
+    config_avaliador,
+    resposta_v20,
+    veredito_de,
+)
 
 
 @pytest.fixture
@@ -156,14 +164,27 @@ def test_render_da_analise_pronta(client_loyall, db_session, empresa, teto):
     aid = _pronta(client_loyall, db_session, empresa)
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert 'hx-trigger="every 3s"' not in html
-    assert "Padrão de teste." in html  # resumo
+    assert "Padrão de teste. Comece pela Precisão." in html  # texto do Lastro
     assert "Pilar 2: DISPONIBILIDADE" in html  # título do Manual, sem travessão na tela
     assert "D1 · Acessibilidade" in html
     assert "o cliente consegue chegar ao serviço, ser atendido, abordar o balcão?" in html
-    assert ">Forte<" in html and ">Falta<" in html and ">Melhorar<" in html
+    assert ">Sim<" in html and ">Parcial<" in html and ">Não<" in html
+    assert (
+        ">Forte<" not in html
+        and ">Falta<" not in html
+        and "Leitura no formato anterior" not in html
+    )
     assert "p. 2: “segunda a sexta das 8h às 18h”" in html
-    assert "P1 · Calibração da Promessa: sem observação nesta peça." in html
+    assert "Deveria ter:</span> Quem cita a empresa como referência." in html
     assert "—" not in html and "–" not in html  # nenhum travessão na tela
+    # a ordem do parecer da especificação de 17/10
+    secoes = ["situar", "achados", "contradicoes", "lastro", "vagas", "placar", "doze"]
+    pos = [html.index(f'data-secao="{x}"') for x in secoes]
+    assert pos == sorted(pos)
+    assert "Nenhum achado fora dos doze nesta peça." in html
+    assert "Nenhuma contradição no texto lido." in html
+    assert "Ponto de partida:</span> Precisão" in html
+    assert "Lidas 3 páginas." in html and "Imagens não são lidas" in html
     assert "Reler com esta descrição" in html and "Concluir" in html
 
 
@@ -183,28 +204,23 @@ def test_texto_colado_sem_paginas(client_loyall, db_session, empresa, teto):
     conversa = (
         "Cliente: com quem eu falo se der problema?\nVendedor: comigo, Fulano, das 8h às 18h."
     )
-    resp = {
-        "resumo": "Faltou rota fora do horário.",
-        "itens": [
-            {
-                "subpilar": "D1",
-                "tipo": "forte",
-                "texto": "Nomeou a pessoa.",
-                "evidencias": [{"pagina": 1, "trecho": "comigo, Fulano, das 8h às 18h"}],
-            }
-        ],
-    }
+    resp = resposta_v20(
+        {
+            "D1": veredito_de("D1", "sim", "comigo, Fulano, das 8h às 18h", 1),
+            "A1": veredito_de("A1"),
+        }
+    )
     aid = _pronta(client_loyall, db_session, empresa, Dublê([resp]), dados=False, texto=conversa)
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert "Texto colado" in html and "“comigo, Fulano, das 8h às 18h”" in html
-    assert "p. 1" not in html
+    assert "p. 1" not in html and "Lido o texto colado, inteiro." in html
 
 
 def test_citacao_nao_conferida_nao_aparece_como_citacao(client_loyall, db_session, empresa, teto):
     aid = _pronta(client_loyall, db_session, empresa)
     a = db_session.get(AvaliadorAnalise, aid)
-    itens = json.loads(a.itens_json)
-    itens[0]["evidencias"] = [
+    g = json.loads(a.itens_json)
+    g["doze"][3]["evidencias"] = [  # D1
         {
             "pagina": 2,
             "trecho": "TRECHO-INVENTADO-XYZ",
@@ -212,7 +228,7 @@ def test_citacao_nao_conferida_nao_aparece_como_citacao(client_loyall, db_sessio
             "pagina_encontrada": None,
         }
     ]
-    a.itens_json = json.dumps(itens)
+    a.itens_json = json.dumps(g)
     db_session.commit()
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert "TRECHO-INVENTADO-XYZ" not in html
@@ -301,12 +317,12 @@ def test_pagina_exibida_e_a_conferida_e_a_lista_se_atualiza(
 ):
     aid = _pronta(client_loyall, db_session, empresa)
     a = db_session.get(AvaliadorAnalise, aid)
-    itens = json.loads(a.itens_json)
+    g = json.loads(a.itens_json)
     # o modelo citou a p. 3; o trecho está na p. 2 — a tela mostra a p. 2, e só ela
-    itens[0]["evidencias"] = [
+    g["doze"][3]["evidencias"] = [
         {"pagina": 3, "trecho": "segunda a sexta", "conferido": True, "pagina_encontrada": 2}
     ]
-    a.itens_json = json.dumps(itens)
+    a.itens_json = json.dumps(g)
     db_session.commit()
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert "p. 2: “segunda a sexta”" in html
@@ -343,17 +359,12 @@ def test_pagina_da_web_mostra_o_endereco_lido_e_a_referencia(
         "buscar",
         lambda url, sessao=None: ("https://exemplo.com.br/inicio", HTML.encode()),
     )
-    resp = {
-        "resumo": "Falta rota fora do horário.",
-        "itens": [
-            {
-                "subpilar": "D1",
-                "tipo": "forte",
-                "texto": "Prazo de resposta declarado.",
-                "evidencias": [{"pagina": 2, "trecho": "responde em até quatro horas úteis"}],
-            }
-        ],
-    }
+    resp = resposta_v20(
+        {
+            "D1": veredito_de("D1", "sim", "responde em até quatro horas úteis", 2),
+            "A1": veredito_de("A1"),
+        }
+    )
     aid = _pronta(
         client_loyall, db_session, empresa, Dublê([resp]), dados=False, url="exemplo.com.br"
     )
@@ -362,6 +373,7 @@ def test_pagina_da_web_mostra_o_endereco_lido_e_a_referencia(
     assert "Só esta página foi lida, não o site inteiro." in html and "3 seções" in html
     assert "seção “Como atendemos”: “responde em até quatro horas úteis”" in html
     assert "p. 2" not in html
+    assert "Lida só a página enviada (3 seções)" in html and "links não foram seguidos" in html
 
 
 def test_pagina_que_nao_pode_ser_lida_mostra_o_motivo_e_nao_cria(
@@ -390,24 +402,13 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
         + "<w:tr><w:tc>" + _p("Completo") + "</w:tc><w:tc>" + _p("Até 30 unidades")
         + "</w:tc></w:tr></w:tbl>"
     )  # fmt: skip
-    resposta = {
-        "resumo": "r",
-        "itens": [
-            {
-                "subpilar": "Pa2",
-                "tipo": "forte",
-                "texto": "Preço por faixa declarado.",
-                "evidencias": [
-                    {
-                        "pagina": 1,
-                        "trecho": "Essencial | Até 10 unidades, R$ 8.000 por diagnóstico",
-                    },
-                    # trecho que junta duas linhas (leitura 12): uma parte por linha
-                    {"pagina": 1, "trecho": "R$ 8.000 por diagnóstico\nCompleto | Até 30"},
-                ],
-            }
-        ],
-    }
+    pa2 = veredito_de("Pa2", "sim", "x")
+    pa2["evidencias"] = [
+        {"pagina": 1, "trecho": "Essencial | Até 10 unidades, R$ 8.000 por diagnóstico"},
+        # trecho que junta duas linhas (leitura 12): uma parte por linha
+        {"pagina": 1, "trecho": "R$ 8.000 por diagnóstico\nCompleto | Até 30"},
+    ]
+    resposta = resposta_v20({"Pa2": pa2, "D1": veredito_de("D1"), "A1": veredito_de("A1")})
     aid = _pronta(
         client_loyall, db_session, empresa, cli=Dublê([resposta]), dados=_docx(corpo),
         nome="proposta.docx",
@@ -437,12 +438,22 @@ def test_formato_da_leitura_reconhece_o_gravado(db_session, empresa):
 def test_leitura_antiga_ganha_aviso_so_quando_o_formato_atual_e_outro(
     client_loyall, db_session, empresa, teto, monkeypatch
 ):
+    from src.avaliador import motor
+
     aid = _pronta(client_loyall, db_session, empresa)
-    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
-    assert "Leitura no formato anterior" not in html and ">Forte<" in html
-    monkeypatch.setattr(servico, "FORMATO_ATUAL", servico.FORMATO_VEREDITO)
+    a = db_session.get(AvaliadorAnalise, aid)  # vira leitura antiga, gravada no formato 1
+    a.itens_json = json.dumps(
+        motor._validar_itens(motor_doc(), [{"subpilar": "D1", "tipo": "forte", "texto": "Bom.",
+                                            "evidencias": []}])
+    )  # fmt: skip
+    a.resumo = "Resumo antigo."
+    db_session.commit()
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert "Leitura no formato anterior" in html and ">Forte<" in html  # continua legível
+    assert "Resumo antigo." in html
+    monkeypatch.setattr(servico, "FORMATO_ATUAL", servico.FORMATO_ITENS)
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Leitura no formato anterior" not in html and ">Forte<" in html
 
 
 def test_formato_nao_reconhecido_e_declarado_sem_quebrar(client_loyall, db_session, empresa, teto):
@@ -453,3 +464,9 @@ def test_formato_nao_reconhecido_e_declarado_sem_quebrar(client_loyall, db_sessi
     html = r.get_data(as_text=True)
     assert r.status_code == 200 and "formato que a tela não reconhece" in html
     assert ">Forte<" not in html
+
+
+def motor_doc():
+    from src.avaliador.extracao import Documento, Pagina
+
+    return Documento("pdf", [Pagina(1, "Atendimento de segunda a sexta.")])
