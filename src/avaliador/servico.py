@@ -175,9 +175,10 @@ def organizar(regua: Regua, a: AvaliadorAnalise) -> List[dict]:
 
 def organizar_veredito(regua: Regua, a: AvaliadorAnalise) -> dict:
     """O que a tela mostra de uma leitura no formato 2, na ordem do parecer (situar,
-    achados, contradições, Lastro, posições vagas, placar, os doze). Placar, vagas, ponto
-    de partida e ordem são RECALCULADOS dos doze pelas mesmas funções que alimentaram o
-    pedido: a tela nunca lê um número que o modelo escreveu."""
+    achados, contradições, Lastro, posições vagas, placar, os doze). Placar, vagas e ponto
+    de partida são RECALCULADOS dos doze pelas mesmas funções que alimentaram o pedido: a
+    tela nunca lê um número que o modelo escreveu. A lista "ordem das recomendações" saiu
+    da tela em 17/10: era a tabela pela terceira vez, sempre na ordem dos pilares."""
     g = json.loads(a.itens_json)
     doze = g["doze"]
     por_cod = {d["subpilar"]: d for d in doze}
@@ -204,10 +205,6 @@ def organizar_veredito(regua: Regua, a: AvaliadorAnalise) -> dict:
             "ponto_de_partida": nome_pp,
             # conferência texto × cálculo (critério de medição de 17/10), visível na tela
             "texto_diverge": bool(texto and nome_pp and nome_pp.lower() not in texto.lower()),
-            "ordem": [
-                {"subpilar": regua.subpilar(c), "veredito": por_cod[c]["veredito"]}
-                for c in veredito.ordem_recomendacoes(doze)
-            ],
         },
         "vagas": [
             {**por_cod[c], "subpilar": regua.subpilar(c)} for c in veredito.posicoes_vagas(doze)

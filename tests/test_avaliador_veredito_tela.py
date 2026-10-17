@@ -86,7 +86,7 @@ def test_lastro_sem_texto_mostra_o_calculo_e_o_motivo(client_loyall, db_session,
     assert a.status == "pronta" and a.erro_motivo == "lastro: RespostaInvalida"
     html = _html(client_loyall, empresa, aid)
     assert "Texto do Lastro não gerado (RespostaInvalida)" in html
-    assert "Ponto de partida:</span> Precisão" in html and "Ordem das recomendações:" in html
+    assert "Ponto de partida:</span> Precisão" in html
 
 
 def test_achados_contradicoes_vagas_e_placar(client_loyall, db_session, empresa, teto):
@@ -108,7 +108,10 @@ def test_achados_contradicoes_vagas_e_placar(client_loyall, db_session, empresa,
     assert "Diz referência e não mostra quem cita." in html
     assert "p. 3: “Somos referência no setor há vinte anos”" in html
     vagas = html.split('data-secao="vagas"')[1].split('data-secao="placar"')[0]
-    assert "D2 · Eficácia Operacional." in vagas and "D1 ·" not in vagas  # D1 é "sim"
+    assert "D2 · Eficácia Operacional</div>" in vagas and "D1 ·" not in vagas  # D1 é "sim"
+    # uma linha por conversa: o "deveria ter" fica só na linha do subpilar, nos doze
+    assert "Dizer como e quando." not in vagas
+    assert "Ordem das recomendações" not in html
     placar = html.split('data-secao="placar"')[1].split('data-secao="doze"')[0]
     assert "</span> 1 ·" in placar and "</span> 10</div>" in placar
 
