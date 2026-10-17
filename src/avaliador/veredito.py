@@ -53,10 +53,10 @@ from src.avaliador.regua import Regua
 logger = logging.getLogger(__name__)
 
 PROMPTS = Path(__file__).parent / "prompts"
-PROMPT_VERSAO = "avaliador-v21-veredito"
+PROMPT_VERSAO = "avaliador-v22-veredito"
 # Toda versão do formato 2 é lida pelo motor atual: leitura que estava na fila numa versão
 # anterior é processada com o pedido de hoje e passa a levar a versão de hoje.
-VERSOES = frozenset({"avaliador-v20-veredito", PROMPT_VERSAO})
+VERSOES = frozenset({"avaliador-v20-veredito", "avaliador-v21-veredito", PROMPT_VERSAO})
 FORMATO = 2
 
 SIM, PARCIAL, NAO = "sim", "parcial", "nao"
@@ -148,20 +148,36 @@ def _pilar(codigo_sub: str) -> str:
     )
 
 
+def _pilares_com(doze: List[dict], vereditos) -> List[str]:
+    com = {_pilar(d["subpilar"]) for d in doze if d["veredito"] in vereditos}
+    return [p for p in PILARES_ORDEM if p in com]
+
+
 def ponto_de_partida(doze: List[dict]) -> Optional[str]:
-    """Regra do Alexandre (17/10): o pilar mais baixo com qualquer subpilar fora de "sim".
-    Não procura gargalo surpreendente; impede gasto fora de ordem. None = tudo "sim"."""
-    fora = {_pilar(d["subpilar"]) for d in doze if d["veredito"] != SIM}
-    return next((p for p in PILARES_ORDEM if p in fora), None)
+    """Regra do Alexandre (rodada 1, 17/10): o pilar mais baixo com alguma AUSÊNCIA total
+    ("nao"); se nenhum tem, o mais baixo com algo incompleto ("parcial"). Um pilar com
+    ausência total vem antes de um só incompleto (no site da Loyall a regra anterior, "o
+    mais baixo com qualquer coisa fora de sim", apontava Precisão, com dois subpilares bem
+    e um incompleto, e não Disponibilidade, com duas ausências). None = tudo "sim"."""
+    for vereditos in ((NAO,), (PARCIAL,)):
+        pilares = _pilares_com(doze, vereditos)
+        if pilares:
+            return pilares[0]
+    return None
 
 
 def ordem_recomendacoes(doze: List[dict]) -> List[str]:
-    """Regra do Alexandre (17/10): a ordem dos pilares, sempre; dentro de cada pilar,
-    primeiro o que está Parcial ou Não (na ordem do Manual) e depois o "sim" que traz um
-    próximo passo. Só entra o subpilar que tem "deveria ter"."""
+    """Rodada 1 (17/10): primeiro os pilares com ausência total ("nao"), na ordem dos
+    pilares; depois os só incompletos; depois os que estão todos em "sim". Dentro de cada
+    pilar, primeiro o que está Parcial ou Não (na ordem do Manual) e depois o "sim" que traz
+    um próximo passo. Só entra o subpilar que tem "deveria ter". Gravada para conferência;
+    a tela não mostra lista de ordem."""
     por_cod = {d["subpilar"]: d for d in doze}
+    com_nao = _pilares_com(doze, (NAO,))
+    com_parcial = [p for p in _pilares_com(doze, (PARCIAL,)) if p not in com_nao]
+    resto = [p for p in PILARES_ORDEM if p not in com_nao and p not in com_parcial]
     out = []
-    for p in PILARES_ORDEM:
+    for p in com_nao + com_parcial + resto:
         subs = [c for c in SUBPILARES_ORDEM if _pilar(c) == p and c in por_cod]
         fora = [c for c in subs if por_cod[c]["veredito"] != SIM]
         sims = [c for c in subs if por_cod[c]["veredito"] == SIM and por_cod[c]["deveria_ter"]]
@@ -188,20 +204,27 @@ def instrucao_situar(cob: Dict[str, Any]) -> str:
     )
 
 
-def _texto_situada(situada: dict) -> str:
-    return "\n".join(
-        [
-            f"- Tipo de peça: {situada['tipo_peca']}",
-            f"- Leitor: {situada['leitor']}",
-            f"- Situação: {situada['situacao']}",
+def _texto_situada(regua: Regua, situada: dict) -> str:
+    linhas = [
+        f"- Tipo de peça: {situada['tipo_peca']}",
+        f"- Leitor: {situada['leitor']}",
+        f"- Situação: {situada['situacao']}",
+    ]
+    if situada.get("ausencias"):
+        linhas.append("- Ausências, cada uma contada uma vez, no subpilar onde pertence:")
+        linhas += [
+            f"  · {x['o_que']}: contada em {x['subpilar']} {regua.subpilar(x['subpilar']).nome}"
+            for x in situada["ausencias"]
         ]
-    )
+    return "\n".join(linhas)
 
 
-def instrucao_pilar(pilar, situada: dict) -> str:
+def instrucao_pilar(regua: Regua, pilar, situada: dict) -> str:
     codigos = ", ".join(s.codigo for s in pilar.subpilares)
     return _tpl("veredito_pilar.md").substitute(
-        titulo=pilar.titulo.replace(" — ", ", "), codigos=codigos, situada=_texto_situada(situada)
+        titulo=pilar.titulo.replace(" — ", ", "),
+        codigos=codigos,
+        situada=_texto_situada(regua, situada),
     )
 
 
@@ -226,8 +249,8 @@ def instrucao_achados(regua: Regua, doze: List[dict]) -> str:
 
 
 def instrucao_lastro(regua: Regua, doze: List[dict]) -> str:
-    """Recebe o ponto de partida e os vereditos; a ordem não vai (v21: é sempre a dos
-    pilares, e mandá-la fazia o texto recitar a escada em toda peça)."""
+    """Recebe o ponto de partida e os vereditos; a ordem não vai (v21: mandá-la fazia o
+    texto recitar a escada em toda peça)."""
     pp = ponto_de_partida(doze)
     return _tpl("veredito_lastro.md").substitute(
         vereditos=_texto_vereditos(regua, doze),
@@ -269,6 +292,26 @@ def validar_situar(doc: Documento, obj: dict) -> dict:
         if not out[chave]:
             raise RespostaInvalida(f"resposta sem '{chave}'")
     out["consequencia_cobertura"] = _texto(doc, obj.get("consequencia_cobertura"))
+    out["ausencias"] = _ausencias(doc, obj.get("ausencias"))
+    return out
+
+
+def _ausencias(doc: Documento, bruto: Any) -> List[dict]:
+    """Rodada 1 (17/10): cada ausência da peça uma vez, no subpilar onde pertence."""
+    if bruto is None:
+        return []
+    if not isinstance(bruto, list):
+        raise RespostaInvalida("'ausencias' não é lista")
+    out = []
+    for x in bruto:
+        if not isinstance(x, dict):
+            raise RespostaInvalida("ausência não é objeto")
+        o_que, cod = _texto(doc, x.get("o_que")), x.get("subpilar")
+        if not o_que:
+            raise RespostaInvalida("ausência sem 'o_que'")
+        if cod not in SUBPILARES_ORDEM:
+            raise RespostaInvalida(f"ausência em subpilar fora do modelo: {cod!r}")
+        out.append({"o_que": o_que, "subpilar": cod})
     return out
 
 
@@ -305,6 +348,9 @@ def validar_vereditos(doc: Documento, obj: dict, codigos: List[str]) -> List[dic
         deveria = _texto(doc, v.get("deveria_ter")) or None
         if ver != SIM and not deveria:
             raise RespostaInvalida(f"{cod} em {ver} sem 'deveria_ter'")
+        mesma = (v.get("mesma_ausencia_de") or "").strip() or None
+        if mesma is not None and (mesma not in SUBPILARES_ORDEM or mesma == cod):
+            raise RespostaInvalida(f"{cod}: 'mesma_ausencia_de' inválido: {mesma!r}")
         evid = _evidencias(doc, v.get("evidencias"))
         conferida = any(e["conferido"] for e in evid)
         alerta = None
@@ -317,6 +363,7 @@ def validar_vereditos(doc: Documento, obj: dict, codigos: List[str]) -> List[dic
             "veredito": ver,
             "onde": onde,
             "deveria_ter": deveria,
+            "mesma_ausencia_de": mesma,
             "evidencias": evid,
             "alerta": alerta,
         }
@@ -385,7 +432,7 @@ def ler(
                 modelo,
                 sistema,
                 usuario,
-                instrucao_pilar(pilar, situada),
+                instrucao_pilar(regua, pilar, situada),
                 MAX_TOKENS_PILAR,
                 lambda obj, cs=codigos: validar_vereditos(doc, obj, cs),
                 orc,
@@ -424,6 +471,7 @@ def ler(
         "cobertura": cob,
         "situar": {k: situada[k] for k in ("tipo_peca", "leitor", "situacao")}
         | {"consequencia_cobertura": situada["consequencia_cobertura"]},
+        "ausencias": situada["ausencias"],
         "achados": achados["achados"],
         "contradicoes": achados["contradicoes"],
         "doze": doze,

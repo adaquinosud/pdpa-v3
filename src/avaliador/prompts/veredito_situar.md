@@ -8,6 +8,8 @@ Devolva:
 - "leitor": para quem ela foi escrita, numa frase. Dois exemplos, em lados opostos: "quem está decidindo sozinho, sem vendedor na sala" e "quem vai receber a peça numa reunião, com o vendedor explicando ao lado".
 - "situacao": em que situação ela será lida, numa frase.
 - "consequencia_cobertura": numa frase, o que o que ficou de fora muda na leitura. Parte do que você marcar como ausente pode estar no que não foi lido; diga isso quando for o caso. Não repita a lista do que foi lido.
+- "ausencias": o que falta na peça e que o leitor procuraria, cada coisa uma vez só, com o código do ÚNICO subpilar do Manual onde ela pertence. Uma ausência que toca dois subpilares é contada no subpilar cuja definição ela responde mais diretamente; nos outros ela não conta de novo. Se nada falta, a lista vai vazia.
 
 FORMATO: responda SOMENTE com um objeto JSON válido, sem texto antes ou depois:
-{"tipo_peca": "<texto>", "leitor": "<texto>", "situacao": "<texto>", "consequencia_cobertura": "<texto>"}
+{"tipo_peca": "<texto>", "leitor": "<texto>", "situacao": "<texto>", "consequencia_cobertura": "<texto>",
+ "ausencias": [{"o_que": "<texto curto>", "subpilar": "<código>"}]}

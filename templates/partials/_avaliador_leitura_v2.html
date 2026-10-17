@@ -88,6 +88,7 @@
         {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
         {{ cit.citacoes(x.evidencias) }}
         {% if x.deveria_ter %}<div class="mt-1 text-loyall-700"><span class="text-xs text-loyall-500">Deveria ter:</span> {{ x.deveria_ter }}</div>{% endif %}
+        {% if x.contada_em %}<div class="mt-1 text-xs text-loyall-500">A mesma ausência está contada em {{ x.contada_em.codigo }} · {{ x.contada_em.nome }}.</div>{% endif %}
       </div>
     {% endfor %}
     </div>

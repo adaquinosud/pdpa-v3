@@ -187,7 +187,18 @@ def organizar_veredito(regua: Regua, a: AvaliadorAnalise) -> dict:
         {
             "pilar": p,
             "linhas": [
-                {**por_cod[s.codigo], "subpilar": s} for s in p.subpilares if s.codigo in por_cod
+                {
+                    **por_cod[s.codigo],
+                    "subpilar": s,
+                    # rodada 1: a ausência que pesa aqui está contada noutro subpilar
+                    "contada_em": (
+                        regua.subpilar(por_cod[s.codigo]["mesma_ausencia_de"])
+                        if por_cod[s.codigo].get("mesma_ausencia_de")
+                        else None
+                    ),
+                }
+                for s in p.subpilares
+                if s.codigo in por_cod
             ],
         }
         for p in regua.pilares

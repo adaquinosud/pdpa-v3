@@ -191,7 +191,7 @@ def test_caminho_feliz_arquivo(db_session, empresa, teto):
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.resumo is None and a.erro_motivo is None
-    assert a.prompt_versao == "avaliador-v21-veredito"
+    assert a.prompt_versao == "avaliador-v22-veredito"
     assert len(cli.chamadas) == 7  # situar, uma por pilar, achados e o Lastro
     assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"][0]["text"]
     assert a.custo_usd > 0 and a.origem == "arquivo" and a.formato == "pptx"
@@ -299,7 +299,7 @@ def test_leitura_de_versao_antiga_na_fila_sai_no_veredito_de_hoje(db_session, em
     db_session.commit()
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v21-veredito"
+    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v22-veredito"
     assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
     assert '"forte"' not in cli.chamadas[0]["system"] and len(cli.chamadas) == 7
 
@@ -323,7 +323,7 @@ def test_reler_leitura_antiga_gera_o_formato_novo(db_session, empresa, teto):
     servico.refazer(db_session, a)
     db_session.commit()
     a = _rodar(db_session, aid, Dublê())
-    assert a.prompt_versao == "avaliador-v21-veredito"
+    assert a.prompt_versao == "avaliador-v22-veredito"
     assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO and a.resumo is None
 
 
@@ -380,5 +380,5 @@ def test_leitura_v20_na_fila_e_lida_com_o_pedido_de_hoje(db_session, empresa, te
     db_session.commit()
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v21-veredito"
+    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v22-veredito"
     assert len(cli.chamadas) == 7

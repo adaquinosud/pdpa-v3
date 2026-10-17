@@ -274,18 +274,23 @@ def test_placar_e_posicoes_vagas():
     [
         ({}, None),
         ({"A3": "nao"}, "A"),
-        ({"Pa1": "parcial", "A1": "nao"}, "Pa"),
+        ({"Pa1": "parcial", "A1": "parcial"}, "Pa"),  # sem ausência: o mais baixo incompleto
         ({"D2": "parcial", "P3": "nao"}, "P"),
+        # rodada 1: ausência total vem antes de incompleto, mesmo num pilar acima. O caso do
+        # site da Loyall: Precisão com um incompleto, Disponibilidade com duas ausências.
+        ({"P2": "parcial", "D1": "nao", "D3": "nao"}, "D"),
+        ({"Pa1": "parcial", "A1": "nao"}, "A"),
     ],
 )
-def test_ponto_de_partida_e_o_pilar_mais_baixo_fora_de_sim(vereditos, esperado):
+def test_ponto_de_partida_ausencia_total_antes_de_incompleto(vereditos, esperado):
     assert v.ponto_de_partida(_doze(**vereditos)) == esperado
 
 
-def test_ordem_e_dos_pilares_e_dentro_do_pilar_primeiro_o_que_esta_fora_de_sim():
-    d = _doze(P3="nao", D1="parcial", A2="nao")
+def test_ordem_poe_pilar_com_ausencia_antes_de_pilar_so_incompleto():
+    d = _doze(P3="parcial", D1="nao", A2="nao")
     d[0]["deveria_ter"] = "próximo passo do P1"  # "sim" com próximo passo entra depois
-    assert v.ordem_recomendacoes(d) == ["P3", "P1", "D1", "A2"]
+    # D e A têm ausência (na ordem dos pilares), depois P, só incompleto
+    assert v.ordem_recomendacoes(d) == ["D1", "A2", "P3", "P1"]
 
 
 def test_cobertura_declarada_por_formato():
@@ -345,3 +350,39 @@ def test_correcoes_da_medicao_de_17_10_nos_pedidos():
     assert "Proibido repetir a escada" in lastro and "$ordem" not in lastro
     pilar = (PROMPTS / "veredito_pilar.md").read_text(encoding="utf-8")
     assert "numa frase curta e concreta" in pilar
+
+
+# ── rodada 1 (17/10): cada ausência conta uma vez ──────────────────────────
+
+
+def test_ausencias_vao_para_os_pilares_e_a_mesma_ausencia_fica_registrada():
+    sit = dict(_situar(), ausencias=[{"o_que": "Preço ou faixa de preço", "subpilar": "Pa2"}])
+    ver = _vereditos_ok()
+    ver["P1"] = dict(_ver("P1", "parcial", P1_TRECHO), mesma_ausencia_de="Pa2")
+    cli = Roteiro(situar=sit, vereditos=ver)
+    res, _ = _ler(cli)
+    pilar = cli.chamadas[1]["messages"][0]["content"][-1]["text"]
+    assert "· Preço ou faixa de preço: contada em Pa2 Mutualidade" in pilar
+    assert "Cada ausência conta uma vez" in pilar
+    assert res["ausencias"] == [{"o_que": "Preço ou faixa de preço", "subpilar": "Pa2"}]
+    por = {d["subpilar"]: d for d in res["doze"]}
+    assert por["P1"]["mesma_ausencia_de"] == "Pa2" and por["P2"]["mesma_ausencia_de"] is None
+
+
+@pytest.mark.parametrize("mesma", ["P1", "X9"])
+def test_mesma_ausencia_de_si_mesmo_ou_fora_do_modelo_e_recusada(mesma, caplog):
+    def estraga(n, r):
+        if n == 0:
+            r["vereditos"][0] = dict(r["vereditos"][0], mesma_ausencia_de=mesma)
+        return r
+
+    cli = Roteiro(por_etapa={"P": estraga})
+    _ler(cli)
+    assert [c["_etapa"] for c in cli.chamadas].count("P") == 2
+    assert "'mesma_ausencia_de' inválido" in caplog.text
+
+
+def test_ausencia_em_subpilar_fora_do_modelo_e_recusada():
+    sit = dict(_situar(), ausencias=[{"o_que": "Preço", "subpilar": "Z1"}])
+    with pytest.raises(RespostaInvalida, match="fora do modelo"):
+        _ler(Roteiro(situar=sit))

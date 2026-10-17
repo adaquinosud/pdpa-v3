@@ -132,3 +132,14 @@ def test_citacao_nao_conferida_no_veredito_nao_aparece(client_loyall, db_session
     db_session.commit()
     html = _html(client_loyall, empresa, aid)
     assert "TRECHO-INVENTADO-XYZ" not in html and "citação não encontrada na peça" in html
+
+
+def test_a_linha_diz_onde_a_mesma_ausencia_foi_contada(client_loyall, db_session, empresa, teto):
+    from tests.test_avaliador_servico import veredito_de
+
+    p1 = dict(
+        veredito_de("P1", "parcial", "segunda a sexta das 8h às 18h", 2), mesma_ausencia_de="Pa2"
+    )
+    resp = resposta_v20(vereditos={"P1": p1})
+    html = _html(client_loyall, empresa, _pronta_v20(client_loyall, db_session, empresa, resp))
+    assert "A mesma ausência está contada em Pa2 · Mutualidade." in html
