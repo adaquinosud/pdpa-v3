@@ -1,4 +1,4 @@
-# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 15/out)
+# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 16/out)
 
 > **Documento de bootstrap do projeto.** Leia primeiro a cada sessão. Irmão do
 > `PDPA-Loyall-Contexto-Mestre.md` (comercial/método); este cobre o **sistema**.
@@ -10,11 +10,17 @@
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
 >
+> **Estado em 16/out (noite):** prod em **`bb6121b`** (`/healthz` 16/10 22:17). Horário do
+> app em Brasília na tela e no impresso (`6c58d42`). Contradição forte × falta no P2 do
+> keynote: três tentativas no pedido (`0517adb`, `05daf9b`, `2b01beb`), a terceira revertida
+> (`bb6121b`); **o caminho do pedido está encerrado para este defeito**, que passa a item fixo
+> da conferência humana. Apagar leitura no Avaliador (`f9cadd5`). Tudo em §4.66; trava nova
+> no §7: mudança no pedido se mede no alvo e fora dele.
+>
 > **Estado em 15/out (noite):** prod em **`b90875f`** (`/healthz` 15/10 20:21). Três
 > consertos do Avaliador (§4.65): ligadura do PDF do Keynote e do Pages (`0aae9ee`), 403
 > separado de senha sem o app se passar por navegador (`b90875f`) e coerência do forte no
-> pedido (`0517adb`, ⚠️ a confirmar no `/healthz`; verificação por leitura paga depois do
-> merge). Trava nova no §7: número previsto em especificação se mede antes de construir.
+> pedido (`0517adb`, Live no deploy de `63c3f69`, 15/10 21:00; resultado em §4.66). Trava nova no §7: número previsto em especificação se mede antes de construir.
 >
 > **Estado em 15/out (manhã):** prod em **`2fb4974`** (`/healthz` 15/10 10:21, `"pdftotext":
 > true`). O Avaliador ganhou **três entradas e quatro consertos de
@@ -3001,7 +3007,8 @@ recusa leitura automática", com o porquê de o PDF funcionar; agente com contat
 (Alexandre): quem usa a ferramenta nem sempre é o dono do site, e passar por cima do
 bloqueio faz dela raspador de página; o custo de não fazer é imprimir como PDF.
 
-**3. Coerência do forte (`0517adb`, ⚠️ a confirmar no `/healthz`).** Relatado pelo autor do
+**3. Coerência do forte (`0517adb`, Live no deploy de `63c3f69`, `/healthz` 15/10 21:00;
+não resolveu, ver §4.66).** Relatado pelo autor do
 brief: na leitura de 15:04 o forte do P2 dizia que a garantia dá "um parâmetro concreto" e o
 melhorar, citando a mesma frase, que "não define o que é esse indicador"; na leitura de
 22:51 do mesmo arquivo não se repetiu (uma em duas; horários como relatados, não conferidos
@@ -3022,6 +3029,75 @@ e nunca rodada; a medida proposta, rodada, punia o extrator certo no PowerPoint 
 nada no Keynote. Depois, o número que **eu** previ para o Pages (7) estava errado: era 5;
 confundi palavras com pedaços soltos. Os dois foram pegos porque a medição veio antes do
 código. Trava no §7.
+
+### 4.66 Horário de Brasília, o forte contraditório encerrado no pedido, apagar leitura (15-16/out)
+
+**1. Horário de Brasília (`6c58d42`, Live 15/10 21:50).** O banco grava em UTC (57 colunas
+com `default=utcnow`) e a tela mostrava UTC: +3 h. Relatado pelo Alexandre antes de 15/10
+e não registrado; voltou como "novo". Conserto só de exibição, banco intocado, sem migração:
+filtro `| hora_br` e `para_brasilia` (`src/utils/fuso.py`, America/Sao_Paulo fixo; `tzdata`
+no lock) em cerca de 23 templates, nos quatro PDFs (com "(horário de Brasília)"), nos avisos
+de cooldown, no mês do Parecer, na Visão Financeira e no histórico do Excel de verbatins.
+Trava: `tests/test_fuso_exibicao.py` falha com `.strftime(`/`[:16]` em template fora da
+lista `DATA_DA_FONTE`. **Pendente de decisão:** datas de FONTE não convertidas e com fuso
+misto (o `created` do RA vem às vezes sem fuso, às vezes com Z, na mesma coluna; redes
+sociais usam `datetime.fromtimestamp()` sem fuso, no fuso do servidor). Opções: declarar na
+tela, gravar em UTC daqui para frente, ou conferir primeiro o fuso do RA com um caso real.
+Também: competência da sonda de IA por `date.today()` do servidor.
+
+**2. Forte × falta no P2 do keynote: três tentativas no pedido, caminho encerrado.** O
+defeito: o forte do P2 chama a garantia de "parâmetro concreto" e a falta do mesmo subpilar
+diz que o indicador não está definido. Leituras do `keynote.pdf` (mesma descrição, terceiro
+campo vazio), medidas pelo Alexandre:
+
+| Onde | Leituras | Contradição no P2 | Fortes nos doze subpilares |
+|---|---|---|---|
+| 15/10 (inclui a de 15:04, anterior ao `0517adb`) | 4 | 2 | não registrado aqui |
+| `05daf9b`, 16/10 | 3 | 2 | 10, 8, 7 |
+| `2b01beb`, 16/10 22:06 / 22:08 / 22:10 | 3 | 1 (22:06) | 4, 3, 3 |
+
+As três tentativas, em ordem:
+- `0517adb`: frase de coerência só no `sistema.md`. Medido no pedido capturado das cinco
+  chamadas: a frase chegava ao modelo, no começo; a obrigação do forte aparecia duas vezes,
+  uma no fim da mensagem, logo antes da resposta.
+- `05daf9b` (Live 16/10 21:04): a mesma frase também no `pilar.md`, colada à obrigação do
+  forte nos dois arquivos; trava `tests/test_avaliador_prompts.py` falha se as cópias
+  divergirem ou se separarem. Pedido `avaliador-v13` / `avaliador-v14-pilar`. Não mudou nada.
+  **Para o registro:** a decisão de não duplicar a frase (15/10) foi do Claude e estava
+  errada; o motivo da reversão é posição, não redação.
+- `2b01beb` (Live 16/10 21:45): exceção dentro da regra do forte, nos dois arquivos ("a
+  exceção é quando o único forte possível seria desmentido por outro item do mesmo
+  subpilar: nesse caso o subpilar fica sem forte"). Pedido `avaliador-v14` /
+  `avaliador-v15-pilar`. **Para o registro:** essa saída tinha sido tirada por decisão do
+  Claude em 15/10, com base numa única leitura. Critério escrito antes de rodar: qualquer
+  leitura abaixo de 6 fortes, desfaz. As três ficaram abaixo; revertido em `bb6121b` (Live
+  16/10 22:17), que volta o pedido ao do `05daf9b` (`avaliador-v13` / `avaliador-v14-pilar`).
+
+**O que se aprendeu:** a exceção funciona, mas não fica onde foi colocada. Nas duas leituras
+sem contradição o P2 ficou sem forte, como previsto; o modelo passou a deixar sem forte
+também o D2, o Pa3 e o A3, que tinham forte nas três leituras anteriores. A instrução é
+grossa demais para o alvo. Diagnóstico do Alexandre: no P2 dessa peça não há nada
+genuinamente bom além da garantia defeituosa, e a obrigação do forte empurra o modelo para o
+único candidato; não é desobediência, é ordem sem saída.
+
+**Decisão (Alexandre, 16/10):** o caminho do pedido está encerrado para este defeito; nenhuma
+das três tentativas resolveu sem custo maior que o problema. Passa a existir como **item fixo
+da conferência humana na revisão do parecer** (forte que a falta ou o melhorar do mesmo
+subpilar desmente) e como ideia registrada, não construída: **conferência em segunda passada
+do modelo, subpilar a subpilar, depois de 29/10**.
+
+**3. Apagar leitura (`f6b1634`, `f9cadd5`, Live 16/10 22:14).** O aviso da tela prometia
+apagar o texto ao concluir ou em 7 dias, mas o registro da leitura ficava para sempre e
+ninguém conseguia removê-lo. Agora "Apagar leitura", no pé da página da leitura, com
+confirmação uma vez: saem descrição, nome do arquivo, resumo, itens com trechos, texto, hash
+e páginas sem texto; ficam empresa, data, custo, tokens, modelo e versões, com a situação
+`apagada`, fora da lista e 404 em toda rota. **Por que a linha fica (opção 1, Alexandre):**
+o teto mensal soma o `custo_usd` destas linhas; apagar a linha devolveria gasto ao teto. O
+que some é a peça do cliente; o que fica é o registro de gasto da Loyall, que não é dele. A
+opção 2 (tabela própria de gasto, com migração) continua possível. Recusado com a leitura na
+fila ou lendo. O aviso do formulário passou a dizer que a leitura inteira pode ser apagada.
+A coluna de situação voltou a ser só Na fila, Lendo, Pronta ou Falhou; o texto apagado se diz
+na página da leitura, com o porquê de não haver "Reler com esta descrição".
 
 ---
 
@@ -4944,9 +5020,20 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   medida roda primeiro como medição, fora do código; se o número não bate com o previsto,
   para e reporta antes de escrever código. Vale para previsão de quem escreve a
   especificação e de quem implementa.
+
+- **MUDANÇA NO PEDIDO SE MEDE NO ALVO E FORA DELE, COM O CRITÉRIO DE DESFAZER ESCRITO ANTES.**
+  Instrução nova no pedido não fica onde foi colocada. ⚠️ **O caso (16/10, §4.66):** a
+  exceção do forte tirou a contradição do P2 em duas de três leituras e, junto, tirou o forte
+  do D2, do Pa3 e do A3; os fortes caíram de 10, 8 e 7 para 4, 3 e 3. Só se viu porque o
+  critério (abaixo de 6 fortes, desfaz) foi escrito antes de rodar e contava os doze
+  subpilares, não só o alvo. E a saída tinha sido tirada em 15/10 com base em uma leitura.
+  🔒 **Regra:** toda mudança no pedido se mede em mais de uma leitura, conferindo o alvo
+  **e** o que estava certo antes; o critério de desfazer é escrito antes da primeira leitura;
+  decisão de pedido não se toma com uma leitura só. Defeito de julgamento que resiste a três
+  tentativas no pedido sai do pedido (conferência humana ou segunda passada).
 ---
 
-## 8. Estado dos SHAs (todos Live · atual `a8a04fc`)
+## 8. Estado dos SHAs (todos Live · atual `bb6121b`)
 
 **Avaliador de documentos (só admin):** `7fe0662` (régua + dados) → `37e81aa`
 (extração + conferência de citação) → `ee248c5` (tabela) → `9cb4bc0` (motor) →
@@ -4957,8 +5044,11 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
 → `b67bd2a` → `f09f701` (página pública) → `9ffcc8b` → `b73e2ad` (Word) → `2e2aba1`
 (PDF por dois extratores) → `a760865` → `d3eb28e` → `2fb4974` (forte, maiúsculas,
 tabela). §4.64. **15/out:** `0f58a84` (docs) → `0aae9ee` (ligadura, Live 13:39) →
-`b90875f` (403 × senha, Live 20:21) → `0517adb` (coerência do forte, ⚠️ a confirmar no
-`/healthz`). §4.65.
+`b90875f` (403 × senha, Live 20:21) → `0517adb` (coerência do forte) → `63c3f69` (docs,
+Live 21:00). §4.65. → `6c58d42` (horário de Brasília, Live 21:50). **16/out:** `05daf9b`
+(coerência nos dois pedidos, Live 21:04) → `2b01beb` (exceção do forte, Live 21:45) →
+`f6b1634` → `f9cadd5` (apagar leitura, Live 22:14) → `bb6121b` (revert do `2b01beb`, Live
+22:17). §4.66.
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →

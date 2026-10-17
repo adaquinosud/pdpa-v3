@@ -1,8 +1,8 @@
 # Avaliador de documentos: especificação técnica
 
-**Versão:** 3.1 · 15/10/2026 · descreve o código em `0517adb` (ligadura `0aae9ee` e mensagens
-de bloqueio `b90875f` Live no `/healthz` 15/10; coerência do forte `0517adb` ⚠️ a confirmar no
-`/healthz`). Versão 3 descrevia `2fb4974`; versão 2 (13/10), `a8a04fc`.
+**Versão:** 3.2 · 16/10/2026 · descreve o código em `bb6121b` (Live no `/healthz` 16/10 22:17):
+coerência nos dois pedidos `05daf9b`, apagar leitura `f9cadd5`, exceção do forte `2b01beb`
+revertida. Versão 3.1 descrevia `0517adb`; versão 3, `2fb4974`; versão 2 (13/10), `a8a04fc`.
 **Status:** EM PRODUÇÃO, só para admin Loyall. Desligado até o Alexandre definir
 `AVALIADOR_TETO_MENSAL_USD` no Render (teto 0 = desligado).
 **Versão 1 (12/10):** descrevia o desenho anterior (tipos de peça, vereditos por subpilar, bibliotecas
@@ -60,7 +60,7 @@ Uma linha por análise. Migration só aditiva (`a8c9d0e1f2b3`), provada em Postg
 downgrade, upgrade). Campos: identificação (empresa, usuário, datas, `usado_em`), entrada (`origem`
 arquivo/texto, `descricao`, `arquivo_nome`, `conteudo_hash`, `formato`, `n_paginas`,
 `paginas_sem_texto_json`), texto extraído (`texto_json`, `texto_apagado_em`,
-`texto_apagado_motivo`), resultado (`status` pendente/lendo/pronta/falhou, `erro_motivo`, `resumo`,
+`texto_apagado_motivo`), resultado (`status` pendente/lendo/pronta/falhou/apagada, `erro_motivo`, `resumo`,
 `itens_json`) e rastreio (`modelo`, `regua_versao`, `prompt_versao`, tokens e `custo_usd` NOT NULL).
 Classificada em `scripts/zerar_cliente.py`.
 
@@ -113,11 +113,15 @@ para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disp
   ou credencial não conta como prova para este cliente;
 - no máximo três itens por subpilar; se a peça responde algo no subpilar, pelo menos um é
   "forte" (14/10: leituras 6, 7 e 11 com 0, 1 e 0 fortes); as outras vagas por impacto;
-- cada item traz um achado diferente; **coerência dentro do subpilar** (15/10, só no
-  `sistema.md`): o forte não apresenta como claro, definido ou suficiente o elemento que outro
+- cada item traz um achado diferente; **coerência dentro do subpilar** (15/10 no `sistema.md`;
+  16/10 também no `pilar.md`, colada à obrigação do forte nos dois, trava
+  `tests/test_avaliador_prompts.py`): o forte não apresenta como claro, definido ou suficiente o elemento que outro
   item do mesmo subpilar aponta como ausente, indefinido ou insuficiente; forte, falta e melhorar
   podem tratar do mesmo elemento por ângulos diferentes, sem afirmar o oposto. Pedido
-  `avaliador-v12` / `avaliador-v13-pilar`;
+  `avaliador-v13` / `avaliador-v14-pilar`. ⚠️ **Não resolve:** a contradição seguiu em duas de
+  três leituras do keynote; a exceção na obrigação do forte (`2b01beb`) foi revertida porque
+  tirou forte de subpilares certos. Encerrado no pedido: item fixo da conferência humana
+  (Contexto-Mestre §4.66);
 - "falta" nunca nega o que a peça tem (exemplo do pedido é inventado, não vem de peça real);
 - percorrer cada parte da definição do Manual; no P3, unidades só **se** a peça disser que o
   cliente tem mais de uma;
@@ -167,7 +171,7 @@ mais de 20 min.
 ## 9. Rotas e tela
 
 `GET/POST /empresas/<id>/explorar/avaliador`, `GET .../<aid>`, `POST .../<aid>/refazer`,
-`POST .../<aid>/concluir`, todas com `loyall_required_ui`. A análise em processamento se recarrega a
+`POST .../<aid>/concluir`, `POST .../<aid>/apagar`, todas com `loyall_required_ui`. A análise em processamento se recarrega a
 cada 3 s; a lista de baixo vem junto (fora da área trocada) e se atualiza no mesmo passo.
 "Reler com esta descrição" relê o texto guardado (nova leitura, com custo). Seção própria no
 `docs/DESCRITIVO_EXPLORAR.md` (Manual do Explorar).
@@ -177,6 +181,12 @@ cada 3 s; a lista de baixo vem junto (fora da área trocada) e se atualiza no me
 O aviso da tela nomeia a Anthropic e lê o número de dias da **mesma** constante que apaga
 (`AVALIADOR_DIAS_RETENCAO_TEXTO`, 7). Concluir apaga o texto na hora; 7 dias sem uso apaga sozinho
 (housekeeping). Ficam só os trechos citados. Nenhum log carrega texto da peça ou resposta do modelo.
+
+**Apagar leitura** (16/10, `f9cadd5`): confirmação uma vez; recusado na fila ou lendo. Saem
+descrição, nome do arquivo, resumo, itens com trechos, texto, hash e páginas sem texto; a linha
+fica com situação `apagada` (fora da lista, 404 em toda rota) só com empresa, data, custo, tokens,
+modelo e versões, porque o teto mensal soma o `custo_usd` destas linhas. O aviso diz que a leitura
+inteira pode ser apagada.
 
 ## 11. Testes
 
@@ -210,6 +220,11 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
 - 15/10: ligadura desfeita nos dois extratores e contada no escolhedor; 403 separado de senha; o
   app não se passa por navegador; coerência do forte substitui a regra forte × falta (vence a
   regra do forte: o subpilar respondido continua com forte).
+- 16/10: coerência também no `pilar.md` (a decisão de não duplicar, do Claude, estava errada:
+  posição, não redação); exceção na obrigação do forte medida e revertida (fortes 4, 3 e 3 contra
+  10, 8 e 7); caminho do pedido encerrado para a contradição forte × falta, que vira item fixo
+  da conferência humana; segunda passada do modelo, subpilar a subpilar, como ideia para depois
+  de 29/10. Apagar leitura guarda só o gasto (opção 1).
 
 ## 13. Para liberar para cliente
 
@@ -230,6 +245,9 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
    Pages, PowerPoint e Word para Mac): 0% no melhor extrator nos quatro, o corte segue sem
    calibração. Pendência registrada: a régua de coladas não vê palavra + palavra comum
    ("relatorio·executivo", 13 no pypdf do PowerPoint); alargar exige calibração própria.
+
+10. Conferência humana na revisão do parecer, item fixo: forte que a falta ou o melhorar do mesmo
+    subpilar desmente.
 
 Fora desta frente, separados: `requirements-dev.lock` desatualizado; abas escondidas do Explorar
 abrem por endereço direto.
