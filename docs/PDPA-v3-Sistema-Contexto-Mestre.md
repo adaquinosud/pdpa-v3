@@ -1,4 +1,4 @@
-# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 16/out)
+# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 17/out)
 
 > **Documento de bootstrap do projeto.** Leia primeiro a cada sessão. Irmão do
 > `PDPA-Loyall-Contexto-Mestre.md` (comercial/método); este cobre o **sistema**.
@@ -9,6 +9,14 @@
 > versão corrente ia até §4.58 — quatro fatias de diferença. É a §18 do
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
+>
+> **Estado em 17/out (noite):** prod em **`145d7a9`** (`/healthz` 17/10 18:53). O Avaliador
+> trocou a forma da saída: **um veredito por subpilar** (Sim, Parcial, Não) no lugar de forte,
+> falta e melhorar, com a peça situada, achados que atravessam, contradição interna, Lastro,
+> posições vagas e placar (`avaliador-v21-veredito`, sete chamadas). Duas medições: o "Não só
+> para ausência" e o Lastro específico funcionaram; **zero "Sim"** e **achado repetindo
+> veredito** não se moveram por redação, e a frente fecha aí (a questão do Sim vai para o
+> método). Fatia 4, a limpeza do formato antigo, em `3f146f7` (a mergear). Tudo em §4.67.
 >
 > **Estado em 16/out (noite):** prod em **`bb6121b`** (`/healthz` 16/10 22:17). Horário do
 > app em Brasília na tela e no impresso (`6c58d42`). Contradição forte × falta no P2 do
@@ -3112,6 +3120,96 @@ fila ou lendo. O aviso do formulário passou a dizer que a leitura inteira pode 
 A coluna de situação voltou a ser só Na fila, Lendo, Pronta ou Falhou; o texto apagado se diz
 na página da leitura, com o porquê de não haver "Reler com esta descrição".
 
+### 4.67 Avaliador: a saída nova, um veredito por subpilar (17/out · só admin)
+
+**Por quê.** O defeito forte × falta (§4.66) resistiu a três tentativas medidas no pedido: o
+defeito era da forma (três itens soltos podiam julgar a mesma coisa de jeitos opostos), não da
+redação. E o Lastro nunca tinha chegado ao Avaliador: ele recebia só a frase de abertura do
+Manual. Especificação de conteúdo do Alexandre e do Dener (`docs/ESPEC-avaliador-saida-nova.md`,
+v2), técnica no `docs/AVALIADOR_ESPECIFICACAO.md` (v4).
+
+**A forma.** Para cada subpilar, um veredito: Sim, Parcial ou Não; onde está ou o que falta,
+com trecho; o que deveria ter. O parecer vem na ordem: a peça situada (tipo, leitor, situação,
+o que foi lido), achados que atravessam, contradição interna, Lastro, posições vagas, placar, os
+doze. **Código, não modelo:** a cobertura (o modelo não sabe o que não recebeu; perguntado,
+inventa), o placar, as posições vagas e o ponto de partida do Lastro (o pilar mais baixo com
+qualquer subpilar fora de Sim). Nome declarado na tela, igual ao resto do app.
+
+**Quatro fatias, cada uma com merge próprio e o `/healthz` conferido:**
+- fatia 1, `08f4154` (Live 17/10 16:32): dois leitores; a tela reconhece o formato gravado em
+  `itens_json` (lista = formato 1; objeto com `"formato": 2` = veredito), sem migração;
+- fatia 2, `0955295` (16:43): o motor do veredito, desligado;
+- fatia 3, `e2bf48f` (cinco correções do Alexandre nos pedidos, lidos antes da virada) →
+  `16e6823` (leitor do veredito) → `ceee011` (a virada, Live 17:27). A virada foi separada do
+  leitor depois de o Claude notar que, no mesmo commit, desfazer a virada apagaria da tela as
+  leituras já gravadas no formato novo;
+- fatia 4, `3f146f7` (a mergear): sai a geração do formato 1 (forte, falta e melhorar; limite de
+  três; vaga e promoção de forte; regra de coerência; chamada única; resumo; `AVALIADOR_MODO`).
+  As leituras gravadas no formato 1 continuam abrindo, com o aviso de formato anterior. Tela
+  conferida igual byte a byte antes e depois.
+
+**Medição 1: v20 (seis chamadas), critério escrito antes.** Três peças: o `keynote.pdf`, o site
+e2carbon.com.br e uma proposta comercial real de doze páginas.
+
+| | keynote | site | proposta |
+|---|---|---|---|
+| Citação não encontrada | 0 | 0 | 0 |
+| Lastro nomeia o pilar calculado | sim | sim | sim |
+| Achado repetindo um veredito | 1 | 0 | 2 |
+| Placar (Sim · Parcial · Não) | 0 · 5 · 7 | 0 · 2 · 10 | 0 · 2 · 10 |
+| Custo | US$ 0,0968 | US$ 0,1068 | US$ 0,1434 |
+
+O alerta "veredito Não com trecho achado na peça", posto pelo Claude sem ninguém pedir,
+disparou duas vezes na proposta e as duas eram reais (Não no P2 e no P3 com o próprio texto
+citando a peça). Achado repetindo veredito em duas das três leituras: pelo critério, a etapa dos
+achados muda de lugar. **Leitura humana de referência:** o site foi lido à mão antes, fora da
+ferramenta; ela serviu para calibrar a forma (um Sim no D1, "deveria ter" curto e concreto,
+achados que não cabem em subpilar) e **não** está no repositório (nomeia e critica uma empresa
+real), nem entrou trecho dela em pedido (exemplo vívido vira molde).
+
+**v21 (`37bbb3d`, `5e1815c`, `c38357c`, `145d7a9`, Live 17/10 18:53).** Sete correções:
+(1) achados e contradições numa etapa depois dos quatro pilares, com os doze na mão e proibição
+escrita de repetir ou desdizer veredito, de seis para sete chamadas; (2) Sim = "o leitor consegue
+agir com o que está escrito, mesmo que haja um próximo passo" (era "bem feito"); (3) se existe
+qualquer texto sobre o assunto, o pior veredito é Parcial; (4) o texto do Lastro nomeia o que está
+aberto na base desta peça e não repete a escada; (5) posições vagas só com o nome, uma linha
+cada; (6) sai a lista "ordem das recomendações"; (7) a página da web lê o rodapé, numa seção
+própria (exceção deliberada ao "extração fica como está"; +129 e +182 caracteres medidos, cerca
+de 9%). Mais o "deveria ter" numa frase curta e concreta. **Para o registro:** as correções 2 e
+3 têm a mesma causa: as definições escritas pelo Claude deixaram o modelo descer um degrau em
+tudo.
+
+**Medição 2: v21, mesmas três peças, critério escrito antes.**
+- **Passou:** zero alerta "Não com trecho achado" nas três. Parcial subiu e Não caiu nas três:
+  keynote de 0 · 5 · 7 para 0 · 6 · 6; site de 0 · 2 · 10 para 0 · 3 · 9; proposta de 0 · 2 · 10
+  para 0 · 4 · 8.
+- **Passou:** os três textos do Lastro são diferentes e cada um nomeia algo daquela peça; nenhum
+  recita a escada.
+- **Passou, fora do critério:** o rodapé. O D1 do site saiu de Não para Parcial citando o rodapé
+  com e-mail e dois telefones; a cobertura passou a dizer "9 seções, com o rodapé".
+- **Falhou:** zero Sim nas três, de novo. A definição nova de Sim não mudou o resultado.
+- **Falhou:** três achados repetindo veredito nas três leituras, contra o limite de um. Antes da
+  mudança também eram três. **A sétima chamada não entregou o que foi criada para entregar:**
+  mover os achados para depois dos doze, com proibição escrita de repetir, não reduziu a
+  repetição.
+
+**Decisão (Alexandre e Dener, 17/10):** a frente fecha sem nova rodada de texto de pedido. Nos dois
+pontos que falharam, o que se tentou foi instrução escrita, e instrução escrita não moveu nenhum
+dos dois; é a terceira vez na semana (antes: forte × falta, três tentativas medidas). A questão
+do Sim vai para o método, com leitura humana de peça como base de comparação. Não se mexe na
+definição de Sim nem na proibição de repetir até haver a segunda leitura humana. Ficam como
+estão: o alerta "Não com trecho achado" (conferência barata, pegou dois casos reais) e a sétima
+chamada (desfazer mexe mais do que ganha). As leituras de medição não são apagadas.
+
+**Custo.** Formato 1, dez leituras do keynote: média US$ 0,1154 (R$ 0,67). v20: US$ 0,0968 a
+0,1434, abaixo da estimativa nas três. A estimativa do Claude antes da recalibragem (R$ 0,86 a
+1,21) estava acima de todas as onze leituras medidas: supunha saída 50% maior que a real.
+
+**Aberto:** o Sim (método, com leitura humana); a repetição achado × veredito (mesmo caminho);
+navegar o site e ler imagem (frente futura: a contradição que depende de seguir link ou comparar
+legenda com logotipo só foi achada por humano navegando); a frente de "dizer o que ninguém falou"
+nas manifestações, que não foi aberta.
+
 ---
 
 ## 5. Os cases
@@ -5044,9 +5142,13 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   **e** o que estava certo antes; o critério de desfazer é escrito antes da primeira leitura;
   decisão de pedido não se toma com uma leitura só. Defeito de julgamento que resiste a três
   tentativas no pedido sai do pedido (conferência humana ou segunda passada).
+  ⚠️ **De novo (17/10, §4.67):** zero Sim e achado repetindo veredito não se moveram com
+  definição nova nem com etapa movida e proibição escrita. Terceira vez na semana. 🔒 Quando a
+  forma do pedido já foi trocada e o defeito ficou, a base de comparação é leitura humana, não
+  uma quarta redação.
 ---
 
-## 8. Estado dos SHAs (todos Live · atual `bb6121b`)
+## 8. Estado dos SHAs (todos Live · atual `145d7a9`)
 
 **Avaliador de documentos (só admin):** `7fe0662` (régua + dados) → `37e81aa`
 (extração + conferência de citação) → `ee248c5` (tabela) → `9cb4bc0` (motor) →
@@ -5061,7 +5163,10 @@ tabela). §4.64. **15/out:** `0f58a84` (docs) → `0aae9ee` (ligadura, Live 13:3
 Live 21:00). §4.65. → `6c58d42` (horário de Brasília, Live 21:50). **16/out:** `05daf9b`
 (coerência nos dois pedidos, Live 21:04) → `2b01beb` (exceção do forte, Live 21:45) →
 `f6b1634` → `f9cadd5` (apagar leitura, Live 22:14) → `bb6121b` (revert do `2b01beb`, Live
-22:17). §4.66.
+22:17). §4.66. **17/out:** `3b744bb` (docs, Live 15:30) → `08f4154` (saída nova, fatia 1, Live
+16:32) → `0955295` (fatia 2, Live 16:43) → `e2bf48f` → `16e6823` → `ceee011` (a virada para o
+veredito, Live 17:27) → `37bbb3d` → `5e1815c` → `c38357c` → `145d7a9` (v21 e rodapé, Live 18:53)
+→ `3f146f7` (fatia 4, limpeza; a mergear). §4.67.
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →

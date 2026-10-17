@@ -1,8 +1,10 @@
 # Avaliador de documentos: especificação técnica
 
-**Versão:** 3.2 · 16/10/2026 · descreve o código em `bb6121b` (Live no `/healthz` 16/10 22:17):
-coerência nos dois pedidos `05daf9b`, apagar leitura `f9cadd5`, exceção do forte `2b01beb`
-revertida. Versão 3.1 descrevia `0517adb`; versão 3, `2fb4974`; versão 2 (13/10), `a8a04fc`.
+**Versão:** 4 · 17/10/2026 · descreve o código depois da fatia 4 (`3f146f7`, limpeza do formato
+1): a saída é um **veredito por subpilar** (`avaliador-v21-veredito`, Live em `145d7a9`, 17/10
+18:53). A sequência v20 → v21 e as duas medições estão no §4.67 do Contexto-Mestre. Versão 3.2
+descrevia `bb6121b` (formato 1: forte, falta e melhorar); 3.1, `0517adb`; 3, `2fb4974`; 2 (13/10),
+`a8a04fc`.
 **Status:** EM PRODUÇÃO, só para admin Loyall. Desligado até o Alexandre definir
 `AVALIADOR_TETO_MENSAL_USD` no Render (teto 0 = desligado).
 **Versão 1 (12/10):** descrevia o desenho anterior (tipos de peça, vereditos por subpilar, bibliotecas
@@ -18,8 +20,12 @@ Toda referência a arquivo abaixo foi aberta antes de entrar aqui. O que foi med
 
 O usuário sobe uma peça do relacionamento com o cliente (proposta, apresentação, documento em
 PowerPoint, Word ou PDF), informa o endereço de uma página pública do site, ou cola o texto de uma
-conversa, diz em uma linha **o que é a peça e para que ela serve**, e recebe por
-subpilar **o que está forte, o que falta e o que melhorar**, cada afirmação com o trecho citado.
+conversa, diz em uma linha **o que é a peça e para que ela serve**, e recebe um parecer na ordem: a peça
+situada (tipo, leitor, situação, o que foi lido), os achados que atravessam, a contradição
+interna, o Lastro, as posições vagas, o placar e os doze, cada um com **um veredito** (Sim,
+Parcial ou Não), onde está ou o que falta, e o que deveria ter. Toda afirmação sobre o que está
+na peça vem com o trecho citado. Até 17/10 a saída era forte, falta e melhorar por subpilar
+(formato 1); as leituras gravadas assim continuam abrindo (§9).
 
 Aba **Avaliador** do Explorar (grupo saída), `so_loyall=True`. Cliente não vê a aba, a URL da aba cai
 no Painel e as rotas próprias respondem 403.
@@ -31,7 +37,7 @@ no Painel e as rotas próprias respondem 403.
 | Pilares, subpilares, definição | Capítulo 2 do Manual de Operação, **literal** | `src/avaliador/dados/manual_cap2.json`, gerado por `scripts/extrair_manual_cap2.py` |
 | Código e nome do subpilar | `SUBPILARES_ORDEM` / `NOME_SUBPILAR` | `src/api/painel.py`; a régua é validada contra eles ao carregar |
 | Pistas (buracos comuns) | Bibliotecas dos autores: L1 (documento), L3 (conversa) | `frases_l1.json` (115), `frases_l3.json` (96) |
-| Pedido ao modelo | `prompts/sistema.md`, `pilar.md`, `resumo.md` | `src/avaliador/prompts/` |
+| Pedido ao modelo | `prompts/veredito_sistema.md`, `_situar`, `_pilar`, `_achados`, `_lastro` | `src/avaliador/prompts/`; a versão (`avaliador-v21-veredito`) mora em `veredito.PROMPT_VERSAO` |
 
 O `.docx` do Manual não está no git nem na imagem Docker; por isso o extrato é versionado, e um teste
 compara o extrato com o `.docx` quando ele existe na máquina. `carregar_regua()` versiona tudo como
@@ -46,9 +52,11 @@ src/avaliador/
                 PDF por dois extratores, ilegível e palavra colada
   word.py       .docx → seções (XML direto, alteração marcada valendo como está)
   pagina_web.py endereço → página (guarda de rede) → seções
-  motor.py      pedido, chamadas, validação determinística, custo
-  servico.py    ciclo de vida, gate de custo, retenção, housekeeping
-  prompts/      sistema.md, pilar.md, resumo.md
+  veredito.py   a leitura: sete etapas, vereditos, cobertura, placar, vagas, Lastro
+  motor.py      o comum: custo, Manual e pistas no pedido, conferência de citação,
+                travessão, seção por título, chamada com orçamento
+  servico.py    ciclo de vida, gate de custo, retenção, housekeeping, os dois leitores
+  prompts/      veredito_sistema.md, _situar, _pilar, _achados, _lastro
   dados/        manual_cap2.json, frases_l1.json, frases_l3.json
 src/models/avaliador.py + alembic/versions/a8c9d0e1f2b3_avaliador_analises.py
 src/ui/avaliador.py + templates/partials/explorar_avaliador*.html
@@ -63,6 +71,13 @@ arquivo/texto, `descricao`, `arquivo_nome`, `conteudo_hash`, `formato`, `n_pagin
 `texto_apagado_motivo`), resultado (`status` pendente/lendo/pronta/falhou/apagada, `erro_motivo`, `resumo`,
 `itens_json`) e rastreio (`modelo`, `regua_versao`, `prompt_versao`, tokens e `custo_usd` NOT NULL).
 Classificada em `scripts/zerar_cliente.py`.
+
+**`itens_json` guarda os dois formatos, sem migração** (decisão de 17/10; o nome da coluna é do
+formato 1 e ficou impreciso, registrado em vez de migrar). Formato 1: uma LISTA de itens
+forte/falta/melhorar, com `resumo` na coluna própria. Formato 2: um OBJETO com `"formato": 2`,
+`cobertura`, `situar`, `achados`, `contradicoes`, `doze` e `lastro` (ponto de partida e ordem como o
+código calculou, o texto do modelo e o motivo se o texto falhou); `resumo` fica nulo.
+`servico.formato_da_leitura` diz qual é; o que não é nenhum dos dois aparece declarado na tela.
 
 ## 5. Entrada
 
@@ -89,8 +104,14 @@ Classificada em `scripts/zerar_cliente.py`.
   caracteres, todo em maiúsculas, sem ponto final. XML lido sem rede nem entidade, teto de 50 MB
   descompactado. Numeração automática não aparece.
 - **Página da web:** uma por vez; só http/https, portas 80/443, todos os IPs públicos,
-  redirecionamento revalidado (até 5), 20 s e 5 MB; menu, rodapé, script, formulário e oculto
-  saem; menos de 300 caracteres = recusa com sugestão de salvar como PDF. 401/407 = "a página
+  redirecionamento revalidado (até 5), 20 s e 5 MB; menu, script, formulário e oculto saem.
+  **O rodapé do site entra** (17/10, exceção deliberada): numa seção própria, a última, chamada
+  "rodapé da página" (título nosso, sem aspas na citação), com o menu e o formulário de dentro
+  dele fora e os títulos de dentro dele virando parágrafo; rodapé de artigo fica onde está.
+  Motivo medido: no site da medição o D1 saiu "Não" e o rodapé tinha e-mail e dois celulares;
+  com o rodapé, saiu "Parcial" citando esses dados. Custo medido com o próprio extrator: +129
+  caracteres num site, +182 noutro (cerca de 9%). Caractere de fonte de ícone (uso privado do
+  Unicode) não entra como texto. Menos de 300 caracteres = recusa com sugestão de salvar como PDF. 401/407 = "a página
   pede senha"; 403 = "o site recusa leitura automática" (grupocarbel.com.br, 15/10: o balanceador
   recusa quem não é navegador), os dois com o caminho do PDF. O agente é
   `PDPA-Avaliador/1.0 (+https://loyallcompany.com.br)` e **nunca** se passa por navegador
@@ -103,49 +124,59 @@ Classificada em `scripts/zerar_cliente.py`.
 
 ## 6. O motor
 
-**Modo padrão: por pilar** (`AVALIADOR_MODO=por_pilar`). Quatro chamadas, uma por pilar, e uma
-quinta só para o resumo. A peça e o pedido comum vão num bloco em cache; da segunda chamada em
-diante a entrada custa 10%. Cada pilar recebe, no fim do pedido, os itens dos pilares anteriores,
-para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disponível.
+**Sete chamadas** (`veredito.ler`), todas com a peça e o pedido comum num bloco em cache (da
+segunda em diante a entrada custa 10%):
+1. **situar**: tipo de peça, leitor, situação e a consequência da cobertura;
+2. a 5. **uma por pilar**, cada uma recebendo o que a primeira situou: exatamente um veredito
+   para cada subpilar do pilar;
+6. **achados que atravessam e contradição interna**, depois dos doze e com os doze na mão;
+7. **o texto do Lastro**, a partir do ponto de partida que o código calculou.
 
-**Regras do pedido** (`sistema.md`, `pilar.md`):
-- duas regras de fundo: toda afirmação vem com o trecho citado; resultado de outro cliente, case
-  ou credencial não conta como prova para este cliente;
-- no máximo três itens por subpilar; se a peça responde algo no subpilar, pelo menos um é
-  "forte" (14/10: leituras 6, 7 e 11 com 0, 1 e 0 fortes); as outras vagas por impacto;
-- cada item traz um achado diferente; **coerência dentro do subpilar** (15/10 no `sistema.md`;
-  16/10 também no `pilar.md`, colada à obrigação do forte nos dois, trava
-  `tests/test_avaliador_prompts.py`): o forte não apresenta como claro, definido ou suficiente o elemento que outro
-  item do mesmo subpilar aponta como ausente, indefinido ou insuficiente; forte, falta e melhorar
-  podem tratar do mesmo elemento por ângulos diferentes, sem afirmar o oposto. Pedido
-  `avaliador-v13` / `avaliador-v14-pilar`. ⚠️ **Não resolve:** a contradição seguiu em duas de
-  três leituras do keynote; a exceção na obrigação do forte (`2b01beb`) foi revertida porque
-  tirou forte de subpilares certos. Encerrado no pedido: item fixo da conferência humana
-  (Contexto-Mestre §4.66);
-- "falta" nunca nega o que a peça tem (exemplo do pedido é inventado, não vem de peça real);
-- percorrer cada parte da definição do Manual; no P3, unidades só **se** a peça disser que o
-  cliente tem mais de uma;
-- contradição interna da peça é sempre P1 e está sempre entre os três itens do P1;
-- preço + percentual de valor: fechar a conta em reais com os números da peça, até o valor final,
-  ou dizer qual dado falta (exemplo inventado no pedido);
-- nenhum travessão; item com no máximo duas frases; pistas não se copiam.
+**Os três vereditos** (`veredito_sistema.md`, v21):
+- **Sim**: o leitor consegue agir com o que está escrito, mesmo que haja um próximo passo;
+- **Parcial**: a peça trata do assunto, mas não dá para agir só com o que está escrito
+  (incompleto, vago ou não verificável; tratar mal é Parcial);
+- **Não**: a peça não toca no assunto. Se existe qualquer texto sobre o assunto, o pior veredito
+  é Parcial. O Não é escrito como terreno livre, não como bronca.
+
+**Regras do pedido:** as duas de fundo (toda afirmação sobre o que está na peça vem com o trecho;
+ausência não leva trecho; resultado de outro cliente não é prova); o veredito sai da definição do
+Manual e de nada além dela (o A1 não cobra CNPJ, endereço, equipe nem credencial); percorrer cada
+parte da definição (no P3, unidades só se a peça disser que há mais de uma); julgar para o leitor
+e a situação declarados; preço + percentual fecha a conta em reais; "deveria ter" numa frase curta
+e concreta, obrigatório em Parcial e Não, opcional em Sim; nenhum travessão; até duas frases por
+texto, salvo quando a etapa pedir outro tamanho; leitor com dois exemplos opostos; os achados não
+repetem nem desdizem veredito; o texto do Lastro nomeia o que está aberto na base desta peça e não
+repete a escada.
 
 **O que é código, não pedido:**
-- subpilar e tipo válidos; no modo por pilar, item de outro pilar é recusado (uma nova tentativa);
+- a **cobertura** (`declarar_cobertura`): páginas ou seções lidas, páginas sem texto, que imagens
+  não são lidas, notas do apresentador marcadas, e, na página da web, que só ela foi lida (com o
+  rodapé) e que os links não foram seguidos. As mesmas frases vão para o pedido e para a tela; o
+  modelo escreve só a consequência;
+- os doze completos: veredito faltando, sobrando, repetido, fora de sim/parcial/não, sem "onde" ou
+  sem "deveria ter" em Parcial e Não = resposta recusada, uma nova tentativa;
 - **toda citação conferida literalmente** no texto extraído (`conferir_trecho`: normaliza espaço,
   NFC, aspas e travessões tipográficos; mínimo 12 caracteres; procura na página citada e depois
   nas outras). A tela mostra a página onde o trecho **foi achado**; citação não achada aparece como
   "citação não encontrada na peça", nunca como citação;
-- "forte" e "melhorar" sem citação conferida ganham alerta visível;
-- do 4º item em diante no subpilar, o item fica guardado com `descartado: true` (sem nova
-  tentativa); a tela mostra só a contagem; o único "forte" nunca é o descartado (`_forte_fica`).
-  ⚠️ **Brecha conhecida (aceita em 15/10):** se o modelo mandar como 4º item um forte desmentido
-  por outro item do subpilar, o código o promove e desfaz a regra de coerência. Não se trava em
-  código: conferir contradição é julgamento, não comparação de texto, e tirar a promoção desfaria
-  o conserto da leitura 11;
-- travessão removido do texto do modelo (`sem_travessao`); trecho citado fica literal;
-- falha só no resumo: a análise fica pronta com os itens e `erro_motivo = "resumo: <tipo>"`;
-- toda recusa de resposta vai para o log com o motivo (nunca com texto da peça).
+- alertas visíveis: Sim ou Parcial sem citação conferida; **"veredito Não com trecho achado na
+  peça: confira"** (fica: pegou dois casos reais na medição da v20 e é conferência barata);
+  contradição sem trecho conferido; texto do Lastro que não nomeia o ponto de partida calculado;
+- **placar, posições vagas e ponto de partida** (o pilar mais baixo com qualquer subpilar fora de
+  Sim), recalculados dos doze pela tela com as mesmas funções que alimentaram o pedido;
+- travessão removido do texto do modelo (`sem_travessao`), trecho citado fica literal; "seção N"
+  vira o título (`sem_numero_de_secao`);
+- falha só no texto do Lastro: a leitura fica pronta, com o cálculo, e `erro_motivo = "lastro:
+  <tipo>"`; falha em qualquer outra etapa: FALHOU, com o gasto contado;
+- leitura que estivesse na fila numa versão anterior (de qualquer formato) é lida no veredito de
+  hoje e passa a levar a versão de hoje.
+
+**Medido e não resolvido pela redação** (§4.67 do Contexto-Mestre): zero Sim nas três peças, na v20
+e na v21; achado repetindo veredito três vezes nas três leituras, antes e depois de a etapa ir
+para depois dos doze. A sétima chamada fica como está, registrada como não tendo entregue o que
+prometeu. Não se mexe mais na definição de Sim nem na proibição de repetir sem a segunda leitura
+humana para comparar.
 
 ## 7. Custo
 
@@ -153,13 +184,19 @@ para não repetir. `AVALIADOR_MODO=unica` (uma chamada para os 12) continua disp
 - **Gate antes de gastar:** a estimativa de pior caso (entrada a preço de gravação em cache, 3
   caracteres por token, saída no máximo) mais o gasto do mês **da empresa** não pode passar de
   `AVALIADOR_TETO_MENSAL_USD`. O teto é **por empresa**.
-- **Orçamento por leitura:** no modo por pilar, a própria estimativa do gate é o limite da leitura;
-  o motor confere o pior caso antes de cada envio e para antes de passar, inclusive na nova tentativa.
+- **Orçamento por leitura:** a própria estimativa do gate (as sete chamadas no pior caso) é o
+  limite da leitura; o motor confere o pior caso antes de cada envio e para antes de passar,
+  inclusive na nova tentativa.
 - **Medido** na Office Total (4 páginas, câmbio fixo R$ 5,80): gate cobra US$ 0,51 (R$ 2,94) por
   leitura; gasto real US$ 0,15 a 0,16 (R$ 0,85 a 0,95), cerca de 2 minutos.
 - **Medido** em 14-15/10: página (loyallcompany.com) R$ 0,89; Word de 2,8 mil caracteres
   R$ 0,74 a 0,86; PDF da BEXP R$ 0,87. O gate segue o tamanho do texto, não o formato.
-- Teto decidido para produção: US$ 20 por empresa (cerca de 39 leituras pelo gate).
+- Teto decidido para produção: US$ 20 por empresa (cerca de 39 leituras pelo gate, no formato 1).
+- **Medido** no formato 1, dez leituras do keynote (15-16/10): média US$ 0,1154 (R$ 0,67), de
+  R$ 0,51 a R$ 0,77; uma página da web, US$ 0,1351.
+- **Medido** na v20 (seis chamadas, 17/10): keynote US$ 0,0968; site US$ 0,1068; proposta
+  comercial real de doze páginas US$ 0,1434. Abaixo da estimativa nas três. A v21 tem uma chamada
+  a mais; o custo dela não foi registrado aqui.
 
 ## 8. Execução e falha visível
 
@@ -173,8 +210,12 @@ mais de 20 min.
 `GET/POST /empresas/<id>/explorar/avaliador`, `GET .../<aid>`, `POST .../<aid>/refazer`,
 `POST .../<aid>/concluir`, `POST .../<aid>/apagar`, todas com `loyall_required_ui`. A análise em processamento se recarrega a
 cada 3 s; a lista de baixo vem junto (fora da área trocada) e se atualiza no mesmo passo.
-"Reler com esta descrição" relê o texto guardado (nova leitura, com custo). Seção própria no
-`docs/DESCRITIVO_EXPLORAR.md` (Manual do Explorar).
+"Reler com esta descrição" relê o texto guardado (nova leitura, com custo, sempre no veredito).
+**Dois leitores**: `_avaliador_leitura_v2.html` (veredito, na ordem do parecer) e
+`_avaliador_leitura_v1.html` (formato 1, com o aviso "leitura no formato anterior"); as citações dos
+dois passam por uma macro só (`_avaliador_citacoes.html`). As posições vagas mostram só o nome da
+conversa, uma linha cada; não há lista de ordem das recomendações (17/10: era a tabela pela
+terceira vez). Seção própria no `docs/DESCRITIVO_EXPLORAR.md` (Manual do Explorar).
 
 ## 10. Retenção e confidencialidade
 
@@ -190,7 +231,8 @@ inteira pode ser apagada.
 
 ## 11. Testes
 
-145 testes próprios em `2fb4974` (régua, extração, Word, página, PDF colado, modelo, motor, serviço, tela; eram 71 em `a8a04fc`), todos com cliente LLM dublado,
+179 testes próprios depois da fatia 4 (`3f146f7`; eram 194 antes da limpeza, que tirou os da
+geração do formato 1), todos com cliente LLM dublado; suíte inteira 2155. Antes: 145 testes próprios em `2fb4974` (régua, extração, Word, página, PDF colado, modelo, motor, serviço, tela; eram 71 em `a8a04fc`), todos com cliente LLM dublado,
 sem gasto. Suíte inteira 2044 em `a8a04fc`. A reversão foi provada em Postgres local: código antigo
 falha no `alembic upgrade head` (`Can't locate revision identified by 'a8c9d0e1f2b3'`) sem tocar o
 banco; código antigo **com o arquivo da migration mantido** passa sem fazer nada e o app sobe. Que o
@@ -225,6 +267,13 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
   10, 8 e 7); caminho do pedido encerrado para a contradição forte × falta, que vira item fixo
   da conferência humana; segunda passada do modelo, subpilar a subpilar, como ideia para depois
   de 29/10. Apagar leitura guarda só o gasto (opção 1).
+- 17/10 (Alexandre e Dener): a saída troca de forma, porque o defeito forte × falta era da forma
+  e não da redação. Veredito por subpilar, ordem do parecer, Lastro na leitura, cobertura pelo
+  código, posição vaga como "a peça nunca levanta esta conversa" (sem "ninguém no setor ocupa":
+  não há base de setor), nome declarado na tela (a língua de cliente é só da palestra). Quatro
+  fatias com merge próprio; dois leitores, sem migração. Depois das duas medições: zero Sim e
+  achado repetindo veredito não se movem por redação; a frente fecha, a questão do Sim vai para
+  o método com leitura humana como base; a sétima chamada e o alerta "Não com trecho" ficam.
 
 ## 13. Para liberar para cliente
 
@@ -247,7 +296,10 @@ Render, com o pre-deploy falhando, mantém a versão nova no ar é ⚠️ **dedu
    ("relatorio·executivo", 13 no pypdf do PowerPoint); alargar exige calibração própria.
 
 10. Conferência humana na revisão do parecer, item fixo: forte que a falta ou o melhorar do mesmo
-    subpilar desmente.
+    subpilar desmente (formato 1; no veredito a contradição dentro do subpilar não existe por
+    construção, mas achado repetindo ou desdizendo veredito existe e entra no mesmo item).
+11. O Sim: zero nas seis leituras de medição (v20 e v21). Vai para o método, com a segunda
+    leitura humana de peça como base de comparação, antes de qualquer nova redação.
 
 Fora desta frente, separados: `requirements-dev.lock` desatualizado; abas escondidas do Explorar
 abrem por endereço direto.

@@ -959,18 +959,40 @@ cross-fonte dela). O link é visível só para Loyall (a tela de pessoa é restr
 **Só admin Loyall nesta primeira versão.** A liberação para cliente é decisão separada.
 
 O Avaliador lê uma **peça do relacionamento com o cliente** (documento, apresentação, proposta ou
-o **texto de uma conversa** colado) pelos pilares do PDPA, e devolve, por subpilar, **o que está
-forte, o que falta e o que melhorar**. Antes de enviar, a pessoa diz em uma linha **o que é a peça e
-para que ela serve**; a leitura leva isso em conta.
+o **texto de uma conversa** colado) pelos pilares do PDPA. Antes de enviar, a pessoa diz em uma
+linha **o que é a peça e para que ela serve**; a leitura leva isso em conta.
+
+**O parecer (desde 17/10)** vem nesta ordem:
+1. **A peça:** que tipo de peça é, para quem foi escrita, em que situação será lida, e **o que foi
+   lido** (quantas páginas, quais ficaram sem texto, que imagens não são lidas; no site, que só a
+   página enviada foi lida, com o rodapé, e que os links não foram seguidos). Essa parte é
+   declarada pelo sistema, não pela leitura.
+2. **Achados que atravessam:** leituras da peça inteira que não cabem em subpilar nenhum. Se não
+   houver, a tela diz que não há.
+3. **Contradição interna:** a peça contra ela mesma, no texto lido. Se não houver, a tela diz.
+4. **O Lastro:** o **ponto de partida** (o pilar mais baixo com algo fora de "Sim", calculado pelo
+   sistema) e um texto sobre o que está aberto na base desta peça. Se o texto não nomeia o ponto
+   de partida calculado, a tela avisa.
+5. **Posições vagas:** as conversas que a peça nunca levanta, só o nome, uma linha cada.
+6. **Placar:** quantos Sim, quantos Parcial, quantos Não.
+7. **Os doze**, por pilar: para cada subpilar, a pergunta do Manual, **um veredito** (**Sim**: o
+   leitor consegue agir com o que está escrito; **Parcial**: a peça trata do assunto, mas não dá
+   para agir só com o que está escrito; **Não**: a peça não toca no assunto), onde está ou o que
+   falta, com o trecho, e o que deveria ter.
+
+Leitura feita **antes de 17/10** aparece no formato daquela época (forte, falta e melhorar por
+subpilar, com resumo), com o aviso **"Leitura no formato anterior"**; "Reler com esta descrição"
+lê de novo no formato atual enquanto o texto estiver guardado.
 
 **A régua é o capítulo 2 do Manual de Operação, literal**: os quatro pilares e os doze subpilares
 com o texto do Manual, sem versão paralela.
 
 **Duas regras:**
 
-- **Toda afirmação vem com o trecho citado da peça.** O trecho é conferido contra o texto extraído; o
-  que não for achado aparece como **"citação não encontrada na peça"**, nunca como citação. Um "falta"
-  pode não ter trecho, porque ausência não se cita.
+- **Toda afirmação sobre o que está na peça vem com o trecho citado.** O trecho é conferido contra o
+  texto extraído; o que não for achado aparece como **"citação não encontrada na peça"**, nunca como
+  citação. O que falta não tem trecho, porque ausência não se cita. Um "Não" que mesmo assim traz um
+  trecho achado na peça ganha o aviso **"veredito Não com trecho achado na peça: confira"**.
 - **Resultado de outro cliente, case ou credencial não conta como prova para este cliente.**
 
 **Pistas:** a leitura usa como pista (não como resposta pronta) as frases de buracos comuns escritas
@@ -991,7 +1013,8 @@ não aparece no texto lido. .doc antigo, .rtf e arquivo do LibreOffice são recu
 instrução de salvar como .docx ou exportar como PDF; Word com senha também.
 
 **Página do site:** **uma página por vez**, não o site inteiro. A ferramenta busca a página, tira
-menu, rodapé, scripts e formulários, e lê o texto que sobra. A tela diz **qual endereço foi lido**
+menu, scripts e formulários, e lê o texto que sobra. **O rodapé entra** (desde 17/10), numa seção
+própria no fim, chamada "rodapé da página": é onde costumam estar telefone e e-mail. A tela diz **qual endereço foi lido**
 (se o site redirecionou, é o endereço final). Sem número de página, a citação vem com o **título da
 seção** onde o trecho está, ou, na abertura da página, com **as primeiras palavras do parágrafo**.
 Quando a página não pode ser lida, nada é cobrado e a tela diz o motivo e o que fazer: página que
@@ -1017,28 +1040,25 @@ exportado pelo Mac) ou **palavras partidas pela ligadura** ("Con guracao" no lug
 melhor; se os dois saem
 grudados, a leitura é recusada antes de qualquer custo, com o número na tela ("5 de 1.500
 palavras") e o que fazer (enviar o arquivo original, gerar o PDF por outro programa ou colar o
-texto). Subpilar sem nada a dizer aparece como **"sem observação nesta peça"**.
-
-**No máximo três itens por subpilar.** Se a peça responde alguma coisa no subpilar, pelo menos um
-dos três é um **forte**; os outros são os que mais mudam a peça. O que passar disso não aparece:
-fica guardado, e o subpilar mostra uma linha curta com a contagem (**"Mais N itens descartados pelo
-limite de três por subpilar"**), para avisar que existe mais sem encher a página.
+texto).
 
 Citação de **linha de tabela** (PowerPoint, Word) aparece célula por célula (“Essencial” ·
 “R$ 8.000”): a divisão entre células não existe como texto no documento, e assim cada pedaço se
 acha com a busca.
 
-**Como a leitura é feita:** um pilar por vez (quatro leituras) e, no fim, o resumo. Leva cerca de
-dois minutos; a tela se atualiza sozinha. Se só o resumo falhar, a análise fica pronta com os itens e
-a tela diz **"Resumo não gerado (motivo). Os itens abaixo estão completos."**
+**Como a leitura é feita:** em sete etapas: situar a peça, um pilar por vez (quatro), os achados e a
+contradição depois dos doze, e o texto do Lastro. Leva cerca de dois minutos; a tela se atualiza
+sozinha. Se só o texto do Lastro falhar, a análise fica pronta com o ponto de partida calculado e a
+tela diz **"Texto do Lastro não gerado (motivo)"**.
 
 **Reler:** a análise aberta pode ser relida com outra descrição, sem enviar a peça de novo (uma
 leitura nova, com custo).
 
 **Custo e retenção:** cada leitura grava o custo em US$. Há um **teto mensal por empresa**; teto zero
 desliga a ferramenta. O texto da peça fica guardado só enquanto a análise está aberta: é apagado ao
-**concluir**, ou sozinho depois dos dias configurados sem uso (hoje 7). Ficam o resumo, os itens e os
-trechos citados.
+**concluir**, ou sozinho depois dos dias configurados sem uso (hoje 7). Fica o parecer, com os
+trechos citados. **Apagar leitura** (confirmação uma vez; não na fila nem lendo) tira a peça inteira,
+inclusive os trechos citados, e deixa só o registro de custo, que conta no teto mensal.
 
 ---
 
