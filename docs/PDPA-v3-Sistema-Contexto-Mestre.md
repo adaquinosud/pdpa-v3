@@ -2981,7 +2981,7 @@ Keynote): a régua de coladas deu 0 nos quatro, mas o pdftotext arranca o "fi" d
 palavra no Keynote e no Pages ("Con guracao", "uma la", "ao nal", e o "fi" solto adiante)
 e o pypdf devolve o caractere único U+FB01. O escolhedor empatava em zero e ficava com o
 pdftotext, o pior dos dois. Relatado pelo autor do brief: na leitura de produção do
-keynote.pdf (15/10 15:04, `0f58a84`), 7 das 21 citações saíram com palavra quebrada.
+keynote.pdf (15/10 15:04 na tela, em UTC; 12:04 em Brasília, `0f58a84`), 7 das 21 citações saíram com palavra quebrada.
 Conserto: ligadura desfeita na saída dos dois extratores; medida nova **ligadura perdida**
 (palavra que o outro extrator tem inteira e este tem só o resto sem as letras da ligadura,
 mais cada pedaço solto); escolhedor soma coladas + ligadura perdida, empate no pdftotext.
@@ -3009,10 +3009,10 @@ bloqueio faz dela raspador de página; o custo de não fazer é imprimir como PD
 
 **3. Coerência do forte (`0517adb`, Live no deploy de `63c3f69`, `/healthz` 15/10 21:00;
 não resolveu, ver §4.66).** Relatado pelo autor do
-brief: na leitura de 15:04 o forte do P2 dizia que a garantia dá "um parâmetro concreto" e o
+brief: na leitura de 15:04 (horário da tela, ainda em UTC; 12:04 em Brasília) o forte do P2 dizia que a garantia dá "um parâmetro concreto" e o
 melhorar, citando a mesma frase, que "não define o que é esse indicador"; na leitura de
-22:51 do mesmo arquivo não se repetiu (uma em duas; horários como relatados, não conferidos
-no banco). A frase pedida mandava "deixar o subpilar sem forte", o que brigava com a regra
+22:51 (19:51 em Brasília) do mesmo arquivo não se repetiu (uma em duas; horários como
+relatados, não conferidos no banco; tabela das dez leituras no §4.66). A frase pedida mandava "deixar o subpilar sem forte", o que brigava com a regra
 do forte (subpilar respondido tem forte): parei e reportei. **Decisão:** vence a regra do
 forte; a frase nova substitui a regra antiga forte × falta e cobre os três tipos; só no
 `sistema.md` (regra repetida em dois arquivos diverge); pedido `avaliador-v12` /
@@ -3047,19 +3047,32 @@ Também: competência da sonda de IA por `date.today()` do servidor.
 
 **2. Forte × falta no P2 do keynote: três tentativas no pedido, caminho encerrado.** O
 defeito: o forte do P2 chama a garantia de "parâmetro concreto" e a falta do mesmo subpilar
-diz que o indicador não está definido. Leituras do `keynote.pdf` (mesma descrição, terceiro
-campo vazio), medidas pelo Alexandre:
+diz que o indicador não está definido. Dez leituras do `keynote.pdf`, medidas pelo
+Alexandre (horário de Brasília), cinco com contradição:
 
-| Onde | Leituras | Contradição no P2 | Fortes nos doze subpilares |
+| Versão do pedido | Leitura | Contradição no P2 | Fortes nos doze subpilares |
 |---|---|---|---|
-| 15/10 (inclui a de 15:04, anterior ao `0517adb`) | 4 | 2 | não registrado aqui |
-| `05daf9b`, 16/10 | 3 | 2 | 10, 8, 7 |
-| `2b01beb`, 16/10 22:06 / 22:08 / 22:10 | 3 | 1 (22:06) | 4, 3, 3 |
+| antes da regra de coerência | 15/10 12:04 | sim | 3 |
+| antes da regra de coerência | 15/10 19:51 | não | 4 |
+| `0517adb` | 15/10 21:54 | não | 7 |
+| `0517adb` | 15/10 21:56 | sim | 6 |
+| `05daf9b` | 16/10 21:08 | sim | 10 |
+| `05daf9b` | 16/10 21:10 | não | 8 |
+| `05daf9b` | 16/10 21:15 | sim | 7 |
+| `2b01beb` | 16/10 22:06 | sim | 4 |
+| `2b01beb` | 16/10 22:08 | não | 3 |
+| `2b01beb` | 16/10 22:10 | não | 3 |
+
+⚠️ **As duas primeiras não são comparação limpa:** tinham descrições diferentes, uma delas
+com texto no terceiro campo, e a de 12:04 rodou antes do conserto da ligadura (`0aae9ee`,
+Live 13:39). As oito seguintes têm a mesma descrição e o terceiro campo vazio. A contagem
+"nove leituras" que circulou em 16/10 estava errada: são dez.
 
 As três tentativas, em ordem:
 - `0517adb`: frase de coerência só no `sistema.md`. Medido no pedido capturado das cinco
   chamadas: a frase chegava ao modelo, no começo; a obrigação do forte aparecia duas vezes,
-  uma no fim da mensagem, logo antes da resposta.
+  uma no fim da mensagem, logo antes da resposta. Duas leituras: 21:54 sem contradição,
+  21:56 com.
 - `05daf9b` (Live 16/10 21:04): a mesma frase também no `pilar.md`, colada à obrigação do
   forte nos dois arquivos; trava `tests/test_avaliador_prompts.py` falha se as cópias
   divergirem ou se separarem. Pedido `avaliador-v13` / `avaliador-v14-pilar`. Não mudou nada.
