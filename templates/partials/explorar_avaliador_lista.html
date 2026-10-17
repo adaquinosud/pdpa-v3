@@ -15,7 +15,7 @@
             hx-target="#avaliador-analise-slot" hx-swap="innerHTML">
           <td class="py-1 pr-2 text-loyall-500">{{ x.criado_em | hora_br }}</td>
           <td class="pr-2 text-loyall-700 break-all">{{ (x.arquivo_nome[:80] ~ ('…' if x.arquivo_nome | length > 80 else '')) if x.arquivo_nome else 'texto colado' }} <div class="text-xs text-loyall-400">{{ x.descricao[:80] }}</div></td>
-          <td class="pr-2 text-loyall-600">{{ rotulo_status.get(x.status, x.status) }}{% if x.texto_json is none %} · texto apagado{% endif %}</td>
+          <td class="pr-2 text-loyall-600">{{ rotulo_status.get(x.status, x.status) }}</td>
           <td class="text-right text-loyall-600">US$ {{ x.custo_usd | virg(4) }}</td>
         </tr>
       {% endfor %}

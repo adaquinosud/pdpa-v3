@@ -238,6 +238,9 @@ def test_concluir_apaga_o_texto(client_loyall, db_session, empresa, teto):
     aid = _pronta(client_loyall, db_session, empresa)
     html = client_loyall.post(_url(empresa, f"/{aid}/concluir")).get_data(as_text=True)
     assert "Texto da peça apagado em" in html and "Reler com esta descrição" not in html
+    assert "não dá para reler com outra descrição" in html
+    # A situação na lista é só a da leitura: o texto apagado se diz na página da leitura.
+    assert "texto apagado" not in html
     db_session.expire_all()
     assert db_session.get(AvaliadorAnalise, aid).texto_json is None
 

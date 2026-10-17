@@ -100,7 +100,7 @@
             class="px-3 py-1 rounded bg-loyall-700 text-white text-xs">Concluir</button>
   </div>
   {% elif not texto_disponivel %}
-  <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em | hora_br if a.texto_apagado_em else 'data não registrada' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados.</div>
+  <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em | hora_br if a.texto_apagado_em else 'data não registrada' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados. Por isso não dá para reler com outra descrição: para ler de novo, envie a peça outra vez.</div>
   {% endif %}
 </div>
 {% if lista_oob %}{{ lista_oob | safe }}{% endif %}
