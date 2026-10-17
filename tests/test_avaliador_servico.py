@@ -132,6 +132,8 @@ class Dublê:
             pedido = conteudo[-1]["text"]
             if pedido.startswith("ETAPA 1"):
                 r = r["situar"]
+            elif pedido.startswith("ETAPA: A PEÇA INTEIRA"):
+                r = {k: r["situar"][k] for k in ("achados", "contradicoes")}
             elif pedido.startswith("ETAPA FINAL"):
                 if r["lastro"] is None:
                     r = "sem json"  # etapa final inválida: a leitura fica sem o texto
@@ -220,8 +222,8 @@ def test_caminho_feliz_arquivo(db_session, empresa, teto):
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.resumo is None and a.erro_motivo is None
-    assert a.prompt_versao == "avaliador-v20-veredito"
-    assert len(cli.chamadas) == 6  # a peça inteira, uma por pilar e o Lastro
+    assert a.prompt_versao == "avaliador-v21-veredito"
+    assert len(cli.chamadas) == 7  # situar, uma por pilar, achados e o Lastro
     assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"][0]["text"]
     assert a.custo_usd > 0 and a.origem == "arquivo" and a.formato == "pptx"
     assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
@@ -276,7 +278,7 @@ def test_refazer_com_nova_descricao(db_session, empresa, teto):
     a = _rodar(db_session, aid, cli)
     assert a.descricao.startswith("Apresentação institucional")
     assert "Apresentação institucional" in cli.chamadas[0]["messages"][0]["content"][0]["text"]
-    assert a.tokens_in == 36000  # as duas leituras somam (6 chamadas de 3000 cada)
+    assert a.tokens_in == 42000  # as duas leituras somam (7 chamadas de 3000 cada)
 
 
 def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
@@ -355,7 +357,7 @@ def test_reler_leitura_antiga_gera_o_formato_novo(db_session, empresa, teto):
     servico.refazer(db_session, a)
     db_session.commit()
     a = _rodar(db_session, aid, Dublê())
-    assert a.prompt_versao == "avaliador-v20-veredito"
+    assert a.prompt_versao == "avaliador-v21-veredito"
     assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO and a.resumo is None
 
 
@@ -406,3 +408,13 @@ def test_duas_entradas_ao_mesmo_tempo_sao_recusadas(db_session, empresa, teto):
         servico.criar_analise(
             db_session, empresa.id, None, DESCRICAO, texto="Cliente: oi", url="exemplo.com"
         )
+
+
+def test_leitura_v20_na_fila_e_lida_com_o_pedido_de_hoje(db_session, empresa, teto):
+    aid = _criar(db_session, empresa)
+    db_session.get(AvaliadorAnalise, aid).prompt_versao = "avaliador-v20-veredito"
+    db_session.commit()
+    cli = Dublê()
+    a = _rodar(db_session, aid, cli)
+    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v21-veredito"
+    assert len(cli.chamadas) == 7

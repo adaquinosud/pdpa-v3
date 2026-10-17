@@ -107,7 +107,7 @@ def _somar_uso(a: AvaliadorAnalise, uso: motor.Uso) -> None:
 def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento, versao: str):
     """O pedido da versão gravada na leitura. Leitura nova é sempre o veredito (17/10); as
     versões do formato 1 ficam só para a leitura que já estava na fila na virada."""
-    if versao == veredito.PROMPT_VERSAO:
+    if versao in veredito.VERSOES:
         sistema = veredito.montar_sistema(regua, a_origem)
     else:
         sistema = motor.montar_sistema(regua, a_origem)
@@ -117,7 +117,7 @@ def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento, versao:
 def _estimativa(regua: Regua, versao: str, sistema: str, usuario: str, modelo: str) -> float:
     """O que o gate cobra. No veredito e no modo por pilar é TAMBÉM o orçamento da
     leitura: o motor não passa dele, nem com nova tentativa."""
-    if versao == veredito.PROMPT_VERSAO:
+    if versao in veredito.VERSOES:
         return veredito.estimar_custo_usd(sistema, usuario, modelo, len(regua.pilares))
     if versao == motor.PROMPT_VERSAO_POR_PILAR:
         return motor.estimar_custo_por_pilar_usd(sistema, usuario, modelo, len(regua.pilares))
@@ -370,10 +370,13 @@ def processar(analise_id: int, client=None) -> None:
             a.status = STATUS_LENDO
             a.atualizado_em = datetime.utcnow()
             s.commit()
+            if a.prompt_versao in veredito.VERSOES:
+                # versão anterior do veredito na fila: lida com o pedido de hoje
+                a.prompt_versao = veredito.PROMPT_VERSAO
             sistema, usuario = _pedido(regua, a.origem, a.descricao, doc, a.prompt_versao)
             orc = _estimativa(regua, a.prompt_versao, sistema, usuario, a.modelo)
             try:
-                if a.prompt_versao == veredito.PROMPT_VERSAO:
+                if a.prompt_versao in veredito.VERSOES:
                     res, uso = veredito.ler(
                         client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
                     )
@@ -387,7 +390,7 @@ def processar(analise_id: int, client=None) -> None:
                 _somar_uso(a, getattr(err, "uso", None) or motor.Uso())
                 raise
             _somar_uso(a, uso)
-            if a.prompt_versao == veredito.PROMPT_VERSAO:
+            if a.prompt_versao in veredito.VERSOES:
                 a.resumo = None  # formato 2 não tem resumo: tudo vai no objeto gravado
                 a.itens_json = veredito.para_gravar(res)
                 falhou = res["lastro"]["texto_falhou"]

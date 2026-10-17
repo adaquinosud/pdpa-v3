@@ -1,4 +1,4 @@
-"""Leitura no formato 2 (avaliador-v20-veredito): processamento, gravação e tela.
+"""Leitura no formato 2 (avaliador-v21-veredito): processamento, gravação e tela.
 
 A versão da leitura é posta à mão: estes testes valem antes e depois da virada (a virada
 só muda qual versão a leitura NOVA recebe). Cliente dublado: nenhuma chamada paga."""

@@ -1,4 +1,4 @@
-"""Formato 2 do Avaliador (avaliador-v20-veredito): motor, validação e cálculos.
+"""Formato 2 do Avaliador (avaliador-v21-veredito): motor, validação e cálculos.
 Cliente dublado: nenhuma chamada paga."""
 
 from __future__ import annotations
@@ -77,7 +77,13 @@ class Roteiro:
         self.chamadas.append(kw)
         pedido = kw["messages"][0]["content"][-1]["text"]
         if pedido.startswith("ETAPA 1"):
-            etapa, r = "situar", self.situar
+            sit = self.situar
+            etapa, r = "situar", {
+                k: v for k, v in sit.items() if k not in ("achados", "contradicoes")
+            }
+        elif pedido.startswith("ETAPA: A PEÇA INTEIRA"):
+            sit = self.situar
+            etapa, r = "achados", {k: sit[k] for k in ("achados", "contradicoes")}
         elif pedido.startswith("ETAPA FINAL"):
             etapa, r = "lastro", self.lastro
         else:
@@ -118,7 +124,9 @@ def test_seis_etapas_e_o_resultado_inteiro():
         )
     )
     res, uso = _ler(cli)
-    assert [c["_etapa"] for c in cli.chamadas] == ["situar", "P", "D", "Pa", "A", "lastro"]
+    assert [c["_etapa"] for c in cli.chamadas] == [
+        "situar", "P", "D", "Pa", "A", "achados", "lastro",
+    ]  # fmt: skip
     assert uso.custo_usd > 0
     assert res["formato"] == 2
     assert [d["subpilar"] for d in res["doze"]] == [
@@ -150,13 +158,14 @@ def test_o_pedido_leva_cobertura_situada_e_calculo_e_nao_leva_o_formato_antigo()
     assert "Páginas sem texto legível, não lidas: 3." in situar
     assert "Imagens não são lidas" in situar and "páginas 2" in situar
     pilar = cli.chamadas[1]["messages"][0]["content"][-1]["text"]
-    assert "Leitor: Quem decide sozinho" in pilar and "Achado: Falta quem assina." in pilar
+    assert "Leitor: Quem decide sozinho" in pilar and "Achado" not in pilar
+    achados = cli.chamadas[5]["messages"][0]["content"][-1]["text"]
+    assert "DEPOIS DOS DOZE" in achados  # os achados vêm com os doze vereditos na mão
+    assert "- Calibração da Promessa (Precisão): parcial." in achados
+    assert "Não registre achado que repita o que já está num dos vereditos" in achados
     lastro = cli.chamadas[-1]["messages"][0]["content"][-1]["text"]
     assert "ponto de partida: Precisão" in lastro
-    assert (
-        "ordem das recomendações: Calibração da Promessa (Precisão); "
-        "Qualidade da Entrega (Precisão)" in lastro
-    )
+    assert "ordem das recomendações" not in lastro and "Proibido repetir a escada" in lastro
     assert not re.search(r"\b(P|D|Pa|A)[1-3]\b", lastro.split("Os vereditos da peça")[1])
 
 
@@ -284,14 +293,17 @@ def test_cobertura_declarada_por_formato():
     assert pdf[0] == "Lida 1 página."
 
 
-def test_estimativa_cobre_seis_chamadas():
+def test_estimativa_cobre_sete_chamadas():
     from src.avaliador import motor
 
     s, u = "s" * 20_000, "u" * 2_000
     novo = v.estimar_custo_usd(s, u, "claude-sonnet-4-6", 4)
     antigo = motor.estimar_custo_por_pilar_usd(s, u, "claude-sonnet-4-6", 4)
-    um_pilar = motor._pior_caso_usd("claude-sonnet-4-6", len(s) + len(u) + 20_000, 3500)
-    assert novo == pytest.approx(antigo + um_pilar)
+    base = len(s) + len(u) + 20_000
+    # antigo = 4 pilares + resumo (800); novo = situar (800) + 4 pilares + achados + Lastro (800)
+    achados = motor._pior_caso_usd("claude-sonnet-4-6", base, v.MAX_TOKENS_ACHADOS)
+    situar = motor._pior_caso_usd("claude-sonnet-4-6", base, v.MAX_TOKENS_SITUAR)
+    assert novo == pytest.approx(antigo + achados + situar)
 
 
 def test_correcoes_de_17_10_nos_pedidos():
@@ -299,10 +311,23 @@ def test_correcoes_de_17_10_nos_pedidos():
     simétrica no pilar; achado que cabe num subpilar não é achado; dois leitores opostos."""
     from src.avaliador.veredito import PROMPTS
 
-    sistema = (PROMPTS / "v20_sistema.md").read_text(encoding="utf-8")
-    pilar = (PROMPTS / "v20_pilar.md").read_text(encoding="utf-8")
-    situar = (PROMPTS / "v20_situar.md").read_text(encoding="utf-8")
+    sistema = (PROMPTS / "veredito_sistema.md").read_text(encoding="utf-8")
+    achados = (PROMPTS / "veredito_achados.md").read_text(encoding="utf-8")
+    situar = (PROMPTS / "veredito_situar.md").read_text(encoding="utf-8")
     assert "salvo quando a etapa pedir outro tamanho" in sistema
-    assert "e se um achado diz que algo está na peça, nenhum veredito diz que não está" in pilar
-    assert "Se o achado couber inteiro em um deles, não é achado que atravessa" in situar
+    assert 'se um veredito diz "nao", nenhum achado diz que está' in achados
     assert "sem vendedor na sala" in situar and "com o vendedor explicando ao lado" in situar
+
+
+def test_correcoes_da_medicao_de_17_10_nos_pedidos():
+    """Medição da v20 (keynote, site, proposta): zero "sim" nas três, dois "nao" com trecho
+    achado, achado repetindo veredito em duas, Lastro igual nas três."""
+    from src.avaliador.veredito import PROMPTS
+
+    sistema = (PROMPTS / "veredito_sistema.md").read_text(encoding="utf-8")
+    lastro = (PROMPTS / "veredito_lastro.md").read_text(encoding="utf-8")
+    assert '"sim": o leitor consegue agir com o que está escrito' in sistema
+    assert "bem feito" not in sistema
+    assert 'o pior veredito possível é "parcial"' in sistema
+    assert "o que especificamente está aberto na base desta peça" in lastro
+    assert "Proibido repetir a escada" in lastro and "$ordem" not in lastro

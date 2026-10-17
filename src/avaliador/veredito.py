@@ -1,15 +1,21 @@
-"""Leitura no formato 2 (``avaliador-v20-veredito``): um veredito por subpilar.
+"""Leitura no formato 2 (``avaliador-v21-veredito``; a v20 foi a primeira): um veredito
+por subpilar.
 
 Decisão do Alexandre e do Dener, 17/10 (docs/ESPEC-avaliador-saida-nova.md): sai forte,
 falta e melhorar (três itens soltos podiam julgar a mesma coisa de jeitos opostos; três
 tentativas no pedido não consertaram) e entra, para cada subpilar, UM veredito:
 
-- "sim": está na peça e está bem feito;
-- "parcial": está na peça e está incompleto, vago ou não verificável (tratar mal é isto);
-- "nao": não está na peça; é posição vaga, o que se cria.
+- "sim": o leitor consegue agir com o que está escrito, mesmo havendo próximo passo;
+- "parcial": a peça trata do assunto, mas não dá para agir só com o que está escrito
+  (tratar mal é isto);
+- "nao": a peça não toca no assunto; é posição vaga, o que se cria.
+(v21, 17/10: na v20 "sim" era "bem feito" e "nao" não exigia ausência total, e as três
+peças da medição saíram com zero "sim".)
 
-Seis chamadas: (1) a peça inteira (situar, achados que atravessam, contradição interna),
-(2-5) uma por pilar, cada uma recebendo o que a primeira situou, (6) o texto do Lastro.
+Sete chamadas: (1) situar a peça, (2-5) uma por pilar, cada uma recebendo o que a
+primeira situou, (6) achados que atravessam e contradição interna, DEPOIS dos doze e
+com os doze na mão (v21: na v20 vinham na etapa 1 e repetiram veredito em duas das três
+leituras), (7) o texto do Lastro.
 
 O que é código, não pedido (§7 e §15 do CLAUDE.md: regra reescrita em pedido diverge):
 - a COBERTURA (o modelo não sabe o que não recebeu; perguntado, inventa);
@@ -47,14 +53,18 @@ from src.avaliador.regua import Regua
 logger = logging.getLogger(__name__)
 
 PROMPTS = Path(__file__).parent / "prompts"
-PROMPT_VERSAO = "avaliador-v20-veredito"
+PROMPT_VERSAO = "avaliador-v21-veredito"
+# Toda versão do formato 2 é lida pelo motor atual: leitura que estava na fila numa versão
+# anterior é processada com o pedido de hoje e passa a levar a versão de hoje.
+VERSOES = frozenset({"avaliador-v20-veredito", PROMPT_VERSAO})
 FORMATO = 2
 
 SIM, PARCIAL, NAO = "sim", "parcial", "nao"
 VEREDITOS = (SIM, PARCIAL, NAO)
 
-MAX_TOKENS_SITUAR = 3500
+MAX_TOKENS_SITUAR = 800
 MAX_TOKENS_PILAR = 3500
+MAX_TOKENS_ACHADOS = 2500
 MAX_TOKENS_LASTRO = 800
 # Folga de entrada para o que vai no fim de cada pedido: a cobertura, o que a etapa 1
 # situou (achados e contradições inclusive) e, na última, os doze vereditos.
@@ -156,31 +166,30 @@ def _tpl(nome: str) -> Template:
 
 
 def montar_sistema(regua: Regua, origem: str) -> str:
-    return _tpl("v20_sistema.md").substitute(
+    return _tpl("veredito_sistema.md").substitute(
         manual=motor._bloco_manual(regua), pistas=motor._bloco_pistas(regua, origem)
     )
 
 
 def instrucao_situar(cob: Dict[str, Any]) -> str:
-    return _tpl("v20_situar.md").substitute(
+    return _tpl("veredito_situar.md").substitute(
         cobertura="\n".join(f"- {f}" for f in declarar_cobertura(cob))
     )
 
 
 def _texto_situada(situada: dict) -> str:
-    linhas = [
-        f"- Tipo de peça: {situada['tipo_peca']}",
-        f"- Leitor: {situada['leitor']}",
-        f"- Situação: {situada['situacao']}",
-    ]
-    for rot, chave in (("Achado", "achados"), ("Contradição", "contradicoes")):
-        linhas += [f"- {rot}: {x['texto']}" for x in situada[chave]]
-    return "\n".join(linhas)
+    return "\n".join(
+        [
+            f"- Tipo de peça: {situada['tipo_peca']}",
+            f"- Leitor: {situada['leitor']}",
+            f"- Situação: {situada['situacao']}",
+        ]
+    )
 
 
 def instrucao_pilar(pilar, situada: dict) -> str:
     codigos = ", ".join(s.codigo for s in pilar.subpilares)
-    return _tpl("v20_pilar.md").substitute(
+    return _tpl("veredito_pilar.md").substitute(
         titulo=pilar.titulo.replace(" — ", ", "), codigos=codigos, situada=_texto_situada(situada)
     )
 
@@ -192,18 +201,26 @@ def nome_declarado(regua: Regua, codigo_sub: str) -> str:
     return f"{regua.subpilar(codigo_sub).nome} ({NOME_PILAR[_pilar(codigo_sub)]})"
 
 
-def instrucao_lastro(regua: Regua, doze: List[dict]) -> str:
+def _texto_vereditos(regua: Regua, doze: List[dict]) -> str:
     linhas = []
     for d in doze:
         extra = f" Deveria ter: {d['deveria_ter']}" if d["deveria_ter"] else ""
         nome = nome_declarado(regua, d["subpilar"])
         linhas.append(f"- {nome}: {d['veredito']}. {d['onde']}{extra}")
+    return "\n".join(linhas)
+
+
+def instrucao_achados(regua: Regua, doze: List[dict]) -> str:
+    return _tpl("veredito_achados.md").substitute(vereditos=_texto_vereditos(regua, doze))
+
+
+def instrucao_lastro(regua: Regua, doze: List[dict]) -> str:
+    """Recebe o ponto de partida e os vereditos; a ordem não vai (v21: é sempre a dos
+    pilares, e mandá-la fazia o texto recitar a escada em toda peça)."""
     pp = ponto_de_partida(doze)
-    ordem = [nome_declarado(regua, c) for c in ordem_recomendacoes(doze)]
-    return _tpl("v20_lastro.md").substitute(
-        vereditos="\n".join(linhas),
+    return _tpl("veredito_lastro.md").substitute(
+        vereditos=_texto_vereditos(regua, doze),
         ponto_de_partida=NOME_PILAR[pp] if pp else "nenhum (todos os subpilares estão em sim)",
-        ordem="; ".join(ordem) or "nada a recomendar",
     )
 
 
@@ -241,10 +258,15 @@ def validar_situar(doc: Documento, obj: dict) -> dict:
         if not out[chave]:
             raise RespostaInvalida(f"resposta sem '{chave}'")
     out["consequencia_cobertura"] = _texto(doc, obj.get("consequencia_cobertura"))
-    # achado pode ser sobre ausência (sem trecho); contradição é a peça contra ela mesma
-    out["achados"] = _lista_com_evidencia(doc, obj.get("achados"), "achados", False)
-    out["contradicoes"] = _lista_com_evidencia(doc, obj.get("contradicoes"), "contradicoes", True)
     return out
+
+
+def validar_achados(doc: Documento, obj: dict) -> dict:
+    # achado pode ser sobre ausência (sem trecho); contradição é a peça contra ela mesma
+    return {
+        "achados": _lista_com_evidencia(doc, obj.get("achados"), "achados", False),
+        "contradicoes": _lista_com_evidencia(doc, obj.get("contradicoes"), "contradicoes", True),
+    }
 
 
 def validar_vereditos(doc: Documento, obj: dict, codigos: List[str]) -> List[dict]:
@@ -304,12 +326,13 @@ def _validar_lastro(doc: Documento, obj: dict) -> str:
 
 
 def estimar_custo_usd(sistema: str, usuario: str, modelo: str, n_pilares: int) -> float:
-    """Para o gate do teto e orçamento da leitura: a etapa 1, uma por pilar e a do Lastro,
+    """Para o gate do teto e orçamento da leitura: situar, uma por pilar, achados e Lastro,
     cada uma no pior caso (sem nova tentativa: o orçamento é que limita as tentativas)."""
     base = len(sistema) + len(usuario) + _FOLGA_SUFIXO
     return (
         _pior_caso_usd(modelo, base, MAX_TOKENS_SITUAR)
         + n_pilares * _pior_caso_usd(modelo, base, MAX_TOKENS_PILAR)
+        + _pior_caso_usd(modelo, base, MAX_TOKENS_ACHADOS)
         + _pior_caso_usd(modelo, base, MAX_TOKENS_LASTRO)
     )
 
@@ -326,7 +349,7 @@ def ler(
     doc: Documento,
     orcamento_usd=None,
 ) -> Tuple[dict, Uso]:
-    """As seis etapas. Falha na etapa 1 ou num pilar levanta com o uso acumulado em
+    """As sete etapas. Falha em situar, num pilar ou nos achados levanta com o uso acumulado em
     ``err.uso`` (o gasto conta mesmo na falha). Falha só no texto do Lastro devolve a
     leitura com ``lastro.texto`` None e o motivo em ``lastro.texto_falhou``: o ponto de
     partida e a ordem são do código e ficam."""
@@ -356,6 +379,16 @@ def ler(
                 lambda obj, cs=codigos: validar_vereditos(doc, obj, cs),
                 orc,
             )
+        achados = _chamar(
+            client,
+            modelo,
+            sistema,
+            usuario,
+            instrucao_achados(regua, doze),
+            MAX_TOKENS_ACHADOS,
+            lambda obj: validar_achados(doc, obj),
+            orc,
+        )
     except (RespostaInvalida, OrcamentoEsgotado) as e:
         e.uso = orc["total"]  # type: ignore[attr-defined]
         raise
@@ -380,8 +413,8 @@ def ler(
         "cobertura": cob,
         "situar": {k: situada[k] for k in ("tipo_peca", "leitor", "situacao")}
         | {"consequencia_cobertura": situada["consequencia_cobertura"]},
-        "achados": situada["achados"],
-        "contradicoes": situada["contradicoes"],
+        "achados": achados["achados"],
+        "contradicoes": achados["contradicoes"],
         "doze": doze,
         # O que o código calculou e mandou ao modelo, gravado para conferir o texto contra
         # o cálculo. A tela recalcula de "doze" (mesma função) e não lê estes campos.

@@ -11,10 +11,10 @@ PISTAS: buracos comuns, escritos pelos autores do método, para você procurar n
 $pistas
 
 OS TRÊS VEREDITOS (um só por subpilar)
-- "sim": está na peça e está bem feito.
-- "parcial": está na peça e está incompleto, vago ou não verificável. É o que se conserta.
-- "nao": não está na peça. É o que se cria: a peça nunca levanta esta conversa. Escreva como terreno livre, não como bronca ("esta conversa não existe na peça"), nunca "a empresa falhou aqui".
-- Tratar mal é "parcial", não "nao".
+- "sim": o leitor consegue agir com o que está escrito, mesmo que haja um próximo passo. Não é "perfeito": tudo pode melhorar, e um "sim" pode trazer o que deveria vir a seguir.
+- "parcial": a peça trata do assunto, mas o leitor não consegue agir só com o que está escrito: incompleto, vago ou não verificável. É o que se conserta. Tratar mal é "parcial".
+- "nao": a peça não toca no assunto. É o que se cria: a peça nunca levanta esta conversa. Escreva como terreno livre, não como bronca ("esta conversa não existe na peça"), nunca "a empresa falhou aqui".
+- Se existe qualquer texto na peça sobre aquele assunto, o pior veredito possível é "parcial"; "nao" é só quando a peça não toca no assunto.
 - Não existe vaga de elogio nem obrigação de achar acerto: "sim" é o acerto, e onde não tem, não tem.
 
 COMO JULGAR
