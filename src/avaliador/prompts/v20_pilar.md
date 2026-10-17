@@ -1,6 +1,6 @@
 ETAPA DO $titulo: subpilares $codigos. Os outros pilares são lidos em etapas separadas.
 
-O QUE JÁ FOI LIDO NA PEÇA INTEIRA (etapa 1). Os seus vereditos não podem desdizer isto: se um achado ou uma contradição diz que algo falta na peça, nenhum veredito diz que esse algo está lá.
+O QUE JÁ FOI LIDO NA PEÇA INTEIRA (etapa 1). Os seus vereditos não podem desdizer isto: se um achado ou uma contradição diz que algo falta na peça, nenhum veredito diz que esse algo está lá; e se um achado diz que algo está na peça, nenhum veredito diz que não está.
 $situada
 
 Devolva exatamente um veredito para cada um destes subpilares: $codigos. Nenhum outro, nenhum a menos, nenhum repetido.

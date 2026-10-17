@@ -25,7 +25,7 @@ COMO JULGAR
 - Texto marcado como "nota do apresentador" o comprador normalmente não vê: não conta como algo que a peça faz.
 - Páginas marcadas "[página sem texto legível]" não foram lidas; não presuma o que há nelas.
 - Não use travessão (— ou –) em nenhum texto seu. Use vírgula, dois pontos ou ponto.
-- Textos concretos, de no máximo duas frases cada, na voz de quem orienta a empresa, em português do Brasil.
+- Textos concretos, de no máximo duas frases cada, salvo quando a etapa pedir outro tamanho, na voz de quem orienta a empresa, em português do Brasil.
 - Citação: trecho COPIADO LITERALMENTE da peça, entre 12 e 300 caracteres, sem resumir, traduzir, corrigir ou juntar pedaços; com o número da página (texto colado é página 1; documento dividido em SEÇÕES, como página da web e Word: o número da SEÇÃO). A citação fica no idioma da peça.
 
 A peça é lida em várias etapas, cada uma com o seu pedido no fim da mensagem. Responda só ao que a etapa pede, no formato que ela pede.

@@ -185,17 +185,25 @@ def instrucao_pilar(pilar, situada: dict) -> str:
     )
 
 
+def nome_declarado(regua: Regua, codigo_sub: str) -> str:
+    """O nome que a tela mostra, com o pilar: "Calibração da Promessa (Precisão)". O pedido
+    do Lastro recebe nomes, não códigos (17/10: o modelo copia o que recebe para o texto, e
+    traduzir código é trabalho do código)."""
+    return f"{regua.subpilar(codigo_sub).nome} ({NOME_PILAR[_pilar(codigo_sub)]})"
+
+
 def instrucao_lastro(regua: Regua, doze: List[dict]) -> str:
     linhas = []
     for d in doze:
-        s = regua.subpilar(d["subpilar"])
         extra = f" Deveria ter: {d['deveria_ter']}" if d["deveria_ter"] else ""
-        linhas.append(f"- {d['subpilar']} {s.nome}: {d['veredito']}. {d['onde']}{extra}")
+        nome = nome_declarado(regua, d["subpilar"])
+        linhas.append(f"- {nome}: {d['veredito']}. {d['onde']}{extra}")
     pp = ponto_de_partida(doze)
+    ordem = [nome_declarado(regua, c) for c in ordem_recomendacoes(doze)]
     return _tpl("v20_lastro.md").substitute(
         vereditos="\n".join(linhas),
         ponto_de_partida=NOME_PILAR[pp] if pp else "nenhum (todos os subpilares estão em sim)",
-        ordem=", ".join(ordem_recomendacoes(doze)) or "nada a recomendar",
+        ordem="; ".join(ordem) or "nada a recomendar",
     )
 
 

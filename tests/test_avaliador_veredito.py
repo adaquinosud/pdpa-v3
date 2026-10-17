@@ -33,7 +33,7 @@ def _ver(cod, ver="nao", trecho=None, pagina=2, deveria="Dizer como e em quanto 
     return {
         "subpilar": cod,
         "veredito": ver,
-        "onde": f"Sobre {cod}.",
+        "onde": "Sobre este ponto da peça.",
         "deveria_ter": deveria,
         "evidencias": [{"pagina": pagina, "trecho": trecho}] if trecho else [],
     }
@@ -153,7 +153,11 @@ def test_o_pedido_leva_cobertura_situada_e_calculo_e_nao_leva_o_formato_antigo()
     assert "Leitor: Quem decide sozinho" in pilar and "Achado: Falta quem assina." in pilar
     lastro = cli.chamadas[-1]["messages"][0]["content"][-1]["text"]
     assert "ponto de partida: Precisão" in lastro
-    assert "ordem das recomendações: P1, P2, P3, D2" in lastro
+    assert (
+        "ordem das recomendações: Calibração da Promessa (Precisão); "
+        "Qualidade da Entrega (Precisão)" in lastro
+    )
+    assert not re.search(r"\b(P|D|Pa|A)[1-3]\b", lastro.split("Os vereditos da peça")[1])
 
 
 # ── recusas e alertas ──────────────────────────────────────────────────────
@@ -288,3 +292,17 @@ def test_estimativa_cobre_seis_chamadas():
     antigo = motor.estimar_custo_por_pilar_usd(s, u, "claude-sonnet-4-6", 4)
     um_pilar = motor._pior_caso_usd("claude-sonnet-4-6", len(s) + len(u) + 20_000, 3500)
     assert novo == pytest.approx(antigo + um_pilar)
+
+
+def test_correcoes_de_17_10_nos_pedidos():
+    """Revisão do Alexandre antes da virada: limite de frases com exceção da etapa; regra
+    simétrica no pilar; achado que cabe num subpilar não é achado; dois leitores opostos."""
+    from src.avaliador.veredito import PROMPTS
+
+    sistema = (PROMPTS / "v20_sistema.md").read_text(encoding="utf-8")
+    pilar = (PROMPTS / "v20_pilar.md").read_text(encoding="utf-8")
+    situar = (PROMPTS / "v20_situar.md").read_text(encoding="utf-8")
+    assert "salvo quando a etapa pedir outro tamanho" in sistema
+    assert "e se um achado diz que algo está na peça, nenhum veredito diz que não está" in pilar
+    assert "Se o achado couber inteiro em um deles, não é achado que atravessa" in situar
+    assert "sem vendedor na sala" in situar and "com o vendedor explicando ao lado" in situar
