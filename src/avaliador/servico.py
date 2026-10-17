@@ -37,6 +37,7 @@ from src.avaliador.regua import (
 )
 from src.config import get_config
 from src.models.avaliador import (
+    STATUS_APAGADA,
     STATUS_EM_PROCESSAMENTO,
     STATUS_FALHOU,
     STATUS_LENDO,
@@ -271,6 +272,20 @@ def concluir(a: AvaliadorAnalise) -> None:
     _exigir_parada(a)
     apagar_texto(a, "concluida")
     marcar_uso(a)
+
+
+def apagar_leitura(a: AvaliadorAnalise) -> None:
+    """Apaga o que é da peça e deixa só o gasto (ver ``src/models/avaliador.py``).
+    Recusa em andamento: a leitura gravaria resumo e itens por cima."""
+    _exigir_parada(a)
+    apagar_texto(a, "leitura_apagada")
+    a.descricao = ""
+    a.arquivo_nome = None
+    a.conteudo_hash = ""
+    a.resumo = None
+    a.itens_json = "[]"
+    a.paginas_sem_texto_json = "[]"
+    a.status = STATUS_APAGADA
 
 
 # ── processamento (thread) ────────────────────────────────────────────────

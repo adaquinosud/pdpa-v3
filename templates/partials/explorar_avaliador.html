@@ -9,8 +9,8 @@
 
   <div id="avaliador-aviso" class="border border-amber-300 bg-amber-50 rounded p-3 text-sm text-amber-900">
     {# Redação aprovada pelo Alexandre em 12/10; para página da web, só a primeira frase muda
-       (14/10). O número de dias vem da MESMA constante que apaga. #}
-    <span data-aviso="documento"{% if form.url %} hidden{% endif %}>O documento vai para um modelo externo da Anthropic para ser lido.</span><span data-aviso="pagina"{% if not form.url %} hidden{% endif %}>O texto da página vai para um modelo externo da Anthropic para ser lido.</span> Pelos termos comerciais da Anthropic, o conteúdo enviado é tratado como informação confidencial e não pode ser usado para treinar modelos. O texto fica guardado enquanto esta análise estiver aberta, para você poder reler sem enviar de novo. Ele é apagado quando você clicar em concluir, e apagado sozinho depois de {{ dias_retencao }} dias sem uso. Depois disso ficam só os trechos citados na leitura.
+       (14/10); a última frase, do apagar a leitura, entrou em 16/10. O número de dias vem da MESMA constante que apaga. #}
+    <span data-aviso="documento"{% if form.url %} hidden{% endif %}>O documento vai para um modelo externo da Anthropic para ser lido.</span><span data-aviso="pagina"{% if not form.url %} hidden{% endif %}>O texto da página vai para um modelo externo da Anthropic para ser lido.</span> Pelos termos comerciais da Anthropic, o conteúdo enviado é tratado como informação confidencial e não pode ser usado para treinar modelos. O texto fica guardado enquanto esta análise estiver aberta, para você poder reler sem enviar de novo. Ele é apagado quando você clicar em concluir, e apagado sozinho depois de {{ dias_retencao }} dias sem uso. Depois disso ficam só os trechos citados na leitura. Você também pode apagar a leitura inteira, com o resumo e os trechos citados; aí fica só o registro do custo.
   </div>
 
   <form hx-post="{{ url_for('ui.avaliador_novo', empresa_id=empresa_id) }}"

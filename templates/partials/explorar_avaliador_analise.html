@@ -102,5 +102,12 @@
   {% elif not texto_disponivel %}
   <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em | hora_br if a.texto_apagado_em else 'data não registrada' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados. Por isso não dá para reler com outra descrição: para ler de novo, envie a peça outra vez.</div>
   {% endif %}
+  {% if not processando %}
+  <div class="flex justify-end">
+    <button hx-post="{{ url_for('ui.avaliador_apagar', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML"
+            hx-confirm="Apagar esta leitura? Saem a peça, o resumo e os trechos citados. Não dá para desfazer."
+            class="px-3 py-1 rounded border border-rose-300 text-rose-700 text-xs hover:bg-rose-50">Apagar leitura</button>
+  </div>
+  {% endif %}
 </div>
 {% if lista_oob %}{{ lista_oob | safe }}{% endif %}

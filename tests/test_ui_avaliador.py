@@ -72,7 +72,7 @@ def test_cliente_recebe_403_em_todas_as_rotas(client_cliente_factory, empresa):
     assert cli.get(_url(empresa)).status_code == 403
     assert _enviar(cli, empresa).status_code == 403
     assert cli.get(_url(empresa, "/1")).status_code == 403
-    for suf in ("/1/refazer", "/1/concluir"):
+    for suf in ("/1/refazer", "/1/concluir", "/1/apagar"):
         assert cli.post(_url(empresa, suf)).status_code == 403, suf
 
 
@@ -90,6 +90,7 @@ def test_analise_de_outra_empresa_e_404(client_loyall, db_session, empresa, teto
 def test_aviso_le_a_mesma_constante_que_apaga(client_loyall, empresa, monkeypatch):
     html = client_loyall.get(_url(empresa)).get_data(as_text=True)
     assert "O documento vai para um modelo externo da Anthropic para ser lido." in html
+    assert "Você também pode apagar a leitura inteira, com o resumo e os trechos citados" in html
     assert (
         "Pelos termos comerciais da Anthropic, o conteúdo enviado é tratado como informação "
         "confidencial e não pode ser usado para treinar modelos." in html
@@ -243,6 +244,56 @@ def test_concluir_apaga_o_texto(client_loyall, db_session, empresa, teto):
     assert "texto apagado" not in html
     db_session.expire_all()
     assert db_session.get(AvaliadorAnalise, aid).texto_json is None
+
+
+def test_apagar_leitura_tira_a_peca_e_guarda_so_o_gasto(client_loyall, db_session, empresa, teto):
+    aid = _pronta(client_loyall, db_session, empresa)
+    antes = db_session.get(AvaliadorAnalise, aid)
+    custo, criado, modelo, versao = (
+        antes.custo_usd,
+        antes.criado_em,
+        antes.modelo,
+        antes.prompt_versao,
+    )
+    assert custo > 0 and antes.itens_json != "[]"
+    gasto = servico.gasto_do_mes(db_session, empresa.id)
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Apagar leitura" in html and "Não dá para desfazer." in html  # hx-confirm, uma vez
+
+    html = client_loyall.post(_url(empresa, f"/{aid}/apagar")).get_data(as_text=True)
+    assert "Leitura apagada." in html and "proposta.pptx" not in html  # a lista se atualiza
+
+    db_session.expire_all()
+    a = db_session.get(AvaliadorAnalise, aid)
+    assert a.status == "apagada"
+    assert (a.descricao, a.arquivo_nome, a.conteudo_hash, a.resumo) == ("", None, "", None)
+    assert a.itens_json == "[]" and a.texto_json is None
+    assert (a.empresa_id, a.criado_em, a.modelo, a.prompt_versao) == (
+        empresa.id,
+        criado,
+        modelo,
+        versao,
+    )
+    assert a.custo_usd == custo  # o gasto fica: apagar não devolve nada ao teto
+    assert servico.gasto_do_mes(db_session, empresa.id) == gasto
+
+    painel = client_loyall.get(_url(empresa)).get_data(as_text=True)
+    assert "proposta.pptx" not in painel and DESCRICAO not in painel
+    assert client_loyall.get(_url(empresa, f"/{aid}")).status_code == 404
+    for suf in ("/refazer", "/concluir", "/apagar"):
+        assert client_loyall.post(_url(empresa, f"/{aid}{suf}")).status_code == 404, suf
+
+
+def test_apagar_e_recusado_com_a_leitura_em_andamento(client_loyall, db_session, empresa, teto):
+    assert _enviar(client_loyall, empresa).status_code == 200  # a thread é no-op: fica na fila
+    aid = db_session.query(AvaliadorAnalise).order_by(AvaliadorAnalise.id.desc()).first().id
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Apagar leitura" not in html
+    html = client_loyall.post(_url(empresa, f"/{aid}/apagar")).get_data(as_text=True)
+    assert "A leitura ainda está em andamento." in html
+    db_session.expire_all()
+    a = db_session.get(AvaliadorAnalise, aid)
+    assert a.status == "pendente" and a.descricao == DESCRICAO and a.texto_json is not None
 
 
 def test_pagina_exibida_e_a_conferida_e_a_lista_se_atualiza(

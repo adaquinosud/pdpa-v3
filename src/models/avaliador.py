@@ -5,6 +5,11 @@ enquanto a análise está aberta (refazer com outra descrição / retomar sem re
 Concluir apaga na hora; ``AVALIADOR_DIAS_RETENCAO_TEXTO`` sem uso apaga sozinho
 (housekeeping do watchdog). Depois disso ficam resumo, itens, trechos citados, custo e hash.
 
+Apagar a leitura (decisão do Alexandre, 16/10): sai tudo o que é da peça (descrição,
+nome do arquivo, resumo, itens com trechos, texto, hash) e a linha fica APAGADA, fora da
+lista, só com empresa, data, custo, modelo e versões. A linha não sai porque o teto mensal
+soma o ``custo_usd`` destas linhas: apagar não pode devolver gasto ao teto.
+
 ``custo_usd`` é NOT NULL e acumula a cada chamada: custo nulo parece grátis (CLAUDE.md §13).
 """
 
@@ -26,6 +31,7 @@ STATUS_PENDENTE = "pendente"
 STATUS_LENDO = "lendo"
 STATUS_PRONTA = "pronta"
 STATUS_FALHOU = "falhou"
+STATUS_APAGADA = "apagada"  # só o registro de gasto; nunca aparece na tela
 STATUS_EM_PROCESSAMENTO = (STATUS_PENDENTE, STATUS_LENDO)
 
 

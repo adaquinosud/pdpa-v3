@@ -27,7 +27,12 @@ from src.avaliador.extracao import (
 )
 from src.avaliador.regua import carregar_regua
 from src.avaliador.servico import AvaliacaoRecusada
-from src.models.avaliador import STATUS_EM_PROCESSAMENTO, STATUS_PENDENTE, AvaliadorAnalise
+from src.models.avaliador import (
+    STATUS_APAGADA,
+    STATUS_EM_PROCESSAMENTO,
+    STATUS_PENDENTE,
+    AvaliadorAnalise,
+)
 from src.ui import loyall_required_ui, ui_bp
 from src.utils.db import db_session
 
@@ -44,6 +49,7 @@ def _lista(s, empresa_id: int):
     return (
         s.query(AvaliadorAnalise)
         .filter_by(empresa_id=empresa_id)
+        .filter(AvaliadorAnalise.status != STATUS_APAGADA)
         .order_by(AvaliadorAnalise.criado_em.desc())
         .limit(30)
         .all()
@@ -101,8 +107,11 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
 
 
 def _analise_da_empresa(s, empresa_id: int, aid: int):
+    """Leitura apagada não existe para a tela: abrir, reler ou concluir dá 404."""
     a = s.get(AvaliadorAnalise, aid)
-    return a if a is not None and a.empresa_id == empresa_id else None
+    if a is None or a.empresa_id != empresa_id or a.status == STATUS_APAGADA:
+        return None
+    return a
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar/avaliador", methods=["GET"])
@@ -187,3 +196,22 @@ def avaliador_refazer(empresa_id: int, aid: int):
 @loyall_required_ui
 def avaliador_concluir(empresa_id: int, aid: int):
     return _acao(empresa_id, aid, lambda s, a: servico.concluir(a))
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/apagar", methods=["POST"])
+@loyall_required_ui
+def avaliador_apagar(empresa_id: int, aid: int):
+    with db_session() as s:
+        a = _analise_da_empresa(s, empresa_id, aid)
+        if a is None:
+            return render_template("404.html"), 404
+        try:
+            servico.apagar_leitura(a)
+        except AvaliacaoRecusada as e:
+            return _render_analise(empresa_id, a, erro=str(e), s=s)
+        s.commit()
+        return (
+            '<div id="avaliador-analise" class="border border-loyall-200 rounded p-4 '
+            'text-sm text-loyall-600 bg-white">Leitura apagada.</div>'
+            + _render_lista(s, empresa_id, oob=True)
+        )
