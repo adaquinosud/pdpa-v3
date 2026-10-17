@@ -30,7 +30,7 @@ from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSAO = "avaliador-v14"
+PROMPT_VERSAO = "avaliador-v13"
 PROMPTS = Path(__file__).parent / "prompts"
 
 TIPOS_ITEM = ("forte", "falta", "melhorar")
@@ -343,7 +343,7 @@ def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tupl
 # Motivo (preview de 13/10): na chamada única o P3 saiu raso duas vezes e um item do Pa2
 # sumiu entre duas leituras da mesma peça.
 
-PROMPT_VERSAO_POR_PILAR = "avaliador-v15-pilar"
+PROMPT_VERSAO_POR_PILAR = "avaliador-v14-pilar"
 MAX_TOKENS_PILAR = 3500
 MAX_TOKENS_RESUMO = 800
 # Folga de entrada para a instrução do pilar + os itens já apontados (no máximo 9 por
