@@ -303,13 +303,18 @@ def test_estimativa_cobre_sete_chamadas():
     from src.avaliador import motor
 
     s, u = "s" * 20_000, "u" * 2_000
-    novo = v.estimar_custo_usd(s, u, "claude-sonnet-4-6", 4)
-    antigo = motor.estimar_custo_por_pilar_usd(s, u, "claude-sonnet-4-6", 4)
     base = len(s) + len(u) + 20_000
-    # antigo = 4 pilares + resumo (800); novo = situar (800) + 4 pilares + achados + Lastro (800)
-    achados = motor._pior_caso_usd("claude-sonnet-4-6", base, v.MAX_TOKENS_ACHADOS)
-    situar = motor._pior_caso_usd("claude-sonnet-4-6", base, v.MAX_TOKENS_SITUAR)
-    assert novo == pytest.approx(antigo + achados + situar)
+
+    def pior(saida):
+        return motor._pior_caso_usd("claude-sonnet-4-6", base, saida)
+
+    esperado = (
+        pior(v.MAX_TOKENS_SITUAR)
+        + 4 * pior(v.MAX_TOKENS_PILAR)
+        + pior(v.MAX_TOKENS_ACHADOS)
+        + pior(v.MAX_TOKENS_LASTRO)
+    )
+    assert v.estimar_custo_usd(s, u, "claude-sonnet-4-6", 4) == pytest.approx(esperado)
 
 
 def test_correcoes_de_17_10_nos_pedidos():

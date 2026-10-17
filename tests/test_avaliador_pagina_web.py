@@ -123,56 +123,34 @@ def test_referencia_e_titulo_da_secao_ou_comeco_do_paragrafo():
 
 
 def test_motor_poe_a_referencia_na_citacao_conferida():
-    from src.avaliador.motor import validar_saida
+    from src.avaliador.motor import _evidencias
 
     doc = extrair_html(HTML.encode(), "https://exemplo.com.br/")
-    res = validar_saida(
+    ev = _evidencias(
         doc,
-        {
-            "resumo": "r",
-            "itens": [
-                {
-                    "subpilar": "D1",
-                    "tipo": "forte",
-                    "texto": "Prazo de resposta declarado.",
-                    "evidencias": [
-                        {"pagina": 9, "trecho": "responde em até quatro horas úteis"},
-                        {"pagina": 2, "trecho": "TRECHO QUE NÃO EXISTE NA PÁGINA"},
-                    ],
-                }
-            ],
-        },
+        [
+            {"pagina": 9, "trecho": "responde em até quatro horas úteis"},
+            {"pagina": 2, "trecho": "TRECHO QUE NÃO EXISTE NA PÁGINA"},
+        ],
     )
-    ev = res["itens"][0]["evidencias"]
     assert ev[0]["conferido"] and ev[0]["referencia"] == "seção “Como atendemos”"
     assert not ev[1]["conferido"] and "referencia" not in ev[1]
 
 
 def test_numero_de_secao_no_texto_do_modelo_vira_titulo():
-    # 14/10: "a seção 22" no item não leva a lugar nenhum; a tela mostra o título
-    from src.avaliador.motor import sem_numero_de_secao, validar_saida
+    # 14/10: "a seção 22" no texto não leva a lugar nenhum; a tela mostra o título
+    from src.avaliador.motor import sem_numero_de_secao
 
     doc = extrair_html(HTML.encode(), "https://exemplo.com.br/")
-    res = validar_saida(
-        doc,
-        {
-            "resumo": "A seção 3 não diz prazo.",
-            "itens": [
-                {
-                    "subpilar": "D1",
-                    "tipo": "falta",
-                    "texto": "A seção 2 promete resposta, as seções 2 e 3 não dizem canal; "
-                    "a Seção 1 abre bem; a seção 9 não existe.",
-                    "evidencias": [],
-                }
-            ],
-        },
+    texto = (
+        "A seção 2 promete resposta, as seções 2 e 3 não dizem canal; "
+        "a Seção 1 abre bem; a seção 9 não existe."
     )
-    assert res["itens"][0]["texto"] == (
+    assert sem_numero_de_secao(doc, texto) == (
         "A seção “Como atendemos” promete resposta, as seções “Como atendemos” e "
         "“Prazos” não dizem canal; a abertura da página abre bem; a seção 9 não existe."
     )
-    assert res["resumo"] == "A seção “Prazos” não diz prazo."
+    assert sem_numero_de_secao(doc, "A seção 3 não diz prazo.") == "A seção “Prazos” não diz prazo."
     # PDF mostra o número da página na tela: "página 9" e até "seção 2" ficam como estão
     pdf = Documento("pdf", [Pagina(1, "x" * 30), Pagina(2, "y" * 30)])
     assert sem_numero_de_secao(pdf, "a seção 2 da página 9") == "a seção 2 da página 9"

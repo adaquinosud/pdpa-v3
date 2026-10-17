@@ -1,10 +1,10 @@
 """Serviço do Avaliador — ciclo de vida da análise, gate de custo, retenção.
 
 Fluxo: ``criar_analise`` (extrai, cobra o teto, grava PENDENTE) → ``disparar`` (daemon-
-thread, padrão ``_rodar_async`` do app) → ``processar``. Leitura nova é sempre o
-veredito (``avaliador-v20-veredito``, 17/10: seis chamadas, ver ``veredito.py``);
-``processar`` segue a versão GRAVADA na leitura, então a que estava na fila em formato 1
-na virada termina no formato dela.
+thread, padrão ``_rodar_async`` do app) → ``processar``, que lê sempre no veredito
+(``veredito.py``, sete chamadas). O formato 1 (forte, falta e melhorar) não é mais
+gerado desde a fatia 4 (17/10); as leituras gravadas nele continuam abrindo
+(``organizar`` + ``_avaliador_leitura_v1.html``).
 
 Falha é visível, nunca "processando" eterno:
 - erro → FALHOU com ``erro_motivo`` (tipo do erro; NUNCA texto da peça nem resposta do
@@ -104,24 +104,15 @@ def _somar_uso(a: AvaliadorAnalise, uso: motor.Uso) -> None:
     a.custo_usd += uso.custo_usd
 
 
-def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento, versao: str):
-    """O pedido da versão gravada na leitura. Leitura nova é sempre o veredito (17/10); as
-    versões do formato 1 ficam só para a leitura que já estava na fila na virada."""
-    if versao in veredito.VERSOES:
-        sistema = veredito.montar_sistema(regua, a_origem)
-    else:
-        sistema = motor.montar_sistema(regua, a_origem)
-    return sistema, motor.montar_usuario(descricao, doc)
+def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento):
+    """O pedido de toda leitura: o veredito (o formato 1 não é mais gerado desde 17/10)."""
+    return veredito.montar_sistema(regua, a_origem), motor.montar_usuario(descricao, doc)
 
 
-def _estimativa(regua: Regua, versao: str, sistema: str, usuario: str, modelo: str) -> float:
-    """O que o gate cobra. No veredito e no modo por pilar é TAMBÉM o orçamento da
-    leitura: o motor não passa dele, nem com nova tentativa."""
-    if versao in veredito.VERSOES:
-        return veredito.estimar_custo_usd(sistema, usuario, modelo, len(regua.pilares))
-    if versao == motor.PROMPT_VERSAO_POR_PILAR:
-        return motor.estimar_custo_por_pilar_usd(sistema, usuario, modelo, len(regua.pilares))
-    return motor.estimar_custo_usd(sistema, usuario, modelo)
+def _estimativa(regua: Regua, sistema: str, usuario: str, modelo: str) -> float:
+    """O que o gate cobra. É TAMBÉM o orçamento da leitura: o motor não passa dele, nem
+    com nova tentativa."""
+    return veredito.estimar_custo_usd(sistema, usuario, modelo, len(regua.pilares))
 
 
 # ── leitura do estado ─────────────────────────────────────────────────────
@@ -150,21 +141,28 @@ def formato_da_leitura(a: AvaliadorAnalise) -> Optional[int]:
     return None
 
 
+# Os três tipos de item do formato 1, só para MOSTRAR leitura já gravada nesse formato.
+TIPOS_ITEM_FORMATO_1 = ("forte", "falta", "melhorar")
+
+
 def organizar(regua: Regua, a: AvaliadorAnalise) -> List[dict]:
-    """Itens por pilar → subpilar → forte/falta/melhorar, na ordem do Manual. Subpilar sem
-    item aparece declarado ("sem observação"), não some. Descartados pelo limite de três
-    não aparecem; a contagem vai em ``descartados``."""
+    """Leitura gravada no FORMATO 1: itens por pilar → subpilar → forte/falta/melhorar, na
+    ordem do Manual. Subpilar sem item aparece declarado ("sem observação"), não some.
+    Item com ``descartado`` (o limite de três daquele formato) não aparece; a contagem vai
+    em ``descartados``. Só leitura: o formato 1 não é mais gerado (17/10)."""
     itens = json.loads(a.itens_json or "[]")
     out = []
     for p in regua.pilares:
         subs = []
         for s in p.subpilares:
             todos = [i for i in itens if i["subpilar"] == s.codigo]
-            dele = motor.validos(todos)
+            dele = [i for i in todos if not i.get("descartado")]
             subs.append(
                 {
                     "subpilar": s,
-                    "por_tipo": {t: [i for i in dele if i["tipo"] == t] for t in motor.TIPOS_ITEM},
+                    "por_tipo": {
+                        t: [i for i in dele if i["tipo"] == t] for t in TIPOS_ITEM_FORMATO_1
+                    },
                     "vazio": not dele,
                     "descartados": len(todos) - len(dele),
                 }
@@ -259,8 +257,8 @@ def criar_analise(
         doc, origem = extrair_html(bruto, nome), ORIGEM_PAGINA
     regua = carregar_regua()
     versao = veredito.PROMPT_VERSAO
-    sistema, usuario = _pedido(regua, origem, descricao, doc, versao)
-    checar_teto(s, empresa_id, _estimativa(regua, versao, sistema, usuario, modelo))
+    sistema, usuario = _pedido(regua, origem, descricao, doc)
+    checar_teto(s, empresa_id, _estimativa(regua, sistema, usuario, modelo))
     a = AvaliadorAnalise(
         empresa_id=empresa_id,
         usuario_id=usuario_id,
@@ -314,8 +312,8 @@ def refazer(s: Session, a: AvaliadorAnalise, descricao: Optional[str] = None) ->
     if descricao is not None:
         a.descricao = _descricao(descricao)
     regua, versao = carregar_regua(), veredito.PROMPT_VERSAO
-    sistema, usuario = _pedido(regua, a.origem, a.descricao, doc, versao)
-    checar_teto(s, a.empresa_id, _estimativa(regua, versao, sistema, usuario, a.modelo))
+    sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
+    checar_teto(s, a.empresa_id, _estimativa(regua, sistema, usuario, a.modelo))
     a.prompt_versao = versao
     a.status = STATUS_PENDENTE
     a.erro_motivo = None
@@ -367,36 +365,23 @@ def processar(analise_id: int, client=None) -> None:
             a.status = STATUS_LENDO
             a.atualizado_em = datetime.utcnow()
             s.commit()
-            if a.prompt_versao in veredito.VERSOES:
-                # versão anterior do veredito na fila: lida com o pedido de hoje
-                a.prompt_versao = veredito.PROMPT_VERSAO
-            sistema, usuario = _pedido(regua, a.origem, a.descricao, doc, a.prompt_versao)
-            orc = _estimativa(regua, a.prompt_versao, sistema, usuario, a.modelo)
+            # toda leitura sai no veredito de hoje; a que estava na fila numa versão
+            # anterior (de qualquer formato) passa a levar a versão com que foi lida
+            a.prompt_versao = veredito.PROMPT_VERSAO
+            sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
+            orc = _estimativa(regua, sistema, usuario, a.modelo)
             try:
-                if a.prompt_versao in veredito.VERSOES:
-                    res, uso = veredito.ler(
-                        client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
-                    )
-                elif a.prompt_versao == motor.PROMPT_VERSAO_POR_PILAR:
-                    res, uso = motor.ler_por_pilar(
-                        client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
-                    )
-                else:
-                    res, uso = motor.ler(client, a.modelo, sistema, usuario, doc)
+                res, uso = veredito.ler(
+                    client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
+                )
             except (motor.RespostaInvalida, motor.OrcamentoEsgotado) as err:
                 _somar_uso(a, getattr(err, "uso", None) or motor.Uso())
                 raise
             _somar_uso(a, uso)
-            if a.prompt_versao in veredito.VERSOES:
-                a.resumo = None  # formato 2 não tem resumo: tudo vai no objeto gravado
-                a.itens_json = veredito.para_gravar(res)
-                falhou = res["lastro"]["texto_falhou"]
-                a.erro_motivo = f"lastro: {falhou}" if falhou else None
-            else:
-                a.resumo = res["resumo"]
-                a.itens_json = json.dumps(res["itens"], ensure_ascii=False)
-                falhou = res.get("resumo_falhou")
-                a.erro_motivo = f"resumo: {falhou}" if falhou else None
+            a.resumo = None  # formato 2 não tem resumo: tudo vai no objeto gravado
+            a.itens_json = veredito.para_gravar(res)
+            falhou = res["lastro"]["texto_falhou"]
+            a.erro_motivo = f"lastro: {falhou}" if falhou else None
             a.regua_versao = regua.versao
             a.status = STATUS_PRONTA
             a.atualizado_em = datetime.utcnow()

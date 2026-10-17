@@ -439,14 +439,20 @@ def test_formato_da_leitura_reconhece_o_gravado(db_session, empresa):
 def test_leitura_antiga_ganha_aviso_so_quando_o_formato_atual_e_outro(
     client_loyall, db_session, empresa, teto, monkeypatch
 ):
-    from src.avaliador import motor
-
     aid = _pronta(client_loyall, db_session, empresa)
     a = db_session.get(AvaliadorAnalise, aid)  # vira leitura antiga, gravada no formato 1
     a.itens_json = json.dumps(
-        motor._validar_itens(motor_doc(), [{"subpilar": "D1", "tipo": "forte", "texto": "Bom.",
-                                            "evidencias": []}])
-    )  # fmt: skip
+        [
+            {
+                "subpilar": "D1",
+                "tipo": "forte",
+                "texto": "Bom.",
+                "evidencias": [],
+                "alerta": None,
+                "descartado": False,
+            }
+        ]
+    )
     a.resumo = "Resumo antigo."
     db_session.commit()
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
@@ -465,9 +471,3 @@ def test_formato_nao_reconhecido_e_declarado_sem_quebrar(client_loyall, db_sessi
     html = r.get_data(as_text=True)
     assert r.status_code == 200 and "formato que a tela não reconhece" in html
     assert ">Forte<" not in html
-
-
-def motor_doc():
-    from src.avaliador.extracao import Documento, Pagina
-
-    return Documento("pdf", [Pagina(1, "Atendimento de segunda a sexta.")])

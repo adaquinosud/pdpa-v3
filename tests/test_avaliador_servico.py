@@ -51,27 +51,6 @@ def _pptx() -> bytes:
     return buf.getvalue()
 
 
-def resposta_ok():
-    return {
-        "resumo": "Padrão de teste.",
-        "itens": [
-            {
-                "subpilar": "D1",
-                "tipo": "forte",
-                "texto": "Horário declarado.",
-                "evidencias": [{"pagina": 2, "trecho": "segunda a sexta das 8h às 18h"}],
-            },
-            {"subpilar": "D1", "tipo": "falta", "texto": "Rota fora do horário.", "evidencias": []},
-            {
-                "subpilar": "A1",
-                "tipo": "melhorar",
-                "texto": "Referência afirmada sem quem a cite.",
-                "evidencias": [{"pagina": 3, "trecho": "Somos referência no setor há vinte anos"}],
-            },
-        ],
-    }
-
-
 def veredito_de(cod, ver="nao", trecho=None, pagina=1, onde=None, deveria="Dizer como e quando."):
     return {
         "subpilar": cod,
@@ -143,16 +122,6 @@ class Dublê:
             else:
                 cods = re.search(r"subpilares ([A-Za-z0-9, ]+)\.", pedido).group(1).split(", ")
                 r = {"vereditos": [r["vereditos"][c] for c in cods]}
-        elif isinstance(conteudo, list) and isinstance(r, dict) and "resumo" in r and "itens" in r:
-            # modo por pilar (o padrão): a mesma resposta completa, fatiada por pilar; o
-            # pedido do resumo devolve só o resumo e consome a resposta
-            pedido = conteudo[-1]["text"]
-            if 'escreva só o "resumo"' in pedido:
-                self.respostas.pop(0)
-                r = {"resumo": r["resumo"]}
-            else:
-                cods = re.search(r"subpilares ([A-Za-z0-9, ]+)\.", pedido).group(1).split(", ")
-                r = {"itens": [i for i in r["itens"] if i["subpilar"] in cods]}
         else:
             self.respostas.pop(0)
         texto = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
@@ -322,20 +291,17 @@ def test_comando_do_watchdog_roda(client, empresa):
     assert "0 interrompida(s)" in r.output and "7 dias sem uso" in r.output
 
 
-def test_leitura_que_estava_na_fila_na_virada_termina_no_formato_dela(db_session, empresa, teto):
-    """Leitura criada em avaliador-v14-pilar antes do deploy da virada é processada no
-    formato 1, com o pedido dela; a leitura nova é sempre o veredito."""
-    from src.avaliador import motor
-
+def test_leitura_de_versao_antiga_na_fila_sai_no_veredito_de_hoje(db_session, empresa, teto):
+    """Fatia 4 (17/10): o formato 1 não é mais gerado. Leitura que estivesse na fila numa
+    versão dele é lida no veredito de hoje e passa a levar essa versão."""
     aid = _criar(db_session, empresa)
-    db_session.get(AvaliadorAnalise, aid).prompt_versao = motor.PROMPT_VERSAO_POR_PILAR
+    db_session.get(AvaliadorAnalise, aid).prompt_versao = "avaliador-v14-pilar"
     db_session.commit()
-    cli = Dublê([resposta_ok()])
+    cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.resumo == "Padrão de teste."
-    assert servico.formato_da_leitura(a) == servico.FORMATO_ITENS
-    assert '"forte"' in cli.chamadas[0]["system"]  # o pedido antigo, não o v20
-    assert len(cli.chamadas) == 5
+    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v21-veredito"
+    assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
+    assert '"forte"' not in cli.chamadas[0]["system"] and len(cli.chamadas) == 7
 
 
 def test_falha_so_no_texto_do_lastro_fica_pronta_com_motivo(db_session, empresa, teto):
@@ -348,12 +314,12 @@ def test_falha_so_no_texto_do_lastro_fica_pronta_com_motivo(db_session, empresa,
 
 
 def test_reler_leitura_antiga_gera_o_formato_novo(db_session, empresa, teto):
-    from src.avaliador import motor
-
     aid = _criar(db_session, empresa)
-    db_session.get(AvaliadorAnalise, aid).prompt_versao = motor.PROMPT_VERSAO_POR_PILAR
+    a = db_session.get(AvaliadorAnalise, aid)  # leitura gravada no formato 1
+    a.prompt_versao, a.status, a.resumo = "avaliador-v14-pilar", STATUS_PRONTA, "Resumo antigo."
+    a.itens_json = json.dumps([{"subpilar": "D1", "tipo": "forte", "texto": "x", "evidencias": []}])
     db_session.commit()
-    a = _rodar(db_session, aid, Dublê([resposta_ok()]))
+    assert servico.formato_da_leitura(a) == servico.FORMATO_ITENS
     servico.refazer(db_session, a)
     db_session.commit()
     a = _rodar(db_session, aid, Dublê())
@@ -361,7 +327,7 @@ def test_reler_leitura_antiga_gera_o_formato_novo(db_session, empresa, teto):
     assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO and a.resumo is None
 
 
-def test_gate_cobra_as_seis_chamadas(db_session, empresa, monkeypatch):
+def test_gate_cobra_as_sete_chamadas(db_session, empresa, monkeypatch):
     from src.avaliador import veredito
 
     cobrado = {}
@@ -372,7 +338,7 @@ def test_gate_cobra_as_seis_chamadas(db_session, empresa, monkeypatch):
 
     regua = servico.carregar_regua()
     sistema, usuario = servico._pedido(
-        regua, a.origem, a.descricao, Documento.de_json(a.texto_json), a.prompt_versao
+        regua, a.origem, a.descricao, Documento.de_json(a.texto_json)
     )
     assert cobrado["usd"] == pytest.approx(
         veredito.estimar_custo_usd(sistema, usuario, a.modelo, 4)
@@ -397,9 +363,7 @@ def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, tet
     from src.avaliador.extracao import Documento
 
     doc = Documento.de_json(a.texto_json)
-    sistema, _ = servico._pedido(
-        servico.carregar_regua(), a.origem, a.descricao, doc, a.prompt_versao
-    )
+    sistema, _ = servico._pedido(servico.carregar_regua(), a.origem, a.descricao, doc)
     assert "Há canal, não há horário." in sistema  # página é documento: biblioteca 1
 
 

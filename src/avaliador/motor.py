@@ -1,17 +1,18 @@
-"""Motor do Avaliador — as chamadas ao modelo e as validações determinísticas em volta.
+"""Motor do Avaliador: o que é comum a toda leitura, em volta das chamadas ao modelo.
 
-Dois modos (``AVALIADOR_MODO``): ``ler`` faz UMA chamada para os 12 subpilares;
-``ler_por_pilar`` faz uma por pilar e uma para o resumo.
+A leitura em si (pedidos, etapas, vereditos) é ``veredito.py``. Aqui ficam: uso e custo
+(com a recusa de modelo sem preço), os blocos do pedido que vêm do Manual e das pistas,
+a peça no turno do usuário, a extração do JSON da resposta, a conferência literal de
+TODA citação no texto extraído (a que não existe nunca aparece como citação), o
+"sem travessão", a troca de "seção N" pelo título, e a chamada com uma nova tentativa e
+orçamento conferido antes de cada envio.
 
-Sem banco aqui: o serviço orquestra, persiste e cobra. O motor recebe um ``client``
-(Anthropic ou dublê de teste) e devolve resultado + uso.
+Fatia 4 (17/10): saiu daqui a geração do formato 1 (forte, falta e melhorar; limite de
+três por subpilar; vaga e promoção de forte; regra de coerência; chamada única e leitura
+por pilar com resumo). As leituras já gravadas nesse formato continuam abrindo: quem as
+mostra é ``servico.organizar`` e ``_avaliador_leitura_v1.html``, sem modelo.
 
-Pedido: [capítulo 2 do Manual + as duas regras + pistas da biblioteca da origem] no
-sistema; [o que é a peça e para que serve, dito pelo usuário] + [a peça] no turno.
-Resposta: um resumo e itens forte/falta/melhorar por subpilar, cada um com citação.
-
-O que é código, não prompt: subpilar e tipo de item válidos, e TODA citação conferida
-literalmente no texto extraído — a que não existe nunca aparece como citação.
+Sem banco aqui: o serviço orquestra, persiste e cobra.
 """
 
 from __future__ import annotations
@@ -20,9 +21,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from pathlib import Path
-from string import Template
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from src.api.painel import SUBPILARES_ORDEM
 from src.avaliador.extracao import Documento, conferir_trecho, nome_secao, referencia
@@ -30,16 +29,11 @@ from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSAO = "avaliador-v13"
-PROMPTS = Path(__file__).parent / "prompts"
 
-TIPOS_ITEM = ("forte", "falta", "melhorar")
-MAX_TOKENS = 8000
 TENTATIVAS = 2  # 1 + 1 nova tentativa quando a resposta não valida
 # Estimativa do gate de custo, antes de gastar. Medido em 13/10 na Office Total (português):
 # 24.370 caracteres viraram 7.896 tokens, 3,1 por token. 3 arredonda para o lado caro.
 _CHARS_POR_TOKEN = 3
-MAX_ITENS_POR_SUBPILAR = 3  # decisão do Alexandre (13/10): volume não é profundidade
 
 
 class RespostaInvalida(ValueError):
@@ -100,15 +94,6 @@ def _uso_de(resp: Any, modelo: str) -> Uso:
     )
 
 
-def estimar_custo_usd(sistema: str, usuario: str, modelo: str) -> float:
-    """Estimativa ANTES de gastar, para o gate do teto: a entrada inteira a preço cheio e a
-    saída no máximo, vezes as tentativas possíveis. Conservadora de propósito."""
-    p = _precos(modelo)
-    entrada = (len(sistema) + len(usuario)) // _CHARS_POR_TOKEN + 1
-    por_chamada = entrada * p["input"] + MAX_TOKENS * p["output"]
-    return por_chamada * TENTATIVAS / 1_000_000
-
-
 # ── pedido ────────────────────────────────────────────────────────────────
 
 
@@ -131,11 +116,6 @@ def _bloco_pistas(regua: Regua, origem: str) -> str:
         else:
             linhas.append("- (sem pistas para este subpilar: use só o Manual)")
     return "\n".join(linhas)
-
-
-def montar_sistema(regua: Regua, origem: str) -> str:
-    tpl = Template((PROMPTS / "sistema.md").read_text(encoding="utf-8"))
-    return tpl.substitute(manual=_bloco_manual(regua), pistas=_bloco_pistas(regua, origem))
 
 
 def montar_usuario(descricao: str, doc: Documento) -> str:
@@ -229,126 +209,10 @@ def sem_numero_de_secao(doc: Documento, texto: str) -> str:
     return _NUMERO_SECAO.sub(troca, texto)
 
 
-def _validar_itens(doc: Documento, brutos: Any, permitidos=None) -> List[dict]:
-    """``permitidos``: códigos aceitos nesta chamada (leitura por pilar); None = os 12."""
-    if not isinstance(brutos, list):
-        raise RespostaInvalida("'itens' não é lista")
-    itens = []
-    for it in brutos:
-        if not isinstance(it, dict):
-            raise RespostaInvalida("item não é objeto")
-        cod, tipo = it.get("subpilar"), it.get("tipo")
-        texto = sem_numero_de_secao(doc, sem_travessao((it.get("texto") or "").strip()))
-        if cod not in SUBPILARES_ORDEM:
-            raise RespostaInvalida(f"subpilar fora do modelo: {cod!r}")
-        if permitidos is not None and cod not in permitidos:
-            raise RespostaInvalida(f"subpilar {cod} fora do pilar pedido nesta leitura")
-        if tipo not in TIPOS_ITEM:
-            raise RespostaInvalida(f"tipo de item fora da lista: {tipo!r}")
-        if not texto:
-            raise RespostaInvalida(f"item de {cod} sem texto")
-        evid = _evidencias(doc, it.get("evidencias"))
-        alerta = None
-        # "forte" e "melhorar" afirmam que algo ESTÁ na peça: sem trecho conferido, o item
-        # fica com alerta visível (não é apagado nem reescrito).
-        if tipo in ("forte", "melhorar") and not any(e["conferido"] for e in evid):
-            alerta = "sem citação conferida na peça"
-        # Limite de três por subpilar SEM nova tentativa (decisão de 13/10): o pedido manda
-        # ordenar do que mais muda a peça para o que menos muda; do 4º em diante o item fica
-        # guardado como descartado (a tela conta, não exibe). Nunca some sem registro.
-        ja = sum(1 for x in itens if x["subpilar"] == cod)
-        itens.append(
-            {
-                "subpilar": cod,
-                "tipo": tipo,
-                "texto": texto,
-                "evidencias": evid,
-                "alerta": alerta,
-                "descartado": ja >= MAX_ITENS_POR_SUBPILAR,
-            }
-        )
-    return _forte_fica(itens)
-
-
-def _forte_fica(itens: List[dict]) -> List[dict]:
-    """O limite de três não pode tirar o único "forte" do subpilar (decisão de 14/10:
-    leituras 6, 7 e 11 com 0, 1 e 0 fortes; buraco sempre "muda mais" que acerto e o forte
-    perdia a vaga). Se o modelo mandou mais de três e o forte veio depois do terceiro, ele
-    fica com a vaga do último que não é forte. O pedido manda pôr o forte; isto é a garantia
-    para quando ele vem fora de ordem."""
-    for cod in {i["subpilar"] for i in itens}:
-        do_sub = [i for i in itens if i["subpilar"] == cod]
-        ficam = [i for i in do_sub if not i["descartado"]]
-        if any(i["tipo"] == "forte" for i in ficam):
-            continue
-        forte = next((i for i in do_sub if i["descartado"] and i["tipo"] == "forte"), None)
-        if forte is None:
-            continue
-        ficam[-1]["descartado"], forte["descartado"] = True, False
-    return itens
-
-
-def validos(itens: List[dict]) -> List[dict]:
-    """Os itens que contam: sem os descartados pelo limite de três."""
-    return [i for i in itens if not i.get("descartado")]
-
-
-def _validar_resumo(obj: dict) -> str:
-    resumo = sem_travessao((obj.get("resumo") or "").strip())
-    if not resumo:
-        raise RespostaInvalida("resposta sem resumo")
-    return resumo
-
-
-def validar_saida(doc: Documento, obj: dict) -> dict:
-    resumo = sem_numero_de_secao(doc, _validar_resumo(obj))
-    return {"resumo": resumo, "itens": _validar_itens(doc, obj.get("itens"))}
-
-
-def ler(client, modelo: str, sistema: str, usuario: str, doc: Documento) -> Tuple[dict, Uso]:
-    """A leitura, com UMA nova tentativa se a resposta não validar. Na segunda falha
-    levanta ``RespostaInvalida`` com o uso acumulado — o gasto conta mesmo na falha."""
-    total = Uso()
-    msg = usuario
-    ultimo = None
-    for _ in range(TENTATIVAS):
-        resp = client.messages.create(
-            model=modelo,
-            max_tokens=MAX_TOKENS,
-            system=sistema,
-            messages=[{"role": "user", "content": msg}],
-        )
-        total = total.somar(_uso_de(resp, modelo))
-        texto = "".join(
-            getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text"
-        )
-        try:
-            return validar_saida(doc, _extrair_json(texto)), total
-        except RespostaInvalida as e:
-            logger.warning(f"[avaliador] resposta recusada, nova tentativa: {e}")
-            ultimo = e
-            msg = (
-                usuario + f"\n\nATENÇÃO: a resposta anterior foi recusada ({e}). "
-                "Responda de novo, só com o JSON no formato pedido."
-            )
-    err = RespostaInvalida(str(ultimo))
-    err.uso = total  # type: ignore[attr-defined]
-    raise err
-
-
-# ── leitura por pilar ─────────────────────────────────────────────────────
-# Quatro chamadas (uma por pilar) e uma quinta só para o resumo. A peça e o pedido
-# comum ficam no cache do provedor: a partir da segunda chamada a entrada custa 10%.
-# Cada pilar recebe, no fim do pedido, os itens dos pilares anteriores, para não repetir.
-# Motivo (preview de 13/10): na chamada única o P3 saiu raso duas vezes e um item do Pa2
-# sumiu entre duas leituras da mesma peça.
-
-PROMPT_VERSAO_POR_PILAR = "avaliador-v14-pilar"
-MAX_TOKENS_PILAR = 3500
-MAX_TOKENS_RESUMO = 800
-# Folga de entrada para a instrução do pilar + os itens já apontados (no máximo 9 por
-# pilar, 3 por subpilar) que vão no fim de cada pedido.
-_FOLGA_SUFIXO = 20_000
+# ── chamada com orçamento ─────────────────────────────────────────────────
+# A peça e o pedido comum vão no cache do provedor: a partir da segunda chamada da
+# leitura, a entrada custa 10%. Uma leitura em várias chamadas nasceu em 13/10 (na chamada
+# única o P3 saiu raso duas vezes e um item do Pa2 sumiu entre duas leituras da mesma peça).
 
 
 class OrcamentoEsgotado(RuntimeError):
@@ -361,41 +225,6 @@ def _pior_caso_usd(modelo: str, entrada_chars: int, max_saida: int) -> float:
     p = _precos(modelo)
     entrada = entrada_chars // _CHARS_POR_TOKEN + 1
     return (entrada * p["cache_creation"] + max_saida * p["output"]) / 1_000_000
-
-
-def estimar_custo_por_pilar_usd(sistema: str, usuario: str, modelo: str, n_pilares: int) -> float:
-    """Para o gate do teto: as chamadas por pilar e a do resumo, sem nova tentativa (o
-    orçamento da leitura é que limita as tentativas)."""
-    base = len(sistema) + len(usuario) + _FOLGA_SUFIXO
-    return n_pilares * _pior_caso_usd(modelo, base, MAX_TOKENS_PILAR) + _pior_caso_usd(
-        modelo, base, MAX_TOKENS_RESUMO
-    )
-
-
-def _ja_apontado(itens: List[dict]) -> str:
-    if not itens:
-        return ""
-    linhas = "\n".join(f"- {i['subpilar']} ({i['tipo']}): {i['texto']}" for i in validos(itens))
-    return (
-        "\n\nJÁ APONTADO NOS PILARES ANTERIORES (não repita estes achados sob outro ângulo; "
-        f"se o achado é o mesmo, ele já está dito):\n{linhas}"
-    )
-
-
-def _instrucao_pilar(pilar) -> str:
-    codigos = [s.codigo for s in pilar.subpilares]
-    if "P1" in codigos:
-        contra = (
-            "- Procure na peça inteira trechos que prometem coisas diferentes entre si: "
-            "contradição interna é sempre P1 e, quando existe, está sempre entre os três "
-            "itens do P1."
-        )
-    else:
-        contra = "- Contradição interna da peça é do P1 e é lida em outro pedido: não a traga aqui."
-    tpl = Template((PROMPTS / "pilar.md").read_text(encoding="utf-8"))
-    return tpl.substitute(
-        titulo=pilar.titulo.replace(" — ", ", "), codigos=", ".join(codigos), contradicao=contra
-    )
 
 
 def _chamar(client, modelo, sistema, usuario, sufixo, max_tokens, validar, orc):
@@ -438,57 +267,3 @@ def _chamar(client, modelo, sistema, usuario, sufixo, max_tokens, validar, orc):
                 "Responda de novo, só com o JSON no formato pedido."
             )
     raise RespostaInvalida(str(ultimo))
-
-
-def ler_por_pilar(
-    client,
-    modelo: str,
-    regua: Regua,
-    sistema: str,
-    usuario: str,
-    doc: Documento,
-    orcamento_usd=None,
-) -> Tuple[dict, Uso]:
-    """Lê pilar por pilar e escreve o resumo por último. Falha num pilar levanta com o uso
-    acumulado em ``err.uso`` (o gasto conta mesmo na falha). Falha só no resumo devolve os
-    itens com ``resumo`` None e o motivo em ``resumo_falhou``."""
-    orc = {"total": Uso(), "limite": orcamento_usd}
-    itens: List[dict] = []
-    try:
-        for pilar in regua.pilares:
-            permitidos = {s.codigo for s in pilar.subpilares}
-            itens += _chamar(
-                client,
-                modelo,
-                sistema,
-                usuario,
-                _instrucao_pilar(pilar) + _ja_apontado(itens),
-                MAX_TOKENS_PILAR,
-                lambda obj, pm=permitidos: _validar_itens(doc, obj.get("itens"), pm),
-                orc,
-            )
-        para_resumo = json.dumps(
-            [
-                {"subpilar": i["subpilar"], "tipo": i["tipo"], "texto": i["texto"]}
-                for i in validos(itens)
-            ],
-            ensure_ascii=False,
-        )
-        sufixo = Template((PROMPTS / "resumo.md").read_text(encoding="utf-8")).substitute(
-            itens=para_resumo
-        )
-    except (RespostaInvalida, OrcamentoEsgotado) as e:
-        e.uso = orc["total"]  # type: ignore[attr-defined]
-        raise
-    # Falha SÓ no resumo não joga fora os pilares já pagos (decisão de 13/10): a leitura
-    # fica pronta sem resumo, e o motivo vai declarado em "resumo_falhou".
-    try:
-        resumo = _chamar(
-            client, modelo, sistema, usuario, sufixo, MAX_TOKENS_RESUMO, _validar_resumo, orc
-        )
-        resumo = sem_numero_de_secao(doc, resumo)
-        falhou = None
-    except (RespostaInvalida, OrcamentoEsgotado) as e:
-        logger.warning(f"[avaliador] resumo não gerado: {type(e).__name__}")
-        resumo, falhou = None, type(e).__name__
-    return {"resumo": resumo, "itens": itens, "resumo_falhou": falhou}, orc["total"]
