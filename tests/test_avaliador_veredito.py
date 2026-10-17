@@ -138,7 +138,13 @@ def test_seis_etapas_e_o_resultado_inteiro():
     assert res["situar"]["leitor"].startswith("Quem decide sozinho")
     assert res["achados"][0]["alerta"] is None  # achado de ausência não exige trecho
     assert res["contradicoes"] == []
-    assert res["cobertura"] == {"formato": "pdf", "unidades": 3, "sem_texto": [3], "com_notas": [2]}
+    assert res["cobertura"] == {
+        "formato": "pdf",
+        "unidades": 3,
+        "sem_texto": [3],
+        "com_notas": [2],
+        "com_rodape": False,
+    }
     assert res["lastro"] == {
         "ponto_de_partida": "P",
         "ordem": v.ordem_recomendacoes(res["doze"]),

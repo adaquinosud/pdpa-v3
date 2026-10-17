@@ -31,7 +31,7 @@
              placeholder="https://www.exemplo.com.br/servicos"
              oninput="var p=this.value.trim()!=='';document.querySelectorAll('#avaliador-aviso [data-aviso]').forEach(function(e){e.hidden=(e.dataset.aviso==='pagina')!==p;})"
              class="mt-1 w-full border border-loyall-300 rounded px-3 py-2 text-sm">
-      <span class="block text-xs text-loyall-400">Uma página por vez, não o site inteiro. Menu, rodapé e scripts ficam de fora.</span>
+      <span class="block text-xs text-loyall-400">Uma página por vez, não o site inteiro. Menu e scripts ficam de fora; o rodapé entra, porque é onde costumam estar telefone e e-mail.</span>
     </label>
     <textarea name="texto" rows="5" placeholder="Ou cole aqui o texto de uma conversa, e-mail ou mensagem."
               class="w-full border border-loyall-300 rounded px-3 py-2 text-sm">{{ form.texto or '' }}</textarea>

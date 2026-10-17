@@ -370,10 +370,11 @@ def test_pagina_da_web_mostra_o_endereco_lido_e_a_referencia(
     )
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert "Página lida:" in html and "https://exemplo.com.br/inicio" in html
-    assert "Só esta página foi lida, não o site inteiro." in html and "3 seções" in html
+    assert "Só esta página foi lida, não o site inteiro." in html and "4 seções" in html
     assert "seção “Como atendemos”: “responde em até quatro horas úteis”" in html
     assert "p. 2" not in html
-    assert "Lida só a página enviada (3 seções)" in html and "links não foram seguidos" in html
+    assert "Lida só a página enviada (4 seções, com o rodapé)" in html
+    assert "links não foram seguidos" in html
 
 
 def test_pagina_que_nao_pode_ser_lida_mostra_o_motivo_e_nao_cria(

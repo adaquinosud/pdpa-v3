@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.api.painel import NOME_PILAR, PILARES_ORDEM, SUBPILARES_ORDEM
 from src.avaliador import motor
-from src.avaliador.extracao import Documento
+from src.avaliador.extracao import RODAPE, Documento
 from src.avaliador.motor import (
     OrcamentoEsgotado,
     RespostaInvalida,
@@ -85,6 +85,7 @@ def cobertura(doc: Documento) -> Dict[str, Any]:
         "unidades": doc.n_paginas,
         "sem_texto": list(doc.paginas_sem_texto),
         "com_notas": [p.numero for p in doc.paginas if p.notas.strip()],
+        "com_rodape": doc.formato == "web" and any(p.titulo == RODAPE for p in doc.paginas),
     }
 
 
@@ -95,8 +96,9 @@ def declarar_cobertura(cob: Dict[str, Any]) -> List[str]:
     if fmt == "texto":
         frases.append("Lido o texto colado, inteiro.")
     elif fmt == "web":
+        rodape = ", com o rodapé" if cob.get("com_rodape") else ""
         frases.append(
-            f"Lida só a página enviada ({n} {'seção' if n == 1 else 'seções'}); "
+            f"Lida só a página enviada ({n} {'seção' if n == 1 else 'seções'}{rodape}); "
             "o resto do site não foi aberto e os links não foram seguidos."
         )
     elif fmt == "docx":

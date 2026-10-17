@@ -34,7 +34,9 @@ HTML = f"""<html><head><title>Loja Exemplo</title><script>var x = "SCRIPT-FORA";
 <p>{PARAGRAFO2}</p>
 <form><input value="FORM-FORA"><button>Enviar</button></form>
 </main>
-<footer>RODAPE-FORA Todos os direitos reservados</footer></body></html>"""
+<footer><nav><a href="/m">MENU-RODAPE-FORA</a></nav><p>Fale conosco: contato@exemplo.com.br</p>
+<p>Telefone (11) 4000-0000</p><form><input value="FORM-RODAPE-FORA"></form></footer>
+</body></html>"""
 
 
 # ── extração ───────────────────────────────────────────────────────────────
@@ -44,15 +46,18 @@ def test_extrai_por_secao_sem_menu_rodape_script_nem_formulario():
     doc = extrair_html(HTML.encode(), "https://exemplo.com.br/")
     tudo = doc.para_prompt()
     for fora in (
-        "SCRIPT-FORA", "MENU-FORA", "RODAPE-FORA", "OCULTO-FORA", "FORM-FORA", "Logo",
-        "PULAR-FORA", "COOKIE-FORA",
+        "SCRIPT-FORA", "MENU-FORA", "OCULTO-FORA", "FORM-FORA", "Logo",
+        "PULAR-FORA", "COOKIE-FORA", "MENU-RODAPE-FORA", "FORM-RODAPE-FORA",
     ):  # fmt: skip
         assert fora not in tudo, fora
     assert doc.formato == "web" and [p.titulo for p in doc.paginas] == [
         "",
         "Como atendemos",
         "Prazos",
+        "rodapé da página",  # 17/10: o rodapé entra, numa seção própria, por último
     ]
+    rodape = doc.paginas[-1].texto
+    assert "contato@exemplo.com.br" in rodape and "Telefone (11) 4000-0000" in rodape
     assert "=== SEÇÃO 1: abertura da página ===" in tudo
     assert "=== SEÇÃO 2: Como atendemos ===" in tudo
     # link e negrito no meio da frase não quebram a frase (a citação literal casa)
@@ -330,3 +335,24 @@ def test_falha_de_rede_vira_mensagem(publico):
 
     with pytest.raises(PaginaRecusada, match="demorou demais"):
         buscar("https://exemplo.com/", sessao=Quebra())
+
+
+def test_rodape_sem_main_e_rodape_de_artigo():
+    """Sem <main>, o rodapé do site não gruda na última seção; rodapé de artigo (autor,
+    data) fica onde está; a referência do rodapé não leva aspas (o título é nosso)."""
+    from src.avaliador.extracao import referencia
+
+    corpo = "Texto do corpo da página com informação suficiente para passar do mínimo. " * 6
+    html = f"""<html><body><h2>Serviços</h2><p>{corpo}</p>
+<article><p>Artigo.</p><footer>Por Fulana, em maio.</footer></article>
+<div role="contentinfo"><h4>Contato</h4><p>\uf0e0 WhatsApp (35) 99999-0000</p></div>
+</body></html>"""
+    doc = extrair_html(html.encode(), "https://exemplo.com.br/")
+    assert doc.paginas[-1].titulo == "rodapé da página"
+    # título dentro do rodapé não abre seção; ícone de fonte (uso privado) não é texto
+    assert doc.paginas[-1].texto == "Contato\nWhatsApp (35) 99999-0000"
+    assert [p.titulo for p in doc.paginas].count("Contato") == 0
+    assert "Por Fulana, em maio." in doc.paginas[-2].texto  # rodapé de artigo
+    assert referencia(doc, doc.paginas[-1].numero, "WhatsApp (35) 99999-0000") == (
+        "rodapé da página"
+    )

@@ -55,6 +55,9 @@ FORMATOS_ACEITOS = "PowerPoint (.pptx), Word (.docx) ou PDF"
 # parágrafo, nunca um número. Fonte única: motor, tela e prompt perguntam aqui.
 FORMATOS_POR_SECAO = frozenset({"web", "docx"})
 ABERTURA = {"web": "abertura da página", "docx": "abertura do documento"}
+# Título NOSSO da seção do rodapé do site (página da web). Como a abertura, não é texto do
+# documento: a referência o mostra sem aspas.
+RODAPE = "rodapé da página"
 # Linha de tabela (PowerPoint, Word) vira uma linha de texto com as células separadas por
 # isto. O separador é NOSSO, não existe no documento: a tela mostra a citação de linha de
 # tabela célula por célula (e linha por linha, quando o trecho junta duas linhas), para o
@@ -560,6 +563,8 @@ def nome_secao(doc: Documento, numero: int) -> str:
     pag = next((p for p in doc.paginas if p.numero == numero), None)
     if pag is None or not pag.titulo:
         return ""
+    if doc.formato == "web" and pag.titulo == RODAPE:
+        return RODAPE
     iguais = [p.numero for p in doc.paginas if p.titulo == pag.titulo]
     ordem = f" ({iguais.index(numero) + 1}ª)" if len(iguais) > 1 else ""
     return f"“{pag.titulo}”{ordem}"
@@ -572,6 +577,8 @@ def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
     pag = next((p for p in doc.paginas if p.numero == numero), None)
     if pag is None:
         return ""
+    if doc.formato == "web" and pag.titulo == RODAPE:
+        return RODAPE
     if pag.titulo:
         return f"seção {nome_secao(doc, pag.numero)}"
     alvo = _normalizar(trecho)

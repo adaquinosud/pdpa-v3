@@ -31,6 +31,7 @@ from src.avaliador.extracao import (
     LIMITE_CARACTERES,
     Documento,
     DocumentoRecusado,
+    RODAPE,
     Pagina,
     _nfc,
 )
@@ -40,7 +41,7 @@ TEMPO_CONEXAO_S = 5
 TEMPO_LEITURA_S = 10
 TEMPO_TOTAL_S = 20
 LIMITE_BYTES_HTML = 5 * 1024 * 1024
-# Página com menos que isto de texto (depois de tirar menu, rodapé e script) = "não
+# Página com menos que isto de texto (depois de tirar menu e script) = "não
 # consegui ler": é página montada por script, tela de login ou bloqueio. Critério na tela.
 MIN_CARACTERES_PAGINA_WEB = 300
 # O app se apresenta como é, nunca como navegador: quem usa a ferramenta nem sempre é o dono
@@ -66,10 +67,16 @@ _DENTRO_DE_TITULO_NAO = [
 ]  # fmt: skip
 _FORA = {
     "script", "style", "noscript", "template", "svg", "canvas", "iframe", "object",
-    "embed", "nav", "footer", "form", "button", "select", "input", "textarea", "dialog",
+    "embed", "nav", "form", "button", "select", "input", "textarea", "dialog",
 }  # fmt: skip
+# O rodapé do site ENTRA (17/10, exceção deliberada ao "extração fica como está"): é onde
+# moram telefone e e-mail em quase todo site, e é o que o D1 pergunta. Medido no site da
+# leitura de 17/10: sem o rodapé o D1 saiu "Não" e a página tinha e-mail e dois celulares
+# no rodapé; o rodapé somou +147 caracteres ali e +182 noutro site (cerca de 10%).
+# Vai numa seção própria, no fim (RODAPE), com o menu e o formulário de dentro dele fora.
+_PAPEIS_RODAPE = {"contentinfo"}
 _CLASSES_FORA = ("screen-reader", "sr-only", "visually-hidden", "skip-link", "cookie")
-_PAPEIS_FORA = {"navigation", "contentinfo", "banner", "search", "dialog", "alertdialog"}
+_PAPEIS_FORA = {"navigation", "banner", "search", "dialog", "alertdialog"}
 
 
 class PaginaRecusada(DocumentoRecusado):
@@ -212,8 +219,14 @@ def _ler_limitado(resp, inicio: float) -> bytes:
 # ── HTML → seções ─────────────────────────────────────────────────────────
 
 
+# Área de uso privado do Unicode: é onde fonte de ícone (Font Awesome, Elementor) põe o
+# desenho do envelope, do telefone etc. Não é texto: medido em 17/10, chegava ao pedido
+# como caractere solto ("\uf0e0") no rodapé de um site.
+_USO_PRIVADO = re.compile("[\ue000-\uf8ff]")
+
+
 def _espacos(s: str) -> str:
-    return re.sub(r"\s+", " ", s or "").strip()
+    return re.sub(r"\s+", " ", _USO_PRIVADO.sub("", s or "")).strip()
 
 
 def _fora(tag) -> bool:
@@ -234,8 +247,9 @@ def _fora(tag) -> bool:
 
 
 def extrair_html(html: bytes, endereco: str) -> Documento:
-    """Tira menu, rodapé, script e formulário e devolve uma seção por título (h1-h6).
-    O que vem antes do primeiro título é a seção de abertura (sem título)."""
+    """Tira menu, script e formulário e devolve uma seção por título (h1-h6). O que vem
+    antes do primeiro título é a seção de abertura (sem título); o rodapé do site vem por
+    último, numa seção própria (RODAPE)."""
     from bs4 import BeautifulSoup, NavigableString, Tag
     from bs4.element import Comment
 
@@ -243,6 +257,17 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
     for t in [t for t in sopa.find_all(True) if _fora(t)]:
         if not t.decomposed:
             t.decompose()
+    # rodapé do site: o de fora de outro rodapé e de fora de artigo (rodapé de artigo, com
+    # autor e data, fica onde está). Sai da árvore e é lido por último.
+    rodapes = [
+        t.extract()
+        for t in sopa.find_all(
+            lambda t: t.name == "footer" or (t.get("role") or "").lower() in _PAPEIS_RODAPE
+        )
+        if not t.find_parent("footer")
+        and not t.find_parent(attrs={"role": "contentinfo"})
+        and not t.find_parent("article")
+    ]
     raiz = sopa.find("main") or sopa.body or sopa
 
     secoes: List[Tuple[str, List[str]]] = [("", [])]
@@ -265,7 +290,9 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
                 partes.append(" ")
         return _espacos("".join(partes))
 
-    def andar(no):
+    def andar(no, titulos=True):
+        """``titulos=False`` (rodapé): título vira parágrafo, para o rodapé inteiro ficar
+        numa seção só ("E-mail", "Telefone" no rodapé não são seções da página)."""
         for filho in no.children:
             if isinstance(filho, Comment):
                 continue
@@ -274,11 +301,17 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
                 continue
             if not isinstance(filho, Tag):
                 continue
+            if filho.name in _TITULOS and not titulos:
+                fechar_linha()
+                t = texto_titulo(filho)
+                if t:
+                    secoes[-1][1].append(t)
+                continue
             if filho.name in _TITULOS and filho.find(_DENTRO_DE_TITULO_NAO) is not None:
                 # construtor de site (Elementor) embrulha bloco inteiro num título: é
                 # contêiner, não título; o título de verdade, se houver, está dentro
                 fechar_linha()
-                andar(filho)
+                andar(filho, titulos)
                 fechar_linha()
                 continue
             if filho.name in _TITULOS:
@@ -290,12 +323,16 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
             bloco = filho.name in _BLOCOS
             if bloco:
                 fechar_linha()
-            andar(filho)
+            andar(filho, titulos)
             if bloco:
                 fechar_linha()
 
     andar(raiz)
     fechar_linha()
+    for r in rodapes:
+        secoes.append((RODAPE, []))
+        andar(r, titulos=False)
+        fechar_linha()
 
     paginas: List[Pagina] = []
     for titulo, paragrafos in secoes:
@@ -307,7 +344,7 @@ def extrair_html(html: bytes, endereco: str) -> Documento:
     if total < MIN_CARACTERES_PAGINA_WEB:
         raise PaginaRecusada(
             f"Não consegui ler o texto desta página (menos de {MIN_CARACTERES_PAGINA_WEB} "
-            "caracteres depois de tirar menu e rodapé). Isso acontece quando a página é "
+            "caracteres depois de tirar menu e script). Isso acontece quando a página é "
             "montada por script ou pede login. " + SUGESTAO_PDF
         )
     if doc.total_caracteres > LIMITE_CARACTERES:

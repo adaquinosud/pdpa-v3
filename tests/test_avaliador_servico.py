@@ -392,7 +392,7 @@ def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, tet
     a = servico.criar_analise(
         db_session, empresa.id, None, DESCRICAO, url="exemplo.com.br", sessao_http=s
     )
-    assert a.origem == "pagina" and a.formato == "web" and a.n_paginas == 3
+    assert a.origem == "pagina" and a.formato == "web" and a.n_paginas == 4  # com o rodapé
     assert a.arquivo_nome == "https://exemplo.com.br/inicio"  # o que foi LIDO
     from src.avaliador.extracao import Documento
 
