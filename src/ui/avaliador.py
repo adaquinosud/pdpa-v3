@@ -25,6 +25,7 @@ from src.avaliador.extracao import (
     SEPARADOR_CELULA,
     DocumentoRecusado,
 )
+from src.avaliador.pagina_web import MAX_PAGINAS_WEB
 from src.avaliador.regua import carregar_regua
 from src.avaliador.servico import AvaliacaoRecusada
 from src.models.avaliador import (
@@ -67,6 +68,7 @@ def _painel(s, empresa_id: int, erro=None, analise_html=None, form=None):
         dias_retencao=servico.dias_retencao(),
         limite_mb=LIMITE_BYTES // (1024 * 1024),
         limite_caracteres=LIMITE_CARACTERES,
+        max_paginas_web=MAX_PAGINAS_WEB,
         erro=erro,
         analise_html=analise_html,
         form=form or {},

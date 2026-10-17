@@ -103,7 +103,7 @@ def test_aviso_le_a_mesma_constante_que_apaga(client_loyall, empresa, monkeypatc
         "Pelos termos comerciais da Anthropic, o conteúdo enviado é tratado como informação "
         "confidencial e não pode ser usado para treinar modelos." in html
     )
-    assert "O texto da página vai para um modelo externo da Anthropic para ser lido." in html
+    assert "O texto das páginas vai para um modelo externo da Anthropic para ser lido." in html
     assert "depois de 7 dias sem uso" in html
     assert "ficam só os trechos citados na leitura" in html
     assert "O que é esta peça e para que ela serve?" in html
@@ -387,8 +387,8 @@ def test_pagina_que_nao_pode_ser_lida_mostra_o_motivo_e_nao_cria(
 
     monkeypatch.setattr(pagina_web, "buscar", recusa)
     html = _enviar(client_loyall, empresa, dados=False, url="exemplo.com").get_data(as_text=True)
-    assert "A página pede senha. Salve como PDF." in html and 'value="exemplo.com"' in html
-    assert "O texto da página vai" in html  # o aviso fica na versão da página
+    assert "A página pede senha. Salve como PDF." in html and ">exemplo.com</textarea>" in html
+    assert "O texto das páginas vai" in html  # o aviso fica na versão da página
     assert db_session.query(AvaliadorAnalise).count() == 0
 
 
@@ -471,3 +471,27 @@ def test_formato_nao_reconhecido_e_declarado_sem_quebrar(client_loyall, db_sessi
     html = r.get_data(as_text=True)
     assert r.status_code == 200 and "formato que a tela não reconhece" in html
     assert ">Forte<" not in html
+
+
+def test_varias_paginas_numa_leitura_so(client_loyall, db_session, empresa, teto, monkeypatch):
+    from src.avaliador import pagina_web
+    from tests.test_avaliador_pagina_web import HTML
+
+    paginas = {
+        "exemplo.com.br": ("https://exemplo.com.br/", HTML),
+        "exemplo.com.br/prazos": ("https://exemplo.com.br/prazos", HTML.replace("Loja", "Prazo")),
+    }
+    monkeypatch.setattr(
+        pagina_web, "buscar", lambda url, sessao=None: (paginas[url][0], paginas[url][1].encode())
+    )
+    aid = _pronta(
+        client_loyall, db_session, empresa, dados=False, url="exemplo.com.br\nexemplo.com.br/prazos"
+    )
+    a = db_session.get(AvaliadorAnalise, aid)
+    assert a.arquivo_nome == "https://exemplo.com.br/\nhttps://exemplo.com.br/prazos"
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Páginas lidas juntas (2):" in html
+    assert "Só estas páginas foram lidas, não o site inteiro." in html
+    assert "Lidas juntas as 2 páginas enviadas" in html and "/, /prazos." in html
+    lista = html.split('id="avaliador-lista"', 1)[1]
+    assert "https://exemplo.com.br/ e mais 1 página" in lista

@@ -78,6 +78,9 @@ class Pagina:
     texto: str
     notas: str = ""
     titulo: str = ""  # página da web: o título da seção ("" = abertura da página)
+    # Página da web lida junto com outras (17/10): o endereço de onde a seção veio. Vazio
+    # em todo o resto (arquivo, texto colado, uma página só).
+    endereco: str = ""
 
     @property
     def sem_texto(self) -> bool:
@@ -108,6 +111,15 @@ class Documento:
         return ABERTURA.get(self.formato, "abertura")
 
     @property
+    def enderecos(self) -> List[str]:
+        """As páginas da web lidas juntas, na ordem em que foram enviadas."""
+        vistos: List[str] = []
+        for p in self.paginas:
+            if p.endereco and p.endereco not in vistos:
+                vistos.append(p.endereco)
+        return vistos
+
+    @property
     def paginas_sem_texto(self) -> List[int]:
         if self.por_secao:  # seção curta é seção curta, não slide-imagem
             return []
@@ -122,7 +134,13 @@ class Documento:
             {
                 "formato": self.formato,
                 "paginas": [
-                    {"n": p.numero, "texto": p.texto, "notas": p.notas, "titulo": p.titulo}
+                    {
+                        "n": p.numero,
+                        "texto": p.texto,
+                        "notas": p.notas,
+                        "titulo": p.titulo,
+                        "endereco": p.endereco,
+                    }
                     for p in self.paginas
                 ],
             },
@@ -135,7 +153,13 @@ class Documento:
         return cls(
             formato=d["formato"],
             paginas=[
-                Pagina(p["n"], p["texto"], p.get("notas", ""), p.get("titulo", ""))
+                Pagina(
+                    p["n"],
+                    p["texto"],
+                    p.get("notas", ""),
+                    p.get("titulo", ""),
+                    p.get("endereco", ""),
+                )
                 for p in d["paginas"]
             ],
         )
@@ -150,6 +174,8 @@ class Documento:
                 rotulo = "TEXTO COLADO"
             elif self.por_secao:
                 rotulo = f"SEÇÃO {p.numero}: {p.titulo or self.nome_abertura}"
+                if p.endereco:
+                    rotulo += f" (página {caminho(p.endereco)})"
             else:
                 rotulo = f"PÁGINA {p.numero}"
             bloco = f"=== {rotulo} ===\n{corpo}"
@@ -557,6 +583,14 @@ def documento_de_texto(texto: str) -> Documento:
     return Documento("texto", [Pagina(1, t)])
 
 
+def caminho(endereco: str) -> str:
+    """O que a tela e o pedido mostram de um endereço: o caminho ("/consultoria/"); a página
+    inicial é "/"."""
+    from urllib.parse import urlsplit
+
+    return urlsplit(endereco).path or "/"
+
+
 def nome_secao(doc: Documento, numero: int) -> str:
     """“Título” da seção; título que se repete no documento leva a ordem ("“Preços” (2ª)"),
     senão a citação não diz qual das duas. Sem título: "" (quem chama decide)."""
@@ -577,6 +611,10 @@ def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
     pag = next((p for p in doc.paginas if p.numero == numero), None)
     if pag is None:
         return ""
+    if pag.endereco:  # várias páginas lidas juntas: diz de qual
+        sem = Pagina(pag.numero, pag.texto, pag.notas, pag.titulo)
+        resto = referencia(Documento(doc.formato, [sem]), numero, trecho)
+        return f"página {caminho(pag.endereco)}, {resto}"
     if doc.formato == "web" and pag.titulo == RODAPE:
         return RODAPE
     if pag.titulo:

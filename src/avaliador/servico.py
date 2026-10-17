@@ -251,10 +251,11 @@ def criar_analise(
     elif entradas[1]:
         doc, origem, bruto = documento_de_texto(texto), ORIGEM_TEXTO, texto.encode("utf-8")
     else:
-        from src.avaliador.pagina_web import buscar, extrair_html
+        from src.avaliador.pagina_web import ler_paginas
 
-        nome, bruto = buscar(url, sessao=sessao_http)  # nome = o endereço que foi LIDO
-        doc, origem = extrair_html(bruto, nome), ORIGEM_PAGINA
+        # uma ou várias páginas, uma por linha; nome = os endereços que foram LIDOS
+        lidos, bruto, doc = ler_paginas(url, sessao=sessao_http)
+        nome, origem = "\n".join(lidos), ORIGEM_PAGINA
     regua = carregar_regua()
     versao = veredito.PROMPT_VERSAO
     sistema, usuario = _pedido(regua, origem, descricao, doc)
@@ -264,7 +265,7 @@ def criar_analise(
         usuario_id=usuario_id,
         origem=origem,
         descricao=descricao,
-        arquivo_nome=(nome or "")[: 2000 if origem == ORIGEM_PAGINA else 200] or None,
+        arquivo_nome=(nome or "")[: 22000 if origem == ORIGEM_PAGINA else 200] or None,
         conteudo_hash=hashlib.sha256(bruto).hexdigest(),
         formato=doc.formato,
         n_paginas=doc.n_paginas,

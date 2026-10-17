@@ -83,6 +83,72 @@ class PaginaRecusada(DocumentoRecusado):
     """Não deu para ler a página. A mensagem vai para a tela como está."""
 
 
+# Várias páginas como uma peça só (17/10): quem escolhe as páginas é o usuário; o app não
+# segue link nenhum sozinho.
+MAX_PAGINAS_WEB = 10
+
+
+def enderecos_enviados(texto: str) -> List[str]:
+    """Os endereços do campo, um por linha (ou separados por espaço), sem repetir."""
+    out: List[str] = []
+    for e in re.split(r"\s+", texto or ""):
+        if e and e not in out:
+            out.append(e)
+    return out
+
+
+def juntar(lidas: List[Tuple[str, Documento]]) -> Documento:
+    """As páginas lidas, uma depois da outra, numa peça só: cada seção sabe de qual
+    endereço veio, a numeração continua, e o rodapé que se repete igual em todas as
+    páginas entra uma vez só (senão a mesma linha de contato pesaria cinco vezes)."""
+    if len(lidas) == 1:
+        return lidas[0][1]
+    corpo: List[Tuple[str, Pagina]] = []
+    rodapes: List[Tuple[str, Pagina]] = []  # no fim, como numa página só; o igual, uma vez
+    for endereco, doc in lidas:
+        for p in doc.paginas:
+            if p.titulo != RODAPE:
+                corpo.append((endereco, p))
+            elif all(p.texto != r.texto for _, r in rodapes):
+                rodapes.append((endereco, p))
+    paginas = [
+        Pagina(n, p.texto, p.notas, p.titulo, endereco)
+        for n, (endereco, p) in enumerate(corpo + rodapes, start=1)
+    ]
+    doc = Documento("web", paginas)
+    if doc.total_caracteres > LIMITE_CARACTERES:
+        raise PaginaRecusada(
+            f"As páginas juntas têm texto demais para uma leitura ({doc.total_caracteres:,} "
+            f"caracteres; o limite é {LIMITE_CARACTERES:,}). Envie menos páginas.".replace(",", ".")
+        )
+    return doc
+
+
+def ler_paginas(texto: str, sessao=None) -> Tuple[List[str], bytes, Documento]:
+    """Busca e extrai cada endereço do campo e junta numa peça só. Devolve os endereços
+    LIDOS (depois de redirecionamento), os bytes juntos (para o hash) e o documento. Uma
+    página que não pode ser lida recusa o pedido inteiro, dizendo qual foi."""
+    enderecos = enderecos_enviados(texto)
+    if len(enderecos) > MAX_PAGINAS_WEB:
+        raise PaginaRecusada(
+            f"Até {MAX_PAGINAS_WEB} páginas por leitura; vieram {len(enderecos)}. "
+            "Escolha as que importam para esta peça."
+        )
+    lidas: List[Tuple[str, Documento]] = []
+    brutos: List[bytes] = []
+    for e in enderecos:
+        try:
+            lido, html = buscar(e, sessao=sessao)
+            doc = extrair_html(html, lido)
+        except PaginaRecusada as err:
+            if len(enderecos) == 1:
+                raise
+            raise PaginaRecusada(f"Na página {e}: {err}") from None
+        lidas.append((lido, doc))
+        brutos.append(html)
+    return [lido for lido, _ in lidas], b"\n".join(brutos), juntar(lidas)
+
+
 # ── endereço e rede ───────────────────────────────────────────────────────
 
 

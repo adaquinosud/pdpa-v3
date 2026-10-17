@@ -14,7 +14,7 @@
             hx-get="{{ url_for('ui.avaliador_analise', empresa_id=empresa_id, aid=x.id) }}"
             hx-target="#avaliador-analise-slot" hx-swap="innerHTML">
           <td class="py-1 pr-2 text-loyall-500">{{ x.criado_em | hora_br }}</td>
-          <td class="pr-2 text-loyall-700 break-all">{{ (x.arquivo_nome[:80] ~ ('…' if x.arquivo_nome | length > 80 else '')) if x.arquivo_nome else 'texto colado' }} <div class="text-xs text-loyall-400">{{ x.descricao[:80] }}</div></td>
+          <td class="pr-2 text-loyall-700 break-all">{% if x.arquivo_nome %}{% set nomes = x.arquivo_nome.split('\n') %}{{ nomes[0][:80] ~ ('…' if nomes[0] | length > 80 else '') }}{% if nomes | length > 1 %} e mais {{ nomes | length - 1 }} {{ 'página' if nomes | length == 2 else 'páginas' }}{% endif %}{% else %}texto colado{% endif %} <div class="text-xs text-loyall-400">{{ x.descricao[:80] }}</div></td>
           <td class="pr-2 text-loyall-600">{{ rotulo_status.get(x.status, x.status) }}</td>
           <td class="text-right text-loyall-600">US$ {{ x.custo_usd | virg(4) }}</td>
         </tr>

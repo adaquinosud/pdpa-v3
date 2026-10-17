@@ -9,8 +9,15 @@
   <div class="flex flex-wrap items-start justify-between gap-2">
     <div>
       {% if a.formato == 'web' %}
+      {% set enderecos = a.arquivo_nome.split('\n') if a.arquivo_nome else [] %}
+      {% if enderecos | length > 1 %}
+      <div class="text-sm font-semibold text-loyall-800">Páginas lidas juntas ({{ enderecos | length }}):</div>
+      {% for e in enderecos %}<div class="text-sm"><a href="{{ e }}" target="_blank" rel="noopener noreferrer nofollow" class="underline break-all">{{ e }}</a></div>{% endfor %}
+      <div class="text-xs text-loyall-400">Só estas páginas foram lidas, não o site inteiro.</div>
+      {% else %}
       <div class="text-sm font-semibold text-loyall-800">Página lida: <a href="{{ a.arquivo_nome }}" target="_blank" rel="noopener noreferrer nofollow" class="underline break-all">{{ a.arquivo_nome }}</a></div>
       <div class="text-xs text-loyall-400">Só esta página foi lida, não o site inteiro.</div>
+      {% endif %}
       {% else %}
       <div class="text-sm font-semibold text-loyall-800">{{ a.arquivo_nome or 'Texto colado' }}</div>
       {% endif %}

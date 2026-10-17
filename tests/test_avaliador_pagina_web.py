@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import socket
+from pathlib import Path
 
 import pytest
 
@@ -334,3 +335,83 @@ def test_rodape_sem_main_e_rodape_de_artigo():
     assert referencia(doc, doc.paginas[-1].numero, "WhatsApp (35) 99999-0000") == (
         "rodapé da página"
     )
+
+
+# ── várias páginas como uma peça só (17/10) ────────────────────────────────
+
+SITE_LOYALL = Path(__file__).parent / "dados" / "site_loyall"
+PAGINAS_LOYALL = [
+    ("home", "https://loyallcompany.com.br/"),
+    ("consultoria", "https://loyallcompany.com.br/consultoria/"),
+    ("parecer", "https://loyallcompany.com.br/parecer/"),
+    ("casos", "https://loyallcompany.com.br/casos/"),
+    ("sobre", "https://loyallcompany.com.br/sobre/"),
+]
+
+
+def _site_loyall():
+    return [
+        (url, extrair_html((SITE_LOYALL / f"{nome}.html").read_bytes(), url))
+        for nome, url in PAGINAS_LOYALL
+    ]
+
+
+def test_cinco_paginas_viram_uma_peca_com_o_rodape_uma_vez_no_fim():
+    from src.avaliador import veredito
+    from src.avaliador.extracao import referencia
+
+    doc = pagina_web.juntar(_site_loyall())
+    assert doc.enderecos == [url for _, url in PAGINAS_LOYALL]
+    assert [p.numero for p in doc.paginas] == list(range(1, doc.n_paginas + 1))
+    rodapes = [p for p in doc.paginas if p.titulo == "rodapé da página"]
+    assert len(rodapes) == 1 and rodapes[0] is doc.paginas[-1]  # cinco iguais, um no fim
+    assert "falecomagente@pdpa.com.br" in rodapes[0].texto
+    cob = veredito.declarar_cobertura(veredito.cobertura(doc))
+    assert cob[0] == (
+        f"Lidas juntas as 5 páginas enviadas ({doc.n_paginas} seções, com o rodapé uma vez): "
+        "/, /consultoria/, /parecer/, /casos/, /sobre/. O resto do site não foi aberto e os "
+        "links não foram seguidos."
+    )
+    # a citação e o pedido dizem de qual página a seção veio
+    p = next(p for p in doc.paginas if p.endereco.endswith("/sobre/") and p.titulo)
+    assert referencia(doc, p.numero, p.texto[-30:]).startswith("página /sobre/, seção “")
+    assert "(página /consultoria/) ===" in doc.para_prompt()
+
+
+def test_uma_pagina_so_continua_como_era():
+    doc = pagina_web.juntar(_site_loyall()[:1])
+    assert doc.enderecos == [] and "(página /" not in doc.para_prompt()
+
+
+def test_enderecos_um_por_linha_sem_repetir():
+    assert pagina_web.enderecos_enviados(" a.com\nb.com/x  a.com\n\n") == ["a.com", "b.com/x"]
+
+
+def test_varias_paginas_com_uma_que_falha_diz_qual(publico):
+    s = Sessao(
+        {
+            "https://exemplo.com.br": Resp(200, HTML.encode()),
+            "https://exemplo.com.br/fechada": Resp(401),
+        }
+    )
+    with pytest.raises(pagina_web.PaginaRecusada, match="Na página exemplo.com.br/fechada: "):
+        pagina_web.ler_paginas("exemplo.com.br\nexemplo.com.br/fechada", sessao=s)
+
+
+def test_mais_que_o_limite_de_paginas_e_recusado():
+    muitas = "\n".join(f"exemplo.com.br/{n}" for n in range(pagina_web.MAX_PAGINAS_WEB + 1))
+    with pytest.raises(pagina_web.PaginaRecusada, match="Até 10 páginas por leitura"):
+        pagina_web.ler_paginas(muitas)
+
+
+def test_ler_paginas_devolve_os_enderecos_lidos(publico):
+    s = Sessao(
+        {
+            "https://exemplo.com.br": Resp(301, headers={"Location": "/inicio"}),
+            "https://exemplo.com.br/inicio": Resp(200, HTML.encode()),
+            "https://exemplo.com.br/prazos": Resp(200, HTML.replace("Loja", "Prazo").encode()),
+        }
+    )
+    lidos, bruto, doc = pagina_web.ler_paginas("exemplo.com.br exemplo.com.br/prazos", sessao=s)
+    assert lidos == ["https://exemplo.com.br/inicio", "https://exemplo.com.br/prazos"]
+    assert doc.enderecos == lidos and bruto

@@ -144,6 +144,7 @@ def test_seis_etapas_e_o_resultado_inteiro():
         "sem_texto": [3],
         "com_notas": [2],
         "com_rodape": False,
+        "enderecos": [],
     }
     assert res["lastro"] == {
         "ponto_de_partida": "P",
