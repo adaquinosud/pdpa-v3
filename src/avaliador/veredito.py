@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date, datetime
 from pathlib import Path
 from string import Template
 from typing import Any, Dict, List, Optional, Tuple
@@ -49,15 +50,22 @@ from src.avaliador.motor import (
     sem_travessao,
 )
 from src.avaliador.regua import Regua
+from src.utils.fuso import para_brasilia
 
 logger = logging.getLogger(__name__)
 
 PROMPTS = Path(__file__).parent / "prompts"
-PROMPT_VERSAO = "avaliador-v23-veredito"
+PROMPT_VERSAO = "avaliador-v24-veredito"
 # Toda versão do formato 2 é lida pelo motor atual: leitura que estava na fila numa versão
 # anterior é processada com o pedido de hoje e passa a levar a versão de hoje.
 VERSOES = frozenset(
-    {"avaliador-v20-veredito", "avaliador-v21-veredito", "avaliador-v22-veredito", PROMPT_VERSAO}
+    {
+        "avaliador-v20-veredito",
+        "avaliador-v21-veredito",
+        "avaliador-v22-veredito",
+        "avaliador-v23-veredito",
+        PROMPT_VERSAO,
+    }
 )
 FORMATO = 2
 
@@ -251,8 +259,14 @@ def _texto_vereditos(regua: Regua, doze: List[dict]) -> str:
     return "\n".join(linhas)
 
 
-def instrucao_achados(regua: Regua, doze: List[dict]) -> str:
-    return _tpl("veredito_achados.md").substitute(vereditos=_texto_vereditos(regua, doze))
+def instrucao_achados(regua: Regua, doze: List[dict], hoje: Optional[date] = None) -> str:
+    """v24 (17/10): leva a data de hoje, em Brasília. Sem ela, um achado da v23 chamou de
+    "data futura" um caso de setembro de 2026 lido em outubro de 2026. Só nesta etapa: as
+    que dão veredito não mudam."""
+    hoje = hoje or para_brasilia(datetime.utcnow()).date()
+    return _tpl("veredito_achados.md").substitute(
+        vereditos=_texto_vereditos(regua, doze), hoje=hoje.strftime("%d/%m/%Y")
+    )
 
 
 def instrucao_lastro(regua: Regua, doze: List[dict]) -> str:

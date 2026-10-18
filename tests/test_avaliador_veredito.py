@@ -167,6 +167,20 @@ def test_etapas_que_julgam_em_temperatura_zero_e_as_que_escrevem_no_padrao():
     ]  # fmt: skip
 
 
+def test_so_o_pedido_dos_achados_leva_a_data_de_hoje():
+    from datetime import date
+
+    regua = carregar_regua()
+    doze = _ler(Roteiro())[0]["doze"]
+    achados = v.instrucao_achados(regua, doze, hoje=date(2026, 10, 17))
+    assert "Hoje é 17/10/2026. Uma data da peça anterior a hoje já passou" in achados
+    assert "Hoje é " in v.instrucao_achados(regua, doze)  # sem data passada: a de hoje
+    cli = Roteiro()
+    _ler(cli)
+    sem_data = [c["_etapa"] for c in cli.chamadas if "Hoje é " not in str(c["messages"])]
+    assert sem_data == ["situar", "P", "D", "Pa", "A", "lastro"]
+
+
 def test_o_pedido_leva_cobertura_situada_e_calculo_e_nao_leva_o_formato_antigo():
     cli = Roteiro(situar=_situar(achados=[{"texto": "Falta quem assina.", "evidencias": []}]))
     _ler(cli)
