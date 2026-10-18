@@ -53,10 +53,12 @@ from src.avaliador.regua import Regua
 logger = logging.getLogger(__name__)
 
 PROMPTS = Path(__file__).parent / "prompts"
-PROMPT_VERSAO = "avaliador-v22-veredito"
+PROMPT_VERSAO = "avaliador-v23-veredito"
 # Toda versão do formato 2 é lida pelo motor atual: leitura que estava na fila numa versão
 # anterior é processada com o pedido de hoje e passa a levar a versão de hoje.
-VERSOES = frozenset({"avaliador-v20-veredito", "avaliador-v21-veredito", PROMPT_VERSAO})
+VERSOES = frozenset(
+    {"avaliador-v20-veredito", "avaliador-v21-veredito", "avaliador-v22-veredito", PROMPT_VERSAO}
+)
 FORMATO = 2
 
 SIM, PARCIAL, NAO = "sim", "parcial", "nao"
@@ -66,6 +68,11 @@ MAX_TOKENS_SITUAR = 800
 MAX_TOKENS_PILAR = 3500
 MAX_TOKENS_ACHADOS = 2500
 MAX_TOKENS_LASTRO = 800
+# v23 (17/10): as etapas que JULGAM (situar e os quatro pilares) rodam em temperatura 0. Na
+# v22, sem temperatura (padrão 1,0), três leituras da mesma peça no mesmo código mudaram
+# de 2 a 5 dos doze vereditos. As etapas que ESCREVEM (achados e o texto do Lastro) ficam
+# no padrão: os achados vinham variados, e veredito nenhum sai delas.
+TEMPERATURA_JULGAR = 0.0
 # Folga de entrada para o que vai no fim de cada pedido: a cobertura, o que a etapa 1
 # situou (achados e contradições inclusive) e, na última, os doze vereditos.
 _FOLGA_SUFIXO = 20_000
@@ -424,6 +431,7 @@ def ler(
             MAX_TOKENS_SITUAR,
             lambda obj: validar_situar(doc, obj),
             orc,
+            TEMPERATURA_JULGAR,
         )
         for pilar in regua.pilares:
             codigos = [s.codigo for s in pilar.subpilares]
@@ -436,6 +444,7 @@ def ler(
                 MAX_TOKENS_PILAR,
                 lambda obj, cs=codigos: validar_vereditos(doc, obj, cs),
                 orc,
+                TEMPERATURA_JULGAR,
             )
         achados = _chamar(
             client,

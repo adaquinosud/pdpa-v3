@@ -155,6 +155,18 @@ def test_seis_etapas_e_o_resultado_inteiro():
     json.loads(v.para_gravar(res))  # grava como JSON
 
 
+def test_etapas_que_julgam_em_temperatura_zero_e_as_que_escrevem_no_padrao():
+    # a nova tentativa de um pilar recusado também vai em temperatura 0
+    estraga = {"D": lambda n, r: {"vereditos": []} if n == 0 else r}
+    cli = Roteiro(por_etapa=estraga)
+    _ler(cli)
+    temp = [(c["_etapa"], c.get("temperature", "padrão")) for c in cli.chamadas]
+    assert temp == [
+        ("situar", 0.0), ("P", 0.0), ("D", 0.0), ("D", 0.0), ("Pa", 0.0), ("A", 0.0),
+        ("achados", "padrão"), ("lastro", "padrão"),
+    ]  # fmt: skip
+
+
 def test_o_pedido_leva_cobertura_situada_e_calculo_e_nao_leva_o_formato_antigo():
     cli = Roteiro(situar=_situar(achados=[{"texto": "Falta quem assina.", "evidencias": []}]))
     _ler(cli)

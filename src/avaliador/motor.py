@@ -227,9 +227,11 @@ def _pior_caso_usd(modelo: str, entrada_chars: int, max_saida: int) -> float:
     return (entrada * p["cache_creation"] + max_saida * p["output"]) / 1_000_000
 
 
-def _chamar(client, modelo, sistema, usuario, sufixo, max_tokens, validar, orc):
+def _chamar(client, modelo, sistema, usuario, sufixo, max_tokens, validar, orc, temperatura=None):
     """Uma chamada com uma nova tentativa, conferindo o orçamento ANTES de cada envio.
-    ``orc``: dict com 'total' (Uso acumulado) e 'limite' (US$ ou None)."""
+    ``orc``: dict com 'total' (Uso acumulado) e 'limite' (US$ ou None). ``temperatura``:
+    None = o padrão da API (1,0)."""
+    extra = {} if temperatura is None else {"temperature": temperatura}
     msg_sufixo = sufixo
     ultimo = None
     for _ in range(TENTATIVAS):
@@ -243,6 +245,7 @@ def _chamar(client, modelo, sistema, usuario, sufixo, max_tokens, validar, orc):
             model=modelo,
             max_tokens=max_tokens,
             system=sistema,
+            **extra,
             messages=[
                 {
                     "role": "user",
