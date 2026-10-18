@@ -108,6 +108,11 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
             if formato == servico.FORMATO_VEREDITO
             else None
         ),
+        marcas=(
+            servico.organizar_marcas(carregar_regua(), a)
+            if formato == servico.FORMATO_MARCAS and a.status == STATUS_PRONTA
+            else None
+        ),
         rotulo_veredito=ROTULO_VEREDITO,
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
         por_secao=a.formato in FORMATOS_POR_SECAO,
@@ -145,7 +150,8 @@ def avaliador_novo(empresa_id: int):
     texto = request.form.get("texto", "")
     url = request.form.get("url", "")
     arquivo = request.files.get("arquivo")
-    form = {"descricao": descricao, "texto": texto, "url": url}
+    cliente = request.form.get("cliente_nomeado", "")
+    form = {"descricao": descricao, "texto": texto, "url": url, "cliente_nomeado": cliente}
     with db_session() as s:
         if (request.content_length or 0) > LIMITE_BYTES + 1024 * 1024:
             return _painel(
@@ -165,6 +171,7 @@ def avaliador_novo(empresa_id: int):
                 dados=dados,
                 texto=texto if not dados else None,
                 url=url if not dados else None,
+                cliente_nomeado={"sim": True, "nao": False}.get(cliente),
             )
         except (DocumentoRecusado, AvaliacaoRecusada) as e:
             return _painel(s, empresa_id, erro=str(e), form=form)

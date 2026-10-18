@@ -39,8 +39,17 @@ def _url(e, sufixo=""):
     return f"/empresas/{e.id}/explorar/avaliador{sufixo}"
 
 
-def _enviar(client, e, dados=None, nome="proposta.pptx", texto="", descricao=DESCRICAO, url=""):
-    data = {"descricao": descricao, "texto": texto, "url": url}
+def _enviar(
+    client,
+    e,
+    dados=None,
+    nome="proposta.pptx",
+    texto="",
+    descricao=DESCRICAO,
+    url="",
+    cliente="nao",
+):
+    data = {"descricao": descricao, "texto": texto, "url": url, "cliente_nomeado": cliente}
     if dados is not False:
         data["arquivo"] = (io.BytesIO(dados or _pptx()), nome)
     return client.post(_url(e), data=data, content_type="multipart/form-data")

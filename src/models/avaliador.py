@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -56,6 +56,9 @@ class AvaliadorAnalise(Base):
 
     origem: Mapped[str] = mapped_column(String(8), nullable=False)  # arquivo | texto
     descricao: Mapped[str] = mapped_column(Text, nullable=False)  # o que é e para que serve
+    # A peça foi feita para um cliente com nome? Respondido no formulário (18/10); NULL nas
+    # leituras de antes. Só agrupa as marcas na tela, não muda o que é conferido.
+    cliente_nomeado: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     arquivo_nome: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     conteudo_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     formato: Mapped[str] = mapped_column(String(8), nullable=False)  # pptx | pdf | texto

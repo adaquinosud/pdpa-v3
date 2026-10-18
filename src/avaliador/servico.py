@@ -28,12 +28,13 @@ from typing import Dict, List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.api.painel import NOME_PILAR
+from src.api.painel import NOME_PILAR, SUBPILARES_ORDEM
 from src.avaliador import motor, veredito
 from src.avaliador.extracao import Documento, documento_de_texto, extrair
 from src.avaliador.regua import (
     ORIGEM_ARQUIVO,
     ORIGEM_PAGINA,
+    GRUPO_FORA,
     ORIGEM_TEXTO,
     Regua,
     carregar_regua,
@@ -123,21 +124,25 @@ def _estimativa(regua: Regua, sistema: str, usuario: str, modelo: str) -> float:
 # para cada um; a leitura gravada nunca é convertida.
 FORMATO_ITENS = 1
 FORMATO_VEREDITO = 2
+# Formato 3 (balizador de marcas, 18/10): OBJETO com "formato": 3. Cada marca do capítulo
+# de marcas do Manual com "esta" e as evidências; achados e contradições como no 2. A
+# tela já o lê; o motor que o grava é a fatia seguinte.
+FORMATO_MARCAS = 3
 # O formato que o motor grava hoje. Leitura pronta em formato diferente deste ganha o
 # aviso de "formato anterior" na tela.
 FORMATO_ATUAL = FORMATO_VEREDITO
 
 
 def formato_da_leitura(a: AvaliadorAnalise) -> Optional[int]:
-    """1, 2 ou None quando o gravado não é nenhum dos dois (a tela declara, não quebra)."""
+    """1, 2, 3 ou None quando o gravado não é nenhum deles (a tela declara, não quebra)."""
     try:
         gravado = json.loads(a.itens_json or "[]")
     except json.JSONDecodeError:
         return None
     if isinstance(gravado, list):
         return FORMATO_ITENS
-    if isinstance(gravado, dict) and gravado.get("formato") == FORMATO_VEREDITO:
-        return FORMATO_VEREDITO
+    if isinstance(gravado, dict) and gravado.get("formato") in (FORMATO_VEREDITO, FORMATO_MARCAS):
+        return gravado["formato"]
     return None
 
 
@@ -223,6 +228,68 @@ def organizar_veredito(regua: Regua, a: AvaliadorAnalise) -> dict:
     }
 
 
+# Estado de uma marca na tela. "esta" só com trecho achado na peça: a leitura que diz que
+# está e não traz trecho conferido não vira presença (citação não conferida nunca aparece
+# como citação).
+MARCA_ESTA, MARCA_SEM_CONFERENCIA, MARCA_NAO_ESTA = "esta", "sem_conferencia", "nao_esta"
+
+
+def _estado_marca(m: dict) -> str:
+    if not m.get("esta"):
+        return MARCA_NAO_ESTA
+    if any(e.get("conferido") for e in m.get("evidencias", [])):
+        return MARCA_ESTA
+    return MARCA_SEM_CONFERENCIA
+
+
+def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
+    """O que a tela mostra de uma leitura no formato 3. Na ordem do Manual, sem contagem,
+    percentual nem ordem entre subpilares (decisão de 18/10). Peça SEM cliente com nome: as
+    marcas que só se esperam com cliente nomeado saem dos subpilares e vão para um grupo à
+    parte, conferidas do mesmo jeito. Sem a resposta (NULL), nada é separado.
+
+    O texto da marca é o GRAVADO na leitura (a pergunta a que ela respondeu); o "porque
+    importa" e a exceção vêm da régua de hoje. Marca que saiu do Manual depois da leitura
+    continua aparecendo, com o texto gravado, no grupo gravado."""
+    g = json.loads(a.itens_json)
+    da_regua = {m.codigo: m for m in regua.marcas}
+    separa = a.cliente_nomeado is False
+    linhas, a_parte = [], []
+    for m in g["marcas"]:
+        r = da_regua.get(m["codigo"])
+        linha = {
+            **m,
+            "estado": _estado_marca(m),
+            "porque_importa": r.porque_importa if r else "",
+            "subpilar": regua.subpilar(m["grupo"]) if m["grupo"] in SUBPILARES_ORDEM else None,
+        }
+        (a_parte if separa and r and r.so_cliente_nomeado else linhas).append(linha)
+    pergunta = {x["codigo"]: x["pergunta"] for x in (regua.marcas_cap or {}).get("pilares", [])}
+    pilares = [
+        {
+            "pilar": p,
+            "pergunta": pergunta.get(p.codigo, ""),
+            "subpilares": [
+                {"subpilar": s, "marcas": [x for x in linhas if x["grupo"] == s.codigo]}
+                for s in p.subpilares
+            ],
+        }
+        for p in regua.pilares
+    ]
+    return {
+        "cobertura": veredito.declarar_cobertura(g["cobertura"]),
+        "cliente_nomeado": a.cliente_nomeado,
+        "achados": g["achados"],
+        "contradicoes": g["contradicoes"],
+        "pilares": pilares,
+        "fora_dos_doze": {
+            **(regua.marcas_cap or {}).get("fora_dos_doze", {}),
+            "marcas": [x for x in linhas if x["grupo"] == GRUPO_FORA],
+        },
+        "a_parte": a_parte,
+    }
+
+
 # ── criação e ações da pessoa ─────────────────────────────────────────────
 
 
@@ -244,12 +311,16 @@ def criar_analise(
     texto: Optional[str] = None,
     url: Optional[str] = None,
     sessao_http=None,
+    cliente_nomeado: Optional[bool] = None,
 ) -> AvaliadorAnalise:
     """Arquivo (``dados``), texto colado (``texto``) OU endereço de página (``url``), um
     só. Extrai (a página é buscada AGORA, na requisição, para o erro aparecer na hora),
     cobra o teto e grava PENDENTE. Levanta ``DocumentoRecusado`` (inclui
-    ``PaginaRecusada``) ou ``AvaliacaoRecusada`` antes de gastar."""
+    ``PaginaRecusada``) ou ``AvaliacaoRecusada`` antes de gastar. ``cliente_nomeado`` é
+    obrigatório (18/10): a peça foi feita para um cliente com nome?"""
     descricao = _descricao(descricao)
+    if cliente_nomeado is None:
+        raise AvaliacaoRecusada("Diga se a peça foi feita para um cliente com nome.")
     entradas = [bool(dados), bool((texto or "").strip()), bool((url or "").strip())]
     if sum(entradas) != 1:
         raise AvaliacaoRecusada(
@@ -276,6 +347,7 @@ def criar_analise(
         usuario_id=usuario_id,
         origem=origem,
         descricao=descricao,
+        cliente_nomeado=cliente_nomeado,
         arquivo_nome=(nome or "")[: 22000 if origem == ORIGEM_PAGINA else 200] or None,
         conteudo_hash=hashlib.sha256(bruto).hexdigest(),
         formato=doc.formato,

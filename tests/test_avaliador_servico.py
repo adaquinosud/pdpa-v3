@@ -152,6 +152,7 @@ def teto(monkeypatch):
 def _criar(db_session, empresa, **kw):
     if not kw:
         kw = {"nome": "proposta.pptx", "dados": _pptx()}
+    kw.setdefault("cliente_nomeado", False)
     a = servico.criar_analise(db_session, empresa.id, None, DESCRICAO, **kw)
     db_session.commit()
     return a.id
@@ -165,24 +166,36 @@ def _rodar(db_session, aid, cli):
 
 def test_teto_zero_desliga_antes_de_gravar(db_session, empresa):
     with pytest.raises(AvaliacaoRecusada, match="desligado"):
-        servico.criar_analise(db_session, empresa.id, None, DESCRICAO, dados=_pptx())
+        servico.criar_analise(
+            db_session, empresa.id, None, DESCRICAO, cliente_nomeado=False, dados=_pptx()
+        )
     assert db_session.query(AvaliadorAnalise).count() == 0
 
 
 def test_teto_estourado_recusa(db_session, empresa, monkeypatch):
     config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=0.0001)
     with pytest.raises(AvaliacaoRecusada, match="passaria do teto"):
-        servico.criar_analise(db_session, empresa.id, None, DESCRICAO, dados=_pptx())
+        servico.criar_analise(
+            db_session, empresa.id, None, DESCRICAO, cliente_nomeado=False, dados=_pptx()
+        )
 
 
 def test_descricao_e_uma_entrada_sao_obrigatorias(db_session, empresa, teto):
     with pytest.raises(AvaliacaoRecusada, match="o que é a peça"):
-        servico.criar_analise(db_session, empresa.id, None, "  ", dados=_pptx())
+        servico.criar_analise(
+            db_session, empresa.id, None, "  ", cliente_nomeado=False, dados=_pptx()
+        )
     with pytest.raises(AvaliacaoRecusada, match="um só"):
-        servico.criar_analise(db_session, empresa.id, None, DESCRICAO)
+        servico.criar_analise(db_session, empresa.id, None, DESCRICAO, cliente_nomeado=False)
     with pytest.raises(AvaliacaoRecusada, match="um só"):
         servico.criar_analise(
-            db_session, empresa.id, None, DESCRICAO, dados=_pptx(), texto="x" * 50
+            db_session,
+            empresa.id,
+            None,
+            DESCRICAO,
+            cliente_nomeado=False,
+            dados=_pptx(),
+            texto="x" * 50,
         )
 
 
@@ -356,7 +369,13 @@ def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, tet
         }
     )
     a = servico.criar_analise(
-        db_session, empresa.id, None, DESCRICAO, url="exemplo.com.br", sessao_http=s
+        db_session,
+        empresa.id,
+        None,
+        DESCRICAO,
+        cliente_nomeado=False,
+        url="exemplo.com.br",
+        sessao_http=s,
     )
     assert a.origem == "pagina" and a.formato == "web" and a.n_paginas == 4  # com o rodapé
     assert a.arquivo_nome == "https://exemplo.com.br/inicio"  # o que foi LIDO
@@ -370,7 +389,13 @@ def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, tet
 def test_duas_entradas_ao_mesmo_tempo_sao_recusadas(db_session, empresa, teto):
     with pytest.raises(AvaliacaoRecusada, match="um só"):
         servico.criar_analise(
-            db_session, empresa.id, None, DESCRICAO, texto="Cliente: oi", url="exemplo.com"
+            db_session,
+            empresa.id,
+            None,
+            DESCRICAO,
+            cliente_nomeado=False,
+            texto="Cliente: oi",
+            url="exemplo.com",
         )
 
 

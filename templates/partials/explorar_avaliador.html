@@ -21,6 +21,11 @@
              placeholder="Ex.: proposta comercial para renovar o contrato de um cliente de TI"
              class="mt-1 w-full border border-loyall-300 rounded px-3 py-2 text-sm">
     </label>
+    <fieldset class="text-sm text-loyall-700">
+      <legend>A peça foi feita para um cliente com nome?</legend>
+      <label class="mr-4"><input type="radio" name="cliente_nomeado" value="sim" required{% if form.cliente_nomeado == 'sim' %} checked{% endif %}> Sim, para um cliente com nome</label>
+      <label><input type="radio" name="cliente_nomeado" value="nao" required{% if form.cliente_nomeado == 'nao' %} checked{% endif %}> Não, é peça sem cliente com nome (site, material geral)</label>
+    </fieldset>
     <div class="flex flex-wrap items-center gap-2">
       <input type="file" name="arquivo" accept=".pptx,.docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
              class="text-sm text-loyall-700">
