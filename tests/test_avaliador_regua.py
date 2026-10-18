@@ -19,7 +19,7 @@ from src.avaliador.regua import (
     validar,
 )
 
-DOCX = Path("data/PDPA_Manual_Operacao_v3.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v11.docx")
 
 
 def _crus():
