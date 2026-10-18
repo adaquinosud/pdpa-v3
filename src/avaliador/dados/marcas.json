@@ -1,0 +1,645 @@
+{
+  "fonte": "PDPA_Manual_Operacao_v11.docx, capítulo 17",
+  "titulo": "17. Marcas de leitura de documento",
+  "abertura": [
+    "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas do modelo, na voz do cliente; aqui está o que um documento mostra por escrito sobre cada subpilar.",
+    "Cada marca é uma pergunta de presença: a peça diz aquilo, com um trecho que se pode citar, ou não diz. Nenhuma marca pede avaliação de qualidade. Um mesmo trecho da peça pode responder a mais de uma marca."
+  ],
+  "pilares": [
+    {
+      "codigo": "P",
+      "titulo": "Pilar 1 — PRECISÃO",
+      "pergunta": "Apresenta a promessa da empresa ao cliente?"
+    },
+    {
+      "codigo": "D",
+      "titulo": "Pilar 2 — DISPONIBILIDADE",
+      "pergunta": "Apresenta como o cliente acessa a empresa?"
+    },
+    {
+      "codigo": "Pa",
+      "titulo": "Pilar 3 — PARCERIA",
+      "pergunta": "Apresenta como o vínculo entre empresa e cliente será construído?"
+    },
+    {
+      "codigo": "A",
+      "titulo": "Pilar 4 — ACONSELHAMENTO",
+      "pergunta": "Apresenta como a empresa aconselha o cliente?"
+    }
+  ],
+  "fora_dos_doze": {
+    "titulo": "O que dá para conferir na peça",
+    "descricao": "Marcas fora dos doze subpilares: dizem se quem lê consegue conferir o que a peça afirma."
+  },
+  "marcas": [
+    {
+      "codigo": "P1.01",
+      "grupo": "P1",
+      "texto": "Diz o que será entregue, item por item?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.02",
+      "grupo": "P1",
+      "texto": "Diz o que não será entregue?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.03",
+      "grupo": "P1",
+      "texto": "Diz como será entregue e em que prazo?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.04",
+      "grupo": "P1",
+      "texto": "Diz o que o cliente precisa fornecer, e quando?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.05",
+      "grupo": "P1",
+      "texto": "Diz o cronograma com data ou número de semanas por etapa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.06",
+      "grupo": "P1",
+      "texto": "Diz quantas horas e quantas pessoas do cliente serão necessárias?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.07",
+      "grupo": "P1",
+      "texto": "Diz quem assina o compromisso?",
+      "so_cliente_nomeado": true,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.08",
+      "grupo": "P1",
+      "texto": "Diz quem executa o trabalho?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.09",
+      "grupo": "P1",
+      "texto": "Traz formação, certificação ou credencial de quem executa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.10",
+      "grupo": "P1",
+      "texto": "Diz o que é responsabilidade da empresa e o que é responsabilidade do cliente?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P1.11",
+      "grupo": "P1",
+      "texto": "Diz como pedidos de mudança de escopo são tratados?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.01",
+      "grupo": "P2",
+      "texto": "Diz quando a entrega será reconhecida como pronta?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.02",
+      "grupo": "P2",
+      "texto": "Diz qual padrão, protocolo ou referência ela segue?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.03",
+      "grupo": "P2",
+      "texto": "Diz quais critérios a entrega precisa atender?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.04",
+      "grupo": "P2",
+      "texto": "Diz o que acontece se não atender esses critérios?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.05",
+      "grupo": "P2",
+      "texto": "Diz que metodologia é empregada para assegurar que o produto será entregue?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.06",
+      "grupo": "P2",
+      "texto": "Diz por quanto tempo vale a garantia, em dias, meses ou anos?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.07",
+      "grupo": "P2",
+      "texto": "Diz qual penalidade a própria empresa sofre se atrasar ou falhar?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P2.08",
+      "grupo": "P2",
+      "texto": "Diz o que será feito com os dados do cliente, e sob qual regra?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P3.01",
+      "grupo": "P3",
+      "texto": "Diz o que garante que a segunda entrega sai igual à primeira?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P3.02",
+      "grupo": "P3",
+      "texto": "Diz como a entrega é medida ao longo do tempo?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P3.03",
+      "grupo": "P3",
+      "texto": "Diz o que acontece se mudar quem executa, na empresa ou no cliente?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "P3.04",
+      "grupo": "P3",
+      "texto": "Diz o que acontece se o tamanho ou o volume do trabalho mudar?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.01",
+      "grupo": "D1",
+      "texto": "Diz por onde se fala com a empresa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.02",
+      "grupo": "D1",
+      "texto": "Diz em quanto tempo a empresa responde?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.03",
+      "grupo": "D1",
+      "texto": "Diz quem atende, por nome ou por cargo?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.04",
+      "grupo": "D1",
+      "texto": "Diz em que horário a empresa atende?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.05",
+      "grupo": "D1",
+      "texto": "Diz em que dias da semana há expediente?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.06",
+      "grupo": "D1",
+      "texto": "Diz se existe canal fora do expediente?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.07",
+      "grupo": "D1",
+      "texto": "Diz onde a empresa fica?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D1.08",
+      "grupo": "D1",
+      "texto": "Diz o endereço do portal de chamados ou autoatendimento?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D2.01",
+      "grupo": "D2",
+      "texto": "Diz o que acontece quando algo dá errado?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D2.02",
+      "grupo": "D2",
+      "texto": "Diz quem o cliente aciona, e por onde?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D2.03",
+      "grupo": "D2",
+      "texto": "Diz em quanto tempo o problema é resolvido?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D2.04",
+      "grupo": "D2",
+      "texto": "Diz para quem o assunto sobe se não for resolvido?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D2.05",
+      "grupo": "D2",
+      "texto": "Diz o que a empresa faz para o problema não se repetir?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D3.01",
+      "grupo": "D3",
+      "texto": "Diz o que a empresa avisa antes de acontecer?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D3.02",
+      "grupo": "D3",
+      "texto": "Diz quando e por onde esse aviso chega?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D3.03",
+      "grupo": "D3",
+      "texto": "Diz com que frequência o cliente recebe notícia do andamento?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D3.04",
+      "grupo": "D3",
+      "texto": "Avisa uma condição ou um risco antes de o cliente esbarrar nele?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "D3.05",
+      "grupo": "D3",
+      "texto": "Diz como a empresa acompanha o que pode dar errado, antes de dar?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.01",
+      "grupo": "Pa1",
+      "texto": "Descreve a situação de quem vai ler, com as palavras dele?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.02",
+      "grupo": "Pa1",
+      "texto": "Diz para quem ela não serve?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.03",
+      "grupo": "Pa1",
+      "texto": "Abre mão de alguma coisa em favor do cliente?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.04",
+      "grupo": "Pa1",
+      "texto": "Fala com o leitor pelo papel que ele ocupa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.05",
+      "grupo": "Pa1",
+      "texto": "Menciona o nome da empresa que vai ler?",
+      "so_cliente_nomeado": true,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.06",
+      "grupo": "Pa1",
+      "texto": "Lista os problemas que esse cliente relatou?",
+      "so_cliente_nomeado": true,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.07",
+      "grupo": "Pa1",
+      "texto": "Diz como as necessidades desse cliente foram levantadas antes de escrever?",
+      "so_cliente_nomeado": true,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa1.08",
+      "grupo": "Pa1",
+      "texto": "Oferece teste ou prova de conceito antes de assinar?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.01",
+      "grupo": "Pa2",
+      "texto": "Diz quanto custa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.02",
+      "grupo": "Pa2",
+      "texto": "Diz como o valor é formado, por unidade, por hora ou fechado?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.03",
+      "grupo": "Pa2",
+      "texto": "Diz se o valor inclui impostos?",
+      "so_cliente_nomeado": true,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.04",
+      "grupo": "Pa2",
+      "texto": "Diz quais são as condições de pagamento?",
+      "so_cliente_nomeado": true,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.05",
+      "grupo": "Pa2",
+      "texto": "Diz o que o cliente ainda vai pagar por fora, em taxas ou ferramentas de terceiros?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.06",
+      "grupo": "Pa2",
+      "texto": "Diz o que o cliente ganha ou deixa de perder, em número?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.07",
+      "grupo": "Pa2",
+      "texto": "Vincula parte do pagamento a um resultado do cliente?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.08",
+      "grupo": "Pa2",
+      "texto": "Diz o que acontece com o dinheiro se não funcionar?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa2.09",
+      "grupo": "Pa2",
+      "texto": "Diz as condições de cancelamento ou rescisão?",
+      "so_cliente_nomeado": true,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa3.01",
+      "grupo": "Pa3",
+      "texto": "Diz o que acontece depois que a entrega termina?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa3.02",
+      "grupo": "Pa3",
+      "texto": "Diz por quanto tempo a empresa continua disponível depois da entrega?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa3.03",
+      "grupo": "Pa3",
+      "texto": "Diz qual é o canal de atendimento depois da contratação?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa3.04",
+      "grupo": "Pa3",
+      "texto": "Prevê contato que não é venda?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa3.05",
+      "grupo": "Pa3",
+      "texto": "Diz quem cuida do cliente ao longo do tempo?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "Pa3.06",
+      "grupo": "Pa3",
+      "texto": "Diz o que a empresa oferece a quem não contrata o passo seguinte?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A1.01",
+      "grupo": "A1",
+      "texto": "Alguém de fora fala na peça, com nome e cargo?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A1.02",
+      "grupo": "A1",
+      "texto": "Traz reconhecimento de terceiro: publicação, prêmio, parceiro?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A1.03",
+      "grupo": "A1",
+      "texto": "Traz certificação, registro ou selo de auditoria externa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A1.04",
+      "grupo": "A1",
+      "texto": "Traz resultado em número obtido em trabalho anterior?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A1.05",
+      "grupo": "A1",
+      "texto": "Diz quantas vezes já fez aquilo?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A1.06",
+      "grupo": "A1",
+      "texto": "Nomeia clientes ou setores que já atendeu?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.01",
+      "grupo": "A2",
+      "texto": "Entrega uma opinião técnica antes de vender?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.02",
+      "grupo": "A2",
+      "texto": "Diz o que o leitor provavelmente está fazendo errado?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.03",
+      "grupo": "A2",
+      "texto": "Contraria o leitor em alguma coisa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.04",
+      "grupo": "A2",
+      "texto": "Ensina alguma coisa que serve mesmo sem contratar?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.05",
+      "grupo": "A2",
+      "texto": "Traz indicador de desempenho do setor do leitor?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.06",
+      "grupo": "A2",
+      "texto": "Nomeia lei, norma técnica ou regulação que se aplica?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.07",
+      "grupo": "A2",
+      "texto": "Diz as limitações do que oferece?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A2.08",
+      "grupo": "A2",
+      "texto": "Compara o que oferece com as alternativas do mercado?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A3.01",
+      "grupo": "A3",
+      "texto": "Diz o que vem a seguir no mercado do leitor?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A3.02",
+      "grupo": "A3",
+      "texto": "Diz o que ele deveria olhar agora, mesmo sem contratar?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A3.03",
+      "grupo": "A3",
+      "texto": "Aponta os riscos do próprio trabalho e o que fará sobre eles?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A3.04",
+      "grupo": "A3",
+      "texto": "Recomenda comprar menos, ou depois, ou outra coisa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "A3.05",
+      "grupo": "A3",
+      "texto": "Diz o que muda se ele não fizer nada?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "C.01",
+      "grupo": "C",
+      "texto": "Quando cita dado ou pesquisa, diz de onde veio?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "C.02",
+      "grupo": "C",
+      "texto": "Diz a data do dado ou da pesquisa citada?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "C.03",
+      "grupo": "C",
+      "texto": "Define os termos técnicos e as siglas que usa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    },
+    {
+      "codigo": "C.04",
+      "grupo": "C",
+      "texto": "Nomeia as tecnologias, softwares ou ferramentas que usa?",
+      "so_cliente_nomeado": false,
+      "porque_importa": ""
+    }
+  ]
+}

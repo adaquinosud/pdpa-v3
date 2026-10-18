@@ -1,9 +1,13 @@
-"""Régua do Avaliador — o capítulo 2 do Manual de Operação, literal, e as pistas de autor.
+"""Régua do Avaliador — o capítulo 2 do Manual de Operação, literal, as marcas de leitura
+de documento e as pistas de autor.
 
 Fontes, sem texto paralelo:
 - ``dados/manual_cap2.json``: extrato LITERAL do capítulo 2 do Manual (gerado por
   ``scripts/extrair_manual_cap2.py``; o .docx não vai para a imagem). Um teste compara o
   extrato com o .docx quando ele existe na máquina;
+- ``dados/marcas.json``: extrato LITERAL do capítulo "Marcas de leitura de documento" (o
+  17 no v11), gerado por ``scripts/extrair_marcas.py``, com o mesmo teste contra o .docx.
+  18/10: carregado e validado, ainda sem uso na leitura;
 - códigos e nomes conferidos contra ``SUBPILARES_ORDEM`` / ``NOME_SUBPILAR`` (painel.py);
 - pistas = bibliotecas de frases dos autores (Alexandre e Dener), usadas como "buracos
   comuns para procurar" — o modelo não é obrigado a escolher nenhuma; o texto da resposta
@@ -25,7 +29,7 @@ from typing import Dict, List
 from src.api.painel import NOME_SUBPILAR, PILARES_ORDEM, SUBPILARES_ORDEM
 
 DADOS = Path(__file__).parent / "dados"
-ARQUIVOS = ("manual_cap2.json", "frases_l1.json", "frases_l3.json")
+ARQUIVOS = ("manual_cap2.json", "frases_l1.json", "frases_l3.json", "marcas.json")
 
 ORIGEM_ARQUIVO = "arquivo"
 ORIGEM_TEXTO = "texto"
@@ -55,6 +59,18 @@ class Subpilar:
 
 
 @dataclass(frozen=True)
+class Marca:
+    codigo: str  # "P1.01"; "C.01" no bloco fora dos doze
+    grupo: str  # o subpilar, ou GRUPO_FORA
+    texto: str
+    so_cliente_nomeado: bool  # só se espera em peça feita para um cliente com nome
+    porque_importa: str  # vazio até os autores escreverem (decisão de 18/10)
+
+
+GRUPO_FORA = "C"
+
+
+@dataclass(frozen=True)
 class Pilar:
     codigo: str
     titulo: str
@@ -63,7 +79,7 @@ class Pilar:
 
 
 class Regua:
-    def __init__(self, manual: dict, l1: dict, l3: dict, versao: str):
+    def __init__(self, manual: dict, l1: dict, l3: dict, versao: str, marcas: dict = None):
         self.versao = versao
         self.fonte: str = manual["fonte"]
         self.abertura: str = manual["abertura"]
@@ -75,6 +91,16 @@ class Regua:
             self.pilares.append(Pilar(cod, p["titulo"], p["descricao"], subs))
         self._sub = {s.codigo: s for p in self.pilares for s in p.subpilares}
         self.bibliotecas = {"L1": l1["frases"], "L3": l3["frases"]}
+        # None só em teste que monta a régua sem o capítulo das marcas
+        self.marcas_cap: dict = marcas
+        self.marcas: List[Marca] = [
+            Marca(x["codigo"], x["grupo"], x["texto"], x["so_cliente_nomeado"], x["porque_importa"])
+            for x in (marcas or {}).get("marcas", [])
+        ]
+
+    def marcas_de(self, grupo: str) -> List[Marca]:
+        """As marcas de um subpilar (ou do bloco fora dos doze), na ordem do Manual."""
+        return [m for m in self.marcas if m.grupo == grupo]
 
     def subpilar(self, codigo: str) -> Subpilar:
         return self._sub[codigo]
@@ -127,8 +153,35 @@ def validar(r: Regua) -> None:
                 continue
             if not any(grupos.get(g) for g in r._grupos(bib, c)):
                 erros.append(f"biblioteca {bib} sem pista para {c}")
+    if r.marcas_cap is not None:
+        erros += _erros_das_marcas(r)
     if erros:
         raise ReguaInvalida("; ".join(erros))
+
+
+def _erros_das_marcas(r: Regua) -> List[str]:
+    erros: List[str] = []
+    titulos = [p["titulo"] for p in r.marcas_cap["pilares"]]
+    if titulos != [p.titulo for p in r.pilares]:
+        erros.append(f"pilares das marcas ≠ pilares do capítulo 2: {titulos}")
+    vistos: set = set()
+    for m in r.marcas:
+        if m.codigo in vistos:
+            erros.append(f"marca repetida: {m.codigo}")
+        vistos.add(m.codigo)
+        if m.grupo not in SUBPILARES_ORDEM and m.grupo != GRUPO_FORA:
+            erros.append(f"marca {m.codigo} em grupo fora do modelo: {m.grupo}")
+        if not m.codigo.startswith(f"{m.grupo}."):
+            erros.append(f"marca {m.codigo} no grupo {m.grupo}")
+        if not m.texto.strip():
+            erros.append(f"marca {m.codigo} sem texto")
+    for g in SUBPILARES_ORDEM + [GRUPO_FORA]:
+        codigos = [m.codigo for m in r.marcas_de(g)]
+        if not codigos:
+            erros.append(f"nenhuma marca em {g}")
+        if codigos != [f"{g}.{i:02d}" for i in range(1, len(codigos) + 1)]:
+            erros.append(f"numeração das marcas de {g} fora de sequência: {codigos}")
+    return erros
 
 
 def _ler(nome: str) -> dict:
@@ -137,7 +190,7 @@ def _ler(nome: str) -> dict:
 
 @lru_cache(maxsize=1)
 def carregar_regua() -> Regua:
-    """Versão = hash dos três arquivos: toda análise grava qual régua a produziu."""
+    """Versão = hash dos arquivos da régua: toda análise grava qual régua a produziu."""
     h = hashlib.sha256()
     for nome in ARQUIVOS:
         h.update((DADOS / nome).read_bytes())
@@ -145,7 +198,8 @@ def carregar_regua() -> Regua:
         _ler("manual_cap2.json"),
         _ler("frases_l1.json"),
         _ler("frases_l3.json"),
-        versao=f"manual-cap2+pistas:{h.hexdigest()[:12]}",
+        versao=f"manual+marcas+pistas:{h.hexdigest()[:12]}",
+        marcas=_ler("marcas.json"),
     )
     validar(r)
     return r
