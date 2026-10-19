@@ -1,7 +1,9 @@
-"""Leitura no formato 2 (avaliador-v21-veredito): processamento, gravação e tela.
+"""Leitura no formato 2 (veredito): gravação e tela.
 
-A versão da leitura é posta à mão: estes testes valem antes e depois da virada (a virada
-só muda qual versão a leitura NOVA recebe). Cliente dublado: nenhuma chamada paga."""
+Desde a virada para as marcas (19/10) o serviço não gera mais o formato 2; as leituras
+gravadas nele continuam abrindo. Aqui a leitura é produzida pelo motor do veredito
+(``veredito.ler``) com cliente dublado e gravada como o serviço gravava, no banco de TESTE.
+Nenhuma chamada paga."""
 
 from __future__ import annotations
 
@@ -31,12 +33,25 @@ def teto(monkeypatch):
 
 
 def _pronta_v20(client_loyall, db_session, e, resp=None, **kw):
+    from src.avaliador import motor
+    from src.avaliador.extracao import Documento
+
     assert _enviar(client_loyall, e, **kw).status_code == 200
     a = db_session.query(AvaliadorAnalise).order_by(AvaliadorAnalise.id.desc()).first()
-    a.prompt_versao = veredito.PROMPT_VERSAO
+    regua, doc = servico.carregar_regua(), Documento.de_json(a.texto_json)
+    res, _ = veredito.ler(
+        Dublê([resp or resposta_v20()]),
+        a.modelo,
+        regua,
+        veredito.montar_sistema(regua, a.origem),
+        motor.montar_usuario(a.descricao, doc),
+        doc,
+    )
+    a.prompt_versao, a.status = veredito.PROMPT_VERSAO, "pronta"
+    a.itens_json = veredito.para_gravar(res)
+    falhou = res["lastro"]["texto_falhou"]
+    a.erro_motivo = f"lastro: {falhou}" if falhou else None
     db_session.commit()
-    servico.processar(a.id, client=Dublê([resp or resposta_v20()]))
-    db_session.expire_all()
     return a.id
 
 
@@ -44,7 +59,7 @@ def _html(client_loyall, e, aid):
     return client_loyall.get(_url(e, f"/{aid}")).get_data(as_text=True)
 
 
-def test_processar_grava_o_formato_2(client_loyall, db_session, empresa, teto):
+def test_leitura_gravada_no_formato_2_e_reconhecida(client_loyall, db_session, empresa, teto):
     aid = _pronta_v20(client_loyall, db_session, empresa)
     a = db_session.get(AvaliadorAnalise, aid)
     assert a.status == "pronta" and a.resumo is None and a.erro_motivo is None
@@ -68,7 +83,8 @@ def test_tela_na_ordem_do_parecer(client_loyall, db_session, empresa, teto):
     assert "D1 · Acessibilidade" in html and "p. 2: “segunda a sexta das 8h às 18h”" in html
     assert ">Sim<" in html and ">Parcial<" in html and ">Não<" in html
     assert "Deveria ter:</span> Quem cita a empresa como referência." in html
-    assert ">Forte<" not in html and "Leitura no formato anterior" not in html
+    assert ">Forte<" not in html
+    assert "Leitura num formato anterior (um veredito Sim, Parcial ou Não" in html
     assert "—" not in html and "–" not in html
 
 

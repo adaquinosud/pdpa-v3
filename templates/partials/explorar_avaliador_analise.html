@@ -49,10 +49,10 @@
   </div>
   {% endif %}
 
-  {% if formato_leitura == 1 %}
   {% if aviso_formato_anterior %}
-  <div class="text-xs text-loyall-500 border border-loyall-200 rounded px-3 py-1.5">Leitura no formato anterior (forte, falta e melhorar por subpilar). Para ler no formato atual, use "Reler com esta descrição" enquanto o texto da peça estiver guardado, ou envie a peça de novo.</div>
+  <div class="text-xs text-loyall-500 border border-loyall-200 rounded px-3 py-1.5">Leitura num formato anterior ({% if formato_leitura == 1 %}forte, falta e melhorar por subpilar{% else %}um veredito Sim, Parcial ou Não por subpilar{% endif %}). O formato atual confere as marcas de leitura de documento do Manual. Para ler no formato atual, use "Reler com esta descrição" enquanto o texto da peça estiver guardado, ou envie a peça de novo.</div>
   {% endif %}
+  {% if formato_leitura == 1 %}
   {% include 'partials/_avaliador_leitura_v1.html' %}
   {% elif formato_leitura == 2 %}
   {% include 'partials/_avaliador_leitura_v2.html' %}

@@ -98,9 +98,9 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
         lista_oob=_render_lista(s, empresa_id, oob=True) if s is not None else None,
         formato_leitura=formato,
         aviso_formato_anterior=(
-            formato == servico.FORMATO_ITENS
+            formato in (servico.FORMATO_ITENS, servico.FORMATO_VEREDITO)
             and a.status == STATUS_PRONTA
-            and servico.FORMATO_ATUAL != servico.FORMATO_ITENS
+            and formato != servico.FORMATO_ATUAL
         ),
         pilares=servico.organizar(carregar_regua(), a) if formato == servico.FORMATO_ITENS else [],
         leitura=(

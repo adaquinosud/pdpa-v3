@@ -17,8 +17,7 @@ from tests.test_avaliador_servico import (
     Dublê,
     _pptx,
     config_avaliador,
-    resposta_v20,
-    veredito_de,
+    resposta_v25,
 )
 
 
@@ -173,26 +172,21 @@ def test_render_da_analise_pronta(client_loyall, db_session, empresa, teto):
     aid = _pronta(client_loyall, db_session, empresa)
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert 'hx-trigger="every 3s"' not in html
-    assert "Padrão de teste. Comece pela Precisão." in html  # texto do Lastro
     assert "Pilar 2: DISPONIBILIDADE" in html  # título do Manual, sem travessão na tela
+    assert "Apresenta como o cliente acessa a empresa?" in html  # pergunta do capítulo 17
     assert "D1 · Acessibilidade" in html
     assert "o cliente consegue chegar ao serviço, ser atendido, abordar o balcão?" in html
-    assert ">Sim<" in html and ">Parcial<" in html and ">Não<" in html
-    assert (
-        ">Forte<" not in html
-        and ">Falta<" not in html
-        and "Leitura no formato anterior" not in html
-    )
+    for fora in (">Sim<", ">Parcial<", ">Forte<", "Placar", "Deveria ter", "formato anterior"):
+        assert fora not in html, fora
     assert "p. 2: “segunda a sexta das 8h às 18h”" in html
-    assert "Deveria ter:</span> Quem cita a empresa como referência." in html
+    assert 'data-marca="D1.04" data-estado="esta"' in html  # o mesmo trecho em duas marcas
     assert "—" not in html and "–" not in html  # nenhum travessão na tela
-    # a ordem do parecer da especificação de 17/10
-    secoes = ["situar", "achados", "contradicoes", "lastro", "vagas", "placar", "doze"]
+    secoes = ["peca", "achados", "contradicoes", "marcas", "fora_dos_doze", "a_parte"]
     pos = [html.index(f'data-secao="{x}"') for x in secoes]
     assert pos == sorted(pos)
-    assert "Nenhum achado fora dos doze nesta peça." in html
+    assert "Nenhum achado fora das marcas nesta peça." in html
     assert "Nenhuma contradição no texto lido." in html
-    assert "Ponto de partida:</span> Precisão" in html
+    assert "Peça sem cliente com nome." in html
     assert "Lidas 3 páginas." in html and "Imagens não são lidas" in html
     assert "Reler com esta descrição" in html and "Concluir" in html
 
@@ -213,12 +207,7 @@ def test_texto_colado_sem_paginas(client_loyall, db_session, empresa, teto):
     conversa = (
         "Cliente: com quem eu falo se der problema?\nVendedor: comigo, Fulano, das 8h às 18h."
     )
-    resp = resposta_v20(
-        {
-            "D1": veredito_de("D1", "sim", "comigo, Fulano, das 8h às 18h", 1),
-            "A1": veredito_de("A1"),
-        }
-    )
+    resp = resposta_v25({"D1.03": (1, "comigo, Fulano, das 8h às 18h")})
     aid = _pronta(client_loyall, db_session, empresa, Dublê([resp]), dados=False, texto=conversa)
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert "Texto colado" in html and "“comigo, Fulano, das 8h às 18h”" in html
@@ -229,7 +218,8 @@ def test_citacao_nao_conferida_nao_aparece_como_citacao(client_loyall, db_sessio
     aid = _pronta(client_loyall, db_session, empresa)
     a = db_session.get(AvaliadorAnalise, aid)
     g = json.loads(a.itens_json)
-    g["doze"][3]["evidencias"] = [  # D1
+    d101 = next(m for m in g["marcas"] if m["codigo"] == "D1.01")
+    d101["evidencias"] = [
         {
             "pagina": 2,
             "trecho": "TRECHO-INVENTADO-XYZ",
@@ -241,7 +231,8 @@ def test_citacao_nao_conferida_nao_aparece_como_citacao(client_loyall, db_sessio
     db_session.commit()
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert "TRECHO-INVENTADO-XYZ" not in html
-    assert "citação não encontrada na peça" in html
+    assert 'data-marca="D1.01" data-estado="sem_conferencia"' in html
+    assert "o trecho citado não foi achado na peça" in html
 
 
 def test_falhou_mostra_motivo_e_tentar_de_novo(client_loyall, db_session, empresa, teto):
@@ -328,7 +319,7 @@ def test_pagina_exibida_e_a_conferida_e_a_lista_se_atualiza(
     a = db_session.get(AvaliadorAnalise, aid)
     g = json.loads(a.itens_json)
     # o modelo citou a p. 3; o trecho está na p. 2 — a tela mostra a p. 2, e só ela
-    g["doze"][3]["evidencias"] = [
+    next(m for m in g["marcas"] if m["codigo"] == "D1.01")["evidencias"] = [
         {"pagina": 3, "trecho": "segunda a sexta", "conferido": True, "pagina_encontrada": 2}
     ]
     a.itens_json = json.dumps(g)
@@ -368,12 +359,7 @@ def test_pagina_da_web_mostra_o_endereco_lido_e_a_referencia(
         "buscar",
         lambda url, sessao=None: ("https://exemplo.com.br/inicio", HTML.encode()),
     )
-    resp = resposta_v20(
-        {
-            "D1": veredito_de("D1", "sim", "responde em até quatro horas úteis", 2),
-            "A1": veredito_de("A1"),
-        }
-    )
+    resp = resposta_v25({"D1.02": (2, "responde em até quatro horas úteis")})
     aid = _pronta(
         client_loyall, db_session, empresa, Dublê([resp]), dados=False, url="exemplo.com.br"
     )
@@ -412,13 +398,15 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
         + "<w:tr><w:tc>" + _p("Completo") + "</w:tc><w:tc>" + _p("Até 30 unidades")
         + "</w:tc></w:tr></w:tbl>"
     )  # fmt: skip
-    pa2 = veredito_de("Pa2", "sim", "x")
-    pa2["evidencias"] = [
-        {"pagina": 1, "trecho": "Essencial | Até 10 unidades, R$ 8.000 por diagnóstico"},
-        # trecho que junta duas linhas (leitura 12): uma parte por linha
-        {"pagina": 1, "trecho": "R$ 8.000 por diagnóstico\nCompleto | Até 30"},
-    ]
-    resposta = resposta_v20({"Pa2": pa2, "D1": veredito_de("D1"), "A1": veredito_de("A1")})
+    resposta = resposta_v25(
+        {
+            "Pa2.01": [
+                (1, "Essencial | Até 10 unidades, R$ 8.000 por diagnóstico"),
+                # trecho que junta duas linhas (leitura 12): uma parte por linha
+                (1, "R$ 8.000 por diagnóstico\nCompleto | Até 30"),
+            ]
+        }
+    )
     aid = _pronta(
         client_loyall, db_session, empresa, cli=Dublê([resposta]), dados=_docx(corpo),
         nome="proposta.docx",
@@ -432,7 +420,7 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
     assert "“R$ 8.000 por diagnóstico” · “Completo” · “Até 30”" in html
 
 
-# ── dois leitores: formato 1 (itens) e formato 2 (veredito) ────────────────
+# ── três leitores: formato 1 (itens), 2 (veredito) e 3 (marcas) ─────────────
 
 
 def test_formato_da_leitura_reconhece_o_gravado(db_session, empresa):
@@ -440,6 +428,8 @@ def test_formato_da_leitura_reconhece_o_gravado(db_session, empresa):
     assert servico.formato_da_leitura(a) == servico.FORMATO_ITENS
     a.itens_json = json.dumps({"formato": 2, "doze": []})
     assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
+    a.itens_json = json.dumps({"formato": 3, "marcas": []})
+    assert servico.formato_da_leitura(a) == servico.FORMATO_MARCAS
     for estranho in ('{"doze": []}', '"texto"', "{quebrado"):
         a.itens_json = estranho
         assert servico.formato_da_leitura(a) is None, estranho
@@ -465,11 +455,12 @@ def test_leitura_antiga_ganha_aviso_so_quando_o_formato_atual_e_outro(
     a.resumo = "Resumo antigo."
     db_session.commit()
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
-    assert "Leitura no formato anterior" in html and ">Forte<" in html  # continua legível
+    assert "Leitura num formato anterior (forte, falta e melhorar" in html
+    assert ">Forte<" in html  # continua legível
     assert "Resumo antigo." in html
     monkeypatch.setattr(servico, "FORMATO_ATUAL", servico.FORMATO_ITENS)
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
-    assert "Leitura no formato anterior" not in html and ">Forte<" in html
+    assert "formato anterior" not in html and ">Forte<" in html
 
 
 def test_formato_nao_reconhecido_e_declarado_sem_quebrar(client_loyall, db_session, empresa, teto):

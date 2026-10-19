@@ -1,10 +1,11 @@
 """Serviço do Avaliador — ciclo de vida da análise, gate de custo, retenção.
 
 Fluxo: ``criar_analise`` (extrai, cobra o teto, grava PENDENTE) → ``disparar`` (daemon-
-thread, padrão ``_rodar_async`` do app) → ``processar``, que lê sempre no veredito
-(``veredito.py``, sete chamadas). O formato 1 (forte, falta e melhorar) não é mais
-gerado desde a fatia 4 (17/10); as leituras gravadas nele continuam abrindo
-(``organizar`` + ``_avaliador_leitura_v1.html``).
+thread, padrão ``_rodar_async`` do app) → ``processar``, que lê sempre nas marcas
+(``marcas.py``, cinco chamadas; virada de 19/10). Os formatos 1 (forte, falta e melhorar)
+e 2 (veredito) não são mais gerados; as leituras gravadas neles continuam abrindo
+(``organizar`` + ``_avaliador_leitura_v1.html``; ``organizar_veredito`` +
+``_avaliador_leitura_v2.html``).
 
 Falha é visível, nunca "processando" eterno:
 - erro → FALHOU com ``erro_motivo`` (tipo do erro; NUNCA texto da peça nem resposta do
@@ -29,7 +30,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.api.painel import NOME_PILAR, SUBPILARES_ORDEM
-from src.avaliador import motor, veredito
+from src.avaliador import marcas, motor, veredito
 from src.avaliador.extracao import Documento, documento_de_texto, extrair
 from src.avaliador.regua import (
     ORIGEM_ARQUIVO,
@@ -106,14 +107,15 @@ def _somar_uso(a: AvaliadorAnalise, uso: motor.Uso) -> None:
 
 
 def _pedido(regua: Regua, a_origem: str, descricao: str, doc: Documento):
-    """O pedido de toda leitura: o veredito (o formato 1 não é mais gerado desde 17/10)."""
-    return veredito.montar_sistema(regua, a_origem), motor.montar_usuario(descricao, doc)
+    """O pedido de toda leitura: as marcas (19/10). A origem não muda mais o pedido (as
+    bibliotecas de pistas por origem eram do veredito); o parâmetro fica para quem chama."""
+    return marcas.montar_sistema(regua), motor.montar_usuario(descricao, doc)
 
 
 def _estimativa(regua: Regua, sistema: str, usuario: str, modelo: str) -> float:
     """O que o gate cobra. É TAMBÉM o orçamento da leitura: o motor não passa dele, nem
     com nova tentativa."""
-    return veredito.estimar_custo_usd(sistema, usuario, modelo, len(regua.pilares))
+    return marcas.estimar_custo_usd(sistema, usuario, modelo, len(marcas.etapas(regua)))
 
 
 # ── leitura do estado ─────────────────────────────────────────────────────
@@ -130,7 +132,7 @@ FORMATO_VEREDITO = 2
 FORMATO_MARCAS = 3
 # O formato que o motor grava hoje. Leitura pronta em formato diferente deste ganha o
 # aviso de "formato anterior" na tela.
-FORMATO_ATUAL = FORMATO_VEREDITO
+FORMATO_ATUAL = FORMATO_MARCAS
 
 
 def formato_da_leitura(a: AvaliadorAnalise) -> Optional[int]:
@@ -339,7 +341,7 @@ def criar_analise(
         lidos, bruto, doc = ler_paginas(url, sessao=sessao_http)
         nome, origem = "\n".join(lidos), ORIGEM_PAGINA
     regua = carregar_regua()
-    versao = veredito.PROMPT_VERSAO
+    versao = marcas.PROMPT_VERSAO
     sistema, usuario = _pedido(regua, origem, descricao, doc)
     checar_teto(s, empresa_id, _estimativa(regua, sistema, usuario, modelo))
     a = AvaliadorAnalise(
@@ -395,7 +397,7 @@ def refazer(s: Session, a: AvaliadorAnalise, descricao: Optional[str] = None) ->
     doc = _exigir_texto(a)
     if descricao is not None:
         a.descricao = _descricao(descricao)
-    regua, versao = carregar_regua(), veredito.PROMPT_VERSAO
+    regua, versao = carregar_regua(), marcas.PROMPT_VERSAO
     sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
     checar_teto(s, a.empresa_id, _estimativa(regua, sistema, usuario, a.modelo))
     a.prompt_versao = versao
@@ -449,23 +451,22 @@ def processar(analise_id: int, client=None) -> None:
             a.status = STATUS_LENDO
             a.atualizado_em = datetime.utcnow()
             s.commit()
-            # toda leitura sai no veredito de hoje; a que estava na fila numa versão
+            # toda leitura sai nas marcas de hoje; a que estava na fila numa versão
             # anterior (de qualquer formato) passa a levar a versão com que foi lida
-            a.prompt_versao = veredito.PROMPT_VERSAO
+            a.prompt_versao = marcas.PROMPT_VERSAO
             sistema, usuario = _pedido(regua, a.origem, a.descricao, doc)
             orc = _estimativa(regua, sistema, usuario, a.modelo)
             try:
-                res, uso = veredito.ler(
+                res, uso = marcas.ler(
                     client, a.modelo, regua, sistema, usuario, doc, orcamento_usd=orc
                 )
             except (motor.RespostaInvalida, motor.OrcamentoEsgotado) as err:
                 _somar_uso(a, getattr(err, "uso", None) or motor.Uso())
                 raise
             _somar_uso(a, uso)
-            a.resumo = None  # formato 2 não tem resumo: tudo vai no objeto gravado
-            a.itens_json = veredito.para_gravar(res)
-            falhou = res["lastro"]["texto_falhou"]
-            a.erro_motivo = f"lastro: {falhou}" if falhou else None
+            a.resumo = None  # formato 3 não tem resumo: tudo vai no objeto gravado
+            a.itens_json = marcas.para_gravar(res)
+            a.erro_motivo = None
             a.regua_versao = regua.versao
             a.status = STATUS_PRONTA
             a.atualizado_em = datetime.utcnow()

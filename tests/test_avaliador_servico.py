@@ -92,9 +92,42 @@ def resposta_v20(vereditos=None, situar=None, lastro="Padrão de teste. Comece p
     return {"v20": True, "situar": sit, "vereditos": ver, "lastro": lastro}
 
 
+HORARIO = (2, "segunda a sexta das 8h às 18h")
+REFERENCIA = (3, "Somos referência no setor há vinte anos")
+
+
+def resposta_v25(presentes=None, achados=None, contradicoes=None, achados_falham=False):
+    """Leitura no formato 3, dublada: ``presentes`` é código da marca → (página, trecho);
+    o resto não está. Padrão: D1.01 e D1.04 com o MESMO trecho do horário (p. 2) e A1.02
+    com a frase de referência (p. 3) do _pptx(). ``achados_falham`` faz a etapa dos
+    achados responder sem JSON (a leitura falha)."""
+    if presentes is None:
+        presentes = {"D1.01": HORARIO, "D1.04": HORARIO, "A1.02": REFERENCIA}
+    return {
+        "v25": True,
+        "presentes": presentes,
+        "achados": achados or [],
+        "contradicoes": contradicoes or [],
+        "achados_falham": achados_falham,
+    }
+
+
+def _etapa_de_marcas(pedido, presentes):
+    codigos = re.search(r"destas marcas: ([A-Za-z0-9., ]+)\. Nenhuma", pedido).group(1)
+    out = []
+    for c in codigos.split(", "):
+        if c in presentes:
+            trechos = presentes[c] if isinstance(presentes[c], list) else [presentes[c]]
+            ev = [{"pagina": pag, "trecho": tr} for pag, tr in trechos]
+            out.append({"codigo": c, "evidencias": ev, "esta": True})
+        else:
+            out.append({"codigo": c, "evidencias": [], "esta": False})
+    return {"marcas": out}
+
+
 class Dublê:
     def __init__(self, respostas=None, quebra=False):
-        self.respostas = list(respostas or [resposta_v20()])
+        self.respostas = list(respostas or [resposta_v25()])
         self.quebra = quebra
         self.chamadas = []
         self.messages = self
@@ -105,7 +138,19 @@ class Dublê:
             raise ConnectionError("rede caiu")
         conteudo = kw["messages"][0]["content"]
         r = self.respostas[0]
-        if isinstance(conteudo, list) and isinstance(r, dict) and r.get("v20"):
+        if isinstance(conteudo, list) and isinstance(r, dict) and r.get("v25"):
+            # formato 3: responde pela etapa pedida no fim da mensagem; a resposta inteira
+            # é consumida na etapa dos achados (a última)
+            pedido = conteudo[-1]["text"]
+            if pedido.startswith("ETAPA: A PEÇA INTEIRA"):
+                if r["achados_falham"]:
+                    r = "sem json"
+                else:
+                    r = {k: r[k] for k in ("achados", "contradicoes")}
+                    self.respostas.pop(0)
+            else:
+                r = _etapa_de_marcas(pedido, r["presentes"])
+        elif isinstance(conteudo, list) and isinstance(r, dict) and r.get("v20"):
             # formato 2: responde pela etapa pedida no fim da mensagem; a resposta inteira
             # é consumida na etapa final válida (a inválida se repete na nova tentativa)
             pedido = conteudo[-1]["text"]
@@ -204,29 +249,31 @@ def test_caminho_feliz_arquivo(db_session, empresa, teto):
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.resumo is None and a.erro_motivo is None
-    assert a.prompt_versao == "avaliador-v24-veredito"
-    assert len(cli.chamadas) == 7  # situar, uma por pilar, achados e o Lastro
+    assert a.prompt_versao == "avaliador-v25-marcas"
+    assert len(cli.chamadas) == 5  # uma por pilar (a última com o bloco C) e os achados
     assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"][0]["text"]
     assert a.custo_usd > 0 and a.origem == "arquivo" and a.formato == "pptx"
-    assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
-    org = servico.organizar_veredito(servico.carregar_regua(), a)
-    assert org["placar"] == {"sim": 1, "parcial": 1, "nao": 10}
-    d1 = org["pilares"][1]["linhas"][0]  # Disponibilidade → D1
-    assert d1["subpilar"].codigo == "D1" and d1["veredito"] == "sim"
-    assert d1["evidencias"][0]["conferido"] and d1["evidencias"][0]["pagina_encontrada"] == 2
-    assert org["lastro"]["texto"] == "Padrão de teste. Comece pela Precisão."
-    assert org["lastro"]["ponto_de_partida"] == "Precisão" and not org["lastro"]["texto_diverge"]
-    assert [x["subpilar"].codigo for x in org["vagas"]][:3] == ["P1", "P2", "P3"]
+    assert servico.formato_da_leitura(a) == servico.FORMATO_MARCAS == servico.FORMATO_ATUAL
+    org = servico.organizar_marcas(servico.carregar_regua(), a)
+    d1 = org["pilares"][1]["subpilares"][0]  # Disponibilidade → D1
+    assert d1["subpilar"].codigo == "D1"
+    estados = {x["codigo"]: x["estado"] for x in d1["marcas"]}
+    assert estados["D1.01"] == estados["D1.04"] == "esta" and estados["D1.02"] == "nao_esta"
+    ev = d1["marcas"][0]["evidencias"][0]
+    assert ev["conferido"] and ev["pagina_encontrada"] == 2
     assert org["cobertura"][0] == "Lidas 3 páginas."
 
 
-def test_texto_colado_usa_a_biblioteca_de_conversa(db_session, empresa, teto):
+def test_texto_colado_le_as_mesmas_marcas(db_session, empresa, teto):
+    """19/10: as marcas são as mesmas para toda origem; as bibliotecas de pistas por
+    origem eram do veredito e não entram no pedido."""
     conversa = "Cliente: com quem eu falo se der problema?\nVendedor: fica tranquilo, é rápido."
     aid = _criar(db_session, empresa, texto=conversa)
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.origem == "texto" and a.formato == "texto"
-    assert "Ele perguntou com quem fala" in cli.chamadas[0]["system"]
+    assert "Ele perguntou com quem fala" not in cli.chamadas[0]["system"]
+    assert "D1.01 Diz por onde se fala com a empresa?" in str(cli.chamadas[1]["messages"])
     assert "=== TEXTO COLADO ===" in cli.chamadas[0]["messages"][0]["content"][0]["text"]
 
 
@@ -260,7 +307,7 @@ def test_refazer_com_nova_descricao(db_session, empresa, teto):
     a = _rodar(db_session, aid, cli)
     assert a.descricao.startswith("Apresentação institucional")
     assert "Apresentação institucional" in cli.chamadas[0]["messages"][0]["content"][0]["text"]
-    assert a.tokens_in == 42000  # as duas leituras somam (7 chamadas de 3000 cada)
+    assert a.tokens_in == 30000  # as duas leituras somam (5 chamadas de 3000 cada)
 
 
 def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
@@ -269,7 +316,7 @@ def test_concluir_apaga_o_texto_e_depois_nao_se_rele(db_session, empresa, teto):
     servico.concluir(a)
     db_session.commit()
     assert a.texto_json is None and a.texto_apagado_motivo == "concluida"
-    assert len(json.loads(a.itens_json)["doze"]) == 12  # resultado fica
+    assert len(json.loads(a.itens_json)["marcas"]) == 87  # resultado fica
     with pytest.raises(AvaliacaoRecusada, match="já foi apagado"):
         servico.refazer(db_session, a)
 
@@ -304,26 +351,26 @@ def test_comando_do_watchdog_roda(client, empresa):
     assert "0 interrompida(s)" in r.output and "7 dias sem uso" in r.output
 
 
-def test_leitura_de_versao_antiga_na_fila_sai_no_veredito_de_hoje(db_session, empresa, teto):
-    """Fatia 4 (17/10): o formato 1 não é mais gerado. Leitura que estivesse na fila numa
-    versão dele é lida no veredito de hoje e passa a levar essa versão."""
+def test_leitura_de_versao_antiga_na_fila_sai_nas_marcas_de_hoje(db_session, empresa, teto):
+    """Os formatos 1 e 2 não são mais gerados. Leitura que estivesse na fila numa versão
+    deles é lida nas marcas de hoje e passa a levar essa versão."""
     aid = _criar(db_session, empresa)
     db_session.get(AvaliadorAnalise, aid).prompt_versao = "avaliador-v14-pilar"
     db_session.commit()
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v24-veredito"
-    assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO
-    assert '"forte"' not in cli.chamadas[0]["system"] and len(cli.chamadas) == 7
+    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v25-marcas"
+    assert servico.formato_da_leitura(a) == servico.FORMATO_MARCAS
+    assert '"forte"' not in cli.chamadas[0]["system"] and len(cli.chamadas) == 5
 
 
-def test_falha_so_no_texto_do_lastro_fica_pronta_com_motivo(db_session, empresa, teto):
+def test_falha_nos_achados_falha_a_leitura_e_cobra(db_session, empresa, teto):
+    """As marcas saíram, mas a etapa dos achados falhou duas vezes: a leitura fica FALHOU
+    (como no formato 2), com o gasto das seis chamadas."""
     aid = _criar(db_session, empresa)
-    a = _rodar(db_session, aid, Dublê([resposta_v20(lastro=None)]))
-    assert a.status == STATUS_PRONTA and a.erro_motivo == "lastro: RespostaInvalida"
-    g = json.loads(a.itens_json)
-    assert g["lastro"]["texto"] is None and g["lastro"]["ponto_de_partida"] == "P"
-    assert a.custo_usd > 0
+    a = _rodar(db_session, aid, Dublê([resposta_v25(achados_falham=True)]))
+    assert a.status == STATUS_FALHOU and a.erro_motivo == "leitura: RespostaInvalida"
+    assert a.tokens_in == 18000 and a.custo_usd > 0
 
 
 def test_reler_leitura_antiga_gera_o_formato_novo(db_session, empresa, teto):
@@ -336,12 +383,12 @@ def test_reler_leitura_antiga_gera_o_formato_novo(db_session, empresa, teto):
     servico.refazer(db_session, a)
     db_session.commit()
     a = _rodar(db_session, aid, Dublê())
-    assert a.prompt_versao == "avaliador-v24-veredito"
-    assert servico.formato_da_leitura(a) == servico.FORMATO_VEREDITO and a.resumo is None
+    assert a.prompt_versao == "avaliador-v25-marcas"
+    assert servico.formato_da_leitura(a) == servico.FORMATO_MARCAS and a.resumo is None
 
 
-def test_gate_cobra_as_sete_chamadas(db_session, empresa, monkeypatch):
-    from src.avaliador import veredito
+def test_gate_cobra_as_cinco_chamadas(db_session, empresa, monkeypatch):
+    from src.avaliador import marcas
 
     cobrado = {}
     monkeypatch.setattr(servico, "checar_teto", lambda s, e, est: cobrado.setdefault("usd", est))
@@ -353,9 +400,7 @@ def test_gate_cobra_as_sete_chamadas(db_session, empresa, monkeypatch):
     sistema, usuario = servico._pedido(
         regua, a.origem, a.descricao, Documento.de_json(a.texto_json)
     )
-    assert cobrado["usd"] == pytest.approx(
-        veredito.estimar_custo_usd(sistema, usuario, a.modelo, 4)
-    )
+    assert cobrado["usd"] == pytest.approx(marcas.estimar_custo_usd(sistema, usuario, a.modelo, 4))
 
 
 def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, teto, monkeypatch):
@@ -383,7 +428,7 @@ def test_pagina_da_web_vira_analise_com_o_endereco_lido(db_session, empresa, tet
 
     doc = Documento.de_json(a.texto_json)
     sistema, _ = servico._pedido(servico.carregar_regua(), a.origem, a.descricao, doc)
-    assert "Há canal, não há horário." in sistema  # página é documento: biblioteca 1
+    assert "COMO CONFERIR UMA MARCA" in sistema and "Há canal, não há horário." not in sistema
 
 
 def test_duas_entradas_ao_mesmo_tempo_sao_recusadas(db_session, empresa, teto):
@@ -405,5 +450,5 @@ def test_leitura_v20_na_fila_e_lida_com_o_pedido_de_hoje(db_session, empresa, te
     db_session.commit()
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
-    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v24-veredito"
-    assert len(cli.chamadas) == 7
+    assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v25-marcas"
+    assert len(cli.chamadas) == 5
