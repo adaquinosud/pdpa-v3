@@ -1,4 +1,4 @@
-# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 17/out)
+# PDPA v3 · Sistema — Contexto Mestre (outubro/2026 · atualizado 21/out)
 
 > **Documento de bootstrap do projeto.** Leia primeiro a cada sessão. Irmão do
 > `PDPA-Loyall-Contexto-Mestre.md` (comercial/método); este cobre o **sistema**.
@@ -9,6 +9,13 @@
 > versão corrente ia até §4.58 — quatro fatias de diferença. É a §18 do
 > `CLAUDE.md`: o documento que orienta a próxima sessão não estava onde a próxima
 > sessão lê.
+>
+> **Estado em 21/out:** prod em **`2e27cae`** (`/healthz` 19/10). O Avaliador deixou de dar
+> veredito: virou **balizador de marcas** (`avaliador-v25-marcas`, formato 3), 87 perguntas de
+> presença do capítulo 17 do Manual, respondidas com trecho conferido ou "não está". Estabilidade
+> medida no site da Loyall em treze leituras, 74 marcas conferidas à mão (74 certas). A **v26**
+> (Manual v12 com seis marcas reescritas e o conferidor que aceita emenda e elisão) está em
+> `feat/avaliador-v12-conferidor`, a mergear. Tudo em §4.68.
 >
 > **Estado em 17/out (noite):** prod em **`145d7a9`** (`/healthz` 17/10 18:53). O Avaliador
 > trocou a forma da saída: **um veredito por subpilar** (Sim, Parcial, Não) no lugar de forte,
@@ -3210,6 +3217,79 @@ navegar o site e ler imagem (frente futura: a contradição que depende de segui
 legenda com logotipo só foi achada por humano navegando); a frente de "dizer o que ninguém falou"
 nas manifestações, que não foi aberta.
 
+### 4.68 Avaliador: o balizador de marcas (18 a 21/out · só admin)
+
+**Por quê.** Depois de §4.67, a mesma peça com o mesmo texto (hash do texto extraído igual nas
+leituras 19 a 23) dava vereditos diferentes a cada leitura: o ruído era do modelo, concentrado na
+fronteira Parcial × Não e nos subpilares interpretativos. Antes do balizador, duas versões:
+**v23** (`0b844ab`), as etapas que julgam em temperatura 0; **v24** (`c9a624d`), a data de hoje no
+pedido dos achados. **Decisão do Alexandre e do Dener (18/10):** a ferramenta para de dar veredito.
+
+**A forma (formato 3).** Cada subpilar vira a lista de marcas do capítulo 17 do Manual ("Marcas de
+leitura de documento"): perguntas de presença que a peça responde com um trecho ou não responde.
+87 marcas (83 nos doze subpilares e 4 no bloco "O que dá para conferir na peça"); 7 só se esperam em
+peça feita para um cliente com nome e, em peça sem cliente com nome, vão para um grupo à parte,
+conferidas do mesmo jeito. Sem Sim/Parcial/Não, placar, contagem, percentual nem ordem entre
+subpilares. Cinco chamadas: uma por pilar em temperatura 0 (a quarta leva o bloco C) e uma para
+achados e contradições. **Regras do pedido:** cada marca respondida sozinha; um mesmo trecho pode
+responder a várias marcas; resposta parcial a uma marca de duas partes conta como "está", com o
+trecho da parte achada. **Código, não modelo:** toda marca respondida uma vez, "está" sem trecho e
+"não está" com trecho são recusados (nova tentativa), e a tela só mostra "está" com o trecho achado
+na peça; senão, "a leitura diz que está, mas o trecho não foi achado: confira".
+
+**Fatias (cada uma com merge próprio e `/healthz` conferido):** Manual v11 (`521e65d`); fatia 1,
+as marcas como dado da régua (`9553322`); fatia 2, a pergunta "feita para um cliente com nome?"
+no formulário (coluna `cliente_nomeado`) e a tela do formato 3 (`d6a9c7c`); fatia 3a, o motor
+(`03a0d59`); fatia 3b, a virada (`2e27cae`, Live 19/10, `avaliador-v25-marcas`). A fatia 4
+(limpeza do veredito e da especificação) está pendente.
+
+**Medição de estabilidade (19 a 21/10), só no site da Loyall, cinco páginas.** A referência à mão
+das 87 marcas não foi feita (decisão do Alexandre); no lugar, âncoras e conferência humana.
+- Três leituras de 19/10: #24 (15:29), #25 (20:01), #26 (20:04), US$ 0,1740, 0,1692 e 0,1333
+  (R$ 1,01, 0,98 e 0,77). Oito marcas mudaram: P1.07, P1.11, P2.03, Pa1.06, Pa2.01, Pa3.03,
+  A3.04 e C.01.
+- **Conferência humana (Alexandre e Dener, 20 e 21/10):** as 74 marcas iguais nas três, menos as
+  exceções, lidas uma a uma com o trecho: **74 certas** (39 "está", 35 "não está"). Nenhuma
+  esticada estável, nenhum vazio errado, nesta peça.
+- **Seis âncoras** (P1.01, D1.01, Pa2.02, Pa2.08 "está"; D1.04, D1.05 "não está"): certas nas treze
+  leituras do período.
+- **Teste de reescrita (21/10):** script no shell do Render, régua em memória com os textos novos,
+  entrada = o texto guardado da #24, nada gravado no banco. Cinco leituras com o texto novo
+  (US$ 0,7179, R$ 4,16) e cinco de controle com o texto do ar (R$ 4,10): **R$ 8,26 fora do teto
+  mensal do app**. Âncoras 6 de 6 nos dois braços. No gabarito de 72 marcas, mudaram três no braço
+  novo (P3.02, A2.07, A2.08) e três no controle (P2.02, P2.04, A2.08), marcas diferentes a cada
+  rodada: ruído, não efeito da reescrita. Estabilidade das 76 não interpretativas, média dos trios:
+  96,1% no controle, 95,7% no novo. Das reescritas, a C.01 é a única com efeito demonstrado
+  (balançou no controle, firme no novo); cinco já eram estáveis; a Pa3.03 não firmou.
+- **Decisão:** adotam-se seis textos (P1.11, P3.04, Pa1.06, Pa2.01, C.01 e C.02, a C.01 e a C.02
+  sem o "quando cita") no **Manual v12**; a Pa3.03 fica com o texto do ar e passa a
+  interpretativa (a lista de interpretativas, agora 12, vive só nos scripts de medição, não no
+  código). O porteiro de uma reescrita passa a ser: âncoras certas, a marca reescrita igual em
+  todas as leituras e nenhuma marca do gabarito mudando (se mudar na chamada D, é ruído; se mudar
+  noutra chamada, roda o braço de controle). Os 95% saem do papel de meta e ficam como registro. A
+  proposta "o pilar mais vazio é o mesmo em todas" foi recusada: nesta peça passaria de qualquer
+  jeito (Disponibilidade com 1 marca de 18) e devolvia o percentual que a tela tirou em 18/10.
+
+**v26 (21/10, `feat/avaliador-v12-conferidor`, a mergear).** Mesmo pedido; duas mudanças:
+- a régua lê o **Manual v12** (`d886386`); o v12 difere do v11 só nos seis textos;
+- **o conferidor de citação aceita duas costuras do modelo**, sempre com toda palavra da peça:
+  pontuação de junção onde a peça tem quebra de linha (título de bloco emendado ao texto de
+  baixo) e pedaços literais da mesma seção, na ordem, juntados por reticências. A tela mostra o
+  trecho como está na peça (" […] " entre os pedaços); o que o modelo escreveu fica gravado em
+  `trecho_citado`. Medido antes: 919 citações nas treze leituras, 58 recusadas (6,3%), das quais
+  37 eram emenda e 10 elisão (`cc9430e`).
+
+**Para o registro (erro do Claude):** a constante do hash do site, `3576b4d53c11`, foi copiada da
+coluna errada de uma consulta de 17/10: é o hash do **texto extraído**, não o `conteudo_hash`
+(este é dos bytes brutos do HTML e mudou de `a17406dee0b8` para `8e311f5ca904` entre 17 e 19/10).
+O script parou antes de gastar, como devia. Trava em §7.
+
+**Aberto:** fatia 4 (limpeza do código do veredito; formato da versão da régua e a saída nova na
+especificação e no descritivo do Explorar); as citações recusadas que não são emenda nem elisão (a
+C.01 citando uma lista da seção 33; a A1.04 pondo só o número "33" no trecho); uma segunda peça
+fixa (proposta ou deck da própria Loyall) para as manutenções de texto; ler os links da página
+enviada, sem navegar sozinho.
+
 ---
 
 ## 5. Os cases
@@ -5146,9 +5226,19 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   definição nova nem com etapa movida e proibição escrita. Terceira vez na semana. 🔒 Quando a
   forma do pedido já foi trocada e o defeito ficou, a base de comparação é leitura humana, não
   uma quarta redação.
+
+- **IDENTIFICADOR COPIADO DE SAÍDA SEM RÓTULO TEM A FORMA DE FATO E NÃO É.** ⚠️ **O caso
+  (19 a 21/10, §4.68):** a consulta de 17/10 imprimia dois hashes de doze caracteres lado a lado,
+  sem nome de coluna. O Claude copiou o do texto extraído como se fosse o `conteudo_hash`, e o
+  critério do teste ("o mesmo hash de 17/10") ficou dois dias escrito com o valor errado. Só
+  apareceu porque o script conferia a constante contra o banco e parou antes de gastar.
+  🔒 **Regra:** consulta cuja saída vai virar referência imprime o nome de cada valor
+  (`hash_html=`, `hash_texto=`); valor copiado de saída é conferido pelo nome do campo antes de
+  virar constante (CLAUDE.md §3).
+
 ---
 
-## 8. Estado dos SHAs (todos Live · atual `145d7a9`)
+## 8. Estado dos SHAs (todos Live · atual `2e27cae`)
 
 **Avaliador de documentos (só admin):** `7fe0662` (régua + dados) → `37e81aa`
 (extração + conferência de citação) → `ee248c5` (tabela) → `9cb4bc0` (motor) →
@@ -5166,7 +5256,10 @@ Live 21:00). §4.65. → `6c58d42` (horário de Brasília, Live 21:50). **16/out
 22:17). §4.66. **17/out:** `3b744bb` (docs, Live 15:30) → `08f4154` (saída nova, fatia 1, Live
 16:32) → `0955295` (fatia 2, Live 16:43) → `e2bf48f` → `16e6823` → `ceee011` (a virada para o
 veredito, Live 17:27) → `37bbb3d` → `5e1815c` → `c38357c` → `145d7a9` (v21 e rodapé, Live 18:53)
-→ `3f146f7` (fatia 4, limpeza; a mergear). §4.67.
+→ `3f146f7` (fatia 4, limpeza; Live). §4.67. **17 a 21/out:** `0b844ab` (v23,
+temperatura 0) → `c9a624d` (v24, data nos achados) → `521e65d` (Manual v11) → `9553322` (marcas,
+fatia 1) → `d6a9c7c` (fatia 2) → `03a0d59` (motor, fatia 3a) → `2e27cae` (virada, v25, Live 19/10)
+→ `d886386` (Manual v12) → `cc9430e` (conferidor, v26; a mergear). §4.68.
 
 **Import/identidade/recorte:** `f86aa54` (modelo grão) → `eb4689a` (link interno)
 → `779bbfc` (identidade unificada) → `a4f0dc0` (modelo por empresa + rótulo) →
