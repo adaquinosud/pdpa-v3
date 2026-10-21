@@ -1,7 +1,7 @@
 """Extrai LITERALMENTE o capítulo "Marcas de leitura de documento" do Manual de Operação
 (as marcas do balizador) para src/avaliador/dados/marcas.json.
 
-O capítulo é achado pelo TÍTULO, não pelo número (no v11 é o 17; o Manual já teve
+O capítulo é achado pelo TÍTULO, não pelo número (no v11 e no v12 é o 17; o Manual já teve
 subseções numeradas como se fossem capítulo, e um capítulo novo no meio renumera os
 seguintes). Termina no próximo título de capítulo ou em "Sobre a Loyall".
 
@@ -25,7 +25,7 @@ import docx
 
 from src.api.painel import NOME_SUBPILAR
 
-DOCX = Path("data/PDPA_Manual_Operacao_v11.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v12.docx")
 SAIDA = Path("src/avaliador/dados/marcas.json")
 TITULO = "Marcas de leitura de documento"
 FORA_DOS_DOZE = "O que dá para conferir na peça"

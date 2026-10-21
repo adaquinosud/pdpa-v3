@@ -1,5 +1,5 @@
 {
-  "fonte": "PDPA_Manual_Operacao_v11.docx, capítulo 17",
+  "fonte": "PDPA_Manual_Operacao_v12.docx, capítulo 17",
   "titulo": "17. Marcas de leitura de documento",
   "abertura": [
     "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas do modelo, na voz do cliente; aqui está o que um documento mostra por escrito sobre cada subpilar.",
@@ -105,7 +105,7 @@
     {
       "codigo": "P1.11",
       "grupo": "P1",
-      "texto": "Diz como pedidos de mudança de escopo são tratados?",
+      "texto": "Diz o que acontece se o cliente pedir, depois de fechado, uma coisa que não estava combinada?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -189,7 +189,7 @@
     {
       "codigo": "P3.04",
       "grupo": "P3",
-      "texto": "Diz o que acontece se o tamanho ou o volume do trabalho mudar?",
+      "texto": "Diz o que acontece se o volume do trabalho aumentar ou diminuir?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -357,7 +357,7 @@
     {
       "codigo": "Pa1.06",
       "grupo": "Pa1",
-      "texto": "Lista os problemas que esse cliente relatou?",
+      "texto": "Lista problemas que esse cliente relatou, e não problemas que o setor costuma ter?",
       "so_cliente_nomeado": true,
       "porque_importa": ""
     },
@@ -378,7 +378,7 @@
     {
       "codigo": "Pa2.01",
       "grupo": "Pa2",
-      "texto": "Diz quanto custa?",
+      "texto": "Diz quanto custa, com valor em número?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -616,14 +616,14 @@
     {
       "codigo": "C.01",
       "grupo": "C",
-      "texto": "Quando cita dado ou pesquisa, diz de onde veio?",
+      "texto": "Cita dado ou pesquisa nomeando a instituição, a publicação ou o autor?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
     {
       "codigo": "C.02",
       "grupo": "C",
-      "texto": "Diz a data do dado ou da pesquisa citada?",
+      "texto": "Cita dado ou pesquisa com a data em que foi feita ou publicada?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },

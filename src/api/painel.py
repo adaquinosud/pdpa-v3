@@ -59,7 +59,7 @@ PILAR_DE_SUBPILAR: Dict[str, str] = {
 
 PILARES_ORDEM = ["P", "D", "Pa", "A"]
 # Nomenclatura oficial PDPA Loyall. Fonte canônica:
-# data/PDPA_Manual_Operacao_v11.docx, Capítulo 2.
+# data/PDPA_Manual_Operacao_v12.docx, Capítulo 2.
 NOME_PILAR = {
     "P": "Precisão",
     "D": "Disponibilidade",

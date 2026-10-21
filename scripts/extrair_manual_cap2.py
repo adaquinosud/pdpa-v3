@@ -15,7 +15,7 @@ from pathlib import Path
 
 import docx
 
-DOCX = Path("data/PDPA_Manual_Operacao_v11.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v12.docx")
 SAIDA = Path("src/avaliador/dados/manual_cap2.json")
 _SUB = re.compile(r"^(P[123]|D[123]|Pa[123]|A[123]) — ([^:]+): (.+)$")
 _PILAR = re.compile(r"^Pilar \d — (.+)$")

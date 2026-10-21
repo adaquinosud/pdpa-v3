@@ -14,7 +14,7 @@ import pytest
 from src.api.painel import SUBPILARES_ORDEM
 from src.avaliador.regua import GRUPO_FORA, Regua, ReguaInvalida, _ler, carregar_regua, validar
 
-DOCX = Path("data/PDPA_Manual_Operacao_v11.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v12.docx")
 
 
 def _script():
@@ -52,6 +52,18 @@ def test_marcas_como_decidido_em_18_10():
     )
     assert r.marcas_de("A3")[3].texto == "Recomenda comprar menos, ou depois, ou outra coisa?"
     assert r.versao.startswith("manual+marcas+pistas:")
+
+
+def test_reescritas_de_21_10_no_manual_v12():
+    """Seis textos trocados depois das leituras de 19 a 21/10 (a Pa3.03 ficou como estava)."""
+    texto = {m.codigo: m.texto for m in carregar_regua().marcas}
+    assert texto["P1.11"].startswith("Diz o que acontece se o cliente pedir, depois de fechado")
+    assert texto["P3.04"] == "Diz o que acontece se o volume do trabalho aumentar ou diminuir?"
+    assert texto["Pa2.01"] == "Diz quanto custa, com valor em número?"
+    assert texto["C.01"].startswith("Cita dado ou pesquisa nomeando")
+    assert texto["C.02"].startswith("Cita dado ou pesquisa com a data")
+    assert texto["Pa1.06"].endswith("e não problemas que o setor costuma ter?")
+    assert texto["Pa3.03"] == "Diz qual é o canal de atendimento depois da contratação?"
 
 
 @pytest.mark.parametrize(
