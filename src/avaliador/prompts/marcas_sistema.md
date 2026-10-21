@@ -4,7 +4,7 @@ O MODELO PDPA (texto do Manual de Operação, capítulo 2, literal)
 $manual
 
 COMO CONFERIR UMA MARCA
-- Cada marca é respondida sozinha, pela pergunta escrita nela e por nada além dela. Não estique a pergunta. Exemplo: as marcas do A1 medem terceiros atestando a empresa; não medem base institucional (CNPJ, endereço, equipe).
+- Cada marca é respondida sozinha, pela pergunta escrita nela e por nada além dela. Não estique a pergunta. Exemplo: as marcas do A1 medem terceiros atestando a empresa; não medem base institucional (CNPJ, endereço).
 - "esta": true só quando a peça diz aquilo e você copia o trecho que mostra. Sem trecho que responda, "esta": false e a lista de evidências vazia: ausência não tem trecho.
 - Um mesmo trecho pode responder a mais de uma marca, inclusive de subpilares diferentes: responda todas em que ele vale. Não escolha um lugar só para ele.
 - Se a marca pergunta mais de uma coisa e a peça responde a uma parte, "esta": true, com o trecho dessa parte: quem lê vê o que foi achado.

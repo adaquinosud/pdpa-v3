@@ -2,7 +2,7 @@
 
 Decisão do Alexandre e do Dener, 18/10: a ferramenta para de dar veredito. Cada subpilar
 deixa de ser uma pergunta larga de julgamento e vira a lista de marcas do capítulo
-"Marcas de leitura de documento" do Manual (o 17 no v11 e no v12): perguntas de presença, que a
+"Marcas de leitura de documento" do Manual (o 17 do v11 ao v13): perguntas de presença, que a
 peça responde com um trecho ou não responde. Sem Sim/Parcial/Não, placar, posições
 vagas, "deveria ter", ausências do situar nem Lastro.
 
@@ -45,8 +45,10 @@ from src.avaliador.veredito import _tpl, cobertura, validar_achados
 from src.utils.fuso import para_brasilia
 
 # v25 (19/10): as marcas. v26 (21/10): mesmo pedido; muda a conferência da citação
-# (emenda e elisão) e a régua passa ao Manual v12.
-PROMPT_VERSAO = "avaliador-v26-marcas"
+# (emenda e elisão) e a régua passa ao Manual v12. v27 (21/10): Manual v13, 79 marcas (oito
+# saem, oito textos mudam, quatro exceções); o exemplo do A1 no pedido perde "equipe", que
+# puxava contra a A1.03 nova (formação de quem executa).
+PROMPT_VERSAO = "avaliador-v27-marcas"
 FORMATO = 3
 
 MAX_TOKENS_MARCAS = 4000

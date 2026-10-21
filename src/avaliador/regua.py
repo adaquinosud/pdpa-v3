@@ -69,6 +69,14 @@ class Marca:
 
 GRUPO_FORA = "C"
 
+# O código da marca é identidade: a leitura gravada guarda cada marca pelo código, e a tela
+# busca a exceção e o "porque importa" na régua de hoje por ele. Marca que sai do Manual
+# deixa buraco na numeração, e o código não volta a ser usado (Manual v13, 21/10: oito
+# marcas saíram por não valerem para toda relação comercial).
+MARCAS_APOSENTADAS = frozenset(
+    {"P1.05", "P1.06", "P1.08", "P1.09", "P2.05", "P3.03", "Pa2.07", "Pa3.05"}
+)
+
 
 @dataclass(frozen=True)
 class Pilar:
@@ -175,12 +183,15 @@ def _erros_das_marcas(r: Regua) -> List[str]:
             erros.append(f"marca {m.codigo} no grupo {m.grupo}")
         if not m.texto.strip():
             erros.append(f"marca {m.codigo} sem texto")
+        if m.codigo in MARCAS_APOSENTADAS:
+            erros.append(f"marca {m.codigo} usa código aposentado")
     for g in SUBPILARES_ORDEM + [GRUPO_FORA]:
         codigos = [m.codigo for m in r.marcas_de(g)]
         if not codigos:
             erros.append(f"nenhuma marca em {g}")
-        if codigos != [f"{g}.{i:02d}" for i in range(1, len(codigos) + 1)]:
-            erros.append(f"numeração das marcas de {g} fora de sequência: {codigos}")
+        nums = [int(c.split(".")[1]) for c in codigos]
+        if nums != sorted(set(nums)) or any(n < 1 for n in nums):
+            erros.append(f"numeração das marcas de {g} fora de ordem: {codigos}")
     return erros
 
 

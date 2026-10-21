@@ -109,7 +109,7 @@ def test_cinco_etapas_temperatura_e_o_resultado_inteiro():
     assert por["D1.01"]["evidencias"][0]["conferido"]
     assert por["P1.03"]["evidencias"][0]["pagina_encontrada"] == 2
     assert por["C.01"]["grupo"] == "C" and not por["C.01"]["esta"]
-    assert por["P1.09"]["texto"] == "Traz formação, certificação ou credencial de quem executa?"
+    assert por["A1.03"]["texto"].startswith("Traz prova de fora de que sabe fazer")
     assert res["achados"][0]["texto"] == "Não diz quem assina."
     assert res["cobertura"]["unidades"] == 2
     json.loads(mc.para_gravar(res))
@@ -130,7 +130,7 @@ def test_o_que_o_motor_grava_e_o_que_a_tela_le():
     assert estados["A1.01"] == "sem_conferencia"
     assert estados["D1.05"] == "nao_esta"
     assert [x["codigo"] for x in tela["a_parte"]] == [
-        "P1.07", "Pa1.05", "Pa1.06", "Pa1.07", "Pa2.03", "Pa2.04", "Pa2.09",
+        "Pa1.05", "Pa1.06", "Pa1.07", "Pa2.03",
     ]  # fmt: skip
     assert len(tela["fora_dos_doze"]["marcas"]) == 4
 
@@ -184,7 +184,7 @@ def test_resposta_fora_da_regra_e_recusada_e_tenta_de_novo(etapa, estraga, motiv
     res, _ = _ler(cli)
     assert [c["_etapa"] for c in cli.chamadas].count(etapa) == 2
     assert motivo in caplog.text
-    assert len(res["marcas"]) == 87
+    assert len(res["marcas"]) == len(carregar_regua().marcas)
 
 
 def test_duas_recusas_levantam_com_o_gasto():
@@ -197,7 +197,7 @@ def test_duas_recusas_levantam_com_o_gasto():
 def test_pedido_do_sistema_sem_veredito_sem_pistas_e_com_as_regras_de_18_10():
     s = mc.montar_sistema(carregar_regua())
     assert "D2 — Eficácia Operacional: quando algo dá errado" in s  # Manual literal
-    assert "não medem base institucional (CNPJ, endereço, equipe)." in s
+    assert "não medem base institucional (CNPJ, endereço)." in s  # v27: sem "equipe"
     assert "Um mesmo trecho pode responder a mais de uma marca" in s
     assert "R$ 96.000 no ano" in s
     for fora in (

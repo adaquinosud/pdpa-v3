@@ -1,5 +1,5 @@
 {
-  "fonte": "PDPA_Manual_Operacao_v12.docx, capítulo 17",
+  "fonte": "PDPA_Manual_Operacao_v13.docx, capítulo 17",
   "titulo": "17. Marcas de leitura de documento",
   "abertura": [
     "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas do modelo, na voz do cliente; aqui está o que um documento mostra por escrito sobre cada subpilar.",
@@ -61,37 +61,9 @@
       "porque_importa": ""
     },
     {
-      "codigo": "P1.05",
-      "grupo": "P1",
-      "texto": "Diz o cronograma com data ou número de semanas por etapa?",
-      "so_cliente_nomeado": false,
-      "porque_importa": ""
-    },
-    {
-      "codigo": "P1.06",
-      "grupo": "P1",
-      "texto": "Diz quantas horas e quantas pessoas do cliente serão necessárias?",
-      "so_cliente_nomeado": false,
-      "porque_importa": ""
-    },
-    {
       "codigo": "P1.07",
       "grupo": "P1",
       "texto": "Diz quem assina o compromisso?",
-      "so_cliente_nomeado": true,
-      "porque_importa": ""
-    },
-    {
-      "codigo": "P1.08",
-      "grupo": "P1",
-      "texto": "Diz quem executa o trabalho?",
-      "so_cliente_nomeado": false,
-      "porque_importa": ""
-    },
-    {
-      "codigo": "P1.09",
-      "grupo": "P1",
-      "texto": "Traz formação, certificação ou credencial de quem executa?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -112,14 +84,14 @@
     {
       "codigo": "P2.01",
       "grupo": "P2",
-      "texto": "Diz quando a entrega será reconhecida como pronta?",
+      "texto": "Diz em que momento a entrega está concluída?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
     {
       "codigo": "P2.02",
       "grupo": "P2",
-      "texto": "Diz qual padrão, protocolo ou referência ela segue?",
+      "texto": "Diz qual padrão, protocolo, referência ou método ela segue?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -133,14 +105,7 @@
     {
       "codigo": "P2.04",
       "grupo": "P2",
-      "texto": "Diz o que acontece se não atender esses critérios?",
-      "so_cliente_nomeado": false,
-      "porque_importa": ""
-    },
-    {
-      "codigo": "P2.05",
-      "grupo": "P2",
-      "texto": "Diz que metodologia é empregada para assegurar que o produto será entregue?",
+      "texto": "Diz o que acontece se a entrega não atender o que foi combinado?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -180,16 +145,9 @@
       "porque_importa": ""
     },
     {
-      "codigo": "P3.03",
-      "grupo": "P3",
-      "texto": "Diz o que acontece se mudar quem executa, na empresa ou no cliente?",
-      "so_cliente_nomeado": false,
-      "porque_importa": ""
-    },
-    {
       "codigo": "P3.04",
       "grupo": "P3",
-      "texto": "Diz o que acontece se o volume do trabalho aumentar ou diminuir?",
+      "texto": "Diz o que acontece se o cliente precisar de mais ou de menos do que foi combinado?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -357,7 +315,7 @@
     {
       "codigo": "Pa1.06",
       "grupo": "Pa1",
-      "texto": "Lista problemas que esse cliente relatou, e não problemas que o setor costuma ter?",
+      "texto": "Diz quais problemas o próprio cliente relatou?",
       "so_cliente_nomeado": true,
       "porque_importa": ""
     },
@@ -371,7 +329,7 @@
     {
       "codigo": "Pa1.08",
       "grupo": "Pa1",
-      "texto": "Oferece teste ou prova de conceito antes de assinar?",
+      "texto": "Oferece uma forma de experimentar antes de pagar?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -400,7 +358,7 @@
       "codigo": "Pa2.04",
       "grupo": "Pa2",
       "texto": "Diz quais são as condições de pagamento?",
-      "so_cliente_nomeado": true,
+      "so_cliente_nomeado": false,
       "porque_importa": ""
     },
     {
@@ -418,13 +376,6 @@
       "porque_importa": ""
     },
     {
-      "codigo": "Pa2.07",
-      "grupo": "Pa2",
-      "texto": "Vincula parte do pagamento a um resultado do cliente?",
-      "so_cliente_nomeado": false,
-      "porque_importa": ""
-    },
-    {
       "codigo": "Pa2.08",
       "grupo": "Pa2",
       "texto": "Diz o que acontece com o dinheiro se não funcionar?",
@@ -435,7 +386,7 @@
       "codigo": "Pa2.09",
       "grupo": "Pa2",
       "texto": "Diz as condições de cancelamento ou rescisão?",
-      "so_cliente_nomeado": true,
+      "so_cliente_nomeado": false,
       "porque_importa": ""
     },
     {
@@ -467,13 +418,6 @@
       "porque_importa": ""
     },
     {
-      "codigo": "Pa3.05",
-      "grupo": "Pa3",
-      "texto": "Diz quem cuida do cliente ao longo do tempo?",
-      "so_cliente_nomeado": false,
-      "porque_importa": ""
-    },
-    {
       "codigo": "Pa3.06",
       "grupo": "Pa3",
       "texto": "Diz o que a empresa oferece a quem não contrata o passo seguinte?",
@@ -483,7 +427,7 @@
     {
       "codigo": "A1.01",
       "grupo": "A1",
-      "texto": "Alguém de fora fala na peça, com nome e cargo?",
+      "texto": "Traz alguém de fora falando na peça, com nome e cargo?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -497,7 +441,7 @@
     {
       "codigo": "A1.03",
       "grupo": "A1",
-      "texto": "Traz certificação, registro ou selo de auditoria externa?",
+      "texto": "Traz prova de fora de que sabe fazer: certificação, registro, selo ou formação de quem executa?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
