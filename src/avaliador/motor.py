@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from src.api.painel import SUBPILARES_ORDEM
-from src.avaliador.extracao import Documento, conferir_trecho, nome_secao, referencia
+from src.avaliador.extracao import MARCA_ELISAO, Documento, localizar_trecho, nome_secao, referencia
 from src.avaliador.regua import Regua
 
 logger = logging.getLogger(__name__)
@@ -157,17 +157,21 @@ def _evidencias(doc: Documento, bruto: Any) -> List[dict]:
             pagina = int(ev.get("pagina")) if ev.get("pagina") is not None else None
         except (TypeError, ValueError):
             pagina = None
-        conferido, achada = conferir_trecho(doc, pagina, trecho)
+        achada, literal, ajuste = localizar_trecho(doc, pagina, trecho)
+        conferido = achada is not None
         ev = {
             "pagina": pagina,
-            "trecho": trecho,
+            "trecho": literal,  # como está na peça (é o que a tela mostra)
             "conferido": conferido,
             "pagina_encontrada": achada,
         }
+        if ajuste:  # o modelo costurou (emenda ou elisão): fica o que ele escreveu
+            ev["ajuste"] = ajuste
+            ev["trecho_citado"] = trecho
         if doc.por_secao and conferido:
             # página da web e Word não têm número de página: vai o título da seção ou o
             # começo do parágrafo, calculado sobre onde o trecho FOI achado
-            ev["referencia"] = referencia(doc, achada, trecho)
+            ev["referencia"] = referencia(doc, achada, literal.split(MARCA_ELISAO)[0])
         out.append(ev)
     return out
 

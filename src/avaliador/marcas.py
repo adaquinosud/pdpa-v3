@@ -1,8 +1,8 @@
-"""Leitura no formato 3 (``avaliador-v25-marcas``): o balizador de marcas.
+"""Leitura no formato 3 (``avaliador-v25-marcas``, ``v26`` desde 21/10): o balizador de marcas.
 
 Decisão do Alexandre e do Dener, 18/10: a ferramenta para de dar veredito. Cada subpilar
 deixa de ser uma pergunta larga de julgamento e vira a lista de marcas do capítulo
-"Marcas de leitura de documento" do Manual (o 17 no v11): perguntas de presença, que a
+"Marcas de leitura de documento" do Manual (o 17 no v11 e no v12): perguntas de presença, que a
 peça responde com um trecho ou não responde. Sem Sim/Parcial/Não, placar, posições
 vagas, "deveria ter", ausências do situar nem Lastro.
 
@@ -17,7 +17,8 @@ O que é código, não pedido:
 - toda marca respondida exatamente uma vez; "esta" sem trecho, ou trecho sem "esta", é
   resposta recusada (nova tentativa);
 - toda citação conferida no texto extraído: "está" na tela só com trecho achado
-  (servico.organizar_marcas);
+  (servico.organizar_marcas); desde a v26 a conferência aceita a emenda e a elisão do
+  modelo, com toda palavra da peça (extracao.localizar_trecho);
 - o texto de cada marca gravado na leitura, como foi perguntado.
 
 Nada aqui toca banco: o serviço orquestra, grava e cobra.
@@ -43,7 +44,9 @@ from src.avaliador.regua import GRUPO_FORA, Regua
 from src.avaliador.veredito import _tpl, cobertura, validar_achados
 from src.utils.fuso import para_brasilia
 
-PROMPT_VERSAO = "avaliador-v25-marcas"
+# v25 (19/10): as marcas. v26 (21/10): mesmo pedido; muda a conferência da citação
+# (emenda e elisão) e a régua passa ao Manual v12.
+PROMPT_VERSAO = "avaliador-v26-marcas"
 FORMATO = 3
 
 MAX_TOKENS_MARCAS = 4000

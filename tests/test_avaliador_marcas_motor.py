@@ -1,4 +1,4 @@
-"""Motor do formato 3 (balizador de marcas, avaliador-v25-marcas): pedido, validação e o
+"""Motor do formato 3 (balizador de marcas, avaliador-v25 e v26): pedido, validação e o
 resultado que a tela lê. Cliente dublado: nenhuma chamada paga."""
 
 from __future__ import annotations

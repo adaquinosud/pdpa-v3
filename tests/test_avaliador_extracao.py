@@ -224,3 +224,84 @@ def test_texto_colado_vira_documento_de_uma_pagina():
     assert conferir_trecho(doc, 1, "comigo, das 8h às 18h") == (True, 1)
     with pytest.raises(DocumentoRecusado, match="vazio"):
         documento_de_texto("   ")
+
+
+# ── costuras do modelo (21/10): emenda e elisão ───────────────────────────
+
+CARTAO = "Consultoria de CX\nDiagnóstico tradicional entrega um relatório em seis semanas."
+PARECER = (
+    "O parecer é fechado em si. Quem quiser seguir pode contratar a Leitura Contínua, "
+    "que acompanha mês a mês. As duas são contratadas à parte."
+)
+
+
+def _costuras():
+    return Documento("pdf", [Pagina(1, CARTAO), Pagina(2, PARECER), Pagina(3, "Outra coisa.")])
+
+
+def test_citacao_literal_continua_como_o_modelo_escreveu():
+    assert extracao.localizar_trecho(_costuras(), 2, "fechado em si. Quem quiser") == (
+        2,
+        "fechado em si. Quem quiser",
+        "",
+    )
+
+
+def test_emenda_pontuacao_no_lugar_da_quebra_de_linha():
+    for junta in (": ", " - ", ". ", " | "):
+        r = extracao.localizar_trecho(
+            _costuras(), 1, f"Consultoria de CX{junta}Diagnóstico tradicional"
+        )
+        assert r == (1, "Consultoria de CX Diagnóstico tradicional", "emenda"), junta
+
+
+def test_emenda_nao_aceita_palavra_nova_nem_pontuacao_onde_a_peca_nao_quebra():
+    doc = _costuras()
+    assert conferir_trecho(doc, 1, "Consultoria de RH: Diagnóstico tradicional") == (False, None)
+    assert conferir_trecho(doc, 1, "Consultoria de CX, Diagnóstico tradicional") == (False, None)
+    assert conferir_trecho(doc, 1, "Diagnóstico tradicional: entrega um relatório") == (False, None)
+
+
+def test_elisao_dois_pedacos_literais_da_mesma_pagina_na_ordem():
+    citado = (
+        "O parecer é fechado em si. Quem quiser seguir pode contratar a Leitura Contínua"
+        "... As duas são contratadas à parte"
+    )
+    achada, literal, ajuste = extracao.localizar_trecho(_costuras(), 2, citado)
+    assert (achada, ajuste) == (2, "elisao")
+    assert literal == (
+        "O parecer é fechado em si. Quem quiser seguir pode contratar a Leitura Contínua"
+        " […] As duas são contratadas à parte"
+    )
+    for marca in ("…", "[...]", "(…)"):
+        assert conferir_trecho(
+            _costuras(), 2, f"O parecer é fechado em si {marca} As duas são contratadas"
+        )[0]
+
+
+def test_elisao_recusada_fora_de_ordem_entre_paginas_curta_ou_inventada():
+    doc = _costuras()
+    assert not conferir_trecho(
+        doc, 2, "As duas são contratadas à parte... O parecer é fechado em si"
+    )[0]
+    assert not conferir_trecho(
+        doc, 2, "O parecer é fechado em si... Diagnóstico tradicional entrega"
+    )[0]
+    assert not conferir_trecho(doc, 2, "O parecer é fechado em si... à parte")[0]
+    assert not conferir_trecho(doc, 2, "O parecer é fechado em si... e custa pouco mais de nada")[0]
+
+
+def test_reticencias_na_ponta_do_trecho():
+    r = extracao.localizar_trecho(_costuras(), 2, "...pode contratar a Leitura Contínua")
+    assert r == (2, "pode contratar a Leitura Contínua", "elisao")
+
+
+def test_motor_grava_o_trecho_da_peca_e_guarda_o_que_o_modelo_escreveu():
+    from src.avaliador.motor import _evidencias
+
+    citado = "Consultoria de CX: Diagnóstico tradicional entrega"
+    [ev] = _evidencias(_costuras(), [{"pagina": 1, "trecho": citado}])
+    assert ev["conferido"] and ev["trecho"] == "Consultoria de CX Diagnóstico tradicional entrega"
+    assert ev["ajuste"] == "emenda" and ev["trecho_citado"] == citado
+    [ev] = _evidencias(_costuras(), [{"pagina": 1, "trecho": "Diagnóstico tradicional entrega"}])
+    assert "ajuste" not in ev and "trecho_citado" not in ev

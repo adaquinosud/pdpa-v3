@@ -644,17 +644,92 @@ def _normalizar(s: str) -> str:
 def conferir_trecho(
     doc: Documento, pagina: Optional[int], trecho: str
 ) -> Tuple[bool, Optional[int]]:
-    """O trecho citado existe LITERALMENTE no texto extraído?
+    """O trecho citado existe na peça? ``(conferido, pagina_encontrada)``; a regra é a de
+    ``localizar_trecho``."""
+    achada, _, _ = localizar_trecho(doc, pagina, trecho)
+    return achada is not None, achada
+
+
+# Medido em 21/10 (13 leituras do site da Loyall, 919 citações, 58 recusadas): 37 eram o
+# título de um bloco emendado ao texto de baixo com pontuação que a peça não tem
+# ("Consultoria de CX: Diagnóstico…", onde a peça tem uma quebra de linha) e 10 eram dois
+# pedaços literais da mesma seção juntados por reticências. Nos dois casos a palavra é
+# toda da peça; o que o modelo põe é a costura.
+AJUSTE_EMENDA = "emenda"
+AJUSTE_ELISAO = "elisao"
+MARCA_ELISAO = " […] "
+_JUNCAO = r"\s*[:.|·-]\s+"
+_ELISAO = re.compile(r"\s*(?:\[\s*(?:\.\.\.|…)\s*\]|\(\s*(?:\.\.\.|…)\s*\)|\.\.\.|…)\s*")
+
+
+def _com_quebras(s: str) -> str:
+    """Como ``_normalizar``, mas guardando as quebras de linha (uma por vez)."""
+    s = re.sub(r"[^\S\n]+", " ", _nfc(s).translate(_TROCAS))
+    return re.sub(r" ?\n[ \n]*", "\n", s).strip()
+
+
+def _padrao(alvo: str) -> "re.Pattern":
+    """Cada espaço do trecho casa com espaço ou quebra; cada pontuação de junção casa com
+    ela mesma OU com uma quebra de linha da peça (e só com quebra: pontuação que a peça
+    não tem, num lugar onde a peça não quebra a linha, continua recusada)."""
+    rx = ""
+    for i, pedaco in enumerate(re.split(f"({_JUNCAO})", alvo)):
+        literal = re.escape(pedaco).replace(r"\ ", "[ \n]")
+        rx += f"(?:{literal}|\n)" if i % 2 else literal
+    return re.compile(rx)
+
+
+def _achar(fonte: str, alvo: str, inicio: int = 0) -> Optional[Tuple[int, str]]:
+    """(fim, como está na peça, com quebra virando espaço) ou None."""
+    m = _padrao(alvo).search(fonte, inicio)
+    if m is None:
+        return None
+    return m.end(), m.group(0).replace("\n", " ")
+
+
+def localizar_trecho(
+    doc: Documento, pagina: Optional[int], trecho: str
+) -> Tuple[Optional[int], str, str]:
+    """O trecho citado existe na peça? Devolve ``(pagina_encontrada ou None, o trecho como
+    está na peça, ajuste)``.
 
     Normaliza só espaço, Unicode (NFC) e aspas/travessões tipográficos — nada de
     maiúscula/minúscula nem paráfrase. Procura primeiro na página citada, depois nas
-    outras. Devolve ``(conferido, pagina_encontrada)``. Trecho curto demais nunca confere.
+    outras. Trecho curto demais nunca confere. Duas costuras do modelo são aceitas (21/10),
+    sempre com toda palavra literal e devolvendo o trecho como está na peça, para a tela
+    não mostrar o que a peça não diz:
+    - ``emenda``: pontuação de junção onde a peça tem uma quebra de linha;
+    - ``elisao``: pedaços separados por reticências, cada um com o mínimo de caracteres,
+      todos na MESMA página ou seção e na ordem da peça; a tela mostra " […] " entre eles.
     """
     alvo = _normalizar(trecho)
     if len(alvo) < MIN_CARACTERES_TRECHO:
-        return False, None
+        return None, trecho, ""
     ordem = sorted(doc.paginas, key=lambda p: 0 if p.numero == pagina else 1)
     for p in ordem:
         if alvo in _normalizar(p.texto) or alvo in _normalizar(p.notas):
-            return True, p.numero
-    return False, None
+            return p.numero, trecho, ""
+    for p in ordem:
+        for campo in (p.texto, p.notas):
+            achado = _achar(_com_quebras(campo), alvo)
+            if achado:
+                return p.numero, achado[1], AJUSTE_EMENDA
+    partes = [x.strip() for x in _ELISAO.split(alvo) if x.strip()]
+    if len(partes) < 2 or any(len(x) < MIN_CARACTERES_TRECHO for x in partes):
+        if len(partes) == 1 and partes[0] != alvo:  # reticências só na ponta
+            achada, literal, _ = localizar_trecho(doc, pagina, partes[0])
+            if achada is not None:
+                return achada, literal, AJUSTE_ELISAO
+        return None, trecho, ""
+    for p in ordem:
+        for campo in (p.texto, p.notas):
+            fonte, pos, literais = _com_quebras(campo), 0, []
+            for parte in partes:
+                achado = _achar(fonte, parte, pos)
+                if achado is None:
+                    break
+                pos, literal = achado
+                literais.append(literal)
+            else:
+                return p.numero, MARCA_ELISAO.join(literais), AJUSTE_ELISAO
+    return None, trecho, ""
