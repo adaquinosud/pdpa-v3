@@ -91,7 +91,7 @@
     {
       "codigo": "P2.02",
       "grupo": "P2",
-      "texto": "Diz qual padrão, protocolo, referência ou método ela segue?",
+      "texto": "Diz qual padrão, protocolo ou referência ela segue?",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },

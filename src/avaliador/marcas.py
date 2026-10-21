@@ -46,7 +46,7 @@ from src.utils.fuso import para_brasilia
 
 # v25 (19/10): as marcas. v26 (21/10): mesmo pedido; muda a conferência da citação
 # (emenda e elisão) e a régua passa ao Manual v12. v27 (21/10): Manual v13, 79 marcas (oito
-# saem, oito textos mudam, quatro exceções); o exemplo do A1 no pedido perde "equipe", que
+# saem, sete textos mudam, quatro exceções); o exemplo do A1 no pedido perde "equipe", que
 # puxava contra a A1.03 nova (formação de quem executa).
 PROMPT_VERSAO = "avaliador-v27-marcas"
 FORMATO = 3

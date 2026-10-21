@@ -67,10 +67,11 @@ def test_marcas_como_decidido_em_18_10_e_na_regua_de_79():
 
 
 def test_textos_do_manual_v13():
-    """Os oito textos trocados em 21/10 (régua de 79), e os de 21/10 no v12 que ficaram."""
+    """Os sete textos trocados em 21/10 (régua de 79), e os de 21/10 no v12 que ficaram."""
     texto = {m.codigo: m.texto for m in carregar_regua().marcas}
     assert texto["P2.01"] == "Diz em que momento a entrega está concluída?"
-    assert texto["P2.02"] == "Diz qual padrão, protocolo, referência ou método ela segue?"
+    # P2.02: "ou método" saiu no portão (balançou numa de cinco leituras); fica o texto do v12
+    assert texto["P2.02"] == "Diz qual padrão, protocolo ou referência ela segue?"
     assert texto["P2.04"] == "Diz o que acontece se a entrega não atender o que foi combinado?"
     assert texto["P3.04"] == (
         "Diz o que acontece se o cliente precisar de mais ou de menos do que foi combinado?"
