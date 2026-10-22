@@ -405,6 +405,9 @@ def organizar_marcas(
                 )
             ),
             "subpilar": regua.subpilar(m["grupo"]) if m["grupo"] in SUBPILARES_ORDEM else None,
+            # a página da frente do parecer (Manual v14): o nome curto e a exceção de hoje
+            "nome_curto": r.nome_curto if r else "",
+            "so_cliente_nomeado": bool(r and r.so_cliente_nomeado),
         }
         (a_parte if separa and r and r.so_cliente_nomeado else linhas).append(linha)
     pergunta = {x["codigo"]: x["pergunta"] for x in (regua.marcas_cap or {}).get("pilares", [])}
@@ -422,6 +425,7 @@ def organizar_marcas(
         for p in regua.pilares
     ]
     return {
+        "perguntas_leitor": regua.perguntas_leitor,
         "cobertura": veredito.declarar_cobertura(g["cobertura"]),
         "cliente_nomeado": a.cliente_nomeado,
         "achados": g["achados"],

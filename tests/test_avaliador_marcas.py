@@ -22,7 +22,7 @@ from src.avaliador.regua import (
     validar,
 )
 
-DOCX = Path("data/PDPA_Manual_Operacao_v13.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v14.docx")
 
 
 def _script():
@@ -102,6 +102,9 @@ def test_textos_do_manual_v13():
         (lambda d: d["marcas"][0].update(grupo="P2"), "marca P1.01 no grupo P2"),
         (lambda d: d["marcas"][0].update(grupo="X9"), "grupo fora do modelo: X9"),
         (lambda d: d["marcas"][0].update(texto=" "), "marca P1.01 sem texto"),
+        (lambda d: d["marcas"][0].update(nome_curto=""), "marca P1.01 sem nome curto"),
+        (lambda d: d["marcas"][1].update(nome_curto="o que entrega"), "nome curto repetido"),
+        (lambda d: d["perguntas_leitor"].pop("D2"), r"sem pergunta do leitor: \['D2'\]"),
         (
             lambda d: d.update(marcas=[x for x in d["marcas"] if x["grupo"] != "D3"]),
             "nenhuma marca em D3",
@@ -135,19 +138,46 @@ def test_extrator_recusa_capitulo_fora_da_forma(tmp_path):
         "Pilar 1 — PRECISÃO",
         "Apresenta a promessa?",
         "P1 — Calibração da Promessa",
-        "P1.01 Diz o que será entregue?",
+        "Pergunta do leitor: O que me venderam é o que eu vou receber?",
+        "P1.01 Diz o que será entregue? (nome curto: o que entrega)",
     )
     exc = "Só se esperam em peça feita para um cliente com nome: P1.01."
     ok = mod.extrair(manual(*base, exc))
     assert ok["fonte"].endswith("capítulo 17") and ok["marcas"][0]["so_cliente_nomeado"]
     assert ok["abertura"] == ["Abertura."]
+    # Manual v14: o nome curto sai do texto da marca (o modelo lê a marca sem ele)
+    assert ok["marcas"][0]["texto"] == "Diz o que será entregue?"
+    assert ok["marcas"][0]["nome_curto"] == "o que entrega"
+    assert ok["perguntas_leitor"] == {"P1": "O que me venderam é o que eu vou receber?"}
     casos = [
-        ((*base, "P2.01 Diz outra coisa?", exc), "fora do seu subpilar"),
+        ((*base, "P2.01 Diz outra coisa? (nome curto: x)", exc), "fora do seu subpilar"),
+        ((*base, "P1.02 Diz outra coisa?", exc), "P1.02 sem nome curto"),
+        ((*base[:4], base[5], exc), r"subpilar sem pergunta do leitor: \['P1'\]"),
         ((*base, "Só se esperam em peça feita para um cliente com nome: P1.09."), "P1.09"),
         (base, "não tem o parágrafo"),
         ((*base, exc, "mais texto"), "depois das exceções"),
-        ((*base[:3], "P1 — Promessa", "P1.01 Diz?", exc), "o capítulo diz 'Promessa'"),
+        (
+            (*base[:3], "P1 — Promessa", "P1.01 Diz? (nome curto: x)", exc),
+            "o capítulo diz 'Promessa'",
+        ),
     ]
     for linhas, motivo in casos:
         with pytest.raises(SystemExit, match=motivo):
             mod.extrair(manual(*linhas))
+
+
+def test_nome_curto_e_pergunta_do_leitor_nao_vao_para_o_modelo():
+    """Manual v14 (22/10): o nome curto e a pergunta do leitor são da página da frente do
+    parecer. O pedido da leitura continua só com o texto de cada marca."""
+    from src.avaliador import marcas
+
+    r = carregar_regua()
+    # o pedido inteiro: o sistema e a instrução de cada chamada (as marcas vão nas instruções)
+    sistema = marcas.montar_sistema(r) + "".join(
+        marcas.instrucao_etapa(r, t, g) for t, g in marcas.etapas(r)
+    )
+    assert all(f"{m.codigo} {m.texto}\n" in sistema + "\n" for m in r.marcas)
+    assert "nome curto" not in sistema
+    for m in r.marcas:
+        assert f"{m.texto} ({m.nome_curto})" not in sistema
+    assert not any(q in sistema for q in r.perguntas_leitor.values())

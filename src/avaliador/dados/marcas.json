@@ -1,5 +1,5 @@
 {
-  "fonte": "PDPA_Manual_Operacao_v13.docx, capítulo 17",
+  "fonte": "PDPA_Manual_Operacao_v14.docx, capítulo 17",
   "titulo": "17. Marcas de leitura de documento",
   "abertura": [
     "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas do modelo, na voz do cliente; aqui está o que um documento mostra por escrito sobre cada subpilar.",
@@ -31,11 +31,26 @@
     "titulo": "O que dá para conferir na peça",
     "descricao": "Marcas fora dos doze subpilares: dizem se quem lê consegue conferir o que a peça afirma."
   },
+  "perguntas_leitor": {
+    "P1": "O que me venderam é o que eu vou receber?",
+    "P2": "O que eu receber vai ser bem feito?",
+    "P3": "Vai ser assim sempre, ou só na primeira vez?",
+    "D1": "Quando eu precisar falar, eu consigo?",
+    "D2": "Quando der problema, eles resolvem?",
+    "D3": "Eles me avisam antes, ou eu descubro depois?",
+    "Pa1": "Eles entendem a minha situação?",
+    "Pa2": "O que eu pago vale o que eu recebo?",
+    "Pa3": "Eles continuam aqui depois que a venda acabar?",
+    "A1": "Alguém além deles diz que eles são bons?",
+    "A2": "Eles me ensinam alguma coisa, ou só vendem?",
+    "A3": "Eles me dizem o que eu deveria fazer, mesmo sem eu comprar?"
+  },
   "marcas": [
     {
       "codigo": "P1.01",
       "grupo": "P1",
       "texto": "Diz o que será entregue, item por item?",
+      "nome_curto": "o que entrega",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -43,6 +58,7 @@
       "codigo": "P1.02",
       "grupo": "P1",
       "texto": "Diz o que não será entregue?",
+      "nome_curto": "o que não entrega",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -50,6 +66,7 @@
       "codigo": "P1.03",
       "grupo": "P1",
       "texto": "Diz como será entregue e em que prazo?",
+      "nome_curto": "como e em que prazo",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -57,6 +74,7 @@
       "codigo": "P1.04",
       "grupo": "P1",
       "texto": "Diz o que o cliente precisa fornecer, e quando?",
+      "nome_curto": "o que o cliente fornece",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -64,6 +82,7 @@
       "codigo": "P1.07",
       "grupo": "P1",
       "texto": "Diz quem assina o compromisso?",
+      "nome_curto": "quem assina",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -71,6 +90,7 @@
       "codigo": "P1.10",
       "grupo": "P1",
       "texto": "Diz o que é responsabilidade da empresa e o que é responsabilidade do cliente?",
+      "nome_curto": "divisão de responsabilidade",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -78,6 +98,7 @@
       "codigo": "P1.11",
       "grupo": "P1",
       "texto": "Diz o que acontece se o cliente pedir, depois de fechado, uma coisa que não estava combinada?",
+      "nome_curto": "pedido fora do combinado",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -85,6 +106,7 @@
       "codigo": "P2.01",
       "grupo": "P2",
       "texto": "Diz em que momento a entrega está concluída?",
+      "nome_curto": "quando termina",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -92,6 +114,7 @@
       "codigo": "P2.02",
       "grupo": "P2",
       "texto": "Diz qual padrão, protocolo ou referência ela segue?",
+      "nome_curto": "padrão",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -99,6 +122,7 @@
       "codigo": "P2.03",
       "grupo": "P2",
       "texto": "Diz quais critérios a entrega precisa atender?",
+      "nome_curto": "critério de aceitação",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -106,6 +130,7 @@
       "codigo": "P2.04",
       "grupo": "P2",
       "texto": "Diz o que acontece se a entrega não atender o que foi combinado?",
+      "nome_curto": "o que acontece se falhar",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -113,6 +138,7 @@
       "codigo": "P2.06",
       "grupo": "P2",
       "texto": "Diz por quanto tempo vale a garantia, em dias, meses ou anos?",
+      "nome_curto": "prazo de garantia",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -120,6 +146,7 @@
       "codigo": "P2.07",
       "grupo": "P2",
       "texto": "Diz qual penalidade a própria empresa sofre se atrasar ou falhar?",
+      "nome_curto": "penalidade da empresa",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -127,6 +154,7 @@
       "codigo": "P2.08",
       "grupo": "P2",
       "texto": "Diz o que será feito com os dados do cliente, e sob qual regra?",
+      "nome_curto": "tratamento de dados",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -134,6 +162,7 @@
       "codigo": "P3.01",
       "grupo": "P3",
       "texto": "Diz o que garante que a segunda entrega sai igual à primeira?",
+      "nome_curto": "o que garante a repetição",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -141,6 +170,7 @@
       "codigo": "P3.02",
       "grupo": "P3",
       "texto": "Diz como a entrega é medida ao longo do tempo?",
+      "nome_curto": "medição no tempo",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -148,6 +178,7 @@
       "codigo": "P3.04",
       "grupo": "P3",
       "texto": "Diz o que acontece se o cliente precisar de mais ou de menos do que foi combinado?",
+      "nome_curto": "variação de volume",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -155,6 +186,7 @@
       "codigo": "D1.01",
       "grupo": "D1",
       "texto": "Diz por onde se fala com a empresa?",
+      "nome_curto": "por onde falar",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -162,6 +194,7 @@
       "codigo": "D1.02",
       "grupo": "D1",
       "texto": "Diz em quanto tempo a empresa responde?",
+      "nome_curto": "tempo de resposta",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -169,6 +202,7 @@
       "codigo": "D1.03",
       "grupo": "D1",
       "texto": "Diz quem atende, por nome ou por cargo?",
+      "nome_curto": "quem atende",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -176,6 +210,7 @@
       "codigo": "D1.04",
       "grupo": "D1",
       "texto": "Diz em que horário a empresa atende?",
+      "nome_curto": "horário",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -183,6 +218,7 @@
       "codigo": "D1.05",
       "grupo": "D1",
       "texto": "Diz em que dias da semana há expediente?",
+      "nome_curto": "dias de expediente",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -190,6 +226,7 @@
       "codigo": "D1.06",
       "grupo": "D1",
       "texto": "Diz se existe canal fora do expediente?",
+      "nome_curto": "canal fora do expediente",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -197,6 +234,7 @@
       "codigo": "D1.07",
       "grupo": "D1",
       "texto": "Diz onde a empresa fica?",
+      "nome_curto": "endereço",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -204,6 +242,7 @@
       "codigo": "D1.08",
       "grupo": "D1",
       "texto": "Diz o endereço do portal de chamados ou autoatendimento?",
+      "nome_curto": "portal",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -211,6 +250,7 @@
       "codigo": "D2.01",
       "grupo": "D2",
       "texto": "Diz o que acontece quando algo dá errado?",
+      "nome_curto": "o que acontece quando dá errado",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -218,6 +258,7 @@
       "codigo": "D2.02",
       "grupo": "D2",
       "texto": "Diz quem o cliente aciona, e por onde?",
+      "nome_curto": "quem acionar",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -225,6 +266,7 @@
       "codigo": "D2.03",
       "grupo": "D2",
       "texto": "Diz em quanto tempo o problema é resolvido?",
+      "nome_curto": "prazo de solução",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -232,6 +274,7 @@
       "codigo": "D2.04",
       "grupo": "D2",
       "texto": "Diz para quem o assunto sobe se não for resolvido?",
+      "nome_curto": "para quem sobe",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -239,6 +282,7 @@
       "codigo": "D2.05",
       "grupo": "D2",
       "texto": "Diz o que a empresa faz para o problema não se repetir?",
+      "nome_curto": "o que impede repetir",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -246,6 +290,7 @@
       "codigo": "D3.01",
       "grupo": "D3",
       "texto": "Diz o que a empresa avisa antes de acontecer?",
+      "nome_curto": "o que avisa antes",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -253,6 +298,7 @@
       "codigo": "D3.02",
       "grupo": "D3",
       "texto": "Diz quando e por onde esse aviso chega?",
+      "nome_curto": "quando e por onde avisa",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -260,6 +306,7 @@
       "codigo": "D3.03",
       "grupo": "D3",
       "texto": "Diz com que frequência o cliente recebe notícia do andamento?",
+      "nome_curto": "frequência do acompanhamento",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -267,6 +314,7 @@
       "codigo": "D3.04",
       "grupo": "D3",
       "texto": "Avisa uma condição ou um risco antes de o cliente esbarrar nele?",
+      "nome_curto": "aviso de risco",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -274,6 +322,7 @@
       "codigo": "D3.05",
       "grupo": "D3",
       "texto": "Diz como a empresa acompanha o que pode dar errado, antes de dar?",
+      "nome_curto": "como monitora",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -281,6 +330,7 @@
       "codigo": "Pa1.01",
       "grupo": "Pa1",
       "texto": "Descreve a situação de quem vai ler, com as palavras dele?",
+      "nome_curto": "a situação do leitor",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -288,6 +338,7 @@
       "codigo": "Pa1.02",
       "grupo": "Pa1",
       "texto": "Diz para quem ela não serve?",
+      "nome_curto": "para quem não serve",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -295,6 +346,7 @@
       "codigo": "Pa1.03",
       "grupo": "Pa1",
       "texto": "Abre mão de alguma coisa em favor do cliente?",
+      "nome_curto": "concessão",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -302,6 +354,7 @@
       "codigo": "Pa1.04",
       "grupo": "Pa1",
       "texto": "Fala com o leitor pelo papel que ele ocupa?",
+      "nome_curto": "o papel do leitor",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -309,6 +362,7 @@
       "codigo": "Pa1.05",
       "grupo": "Pa1",
       "texto": "Menciona o nome da empresa que vai ler?",
+      "nome_curto": "nome de quem vai ler",
       "so_cliente_nomeado": true,
       "porque_importa": ""
     },
@@ -316,6 +370,7 @@
       "codigo": "Pa1.06",
       "grupo": "Pa1",
       "texto": "Diz quais problemas o próprio cliente relatou?",
+      "nome_curto": "problemas que o cliente relatou",
       "so_cliente_nomeado": true,
       "porque_importa": ""
     },
@@ -323,6 +378,7 @@
       "codigo": "Pa1.07",
       "grupo": "Pa1",
       "texto": "Diz como as necessidades desse cliente foram levantadas antes de escrever?",
+      "nome_curto": "como levantou a necessidade",
       "so_cliente_nomeado": true,
       "porque_importa": ""
     },
@@ -330,6 +386,7 @@
       "codigo": "Pa1.08",
       "grupo": "Pa1",
       "texto": "Oferece uma forma de experimentar antes de pagar?",
+      "nome_curto": "experimentar antes",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -337,6 +394,7 @@
       "codigo": "Pa2.01",
       "grupo": "Pa2",
       "texto": "Diz quanto custa, com valor em número?",
+      "nome_curto": "preço",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -344,6 +402,7 @@
       "codigo": "Pa2.02",
       "grupo": "Pa2",
       "texto": "Diz como o valor é formado, por unidade, por hora ou fechado?",
+      "nome_curto": "como forma o preço",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -351,6 +410,7 @@
       "codigo": "Pa2.03",
       "grupo": "Pa2",
       "texto": "Diz se o valor inclui impostos?",
+      "nome_curto": "impostos",
       "so_cliente_nomeado": true,
       "porque_importa": ""
     },
@@ -358,6 +418,7 @@
       "codigo": "Pa2.04",
       "grupo": "Pa2",
       "texto": "Diz quais são as condições de pagamento?",
+      "nome_curto": "condições de pagamento",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -365,6 +426,7 @@
       "codigo": "Pa2.05",
       "grupo": "Pa2",
       "texto": "Diz o que o cliente ainda vai pagar por fora, em taxas ou ferramentas de terceiros?",
+      "nome_curto": "custo por fora",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -372,6 +434,7 @@
       "codigo": "Pa2.06",
       "grupo": "Pa2",
       "texto": "Diz o que o cliente ganha ou deixa de perder, em número?",
+      "nome_curto": "ganho em número",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -379,6 +442,7 @@
       "codigo": "Pa2.08",
       "grupo": "Pa2",
       "texto": "Diz o que acontece com o dinheiro se não funcionar?",
+      "nome_curto": "dinheiro de volta",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -386,6 +450,7 @@
       "codigo": "Pa2.09",
       "grupo": "Pa2",
       "texto": "Diz as condições de cancelamento ou rescisão?",
+      "nome_curto": "cancelamento",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -393,6 +458,7 @@
       "codigo": "Pa3.01",
       "grupo": "Pa3",
       "texto": "Diz o que acontece depois que a entrega termina?",
+      "nome_curto": "depois da entrega",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -400,6 +466,7 @@
       "codigo": "Pa3.02",
       "grupo": "Pa3",
       "texto": "Diz por quanto tempo a empresa continua disponível depois da entrega?",
+      "nome_curto": "por quanto tempo continua",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -407,6 +474,7 @@
       "codigo": "Pa3.03",
       "grupo": "Pa3",
       "texto": "Diz qual é o canal de atendimento depois da contratação?",
+      "nome_curto": "canal pós-contratação",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -414,6 +482,7 @@
       "codigo": "Pa3.04",
       "grupo": "Pa3",
       "texto": "Prevê contato que não é venda?",
+      "nome_curto": "contato que não é venda",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -421,6 +490,7 @@
       "codigo": "Pa3.06",
       "grupo": "Pa3",
       "texto": "Diz o que a empresa oferece a quem não contrata o passo seguinte?",
+      "nome_curto": "quem não segue adiante",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -428,6 +498,7 @@
       "codigo": "A1.01",
       "grupo": "A1",
       "texto": "Traz alguém de fora falando na peça, com nome e cargo?",
+      "nome_curto": "voz de fora",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -435,6 +506,7 @@
       "codigo": "A1.02",
       "grupo": "A1",
       "texto": "Traz reconhecimento de terceiro: publicação, prêmio, parceiro?",
+      "nome_curto": "reconhecimento de terceiro",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -442,6 +514,7 @@
       "codigo": "A1.03",
       "grupo": "A1",
       "texto": "Traz prova de fora de que sabe fazer: certificação, registro, selo ou formação de quem executa?",
+      "nome_curto": "certificação",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -449,6 +522,7 @@
       "codigo": "A1.04",
       "grupo": "A1",
       "texto": "Traz resultado em número obtido em trabalho anterior?",
+      "nome_curto": "resultado anterior em número",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -456,6 +530,7 @@
       "codigo": "A1.05",
       "grupo": "A1",
       "texto": "Diz quantas vezes já fez aquilo?",
+      "nome_curto": "quantas vezes já fez",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -463,6 +538,7 @@
       "codigo": "A1.06",
       "grupo": "A1",
       "texto": "Nomeia clientes ou setores que já atendeu?",
+      "nome_curto": "clientes nomeados",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -470,6 +546,7 @@
       "codigo": "A2.01",
       "grupo": "A2",
       "texto": "Entrega uma opinião técnica antes de vender?",
+      "nome_curto": "opinião técnica",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -477,6 +554,7 @@
       "codigo": "A2.02",
       "grupo": "A2",
       "texto": "Diz o que o leitor provavelmente está fazendo errado?",
+      "nome_curto": "o que o leitor erra",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -484,6 +562,7 @@
       "codigo": "A2.03",
       "grupo": "A2",
       "texto": "Contraria o leitor em alguma coisa?",
+      "nome_curto": "contraria o leitor",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -491,6 +570,7 @@
       "codigo": "A2.04",
       "grupo": "A2",
       "texto": "Ensina alguma coisa que serve mesmo sem contratar?",
+      "nome_curto": "ensina sem vender",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -498,6 +578,7 @@
       "codigo": "A2.05",
       "grupo": "A2",
       "texto": "Traz indicador de desempenho do setor do leitor?",
+      "nome_curto": "indicador do setor",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -505,6 +586,7 @@
       "codigo": "A2.06",
       "grupo": "A2",
       "texto": "Nomeia lei, norma técnica ou regulação que se aplica?",
+      "nome_curto": "lei ou norma",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -512,6 +594,7 @@
       "codigo": "A2.07",
       "grupo": "A2",
       "texto": "Diz as limitações do que oferece?",
+      "nome_curto": "limitação do que oferece",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -519,6 +602,7 @@
       "codigo": "A2.08",
       "grupo": "A2",
       "texto": "Compara o que oferece com as alternativas do mercado?",
+      "nome_curto": "comparação com alternativas",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -526,6 +610,7 @@
       "codigo": "A3.01",
       "grupo": "A3",
       "texto": "Diz o que vem a seguir no mercado do leitor?",
+      "nome_curto": "o que vem a seguir",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -533,6 +618,7 @@
       "codigo": "A3.02",
       "grupo": "A3",
       "texto": "Diz o que ele deveria olhar agora, mesmo sem contratar?",
+      "nome_curto": "o que olhar agora",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -540,6 +626,7 @@
       "codigo": "A3.03",
       "grupo": "A3",
       "texto": "Aponta os riscos do próprio trabalho e o que fará sobre eles?",
+      "nome_curto": "riscos do próprio trabalho",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -547,6 +634,7 @@
       "codigo": "A3.04",
       "grupo": "A3",
       "texto": "Recomenda comprar menos, ou depois, ou outra coisa?",
+      "nome_curto": "recomendar menos",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -554,6 +642,7 @@
       "codigo": "A3.05",
       "grupo": "A3",
       "texto": "Diz o que muda se ele não fizer nada?",
+      "nome_curto": "custo de não fazer nada",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -561,6 +650,7 @@
       "codigo": "C.01",
       "grupo": "C",
       "texto": "Cita dado ou pesquisa nomeando a instituição, a publicação ou o autor?",
+      "nome_curto": "fonte do dado",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -568,6 +658,7 @@
       "codigo": "C.02",
       "grupo": "C",
       "texto": "Cita dado ou pesquisa com a data em que foi feita ou publicada?",
+      "nome_curto": "data do dado",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -575,6 +666,7 @@
       "codigo": "C.03",
       "grupo": "C",
       "texto": "Define os termos técnicos e as siglas que usa?",
+      "nome_curto": "define termos",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -582,6 +674,7 @@
       "codigo": "C.04",
       "grupo": "C",
       "texto": "Nomeia as tecnologias, softwares ou ferramentas que usa?",
+      "nome_curto": "tecnologia de terceiro",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     }

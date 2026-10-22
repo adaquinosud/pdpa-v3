@@ -353,3 +353,59 @@ def test_rodape_por_ultimo_e_o_resto_na_ordem_da_peca():
     # o rótulo é o menor, mas vem depois na peça (a #32, 22/10)
     assert sel["A1"][0]["trecho"].startswith("A E2Carbon e o Sicredi")
     assert sel["A2"][0]["trecho"] == "Primeiro na leitura, mais longo"  # mesma seção: leitura
+
+
+def _m(codigo, estado, nome, exc=False):
+    return {"codigo": codigo, "estado": estado, "nome_curto": nome, "texto": "Diz x?",
+            "so_cliente_nomeado": exc}  # fmt: skip
+
+
+def test_linha_da_frente_so_com_nome_curto_sem_contagem():
+    """Página da frente (22/10): o que a peça diz e o que falta, pelo nome curto do Manual."""
+    ms = [
+        _m("P2.01", "nao_esta", "quando termina"),
+        _m("P2.02", "nao_esta", "padrão"),
+        _m("P2.03", "nao_esta", "critério de aceitação"),
+    ]
+    assert P.linha_da_frente(ms, False) == (
+        "Nada escrito. Falta: quando termina, padrão e critério de aceitação."
+    )
+    ms = [
+        _m("P1.01", "esta", "o que entrega"),
+        _m("P1.02", "esta", "o que não entrega"),
+        _m("P1.07", "nao_esta", "quem assina"),
+        _m("P1.10", "sem_conferencia", "divisão de responsabilidade"),
+    ]
+    assert P.linha_da_frente(ms, False) == (
+        "Diz: o que entrega e o que não entrega. Falta: quem assina. "
+        "A conferir: divisão de responsabilidade."
+    )
+    assert P.linha_da_frente([_m("D1.01", "esta", "por onde falar")], None) == (
+        "Diz: por onde falar. Nada falta."
+    )
+
+
+def test_linha_da_frente_excecao_so_com_cliente_nomeado():
+    ms = [_m("Pa2.01", "nao_esta", "preço"), _m("Pa2.03", "nao_esta", "impostos", exc=True)]
+    assert P.linha_da_frente(ms, True) == "Nada escrito. Falta: preço e impostos."
+    for sem in (False, None):  # sem cliente, ou sem a resposta: a exceção fica fora
+        assert P.linha_da_frente(ms, sem) == "Nada escrito. Falta: preço."
+
+
+def test_frente_na_tela_e_no_word(client_loyall, db_session, empresa, teto):
+    aid = _pronta(client_loyall, db_session, empresa)
+    a = db_session.get(AvaliadorAnalise, aid)
+    p = _montar(a)
+    assert [x["codigo"] for x in p["frente"]] == list(SUBS)
+    d1 = next(x for x in p["frente"] if x["codigo"] == "D1")
+    assert d1["pergunta"] == "Quando eu precisar falar, eu consigo?"
+    assert d1["linha"].startswith("Diz: ") and "dias de expediente" in d1["linha"]
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert "Em uma página (a frente do Word)" in html and d1["linha"] in html
+    _preencher(db_session, a)
+    r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
+    from docx import Document
+
+    texto = "\n".join(x.text for x in Document(io.BytesIO(r.data)).paragraphs)
+    assert texto.index("Em uma página") < texto.index("A ordem")
+    assert "Acessibilidade · Quando eu precisar falar, eu consigo?\n" + d1["linha"] in texto

@@ -65,6 +65,9 @@ class Marca:
     texto: str
     so_cliente_nomeado: bool  # só se espera em peça feita para um cliente com nome
     porque_importa: str  # vazio até os autores escreverem (decisão de 18/10)
+    # como a marca aparece na página da frente do parecer (Manual v14, 22/10). Não vai para o
+    # modelo: o pedido usa só o texto.
+    nome_curto: str = ""
 
 
 GRUPO_FORA = "C"
@@ -102,9 +105,18 @@ class Regua:
         # None só em teste que monta a régua sem o capítulo das marcas
         self.marcas_cap: dict = marcas
         self.marcas: List[Marca] = [
-            Marca(x["codigo"], x["grupo"], x["texto"], x["so_cliente_nomeado"], x["porque_importa"])
+            Marca(
+                x["codigo"],
+                x["grupo"],
+                x["texto"],
+                x["so_cliente_nomeado"],
+                x["porque_importa"],
+                x.get("nome_curto", ""),
+            )
             for x in (marcas or {}).get("marcas", [])
         ]
+        # a pergunta de cada subpilar na voz de quem lê a peça (Manual v14, cap. 17)
+        self.perguntas_leitor: dict = (marcas or {}).get("perguntas_leitor", {})
 
     def marcas_de(self, grupo: str) -> List[Marca]:
         """As marcas de um subpilar (ou do bloco fora dos doze), na ordem do Manual."""
@@ -185,6 +197,14 @@ def _erros_das_marcas(r: Regua) -> List[str]:
             erros.append(f"marca {m.codigo} sem texto")
         if m.codigo in MARCAS_APOSENTADAS:
             erros.append(f"marca {m.codigo} usa código aposentado")
+        if not m.nome_curto.strip():
+            erros.append(f"marca {m.codigo} sem nome curto")
+    curtos = [m.nome_curto for m in r.marcas]
+    if len(set(curtos)) != len(curtos):
+        erros.append("nome curto repetido entre marcas")
+    faltam = [g for g in SUBPILARES_ORDEM if not r.perguntas_leitor.get(g, "").strip()]
+    if faltam:
+        erros.append(f"subpilar sem pergunta do leitor: {faltam}")
     for g in SUBPILARES_ORDEM + [GRUPO_FORA]:
         codigos = [m.codigo for m in r.marcas_de(g)]
         if not codigos:

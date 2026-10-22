@@ -1,6 +1,8 @@
 """O parecer de uma leitura no formato 3, montado no app (fatia 2, 22/10).
 
-A forma é a aprovada no parecer da Localiza (leitura nº 31): no alto, a frase da ordem; por
+Na frente, uma página (22/10): uma linha por subpilar com o nome curto do que a peça diz e do
+que falta (``frente``), feita só do que a tela tem. Depois, a forma aprovada no parecer da
+Localiza (leitura nº 31): no alto, a frase da ordem; por
 subpilar, na ordem do Manual, o que a peça diz (só trechos, um por marca, até quatro), o que
 não diz (a frase de cada marca vazia) e o achado; no fim, a nota do bloco C.
 
@@ -100,6 +102,49 @@ def selecao(tela: dict, escolhas: Optional[dict] = None) -> dict:
     return out
 
 
+def _lista(nomes: List[str]) -> str:
+    return nomes[0] if len(nomes) == 1 else ", ".join(nomes[:-1]) + " e " + nomes[-1]
+
+
+def linha_da_frente(marcas: List[dict], cliente_nomeado) -> str:
+    """Uma linha por subpilar, feita só do que a tela já tem (22/10): o nome curto de cada
+    marca que a peça diz e de cada uma que falta, sem nota nem contagem. As marcas que só se
+    esperam com cliente nomeado entram só quando a peça TEM cliente nomeado (sem a resposta,
+    também ficam fora). Marca sem nome curto (saiu do Manual) usa a frase."""
+    vale = [x for x in marcas if cliente_nomeado is True or not x.get("so_cliente_nomeado")]
+
+    def nomes(estado):
+        return [
+            x.get("nome_curto") or frase_da_marca(x["texto"], estado == MARCA_ESTA)
+            for x in vale
+            if x["estado"] == estado
+        ]
+
+    diz, falta, conferir = nomes(MARCA_ESTA), nomes(MARCA_NAO_ESTA), nomes(MARCA_SEM_CONFERENCIA)
+    # com dois-pontos: o nome curto é rótulo, não complemento de "diz" ("ensina sem vender")
+    partes = [f"Diz: {_lista(diz)}." if diz else "Nada escrito."]
+    partes.append(f"Falta: {_lista(falta)}." if falta else "Nada falta.")
+    if conferir:
+        partes.append(f"A conferir: {_lista(conferir)}.")
+    return " ".join(partes)
+
+
+def frente(tela: dict) -> List[dict]:
+    """A página da frente do parecer: os doze subpilares, na ordem do Manual, com a pergunta
+    na voz do leitor e a linha. A tela mostra a mesma página que vai para o Word."""
+    perguntas = tela.get("perguntas_leitor") or {}
+    return [
+        {
+            "codigo": sp["subpilar"].codigo,
+            "nome": sp["subpilar"].nome,
+            "pergunta": perguntas.get(sp["subpilar"].codigo, ""),
+            "linha": linha_da_frente(sp["marcas"], tela.get("cliente_nomeado")),
+        }
+        for bloco in tela["pilares"]
+        for sp in bloco["subpilares"]
+    ]
+
+
 def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) -> dict:
     """``tela``: ``servico.organizar_marcas`` (com as correções). ``textos``:
     ``servico.textos_do_parecer``. Devolve o parecer pronto para o Word e as pendências."""
@@ -151,6 +196,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
         "titulo": "Parecer PDPA",
         "cabecalho": f"Leitura nº {numero}, {data}. " + " ".join(declarar_cobertura(cobertura)),
         "ordem": textos["ordem"].strip(),
+        "frente": frente(tela),
         "pilares": pilares,
         "nota_c": textos["nota_c"].strip(),
         "pendencias": list(dict.fromkeys(pendencias)),  # sem repetir, na ordem
@@ -176,6 +222,14 @@ def gerar_docx(p: dict, empresa: str) -> bytes:
     doc.add_heading(f"{p['titulo']}: {empresa}", 0)
     cab = doc.add_paragraph(p["cabecalho"])
     cab.runs[0].italic = True
+    doc.add_heading("Em uma página", 1)
+    for x in p["frente"]:
+        par = doc.add_paragraph()
+        par.add_run(x["nome"]).bold = True
+        if x["pergunta"]:
+            par.add_run(f" · {x['pergunta']}").italic = True
+        par.add_run("\n" + x["linha"])
+    doc.add_page_break()
     doc.add_heading("A ordem", 1)
     doc.add_paragraph(p["ordem"])
 

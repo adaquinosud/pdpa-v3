@@ -11,6 +11,11 @@ existe na máquina. Mudou o Manual → rode de novo:
 
     PYTHONPATH=. .venv/bin/python scripts/extrair_marcas.py
 
+Desde o v14 (22/10), o capítulo traz, debaixo de cada subpilar, a pergunta na voz do leitor
+("Pergunta do leitor: …") e, no fim de cada marca, o nome curto ("(nome curto: …)"), que é
+como a marca aparece na página da frente do parecer. O nome curto NÃO faz parte do texto da
+marca: o modelo lê a marca sem ele.
+
 O "porque importa" de cada marca ainda não está no Manual (decisão de 18/10: escrito
 depois de as marcas estabilizarem). O campo nasce vazio; quando o Manual o trouxer, é
 este script que passa a lê-lo.
@@ -25,18 +30,20 @@ import docx
 
 from src.api.painel import NOME_SUBPILAR
 
-DOCX = Path("data/PDPA_Manual_Operacao_v13.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v14.docx")
 SAIDA = Path("src/avaliador/dados/marcas.json")
 TITULO = "Marcas de leitura de documento"
 FORA_DOS_DOZE = "O que dá para conferir na peça"
 GRUPO_FORA = "C"
 EXCECOES = "Só se esperam em peça feita para um cliente com nome:"
 SUBTITULOS_IGNORADOS = {"Exceções"}
+PERGUNTA_LEITOR = "Pergunta do leitor: "
 
 _CAPITULO = re.compile(r"^\d+\. \S")
 _PILAR = re.compile(r"^Pilar (\d) — (.+)$")
 _SUB = re.compile(r"^(P[123]|D[123]|Pa[123]|A[123]) — (.+)$")
 _MARCA = re.compile(r"^((P[123]|D[123]|Pa[123]|A[123]|C)\.(\d\d)) (.+)$")
+_NOME_CURTO = re.compile(r"^(.+\?) \(nome curto: ([^()]+)\)$")
 _PILARES = ("P", "D", "Pa", "A")
 
 
@@ -57,6 +64,7 @@ def extrair(caminho: Path) -> dict:
         "abertura": [],
         "pilares": [],
         "fora_dos_doze": None,
+        "perguntas_leitor": {},
         "marcas": [],
     }
     grupo = None  # subpilar (ou C) cujas marcas estão sendo lidas
@@ -77,6 +85,10 @@ def extrair(caminho: Path) -> dict:
             n = int(m.group(1))
             out["pilares"].append({"codigo": _PILARES[n - 1], "titulo": t, "pergunta": None})
             esperando, grupo = "pilar", None
+        elif t.startswith(PERGUNTA_LEITOR):
+            if grupo not in NOME_SUBPILAR or grupo in out["perguntas_leitor"]:
+                raise SystemExit(f"pergunta do leitor fora de um subpilar: {t!r}")
+            out["perguntas_leitor"][grupo] = t.removeprefix(PERGUNTA_LEITOR)
         elif m := _SUB.match(t):
             grupo = m.group(1)
             if NOME_SUBPILAR[grupo] != m.group(2):
@@ -89,11 +101,15 @@ def extrair(caminho: Path) -> dict:
         elif m := _MARCA.match(t):
             if m.group(2) != grupo:
                 raise SystemExit(f"marca {m.group(1)} fora do seu subpilar (lendo {grupo})")
+            n = _NOME_CURTO.match(m.group(4))
+            if n is None:
+                raise SystemExit(f"marca {m.group(1)} sem nome curto: {t!r}")
             out["marcas"].append(
                 {
                     "codigo": m.group(1),
                     "grupo": grupo,
-                    "texto": m.group(4),
+                    "texto": n.group(1),
+                    "nome_curto": n.group(2).strip(),
                     "so_cliente_nomeado": False,
                     "porque_importa": "",
                 }
@@ -106,6 +122,10 @@ def extrair(caminho: Path) -> dict:
             out["abertura"].append(t)
         else:
             raise SystemExit(f"parágrafo inesperado no capítulo: {t!r}")
+    com_marca = dict.fromkeys(x["grupo"] for x in out["marcas"] if x["grupo"] != GRUPO_FORA)
+    faltam = [g for g in com_marca if g not in out["perguntas_leitor"]]
+    if faltam:
+        raise SystemExit(f"subpilar sem pergunta do leitor: {faltam}")
     if excecoes is None:
         raise SystemExit(f"o capítulo não tem o parágrafo '{EXCECOES}'")
     por_codigo = {x["codigo"]: x for x in out["marcas"]}
