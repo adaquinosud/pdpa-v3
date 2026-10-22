@@ -1,0 +1,181 @@
+"""O parecer no app (fatia 2, 22/10): campos de texto na tela da leitura, montagem a partir da
+tela já corrigida, pendências que bloqueiam o Word, e o Word. Cliente LLM dublado, sem gasto."""
+
+from __future__ import annotations
+
+import io
+import json
+
+import pytest
+
+from src.avaliador import parecer as P
+from src.avaliador import servico
+from src.avaliador.servico import AvaliacaoRecusada
+from src.models.avaliador import AvaliadorAnalise, AvaliadorParecer
+from src.models.empresa import Empresa
+from tests.test_avaliador_servico import (
+    HORARIO,
+    REFERENCIA,
+    Dublê,
+    _criar,
+    _rodar,
+    config_avaliador,
+)
+from tests.test_ui_avaliador import _pronta, _url
+
+SUBS = servico.SUBPILARES_ORDEM
+
+
+@pytest.fixture
+def empresa(db_session):
+    e = Empresa(nome="Empresa Aval parecer")
+    db_session.add(e)
+    db_session.commit()
+    return e
+
+
+@pytest.fixture
+def teto(monkeypatch):
+    config_avaliador(monkeypatch, AVALIADOR_TETO_MENSAL_USD=10.0)
+
+
+def _pronta_servico(db_session, empresa):
+    return _rodar(db_session, _criar(db_session, empresa), Dublê())
+
+
+def _montar(a):
+    tela = servico.organizar_marcas(servico.carregar_regua(), a, servico.correcoes_de(a))
+    return P.montar(tela, servico.textos_do_parecer(a), a.id, "22/10/2026",
+                    json.loads(a.itens_json)["cobertura"])  # fmt: skip
+
+
+def _preencher(db_session, a):
+    servico.salvar_parecer(db_session, a, "ordem", "A ruptura está na Precisão.", None)
+    for c in SUBS:
+        servico.salvar_parecer(db_session, a, c, f"Achado de {c}.", None)
+    db_session.commit()
+
+
+def test_montar_escolhe_um_trecho_por_marca_e_lista_o_que_falta(db_session, empresa, teto):
+    a = _pronta_servico(db_session, empresa)
+    p = _montar(a)
+    d1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "D1")
+    # D1.01 e D1.04 citam o mesmo trecho: entra uma vez só
+    assert d1["diz"] == [HORARIO[1]]
+    assert "Não diz em que dias da semana há expediente." in d1["nao_diz"]
+    assert not any("D1." in t for t in d1["nao_diz"])  # código nunca aparece
+    a1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "A1")
+    assert a1["diz"] == [REFERENCIA[1]]
+    p1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "P1")
+    assert p1["diz"] == []  # vai para o Word como "Não encontramos no texto…"
+    assert [pl["nome"] for pl in p["pilares"]] == [
+        "Precisão",
+        "Disponibilidade",
+        "Parceria",
+        "Aconselhamento",
+    ]
+    assert p["pendencias"][0] == "Escreva a frase da ordem, no alto."
+    assert sum("escreva o achado" in x for x in p["pendencias"]) == 12
+    assert p["cabecalho"].startswith(f"Leitura nº {a.id}, 22/10/2026. Lidas")
+
+
+def test_ate_quatro_trechos_na_ordem_do_manual():
+    marcas = [
+        {
+            "codigo": f"P1.0{i}",
+            "estado": "esta",
+            "evidencias": [{"trecho": f"trecho número {i} da peça", "conferido": True}],
+        }
+        for i in range(1, 7)
+    ]
+    assert [e["codigo"] for e in P._escolhidos(marcas)] == ["P1.01", "P1.02", "P1.03", "P1.04"]
+
+
+def test_salvar_campos_e_pendencias_somem(db_session, empresa, teto):
+    a = _pronta_servico(db_session, empresa)
+    _preencher(db_session, a)
+    assert db_session.query(AvaliadorParecer).count() == 1
+    assert servico.textos_do_parecer(a)["achados"]["Pa2"] == "Achado de Pa2."
+    assert _montar(a)["pendencias"] == []
+    with pytest.raises(AvaliacaoRecusada, match="desconhecido"):
+        servico.salvar_parecer(db_session, a, "outra coisa", "x", None)
+
+
+def test_sem_conferencia_bloqueia_ate_ser_resolvida(db_session, empresa, teto):
+    a = _pronta_servico(db_session, empresa)
+    _preencher(db_session, a)
+    g = json.loads(a.itens_json)
+    m = next(m for m in g["marcas"] if m["codigo"] == "D1.05")
+    m["esta"], m["evidencias"] = True, [{"pagina": 2, "trecho": "inventado", "conferido": False}]
+    a.itens_json = json.dumps(g)
+    db_session.commit()
+    assert any("resolva a marca sem conferência" in x for x in _montar(a)["pendencias"])
+    servico.recusar_nao_achadas(db_session, a, "D1.05", None)
+    db_session.commit()
+    p = _montar(a)
+    assert p["pendencias"] == []
+    d1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "D1")
+    assert "Não diz em que dias da semana há expediente." in d1["nao_diz"]
+    with pytest.raises(AvaliacaoRecusada, match="não tem citação sem conferência"):
+        servico.recusar_nao_achadas(db_session, a, "D1.01", None)
+
+
+def test_correcao_entra_no_parecer(db_session, empresa, teto):
+    a = _pronta_servico(db_session, empresa)
+    servico.recusar_trecho(db_session, a, "A1.02", REFERENCIA[1], None)
+    db_session.commit()
+    a1 = next(s for pl in _montar(a)["pilares"] for s in pl["subpilares"] if s["codigo"] == "A1")
+    assert (
+        a1["diz"] == []
+        and "Não traz reconhecimento de terceiro: publicação, prêmio, parceiro." in a1["nao_diz"]
+    )
+
+
+def test_apagar_leitura_apaga_o_texto_do_parecer(db_session, empresa, teto):
+    a = _pronta_servico(db_session, empresa)
+    _preencher(db_session, a)
+    servico.apagar_leitura(a)
+    db_session.commit()
+    p = db_session.query(AvaliadorParecer).one()
+    assert (p.ordem, p.nota_c, p.achados_json) == ("", "", "{}")
+
+
+def test_tela_e_word(client_loyall, db_session, empresa, teto):
+    aid = _pronta(client_loyall, db_session, empresa)
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert 'data-secao="parecer"' in html and "A ordem" in html and "O achado" in html
+    assert "vai para o parecer" in html and "Para o parecer sair em Word, falta:" in html
+    r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
+    assert r.status_code == 409 and "Escreva a frase da ordem" in r.get_data(as_text=True)
+    salvo = client_loyall.post(
+        _url(empresa, f"/{aid}/parecer"), data={"campo": "ordem", "texto": "A ordem."}
+    ).get_data(as_text=True)
+    assert (
+        "salvo" in salvo
+        and 'hx-swap-oob="true"' in salvo
+        and "Escreva a frase da ordem" not in salvo
+    )
+    for c in SUBS:
+        client_loyall.post(
+            _url(empresa, f"/{aid}/parecer"), data={"campo": c, "texto": f"Achado {c}."}
+        )
+    r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
+    assert r.status_code == 200 and r.mimetype.endswith("wordprocessingml.document")
+    from docx import Document
+
+    texto = "\n".join(p.text for p in Document(io.BytesIO(r.data)).paragraphs)
+    assert (
+        "Parecer PDPA: Empresa Aval parecer" in texto
+        and "A ordem." in texto
+        and "Achado Pa2." in texto
+    )
+    assert "Não encontramos no texto nada que responda a essa expectativa." in texto
+    assert "D1.01" not in texto and "—" not in texto
+    assert (
+        client_loyall.post(
+            _url(empresa, f"/{aid}/parecer"), data={"campo": "x", "texto": "y"}
+        ).status_code
+        == 200
+    )
+    a = db_session.get(AvaliadorAnalise, aid)
+    assert a.status == "pronta"

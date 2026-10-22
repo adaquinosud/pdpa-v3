@@ -59,6 +59,7 @@ from src.models.avaliador import (
     CORRECAO_RECUSA,
     AvaliadorAnalise,
     AvaliadorCorrecao,
+    AvaliadorParecer,
 )
 from src.utils.db import db_session
 
@@ -327,12 +328,14 @@ def _aplicar_correcoes(m: dict, correcoes: List[AvaliadorCorrecao]) -> dict:
     """O estado da marca depois das correções à mão, sem tocar no gravado. Trecho recusado
     sai das evidências e fica em ``recusadas`` (a tela mostra riscado); trecho incluído entra
     nas evidências. Marca "está" com todos os trechos recusados passa a "não está"; marca
-    "não está" (ou sem conferência) com trecho incluído passa a "está"."""
+    "não está" (ou sem conferência) com trecho incluído passa a "está". A recusa vale também
+    para a citação que não foi achada na peça: é como a pessoa resolve o "sem conferência"
+    (a tela não mostra o texto dela; ver o template)."""
     minhas = [c for c in correcoes if c.marca_codigo == m["codigo"]]
     recusa = {c.trecho: c for c in minhas if c.tipo == CORRECAO_RECUSA}
     ok, recusadas = [], []
     for e in m.get("evidencias", []):
-        if e.get("conferido") and e["trecho"] in recusa:
+        if e["trecho"] in recusa:
             recusadas.append({**e, "correcao_id": recusa[e["trecho"]].id})
         else:
             ok.append(e)
@@ -355,8 +358,8 @@ def _aplicar_correcoes(m: dict, correcoes: List[AvaliadorCorrecao]) -> dict:
         estado = _estado_marca(m)
     elif any(e.get("conferido") for e in ok):
         estado = MARCA_ESTA
-    elif m.get("esta") and not recusadas:
-        estado = MARCA_SEM_CONFERENCIA
+    elif m.get("esta") and any(not e.get("conferido") for e in ok):
+        estado = MARCA_SEM_CONFERENCIA  # sobrou citação não achada sem resolver
     else:
         estado = MARCA_NAO_ESTA
     return {**m, "evidencias": ok, "recusadas": recusadas, "estado": estado,
@@ -658,6 +661,27 @@ def recusar_trecho(
     marcar_uso(a)
 
 
+def recusar_nao_achadas(s: Session, a: AvaliadorAnalise, codigo: str, usuario_id: Optional[int]):
+    """Resolve o "sem conferência": a pessoa diz que a peça não tem o que a leitura citou e não
+    foi achado. Recusa cada citação não achada da marca (o texto delas, que é do modelo, fica no
+    banco e nunca na tela; por isso a tela manda só o código da marca)."""
+    _exigir_corrigivel(a)
+    m = _marca_gravada(a, codigo)
+    nao_achadas = [e for e in m.get("evidencias", []) if not e.get("conferido")]
+    if not nao_achadas:
+        raise AvaliacaoRecusada("Esta marca não tem citação sem conferência.")
+    for e in nao_achadas:
+        if _ativa(a, codigo, CORRECAO_RECUSA, e["trecho"]) is None:
+            s.add(
+                AvaliadorCorrecao(
+                    analise_id=a.id, conteudo_hash=a.conteudo_hash, marca_codigo=codigo,
+                    marca_texto=m["texto"], tipo=CORRECAO_RECUSA, trecho=e["trecho"],
+                    pagina=None, usuario_id=usuario_id,
+                )
+            )  # fmt: skip
+    marcar_uso(a)
+
+
 def incluir_trecho(
     s: Session, a: AvaliadorAnalise, codigo: str, trecho: str, usuario_id: Optional[int]
 ) -> None:
@@ -696,16 +720,67 @@ def desfazer_correcao(s: Session, a: AvaliadorAnalise, correcao_id: int) -> None
     marcar_uso(a)
 
 
+# ── o parecer (fatia 2, 22/10) ──────────────────────────────────────────────
+
+CAMPO_ORDEM = "ordem"
+CAMPO_NOTA_C = "nota_c"
+
+
+def parecer_de(a: AvaliadorAnalise) -> Optional[AvaliadorParecer]:
+    s = object_session(a)
+    if s is None or a.id is None:
+        return None
+    return s.scalars(select(AvaliadorParecer).where(AvaliadorParecer.analise_id == a.id)).first()
+
+
+def textos_do_parecer(a: AvaliadorAnalise) -> dict:
+    """O que a pessoa escreveu: {"ordem", "nota_c", "achados": {subpilar: frase}}."""
+    p = parecer_de(a)
+    if p is None:
+        return {"ordem": "", "nota_c": "", "achados": {}}
+    return {"ordem": p.ordem, "nota_c": p.nota_c, "achados": json.loads(p.achados_json or "{}")}
+
+
+def salvar_parecer(
+    s: Session, a: AvaliadorAnalise, campo: str, texto: str, usuario_id: Optional[int]
+) -> None:
+    """Um campo do parecer: a ordem, a nota do bloco C ou o achado de um subpilar (o campo é
+    o código do subpilar). Escrever o parecer conta como usar a leitura."""
+    _exigir_corrigivel(a)
+    if campo not in (CAMPO_ORDEM, CAMPO_NOTA_C) and campo not in SUBPILARES_ORDEM:
+        raise AvaliacaoRecusada("Campo do parecer desconhecido.")
+    p = parecer_de(a)
+    if p is None:
+        p = AvaliadorParecer(analise_id=a.id, ordem="", achados_json="{}", nota_c="")
+        s.add(p)
+    texto = (texto or "").strip()
+    if campo == CAMPO_ORDEM:
+        p.ordem = texto
+    elif campo == CAMPO_NOTA_C:
+        p.nota_c = texto
+    else:
+        achados = json.loads(p.achados_json or "{}")
+        achados[campo] = texto
+        p.achados_json = json.dumps(achados, ensure_ascii=False)
+    p.usuario_id = usuario_id
+    p.atualizado_em = datetime.utcnow()
+    marcar_uso(a)
+
+
 def apagar_leitura(a: AvaliadorAnalise) -> None:
     """Apaga o que é da peça e deixa só o gasto (ver ``src/models/avaliador.py``).
     Recusa em andamento: a leitura gravaria resumo e itens por cima. As correções à mão
-    ficam, sem o trecho (que é da peça): sobra que marca foi corrigida e como."""
+    ficam, sem o trecho (que é da peça): sobra que marca foi corrigida e como. O texto do
+    parecer sai."""
     _exigir_alteravel(a)
     _exigir_parada(a)
     s = object_session(a)
     if s is not None:
         for c in s.scalars(select(AvaliadorCorrecao).where(AvaliadorCorrecao.analise_id == a.id)):
             c.trecho = ""
+        p = parecer_de(a)
+        if p is not None:  # o parecer fala da peça: sai junto
+            p.ordem, p.nota_c, p.achados_json = "", "", "{}"
     apagar_texto(a, "leitura_apagada")
     a.descricao = ""
     a.arquivo_nome = None

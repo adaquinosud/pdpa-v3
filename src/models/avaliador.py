@@ -120,3 +120,27 @@ class AvaliadorCorrecao(Base):
     )
     criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     desfeita_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+# O parecer de uma leitura (fatia 2 do parecer no app, 22/10): o que a pessoa escreve. O resto
+# do parecer (o que a peça diz e o que não diz) sai da leitura com as correções, na hora de
+# gerar o Word (``src/avaliador/parecer.py``). Uma linha por leitura. Texto da Loyall sobre peça
+# de cliente: apagar a leitura apaga o texto daqui.
+class AvaliadorParecer(Base):
+    __tablename__ = "avaliador_pareceres"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analise_id: Mapped[int] = mapped_column(
+        ForeignKey("avaliador_analises.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    ordem: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    achados_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}"
+    )  # subpilar → frase
+    nota_c: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    usuario_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )

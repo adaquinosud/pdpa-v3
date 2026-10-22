@@ -15,7 +15,7 @@
    tela a aplica por cima do resultado gravado, que não muda. #}
 {% macro acao(nome, rotulo, campos, classe="text-loyall-500 hover:text-rose-700") %}<form hx-post="{{ url_for('ui.avaliador_corrigir', empresa_id=empresa_id, aid=a.id, acao=nome) }}" hx-target="#avaliador-analise" hx-swap="outerHTML" class="inline">{% for k, v in campos.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<button class="text-xs underline {{ classe }}">{{ rotulo }}</button></form>{% endmacro %}
 {% macro recusadas(f) %}{% for e in f.recusadas %}
-        <div data-recusado class="text-xs text-loyall-400 ml-2"><span class="line-through">“{{ e.trecho }}”</span> recusado à mão{% if pode_corrigir %} · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% endif %}</div>
+        <div data-recusado class="text-xs text-loyall-400 ml-2">{% if e.conferido %}<span class="line-through">“{{ e.trecho }}”</span>{% else %}<span class="line-through">a citação que não foi achada na peça</span>{% endif %} recusado à mão{% if pode_corrigir %} · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% endif %}</div>
 {% endfor %}{% endmacro %}
 {% macro incluir(codigo) %}{% if pode_corrigir and texto_disponivel %}
         <details class="ml-2"><summary class="text-xs text-loyall-400 cursor-pointer">incluir trecho da peça</summary>
@@ -26,6 +26,16 @@
           </form>
         </details>
 {% endif %}{% endmacro %}
+{% macro campo(nome, rotulo, valor, linhas=2) %}{% if pode_corrigir %}
+      <div class="mt-2">
+        <div class="text-xs uppercase tracking-wider text-loyall-700">{{ rotulo }}</div>
+        <form hx-post="{{ url_for('ui.avaliador_parecer_salvar', empresa_id=empresa_id, aid=a.id) }}" hx-trigger="change" hx-target="next .salvo" hx-swap="innerHTML">
+          <input type="hidden" name="campo" value="{{ nome }}">
+          <textarea name="texto" rows="{{ linhas }}" class="w-full border border-loyall-300 rounded px-2 py-1 text-sm">{{ valor }}</textarea>
+        </form>
+        <span class="salvo"></span>
+      </div>
+{% endif %}{% endmacro %}
 {% macro simetrico(b, com_subpilar=False) %}
       {% if b.diz %}
       <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça diz</div>
@@ -35,6 +45,7 @@
         {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
         {% for e in f.evidencias %}
         {{ cit.citacoes([e]) }}
+        {% if pode_corrigir and (f.codigo, e.trecho) in no_parecer %}<div class="ml-4 text-xs text-emerald-700">vai para o parecer</div>{% endif %}
         {% if pode_corrigir %}<div class="ml-4">{% if e.incluido %}<span class="text-xs text-amber-700">incluído à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% else %}{{ acao('recusar', 'não responde', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}</div>{% endif %}
         {% endfor %}
         {{ recusadas(f) }}
@@ -59,6 +70,7 @@
       <div data-marca="{{ x.codigo }}" data-estado="sem_conferencia" class="text-sm">
         <div class="text-loyall-800">{% if com_subpilar %}{{ x.grupo }} · {% endif %}{{ x.texto }}{% if x.nota %} <span class="text-xs text-amber-700">({{ x.nota }})</span>{% endif %}</div>
         <div class="text-xs text-rose-700 ml-2">a leitura diz que está, mas o trecho citado não foi achado na peça: confira</div>
+        {% if pode_corrigir %}<div class="ml-2">{{ acao('naoachadas', 'não está na peça', {'codigo': x.codigo}) }}</div>{% endif %}
         {{ incluir(x.codigo) }}
       </div>
       {% endfor %}
@@ -96,6 +108,15 @@
   {% endfor %}
 </section>
 
+{% if parecer and pode_corrigir %}
+<section data-secao="parecer" class="border border-loyall-300 rounded p-3 space-y-2 bg-loyall-50">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-700">O parecer</h4>
+  <p class="text-xs text-loyall-500">Corrija os trechos e escreva no próprio subpilar. O que vai para o parecer: a frase da ordem, um trecho por marca (até quatro, marcados "vai para o parecer"), o que a peça não diz e o achado. As correções ficam gravadas.</p>
+  {{ campo('ordem', 'A ordem', parecer_textos.ordem, 3) }}
+  {% include 'partials/_avaliador_parecer_pendencias.html' %}
+</section>
+{% endif %}
+
 <section data-secao="marcas" class="space-y-3">
   {% for bloco in L.pilares %}
   <div>
@@ -107,6 +128,7 @@
         <div class="font-medium text-sm text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</div>
         <div class="text-xs text-loyall-400 mb-1">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
         {{ simetrico(sp) }}
+        {{ campo(sp.subpilar.codigo, 'O achado', parecer_textos.achados.get(sp.subpilar.codigo, '') if parecer_textos else '') }}
       </div>
     {% endfor %}
     </div>
@@ -119,6 +141,7 @@
   <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ L.fora_dos_doze.titulo }}</h4>
   {% if L.fora_dos_doze.descricao %}<p class="text-xs text-loyall-400 mb-1">{{ L.fora_dos_doze.descricao }}</p>{% endif %}
   {{ simetrico(L.fora_dos_doze) }}
+  {{ campo('nota_c', 'Nota do parecer sobre o que dá para conferir (opcional)', parecer_textos.nota_c if parecer_textos else '') }}
 </section>
 {% endif %}
 

@@ -100,6 +100,7 @@ PLANO: list[tuple[str, str, str]] = [
     # regra das pesquisas e da visão financeira — o wipe por cliente leva tudo da empresa.
     # As correções à mão (22/10) são filhas das análises e levam trecho da peça: caem antes.
     ("avaliador: correções à mão", "avaliador_correcoes", _FILHO_AVALIADOR),
+    ("avaliador: pareceres", "avaliador_pareceres", _FILHO_AVALIADOR),
     ("avaliador: análises", "avaliador_analises", _DIRETO),
     # Motor de Pesquisa: filhas antes das mães. Coleta (Fase 2) antes de
     # perguntas/pesquisas — resposta → respondente → pesquisa_perguntas → pesquisas.

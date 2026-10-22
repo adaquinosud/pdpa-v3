@@ -12,8 +12,10 @@ from __future__ import annotations
 import json
 
 from flask import current_app, render_template, request
+from markupsafe import escape
 
 from src.auth import get_current_user
+from src.avaliador import parecer as parecer_mod
 from src.avaliador import servico
 from src.avaliador.extracao import (
     FORMATOS_COM_TABELA,
@@ -37,6 +39,7 @@ from src.models.avaliador import (
 )
 from src.ui import loyall_required_ui, ui_bp
 from src.utils.db import db_session
+from src.utils.fuso import hora_br
 
 ROTULO_STATUS = {
     "pendente": "Na fila",
@@ -85,11 +88,27 @@ def _render_lista(s, empresa_id: int, oob: bool) -> str:
     )
 
 
+def _parecer(a: AvaliadorAnalise, tela: dict) -> dict:
+    """O parecer montado a partir da tela já corrigida, com as pendências (fatia 2)."""
+    return parecer_mod.montar(
+        tela,
+        servico.textos_do_parecer(a),
+        a.id,
+        hora_br(a.criado_em, "%d/%m/%Y"),
+        json.loads(a.itens_json)["cobertura"],
+    )
+
+
 def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> str:
     """Com ``s``: a lista de baixo vai junto, fora da área trocada (hx-swap-oob), e se
     atualiza a cada polling/ação. Sem ``s``: a análise vai dentro do painel, que já
     renderiza a lista."""
     formato = servico.formato_da_leitura(a)
+    tela = (
+        servico.organizar_marcas(carregar_regua(), a, servico.correcoes_de(a))
+        if formato == servico.FORMATO_MARCAS and a.status == STATUS_PRONTA
+        else None
+    )
     return render_template(
         "partials/explorar_avaliador_analise.html",
         empresa_id=empresa_id,
@@ -108,11 +127,10 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
             if formato == servico.FORMATO_VEREDITO
             else None
         ),
-        marcas=(
-            servico.organizar_marcas(carregar_regua(), a, servico.correcoes_de(a))
-            if formato == servico.FORMATO_MARCAS and a.status == STATUS_PRONTA
-            else None
-        ),
+        marcas=tela,
+        parecer=_parecer(a, tela) if tela else None,
+        parecer_textos=servico.textos_do_parecer(a) if tela else None,
+        no_parecer=parecer_mod.escolhidos_da_tela(tela) if tela else set(),
         rotulo_veredito=ROTULO_VEREDITO,
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
         por_secao=a.formato in FORMATOS_POR_SECAO,
@@ -241,6 +259,10 @@ def avaliador_corrigir(empresa_id: int, aid: int, acao: str):
         fn = lambda s, a: servico.incluir_trecho(  # noqa: E731
             s, a, f.get("codigo", ""), f.get("trecho", ""), usuario_id
         )
+    elif acao == "naoachadas":
+        fn = lambda s, a: servico.recusar_nao_achadas(  # noqa: E731
+            s, a, f.get("codigo", ""), usuario_id
+        )
     elif acao == "desfazer":
         fn = lambda s, a: servico.desfazer_correcao(  # noqa: E731
             s, a, int(f.get("correcao_id") or 0)
@@ -248,6 +270,65 @@ def avaliador_corrigir(empresa_id: int, aid: int, acao: str):
     else:
         return render_template("404.html"), 404
     return _acao(empresa_id, aid, fn)
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/parecer", methods=["POST"])
+@loyall_required_ui
+def avaliador_parecer_salvar(empresa_id: int, aid: int):
+    """Salva um campo do parecer (a ordem, um achado ou a nota do bloco C) e devolve as
+    pendências atualizadas, fora da área trocada."""
+    with db_session() as s:
+        a = _analise_da_empresa(s, empresa_id, aid)
+        if a is None:
+            return render_template("404.html"), 404
+        try:
+            servico.salvar_parecer(
+                s, a, request.form.get("campo", ""), request.form.get("texto", ""),
+                get_current_user().id,
+            )  # fmt: skip
+        except AvaliacaoRecusada as e:
+            return f'<span class="text-xs text-rose-700">{escape(str(e))}</span>'
+        s.commit()
+        tela = servico.organizar_marcas(carregar_regua(), a, servico.correcoes_de(a))
+        return render_template(
+            "partials/_avaliador_parecer_pendencias.html",
+            parecer=_parecer(a, tela), empresa_id=empresa_id, a=a, salvo=True, oob=True,
+        )  # fmt: skip
+
+
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/parecer.docx", methods=["GET"]
+)
+@loyall_required_ui
+def avaliador_parecer_word(empresa_id: int, aid: int):
+    """O Word do parecer. É o que vai ao cliente: com pendência, não sai (CLAUDE.md §10)."""
+    import io
+
+    from flask import send_file
+
+    with db_session() as s:
+        a = _analise_da_empresa(s, empresa_id, aid)
+        if a is None:
+            return render_template("404.html"), 404
+        if servico.formato_da_leitura(a) != servico.FORMATO_MARCAS or a.status != STATUS_PRONTA:
+            return "Só uma leitura pronta, no formato atual, tem parecer.", 409
+        tela = servico.organizar_marcas(carregar_regua(), a, servico.correcoes_de(a))
+        p = _parecer(a, tela)
+        if p["pendencias"]:
+            return (
+                "O parecer ainda não pode sair. Falta: " + " ".join(p["pendencias"]),
+                409,
+                {"Content-Type": "text/plain; charset=utf-8"},
+            )
+        dados = parecer_mod.gerar_docx(p, a.empresa.nome)
+        servico.marcar_uso(a)
+        s.commit()
+    return send_file(
+        io.BytesIO(dados),
+        as_attachment=True,
+        download_name=f"Parecer_PDPA_leitura{aid}.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/apagar", methods=["POST"])
