@@ -26,7 +26,7 @@ import io
 from typing import List, Optional
 
 from src.api.painel import NOME_PILAR
-from src.avaliador.extracao import _normalizar
+from src.avaliador.extracao import RODAPE, _normalizar
 from src.avaliador.servico import (
     MARCA_ESTA,
     MARCA_NAO_ESTA,
@@ -39,22 +39,39 @@ MAX_TRECHOS = 4
 SEM_RESPOSTA = "Não encontramos no texto nada que responda a essa expectativa."
 
 
-def _escolhidos(marcas: List[dict], escolhas: Optional[dict] = None) -> List[dict]:
-    """Um trecho por marca, na ordem do Manual, até quatro; trecho já usado por uma marca
-    anterior do mesmo subpilar não se repete (a marca usa o seguinte dela, se houver). O
-    trecho escolhido pela pessoa ("usar este no parecer") vem primeiro; se ele não é mais
-    resposta da marca (foi recusado), vale o automático."""
+def _ordem_da_marca(x: dict, escolhas: dict) -> List[dict]:
+    """Os trechos de uma marca na ordem em que concorrem ao parecer (22/10): o escolhido pela
+    pessoa ("usar este no parecer") primeiro; o do rodapé da página por último, para o rodapé
+    cru não cair no documento; entre os demais, o menor primeiro."""
+    quero = _normalizar(escolhas.get(x["codigo"], ""))
+    evs = [e for e in x["evidencias"] if e.get("conferido")]
+    return sorted(
+        evs,
+        key=lambda e: (
+            0 if quero and _normalizar(e["trecho"]) == quero else 1,
+            1 if RODAPE in (e.get("referencia") or "") else 0,
+            len(e["trecho"]),
+        ),
+    )
+
+
+def _escolhidos(
+    marcas: List[dict], escolhas: Optional[dict] = None, impressos: Optional[List[str]] = None
+) -> List[dict]:
+    """Um trecho por marca, na ordem do Manual, até quatro por bloco. Trecho já usado no bloco
+    não se repete, e trecho já impresso em outro bloco (``impressos``) também não, a não ser
+    que seja o escolhido pela pessoa: a marca usa o seguinte dela, se houver."""
     escolhas = escolhas or {}
+    impressos = impressos or []
     out, usados = [], []
     for x in marcas:
         if x["estado"] != MARCA_ESTA:
             continue
-        evs = [e for e in x["evidencias"] if e.get("conferido")]
         quero = _normalizar(escolhas.get(x["codigo"], ""))
-        evs.sort(key=lambda e: 0 if quero and _normalizar(e["trecho"]) == quero else 1)
-        for e in evs:
+        for e in _ordem_da_marca(x, escolhas):
             alvo = _normalizar(e["trecho"])
-            if any(alvo in u or u in alvo for u in usados):
+            fora = [] if alvo == quero else impressos
+            if any(alvo in u or u in alvo for u in usados + fora):
                 continue
             out.append({"codigo": x["codigo"], **e})
             usados.append(alvo)
@@ -64,10 +81,27 @@ def _escolhidos(marcas: List[dict], escolhas: Optional[dict] = None) -> List[dic
     return out
 
 
+def selecao(tela: dict, escolhas: Optional[dict] = None) -> dict:
+    """subpilar → trechos que vão para o parecer, na ordem do Manual. Quem lê o parecer vê
+    bloco, não marca: trecho já impresso num bloco anterior não volta, a não ser que o bloco
+    fique vazio sem ele (decisão de 22/10)."""
+    impressos: List[str] = []
+    out = {}
+    for bloco in tela["pilares"]:
+        for sp in bloco["subpilares"]:
+            picks = _escolhidos(sp["marcas"], escolhas, impressos)
+            if not picks:  # sem os repetidos o bloco ficaria vazio: eles voltam
+                picks = _escolhidos(sp["marcas"], escolhas)
+            impressos += [_normalizar(e["trecho"]) for e in picks]
+            out[sp["subpilar"].codigo] = picks
+    return out
+
+
 def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) -> dict:
     """``tela``: ``servico.organizar_marcas`` (com as correções). ``textos``:
     ``servico.textos_do_parecer``. Devolve o parecer pronto para o Word e as pendências."""
     pendencias: List[str] = []
+    escolhidos = selecao(tela, textos.get("escolhas"))
     if not textos["ordem"].strip():
         pendencias.append("Escreva a frase da ordem, no alto.")
     pilares = []
@@ -94,7 +128,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
                 {
                     "codigo": s.codigo,
                     "nome": s.nome,
-                    "diz": [e["trecho"] for e in _escolhidos(sp["marcas"], textos.get("escolhas"))],
+                    "diz": [e["trecho"] for e in escolhidos[s.codigo]],
                     "nao_diz": [
                         frase_da_marca(x["texto"], False)
                         for x in sp["marcas"]
@@ -116,12 +150,8 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
 
 def escolhidos_da_tela(tela: dict, escolhas: Optional[dict] = None) -> set:
     """(código, trecho) de cada trecho que vai para o parecer: a tela marca "vai para o
-    parecer" ao lado deles."""
-    out = set()
-    for bloco in tela["pilares"]:
-        for sp in bloco["subpilares"]:
-            out |= {(e["codigo"], e["trecho"]) for e in _escolhidos(sp["marcas"], escolhas)}
-    return out
+    parecer" ao lado deles. Mesma seleção do Word (``selecao``)."""
+    return {(e["codigo"], e["trecho"]) for picks in selecao(tela, escolhas).values() for e in picks}
 
 
 def gerar_docx(p: dict, empresa: str) -> bytes:

@@ -196,21 +196,33 @@ def test_usar_este_no_parecer_troca_o_trecho_sem_virar_correcao(db_session, empr
     from src.models.avaliador import AvaliadorCorrecao
 
     a = _pronta_servico(db_session, empresa)
-    _duas(db_session, a, "P1.01", "Primeiro trecho da marca", "Segundo trecho da marca")
+    _duas(
+        db_session,
+        a,
+        "P1.01",
+        "Trecho curto da marca",
+        "Outro trecho, bem mais comprido, da mesma marca",
+    )
     p1 = lambda: next(  # noqa: E731
         s for pl in _montar(a)["pilares"] for s in pl["subpilares"] if s["codigo"] == "P1"
     )
-    assert p1()["diz"] == ["Primeiro trecho da marca"]
-    servico.escolher_trecho(db_session, a, "P1.01", "Segundo trecho da marca", None)
+    assert p1()["diz"] == ["Trecho curto da marca"]
+    servico.escolher_trecho(
+        db_session, a, "P1.01", "Outro trecho, bem mais comprido, da mesma marca", None
+    )
     db_session.commit()
-    assert p1()["diz"] == ["Segundo trecho da marca"]
+    assert p1()["diz"] == ["Outro trecho, bem mais comprido, da mesma marca"]
     assert db_session.query(AvaliadorCorrecao).count() == 0  # a tabela de erros fica limpa
     # o escolhido foi recusado depois: volta ao automático
-    servico.recusar_trecho(db_session, a, "P1.01", "Segundo trecho da marca", None)
+    servico.recusar_trecho(
+        db_session, a, "P1.01", "Outro trecho, bem mais comprido, da mesma marca", None
+    )
     db_session.commit()
-    assert p1()["diz"] == ["Primeiro trecho da marca"]
+    assert p1()["diz"] == ["Trecho curto da marca"]
     with pytest.raises(AvaliacaoRecusada, match="não é uma resposta desta marca"):
-        servico.escolher_trecho(db_session, a, "P1.01", "Segundo trecho da marca", None)
+        servico.escolher_trecho(
+            db_session, a, "P1.01", "Outro trecho, bem mais comprido, da mesma marca", None
+        )
 
 
 def test_tela_mostra_usar_este_so_em_marca_que_vai_para_o_parecer(
@@ -218,15 +230,99 @@ def test_tela_mostra_usar_este_so_em_marca_que_vai_para_o_parecer(
 ):
     aid = _pronta(client_loyall, db_session, empresa)
     a = db_session.get(AvaliadorAnalise, aid)
-    _duas(db_session, a, "P1.01", "Primeiro trecho da marca", "Segundo trecho da marca")
+    _duas(
+        db_session,
+        a,
+        "P1.01",
+        "Trecho curto da marca",
+        "Outro trecho, bem mais comprido, da mesma marca",
+    )
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert html.count("usar este no parecer") == 1  # só o segundo da P1.01
     html = client_loyall.post(
         _url(empresa, f"/{aid}/corrigir/escolher"),
-        data={"codigo": "P1.01", "trecho": "Segundo trecho da marca"},
+        data={"codigo": "P1.01", "trecho": "Outro trecho, bem mais comprido, da mesma marca"},
     ).get_data(as_text=True)
     bloco = html.split('data-marca="P1.01"', 1)[1].split("data-diz", 1)[0]
     # depois da troca: o primeiro trecho ganha o botão, o segundo vai para o parecer
-    marcos = ("Primeiro trecho", "usar este no parecer", "Segundo trecho", "vai para o parecer")
+    marcos = ("Trecho curto", "usar este no parecer", "Outro trecho", "vai para o parecer")
     ordem = [bloco.index(x) for x in marcos]
     assert ordem == sorted(ordem)
+
+
+def _tela(blocos):
+    """Tela mínima: [(subpilar, [(código, [(trecho, referência)])])], tudo 'está'."""
+    from types import SimpleNamespace as N
+
+    return {
+        "pilares": [
+            {
+                "subpilares": [
+                    {
+                        "subpilar": N(codigo=sp),
+                        "marcas": [
+                            {
+                                "codigo": c,
+                                "estado": "esta",
+                                "evidencias": [
+                                    {"trecho": t, "conferido": True, "referencia": r} for t, r in ts
+                                ],
+                            }
+                            for c, ts in marcas
+                        ],
+                    }
+                    for sp, marcas in blocos
+                ]
+            }
+        ]
+    }
+
+
+KM = "Importante: não há opção de quilometragem ilimitada."
+
+
+def test_trecho_impresso_nao_volta_a_nao_ser_que_o_bloco_fique_vazio():
+    tela = _tela(
+        [
+            ("P1", [("P1.02", [(KM, "")])]),
+            (
+                "D3",
+                [("D3.01", [("O atraso pode impactar sua reserva.", "")]), ("D3.04", [(KM, "")])],
+            ),
+            ("A2", [("A2.07", [(KM, "")])]),  # só tem o KM: o bloco ficaria vazio
+        ]
+    )
+    sel = P.selecao(tela)
+    assert [e["trecho"] for e in sel["P1"]] == [KM]
+    assert [e["trecho"] for e in sel["D3"]] == ["O atraso pode impactar sua reserva."]
+    assert [e["trecho"] for e in sel["A2"]] == [KM]
+    # o escolhido pela pessoa manda, mesmo já impresso antes
+    sel = P.selecao(tela, {"D3.04": KM})
+    assert KM in [e["trecho"] for e in sel["D3"]]
+
+
+def test_rodape_por_ultimo_e_o_menor_primeiro():
+    rod = "página /x, rodapé da página"
+    tela = _tela(
+        [
+            (
+                "D1",
+                [
+                    (
+                        "D1.04",
+                        [
+                            ("Central 24h: 0800 979", rod),
+                            ("Atendimento das 8h às 18h, de segunda a sexta", "seção Contato"),
+                        ],
+                    )
+                ],
+            ),
+            (
+                "D2",
+                [("D2.01", [("Um trecho bem mais longo que o outro", ""), ("Trecho curto", "")])],
+            ),
+        ]
+    )
+    sel = P.selecao(tela)
+    assert sel["D1"][0]["trecho"].startswith("Atendimento")  # o do rodapé, mesmo menor, fica
+    assert sel["D2"][0]["trecho"] == "Trecho curto"
