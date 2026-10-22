@@ -57,6 +57,7 @@ _FILHO_TEMAS_MERGE = (
     "OR tema_destino_id IN (SELECT id FROM temas WHERE empresa_id = :eid)"
 )
 _FILHO_PESQUISAS = "pesquisa_id IN (SELECT id FROM pesquisas WHERE empresa_id = :eid)"
+_FILHO_AVALIADOR = "analise_id IN (SELECT id FROM avaliador_analises WHERE empresa_id = :eid)"
 _FILHO_RESPONDENTE = (
     "respondente_id IN (SELECT id FROM respondente WHERE pesquisa_id IN "
     "(SELECT id FROM pesquisas WHERE empresa_id = :eid))"
@@ -97,6 +98,8 @@ PLANO: list[tuple[str, str, str]] = [
     ("visão financeira: snapshots", "visao_financeira_snapshot", _DIRETO),
     # Avaliador de documentos: leituras da empresa (vereditos + trechos citados). Mesma
     # regra das pesquisas e da visão financeira — o wipe por cliente leva tudo da empresa.
+    # As correções à mão (22/10) são filhas das análises e levam trecho da peça: caem antes.
+    ("avaliador: correções à mão", "avaliador_correcoes", _FILHO_AVALIADOR),
     ("avaliador: análises", "avaliador_analises", _DIRETO),
     # Motor de Pesquisa: filhas antes das mães. Coleta (Fase 2) antes de
     # perguntas/pesquisas — resposta → respondente → pesquisa_perguntas → pesquisas.

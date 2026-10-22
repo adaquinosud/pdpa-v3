@@ -10,22 +10,47 @@
    trechos dela; trecho de duas marcas aparece nas duas), o que não diz (a frase da marca vazia, gerada do texto
    dela) e o que ficou sem conferência. A tela é a superfície de conferência e mostra tudo;
    o parecer, escrito por pessoa, escolhe. #}
+{# Correção à mão (fatia 1 do parecer no app, 22/10): só aparece com ``pode_corrigir``. A
+   correção fica gravada (servico.recusar_trecho / incluir_trecho / desfazer_correcao) e a
+   tela a aplica por cima do resultado gravado, que não muda. #}
+{% macro acao(nome, rotulo, campos, classe="text-loyall-500 hover:text-rose-700") %}<form hx-post="{{ url_for('ui.avaliador_corrigir', empresa_id=empresa_id, aid=a.id, acao=nome) }}" hx-target="#avaliador-analise" hx-swap="outerHTML" class="inline">{% for k, v in campos.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<button class="text-xs underline {{ classe }}">{{ rotulo }}</button></form>{% endmacro %}
+{% macro recusadas(f) %}{% for e in f.recusadas %}
+        <div data-recusado class="text-xs text-loyall-400 ml-2"><span class="line-through">“{{ e.trecho }}”</span> recusado à mão{% if pode_corrigir %} · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% endif %}</div>
+{% endfor %}{% endmacro %}
+{% macro incluir(codigo) %}{% if pode_corrigir and texto_disponivel %}
+        <details class="ml-2"><summary class="text-xs text-loyall-400 cursor-pointer">incluir trecho da peça</summary>
+          <form hx-post="{{ url_for('ui.avaliador_corrigir', empresa_id=empresa_id, aid=a.id, acao='incluir') }}" hx-target="#avaliador-analise" hx-swap="outerHTML" class="flex gap-2 mt-1">
+            <input type="hidden" name="codigo" value="{{ codigo }}">
+            <input type="text" name="trecho" required minlength="12" placeholder="cole o trecho exatamente como está na peça" class="flex-1 border border-loyall-300 rounded px-2 py-1 text-xs">
+            <button class="px-2 py-1 rounded border border-loyall-300 text-xs">incluir</button>
+          </form>
+        </details>
+{% endif %}{% endmacro %}
 {% macro simetrico(b, com_subpilar=False) %}
       {% if b.diz %}
       <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça diz</div>
       {% for f in b.diz %}
       <div data-diz class="text-sm">
-        <div data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}</div>
+        <div data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}{% if f.corrigida %} <span class="text-xs text-amber-700">(corrigida à mão)</span>{% endif %}</div>
         {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
-        {{ cit.citacoes(f.evidencias) }}
+        {% for e in f.evidencias %}
+        {{ cit.citacoes([e]) }}
+        {% if pode_corrigir %}<div class="ml-4">{% if e.incluido %}<span class="text-xs text-amber-700">incluído à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% else %}{{ acao('recusar', 'não responde', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}</div>{% endif %}
+        {% endfor %}
+        {{ recusadas(f) }}
+        {{ incluir(f.codigo) }}
       </div>
       {% endfor %}
       {% endif %}
       {% if b.nao_diz %}
       <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça não diz</div>
       {% for f in b.nao_diz %}
-      <div data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-sm text-loyall-500">{% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}</div>
+      <div class="text-sm">
+      <div data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-loyall-500">{% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}{% if f.corrigida %} <span class="text-xs text-amber-700">(corrigida à mão)</span>{% endif %}</div>
       {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
+      {{ recusadas(f) }}
+      {{ incluir(f.codigo) }}
+      </div>
       {% endfor %}
       {% endif %}
       {% if b.sem_conferencia %}
@@ -34,6 +59,7 @@
       <div data-marca="{{ x.codigo }}" data-estado="sem_conferencia" class="text-sm">
         <div class="text-loyall-800">{% if com_subpilar %}{{ x.grupo }} · {% endif %}{{ x.texto }}{% if x.nota %} <span class="text-xs text-amber-700">({{ x.nota }})</span>{% endif %}</div>
         <div class="text-xs text-rose-700 ml-2">a leitura diz que está, mas o trecho citado não foi achado na peça: confira</div>
+        {{ incluir(x.codigo) }}
       </div>
       {% endfor %}
       {% endif %}

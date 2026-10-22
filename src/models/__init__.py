@@ -6,7 +6,7 @@ que `configure_mappers()` resolva as relationships string-based e que
 """
 
 from src.models.agrupamento import Agrupamento
-from src.models.avaliador import AvaliadorAnalise
+from src.models.avaliador import AvaliadorAnalise, AvaliadorCorrecao
 from src.models.anomalia import (
     AnomaliaDetectada,
     CruzamentoSnapshot,
@@ -68,6 +68,7 @@ __all__ = [
     "Agrupamento",
     "AnomaliaDetectada",
     "AvaliadorAnalise",
+    "AvaliadorCorrecao",
     "CruzamentoSnapshot",
     "RatioMensal",
     "TemaSnapshot",

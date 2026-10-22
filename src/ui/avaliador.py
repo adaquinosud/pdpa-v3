@@ -109,7 +109,7 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
             else None
         ),
         marcas=(
-            servico.organizar_marcas(carregar_regua(), a)
+            servico.organizar_marcas(carregar_regua(), a, servico.correcoes_de(a))
             if formato == servico.FORMATO_MARCAS and a.status == STATUS_PRONTA
             else None
         ),
@@ -124,6 +124,7 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
         rotulo_tipo=ROTULO_TIPO,
         processando=a.status in STATUS_EM_PROCESSAMENTO,
         texto_disponivel=a.texto_json is not None,
+        pode_corrigir=formato == servico.FORMATO_MARCAS and a.status == STATUS_PRONTA,
         dias_retencao=servico.dias_retencao(),
         peca_de_medicao=servico.e_peca_de_medicao(a),
     )
@@ -221,6 +222,32 @@ def avaliador_refazer(empresa_id: int, aid: int):
 @loyall_required_ui
 def avaliador_concluir(empresa_id: int, aid: int):
     return _acao(empresa_id, aid, lambda s, a: servico.concluir(a))
+
+
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/corrigir/<acao>", methods=["POST"]
+)
+@loyall_required_ui
+def avaliador_corrigir(empresa_id: int, aid: int, acao: str):
+    """Correção à mão (fatia 1 do parecer no app): recusar um trecho citado, incluir um trecho
+    achado na peça, ou desfazer. Fica gravada; o resultado da leitura não muda."""
+    usuario_id = get_current_user().id
+    f = request.form
+    if acao == "recusar":
+        fn = lambda s, a: servico.recusar_trecho(  # noqa: E731
+            s, a, f.get("codigo", ""), f.get("trecho", ""), usuario_id
+        )
+    elif acao == "incluir":
+        fn = lambda s, a: servico.incluir_trecho(  # noqa: E731
+            s, a, f.get("codigo", ""), f.get("trecho", ""), usuario_id
+        )
+    elif acao == "desfazer":
+        fn = lambda s, a: servico.desfazer_correcao(  # noqa: E731
+            s, a, int(f.get("correcao_id") or 0)
+        )
+    else:
+        return render_template("404.html"), 404
+    return _acao(empresa_id, aid, fn)
 
 
 @ui_bp.route("/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/apagar", methods=["POST"])

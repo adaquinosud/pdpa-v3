@@ -28,11 +28,17 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from src.api.painel import NOME_PILAR, SUBPILARES_ORDEM
 from src.avaliador import marcas, motor, veredito
-from src.avaliador.extracao import Documento, _normalizar, documento_de_texto, extrair
+from src.avaliador.extracao import (
+    Documento,
+    _normalizar,
+    documento_de_texto,
+    extrair,
+    localizar_trecho,
+)
 from src.avaliador.regua import (
     ORIGEM_ARQUIVO,
     ORIGEM_PAGINA,
@@ -49,7 +55,10 @@ from src.models.avaliador import (
     STATUS_LENDO,
     STATUS_PENDENTE,
     STATUS_PRONTA,
+    CORRECAO_INCLUSAO,
+    CORRECAO_RECUSA,
     AvaliadorAnalise,
+    AvaliadorCorrecao,
 )
 from src.utils.db import db_session
 
@@ -275,6 +284,8 @@ def _frase(x: dict, esta: bool) -> dict:
         "frase": frase_da_marca(x["texto"], esta),
         "porque_importa": x["porque_importa"],
         "nota": x["nota"],
+        "recusadas": x.get("recusadas", []),
+        "corrigida": x.get("corrigida", False),
     }
 
 
@@ -312,7 +323,46 @@ def _bloco_de_marcas(linhas: List[dict]) -> dict:
     }
 
 
-def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
+def _aplicar_correcoes(m: dict, correcoes: List[AvaliadorCorrecao]) -> dict:
+    """O estado da marca depois das correções à mão, sem tocar no gravado. Trecho recusado
+    sai das evidências e fica em ``recusadas`` (a tela mostra riscado); trecho incluído entra
+    nas evidências. Marca "está" com todos os trechos recusados passa a "não está"; marca
+    "não está" (ou sem conferência) com trecho incluído passa a "está"."""
+    minhas = [c for c in correcoes if c.marca_codigo == m["codigo"]]
+    recusa = {c.trecho: c for c in minhas if c.tipo == CORRECAO_RECUSA}
+    ok, recusadas = [], []
+    for e in m.get("evidencias", []):
+        if e.get("conferido") and e["trecho"] in recusa:
+            recusadas.append({**e, "correcao_id": recusa[e["trecho"]].id})
+        else:
+            ok.append(e)
+    for c in minhas:
+        if c.tipo == CORRECAO_INCLUSAO:
+            ok.append(
+                {
+                    "pagina": c.pagina,
+                    "trecho": c.trecho,
+                    "conferido": True,
+                    "pagina_encontrada": c.pagina,
+                    "incluido": True,
+                    "correcao_id": c.id,
+                }
+            )
+    if not minhas:
+        estado = _estado_marca(m)
+    elif any(e.get("conferido") for e in ok):
+        estado = MARCA_ESTA
+    elif m.get("esta") and not recusadas:
+        estado = MARCA_SEM_CONFERENCIA
+    else:
+        estado = MARCA_NAO_ESTA
+    return {**m, "evidencias": ok, "recusadas": recusadas, "estado": estado,
+            "corrigida": bool(minhas)}  # fmt: skip
+
+
+def organizar_marcas(
+    regua: Regua, a: AvaliadorAnalise, correcoes: Optional[List[AvaliadorCorrecao]] = None
+) -> dict:
     """O que a tela mostra de uma leitura no formato 3. Na ordem do Manual, sem contagem,
     percentual nem ordem entre subpilares (decisão de 18/10). Peça SEM cliente com nome: as
     marcas que só se esperam com cliente nomeado saem dos subpilares e vão para um grupo à
@@ -324,16 +374,19 @@ def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
 
     Cada subpilar (e o bloco C e o grupo à parte) leva também a forma simétrica da tela
     (21/10, ``_bloco_de_marcas``): diz, não diz e sem conferência. A tela é a superfície de
-    conferência e mostra tudo; o que entra no parecer é escolha de quem o escreve."""
+    conferência e mostra tudo; o que entra no parecer é escolha de quem o escreve.
+
+    ``correcoes`` (as ativas da leitura, ``correcoes_de``) são aplicadas por cima do gravado,
+    marca a marca (``_aplicar_correcoes``); o resultado gravado não muda."""
     g = json.loads(a.itens_json)
+    correcoes = correcoes or []
     da_regua = {m.codigo: m for m in regua.marcas}
     separa = a.cliente_nomeado is False
     linhas, a_parte = [], []
     for m in g["marcas"]:
         r = da_regua.get(m["codigo"])
         linha = {
-            **m,
-            "estado": _estado_marca(m),
+            **_aplicar_correcoes(m, correcoes),
             "porque_importa": r.porque_importa if r else "",
             # leitura anterior a uma mudança do Manual: a pergunta gravada já não é a de hoje
             "nota": (
@@ -530,11 +583,117 @@ def concluir(a: AvaliadorAnalise) -> None:
     marcar_uso(a)
 
 
+# ── correção à mão (fatia 1 do parecer no app, 22/10) ─────────────────────
+
+
+def correcoes_de(a: AvaliadorAnalise) -> List[AvaliadorCorrecao]:
+    """As correções ativas da leitura (desfeitas ficam no banco e não contam), na ordem."""
+    s = object_session(a)
+    if s is None or a.id is None:
+        return []
+    return list(
+        s.scalars(
+            select(AvaliadorCorrecao)
+            .where(AvaliadorCorrecao.analise_id == a.id, AvaliadorCorrecao.desfeita_em.is_(None))
+            .order_by(AvaliadorCorrecao.id)
+        )
+    )
+
+
+def _exigir_corrigivel(a: AvaliadorAnalise) -> None:
+    if a.status != STATUS_PRONTA or formato_da_leitura(a) != FORMATO_MARCAS:
+        raise AvaliacaoRecusada("Só uma leitura pronta, no formato atual, pode ser corrigida.")
+
+
+def _marca_gravada(a: AvaliadorAnalise, codigo: str) -> dict:
+    m = next((m for m in json.loads(a.itens_json)["marcas"] if m["codigo"] == codigo), None)
+    if m is None:
+        raise AvaliacaoRecusada("Essa marca não está nesta leitura.")
+    return m
+
+
+def _ativa(a: AvaliadorAnalise, codigo: str, tipo: str, trecho: str):
+    return next(
+        (
+            c
+            for c in correcoes_de(a)
+            if (c.marca_codigo, c.tipo, c.trecho) == (codigo, tipo, trecho)
+        ),
+        None,
+    )
+
+
+def recusar_trecho(
+    s: Session, a: AvaliadorAnalise, codigo: str, trecho: str, usuario_id: Optional[int]
+) -> None:
+    """A pessoa diz que um trecho citado pela leitura não responde à marca. Fica gravado; o
+    resultado da leitura não muda. Vale também nas peças de medição: a base fica intacta."""
+    _exigir_corrigivel(a)
+    m = _marca_gravada(a, codigo)
+    ev = next(
+        (e for e in m.get("evidencias", []) if e.get("conferido") and e["trecho"] == trecho), None
+    )
+    if ev is None:
+        raise AvaliacaoRecusada("Esse trecho não é um dos citados para esta marca.")
+    if _ativa(a, codigo, CORRECAO_RECUSA, trecho) is None:
+        s.add(
+            AvaliadorCorrecao(
+                analise_id=a.id, conteudo_hash=a.conteudo_hash, marca_codigo=codigo,
+                marca_texto=m["texto"], tipo=CORRECAO_RECUSA, trecho=trecho,
+                pagina=ev.get("pagina_encontrada"), usuario_id=usuario_id,
+            )
+        )  # fmt: skip
+    marcar_uso(a)
+
+
+def incluir_trecho(
+    s: Session, a: AvaliadorAnalise, codigo: str, trecho: str, usuario_id: Optional[int]
+) -> None:
+    """A pessoa achou na peça o trecho que responde à marca. Só entra se estiver na peça,
+    com a mesma conferência das citações da leitura; por isso precisa do texto guardado."""
+    _exigir_corrigivel(a)
+    m = _marca_gravada(a, codigo)
+    if a.texto_json is None:
+        raise AvaliacaoRecusada(
+            "O texto desta peça já foi apagado, e sem ele não dá para conferir o trecho novo. "
+            "Para incluir trecho, envie a peça outra vez."
+        )
+    achada, literal, _ = localizar_trecho(Documento.de_json(a.texto_json), None, trecho.strip())
+    if achada is None:
+        raise AvaliacaoRecusada(
+            "Esse trecho não foi achado na peça. Copie o texto exatamente como está nela, com "
+            "pelo menos 12 caracteres."
+        )
+    if _ativa(a, codigo, CORRECAO_INCLUSAO, literal) is None:
+        s.add(
+            AvaliadorCorrecao(
+                analise_id=a.id, conteudo_hash=a.conteudo_hash, marca_codigo=codigo,
+                marca_texto=m["texto"], tipo=CORRECAO_INCLUSAO, trecho=literal, pagina=achada,
+                usuario_id=usuario_id,
+            )
+        )  # fmt: skip
+    marcar_uso(a)
+
+
+def desfazer_correcao(s: Session, a: AvaliadorAnalise, correcao_id: int) -> None:
+    """Desfazer não apaga: marca a hora. A correção desfeita continua no banco."""
+    c = s.get(AvaliadorCorrecao, correcao_id)
+    if c is None or c.analise_id != a.id or c.desfeita_em is not None:
+        raise AvaliacaoRecusada("Essa correção não está ativa nesta leitura.")
+    c.desfeita_em = datetime.utcnow()
+    marcar_uso(a)
+
+
 def apagar_leitura(a: AvaliadorAnalise) -> None:
     """Apaga o que é da peça e deixa só o gasto (ver ``src/models/avaliador.py``).
-    Recusa em andamento: a leitura gravaria resumo e itens por cima."""
+    Recusa em andamento: a leitura gravaria resumo e itens por cima. As correções à mão
+    ficam, sem o trecho (que é da peça): sobra que marca foi corrigida e como."""
     _exigir_alteravel(a)
     _exigir_parada(a)
+    s = object_session(a)
+    if s is not None:
+        for c in s.scalars(select(AvaliadorCorrecao).where(AvaliadorCorrecao.analise_id == a.id)):
+            c.trecho = ""
     apagar_texto(a, "leitura_apagada")
     a.descricao = ""
     a.arquivo_nome = None

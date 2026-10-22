@@ -87,3 +87,36 @@ class AvaliadorAnalise(Base):
     custo_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     empresa: Mapped["Empresa"] = relationship("Empresa")
+
+
+# Correção à mão de uma leitura no formato 3 (fatia 1 do parecer no app, 22/10). Cada
+# recusa de trecho e cada trecho incluído pela pessoa vira uma linha, e a linha não some:
+# desfazer só marca ``desfeita_em``. É o gabarito de erros reais, em peças variadas, que um
+# conferidor de resposta precisa para ser medido contra peça que nunca viu. O resultado
+# gravado da leitura (``itens_json``) nunca é alterado: a tela aplica as correções por cima.
+# Guarda trecho de peça de cliente: nada daqui vira fixture nem vai para o repositório.
+CORRECAO_RECUSA = "recusa"  # um trecho citado pela leitura não responde à marca
+CORRECAO_INCLUSAO = "inclusao"  # a pessoa achou na peça o trecho que responde
+
+
+class AvaliadorCorrecao(Base):
+    __tablename__ = "avaliador_correcoes"
+    __table_args__ = (Index("ix_avaliador_correcoes_analise", "analise_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    analise_id: Mapped[int] = mapped_column(
+        ForeignKey("avaliador_analises.id", ondelete="CASCADE"), nullable=False
+    )
+    # o texto exato a que a correção se refere: o mesmo número de leitura pode ter tido outro
+    # conteúdo, e a correção vale para este
+    conteudo_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    marca_codigo: Mapped[str] = mapped_column(String(16), nullable=False)
+    marca_texto: Mapped[str] = mapped_column(Text, nullable=False)  # como foi perguntada
+    tipo: Mapped[str] = mapped_column(String(16), nullable=False)
+    trecho: Mapped[str] = mapped_column(Text, nullable=False)  # como está na peça
+    pagina: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    usuario_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    criado_em: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    desfeita_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

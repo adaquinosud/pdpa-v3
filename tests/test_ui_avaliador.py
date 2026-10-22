@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 
 import pytest
 
@@ -88,7 +89,7 @@ def test_cliente_recebe_403_em_todas_as_rotas(client_cliente_factory, empresa):
     assert cli.get(_url(empresa)).status_code == 403
     assert _enviar(cli, empresa).status_code == 403
     assert cli.get(_url(empresa, "/1")).status_code == 403
-    for suf in ("/1/refazer", "/1/concluir", "/1/apagar"):
+    for suf in ("/1/refazer", "/1/concluir", "/1/apagar", "/1/corrigir/recusar"):
         assert cli.post(_url(empresa, suf)).status_code == 403, suf
 
 
@@ -419,7 +420,10 @@ def test_citacao_de_linha_de_tabela_vem_celula_por_celula(client_loyall, db_sess
         "linha da tabela que começa “Essencial”: “Essencial” · "
         "“Até 10 unidades, R$ 8.000 por diagnóstico”"
     ) in html
-    assert "Essencial | Até" not in html
+    # o trecho original vai no campo escondido do botão "não responde" (é a chave da
+    # correção); o que se vê é célula por célula
+    visivel = re.sub(r'value="[^"]*"', "", html)
+    assert "Essencial | Até" not in visivel
     assert "“R$ 8.000 por diagnóstico” · “Completo” · “Até 30”" in html
 
 
