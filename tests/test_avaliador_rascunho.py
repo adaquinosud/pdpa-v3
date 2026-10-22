@@ -112,6 +112,9 @@ def test_entrada_e_so_a_tela_corrigida_sem_a_peca(db_session, empresa, teto):
     assert "Localiza" not in R.sistema() and "aluguel" not in R.sistema().lower()
     # o achado não pode só repetir as listas (a falha do formato 2, 17/10)
     assert "O achado não repete as duas listas" in R.sistema()
+    # 22/10, rascunho da #31: "raro em peças desse tipo" e "cidade" completando trecho cortado
+    assert "não compare com outras peças nem com o mercado" in R.sistema()
+    assert "não complete trecho cortado" in R.sistema()
 
 
 @pytest.mark.parametrize(

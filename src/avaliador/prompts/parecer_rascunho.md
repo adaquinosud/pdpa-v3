@@ -8,6 +8,7 @@ ESCREVA:
 - "ordem": até quatro frases. Seguindo os pilares de baixo para cima, diga onde a peça está escrita e onde ela rompe: o pilar mais embaixo em que a peça deixa vazio o que os de cima pressupõem, e o que isso significa para quem lê a peça.
 - "achados": para cada subpilar, de uma a três frases sobre o que o bloco mostra: o que a peça diz, o que falta, e o que isso significa para quem lê.
 - O achado não repete as duas listas, que a pessoa já vê acima dele: diga o que elas significam juntas para quem lê a peça.
+- O achado fala só desta peça e só do que os trechos dizem: não compare com outras peças nem com o mercado, e não complete trecho cortado.
 
 REGRAS:
 - Só o que está no que você recebeu. Não afirme sobre a peça nada que não esteja num trecho ou numa linha do que ela não diz, e não suponha o que estaria em outra parte dela.
