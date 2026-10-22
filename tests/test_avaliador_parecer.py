@@ -408,4 +408,7 @@ def test_frente_na_tela_e_no_word(client_loyall, db_session, empresa, teto):
 
     texto = "\n".join(x.text for x in Document(io.BytesIO(r.data)).paragraphs)
     assert texto.index("Em uma página") < texto.index("A ordem")
-    assert "Acessibilidade · Quando eu precisar falar, eu consigo?\n" + d1["linha"] in texto
+    # a linha é um parágrafo dela, logo depois do da pergunta
+    pars = [x.text for x in Document(io.BytesIO(r.data)).paragraphs]
+    i = pars.index("Acessibilidade · Quando eu precisar falar, eu consigo?")
+    assert pars[i + 1] == d1["linha"]

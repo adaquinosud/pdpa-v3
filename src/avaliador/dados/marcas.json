@@ -2,7 +2,7 @@
   "fonte": "PDPA_Manual_Operacao_v14.docx, capítulo 17",
   "titulo": "17. Marcas de leitura de documento",
   "abertura": [
-    "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas do modelo, na voz do cliente; aqui está o que um documento mostra por escrito sobre cada subpilar.",
+    "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas da metodologia; aqui estão as doze perguntas do leitor, uma por subpilar, e o que um documento mostra por escrito sobre cada uma.",
     "Cada marca é uma pergunta de presença: a peça diz aquilo, com um trecho que se pode citar, ou não diz. Nenhuma marca pede avaliação de qualidade. Um mesmo trecho da peça pode responder a mais de uma marca."
   ],
   "pilares": [
@@ -570,7 +570,7 @@
       "codigo": "A2.04",
       "grupo": "A2",
       "texto": "Ensina alguma coisa que serve mesmo sem contratar?",
-      "nome_curto": "ensina sem vender",
+      "nome_curto": "ensino que serve sem contratar",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -634,7 +634,7 @@
       "codigo": "A3.04",
       "grupo": "A3",
       "texto": "Recomenda comprar menos, ou depois, ou outra coisa?",
-      "nome_curto": "recomendar menos",
+      "nome_curto": "recomendação de comprar menos",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
@@ -674,7 +674,7 @@
       "codigo": "C.04",
       "grupo": "C",
       "texto": "Nomeia as tecnologias, softwares ou ferramentas que usa?",
-      "nome_curto": "tecnologia de terceiro",
+      "nome_curto": "tecnologia que usa",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     }
