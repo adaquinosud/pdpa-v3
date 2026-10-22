@@ -196,8 +196,19 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
     ``servico.textos_do_parecer``. Devolve o parecer pronto para o Word e as pendências."""
     pendencias: List[str] = []
     # o mesmo que ``pendencias``, contado, para a tela dizer numa linha o que falta
-    falta = {"ordem": False, "achados": 0, "conferir": 0, "regua": False, "rascunho": 0}
+    falta = {
+        "empresa": False,
+        "ordem": False,
+        "achados": 0,
+        "conferir": 0,
+        "regua": False,
+        "rascunho": 0,
+    }
     escolhidos = selecao(tela, textos.get("escolhas"))
+    empresa = (textos.get("empresa_da_peca") or "").strip()
+    if not empresa:
+        falta["empresa"] = True
+        pendencias.append("Escreva o nome da empresa da peça, que sai no título do Word.")
     if not textos["ordem"].strip():
         falta["ordem"] = True
         pendencias.append("Escreva a frase da ordem, no alto.")
@@ -241,6 +252,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
     pendencias += _pendencias_do_rascunho(tela, textos, falta)
     return {
         "titulo": "Parecer PDPA",
+        "empresa": empresa,
         "cabecalho": f"Leitura nº {numero}, {data}. " + " ".join(declarar_cobertura(cobertura)),
         "ordem": textos["ordem"].strip(),
         "frente": frente(tela),
@@ -257,7 +269,7 @@ def escolhidos_da_tela(tela: dict, escolhas: Optional[dict] = None) -> set:
     return {(e["codigo"], e["trecho"]) for picks in selecao(tela, escolhas).values() for e in picks}
 
 
-def gerar_docx(p: dict, empresa: str) -> bytes:
+def gerar_docx(p: dict) -> bytes:
     """O Word do parecer. Só chamar sem pendências (quem chama confere)."""
     from docx import Document
     from docx.shared import Pt, RGBColor
@@ -266,7 +278,8 @@ def gerar_docx(p: dict, empresa: str) -> bytes:
     doc = Document()
     doc.styles["Normal"].font.name = "Calibri"
     doc.styles["Normal"].font.size = Pt(11)
-    doc.add_heading(f"{p['titulo']}: {empresa}", 0)
+    # o nome escrito pela pessoa no parecer, nunca o da empresa da conta no app
+    doc.add_heading(f"{p['titulo']}: {p['empresa']}", 0)
     cab = doc.add_paragraph(p["cabecalho"])
     cab.runs[0].italic = True
     doc.add_heading("Em uma página", 1)

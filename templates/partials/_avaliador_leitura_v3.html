@@ -107,6 +107,7 @@
 <section data-secao="parecer" class="border border-loyall-300 rounded p-3 space-y-2 bg-loyall-50">
   <h4 class="text-xs uppercase tracking-wider text-loyall-700">O parecer</h4>
   <p class="text-xs text-loyall-500">Abra cada subpilar, corrija os trechos e escreva o achado. Vão para o parecer: a frase da ordem, um trecho por marca (até quatro por subpilar), o que a peça não diz e o achado.</p>
+  {{ campo('empresa_da_peca', 'Empresa da peça (sai no título do Word)', parecer_textos.empresa_da_peca, 1) }}
   {# a página da frente do Word, igual (parecer.frente, 22/10): uma linha por subpilar #}
   <details data-frente open class="text-sm">
     <summary class="cursor-pointer text-xs uppercase tracking-wider text-loyall-700">Em uma página (a frente do Word)</summary>

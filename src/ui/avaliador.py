@@ -372,7 +372,7 @@ def avaliador_parecer_word(empresa_id: int, aid: int):
                 409,
                 {"Content-Type": "text/plain; charset=utf-8"},
             )
-        dados = parecer_mod.gerar_docx(p, a.empresa.nome)
+        dados = parecer_mod.gerar_docx(p)
         servico.marcar_uso(a)
         s.commit()
     return send_file(

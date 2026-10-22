@@ -735,6 +735,7 @@ def desfazer_correcao(s: Session, a: AvaliadorAnalise, correcao_id: int) -> None
 
 CAMPO_ORDEM = "ordem"
 CAMPO_NOTA_C = "nota_c"
+CAMPO_EMPRESA = "empresa_da_peca"
 
 
 def parecer_de(a: AvaliadorAnalise) -> Optional[AvaliadorParecer]:
@@ -749,8 +750,12 @@ def textos_do_parecer(a: AvaliadorAnalise) -> dict:
     "escolhas": {marca: trecho escolhido para o parecer}}."""
     p = parecer_de(a)
     if p is None:
-        return {"ordem": "", "nota_c": "", "achados": {}, "escolhas": {}, "rascunho": {}}
+        return {
+            "empresa_da_peca": "", "ordem": "", "nota_c": "", "achados": {}, "escolhas": {},
+            "rascunho": {},
+        }  # fmt: skip
     return {
+        "empresa_da_peca": p.empresa_da_peca or "",
         "ordem": p.ordem,
         "nota_c": p.nota_c,
         "achados": json.loads(p.achados_json or "{}"),
@@ -763,7 +768,8 @@ def _parecer_ou_novo(s: Session, a: AvaliadorAnalise) -> AvaliadorParecer:
     p = parecer_de(a)
     if p is None:
         p = AvaliadorParecer(
-            analise_id=a.id, ordem="", achados_json="{}", nota_c="", escolhas_json="{}",
+            analise_id=a.id, empresa_da_peca="", ordem="", achados_json="{}", nota_c="",
+            escolhas_json="{}",
             rascunho_json="{}", rascunho_custo_usd=0.0,
         )  # fmt: skip
         s.add(p)
@@ -805,7 +811,7 @@ def salvar_parecer(
     """Um campo do parecer: a ordem, a nota do bloco C ou o achado de um subpilar (o campo é
     o código do subpilar). Escrever o parecer conta como usar a leitura."""
     _exigir_corrigivel(a)
-    if campo not in (CAMPO_ORDEM, CAMPO_NOTA_C) and campo not in SUBPILARES_ORDEM:
+    if campo not in (CAMPO_ORDEM, CAMPO_NOTA_C, CAMPO_EMPRESA) and campo not in SUBPILARES_ORDEM:
         raise AvaliacaoRecusada("Campo do parecer desconhecido.")
     p = _parecer_ou_novo(s, a)
     texto = (texto or "").strip()
@@ -813,6 +819,8 @@ def salvar_parecer(
         p.ordem = texto
     elif campo == CAMPO_NOTA_C:
         p.nota_c = texto
+    elif campo == CAMPO_EMPRESA:
+        p.empresa_da_peca = texto[:200]
     else:
         achados = json.loads(p.achados_json or "{}")
         achados[campo] = texto
@@ -959,6 +967,7 @@ def apagar_leitura(a: AvaliadorAnalise) -> None:
         p = parecer_de(a)
         if p is not None:  # o parecer fala da peça: sai junto
             p.ordem, p.nota_c, p.achados_json, p.escolhas_json = "", "", "{}", "{}"
+            p.empresa_da_peca = ""
             p.rascunho_json = "{}"  # o texto do modelo também fala da peça; o gasto fica
     apagar_texto(a, "leitura_apagada")
     a.descricao = ""

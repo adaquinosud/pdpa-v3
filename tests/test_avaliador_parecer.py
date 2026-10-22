@@ -50,6 +50,7 @@ def _montar(a):
 
 
 def _preencher(db_session, a):
+    servico.salvar_parecer(db_session, a, "empresa_da_peca", "Empresa da Peça SA", None)
     servico.salvar_parecer(db_session, a, "ordem", "A ruptura está na Precisão.", None)
     for c in SUBS:
         servico.salvar_parecer(db_session, a, c, f"Achado de {c}.", None)
@@ -74,7 +75,10 @@ def test_montar_escolhe_um_trecho_por_marca_e_lista_o_que_falta(db_session, empr
         "Parceria",
         "Aconselhamento",
     ]
-    assert p["pendencias"][0] == "Escreva a frase da ordem, no alto."
+    assert p["pendencias"][:2] == [
+        "Escreva o nome da empresa da peça, que sai no título do Word.",
+        "Escreva a frase da ordem, no alto.",
+    ]
     assert sum("escreva o achado" in x for x in p["pendencias"]) == 12
     assert p["cabecalho"].startswith(f"Leitura nº {a.id}, 22/10/2026. Lidas")
 
@@ -146,7 +150,8 @@ def test_tela_e_word(client_loyall, db_session, empresa, teto):
     assert 'data-secao="parecer"' in html and "A ordem" in html and "O achado" in html
     assert (
         "vai para o parecer" in html
-        and "Para o Word sair, falta: a frase da ordem, 12 achados." in html
+        and "Para o Word sair, falta: o nome da empresa da peça, a frase da ordem, 12 achados."
+        in html
     )
     r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
     assert r.status_code == 409 and "Escreva a frase da ordem" in r.get_data(as_text=True)
@@ -162,13 +167,17 @@ def test_tela_e_word(client_loyall, db_session, empresa, teto):
         client_loyall.post(
             _url(empresa, f"/{aid}/parecer"), data={"campo": c, "texto": f"Achado {c}."}
         )
+    client_loyall.post(
+        _url(empresa, f"/{aid}/parecer"), data={"campo": "empresa_da_peca", "texto": "Peça SA"}
+    )
     r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
     assert r.status_code == 200 and r.mimetype.endswith("wordprocessingml.document")
     from docx import Document
 
     texto = "\n".join(p.text for p in Document(io.BytesIO(r.data)).paragraphs)
     assert (
-        "Parecer PDPA: Empresa Aval parecer" in texto
+        "Parecer PDPA: Peça SA" in texto
+        and "Empresa Aval parecer" not in texto  # nunca o nome da empresa da conta
         and "A ordem." in texto
         and "Achado Pa2." in texto
     )
@@ -413,3 +422,30 @@ def test_frente_na_tela_e_no_word(client_loyall, db_session, empresa, teto):
     par = next(x for x in pars if x.text.startswith("Acessibilidade · "))
     assert par.text == "Acessibilidade · Quando eu precisar falar, eu consigo?\n" + d1["linha"]
     assert par._p.xml.count("<w:br/>") == 1
+
+
+def test_titulo_do_word_e_a_empresa_da_peca_nunca_a_da_conta(
+    client_loyall, db_session, empresa, teto
+):
+    """22/10: o Word da #32 (E2Carbon) saiu com o nome da empresa da conta em que a leitura
+    foi feita. O título é o nome escrito no parecer; em branco, o Word não sai."""
+    aid = _pronta(client_loyall, db_session, empresa)
+    a = db_session.get(AvaliadorAnalise, aid)
+    _preencher(db_session, a)
+    servico.salvar_parecer(db_session, a, "empresa_da_peca", "", None)
+    db_session.commit()
+    r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
+    assert r.status_code == 409 and "nome da empresa da peça" in r.get_data(as_text=True)
+    servico.salvar_parecer(db_session, a, "empresa_da_peca", "  Prospect Lida SA ", None)
+    db_session.commit()
+    r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
+    from docx import Document
+
+    d = Document(io.BytesIO(r.data))
+    texto = "\n".join(x.text for x in d.paragraphs) + d.core_properties.title
+    assert d.paragraphs[0].text == "Parecer PDPA: Prospect Lida SA"
+    assert empresa.nome not in texto  # o nome da conta não vai ao cliente
+    # apagar a leitura tira o nome junto com o resto do parecer
+    servico.apagar_leitura(a)
+    db_session.commit()
+    assert db_session.query(AvaliadorParecer).one().empresa_da_peca == ""

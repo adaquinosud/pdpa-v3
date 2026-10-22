@@ -133,6 +133,9 @@ class AvaliadorParecer(Base):
     analise_id: Mapped[int] = mapped_column(
         ForeignKey("avaliador_analises.id", ondelete="CASCADE"), nullable=False, unique=True
     )
+    # o nome que sai no título do Word, escrito pela pessoa: NUNCA o da empresa da conta, que
+    # não é a da peça quando se lê um prospect (#32, 22/10)
+    empresa_da_peca: Mapped[str] = mapped_column(Text, nullable=False, default="")
     ordem: Mapped[str] = mapped_column(Text, nullable=False, default="")
     achados_json: Mapped[str] = mapped_column(
         Text, nullable=False, default="{}"

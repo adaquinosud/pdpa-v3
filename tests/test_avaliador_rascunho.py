@@ -141,6 +141,7 @@ def test_validacao_do_rascunho(estraga, motivo):
 
 def test_rascunho_so_preenche_em_branco_e_o_word_espera_a_pessoa(db_session, empresa, teto):
     a = _pronta_servico(db_session, empresa)
+    servico.salvar_parecer(db_session, a, "empresa_da_peca", "Empresa da Peça SA", None)
     servico.salvar_parecer(db_session, a, "D2", "Escrito pela pessoa.", None)
     db_session.commit()
     cli = Modelo(_bom())
@@ -179,6 +180,7 @@ def test_rascunho_so_preenche_em_branco_e_o_word_espera_a_pessoa(db_session, emp
 
 def test_tela_mudou_depois_do_rascunho_pede_conferencia(db_session, empresa, teto):
     a = _pronta_servico(db_session, empresa)
+    servico.salvar_parecer(db_session, a, "empresa_da_peca", "Empresa da Peça SA", None)
     servico.rascunhar_parecer(db_session, a, None, client=Modelo(_bom()))
     servico.salvar_parecer(db_session, a, "A1", "Editado antes da correção.", None)
     for c in ["ordem", *SUBS]:
@@ -275,6 +277,9 @@ def test_tela_do_rascunho(client_loyall, db_session, empresa, teto, monkeypatch)
         _url(empresa, f"/{aid}/parecer/aceitar"), data={"campo": "ordem"}
     ).get_data(as_text=True)
     assert "rascunho aceito como está" in html and "11 rascunhos para passar" in html
+    client_loyall.post(
+        _url(empresa, f"/{aid}/parecer"), data={"campo": "empresa_da_peca", "texto": "E2 SA"}
+    )
     a = db_session.get(AvaliadorAnalise, aid)
     for c in SUBS:
         if c != "P1":

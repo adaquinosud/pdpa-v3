@@ -6,6 +6,7 @@
   {% set f = parecer.falta %}
   {% set partes = [
        'uma leitura nova, porque esta usou a régua antiga' if f.regua else '',
+       'o nome da empresa da peça' if f.empresa else '',
        'a frase da ordem' if f.ordem else '',
        (f.achados ~ (' achado' if f.achados == 1 else ' achados')) if f.achados else '',
        (f.conferir ~ (' marca para conferir' if f.conferir == 1 else ' marcas para conferir')) if f.conferir else '',
