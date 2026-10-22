@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from src.api.painel import NOME_PILAR, SUBPILARES_ORDEM
 from src.avaliador import marcas, motor, veredito
-from src.avaliador.extracao import Documento, documento_de_texto, extrair
+from src.avaliador.extracao import Documento, _normalizar, documento_de_texto, extrair
 from src.avaliador.regua import (
     ORIGEM_ARQUIVO,
     ORIGEM_PAGINA,
@@ -245,6 +245,64 @@ def _estado_marca(m: dict) -> str:
     return MARCA_SEM_CONFERENCIA
 
 
+# A frase da tela sai do texto da marca, sem segundo texto à mão (decisão de 21/10): toda
+# marca do Manual começa com um destes verbos, e "Diz quanto custa?" vira "Diz quanto
+# custa." quando está e "Não diz quanto custa." quando não está. tests/test_avaliador_marcas
+# falha se o Manual trouxer marca que comece com outra palavra.
+VERBOS_DE_MARCA = frozenset(
+    {
+        "Diz", "Traz", "Nomeia", "Cita", "Avisa", "Descreve", "Abre", "Fala", "Menciona",
+        "Lista", "Oferece", "Prevê", "Entrega", "Contraria", "Ensina", "Compara", "Aponta",
+        "Recomenda", "Define",
+    }
+)  # fmt: skip
+
+
+def frase_da_marca(texto: str, esta: bool) -> str:
+    """A pergunta da marca virada em afirmação. Marca gravada que não começa com verbo
+    (texto antigo de leitura gravada) cai na forma que não depende da gramática."""
+    t = texto.strip().rstrip("?").strip()
+    if t.split(" ", 1)[0] not in VERBOS_DE_MARCA:
+        return f"Responde: {texto.strip()}" if esta else f"Não está no texto lido: {texto.strip()}"
+    return f"{t}." if esta else f"Não {t[0].lower()}{t[1:]}."
+
+
+def _frase(x: dict, esta: bool) -> dict:
+    return {
+        "codigo": x["codigo"],
+        "grupo": x["grupo"],
+        "frase": frase_da_marca(x["texto"], esta),
+        "porque_importa": x["porque_importa"],
+    }
+
+
+def _bloco_de_marcas(linhas: List[dict]) -> dict:
+    """O que um subpilar (ou grupo) mostra, simétrico: o que a peça diz (cada trecho uma
+    vez, com as frases das marcas que ele responde em cima), o que não diz (uma frase por
+    marca vazia) e o que ficou sem conferência. Ordem do Manual. Trecho contido noutro
+    trecho junta no maior; sobreposição parcial fica como dois."""
+    diz: List[dict] = []
+    for x in linhas:
+        if x["estado"] != MARCA_ESTA:
+            continue
+        frase = _frase(x, True)
+        for e in (e for e in x["evidencias"] if e.get("conferido")):
+            alvo = _normalizar(e["trecho"])
+            junto = next((g for g in diz if alvo in g["chave"] or g["chave"] in alvo), None)
+            if junto is None:
+                diz.append({"chave": alvo, "evidencia": e, "frases": [frase]})
+                continue
+            if len(alvo) > len(junto["chave"]):
+                junto["chave"], junto["evidencia"] = alvo, e
+            if frase not in junto["frases"]:
+                junto["frases"].append(frase)
+    return {
+        "diz": diz,
+        "nao_diz": [_frase(x, False) for x in linhas if x["estado"] == MARCA_NAO_ESTA],
+        "sem_conferencia": [x for x in linhas if x["estado"] == MARCA_SEM_CONFERENCIA],
+    }
+
+
 def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
     """O que a tela mostra de uma leitura no formato 3. Na ordem do Manual, sem contagem,
     percentual nem ordem entre subpilares (decisão de 18/10). Peça SEM cliente com nome: as
@@ -253,7 +311,11 @@ def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
 
     O texto da marca é o GRAVADO na leitura (a pergunta a que ela respondeu); o "porque
     importa" e a exceção vêm da régua de hoje. Marca que saiu do Manual depois da leitura
-    continua aparecendo, com o texto gravado, no grupo gravado."""
+    continua aparecendo, com o texto gravado, no grupo gravado.
+
+    Cada subpilar (e o bloco C e o grupo à parte) leva também a forma simétrica da tela
+    (21/10, ``_bloco_de_marcas``): diz, não diz e sem conferência. A tela é a superfície de
+    conferência e mostra tudo; o que entra no parecer é escolha de quem o escreve."""
     g = json.loads(a.itens_json)
     da_regua = {m.codigo: m for m in regua.marcas}
     separa = a.cliente_nomeado is False
@@ -268,13 +330,15 @@ def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
         }
         (a_parte if separa and r and r.so_cliente_nomeado else linhas).append(linha)
     pergunta = {x["codigo"]: x["pergunta"] for x in (regua.marcas_cap or {}).get("pilares", [])}
+    fora = [x for x in linhas if x["grupo"] == GRUPO_FORA]
     pilares = [
         {
             "pilar": p,
             "pergunta": pergunta.get(p.codigo, ""),
             "subpilares": [
-                {"subpilar": s, "marcas": [x for x in linhas if x["grupo"] == s.codigo]}
+                {"subpilar": s, "marcas": ms, **_bloco_de_marcas(ms)}
                 for s in p.subpilares
+                for ms in [[x for x in linhas if x["grupo"] == s.codigo]]
             ],
         }
         for p in regua.pilares
@@ -287,9 +351,11 @@ def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
         "pilares": pilares,
         "fora_dos_doze": {
             **(regua.marcas_cap or {}).get("fora_dos_doze", {}),
-            "marcas": [x for x in linhas if x["grupo"] == GRUPO_FORA],
+            "marcas": fora,
+            **_bloco_de_marcas(fora),
         },
         "a_parte": a_parte,
+        "a_parte_bloco": _bloco_de_marcas(a_parte),
     }
 
 

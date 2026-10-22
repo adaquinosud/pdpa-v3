@@ -1,25 +1,44 @@
-{# Leitura no FORMATO 3 (balizador de marcas, 18/10): cada marca do capítulo de marcas do
-   Manual, está (com o trecho achado na peça) ou não está. Sem veredito, placar, contagem
+{# Leitura no FORMATO 3 (balizador de marcas, 18/10; forma simétrica desde 21/10): cada
+   marca do capítulo de marcas do Manual, está (com o trecho achado na peça) ou não está. Sem veredito, placar, contagem
    ou ordem entre subpilares. ``marcas`` vem de servico.organizar_marcas: o estado de cada
    marca é do código (está só com trecho conferido). Incluído por
    explorar_avaliador_analise.html, com o mesmo contexto. #}
 {% import 'partials/_avaliador_citacoes.html' as cit with context %}
 {% if marcas %}
 {% set L = marcas %}
-{% macro marca(x, com_subpilar=False) %}
-      <div data-marca="{{ x.codigo }}" data-estado="{{ x.estado }}" class="text-sm">
-        {% if x.estado == 'esta' %}
-        <div class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar and x.subpilar %}{{ x.subpilar.codigo }} · {% endif %}{{ x.texto }}</div>
-        {{ cit.citacoes(x.evidencias) }}
-        {% elif x.estado == 'sem_conferencia' %}
-        <div class="text-loyall-800">{% if com_subpilar and x.subpilar %}{{ x.subpilar.codigo }} · {% endif %}{{ x.texto }}</div>
-        <div class="text-xs text-rose-700 ml-2">a leitura diz que está, mas o trecho citado não foi achado na peça: confira</div>
-        {% else %}
-        <div class="text-loyall-500">{% if com_subpilar and x.subpilar %}{{ x.subpilar.codigo }} · {% endif %}{{ x.texto }}</div>
-        <div class="text-xs text-loyall-400 ml-2">Não está no texto lido.</div>
-        {% endif %}
-        {% if x.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ x.porque_importa }}</div>{% endif %}
+{# A forma simétrica (21/10): o que a peça diz (cada trecho uma vez, com a frase de cada
+   marca que ele responde em cima), o que não diz (a frase da marca vazia, gerada do texto
+   dela) e o que ficou sem conferência. A tela é a superfície de conferência e mostra tudo;
+   o parecer, escrito por pessoa, escolhe. #}
+{% macro simetrico(b, com_subpilar=False) %}
+      {% if b.diz %}
+      <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça diz</div>
+      {% for g in b.diz %}
+      <div data-diz class="text-sm">
+        {% for f in g.frases %}
+        <div data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}</div>
+        {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
+        {% endfor %}
+        {{ cit.citacoes([g.evidencia]) }}
       </div>
+      {% endfor %}
+      {% endif %}
+      {% if b.nao_diz %}
+      <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça não diz</div>
+      {% for f in b.nao_diz %}
+      <div data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-sm text-loyall-500">{% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}</div>
+      {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if b.sem_conferencia %}
+      <div class="text-xs uppercase tracking-wider text-rose-700 mt-1">Confira</div>
+      {% for x in b.sem_conferencia %}
+      <div data-marca="{{ x.codigo }}" data-estado="sem_conferencia" class="text-sm">
+        <div class="text-loyall-800">{% if com_subpilar %}{{ x.grupo }} · {% endif %}{{ x.texto }}</div>
+        <div class="text-xs text-rose-700 ml-2">a leitura diz que está, mas o trecho citado não foi achado na peça: confira</div>
+      </div>
+      {% endfor %}
+      {% endif %}
 {% endmacro %}
 
 <section data-secao="peca" class="text-sm text-loyall-800 space-y-1">
@@ -29,7 +48,8 @@
 </section>
 
 <section data-secao="achados" class="text-sm">
-  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Achados que atravessam</h4>
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Achados que atravessam: rascunho do modelo, não conferido</h4>
+  <p data-rascunho class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">Achados e contradições são escritos pelo modelo e ninguém os conferiu. Contas e números aqui não foram verificados. Confira na peça antes de levar qualquer um para o parecer.</p>
   {% for x in L.achados %}
   <div class="mt-2 text-loyall-800">{{ x.texto }}
     {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
@@ -41,7 +61,7 @@
 </section>
 
 <section data-secao="contradicoes" class="text-sm">
-  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Contradição interna</h4>
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Contradição interna: rascunho do modelo, não conferido</h4>
   {% for x in L.contradicoes %}
   <div class="mt-2 text-loyall-800">{{ x.texto }}
     {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
@@ -62,7 +82,7 @@
       <div data-subpilar="{{ sp.subpilar.codigo }}" class="border border-loyall-200 rounded p-3 space-y-1">
         <div class="font-medium text-sm text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</div>
         <div class="text-xs text-loyall-400 mb-1">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
-        {% for x in sp.marcas %}{{ marca(x) }}{% endfor %}
+        {{ simetrico(sp) }}
       </div>
     {% endfor %}
     </div>
@@ -74,7 +94,7 @@
 <section data-secao="fora_dos_doze" class="border border-loyall-200 rounded p-3 space-y-1">
   <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ L.fora_dos_doze.titulo }}</h4>
   {% if L.fora_dos_doze.descricao %}<p class="text-xs text-loyall-400 mb-1">{{ L.fora_dos_doze.descricao }}</p>{% endif %}
-  {% for x in L.fora_dos_doze.marcas %}{{ marca(x) }}{% endfor %}
+  {{ simetrico(L.fora_dos_doze) }}
 </section>
 {% endif %}
 
@@ -82,7 +102,7 @@
 <section data-secao="a_parte" class="border border-dashed border-loyall-200 rounded p-3 space-y-1">
   <h4 class="text-xs uppercase tracking-wider text-loyall-500">Não se costuma esperar em peça sem cliente com nome</h4>
   <p class="text-xs text-loyall-400 mb-1">Conferidas do mesmo jeito; o vazio aqui não é falta desta peça.</p>
-  {% for x in L.a_parte %}{{ marca(x, True) }}{% endfor %}
+  {{ simetrico(L.a_parte_bloco, True) }}
 </section>
 {% endif %}
 {% endif %}

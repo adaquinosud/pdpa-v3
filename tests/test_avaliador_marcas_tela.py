@@ -134,7 +134,7 @@ def test_excecao_vai_para_o_grupo_a_parte_so_sem_cliente_com_nome(
 
     sem = _html(client_loyall, empresa, _pronta_v3(client_loyall, db_session, empresa, "nao"))
     assert onde(sem) == "a_parte" and "o vazio aqui não é falta desta peça" in sem
-    assert "Pa1 · Menciona o nome da empresa que vai ler?" in sem
+    assert "Pa1 · Não menciona o nome da empresa que vai ler." in sem
     com = _html(client_loyall, empresa, _pronta_v3(client_loyall, db_session, empresa, "sim"))
     assert onde(com) == "Pa1" and 'data-secao="a_parte"' not in com
     assert "Peça feita para um cliente com nome." in com
@@ -143,3 +143,72 @@ def test_excecao_vai_para_o_grupo_a_parte_so_sem_cliente_com_nome(
     db_session.commit()
     antiga = _html(client_loyall, empresa, aid)
     assert onde(antiga) == "Pa1" and "Não foi informado se a peça" in antiga
+
+
+# ── forma simétrica (21/10) ─────────────────────────────────────────────────
+
+
+def test_frase_da_marca_sai_do_texto_dela():
+    assert servico.frase_da_marca("Diz quanto custa, com valor em número?", True) == (
+        "Diz quanto custa, com valor em número."
+    )
+    assert servico.frase_da_marca("Diz quanto custa, com valor em número?", False) == (
+        "Não diz quanto custa, com valor em número."
+    )
+    assert servico.frase_da_marca("Traz certificação?", False) == "Não traz certificação."
+    # texto gravado de antes do v13, que não começa com verbo: não vira "Não alguém…"
+    antiga = "Alguém de fora fala na peça, com nome e cargo?"
+    assert servico.frase_da_marca(antiga, False) == f"Não está no texto lido: {antiga}"
+    assert servico.frase_da_marca(antiga, True) == f"Responde: {antiga}"
+
+
+def test_toda_marca_do_manual_comeca_com_verbo_conhecido():
+    """Se o Manual trouxer marca que comece com outra palavra, a frase "não diz" sairia
+    torta: este teste falha antes, e o verbo entra em VERBOS_DE_MARCA (ou a marca muda)."""
+    fora = [m.codigo for m in servico.carregar_regua().marcas
+            if m.texto.split(" ", 1)[0] not in servico.VERBOS_DE_MARCA]  # fmt: skip
+    assert fora == []
+
+
+def _linha(codigo, texto, estado, *trechos, grupo="D1"):
+    ev = [{"pagina": 2, "trecho": t, "conferido": ok, "pagina_encontrada": 2} for t, ok in trechos]
+    return {"codigo": codigo, "grupo": grupo, "texto": texto, "estado": estado,
+            "evidencias": ev, "porque_importa": ""}  # fmt: skip
+
+
+def test_bloco_junta_trecho_contido_e_separa_o_resto():
+    b = servico._bloco_de_marcas(
+        [
+            _linha("D1.01", "Diz por onde se fala?", "esta", ("segunda a sexta", True)),
+            _linha("D1.04", "Diz o horário?", "esta", ("Atendimento de segunda a sexta", True)),
+            _linha("D1.06", "Diz se há plantão?", "esta", ("Plantão aos sábados", True),
+                   ("inventado pelo modelo", False)),
+            _linha("D1.05", "Diz os dias?", "nao_esta"),
+            _linha("D1.02", "Diz o prazo?", "sem_conferencia", ("não existe", False)),
+        ]
+    )  # fmt: skip
+    assert [g["evidencia"]["trecho"] for g in b["diz"]] == [
+        "Atendimento de segunda a sexta",  # o maior fica, com as duas frases
+        "Plantão aos sábados",  # a citação não conferida não aparece
+    ]
+    assert [f["frase"] for f in b["diz"][0]["frases"]] == [
+        "Diz por onde se fala.",
+        "Diz o horário.",
+    ]
+    assert [f["frase"] for f in b["nao_diz"]] == ["Não diz os dias."]
+    assert [x["codigo"] for x in b["sem_conferencia"]] == ["D1.02"]
+
+
+def test_tela_simetrica_e_achados_como_rascunho(client_loyall, db_session, empresa, teto):
+    html = _html(client_loyall, empresa, _pronta_v3(client_loyall, db_session, empresa))
+    assert "O que a peça diz" in html and "O que a peça não diz" in html and "Confira" in html
+    assert "✓</span> Diz por onde se fala com a empresa." in html
+    assert "Não diz em que dias da semana há expediente." in html
+    assert "Diz por onde se fala com a empresa?" not in html  # a pergunta virou frase
+    # marca que saiu do Manual: o texto gravado não começa com verbo e não vira "Não marca…"
+    assert "Não está no texto lido: Marca que saiu do Manual depois da leitura?" in html
+    # código de marca não aparece como texto (só no atributo, para o teste)
+    for cod in ("D1.01", "D1.05", "C.01"):
+        assert f">{cod}" not in html and f"{cod} " not in html
+    assert "rascunho do modelo, não conferido" in html and "data-rascunho" in html
+    assert "Contas e números aqui não foram verificados" in html
