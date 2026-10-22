@@ -16,17 +16,17 @@
       {% for g in b.diz %}
       <div data-diz class="text-sm">
         {% for f in g.frases %}
-        <div data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}</div>
+        <div data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}</div>
         {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
         {% endfor %}
-        {{ cit.citacoes([g.evidencia]) }}
+        {{ cit.citacoes(g.evidencias) }}
       </div>
       {% endfor %}
       {% endif %}
       {% if b.nao_diz %}
       <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça não diz</div>
       {% for f in b.nao_diz %}
-      <div data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-sm text-loyall-500">{% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}</div>
+      <div data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-sm text-loyall-500">{% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}</div>
       {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
       {% endfor %}
       {% endif %}
@@ -34,7 +34,7 @@
       <div class="text-xs uppercase tracking-wider text-rose-700 mt-1">Confira</div>
       {% for x in b.sem_conferencia %}
       <div data-marca="{{ x.codigo }}" data-estado="sem_conferencia" class="text-sm">
-        <div class="text-loyall-800">{% if com_subpilar %}{{ x.grupo }} · {% endif %}{{ x.texto }}</div>
+        <div class="text-loyall-800">{% if com_subpilar %}{{ x.grupo }} · {% endif %}{{ x.texto }}{% if x.nota %} <span class="text-xs text-amber-700">({{ x.nota }})</span>{% endif %}</div>
         <div class="text-xs text-rose-700 ml-2">a leitura diz que está, mas o trecho citado não foi achado na peça: confira</div>
       </div>
       {% endfor %}

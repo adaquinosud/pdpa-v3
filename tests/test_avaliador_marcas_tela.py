@@ -173,7 +173,7 @@ def test_toda_marca_do_manual_comeca_com_verbo_conhecido():
 def _linha(codigo, texto, estado, *trechos, grupo="D1"):
     ev = [{"pagina": 2, "trecho": t, "conferido": ok, "pagina_encontrada": 2} for t, ok in trechos]
     return {"codigo": codigo, "grupo": grupo, "texto": texto, "estado": estado,
-            "evidencias": ev, "porque_importa": ""}  # fmt: skip
+            "evidencias": ev, "porque_importa": "", "nota": ""}  # fmt: skip
 
 
 def test_bloco_junta_trecho_contido_e_separa_o_resto():
@@ -182,19 +182,24 @@ def test_bloco_junta_trecho_contido_e_separa_o_resto():
             _linha("D1.01", "Diz por onde se fala?", "esta", ("segunda a sexta", True)),
             _linha("D1.04", "Diz o horário?", "esta", ("Atendimento de segunda a sexta", True)),
             _linha("D1.06", "Diz se há plantão?", "esta", ("Plantão aos sábados", True),
-                   ("inventado pelo modelo", False)),
+                   ("inventado pelo modelo", False), ("Plantão no feriado", True)),
             _linha("D1.05", "Diz os dias?", "nao_esta"),
             _linha("D1.02", "Diz o prazo?", "sem_conferencia", ("não existe", False)),
         ]
     )  # fmt: skip
-    assert [g["evidencia"]["trecho"] for g in b["diz"]] == [
-        "Atendimento de segunda a sexta",  # o maior fica, com as duas frases
-        "Plantão aos sábados",  # a citação não conferida não aparece
-    ]
+    # o trecho contido junta no maior, com as duas frases
     assert [f["frase"] for f in b["diz"][0]["frases"]] == [
         "Diz por onde se fala.",
         "Diz o horário.",
     ]
+    assert [e["trecho"] for e in b["diz"][0]["evidencias"]] == ["Atendimento de segunda a sexta"]
+    # dois trechos da mesma marca: a frase uma vez só, com os dois embaixo (prévia da #28);
+    # a citação não conferida não aparece
+    assert [f["frase"] for f in b["diz"][1]["frases"]] == ["Diz se há plantão."]
+    assert [e["trecho"] for e in b["diz"][1]["evidencias"]] == [
+        "Plantão aos sábados", "Plantão no feriado",
+    ]  # fmt: skip
+    assert len(b["diz"]) == 2
     assert [f["frase"] for f in b["nao_diz"]] == ["Não diz os dias."]
     assert [x["codigo"] for x in b["sem_conferencia"]] == ["D1.02"]
 
@@ -212,3 +217,11 @@ def test_tela_simetrica_e_achados_como_rascunho(client_loyall, db_session, empre
         assert f">{cod}" not in html and f"{cod} " not in html
     assert "rascunho do modelo, não conferido" in html and "data-rascunho" in html
     assert "Contas e números aqui não foram verificados" in html
+    # leitura anterior a uma mudança do Manual: a pergunta gravada vem com aviso
+    assert "(marca que saiu do Manual depois desta leitura)" in html  # a P1.99 do dublê
+    assert "(pergunta reescrita no Manual depois desta leitura)" in html  # a C.01 antiga
+    linha_d101 = html.split('data-marca="D1.01"', 1)[1].split("</div>", 1)[0]
+    assert (
+        "Diz por onde se fala com a empresa." in linha_d101
+        and "depois desta leitura" not in linha_d101
+    )

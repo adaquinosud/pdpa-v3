@@ -246,14 +246,15 @@ def _estado_marca(m: dict) -> str:
 
 
 # A frase da tela sai do texto da marca, sem segundo texto à mão (decisão de 21/10): toda
-# marca do Manual começa com um destes verbos, e "Diz quanto custa?" vira "Diz quanto
+# marca do Manual, e toda que saiu dele mas segue gravada em leitura antiga (a Pa2.07,
+# "Vincula…"), começa com um destes verbos, e "Diz quanto custa?" vira "Diz quanto
 # custa." quando está e "Não diz quanto custa." quando não está. tests/test_avaliador_marcas
 # falha se o Manual trouxer marca que comece com outra palavra.
 VERBOS_DE_MARCA = frozenset(
     {
         "Diz", "Traz", "Nomeia", "Cita", "Avisa", "Descreve", "Abre", "Fala", "Menciona",
         "Lista", "Oferece", "Prevê", "Entrega", "Contraria", "Ensina", "Compara", "Aponta",
-        "Recomenda", "Define",
+        "Recomenda", "Define", "Vincula",
     }
 )  # fmt: skip
 
@@ -273,29 +274,41 @@ def _frase(x: dict, esta: bool) -> dict:
         "grupo": x["grupo"],
         "frase": frase_da_marca(x["texto"], esta),
         "porque_importa": x["porque_importa"],
+        "nota": x["nota"],
     }
 
 
 def _bloco_de_marcas(linhas: List[dict]) -> dict:
-    """O que um subpilar (ou grupo) mostra, simétrico: o que a peça diz (cada trecho uma
-    vez, com as frases das marcas que ele responde em cima), o que não diz (uma frase por
-    marca vazia) e o que ficou sem conferência. Ordem do Manual. Trecho contido noutro
-    trecho junta no maior; sobreposição parcial fica como dois."""
-    diz: List[dict] = []
+    """O que um subpilar (ou grupo) mostra, simétrico: o que a peça diz, o que não diz (uma
+    frase por marca vazia) e o que ficou sem conferência. Ordem do Manual.
+
+    No "diz", cada trecho aparece uma vez: trecho contido noutro junta no maior
+    (sobreposição parcial fica como dois), e trechos que respondem às MESMAS marcas ficam
+    sob uma frase só, em vez de repeti-la a cada trecho (visto na prévia da #28: uma marca
+    com seis trechos repetia a frase seis vezes)."""
+    trechos: List[dict] = []
     for x in linhas:
         if x["estado"] != MARCA_ESTA:
             continue
         frase = _frase(x, True)
         for e in (e for e in x["evidencias"] if e.get("conferido")):
             alvo = _normalizar(e["trecho"])
-            junto = next((g for g in diz if alvo in g["chave"] or g["chave"] in alvo), None)
+            junto = next((g for g in trechos if alvo in g["chave"] or g["chave"] in alvo), None)
             if junto is None:
-                diz.append({"chave": alvo, "evidencia": e, "frases": [frase]})
+                trechos.append({"chave": alvo, "evidencia": e, "frases": [frase]})
                 continue
             if len(alvo) > len(junto["chave"]):
                 junto["chave"], junto["evidencia"] = alvo, e
             if frase not in junto["frases"]:
                 junto["frases"].append(frase)
+    diz: List[dict] = []
+    for t in trechos:
+        codigos = [f["codigo"] for f in t["frases"]]
+        mesmo = next((g for g in diz if [f["codigo"] for f in g["frases"]] == codigos), None)
+        if mesmo is None:
+            diz.append({"frases": t["frases"], "evidencias": [t["evidencia"]]})
+        else:
+            mesmo["evidencias"].append(t["evidencia"])
     return {
         "diz": diz,
         "nao_diz": [_frase(x, False) for x in linhas if x["estado"] == MARCA_NAO_ESTA],
@@ -326,6 +339,16 @@ def organizar_marcas(regua: Regua, a: AvaliadorAnalise) -> dict:
             **m,
             "estado": _estado_marca(m),
             "porque_importa": r.porque_importa if r else "",
+            # leitura anterior a uma mudança do Manual: a pergunta gravada já não é a de hoje
+            "nota": (
+                "marca que saiu do Manual depois desta leitura"
+                if r is None
+                else (
+                    "pergunta reescrita no Manual depois desta leitura"
+                    if r.texto != m["texto"]
+                    else ""
+                )
+            ),
             "subpilar": regua.subpilar(m["grupo"]) if m["grupo"] in SUBPILARES_ORDEM else None,
         }
         (a_parte if separa and r and r.so_cliente_nomeado else linhas).append(linha)
