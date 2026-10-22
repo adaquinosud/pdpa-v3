@@ -102,7 +102,8 @@ def test_tela_do_formato_3(client_loyall, db_session, empresa, teto):
     aid = _pronta_v3(client_loyall, db_session, empresa)
     assert servico.formato_da_leitura(db_session.get(AvaliadorAnalise, aid)) == 3
     html = _html(client_loyall, empresa, aid)
-    secoes = ["peca", "achados", "contradicoes", "marcas", "fora_dos_doze", "a_parte"]
+    # o rascunho do modelo vai para o fim, fechado (tela simples, 22/10)
+    secoes = ["peca", "marcas", "fora_dos_doze", "a_parte", "achados", "contradicoes"]
     pos = [html.index(f'data-secao="{x}"') for x in secoes]
     assert pos == sorted(pos)
     assert "Peça sem cliente com nome." in html and "Lidas 3 páginas." in html
@@ -208,7 +209,10 @@ def test_um_bloco_por_marca_sem_juntar_marcas():
 
 def test_tela_simetrica_e_achados_como_rascunho(client_loyall, db_session, empresa, teto):
     html = _html(client_loyall, empresa, _pronta_v3(client_loyall, db_session, empresa))
-    assert "O que a peça diz" in html and "O que a peça não diz" in html and "Confira" in html
+    # tela simples (22/10): marca fechada; diz com ✓, não diz com ✗, sem conferência aberta
+    assert "✗</span> Não diz em que dias" in html and "confira: a leitura diz que está" in html
+    d1 = html.split('<details data-subpilar="D1"', 1)[1].split("</summary>", 1)[0]
+    assert "D1 · Acessibilidade" in d1 and "a peça diz " in d1 and " para conferir" in d1
     assert "✓</span> Diz por onde se fala com a empresa." in html
     assert "Não diz em que dias da semana há expediente." in html
     assert "Diz por onde se fala com a empresa?" not in html  # a pergunta virou frase
@@ -217,7 +221,7 @@ def test_tela_simetrica_e_achados_como_rascunho(client_loyall, db_session, empre
     # código de marca não aparece como texto (só no atributo, para o teste)
     for cod in ("D1.01", "D1.05", "C.01"):
         assert f">{cod}" not in html and f"{cod} " not in html
-    assert "rascunho do modelo, não conferido" in html and "data-rascunho" in html
+    assert "Rascunho do modelo, não conferido" in html and "data-rascunho" in html
     assert "Contas e números aqui não foram verificados" in html
     # leitura anterior a uma mudança do Manual: a pergunta gravada vem com aviso
     assert "(marca que saiu do Manual depois desta leitura)" in html  # a P1.99 do dublê

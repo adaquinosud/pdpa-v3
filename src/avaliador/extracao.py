@@ -630,6 +630,23 @@ def referencia(doc: Documento, numero: Optional[int], trecho: str) -> str:
     return f"parágrafo que começa “{inicio}{reticencias}”"
 
 
+def referencia_curta(ref: str) -> str:
+    """O "onde" da tela de marcas (22/10): ``referencia`` gravada, encurtada só para exibir.
+    Várias páginas: só o caminho ("/media/"; o rodapé, "/ · rodapé"), porque na web o título
+    da seção é muitas vezes uma frase inteira que repetia o trecho logo ao lado. Título de
+    seção longo: as primeiras palavras. O gravado não muda (o parecer lê o rodapé nele)."""
+    ref = ref or ""
+    m = re.match(r"página (\S+), (.*)$", ref, re.S)
+    if m:
+        return m.group(1) + (" · rodapé" if m.group(2) == RODAPE else "")
+    m = re.match(r"seção “(.*)”(.*)$", ref, re.S)
+    if m:
+        palavras = m.group(1).split()
+        if len(palavras) > PALAVRAS_REFERENCIA:
+            return f"seção “{' '.join(palavras[:PALAVRAS_REFERENCIA])}…”{m.group(2)}"
+    return ref
+
+
 # ── conferência de citação ────────────────────────────────────────────────
 
 _TROCAS = str.maketrans(

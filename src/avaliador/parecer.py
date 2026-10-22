@@ -42,7 +42,9 @@ SEM_RESPOSTA = "Não encontramos no texto nada que responda a essa expectativa."
 def _ordem_da_marca(x: dict, escolhas: dict) -> List[dict]:
     """Os trechos de uma marca na ordem em que concorrem ao parecer (22/10): o escolhido pela
     pessoa ("usar este no parecer") primeiro; o do rodapé da página por último, para o rodapé
-    cru não cair no documento; entre os demais, o menor primeiro."""
+    cru não cair no documento; entre os demais, a ordem da peça (seção; dentro da seção, a
+    ordem da leitura). Não "o menor primeiro": na #32 o menor era sempre rótulo de link
+    ("Veículo: AGRO+"), que não é falso, só vazio."""
     quero = _normalizar(escolhas.get(x["codigo"], ""))
     evs = [e for e in x["evidencias"] if e.get("conferido")]
     return sorted(
@@ -50,7 +52,7 @@ def _ordem_da_marca(x: dict, escolhas: dict) -> List[dict]:
         key=lambda e: (
             0 if quero and _normalizar(e["trecho"]) == quero else 1,
             1 if RODAPE in (e.get("referencia") or "") else 0,
-            len(e["trecho"]),
+            e.get("pagina_encontrada") or float("inf"),  # sem seção: depois das outras
         ),
     )
 
@@ -58,7 +60,8 @@ def _ordem_da_marca(x: dict, escolhas: dict) -> List[dict]:
 def _escolhidos(
     marcas: List[dict], escolhas: Optional[dict] = None, impressos: Optional[List[str]] = None
 ) -> List[dict]:
-    """Um trecho por marca, na ordem do Manual, até quatro por bloco. Trecho já usado no bloco
+    """Um trecho por marca (o primeiro de ``_ordem_da_marca``), na ordem do Manual, até
+    quatro por bloco. Trecho já usado no bloco
     não se repete, e trecho já impresso em outro bloco (``impressos``) também não, a não ser
     que seja o escolhido pela pessoa: a marca usa o seguinte dela, se houver."""
     escolhas = escolhas or {}
@@ -101,8 +104,11 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
     """``tela``: ``servico.organizar_marcas`` (com as correções). ``textos``:
     ``servico.textos_do_parecer``. Devolve o parecer pronto para o Word e as pendências."""
     pendencias: List[str] = []
+    # o mesmo que ``pendencias``, contado, para a tela dizer numa linha o que falta
+    falta = {"ordem": False, "achados": 0, "conferir": 0, "regua": False}
     escolhidos = selecao(tela, textos.get("escolhas"))
     if not textos["ordem"].strip():
+        falta["ordem"] = True
         pendencias.append("Escreva a frase da ordem, no alto.")
     pilares = []
     for bloco in tela["pilares"]:
@@ -111,11 +117,13 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
             s = sp["subpilar"]
             for x in sp["marcas"]:
                 if x.get("nota"):
+                    falta["regua"] = True
                     pendencias.append(
                         "Esta leitura foi feita antes da régua de hoje (há marca que saiu do "
                         "Manual ou foi reescrita): faça uma leitura nova da peça."
                     )
                 if x["estado"] == MARCA_SEM_CONFERENCIA:
+                    falta["conferir"] += 1
                     pendencias.append(
                         f"{s.nome}: resolva a marca sem conferência "
                         f"(“{frase_da_marca(x['texto'], True)}”): inclua o trecho da peça ou "
@@ -123,6 +131,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
                     )
             achado = textos["achados"].get(s.codigo, "").strip()
             if not achado:
+                falta["achados"] += 1
                 pendencias.append(f"{s.nome}: escreva o achado.")
             subs.append(
                 {
@@ -145,6 +154,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
         "pilares": pilares,
         "nota_c": textos["nota_c"].strip(),
         "pendencias": list(dict.fromkeys(pendencias)),  # sem repetir, na ordem
+        "falta": falta,
     }
 
 

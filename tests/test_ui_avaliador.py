@@ -182,7 +182,8 @@ def test_render_da_analise_pronta(client_loyall, db_session, empresa, teto):
     assert "p. 2: “segunda a sexta das 8h às 18h”" in html
     assert 'data-marca="D1.04" data-estado="esta"' in html  # o mesmo trecho em duas marcas
     assert "—" not in html and "–" not in html  # nenhum travessão na tela
-    secoes = ["peca", "achados", "contradicoes", "marcas", "fora_dos_doze", "a_parte"]
+    # o rascunho do modelo vai para o fim, fechado (tela simples, 22/10)
+    secoes = ["peca", "marcas", "fora_dos_doze", "a_parte", "achados", "contradicoes"]
     pos = [html.index(f'data-secao="{x}"') for x in secoes]
     assert pos == sorted(pos)
     assert "Nenhum achado fora das marcas nesta peça." in html

@@ -94,6 +94,11 @@ def create_app() -> Flask:
 
     app.add_template_filter(_hora_br, "hora_br")
 
+    # Onde está o trecho, curto, na tela de marcas do Avaliador (o gravado não muda).
+    from src.avaliador.extracao import referencia_curta
+
+    app.add_template_filter(referencia_curta, "onde")
+
     # R$ pt-BR (Visão Financeira): 1234567.5 → "R$ 1.234.568" (sem centavos, milhar
     # com ponto). Valores grandes de projeção — centavos poluem a leitura C-Level.
     @app.template_filter("moeda")

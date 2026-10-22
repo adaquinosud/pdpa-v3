@@ -144,7 +144,10 @@ def test_tela_e_word(client_loyall, db_session, empresa, teto):
     aid = _pronta(client_loyall, db_session, empresa)
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert 'data-secao="parecer"' in html and "A ordem" in html and "O achado" in html
-    assert "vai para o parecer" in html and "Para o parecer sair em Word, falta:" in html
+    assert (
+        "vai para o parecer" in html
+        and "Para o Word sair, falta: a frase da ordem, 12 achados." in html
+    )
     r = client_loyall.get(_url(empresa, f"/{aid}/parecer.docx"))
     assert r.status_code == 409 and "Escreva a frase da ordem" in r.get_data(as_text=True)
     salvo = client_loyall.post(
@@ -243,15 +246,18 @@ def test_tela_mostra_usar_este_so_em_marca_que_vai_para_o_parecer(
         _url(empresa, f"/{aid}/corrigir/escolher"),
         data={"codigo": "P1.01", "trecho": "Outro trecho, bem mais comprido, da mesma marca"},
     ).get_data(as_text=True)
-    bloco = html.split('data-marca="P1.01"', 1)[1].split("data-diz", 1)[0]
-    # depois da troca: o primeiro trecho ganha o botão, o segundo vai para o parecer
+    marca = html.split('data-marca="P1.01"', 1)[1].split("</details>", 1)[0]
+    # fechada, a marca mostra o trecho que vai para o parecer
+    fechada, bloco = marca.split("</summary>", 1)
+    assert "no parecer:" in fechada and "Outro trecho" in fechada and "Trecho curto" not in fechada
+    # aberta, depois da troca: o primeiro trecho ganha o botão, o segundo vai para o parecer
     marcos = ("Trecho curto", "usar este no parecer", "Outro trecho", "vai para o parecer")
     ordem = [bloco.index(x) for x in marcos]
     assert ordem == sorted(ordem)
 
 
 def _tela(blocos):
-    """Tela mínima: [(subpilar, [(código, [(trecho, referência)])])], tudo 'está'."""
+    """Tela mínima: [(subpilar, [(código, [(trecho, referência[, seção])])])], tudo 'está'."""
     from types import SimpleNamespace as N
 
     return {
@@ -265,7 +271,13 @@ def _tela(blocos):
                                 "codigo": c,
                                 "estado": "esta",
                                 "evidencias": [
-                                    {"trecho": t, "conferido": True, "referencia": r} for t, r in ts
+                                    {
+                                        "trecho": t[0],
+                                        "conferido": True,
+                                        "referencia": t[1],
+                                        "pagina_encontrada": t[2] if len(t) > 2 else 1,
+                                    }
+                                    for t in ts
                                 ],
                             }
                             for c, ts in marcas
@@ -301,7 +313,7 @@ def test_trecho_impresso_nao_volta_a_nao_ser_que_o_bloco_fique_vazio():
     assert KM in [e["trecho"] for e in sel["D3"]]
 
 
-def test_rodape_por_ultimo_e_o_menor_primeiro():
+def test_rodape_por_ultimo_e_o_resto_na_ordem_da_peca():
     rod = "página /x, rodapé da página"
     tela = _tela(
         [
@@ -311,18 +323,33 @@ def test_rodape_por_ultimo_e_o_menor_primeiro():
                     (
                         "D1.04",
                         [
-                            ("Central 24h: 0800 979", rod),
-                            ("Atendimento das 8h às 18h, de segunda a sexta", "seção Contato"),
+                            ("Central 24h: 0800 979", rod, 9),
+                            ("Atendimento das 8h às 18h, de segunda a sexta", "seção Contato", 4),
                         ],
                     )
                 ],
             ),
             (
-                "D2",
-                [("D2.01", [("Um trecho bem mais longo que o outro", ""), ("Trecho curto", "")])],
+                "A1",
+                [
+                    (
+                        "A1.04",
+                        [
+                            ("Veículo: AGRO+", "página /media/", 6),
+                            (
+                                "A E2Carbon e o Sicredi uniram forças no campo.",
+                                "página /sicredi/",
+                                5,
+                            ),
+                        ],
+                    )
+                ],
             ),
+            ("A2", [("A2.01", [("Primeiro na leitura, mais longo", "", 3), ("Curto", "", 3)])]),
         ]
     )
     sel = P.selecao(tela)
-    assert sel["D1"][0]["trecho"].startswith("Atendimento")  # o do rodapé, mesmo menor, fica
-    assert sel["D2"][0]["trecho"] == "Trecho curto"
+    assert sel["D1"][0]["trecho"].startswith("Atendimento")  # o do rodapé fica por último
+    # o rótulo é o menor, mas vem depois na peça (a #32, 22/10)
+    assert sel["A1"][0]["trecho"].startswith("A E2Carbon e o Sicredi")
+    assert sel["A2"][0]["trecho"] == "Primeiro na leitura, mais longo"  # mesma seção: leitura

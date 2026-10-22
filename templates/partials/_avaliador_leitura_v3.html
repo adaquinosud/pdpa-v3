@@ -1,15 +1,23 @@
 {# Leitura no FORMATO 3 (balizador de marcas, 18/10; forma simétrica desde 21/10): cada
-   marca do capítulo de marcas do Manual, está (com o trecho achado na peça) ou não está. Sem veredito, placar, contagem
+   marca do capítulo de marcas do Manual, está (com o trecho achado na peça) ou não está. Sem veredito, placar
    ou ordem entre subpilares. ``marcas`` vem de servico.organizar_marcas: o estado de cada
    marca é do código (está só com trecho conferido). Incluído por
    explorar_avaliador_analise.html, com o mesmo contexto. #}
 {% import 'partials/_avaliador_citacoes.html' as cit with context %}
 {% if marcas %}
 {% set L = marcas %}
+{# marca aberta: o trecho do resumo já está na lista de baixo #}
+<style>details[open] > summary [data-resumo] { display: none; }</style>
 {# A forma simétrica (21/10): o que a peça diz (um bloco por marca, a frase e todos os
    trechos dela; trecho de duas marcas aparece nas duas), o que não diz (a frase da marca vazia, gerada do texto
    dela) e o que ficou sem conferência. A tela é a superfície de conferência e mostra tudo;
-   o parecer, escrito por pessoa, escolhe. #}
+   o parecer, escrito por pessoa, escolhe.
+   Tela simples (22/10, a #32 tinha mais de 120 botões abertos): tudo continua na tela, mas
+   FECHADO até alguém abrir. Subpilar fechado mostra uma linha (quantas marcas a peça diz, o
+   que falta conferir, se o achado foi escrito); marca "diz" fechada mostra a frase e o
+   trecho que vai para o parecer; os outros trechos e os botões aparecem ao abrir a marca. O
+   que pede ação (marca sem conferência) fica sempre aberto. O rascunho do modelo vai para o
+   fim, fechado. #}
 {# Correção à mão (fatia 1 do parecer no app, 22/10): só aparece com ``pode_corrigir``. A
    correção fica gravada (servico.recusar_trecho / incluir_trecho / desfazer_correcao) e a
    tela a aplica por cima do resultado gravado, que não muda. #}
@@ -17,14 +25,15 @@
 {% macro recusadas(f) %}{% for e in f.recusadas %}
         <div data-recusado class="text-xs text-loyall-400 ml-2">{% if e.conferido %}<span class="line-through">“{{ e.trecho }}”</span>{% else %}<span class="line-through">a citação que não foi achada na peça</span>{% endif %} recusado à mão{% if pode_corrigir %} · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% endif %}</div>
 {% endfor %}{% endmacro %}
-{% macro incluir(codigo) %}{% if pode_corrigir and texto_disponivel %}
-        <details class="ml-2"><summary class="text-xs text-loyall-400 cursor-pointer">incluir trecho da peça</summary>
-          <form hx-post="{{ url_for('ui.avaliador_corrigir', empresa_id=empresa_id, aid=a.id, acao='incluir') }}" hx-target="#avaliador-analise" hx-swap="outerHTML" class="flex gap-2 mt-1">
+{% macro form_incluir(codigo) %}
+          <form hx-post="{{ url_for('ui.avaliador_corrigir', empresa_id=empresa_id, aid=a.id, acao='incluir') }}" hx-target="#avaliador-analise" hx-swap="outerHTML" class="flex gap-2 mt-1 ml-2">
             <input type="hidden" name="codigo" value="{{ codigo }}">
-            <input type="text" name="trecho" required minlength="12" placeholder="cole o trecho exatamente como está na peça" class="flex-1 border border-loyall-300 rounded px-2 py-1 text-xs">
+            <input type="text" name="trecho" required minlength="12" placeholder="incluir trecho da peça: cole exatamente como está na peça" class="flex-1 border border-loyall-300 rounded px-2 py-1 text-xs">
             <button class="px-2 py-1 rounded border border-loyall-300 text-xs">incluir</button>
           </form>
-        </details>
+{% endmacro %}
+{% macro incluir(codigo) %}{% if pode_corrigir and texto_disponivel %}
+        <details class="ml-2"><summary class="text-xs text-loyall-400 cursor-pointer">incluir trecho da peça</summary>{{ form_incluir(codigo) }}</details>
 {% endif %}{% endmacro %}
 {% macro campo(nome, rotulo, valor, linhas=2) %}{% if pode_corrigir %}
       <div class="mt-2">
@@ -36,82 +45,68 @@
         <span class="salvo"></span>
       </div>
 {% endif %}{% endmacro %}
-{% macro simetrico(b, com_subpilar=False) %}
-      {% if b.diz %}
-      <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça diz</div>
-      {% for f in b.diz %}
-      <div data-diz class="text-sm">
-        <div data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}{% if f.corrigida %} <span class="text-xs text-amber-700">(corrigida à mão)</span>{% endif %}</div>
-        {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
+{% macro marcas_extras(f) %}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}{% if f.corrigida %} <span class="text-xs text-amber-700">(corrigida à mão)</span>{% endif %}{% endmacro %}
+{# Marca que a peça diz: fechada, a frase e o trecho que vai para o parecer (ou o primeiro);
+   aberta, todos os trechos com os botões. #}
+{% macro marca_diz(f, com_subpilar) %}
+      {% set ns = namespace(p=none, vai=false) %}
+      {% for e in f.evidencias %}{% if not ns.vai and pode_corrigir and (f.codigo, e.trecho) in no_parecer %}{% set ns.p = e %}{% set ns.vai = true %}{% endif %}{% endfor %}
+      {% if ns.p is none and f.evidencias %}{% set ns.p = f.evidencias[0] %}{% endif %}
+      <details data-diz class="text-sm">
+        <summary class="cursor-pointer">
+          <span data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{{ marcas_extras(f) }}</span>
+          <span class="text-xs text-loyall-400">· {{ f.evidencias | length }} {{ 'trecho' if f.evidencias | length == 1 else 'trechos' }}</span>
+          {% if ns.p %}<div data-resumo class="ml-2">{% if pode_corrigir %}<div class="text-xs ml-2 {{ 'text-emerald-700' if ns.vai else 'text-loyall-400' }}">{{ 'no parecer:' if ns.vai else 'fora do parecer (repetido ou além de quatro no subpilar):' }}</div>{% endif %}{{ cit.citacoes([ns.p], True) }}</div>{% endif %}
+        </summary>
+        <div class="ml-2 mt-1 space-y-1 border-l border-loyall-100 pl-2">
+        {% if f.porque_importa %}<div class="text-xs text-loyall-500">{{ f.porque_importa }}</div>{% endif %}
         {% for e in f.evidencias %}
-        {{ cit.citacoes([e]) }}
-        {% if pode_corrigir %}{% if (f.codigo, e.trecho) in no_parecer %}<div class="ml-4 text-xs text-emerald-700">vai para o parecer</div>{% elif e.conferido and f.codigo in no_parecer | map(attribute=0) | list %}<div class="ml-4">{{ acao('escolher', 'usar este no parecer', {'codigo': f.codigo, 'trecho': e.trecho}, 'text-emerald-700') }}</div>{% endif %}{% endif %}
-        {% if pode_corrigir %}<div class="ml-4">{% if e.incluido %}<span class="text-xs text-amber-700">incluído à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% else %}{{ acao('recusar', 'não responde', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}</div>{% endif %}
+        {{ cit.citacoes([e], True) }}
+        {% if pode_corrigir %}<div class="ml-4 text-xs space-x-2">{% if (f.codigo, e.trecho) in no_parecer %}<span class="text-emerald-700">vai para o parecer</span>{% elif e.conferido and f.codigo in no_parecer | map(attribute=0) | list %}{{ acao('escolher', 'usar este no parecer', {'codigo': f.codigo, 'trecho': e.trecho}, 'text-emerald-700') }}{% endif %}
+          {% if e.incluido %}<span class="text-amber-700">incluído à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% else %}{{ acao('recusar', 'não responde', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}</div>{% endif %}
         {% endfor %}
         {{ recusadas(f) }}
-        {{ incluir(f.codigo) }}
-      </div>
-      {% endfor %}
+        {% if pode_corrigir and texto_disponivel %}{{ form_incluir(f.codigo) }}{% endif %}
+        </div>
+      </details>
+{% endmacro %}
+{% macro marca_nao_diz(f, com_subpilar) %}
+      {% set linha %}<span data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-loyall-500"><span class="text-loyall-300">✗</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{{ marcas_extras(f) }}</span>{% endset %}
+      {% if pode_corrigir and (texto_disponivel or f.recusadas) %}
+      <details class="text-sm"><summary class="cursor-pointer">{{ linha }}</summary>
+        {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
+        {{ recusadas(f) }}
+        {% if texto_disponivel %}{{ form_incluir(f.codigo) }}{% endif %}
+      </details>
+      {% else %}
+      <div class="text-sm">{{ linha }}{{ recusadas(f) }}</div>
       {% endif %}
-      {% if b.nao_diz %}
-      <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça não diz</div>
-      {% for f in b.nao_diz %}
-      <div class="text-sm">
-      <div data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-loyall-500">{% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}{% if f.corrigida %} <span class="text-xs text-amber-700">(corrigida à mão)</span>{% endif %}</div>
-      {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
-      {{ recusadas(f) }}
-      {{ incluir(f.codigo) }}
-      </div>
-      {% endfor %}
-      {% endif %}
-      {% if b.sem_conferencia %}
-      <div class="text-xs uppercase tracking-wider text-rose-700 mt-1">Confira</div>
+{% endmacro %}
+{% macro simetrico(b, com_subpilar=False) %}
       {% for x in b.sem_conferencia %}
-      <div data-marca="{{ x.codigo }}" data-estado="sem_conferencia" class="text-sm">
-        <div class="text-loyall-800">{% if com_subpilar %}{{ x.grupo }} · {% endif %}{{ x.texto }}{% if x.nota %} <span class="text-xs text-amber-700">({{ x.nota }})</span>{% endif %}</div>
-        <div class="text-xs text-rose-700 ml-2">a leitura diz que está, mas o trecho citado não foi achado na peça: confira</div>
+      <div data-marca="{{ x.codigo }}" data-estado="sem_conferencia" class="text-sm border border-rose-200 bg-rose-50 rounded p-2">
+        <div class="text-loyall-800"><span class="text-rose-700">?</span> {% if com_subpilar %}{{ x.grupo }} · {% endif %}{{ x.texto }}{% if x.nota %} <span class="text-xs text-amber-700">({{ x.nota }})</span>{% endif %}</div>
+        <div class="text-xs text-rose-700 ml-2">confira: a leitura diz que está, mas o trecho citado não foi achado na peça</div>
         {% if pode_corrigir %}<div class="ml-2">{{ acao('naoachadas', 'não está na peça', {'codigo': x.codigo}) }}</div>{% endif %}
         {{ incluir(x.codigo) }}
       </div>
       {% endfor %}
-      {% endif %}
+      {% for f in b.diz %}{{ marca_diz(f, com_subpilar) }}{% endfor %}
+      {% for f in b.nao_diz %}{{ marca_nao_diz(f, com_subpilar) }}{% endfor %}
 {% endmacro %}
+{% macro resumo(b) %}<span class="text-xs text-loyall-500">a peça diz {{ b.diz | length }} de {{ b.diz | length + b.nao_diz | length + b.sem_conferencia | length }}{% if b.sem_conferencia %} · <span class="text-rose-700">{{ b.sem_conferencia | length }} para conferir</span>{% endif %}</span>{% endmacro %}
 
-<section data-secao="peca" class="text-sm text-loyall-800 space-y-1">
-  <h4 class="text-xs uppercase tracking-wider text-loyall-500">A peça</h4>
-  <div>{% if L.cliente_nomeado %}Peça feita para um cliente com nome.{% elif L.cliente_nomeado is sameas false %}Peça sem cliente com nome.{% else %}Não foi informado se a peça foi feita para um cliente com nome.{% endif %}</div>
-  <div class="text-xs text-loyall-500">O que foi lido: {{ L.cobertura | join(' ') }} O que não está no texto lido pode estar no que não foi lido.</div>
-</section>
-
-<section data-secao="achados" class="text-sm">
-  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Achados que atravessam: rascunho do modelo, não conferido</h4>
-  <p data-rascunho class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">Achados e contradições são escritos pelo modelo e ninguém os conferiu. Contas e números aqui não foram verificados. Confira na peça antes de levar qualquer um para o parecer.</p>
-  {% for x in L.achados %}
-  <div class="mt-2 text-loyall-800">{{ x.texto }}
-    {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
-    {{ cit.citacoes(x.evidencias) }}
-  </div>
-  {% else %}
-  <div class="text-xs text-loyall-400">Nenhum achado fora das marcas nesta peça.</div>
-  {% endfor %}
-</section>
-
-<section data-secao="contradicoes" class="text-sm">
-  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Contradição interna: rascunho do modelo, não conferido</h4>
-  {% for x in L.contradicoes %}
-  <div class="mt-2 text-loyall-800">{{ x.texto }}
-    {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
-    {{ cit.citacoes(x.evidencias) }}
-  </div>
-  {% else %}
-  <div class="text-xs text-loyall-400">Nenhuma contradição no texto lido.</div>
-  {% endfor %}
+<section data-secao="peca" class="text-sm text-loyall-800">
+  {% if L.cliente_nomeado %}Peça feita para um cliente com nome.{% elif L.cliente_nomeado is sameas false %}Peça sem cliente com nome.{% else %}Não foi informado se a peça foi feita para um cliente com nome.{% endif %}
+  <details class="inline"><summary class="inline text-xs text-loyall-400 cursor-pointer">o que foi lido</summary>
+    <div class="text-xs text-loyall-500">{{ L.cobertura | join(' ') }} O que não está no texto lido pode estar no que não foi lido.</div>
+  </details>
 </section>
 
 {% if parecer and pode_corrigir %}
 <section data-secao="parecer" class="border border-loyall-300 rounded p-3 space-y-2 bg-loyall-50">
   <h4 class="text-xs uppercase tracking-wider text-loyall-700">O parecer</h4>
-  <p class="text-xs text-loyall-500">Corrija os trechos e escreva no próprio subpilar. O que vai para o parecer: a frase da ordem, um trecho por marca (até quatro, marcados "vai para o parecer"), o que a peça não diz e o achado. As correções ficam gravadas.</p>
+  <p class="text-xs text-loyall-500">Abra cada subpilar, corrija os trechos e escreva o achado. Vão para o parecer: a frase da ordem, um trecho por marca (até quatro por subpilar), o que a peça não diz e o achado.</p>
   {{ campo('ordem', 'A ordem', parecer_textos.ordem, 3) }}
   {% include 'partials/_avaliador_parecer_pendencias.html' %}
 </section>
@@ -121,15 +116,18 @@
   {% for bloco in L.pilares %}
   <div>
     <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ bloco.pilar.titulo | replace(" — ", ": ") }}</h4>
-    {% if bloco.pergunta %}<p class="text-xs text-loyall-400 mb-1">{{ bloco.pergunta }}</p>{% endif %}
-    <div class="space-y-2">
+    {% if bloco.pergunta %}<p class="text-xs text-loyall-400">{{ bloco.pergunta }}</p>{% endif %}
+    <div class="space-y-1 mt-1">
     {% for sp in bloco.subpilares %}
-      <div data-subpilar="{{ sp.subpilar.codigo }}" class="border border-loyall-200 rounded p-3 space-y-1">
-        <div class="font-medium text-sm text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</div>
-        <div class="text-xs text-loyall-400 mb-1">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
-        {{ simetrico(sp) }}
-        {{ campo(sp.subpilar.codigo, 'O achado', parecer_textos.achados.get(sp.subpilar.codigo, '') if parecer_textos else '') }}
-      </div>
+      {% set achado = parecer_textos.achados.get(sp.subpilar.codigo, '') if parecer_textos else '' %}
+      <details data-subpilar="{{ sp.subpilar.codigo }}" class="border border-loyall-200 rounded px-3 py-2">
+        <summary class="cursor-pointer text-sm"><span class="font-medium text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</span> {{ resumo(sp) }}{% if pode_corrigir %} <span class="text-xs {{ 'text-loyall-500' if achado.strip() else 'text-amber-700' }}">· achado {{ 'escrito' if achado.strip() else 'em branco' }}</span>{% endif %}</summary>
+        <div class="space-y-1 mt-2">
+          <div class="text-xs text-loyall-400">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
+          {{ simetrico(sp) }}
+          {{ campo(sp.subpilar.codigo, 'O achado', achado) }}
+        </div>
+      </details>
     {% endfor %}
     </div>
   </div>
@@ -137,19 +135,48 @@
 </section>
 
 {% if L.fora_dos_doze.marcas %}
-<section data-secao="fora_dos_doze" class="border border-loyall-200 rounded p-3 space-y-1">
-  <h4 class="text-xs uppercase tracking-wider text-loyall-500">{{ L.fora_dos_doze.titulo }}</h4>
-  {% if L.fora_dos_doze.descricao %}<p class="text-xs text-loyall-400 mb-1">{{ L.fora_dos_doze.descricao }}</p>{% endif %}
+<details data-secao="fora_dos_doze" class="border border-loyall-200 rounded px-3 py-2">
+  <summary class="cursor-pointer text-sm"><span class="font-medium text-loyall-800">{{ L.fora_dos_doze.titulo }}</span> {{ resumo(L.fora_dos_doze) }}</summary>
+  <div class="space-y-1 mt-2">
+  {% if L.fora_dos_doze.descricao %}<p class="text-xs text-loyall-400">{{ L.fora_dos_doze.descricao }}</p>{% endif %}
   {{ simetrico(L.fora_dos_doze) }}
   {{ campo('nota_c', 'Nota do parecer sobre o que dá para conferir (opcional)', parecer_textos.nota_c if parecer_textos else '') }}
-</section>
+  </div>
+</details>
 {% endif %}
 
 {% if L.a_parte %}
-<section data-secao="a_parte" class="border border-dashed border-loyall-200 rounded p-3 space-y-1">
-  <h4 class="text-xs uppercase tracking-wider text-loyall-500">Não se costuma esperar em peça sem cliente com nome</h4>
-  <p class="text-xs text-loyall-400 mb-1">Conferidas do mesmo jeito; o vazio aqui não é falta desta peça.</p>
+<details data-secao="a_parte" class="border border-dashed border-loyall-200 rounded px-3 py-2">
+  <summary class="cursor-pointer text-sm"><span class="font-medium text-loyall-800">Não se costuma esperar em peça sem cliente com nome</span> {{ resumo(L.a_parte_bloco) }}</summary>
+  <div class="space-y-1 mt-2">
+  <p class="text-xs text-loyall-400">Conferidas do mesmo jeito; o vazio aqui não é falta desta peça.</p>
   {{ simetrico(L.a_parte_bloco, True) }}
-</section>
+  </div>
+</details>
 {% endif %}
+
+<details data-secao="achados" class="border border-amber-200 rounded px-3 py-2">
+  <summary class="cursor-pointer text-sm text-amber-800">Rascunho do modelo, não conferido: {{ L.achados | length }} {{ 'achado' if L.achados | length == 1 else 'achados' }} que atravessam, {{ L.contradicoes | length }} {{ 'contradição' if L.contradicoes | length == 1 else 'contradições' }}</summary>
+  <p data-rascunho class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">Achados e contradições são escritos pelo modelo e ninguém os conferiu. Contas e números aqui não foram verificados. Confira na peça antes de levar qualquer um para o parecer.</p>
+  <div data-secao="contradicoes" class="text-sm">
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500 mt-2">Contradição interna</h4>
+  {% for x in L.contradicoes %}
+  <div class="mt-2 text-loyall-800">{{ x.texto }}
+    {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
+    {{ cit.citacoes(x.evidencias, True) }}
+  </div>
+  {% else %}
+  <div class="text-xs text-loyall-400">Nenhuma contradição no texto lido.</div>
+  {% endfor %}
+  </div>
+  <h4 class="text-xs uppercase tracking-wider text-loyall-500 mt-3">Achados que atravessam</h4>
+  {% for x in L.achados %}
+  <div class="mt-2 text-sm text-loyall-800">{{ x.texto }}
+    {% if x.alerta %}<div class="text-xs text-rose-700">⚠ {{ x.alerta }}</div>{% endif %}
+    {{ cit.citacoes(x.evidencias, True) }}
+  </div>
+  {% else %}
+  <div class="text-xs text-loyall-400">Nenhum achado fora das marcas nesta peça.</div>
+  {% endfor %}
+</details>
 {% endif %}

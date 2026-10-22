@@ -1,11 +1,19 @@
 {# O que falta para o parecer sair, e o botão do Word (fatia 2, 22/10). O Word vai ao cliente:
-   com pendência ele não sai (CLAUDE.md §10). Volta inteiro a cada campo salvo (``oob``). #}
+   com pendência ele não sai (CLAUDE.md §10). Volta inteiro a cada campo salvo (``oob``).
+   Uma linha com o que falta, contado (``parecer.falta``); a lista inteira, fechada. #}
 <div id="parecer-pendencias" {% if oob %}hx-swap-oob="true"{% endif %} class="text-sm space-y-1">
   {% if parecer.pendencias %}
-  <div class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
-    <div class="font-medium mb-1">Para o parecer sair em Word, falta:</div>
-    <ul class="list-disc ml-4">{% for x in parecer.pendencias %}<li>{{ x }}</li>{% endfor %}</ul>
-  </div>
+  {% set f = parecer.falta %}
+  {% set partes = [
+       'uma leitura nova, porque esta usou a régua antiga' if f.regua else '',
+       'a frase da ordem' if f.ordem else '',
+       (f.achados ~ (' achado' if f.achados == 1 else ' achados')) if f.achados else '',
+       (f.conferir ~ (' marca para conferir' if f.conferir == 1 else ' marcas para conferir')) if f.conferir else '',
+     ] | select | list %}
+  <details class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+    <summary class="cursor-pointer font-medium">Para o Word sair, falta: {{ partes | join(', ') }}.</summary>
+    <ul class="list-disc ml-4 mt-1">{% for x in parecer.pendencias %}<li>{{ x }}</li>{% endfor %}</ul>
+  </details>
   {% else %}
   <a href="{{ url_for('ui.avaliador_parecer_word', empresa_id=empresa_id, aid=a.id) }}"
      class="inline-block px-3 py-1 rounded bg-loyall-700 text-white text-xs">Baixar o parecer em Word</a>
