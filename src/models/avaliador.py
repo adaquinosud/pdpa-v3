@@ -142,6 +142,13 @@ class AvaliadorParecer(Base):
     # correção: trocar de trecho não diz que o outro está errado, e por isso não vai para
     # avaliador_correcoes (a tabela de erros não pode receber troca de gosto).
     escolhas_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    # o rascunho do modelo (fatia 3, 22/10): campo → {"rascunho": texto do modelo, "estado":
+    # "pendente" | "aceito" | "editado", "base": hash da tela que o modelo leu}. O estado fica
+    # guardado depois de passado: é ele que diz se o rascunho merece confiança.
+    rascunho_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    rascunho_custo_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    rascunho_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rascunho_versao: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     usuario_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
     )

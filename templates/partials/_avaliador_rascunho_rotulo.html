@@ -1,0 +1,11 @@
+{# Como o campo do parecer está em relação ao rascunho do modelo (fatia 3, 22/10). Volta
+   sozinho (``oob``) quando o campo é salvo: editar muda o estado na hora. #}
+{% set st = (rascunho_estado or {}).get(campo) %}
+<span id="rascunho-rotulo-{{ campo }}" {% if oob %}hx-swap-oob="true"{% endif %} class="text-xs">
+{% if st == 'pendente' %}<span class="text-amber-700">rascunho do modelo, não conferido</span>
+{% elif st == 'mudou' %}<span class="text-rose-700">a tela mudou depois do rascunho: confira de novo</span>
+{% elif st == 'aceito' %}<span class="text-loyall-400">rascunho aceito como está</span>
+{% elif st == 'editado' %}<span class="text-loyall-400">rascunho editado por você</span>
+{% endif %}
+{% if st in ('pendente', 'mudou') %}<form hx-post="{{ url_for('ui.avaliador_rascunho_aceitar', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML" class="inline"><input type="hidden" name="campo" value="{{ campo }}"><button class="underline text-emerald-700 ml-1">aceito como está</button></form>{% endif %}
+</span>

@@ -9,6 +9,7 @@
        'a frase da ordem' if f.ordem else '',
        (f.achados ~ (' achado' if f.achados == 1 else ' achados')) if f.achados else '',
        (f.conferir ~ (' marca para conferir' if f.conferir == 1 else ' marcas para conferir')) if f.conferir else '',
+       (f.rascunho ~ (' rascunho para passar' if f.rascunho == 1 else ' rascunhos para passar')) if f.rascunho else '',
      ] | select | list %}
   <details class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
     <summary class="cursor-pointer font-medium">Para o Word sair, falta: {{ partes | join(', ') }}.</summary>

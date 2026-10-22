@@ -145,12 +145,58 @@ def frente(tela: dict) -> List[dict]:
     ]
 
 
+def estado_do_rascunho(tela: dict, textos: dict) -> dict:
+    """campo → "pendente" | "aceito" | "editado" | "mudou" (aceito, ou ainda pendente, sobre
+    uma tela que mudou depois do rascunho: correção ou troca de trecho). Campo que não veio
+    do rascunho não aparece."""
+    rj = textos.get("rascunho") or {}
+    if not rj:
+        return {}
+    from src.avaliador import rascunho as R
+
+    _, agora = R.entrada(tela, textos.get("escolhas") or {}, "")
+    out = {}
+    for campo, st in rj.items():
+        if st["estado"] != "editado" and st.get("base") != agora:
+            out[campo] = "mudou"
+        else:
+            out[campo] = st["estado"]
+    return out
+
+
+def _pendencias_do_rascunho(tela: dict, textos: dict, falta: dict) -> List[str]:
+    """Campo que veio do rascunho do modelo só vai para o Word depois de a pessoa passar por
+    ele: editar ou aceitar como está (decisão de 22/10)."""
+    nomes = {"ordem": "A ordem"}
+    nomes.update(
+        {
+            sp["subpilar"].codigo: sp["subpilar"].nome
+            for b in tela["pilares"]
+            for sp in b["subpilares"]
+        }
+    )
+    passe = "(edite ou aceite como está)."
+    out = []
+    for campo, estado in estado_do_rascunho(tela, textos).items():
+        if estado == "pendente":
+            out.append(f"{nomes.get(campo, campo)}: passe pelo rascunho do modelo {passe}")
+        elif estado == "mudou":
+            out.append(
+                f"{nomes.get(campo, campo)}: a tela mudou depois do rascunho; "
+                f"confira de novo {passe}"
+            )
+        else:
+            continue
+        falta["rascunho"] += 1
+    return out
+
+
 def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) -> dict:
     """``tela``: ``servico.organizar_marcas`` (com as correções). ``textos``:
     ``servico.textos_do_parecer``. Devolve o parecer pronto para o Word e as pendências."""
     pendencias: List[str] = []
     # o mesmo que ``pendencias``, contado, para a tela dizer numa linha o que falta
-    falta = {"ordem": False, "achados": 0, "conferir": 0, "regua": False}
+    falta = {"ordem": False, "achados": 0, "conferir": 0, "regua": False, "rascunho": 0}
     escolhidos = selecao(tela, textos.get("escolhas"))
     if not textos["ordem"].strip():
         falta["ordem"] = True
@@ -192,6 +238,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
                 }
             )
         pilares.append({"nome": NOME_PILAR[bloco["pilar"].codigo], "subpilares": subs})
+    pendencias += _pendencias_do_rascunho(tela, textos, falta)
     return {
         "titulo": "Parecer PDPA",
         "cabecalho": f"Leitura nº {numero}, {data}. " + " ".join(declarar_cobertura(cobertura)),

@@ -62,6 +62,7 @@ from src.models.avaliador import (
     AvaliadorParecer,
 )
 from src.utils.db import db_session
+from src.utils.fmt import virg
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,13 @@ def gasto_do_mes(s: Session, empresa_id: int, agora: Optional[datetime] = None) 
             AvaliadorAnalise.empresa_id == empresa_id, AvaliadorAnalise.criado_em >= inicio
         )
     )
-    return float(total or 0.0)
+    # o rascunho do parecer (fatia 3) também é gasto da empresa, no mês em que foi pedido
+    rascunhos = s.scalar(
+        select(func.coalesce(func.sum(AvaliadorParecer.rascunho_custo_usd), 0.0))
+        .join(AvaliadorAnalise, AvaliadorAnalise.id == AvaliadorParecer.analise_id)
+        .where(AvaliadorAnalise.empresa_id == empresa_id, AvaliadorParecer.rascunho_em >= inicio)
+    )
+    return float(total or 0.0) + float(rascunhos or 0.0)
 
 
 def checar_teto(s: Session, empresa_id: int, estimativa_usd: float) -> None:
@@ -742,12 +749,13 @@ def textos_do_parecer(a: AvaliadorAnalise) -> dict:
     "escolhas": {marca: trecho escolhido para o parecer}}."""
     p = parecer_de(a)
     if p is None:
-        return {"ordem": "", "nota_c": "", "achados": {}, "escolhas": {}}
+        return {"ordem": "", "nota_c": "", "achados": {}, "escolhas": {}, "rascunho": {}}
     return {
         "ordem": p.ordem,
         "nota_c": p.nota_c,
         "achados": json.loads(p.achados_json or "{}"),
         "escolhas": json.loads(p.escolhas_json or "{}"),
+        "rascunho": json.loads(p.rascunho_json or "{}"),
     }
 
 
@@ -755,8 +763,9 @@ def _parecer_ou_novo(s: Session, a: AvaliadorAnalise) -> AvaliadorParecer:
     p = parecer_de(a)
     if p is None:
         p = AvaliadorParecer(
-            analise_id=a.id, ordem="", achados_json="{}", nota_c="", escolhas_json="{}"
-        )
+            analise_id=a.id, ordem="", achados_json="{}", nota_c="", escolhas_json="{}",
+            rascunho_json="{}", rascunho_custo_usd=0.0,
+        )  # fmt: skip
         s.add(p)
     return p
 
@@ -808,6 +817,129 @@ def salvar_parecer(
         achados = json.loads(p.achados_json or "{}")
         achados[campo] = texto
         p.achados_json = json.dumps(achados, ensure_ascii=False)
+    rj = json.loads(p.rascunho_json or "{}")
+    if campo in rj and texto != rj[campo]["rascunho"]:
+        rj[campo]["estado"] = RASCUNHO_EDITADO  # a pessoa escreveu por cima: fica guardado
+        p.rascunho_json = json.dumps(rj, ensure_ascii=False)
+    p.usuario_id = usuario_id
+    p.atualizado_em = datetime.utcnow()
+    marcar_uso(a)
+
+
+# ── o rascunho do modelo (fatia 3, 22/10) ─────────────────────────────────
+
+RASCUNHO_PENDENTE, RASCUNHO_ACEITO, RASCUNHO_EDITADO = "pendente", "aceito", "editado"
+
+
+def _texto_do_campo(p: AvaliadorParecer, campo: str) -> str:
+    if campo == CAMPO_ORDEM:
+        return p.ordem or ""
+    return json.loads(p.achados_json or "{}").get(campo, "")
+
+
+def estimativa_rascunho(a: AvaliadorAnalise, tela: dict) -> float:
+    """Pior caso do rascunho em US$ (a chamada e a nova tentativa): a tela declara antes."""
+    from src.avaliador import rascunho as R
+
+    texto, _ = R.entrada(tela, textos_do_parecer(a)["escolhas"], a.descricao or "")
+    um = motor._pior_caso_usd(a.modelo, len(R.sistema()) + len(texto) + len(R.PEDIDO), R.MAX_TOKENS)
+    return um * motor.TENTATIVAS
+
+
+def rascunhar_parecer(
+    s: Session, a: AvaliadorAnalise, usuario_id: Optional[int], client=None
+) -> List[str]:
+    """O modelo rascunha a frase da ordem e os doze achados a partir da tela corrigida. Só
+    preenche campo EM BRANCO: o que a pessoa já escreveu não muda. Cada campo preenchido
+    fica "pendente" até a pessoa editar ou aceitar como está; o Word não sai antes. O gasto
+    fica gravado mesmo se a chamada falhar, e entra no teto mensal. Devolve os campos
+    preenchidos."""
+    from src.avaliador import parecer as P
+    from src.avaliador import rascunho as R
+
+    _exigir_corrigivel(a)
+    regua = carregar_regua()
+    tela = organizar_marcas(regua, a, correcoes_de(a))
+    textos = textos_do_parecer(a)
+    falta = P.montar(tela, textos, a.id, "", json.loads(a.itens_json)["cobertura"])["falta"]
+    if falta["regua"]:
+        raise AvaliacaoRecusada(
+            "Esta leitura foi feita antes da régua de hoje: o rascunho sairia sobre marcas "
+            "que mudaram. Faça uma leitura nova da peça."
+        )
+    if falta["conferir"]:
+        raise AvaliacaoRecusada(
+            "Antes do rascunho, resolva as marcas sem conferência: o modelo escreve a partir "
+            "do que a tela mostra, e ela ainda não está fechada."
+        )
+    campos = [CAMPO_ORDEM, *SUBPILARES_ORDEM]
+    escrito = {CAMPO_ORDEM: textos["ordem"], **textos["achados"]}
+    vazios = [c for c in campos if not (escrito.get(c) or "").strip()]
+    if not vazios:
+        raise AvaliacaoRecusada(
+            "A ordem e os doze achados já estão escritos: o rascunho só preenche campo em branco."
+        )
+    texto, base = R.entrada(tela, textos["escolhas"], a.descricao or "")
+    limite = estimativa_rascunho(a, tela)
+    checar_teto(s, a.empresa_id, limite)  # antes do gasto
+    if client is None:
+        from src.classifier.classifier_v3 import _get_client
+
+        client = _get_client()
+    p = _parecer_ou_novo(s, a)
+    orc = {"total": motor.Uso(), "limite": limite}
+    try:
+        obj = motor._chamar(
+            client, a.modelo, R.sistema(), texto, R.PEDIDO, R.MAX_TOKENS, R.validar, orc
+        )
+    except Exception as e:  # noqa: BLE001 — o gasto conta mesmo na falha
+        p.rascunho_custo_usd = (p.rascunho_custo_usd or 0.0) + orc["total"].custo_usd
+        p.rascunho_em = datetime.utcnow()
+        p.rascunho_versao = R.VERSAO
+        logger.warning(f"[avaliador] rascunho do parecer falhou na leitura {a.id}: {e!r}")
+        raise AvaliacaoRecusada(
+            f"O rascunho não saiu ({type(e).__name__}). Nada foi escrito nos campos; o gasto "
+            f"desta tentativa, US$ {virg(orc['total'].custo_usd, 4)}, fica registrado."
+        ) from None
+    p.rascunho_custo_usd = (p.rascunho_custo_usd or 0.0) + orc["total"].custo_usd
+    p.rascunho_em = datetime.utcnow()
+    p.rascunho_versao = R.VERSAO
+    rj = json.loads(p.rascunho_json or "{}")
+    achados = json.loads(p.achados_json or "{}")
+    for c in vazios:
+        if c == CAMPO_ORDEM:
+            p.ordem = obj[c]
+        else:
+            achados[c] = obj[c]
+        rj[c] = {"rascunho": obj[c], "estado": RASCUNHO_PENDENTE, "base": base}
+    p.achados_json = json.dumps(achados, ensure_ascii=False)
+    p.rascunho_json = json.dumps(rj, ensure_ascii=False)
+    p.usuario_id = usuario_id
+    p.atualizado_em = datetime.utcnow()
+    marcar_uso(a)
+    return vazios
+
+
+def aceitar_rascunho(
+    s: Session, a: AvaliadorAnalise, campo: str, usuario_id: Optional[int]
+) -> None:
+    """ "Aceito como está": a pessoa passou pelo campo do rascunho sem mudar o texto. Vale
+    sobre a tela de agora (a base passa a ser a de agora)."""
+    from src.avaliador import rascunho as R
+
+    _exigir_corrigivel(a)
+    p = parecer_de(a)
+    rj = json.loads((p.rascunho_json if p else None) or "{}")
+    if campo not in rj:
+        raise AvaliacaoRecusada("Esse campo não veio do rascunho do modelo.")
+    if not _texto_do_campo(p, campo).strip():
+        raise AvaliacaoRecusada("O campo está em branco: escreva o texto antes.")
+    tela = organizar_marcas(carregar_regua(), a, correcoes_de(a))
+    _, base = R.entrada(tela, textos_do_parecer(a)["escolhas"], a.descricao or "")
+    if rj[campo]["estado"] != RASCUNHO_EDITADO:
+        rj[campo]["estado"] = RASCUNHO_ACEITO
+    rj[campo]["base"] = base
+    p.rascunho_json = json.dumps(rj, ensure_ascii=False)
     p.usuario_id = usuario_id
     p.atualizado_em = datetime.utcnow()
     marcar_uso(a)
@@ -827,6 +959,7 @@ def apagar_leitura(a: AvaliadorAnalise) -> None:
         p = parecer_de(a)
         if p is not None:  # o parecer fala da peça: sai junto
             p.ordem, p.nota_c, p.achados_json, p.escolhas_json = "", "", "{}", "{}"
+            p.rascunho_json = "{}"  # o texto do modelo também fala da peça; o gasto fica
     apagar_texto(a, "leitura_apagada")
     a.descricao = ""
     a.arquivo_nome = None

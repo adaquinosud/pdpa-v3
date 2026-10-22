@@ -14,6 +14,7 @@ import json
 from flask import current_app, render_template, request
 from markupsafe import escape
 
+from src.api.painel import SUBPILARES_ORDEM
 from src.auth import get_current_user
 from src.avaliador import parecer as parecer_mod
 from src.avaliador import servico
@@ -99,6 +100,14 @@ def _parecer(a: AvaliadorAnalise, tela: dict) -> dict:
     )
 
 
+def _campos_em_branco(a: AvaliadorAnalise) -> int:
+    """Quantos dos treze campos que o rascunho preenche (a ordem e os doze achados) estão
+    em branco."""
+    t = servico.textos_do_parecer(a)
+    escrito = [t["ordem"], *(t["achados"].get(c, "") for c in SUBPILARES_ORDEM)]
+    return sum(1 for x in escrito if not (x or "").strip())
+
+
 def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> str:
     """Com ``s``: a lista de baixo vai junto, fora da área trocada (hx-swap-oob), e se
     atualiza a cada polling/ação. Sem ``s``: a análise vai dentro do painel, que já
@@ -130,6 +139,13 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
         marcas=tela,
         parecer=_parecer(a, tela) if tela else None,
         parecer_textos=servico.textos_do_parecer(a) if tela else None,
+        rascunho_estado=(
+            parecer_mod.estado_do_rascunho(tela, servico.textos_do_parecer(a)) if tela else {}
+        ),
+        campos_em_branco=_campos_em_branco(a) if tela else 0,
+        rascunho_teto_usd=(
+            servico.estimativa_rascunho(a, tela) if tela and _campos_em_branco(a) else 0.0
+        ),
         no_parecer=(
             parecer_mod.escolhidos_da_tela(tela, servico.textos_do_parecer(a)["escolhas"])
             if tela
@@ -298,10 +314,38 @@ def avaliador_parecer_salvar(empresa_id: int, aid: int):
             return f'<span class="text-xs text-rose-700">{escape(str(e))}</span>'
         s.commit()
         tela = servico.organizar_marcas(carregar_regua(), a, servico.correcoes_de(a))
-        return render_template(
+        campo = request.form.get("campo", "")
+        rotulo = render_template(
+            "partials/_avaliador_rascunho_rotulo.html", campo=campo, oob=True,
+            rascunho_estado=parecer_mod.estado_do_rascunho(tela, servico.textos_do_parecer(a)),
+            empresa_id=empresa_id, a=a,
+        )  # fmt: skip
+        return rotulo + render_template(
             "partials/_avaliador_parecer_pendencias.html",
             parecer=_parecer(a, tela), empresa_id=empresa_id, a=a, salvo=True, oob=True,
         )  # fmt: skip
+
+
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/parecer/rascunho", methods=["POST"]
+)
+@loyall_required_ui
+def avaliador_rascunho(empresa_id: int, aid: int):
+    """O modelo rascunha a ordem e os achados em branco (fatia 3). Chamada paga: o teto da
+    empresa é conferido antes; o gasto fica gravado mesmo na falha."""
+    usuario_id = get_current_user().id
+    return _acao(empresa_id, aid, lambda s, a: servico.rascunhar_parecer(s, a, usuario_id))
+
+
+@ui_bp.route(
+    "/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/parecer/aceitar", methods=["POST"]
+)
+@loyall_required_ui
+def avaliador_rascunho_aceitar(empresa_id: int, aid: int):
+    """ "Aceito como está": a pessoa passou pelo campo do rascunho sem mudar o texto."""
+    usuario_id = get_current_user().id
+    campo = request.form.get("campo", "")
+    return _acao(empresa_id, aid, lambda s, a: servico.aceitar_rascunho(s, a, campo, usuario_id))
 
 
 @ui_bp.route(

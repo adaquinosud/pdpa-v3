@@ -37,7 +37,7 @@
 {% endif %}{% endmacro %}
 {% macro campo(nome, rotulo, valor, linhas=2) %}{% if pode_corrigir %}
       <div class="mt-2">
-        <div class="text-xs uppercase tracking-wider text-loyall-700">{{ rotulo }}</div>
+        <div class="text-xs uppercase tracking-wider text-loyall-700">{{ rotulo }} {% with campo=nome %}{% include 'partials/_avaliador_rascunho_rotulo.html' %}{% endwith %}</div>
         <form hx-post="{{ url_for('ui.avaliador_parecer_salvar', empresa_id=empresa_id, aid=a.id) }}" hx-trigger="change" hx-target="next .salvo" hx-swap="innerHTML">
           <input type="hidden" name="campo" value="{{ nome }}">
           <textarea name="texto" rows="{{ linhas }}" class="w-full border border-loyall-300 rounded px-2 py-1 text-sm">{{ valor }}</textarea>
@@ -116,6 +116,20 @@
     {% endfor %}
     </div>
   </details>
+  {# o rascunho do modelo (fatia 3): só preenche campo em branco; o custo vem antes #}
+  {% if campos_em_branco %}
+  <div data-rascunho-pedir class="text-xs">
+    {% if parecer.falta.conferir or parecer.falta.regua %}
+    <span class="text-loyall-500">O rascunho da ordem e dos achados fica disponível depois de resolver as marcas sem conferência.</span>
+    {% else %}
+    <form hx-post="{{ url_for('ui.avaliador_rascunho', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML" hx-indicator="#rascunho-escrevendo" hx-disabled-elt="find button" class="inline">
+      <button class="px-3 py-1 rounded border border-loyall-400 text-loyall-800 bg-white hover:bg-loyall-100">Rascunhar {{ 'a ordem e ' if not parecer_textos.ordem.strip() else '' }}{{ campos_em_branco - (0 if parecer_textos.ordem.strip() else 1) }} {{ 'achado em branco' if campos_em_branco - (0 if parecer_textos.ordem.strip() else 1) == 1 else 'achados em branco' }}</button>
+    </form>
+    <span class="text-loyall-500">custo de no máximo US$ {{ rascunho_teto_usd | virg(2) }}; você passa por cada campo antes do Word.</span>
+    <span id="rascunho-escrevendo" class="htmx-indicator text-amber-700">o modelo está escrevendo (até um minuto)…</span>
+    {% endif %}
+  </div>
+  {% endif %}
   {{ campo('ordem', 'A ordem', parecer_textos.ordem, 3) }}
   {% include 'partials/_avaliador_parecer_pendencias.html' %}
 </section>
@@ -130,7 +144,7 @@
     {% for sp in bloco.subpilares %}
       {% set achado = parecer_textos.achados.get(sp.subpilar.codigo, '') if parecer_textos else '' %}
       <details data-subpilar="{{ sp.subpilar.codigo }}" class="border border-loyall-200 rounded px-3 py-2">
-        <summary class="cursor-pointer text-sm"><span class="font-medium text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</span> {{ resumo(sp) }}{% if pode_corrigir %} <span class="text-xs {{ 'text-loyall-500' if achado.strip() else 'text-amber-700' }}">· achado {{ 'escrito' if achado.strip() else 'em branco' }}</span>{% endif %}</summary>
+        <summary class="cursor-pointer text-sm"><span class="font-medium text-loyall-800">{{ sp.subpilar.codigo }} · {{ sp.subpilar.nome }}</span> {{ resumo(sp) }}{% if pode_corrigir %}{% set st = (rascunho_estado or {}).get(sp.subpilar.codigo) %} <span class="text-xs {{ 'text-loyall-500' if achado.strip() and st not in ('pendente', 'mudou') else 'text-amber-700' }}">· {% if st in ('pendente', 'mudou') %}rascunho para passar{% else %}achado {{ 'escrito' if achado.strip() else 'em branco' }}{% endif %}</span>{% endif %}</summary>
         <div class="space-y-1 mt-2">
           <div class="text-xs text-loyall-400">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
           {{ simetrico(sp) }}
