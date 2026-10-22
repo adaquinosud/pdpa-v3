@@ -978,7 +978,8 @@ def _register_cli_commands(app: Flask) -> None:
     @app.cli.command("avaliador-housekeeping")
     def avaliador_housekeeping():
         """Marca FALHOU a análise do Avaliador cuja thread morreu (deploy) e APAGA o
-        texto extraído das análises sem uso há AVALIADOR_DIAS_RETENCAO_TEXTO dias.
+        texto extraído das análises sem uso há AVALIADOR_DIAS_RETENCAO_TEXTO dias (menos as
+        peças de medição, servico.PECAS_DE_MEDICAO).
         Só UPDATE — zero chamada paga. Idempotente."""
         from src.avaliador.servico import dias_retencao, housekeeping
         from src.utils.db import db_session as _db_session

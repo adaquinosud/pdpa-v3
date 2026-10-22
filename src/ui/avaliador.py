@@ -125,6 +125,7 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
         processando=a.status in STATUS_EM_PROCESSAMENTO,
         texto_disponivel=a.texto_json is not None,
         dias_retencao=servico.dias_retencao(),
+        peca_de_medicao=servico.e_peca_de_medicao(a),
     )
 
 

@@ -15,7 +15,8 @@ Falha é visível, nunca "processando" eterno:
 
 Retenção (decisão do Alexandre, 12/10): concluir apaga o texto na hora;
 ``AVALIADOR_DIAS_RETENCAO_TEXTO`` dias sem uso apaga sozinho. O aviso da tela lê o
-MESMO valor (``dias_retencao``).
+MESMO valor (``dias_retencao``). As peças de medição (``PECAS_DE_MEDICAO``, 21/10) ficam
+fora das duas: o texto delas não é apagado, e não se relê, conclui nem apaga.
 """
 
 from __future__ import annotations
@@ -381,6 +382,28 @@ def _exigir_texto(a: AvaliadorAnalise) -> Documento:
     return Documento.de_json(a.texto_json)
 
 
+# Peças de medição (21/10): as leituras que sustentam o gabarito das marcas (#24, #25 e #26,
+# o site da Loyall lido três vezes em 19/10) e o parecer modelo da Localiza (#28). O texto
+# guardado é a entrada congelada dos testes de reescrita e o resultado gravado é a linha de
+# base: reler sobrescreve a leitura, concluir e o watchdog apagam o texto, apagar some com
+# tudo. Para estas, o watchdog não apaga o texto e as três ações são recusadas. São ids de
+# produção; se vierem mais peças fixas, isto vira coluna.
+PECAS_DE_MEDICAO = frozenset({24, 25, 26, 28})
+
+
+def e_peca_de_medicao(a: AvaliadorAnalise) -> bool:
+    return a.id in PECAS_DE_MEDICAO
+
+
+def _exigir_alteravel(a: AvaliadorAnalise) -> None:
+    if e_peca_de_medicao(a):
+        raise AvaliacaoRecusada(
+            "Peça de medição: o texto e o resultado desta leitura são a base do gabarito "
+            "das marcas, e por isso ela não pode ser relida, concluída nem apagada. Para "
+            "ler a mesma peça de novo, envie-a outra vez."
+        )
+
+
 def _exigir_parada(a: AvaliadorAnalise) -> None:
     if a.status in STATUS_EM_PROCESSAMENTO:
         raise AvaliacaoRecusada("A leitura ainda está em andamento.")
@@ -393,6 +416,7 @@ def marcar_uso(a: AvaliadorAnalise) -> None:
 def refazer(s: Session, a: AvaliadorAnalise, descricao: Optional[str] = None) -> None:
     """Relê a peça guardada — com nova descrição, se vier (substitui a "correção de tipo"
     do desenho anterior). Paga uma leitura nova: o gate cobra antes."""
+    _exigir_alteravel(a)
     _exigir_parada(a)
     doc = _exigir_texto(a)
     if descricao is not None:
@@ -414,6 +438,7 @@ def apagar_texto(a: AvaliadorAnalise, motivo: str, quando: Optional[datetime] = 
 
 
 def concluir(a: AvaliadorAnalise) -> None:
+    _exigir_alteravel(a)
     _exigir_parada(a)
     apagar_texto(a, "concluida")
     marcar_uso(a)
@@ -422,6 +447,7 @@ def concluir(a: AvaliadorAnalise) -> None:
 def apagar_leitura(a: AvaliadorAnalise) -> None:
     """Apaga o que é da peça e deixa só o gasto (ver ``src/models/avaliador.py``).
     Recusa em andamento: a leitura gravaria resumo e itens por cima."""
+    _exigir_alteravel(a)
     _exigir_parada(a)
     apagar_texto(a, "leitura_apagada")
     a.descricao = ""
@@ -489,7 +515,8 @@ def disparar(analise_id: int, app=None) -> bool:
 def housekeeping(s: Session, agora: Optional[datetime] = None) -> Dict[str, int]:
     """(a) marca FALHOU a análise em processamento sem heartbeat há > 20 min (thread
     morta por deploy); (b) apaga o texto das análises sem uso há mais que
-    ``dias_retencao()`` dias. Só UPDATE — zero chamada paga. Idempotente."""
+    ``dias_retencao()`` dias, menos as peças de medição. Só UPDATE — zero chamada paga.
+    Idempotente."""
     agora = agora or datetime.utcnow()
     orfas = s.scalars(
         select(AvaliadorAnalise).where(
@@ -506,6 +533,7 @@ def housekeeping(s: Session, agora: Optional[datetime] = None) -> Dict[str, int]
             AvaliadorAnalise.texto_json.is_not(None),
             AvaliadorAnalise.status.not_in(STATUS_EM_PROCESSAMENTO),
             AvaliadorAnalise.usado_em < agora - timedelta(days=dias_retencao()),
+            AvaliadorAnalise.id.not_in(PECAS_DE_MEDICAO),
         )
     ).all()
     for a in expiradas:

@@ -518,3 +518,29 @@ def test_uma_pagina_que_falha_recusa_antes_de_gastar_e_diz_o_que_fazer(
     assert "tire esta página da lista ou corrija o endereço. Nada foi lido nem cobrado." in html
     assert db_session.query(AvaliadorAnalise).count() == 0  # nada gravado, nenhum custo
     assert chamadas == []  # o modelo não foi chamado
+
+
+def test_numero_da_leitura_na_lista_e_na_analise(client_loyall, db_session, empresa, teto):
+    aid = _pronta(client_loyall, db_session, empresa)
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert f"Leitura nº {aid} ·" in html and "peça de medição" not in html
+    assert "Reler com esta descrição" in html and "Apagar leitura" in html
+    lista = client_loyall.get(_url(empresa)).get_data(as_text=True)
+    assert ">Nº</th>" in lista and f'<td class="py-1 pr-2 text-loyall-500">{aid}</td>' in lista
+
+
+def test_peca_de_medicao_sem_botoes_e_recusada_na_rota(
+    client_loyall, db_session, empresa, teto, monkeypatch
+):
+    aid = _pronta(client_loyall, db_session, empresa)
+    monkeypatch.setattr(servico, "PECAS_DE_MEDICAO", frozenset({aid}))
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert f"Leitura nº {aid} · peça de medição ·" in html and "data-medicao" in html
+    for botao in ("Reler com esta descrição", "Concluir</button>", "Apagar leitura"):
+        assert botao not in html
+    for suf in ("/refazer", "/concluir", "/apagar"):  # pela rota, mesmo sem o botão
+        html = client_loyall.post(_url(empresa, f"/{aid}{suf}")).get_data(as_text=True)
+        assert "Peça de medição: o texto e o resultado desta leitura" in html
+    a = db_session.get(AvaliadorAnalise, aid)
+    db_session.refresh(a)
+    assert a.texto_json is not None and a.status == "pronta"

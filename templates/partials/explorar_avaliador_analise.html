@@ -22,7 +22,7 @@
       <div class="text-sm font-semibold text-loyall-800">{{ a.arquivo_nome or 'Texto colado' }}</div>
       {% endif %}
       <div class="text-xs text-loyall-500">{{ a.descricao }}</div>
-      <div class="text-xs text-loyall-400">{% if por_secao %}{{ a.n_paginas }} {{ 'seção' if a.n_paginas == 1 else 'seções' }} · {% elif a.formato != 'texto' %}{{ a.n_paginas }} páginas · {% endif %}{{ a.criado_em | hora_br }} · modelo {{ a.modelo }} · US$ {{ a.custo_usd | virg(4) }}</div>
+      <div class="text-xs text-loyall-400">Leitura nº {{ a.id }}{% if peca_de_medicao %} · peça de medição{% endif %} · {% if por_secao %}{{ a.n_paginas }} {{ 'seção' if a.n_paginas == 1 else 'seções' }} · {% elif a.formato != 'texto' %}{{ a.n_paginas }} páginas · {% endif %}{{ a.criado_em | hora_br }} · modelo {{ a.modelo }} · US$ {{ a.custo_usd | virg(4) }}</div>
     </div>
     <div class="text-xs px-2 py-1 rounded {% if a.status == 'falhou' %}bg-rose-100 text-rose-800{% elif a.status == 'pronta' %}bg-emerald-100 text-emerald-800{% else %}bg-loyall-100 text-loyall-700{% endif %}">
       {{ rotulo_status.get(a.status, a.status) }}
@@ -36,7 +36,7 @@
   {% if a.status == 'falhou' %}
   <div class="border border-rose-300 bg-rose-50 rounded p-3 text-sm text-rose-800 flex flex-wrap items-center justify-between gap-2">
     <span>A leitura não terminou: {{ a.erro_motivo or 'motivo não registrado' }}.</span>
-    {% if texto_disponivel %}
+    {% if texto_disponivel and not peca_de_medicao %}
     <button hx-post="{{ url_refazer }}" hx-target="#avaliador-analise" hx-swap="outerHTML"
             class="px-3 py-1 rounded bg-rose-700 text-white text-xs">Tentar de novo</button>
     {% endif %}
@@ -62,7 +62,9 @@
   <div class="border border-rose-300 bg-rose-50 rounded p-2 text-sm text-rose-800">O resultado gravado desta leitura está num formato que a tela não reconhece; nada foi exibido para não mostrar errado.</div>
   {% endif %}
 
-  {% if texto_disponivel and not processando %}
+  {% if peca_de_medicao %}
+  <div data-medicao class="text-xs text-loyall-500 border-t border-loyall-100 pt-3">Peça de medição: o texto e o resultado desta leitura são a base do gabarito das marcas. O texto fica guardado, e a leitura não pode ser relida, concluída nem apagada. Para ler a mesma peça de novo, envie-a outra vez.</div>
+  {% elif texto_disponivel and not processando %}
   <form hx-post="{{ url_refazer }}" hx-target="#avaliador-analise" hx-swap="outerHTML"
         class="flex flex-wrap items-center gap-2 border-t border-loyall-100 pt-3 text-sm">
     <input type="text" name="descricao" value="{{ a.descricao }}" maxlength="500"
@@ -78,7 +80,7 @@
   {% elif not texto_disponivel %}
   <div class="text-xs text-loyall-400 border-t border-loyall-100 pt-3">Texto da peça apagado em {{ a.texto_apagado_em | hora_br if a.texto_apagado_em else 'data não registrada' }} ({{ 'concluída' if a.texto_apagado_motivo == 'concluida' else 'sem uso' }}). Ficam só os trechos citados. Por isso não dá para reler com outra descrição: para ler de novo, envie a peça outra vez.</div>
   {% endif %}
-  {% if not processando %}
+  {% if not processando and not peca_de_medicao %}
   <div class="flex justify-end">
     <button hx-post="{{ url_for('ui.avaliador_apagar', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML"
             hx-confirm="Apagar esta leitura? Saem a peça, o resumo e os trechos citados. Não dá para desfazer."

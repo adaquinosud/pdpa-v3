@@ -3,7 +3,8 @@
 Retenção (decisão do Alexandre, 12/10): ``texto_json`` guarda o texto extraído só
 enquanto a análise está aberta (refazer com outra descrição / retomar sem reenviar).
 Concluir apaga na hora; ``AVALIADOR_DIAS_RETENCAO_TEXTO`` sem uso apaga sozinho
-(housekeeping do watchdog). Depois disso ficam resumo, itens, trechos citados, custo e hash.
+(housekeeping do watchdog), menos nas peças de medição (``servico.PECAS_DE_MEDICAO``).
+Depois disso ficam resumo, itens, trechos citados, custo e hash.
 
 Apagar a leitura (decisão do Alexandre, 16/10): sai tudo o que é da peça (descrição,
 nome do arquivo, resumo, itens com trechos, texto, hash) e a linha fica APAGADA, fora da

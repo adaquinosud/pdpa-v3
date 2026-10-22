@@ -452,3 +452,30 @@ def test_leitura_v20_na_fila_e_lida_com_o_pedido_de_hoje(db_session, empresa, te
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v27-marcas"
     assert len(cli.chamadas) == 5
+
+
+def test_peca_de_medicao_nao_perde_texto_nem_leitura(db_session, empresa, teto, monkeypatch):
+    """21/10: as leituras que sustentam o gabarito das marcas não se relêem, não se concluem
+    e não se apagam, e o watchdog não apaga o texto delas. A vizinha comum, sim."""
+    agora = datetime.utcnow()
+    fixa = _rodar(db_session, _criar(db_session, empresa), Dublê())
+    comum = _rodar(db_session, _criar(db_session, empresa), Dublê())
+    monkeypatch.setattr(servico, "PECAS_DE_MEDICAO", frozenset({fixa.id}))
+    itens = fixa.itens_json
+    for acao in (
+        lambda: servico.refazer(db_session, fixa),
+        lambda: servico.concluir(fixa),
+        lambda: servico.apagar_leitura(fixa),
+    ):
+        with pytest.raises(AvaliacaoRecusada, match="Peça de medição"):
+            acao()
+    assert fixa.texto_json is not None and fixa.itens_json == itens
+    fixa.usado_em = comum.usado_em = agora - timedelta(days=30)
+    db_session.commit()
+    assert servico.housekeeping(db_session, agora)["textos_apagados"] == 1
+    assert fixa.texto_json is not None and comum.texto_json is None
+    assert servico.PECAS_DE_MEDICAO != frozenset()  # o patch é deste teste
+
+
+def test_pecas_de_medicao_de_producao():
+    assert servico.PECAS_DE_MEDICAO == frozenset({24, 25, 26, 28})
