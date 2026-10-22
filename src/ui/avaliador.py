@@ -130,7 +130,11 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
         marcas=tela,
         parecer=_parecer(a, tela) if tela else None,
         parecer_textos=servico.textos_do_parecer(a) if tela else None,
-        no_parecer=parecer_mod.escolhidos_da_tela(tela) if tela else set(),
+        no_parecer=(
+            parecer_mod.escolhidos_da_tela(tela, servico.textos_do_parecer(a)["escolhas"])
+            if tela
+            else set()
+        ),
         rotulo_veredito=ROTULO_VEREDITO,
         paginas_sem_texto=json.loads(a.paginas_sem_texto_json or "[]"),
         por_secao=a.formato in FORMATOS_POR_SECAO,
@@ -257,6 +261,10 @@ def avaliador_corrigir(empresa_id: int, aid: int, acao: str):
         )
     elif acao == "incluir":
         fn = lambda s, a: servico.incluir_trecho(  # noqa: E731
+            s, a, f.get("codigo", ""), f.get("trecho", ""), usuario_id
+        )
+    elif acao == "escolher":
+        fn = lambda s, a: servico.escolher_trecho(  # noqa: E731
             s, a, f.get("codigo", ""), f.get("trecho", ""), usuario_id
         )
     elif acao == "naoachadas":

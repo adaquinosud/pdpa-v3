@@ -179,3 +179,54 @@ def test_tela_e_word(client_loyall, db_session, empresa, teto):
     )
     a = db_session.get(AvaliadorAnalise, aid)
     assert a.status == "pronta"
+
+
+def _duas(db_session, a, codigo, t1, t2):
+    g = json.loads(a.itens_json)
+    m = next(m for m in g["marcas"] if m["codigo"] == codigo)
+    m["esta"] = True
+    m["evidencias"] = [
+        {"pagina": 2, "trecho": t, "conferido": True, "pagina_encontrada": 2} for t in (t1, t2)
+    ]
+    a.itens_json = json.dumps(g)
+    db_session.commit()
+
+
+def test_usar_este_no_parecer_troca_o_trecho_sem_virar_correcao(db_session, empresa, teto):
+    from src.models.avaliador import AvaliadorCorrecao
+
+    a = _pronta_servico(db_session, empresa)
+    _duas(db_session, a, "P1.01", "Primeiro trecho da marca", "Segundo trecho da marca")
+    p1 = lambda: next(  # noqa: E731
+        s for pl in _montar(a)["pilares"] for s in pl["subpilares"] if s["codigo"] == "P1"
+    )
+    assert p1()["diz"] == ["Primeiro trecho da marca"]
+    servico.escolher_trecho(db_session, a, "P1.01", "Segundo trecho da marca", None)
+    db_session.commit()
+    assert p1()["diz"] == ["Segundo trecho da marca"]
+    assert db_session.query(AvaliadorCorrecao).count() == 0  # a tabela de erros fica limpa
+    # o escolhido foi recusado depois: volta ao automático
+    servico.recusar_trecho(db_session, a, "P1.01", "Segundo trecho da marca", None)
+    db_session.commit()
+    assert p1()["diz"] == ["Primeiro trecho da marca"]
+    with pytest.raises(AvaliacaoRecusada, match="não é uma resposta desta marca"):
+        servico.escolher_trecho(db_session, a, "P1.01", "Segundo trecho da marca", None)
+
+
+def test_tela_mostra_usar_este_so_em_marca_que_vai_para_o_parecer(
+    client_loyall, db_session, empresa, teto
+):
+    aid = _pronta(client_loyall, db_session, empresa)
+    a = db_session.get(AvaliadorAnalise, aid)
+    _duas(db_session, a, "P1.01", "Primeiro trecho da marca", "Segundo trecho da marca")
+    html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
+    assert html.count("usar este no parecer") == 1  # só o segundo da P1.01
+    html = client_loyall.post(
+        _url(empresa, f"/{aid}/corrigir/escolher"),
+        data={"codigo": "P1.01", "trecho": "Segundo trecho da marca"},
+    ).get_data(as_text=True)
+    bloco = html.split('data-marca="P1.01"', 1)[1].split("data-diz", 1)[0]
+    # depois da troca: o primeiro trecho ganha o botão, o segundo vai para o parecer
+    marcos = ("Primeiro trecho", "usar este no parecer", "Segundo trecho", "vai para o parecer")
+    ordem = [bloco.index(x) for x in marcos]
+    assert ordem == sorted(ordem)

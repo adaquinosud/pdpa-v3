@@ -45,7 +45,7 @@
         {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
         {% for e in f.evidencias %}
         {{ cit.citacoes([e]) }}
-        {% if pode_corrigir and (f.codigo, e.trecho) in no_parecer %}<div class="ml-4 text-xs text-emerald-700">vai para o parecer</div>{% endif %}
+        {% if pode_corrigir %}{% if (f.codigo, e.trecho) in no_parecer %}<div class="ml-4 text-xs text-emerald-700">vai para o parecer</div>{% elif e.conferido and f.codigo in no_parecer | map(attribute=0) | list %}<div class="ml-4">{{ acao('escolher', 'usar este no parecer', {'codigo': f.codigo, 'trecho': e.trecho}, 'text-emerald-700') }}</div>{% endif %}{% endif %}
         {% if pode_corrigir %}<div class="ml-4">{% if e.incluido %}<span class="text-xs text-amber-700">incluído à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% else %}{{ acao('recusar', 'não responde', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}</div>{% endif %}
         {% endfor %}
         {{ recusadas(f) }}

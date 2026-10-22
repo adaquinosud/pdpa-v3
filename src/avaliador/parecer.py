@@ -23,7 +23,7 @@ Regras de seleção, decididas em 21-22/10:
 from __future__ import annotations
 
 import io
-from typing import List
+from typing import List, Optional
 
 from src.api.painel import NOME_PILAR
 from src.avaliador.extracao import _normalizar
@@ -39,14 +39,20 @@ MAX_TRECHOS = 4
 SEM_RESPOSTA = "Não encontramos no texto nada que responda a essa expectativa."
 
 
-def _escolhidos(marcas: List[dict]) -> List[dict]:
+def _escolhidos(marcas: List[dict], escolhas: Optional[dict] = None) -> List[dict]:
     """Um trecho por marca, na ordem do Manual, até quatro; trecho já usado por uma marca
-    anterior do mesmo subpilar não se repete (a marca usa o seguinte dela, se houver)."""
+    anterior do mesmo subpilar não se repete (a marca usa o seguinte dela, se houver). O
+    trecho escolhido pela pessoa ("usar este no parecer") vem primeiro; se ele não é mais
+    resposta da marca (foi recusado), vale o automático."""
+    escolhas = escolhas or {}
     out, usados = [], []
     for x in marcas:
         if x["estado"] != MARCA_ESTA:
             continue
-        for e in (e for e in x["evidencias"] if e.get("conferido")):
+        evs = [e for e in x["evidencias"] if e.get("conferido")]
+        quero = _normalizar(escolhas.get(x["codigo"], ""))
+        evs.sort(key=lambda e: 0 if quero and _normalizar(e["trecho"]) == quero else 1)
+        for e in evs:
             alvo = _normalizar(e["trecho"])
             if any(alvo in u or u in alvo for u in usados):
                 continue
@@ -88,7 +94,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
                 {
                     "codigo": s.codigo,
                     "nome": s.nome,
-                    "diz": [e["trecho"] for e in _escolhidos(sp["marcas"])],
+                    "diz": [e["trecho"] for e in _escolhidos(sp["marcas"], textos.get("escolhas"))],
                     "nao_diz": [
                         frase_da_marca(x["texto"], False)
                         for x in sp["marcas"]
@@ -108,13 +114,13 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
     }
 
 
-def escolhidos_da_tela(tela: dict) -> set:
+def escolhidos_da_tela(tela: dict, escolhas: Optional[dict] = None) -> set:
     """(código, trecho) de cada trecho que vai para o parecer: a tela marca "vai para o
     parecer" ao lado deles."""
     out = set()
     for bloco in tela["pilares"]:
         for sp in bloco["subpilares"]:
-            out |= {(e["codigo"], e["trecho"]) for e in _escolhidos(sp["marcas"])}
+            out |= {(e["codigo"], e["trecho"]) for e in _escolhidos(sp["marcas"], escolhas)}
     return out
 
 

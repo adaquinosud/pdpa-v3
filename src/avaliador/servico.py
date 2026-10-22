@@ -734,11 +734,56 @@ def parecer_de(a: AvaliadorAnalise) -> Optional[AvaliadorParecer]:
 
 
 def textos_do_parecer(a: AvaliadorAnalise) -> dict:
-    """O que a pessoa escreveu: {"ordem", "nota_c", "achados": {subpilar: frase}}."""
+    """O que a pessoa escreveu: {"ordem", "nota_c", "achados": {subpilar: frase},
+    "escolhas": {marca: trecho escolhido para o parecer}}."""
     p = parecer_de(a)
     if p is None:
-        return {"ordem": "", "nota_c": "", "achados": {}}
-    return {"ordem": p.ordem, "nota_c": p.nota_c, "achados": json.loads(p.achados_json or "{}")}
+        return {"ordem": "", "nota_c": "", "achados": {}, "escolhas": {}}
+    return {
+        "ordem": p.ordem,
+        "nota_c": p.nota_c,
+        "achados": json.loads(p.achados_json or "{}"),
+        "escolhas": json.loads(p.escolhas_json or "{}"),
+    }
+
+
+def _parecer_ou_novo(s: Session, a: AvaliadorAnalise) -> AvaliadorParecer:
+    p = parecer_de(a)
+    if p is None:
+        p = AvaliadorParecer(
+            analise_id=a.id, ordem="", achados_json="{}", nota_c="", escolhas_json="{}"
+        )
+        s.add(p)
+    return p
+
+
+def escolher_trecho(
+    s: Session, a: AvaliadorAnalise, codigo: str, trecho: str, usuario_id: Optional[int]
+) -> None:
+    """ "Usar este no parecer": a pessoa troca o trecho que a marca leva para o parecer. Não é
+    correção (não vai para avaliador_correcoes). Vale só trecho que a tela mostra como resposta
+    da marca, já com as correções; se ele for recusado depois, o parecer volta ao automático."""
+    _exigir_corrigivel(a)
+    m = _marca_gravada(a, codigo)
+    efetiva = _aplicar_correcoes(m, correcoes_de(a))
+    alvo = _normalizar(trecho)
+    ev = next(
+        (
+            e
+            for e in efetiva["evidencias"]
+            if e.get("conferido") and _normalizar(e["trecho"]) == alvo
+        ),
+        None,
+    )
+    if ev is None:
+        raise AvaliacaoRecusada("Esse trecho não é uma resposta desta marca na tela.")
+    p = _parecer_ou_novo(s, a)
+    escolhas = json.loads(p.escolhas_json or "{}")
+    escolhas[codigo] = ev["trecho"]
+    p.escolhas_json = json.dumps(escolhas, ensure_ascii=False)
+    p.usuario_id = usuario_id
+    p.atualizado_em = datetime.utcnow()
+    marcar_uso(a)
 
 
 def salvar_parecer(
@@ -749,10 +794,7 @@ def salvar_parecer(
     _exigir_corrigivel(a)
     if campo not in (CAMPO_ORDEM, CAMPO_NOTA_C) and campo not in SUBPILARES_ORDEM:
         raise AvaliacaoRecusada("Campo do parecer desconhecido.")
-    p = parecer_de(a)
-    if p is None:
-        p = AvaliadorParecer(analise_id=a.id, ordem="", achados_json="{}", nota_c="")
-        s.add(p)
+    p = _parecer_ou_novo(s, a)
     texto = (texto or "").strip()
     if campo == CAMPO_ORDEM:
         p.ordem = texto
@@ -780,7 +822,7 @@ def apagar_leitura(a: AvaliadorAnalise) -> None:
             c.trecho = ""
         p = parecer_de(a)
         if p is not None:  # o parecer fala da peça: sai junto
-            p.ordem, p.nota_c, p.achados_json = "", "", "{}"
+            p.ordem, p.nota_c, p.achados_json, p.escolhas_json = "", "", "{}", "{}"
     apagar_texto(a, "leitura_apagada")
     a.descricao = ""
     a.arquivo_nome = None

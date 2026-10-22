@@ -1,7 +1,7 @@
 """avaliador_pareceres — o que a pessoa escreve no parecer de uma leitura.
 
-ADITIVA: tabela nova, vazia, uma linha por leitura (a frase da ordem, os doze achados e a nota
-do bloco C). O que a peça diz e o que não diz não é guardado aqui: sai da leitura com as
+ADITIVA: tabela nova, vazia, uma linha por leitura (a frase da ordem, os doze achados, a nota
+do bloco C e o trecho que a pessoa escolheu para o parecer em cada marca). O que a peça diz e o que não diz não é guardado aqui: sai da leitura com as
 correções na hora de gerar o Word.
 
 Revision ID: a7f3c2e9d1b4
@@ -33,6 +33,7 @@ def upgrade() -> None:
         sa.Column("ordem", sa.Text(), nullable=False, server_default=""),
         sa.Column("achados_json", sa.Text(), nullable=False, server_default="{}"),
         sa.Column("nota_c", sa.Text(), nullable=False, server_default=""),
+        sa.Column("escolhas_json", sa.Text(), nullable=False, server_default="{}"),
         sa.Column(
             "usuario_id",
             sa.Integer(),

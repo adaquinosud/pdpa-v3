@@ -138,6 +138,10 @@ class AvaliadorParecer(Base):
         Text, nullable=False, default="{}"
     )  # subpilar → frase
     nota_c: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # marca → trecho que a pessoa escolheu para o parecer ("usar este no parecer"). Não é
+    # correção: trocar de trecho não diz que o outro está errado, e por isso não vai para
+    # avaliador_correcoes (a tabela de erros não pode receber troca de gosto).
+    escolhas_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     usuario_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
     )
