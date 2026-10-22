@@ -325,10 +325,10 @@ def test_pagina_exibida_e_a_conferida_e_a_lista_se_atualiza(
     a.itens_json = json.dumps(g)
     db_session.commit()
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
-    # "segunda a sexta" está dentro do trecho que a D1.04 cita: os dois viram um só bloco,
-    # com o trecho maior, na página onde foi achado
+    # um bloco por marca: a D1.01 mostra o trecho DELA, na página onde foi achado (o trecho
+    # maior, da D1.04, fica no bloco da D1.04)
     bloco = next(b for b in html.split("data-diz")[1:] if 'data-marca="D1.01"' in b)
-    assert 'data-marca="D1.04"' in bloco and "p. 2: “segunda a sexta das 8h às 18h”" in bloco
+    assert 'data-marca="D1.04"' not in bloco and "p. 2: “segunda a sexta”" in bloco
     assert "p. 3: “segunda" not in html and "citou" not in html
     # a lista de baixo vem junto, fora da área trocada, com o estado e o custo atuais
     assert 'id="avaliador-lista" hx-swap-oob="true"' in html

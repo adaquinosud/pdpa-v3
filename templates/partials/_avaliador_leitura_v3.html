@@ -6,20 +6,18 @@
 {% import 'partials/_avaliador_citacoes.html' as cit with context %}
 {% if marcas %}
 {% set L = marcas %}
-{# A forma simétrica (21/10): o que a peça diz (cada trecho uma vez, com a frase de cada
-   marca que ele responde em cima), o que não diz (a frase da marca vazia, gerada do texto
+{# A forma simétrica (21/10): o que a peça diz (um bloco por marca, a frase e todos os
+   trechos dela; trecho de duas marcas aparece nas duas), o que não diz (a frase da marca vazia, gerada do texto
    dela) e o que ficou sem conferência. A tela é a superfície de conferência e mostra tudo;
    o parecer, escrito por pessoa, escolhe. #}
 {% macro simetrico(b, com_subpilar=False) %}
       {% if b.diz %}
       <div class="text-xs uppercase tracking-wider text-loyall-400 mt-1">O que a peça diz</div>
-      {% for g in b.diz %}
+      {% for f in b.diz %}
       <div data-diz class="text-sm">
-        {% for f in g.frases %}
         <div data-marca="{{ f.codigo }}" data-estado="esta" class="text-loyall-800"><span class="text-emerald-700">✓</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{% if f.nota %} <span class="text-xs text-amber-700">({{ f.nota }})</span>{% endif %}</div>
         {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
-        {% endfor %}
-        {{ cit.citacoes(g.evidencias) }}
+        {{ cit.citacoes(f.evidencias) }}
       </div>
       {% endfor %}
       {% endif %}

@@ -176,30 +176,32 @@ def _linha(codigo, texto, estado, *trechos, grupo="D1"):
             "evidencias": ev, "porque_importa": "", "nota": ""}  # fmt: skip
 
 
-def test_bloco_junta_trecho_contido_e_separa_o_resto():
+def test_um_bloco_por_marca_sem_juntar_marcas():
+    """22/10: um bloco por marca, sem exceção. Trecho que responde a duas marcas aparece nas
+    duas; dentro de UMA marca, trecho contido noutro junta no maior."""
     b = servico._bloco_de_marcas(
         [
-            _linha("D1.01", "Diz por onde se fala?", "esta", ("segunda a sexta", True)),
-            _linha("D1.04", "Diz o horário?", "esta", ("Atendimento de segunda a sexta", True)),
+            _linha("P1.03", "Diz como será entregue?", "esta", ("Retire em 5 minutos", True),
+                   ("No dia da retirada, o depósito", True)),
+            _linha("P1.04", "Diz o que o cliente fornece?",
+                   "esta", ("No dia da retirada, o depósito é no cartão", True)),
             _linha("D1.06", "Diz se há plantão?", "esta", ("Plantão aos sábados", True),
-                   ("inventado pelo modelo", False), ("Plantão no feriado", True)),
+                   ("Plantão aos sábados e domingos", True), ("inventado", False),
+                   ("Central 24h", True)),
             _linha("D1.05", "Diz os dias?", "nao_esta"),
             _linha("D1.02", "Diz o prazo?", "sem_conferencia", ("não existe", False)),
         ]
     )  # fmt: skip
-    # o trecho contido junta no maior, com as duas frases
-    assert [f["frase"] for f in b["diz"][0]["frases"]] == [
-        "Diz por onde se fala.",
-        "Diz o horário.",
+    assert [(x["codigo"], [e["trecho"] for e in x["evidencias"]]) for x in b["diz"]] == [
+        # o trecho da P1.03 contido no da P1.04 NÃO a leva para o bloco da P1.04
+        ("P1.03", ["Retire em 5 minutos", "No dia da retirada, o depósito"]),
+        ("P1.04", ["No dia da retirada, o depósito é no cartão"]),
+        # dentro da mesma marca, o contido junta no maior; o não conferido não aparece
+        ("D1.06", ["Plantão aos sábados e domingos", "Central 24h"]),
     ]
-    assert [e["trecho"] for e in b["diz"][0]["evidencias"]] == ["Atendimento de segunda a sexta"]
-    # dois trechos da mesma marca: a frase uma vez só, com os dois embaixo (prévia da #28);
-    # a citação não conferida não aparece
-    assert [f["frase"] for f in b["diz"][1]["frases"]] == ["Diz se há plantão."]
-    assert [e["trecho"] for e in b["diz"][1]["evidencias"]] == [
-        "Plantão aos sábados", "Plantão no feriado",
+    assert [x["frase"] for x in b["diz"]] == [
+        "Diz como será entregue.", "Diz o que o cliente fornece.", "Diz se há plantão.",
     ]  # fmt: skip
-    assert len(b["diz"]) == 2
     assert [f["frase"] for f in b["nao_diz"]] == ["Não diz os dias."]
     assert [x["codigo"] for x in b["sem_conferencia"]] == ["D1.02"]
 

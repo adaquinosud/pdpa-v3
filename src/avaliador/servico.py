@@ -278,39 +278,35 @@ def _frase(x: dict, esta: bool) -> dict:
     }
 
 
+def _trechos_da_marca(x: dict) -> List[dict]:
+    """Os trechos conferidos de UMA marca, cada um uma vez: trecho contido noutro da mesma
+    marca junta no maior; sobreposição parcial fica como dois."""
+    out: List[dict] = []
+    for e in (e for e in x["evidencias"] if e.get("conferido")):
+        alvo = _normalizar(e["trecho"])
+        junto = next((t for t in out if alvo in t["chave"] or t["chave"] in alvo), None)
+        if junto is None:
+            out.append({"chave": alvo, "evidencia": e})
+        elif len(alvo) > len(junto["chave"]):
+            junto["chave"], junto["evidencia"] = alvo, e
+    return [t["evidencia"] for t in out]
+
+
 def _bloco_de_marcas(linhas: List[dict]) -> dict:
     """O que um subpilar (ou grupo) mostra, simétrico: o que a peça diz, o que não diz (uma
     frase por marca vazia) e o que ficou sem conferência. Ordem do Manual.
 
-    No "diz", cada trecho aparece uma vez: trecho contido noutro junta no maior
-    (sobreposição parcial fica como dois), e trechos que respondem às MESMAS marcas ficam
-    sob uma frase só, em vez de repeti-la a cada trecho (visto na prévia da #28: uma marca
-    com seis trechos repetia a frase seis vezes)."""
-    trechos: List[dict] = []
-    for x in linhas:
-        if x["estado"] != MARCA_ESTA:
-            continue
-        frase = _frase(x, True)
-        for e in (e for e in x["evidencias"] if e.get("conferido")):
-            alvo = _normalizar(e["trecho"])
-            junto = next((g for g in trechos if alvo in g["chave"] or g["chave"] in alvo), None)
-            if junto is None:
-                trechos.append({"chave": alvo, "evidencia": e, "frases": [frase]})
-                continue
-            if len(alvo) > len(junto["chave"]):
-                junto["chave"], junto["evidencia"] = alvo, e
-            if frase not in junto["frases"]:
-                junto["frases"].append(frase)
-    diz: List[dict] = []
-    for t in trechos:
-        codigos = [f["codigo"] for f in t["frases"]]
-        mesmo = next((g for g in diz if [f["codigo"] for f in g["frases"]] == codigos), None)
-        if mesmo is None:
-            diz.append({"frases": t["frases"], "evidencias": [t["evidencia"]]})
-        else:
-            mesmo["evidencias"].append(t["evidencia"])
+    No "diz", UM BLOCO POR MARCA, sem exceção: a frase uma vez e todos os trechos dela
+    embaixo. Trecho que responde a duas marcas aparece nas duas. Nunca se juntam duas
+    marcas num bloco, nem quando o trecho é o mesmo: na prévia da #28 (22/10), juntar por
+    trecho pôs a frase de uma marca em cima do trecho de outra, e quem confere lia erro de
+    leitura onde a resposta estava certa."""
     return {
-        "diz": diz,
+        "diz": [
+            {**_frase(x, True), "evidencias": _trechos_da_marca(x)}
+            for x in linhas
+            if x["estado"] == MARCA_ESTA
+        ],
         "nao_diz": [_frase(x, False) for x in linhas if x["estado"] == MARCA_NAO_ESTA],
         "sem_conferencia": [x for x in linhas if x["estado"] == MARCA_SEM_CONFERENCIA],
     }
