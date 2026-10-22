@@ -228,10 +228,10 @@ def gerar_docx(p: dict, empresa: str) -> bytes:
         par.add_run(x["nome"]).bold = True
         if x["pergunta"]:
             par.add_run(f" · {x['pergunta']}").italic = True
-        par.paragraph_format.space_after = Pt(0)
-        # a linha num parágrafo dela: quebra dentro do parágrafo (<w:br/>) há leitor de
-        # Word que junta, e saía "receber?Diz:" (22/10)
-        doc.add_paragraph(x["linha"])
+        # a linha no mesmo parágrafo, depois de uma quebra (<w:br/>): em parágrafo próprio a
+        # frente passou de uma página para duas (22/10, medido convertendo para PDF)
+        par.add_run().add_break()
+        par.add_run(x["linha"])
     doc.add_page_break()
     doc.add_heading("A ordem", 1)
     doc.add_paragraph(p["ordem"])
