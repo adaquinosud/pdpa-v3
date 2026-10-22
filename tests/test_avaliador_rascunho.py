@@ -110,6 +110,8 @@ def test_entrada_e_so_a_tela_corrigida_sem_a_peca(db_session, empresa, teto):
     assert R.entrada(_tela(a), {}, a.descricao)[1] != base
     # o pedido não leva texto aprovado de parecer nenhum (a #31 é o gabarito)
     assert "Localiza" not in R.sistema() and "aluguel" not in R.sistema().lower()
+    # o achado não pode só repetir as listas (a falha do formato 2, 17/10)
+    assert "O achado não repete as duas listas" in R.sistema()
 
 
 @pytest.mark.parametrize(
