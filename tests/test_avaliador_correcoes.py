@@ -71,6 +71,7 @@ def test_incluir_so_entra_se_estiver_na_peca(db_session, empresa, teto):
     assert (c.tipo, c.trecho, c.pagina) == (CORRECAO_INCLUSAO, "Atendimento de segunda a sexta", 2)
     e = _estados(a)
     assert e["D1.05"]["estado"] == "esta" and e["D1.05"]["evidencias"][0]["incluido"]
+    assert e["D1.05"]["evidencias"][0]["referencia"] == "seção 2"
     with pytest.raises(AvaliacaoRecusada, match="não foi achado na peça"):
         servico.incluir_trecho(db_session, a, "D1.05", "texto que não existe nesta peça", None)
     servico.concluir(a)
@@ -138,3 +139,18 @@ def test_tela_corrige_pelo_clique(client_loyall, db_session, empresa, teto):
     assert 'data-marca="D1.01" data-estado="esta"' in html
     assert client_loyall.post(_url(empresa, f"/{aid}/corrigir/outra")).status_code == 404
     assert json.loads(db_session.get(servico.AvaliadorAnalise, aid).itens_json)["formato"] == 3
+
+
+def test_recusa_aceita_a_quebra_de_linha_que_o_navegador_manda(db_session, empresa, teto):
+    """O formulário envia quebra de linha como \\r\\n; o trecho gravado tem \\n (prévia da #31,
+    22/10: o trecho da D1.01 tinha quebras). A recusa casa e grava o trecho da leitura."""
+    a = _pronta_servico(db_session, empresa)
+    g = json.loads(a.itens_json)
+    m = next(m for m in g["marcas"] if m["codigo"] == "D1.01")
+    m["evidencias"][0]["trecho"] = "segunda a sexta\ndas 8h às 18h"
+    a.itens_json = json.dumps(g)
+    db_session.commit()
+    servico.recusar_trecho(db_session, a, "D1.01", "segunda a sexta\r\ndas 8h às 18h", None)
+    db_session.commit()
+    assert db_session.query(AvaliadorCorrecao).one().trecho == "segunda a sexta\ndas 8h às 18h"
+    assert _estados(a)["D1.01"]["estado"] == "nao_esta"

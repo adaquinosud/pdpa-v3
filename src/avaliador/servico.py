@@ -346,6 +346,9 @@ def _aplicar_correcoes(m: dict, correcoes: List[AvaliadorCorrecao]) -> dict:
                     "pagina_encontrada": c.pagina,
                     "incluido": True,
                     "correcao_id": c.id,
+                    # a citação da leitura traz o título da seção, calculado com o texto da
+                    # peça; o trecho incluído guarda só o número (o texto pode ser apagado)
+                    "referencia": f"seção {c.pagina}" if c.pagina is not None else "",
                 }
             )
     if not minhas:
@@ -630,11 +633,20 @@ def recusar_trecho(
     resultado da leitura não muda. Vale também nas peças de medição: a base fica intacta."""
     _exigir_corrigivel(a)
     m = _marca_gravada(a, codigo)
+    # o navegador envia quebra de linha como \r\n: compara normalizado e grava o trecho
+    # como está na leitura (é contra ele que a tela aplica a recusa)
+    alvo = _normalizar(trecho)
     ev = next(
-        (e for e in m.get("evidencias", []) if e.get("conferido") and e["trecho"] == trecho), None
+        (
+            e
+            for e in m.get("evidencias", [])
+            if e.get("conferido") and _normalizar(e["trecho"]) == alvo
+        ),
+        None,
     )
     if ev is None:
         raise AvaliacaoRecusada("Esse trecho não é um dos citados para esta marca.")
+    trecho = ev["trecho"]
     if _ativa(a, codigo, CORRECAO_RECUSA, trecho) is None:
         s.add(
             AvaliadorCorrecao(
