@@ -468,12 +468,13 @@ def _exigir_texto(a: AvaliadorAnalise) -> Documento:
 
 
 # Peças de medição (21/10): as leituras que sustentam o gabarito das marcas (#24, #25 e #26,
-# o site da Loyall lido três vezes em 19/10) e o parecer modelo da Localiza (#28). O texto
+# o site da Loyall lido três vezes em 19/10) e o site da Localiza: #28 (21/10, régua de 87)
+# e #31 (22/10, régua de 79, base do parecer modelo). O texto
 # guardado é a entrada congelada dos testes de reescrita e o resultado gravado é a linha de
 # base: reler sobrescreve a leitura, concluir e o watchdog apagam o texto, apagar some com
 # tudo. Para estas, o watchdog não apaga o texto e as três ações são recusadas. São ids de
 # produção; se vierem mais peças fixas, isto vira coluna.
-PECAS_DE_MEDICAO = frozenset({24, 25, 26, 28})
+PECAS_DE_MEDICAO = frozenset({24, 25, 26, 28, 31})
 
 
 def e_peca_de_medicao(a: AvaliadorAnalise) -> bool:

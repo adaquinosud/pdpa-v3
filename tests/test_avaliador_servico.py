@@ -478,4 +478,4 @@ def test_peca_de_medicao_nao_perde_texto_nem_leitura(db_session, empresa, teto, 
 
 
 def test_pecas_de_medicao_de_producao():
-    assert servico.PECAS_DE_MEDICAO == frozenset({24, 25, 26, 28})
+    assert servico.PECAS_DE_MEDICAO == frozenset({24, 25, 26, 28, 31})
