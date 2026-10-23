@@ -435,7 +435,7 @@ def organizar_marcas(
         "perguntas_leitor": regua.perguntas_leitor,
         "cobertura": veredito.declarar_cobertura(g["cobertura"]),
         "cliente_nomeado": a.cliente_nomeado,
-        # o texto da peça, para o parecer imprimir a linha inteira do trecho que começa no
+        # o texto da peça, para o parecer imprimir a frase inteira do trecho cortado no
         # meio dela (parecer.impresso, 23/10); None quando o texto já foi apagado
         "documento": (Documento.de_json(a.texto_json) if getattr(a, "texto_json", None) else None),
         "achados": g["achados"],

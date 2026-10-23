@@ -9,10 +9,10 @@ a #31 é o gabarito da medição e não pode estar dentro do pedido.
 A base do rascunho é o hash dos blocos com os trechos COMO FORAM CITADOS (a tela). Se uma
 correção ou uma escolha de trecho muda os blocos depois, o campo que veio do rascunho e ainda
 não foi editado pela pessoa volta a pedir conferência (CLAUDE.md §12: texto escrito sobre a
-tela velha). O modelo lê o trecho como o Word o imprime (a linha inteira quando ele começa no
-meio dela, 23/10: o trecho cortado o levou a inventar "cidade" na #31); a base não, para a
-linha inteira, que não muda nada na tela, não fazer os rascunhos já conferidos pedirem
-conferência de novo.
+tela velha). O modelo lê o trecho como o Word o imprime (a frase inteira quando ele foi cortado no
+meio dela, 23/10: trecho cortado leva o modelo a completar por conta própria); a base não,
+para a frase inteira, que não muda nada na tela, não fazer os rascunhos já conferidos
+pedirem conferência de novo.
 """
 
 from __future__ import annotations

@@ -33,7 +33,7 @@ from typing import List, Optional
 
 from src.api.painel import NOME_PILAR
 from src.avaliador import biblioteca
-from src.avaliador.extracao import RODAPE, _normalizar, linha_inteira
+from src.avaliador.extracao import RODAPE, _normalizar, frase_inteira
 from src.avaliador.servico import (
     MARCA_ESTA,
     MARCA_NAO_ESTA,
@@ -49,15 +49,15 @@ ROTULO_CUSTA = "Por que isso custa"
 
 
 def impresso(e: dict, doc=None) -> str:
-    """O texto que o parecer imprime para o trecho ``e`` (23/10): a linha inteira da peça
-    quando o trecho começa no meio dela (``extracao.linha_inteira``); senão, o trecho como foi
-    citado. Sem o texto da peça guardado (``doc`` None: leitura concluída ou com mais de 30
-    dias sem uso) não há como saber onde a linha começa, e sai o trecho como foi citado. A
-    tela continua mostrando o trecho citado."""
+    """O texto que o parecer imprime para o trecho ``e`` (23/10): a frase inteira da peça
+    quando o trecho foi cortado no meio dela (``extracao.frase_inteira``); senão, o trecho
+    como foi citado. Sem o texto da peça guardado (``doc`` None: leitura concluída ou com mais
+    de 30 dias sem uso) não há como saber onde a frase começa, e sai o trecho como foi
+    citado. A tela continua mostrando o trecho citado."""
     if doc is None:
         return e["trecho"]
     if "impresso" not in e:
-        e["impresso"] = linha_inteira(doc, e.get("pagina_encontrada"), e["trecho"]) or e["trecho"]
+        e["impresso"] = frase_inteira(doc, e.get("pagina_encontrada"), e["trecho"]) or e["trecho"]
     return e["impresso"]
 
 
@@ -110,7 +110,7 @@ def _escolhidos(
     dois). Trecho que repete um já usado no bloco (``_repete``: igual, contido ou com a maior
     parte em comum) não entra, nem o que repete um já impresso em outro bloco (``impressos``),
     a não ser que seja o escolhido pela pessoa. A comparação é pelo texto IMPRESSO
-    (``impresso``): dois trechos da mesma linha da peça viram a mesma linha inteira."""
+    (``impresso``): dois trechos da mesma frase da peça viram a mesma frase inteira."""
     escolhas = escolhas or {}
     impressos = impressos or []
     out, usados = [], []

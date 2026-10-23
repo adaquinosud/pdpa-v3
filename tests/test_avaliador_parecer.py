@@ -61,13 +61,14 @@ def test_montar_escolhe_um_trecho_por_marca_e_lista_o_que_falta(db_session, empr
     a = _pronta_servico(db_session, empresa)
     p = _montar(a)
     d1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "D1")
-    # D1.01 e D1.04 citam o mesmo trecho: entra uma vez só. O trecho começa no meio da linha
-    # da peça, e o parecer imprime a linha inteira (23/10)
+    # D1.01 e D1.04 citam o mesmo trecho: entra uma vez só. O trecho foi cortado no meio da
+    # frase, e o parecer imprime a frase inteira (23/10)
     assert d1["diz"] == ["Atendimento de segunda a sexta das 8h às 18h pelo gerente de conta."]
     assert "Não diz em que dias da semana há expediente." in d1["nao_diz"]
     assert not any("D1." in t for t in d1["nao_diz"])  # código nunca aparece
     a1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "A1")
-    assert a1["diz"] == [REFERENCIA[1]]
+    # cortado antes do fim da frase: sai a frase inteira (23/10)
+    assert a1["diz"] == ["Somos referência no setor há vinte anos, com clientes em todo o país."]
     p1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "P1")
     assert p1["diz"] == []  # vai para o Word como "Não encontramos no texto…"
     assert [pl["nome"] for pl in p["pilares"]] == [
@@ -524,11 +525,19 @@ def test_completa_ate_quatro_com_o_segundo_trecho_das_marcas():
     ]
 
 
-# ── a linha inteira do trecho que começa no meio dela (23/10) ──────────────────
+# ── a frase inteira do trecho cortado no meio dela (23/10) ─────────────────────
 
-LINHA_31 = (
+LOCALIZA = (
     "Você pode devolver o carro em qualquer agência Localiza. "
     "Se for diferente da que você abriu, haverá taxa de retorno."
+)
+FIBRAV = (
+    "Nossos equipamentos seguem norma. Na Fibrav, realizamos ensaios que confirmam cura "
+    "completa da resina. Depois disso, o equipamento é liberado."
+)
+ASME = (
+    "Fabricamos sob encomenda. Além disso, seguimos a norma ASME RTP-1 para equipamentos em "
+    "fibra de vidro (PRFV) resistentes à corrosão. Consulte."
 )
 
 
@@ -541,76 +550,87 @@ def _doc(formato, texto):
 @pytest.mark.parametrize(
     "formato, texto, trecho, sai",
     [
-        # começa no meio: a linha inteira
-        ("web", f"Devolução\n{LINHA_31}", "Se for diferente da que você abriu", LINHA_31),
-        # começa no começo da linha, ou depois só de marcador: o trecho como foi citado
-        ("web", f"Devolução\n{LINHA_31}", "Você pode devolver o carro em qualquer", None),
-        ("web", "• Atendimento por telefone e e-mail", "Atendimento por telefone", None),
-        # título emendado ao texto de baixo (a emenda aceita na conferência): começa na linha
-        ("web", f"Devolução\n{LINHA_31}", "Devolução: Você pode devolver o carro", None),
+        # começa em minúscula no meio da frase: volta até o fim da frase anterior
+        ("web", FIBRAV, "realizamos ensaios que confirmam cura",
+         "Na Fibrav, realizamos ensaios que confirmam cura completa da resina."),
+        # cortado nas duas pontas: a frase, nada além dela
+        ("web", ASME, "seguimos a norma ASME RTP-1",
+         "Além disso, seguimos a norma ASME RTP-1 para equipamentos em fibra de vidro (PRFV) "
+         "resistentes à corrosão."),
+        # frase inteira já citada: sai como foi citada
+        ("web", FIBRAV, "Nossos equipamentos seguem norma.", None),
+        # termina em dois-pontos no fim da linha: o resto está embaixo, não atravessa linha
+        ("web", "Veja como podemos desenvolver juntos uma estratégia para a sua empresa:\nItem um",
+         "Veja como podemos desenvolver juntos uma estratégia para a sua empresa:", None),
+        # começa no começo da frase e termina no meio: só para a frente (o "da que" continua
+        # sem o "agência" da frase de antes: isso é julgamento, não regra)
+        ("web", LOCALIZA, "Se for diferente da que você abriu",
+         "Se for diferente da que você abriu, haverá taxa de retorno."),
+        # ponto de abreviação e decimal não fecham frase
+        ("web", "O Sr. Silva atende de segunda a sexta. Fim.", "atende de segunda a sexta",
+         "O Sr. Silva atende de segunda a sexta."),
+        ("web", "Medimos 2.5 vezes mais rápido que a média do setor. Fim.",
+         "vezes mais rápido que a média", "Medimos 2.5 vezes mais rápido que a média do setor."),
+        # sem pontuação nenhuma (rótulo, título): a linha, que é a frase
+        ("web", "Título\nAtendimento por telefone e e-mail", "por telefone e e-mail",
+         "Atendimento por telefone e e-mail"),
+        # nunca atravessa a linha: a frase de cima não vem
+        ("web", "Primeira linha sem ponto\ncontinua aqui embaixo até o fim.",
+         "continua aqui embaixo", "continua aqui embaixo até o fim."),
         # PDF: a quebra simples é a linha impressa; a unidade é o parágrafo
-        (
-            "pdf",
-            "Você pode devolver o carro em qualquer\nagência Localiza. Se for diferente da que\n"
-            "você abriu, haverá taxa de retorno.\n\nOutro parágrafo.",
-            "Se for diferente da que você abriu",
-            LINHA_31,
-        ),
+        ("pdf", "Na Fibrav, realizamos ensaios que\nconfirmam cura completa da resina.\n\nOutro.",
+         "realizamos ensaios que confirmam cura",
+         "Na Fibrav, realizamos ensaios que confirmam cura completa da resina."),
         # tabela: a célula é a unidade
-        ("pptx", "Plano | Inclui suporte técnico 24h | R$ 10", "Inclui suporte técnico", None),
-        (
-            "pptx",
-            "Plano | Inclui suporte técnico 24h | R$ 10",
-            "suporte técnico 24h",
-            "Inclui suporte técnico 24h",
-        ),  # fmt: skip
-        # não achado (texto diferente): o trecho como foi citado
-        ("web", LINHA_31, "Isto não está na peça de jeito nenhum", None),
+        ("pptx", "Plano | Inclui suporte técnico 24h | R$ 10", "suporte técnico 24h",
+         "Inclui suporte técnico 24h"),
+        # não achado: sai como foi citado
+        ("web", LOCALIZA, "Isto não está na peça de jeito nenhum", None),
     ],
-)
-def test_linha_inteira_so_quando_o_trecho_comeca_no_meio(formato, texto, trecho, sai):
-    from src.avaliador.extracao import linha_inteira
+)  # fmt: skip
+def test_frase_inteira_so_quando_o_trecho_foi_cortado(formato, texto, trecho, sai):
+    from src.avaliador.extracao import frase_inteira
 
-    assert linha_inteira(_doc(formato, texto), 1, trecho) == sai
+    assert frase_inteira(_doc(formato, texto), 1, trecho) == sai
 
 
-def test_linha_longa_sai_com_o_trecho_e_reticencias():
-    from src.avaliador.extracao import LIMITE_LINHA, linha_inteira
+def test_frase_longa_sai_com_o_trecho_e_reticencias_do_lado_cortado():
+    from src.avaliador.extracao import LIMITE_FRASE, frase_inteira
 
-    longa = "Texto de antes. " * 40 + "Se for diferente da que você abriu, há taxa."
-    assert len(longa) > LIMITE_LINHA
+    longa = "Texto de antes. a dureza Barcol medida em todas as peças" + " e mais" * 80 + "."
+    assert len(longa) > LIMITE_FRASE
     assert (
-        linha_inteira(_doc("web", longa), 1, "Se for diferente da que você abriu")
-        == "… Se for diferente da que você abriu"
+        frase_inteira(_doc("web", longa), 1, "dureza Barcol medida em todas")
+        == "… dureza Barcol medida em todas …"
     )
 
 
 def test_sem_o_texto_da_peca_sai_o_trecho_como_foi_citado():
-    e = {"trecho": "Se for diferente da que você abriu", "pagina_encontrada": 1}
+    e = {"trecho": "realizamos ensaios que confirmam cura", "pagina_encontrada": 1}
     assert P.impresso(e, None) == e["trecho"]
-    assert P.impresso(e, _doc("web", LINHA_31)) == LINHA_31
+    assert P.impresso(e, _doc("web", FIBRAV)).startswith("Na Fibrav, realizamos")
 
 
-def test_dois_trechos_da_mesma_linha_saem_uma_vez_so():
+def test_dois_trechos_da_mesma_frase_saem_uma_vez_so():
     tela = _tela(
         [
-            ("P1", [("P1.01", [("Você pode devolver o carro em qualquer agência", "")]),
-                    ("P1.02", [("Se for diferente da que você abriu", "")])]),
+            ("P1", [("P1.01", [("realizamos ensaios que confirmam", "")]),
+                    ("P1.02", [("confirmam cura completa da resina", "")])]),
         ]
     )  # fmt: skip
-    tela["documento"] = _doc("web", f"Devolução\n{LINHA_31}")
+    tela["documento"] = _doc("web", FIBRAV)
     sel = P.selecao(tela)
     assert [P.impresso(e, tela["documento"]) for e in sel["P1"]] == [
-        "Você pode devolver o carro em qualquer agência"
+        "Na Fibrav, realizamos ensaios que confirmam cura completa da resina."
     ]
-    tela["documento"] = None  # sem a linha inteira os dois trechos são diferentes
+    tela["documento"] = None  # sem a frase inteira os dois trechos são diferentes
     for x in tela["pilares"][0]["subpilares"][0]["marcas"]:
         for e in x["evidencias"]:
             e.pop("impresso", None)
     assert len(P.selecao(tela)["P1"]) == 2
 
 
-def test_word_e_rascunho_levam_a_linha_inteira_a_tela_e_a_base_nao(
+def test_word_e_rascunho_levam_a_frase_inteira_a_tela_e_a_base_nao(
     client_loyall, db_session, empresa, teto
 ):
     from src.avaliador import rascunho as R

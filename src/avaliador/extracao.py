@@ -752,17 +752,27 @@ def localizar_trecho(
     return None, trecho, ""
 
 
-# O trecho que começa no meio de uma linha da peça (23/10, #31: "Se for diferente da que você
-# abriu…", sem a frase de antes, que diz "agência") sai no parecer com a linha inteira. Linha
-# mais longa que isto: o trecho como foi citado, com "…" na frente, para o corte ficar à vista.
-LIMITE_LINHA = 500
-RETICENCIAS = "… "
+# O trecho cortado no meio de uma frase (23/10) sai no parecer com a FRASE inteira: para trás
+# até o fim da frase anterior, para a frente até o fim da frase. Nunca além da linha da peça
+# (a linha inteira, primeira versão, trouxe frase sem relação e bloco de seis frases). Na
+# validação do Alexandre nas #32 e #33 (48 trechos, 14 que não se sustentam), sete se resolvem
+# assim: seis da Fibrav começam em minúscula no meio da frase ("a dureza Barcol…") e um
+# termina no meio dela. Os outros sete são julgamento (nome solto, rótulo), não regra.
+# Frase completada mais longa que isto: o trecho como foi citado, com "…" do lado cortado.
+LIMITE_FRASE = 500
+RETICENCIAS = "…"
+# ponto que não fecha frase: a palavra antes dele (minúscula, sem o ponto)
+_ABREVIACOES = frozenset(
+    "sr sra srs sras dr dra drs prof profa eng av n nº no art arts cap caps pág págs p pp fig "
+    "figs ex obs tel ltda cia jr inc vol ref aprox min máx mín".split()
+)
+_FIM_DE_FRASE = re.compile(r"[.!?…]+[\"')\]]*(?=\s|$)")
 
 
 def _unidades(texto: str, formato: str) -> List[str]:
-    """As linhas da peça, como a peça as escreve. No PDF a quebra simples é só o fim da linha
-    impressa (o pdftotext quebra o parágrafo onde a página quebrou): a unidade é o parágrafo,
-    entre linhas em branco. Em tabela (pptx, docx), cada célula é uma unidade."""
+    """As linhas da peça, como a peça as escreve (NFC, espaço único). No PDF a quebra simples
+    é só o fim da linha impressa (o pdftotext quebra o parágrafo onde a página quebrou): a
+    unidade é o parágrafo, entre linhas em branco. Em tabela (pptx, docx), cada célula."""
     if formato == "pdf":
         blocos = re.split(r"\n\s*\n", texto)
     else:
@@ -770,16 +780,32 @@ def _unidades(texto: str, formato: str) -> List[str]:
     out = []
     for b in blocos:
         partes = b.split(SEPARADOR_CELULA) if formato in FORMATOS_COM_TABELA else [b]
-        out += [" ".join(x.split()) for x in partes if x.strip()]
+        out += [_nfc(" ".join(x.split())) for x in partes if x.strip()]
     return out
 
 
-def linha_inteira(doc: Documento, pagina: Optional[int], trecho: str) -> Optional[str]:
-    """O que o parecer imprime no lugar do trecho, quando o trecho começa no MEIO de uma linha
-    da peça: a linha inteira (do começo da linha em que o trecho começa até o fim da linha em
-    que ele termina), ou, se ela passa de ``LIMITE_LINHA``, ``RETICENCIAS`` + o trecho.
-    ``None``: o trecho começa no começo da linha (ou depois só de marcador, como "•"), ou não
-    foi achado (elisão, texto já apagado): imprime-se o trecho como foi citado."""
+def _fins(u: str) -> List[int]:
+    """Onde as frases de ``u`` terminam (posição logo depois da pontuação). Ponto de
+    abreviação ("Sr.", "Ltda.") ou seguido de minúscula não fecha frase."""
+    out = []
+    for m in _FIM_DE_FRASE.finditer(u):
+        depois = u[m.end() :].lstrip()  # noqa: E203
+        palavra = re.findall(r"[\wº]+$", u[: m.start()])
+        if m.group(0).startswith(".") and palavra and palavra[0].lower() in _ABREVIACOES:
+            continue
+        if depois and depois[0].islower():
+            continue
+        out.append(m.end())
+    return out
+
+
+def frase_inteira(doc: Documento, pagina: Optional[int], trecho: str) -> Optional[str]:
+    """O que o parecer imprime no lugar do trecho cortado no meio de uma frase da peça: a
+    frase inteira (do fim da frase anterior até o fim da frase em que o trecho termina, sem
+    passar da linha), ou, se ela passa de ``LIMITE_FRASE``, o trecho como foi citado com
+    ``RETICENCIAS`` do lado cortado. ``None``: o trecho já é frase inteira, ou não foi achado
+    (elisão, texto já apagado), e sai como foi citado. O que falta depois de dois-pontos no
+    fim da linha (uma lista nas linhas de baixo) não é buscado: não atravessa linha."""
     alvo = _normalizar(trecho)
     if len(alvo) < MIN_CARACTERES_TRECHO or MARCA_ELISAO.strip() in trecho:
         return None
@@ -787,22 +813,44 @@ def linha_inteira(doc: Documento, pagina: Optional[int], trecho: str) -> Optiona
     for p in ordem:
         for campo in (p.texto, p.notas):
             unidades = _unidades(campo, doc.formato)
-            fonte, inicios, pos = [], [], 0
-            for u in unidades:
-                n = _normalizar(u)
+            # mesma posição nas duas: as trocas de _TROCAS são de um caractere por um
+            fonte = [u.translate(_TROCAS) for u in unidades]
+            inicios, pos = [], 0
+            for n in fonte:
                 inicios.append(pos)
-                fonte.append(n)
                 pos += len(n) + 1
             m = _padrao(alvo).search("\n".join(fonte))
             if m is None:
                 continue
             k = max(i for i, x in enumerate(inicios) if x <= m.start())
-            antes = fonte[k][: m.start() - inicios[k]]
-            if not re.search(r"\w", antes):
-                return None
             j = max(i for i, x in enumerate(inicios) if x < m.end())
-            linha = " ".join(unidades[k : j + 1])  # noqa: E203
-            if len(linha) > LIMITE_LINHA:
-                return RETICENCIAS + " ".join(trecho.split())
-            return linha
+            ini, fim = m.start() - inicios[k], m.end() - inicios[j]
+            uk, uj = unidades[k], unidades[j]
+            corta_antes = bool(re.search(r"\w", uk[:ini])) and not any(f == ini or (
+                f < ini and not re.search(r"\w", uk[f:ini])) for f in _fins(uk))  # fmt: skip
+            corta_depois = bool(re.search(r"\w", uj[fim:])) and not any(
+                f == fim or (f > fim and not re.search(r"\w", uj[fim:f])) for f in _fins(uj)
+            )
+            if not corta_antes and not corta_depois:
+                return None
+            novo_ini = max([0] + [f for f in _fins(uk) if f <= ini]) if corta_antes else ini
+            seguintes = [f for f in _fins(uj) if f >= fim]
+            if corta_depois:
+                novo_fim = min(seguintes or [len(uj)])
+            else:  # termina logo antes da pontuação: ela vem junto
+                vao = uj[fim : min(seguintes)] if seguintes else "x"  # noqa: E203
+                novo_fim = min(seguintes) if not re.search(r"\w", vao) else fim
+            if k == j:
+                frase = uk[novo_ini:novo_fim]
+            else:
+                frase = " ".join([uk[novo_ini:], *unidades[k + 1 : j], uj[:novo_fim]])  # noqa: E203
+            frase = frase.strip()
+            if len(frase) > LIMITE_FRASE:
+                citado = " ".join(trecho.split())
+                return (
+                    (RETICENCIAS + " " if corta_antes else "")
+                    + citado
+                    + (" " + RETICENCIAS if corta_depois else "")
+                )
+            return frase
     return None
