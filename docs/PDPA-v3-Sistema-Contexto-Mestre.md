@@ -5284,6 +5284,25 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   (`hash_html=`, `hash_texto=`); valor copiado de saída é conferido pelo nome do campo antes de
   virar constante (CLAUDE.md §3).
 
+- **NO WORD DO PARECER, O MESMO TRECHO NÃO APARECE EM DOIS SUBPILARES — MESMO QUE UMA MARCA FIQUE
+  SEM CITAÇÃO.** Decisão de 22/10 (`02cb6b5`): trecho já impresso num subpilar não volta noutro,
+  a não ser que o subpilar fique vazio sem ele ou que a pessoa o escolha ("usar este no
+  parecer"). O trecho repetido fazia o parecer parecer enchido. Desde 23/10 conta como repetido
+  também o par com a maior parte em comum (`d390cc8`), e o subpilar completa até quatro trechos
+  com o segundo trecho das marcas que têm mais (`dd8ca8a`); o teto de quatro fica.
+  **O custo, medido em 23/10** (script só de leitura sobre a tela corrigida e a mesma seleção
+  do Word, nas três peças lidas até então): **#31** (Localiza) 5 de 29 marcas respondidas sem
+  citação, 3 pelo teto de quatro e **2 pelo trecho já impresso noutro bloco**; **#32**
+  (E2Carbon) 0 de 17; **#33** (Fibrav) 0 de 16. **Duas marcas em 62, as duas numa peça só.**
+  A marca sem citação continua com o nome na linha da página da frente: quem lê sabe que a peça
+  diz aquilo, só não vê a citação naquele bloco. Observado nas três: o buraco aparece em peça
+  rica, onde um trecho serve várias marcas, e some em peça magra.
+  🔒 **Regra:** não reabrir sem um número novo. Se a conta passar de umas poucas marcas por
+  peça (com "dez" a conta muda, palavra do Alexandre), roda-se o mesmo script nas peças da
+  época e o assunto volta com o número. O script fica fora do repositório
+  (`~/Documents/PDPA-pareceres/sem_citacao.py`; shell do Render, `python sem_citacao.py 31 32
+  33`), porque lê leitura de peça de cliente.
+
 ---
 
 ## 8. Estado dos SHAs (todos Live · atual `2e27cae`)
