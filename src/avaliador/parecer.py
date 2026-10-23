@@ -44,6 +44,8 @@ from src.avaliador.veredito import declarar_cobertura
 
 MAX_TRECHOS = 4
 SEM_RESPOSTA = "Não encontramos no texto nada que responda a essa expectativa."
+# o título das frases da biblioteca no bloco (23/10: as outras três partes têm título)
+ROTULO_CUSTA = "Por que isso custa"
 
 
 def _ordem_da_marca(x: dict, escolhas: dict) -> List[dict]:
@@ -350,6 +352,7 @@ def gerar_docx(p: dict) -> bytes:
                 for t in sp["nao_diz"]:
                     doc.add_paragraph(t, style="List Bullet")
             if sp.get("custa"):
+                rotulo(ROTULO_CUSTA)
                 doc.add_paragraph(" ".join(sp["custa"]))
             rotulo("O achado")
             doc.add_paragraph(sp["achado"])

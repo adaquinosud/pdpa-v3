@@ -202,6 +202,7 @@ def test_word_e_tela_com_as_frases_entre_o_que_falta_e_o_achado(
 
     pars = [x.text for x in Document(io.BytesIO(r.data)).paragraphs]
     i = pars.index(" ".join(custa))
-    assert pars[i - 1].startswith("Não diz") or pars[i - 1] == P.SEM_RESPOSTA
+    assert pars[i - 1] == P.ROTULO_CUSTA == "Por que isso custa"
+    assert pars[i - 2].startswith("Não diz") or pars[i - 2] == P.SEM_RESPOSTA
     assert pars[i + 1] == "O achado" and pars[i + 2] == "Achado P1."
     assert "P1." not in pars[i] and "—" not in pars[i]

@@ -150,7 +150,7 @@
           <div class="text-xs text-loyall-400">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
           {{ simetrico(sp) }}
           {% set custa = parecer.custa.get(sp.subpilar.codigo) if parecer and pode_corrigir else none %}
-          {% if custa %}<div data-custa class="text-sm text-loyall-700"><span class="text-xs text-loyall-500">Por que custa (sorteado da biblioteca; vai para o Word antes do achado):</span> {{ custa | join(' ') }}</div>{% endif %}
+          {% if custa %}<div data-custa class="text-sm text-loyall-700"><span class="text-xs text-loyall-500">Por que isso custa (sorteado da biblioteca):</span> {{ custa | join(' ') }}</div>{% endif %}
           {{ campo(sp.subpilar.codigo, 'O achado', achado) }}
         </div>
       </details>
