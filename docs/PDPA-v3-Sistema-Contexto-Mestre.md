@@ -3290,6 +3290,45 @@ C.01 citando uma lista da seção 33; a A1.04 pondo só o número "33" no trecho
 fixa (proposta ou deck da própria Loyall) para as manutenções de texto; ler os links da página
 enviada, sem navegar sozinho.
 
+### 4.69 Avaliador: leitura de prospect mora na conta interna "Loyall: prospects" (22/out · só admin)
+
+**O sintoma.** O Word do parecer da leitura nº 32 (site da E2Carbon, prospect) saiu com o título
+"Parecer PDPA: Grupo Carbel". O título usava o nome da empresa da CONTA em que a leitura foi feita
+no app, e a E2Carbon tinha sido lida dentro da conta do Grupo Carbel (conta 5), um cliente. Além de
+ser o documento errado na cara do leitor, expunha a um prospect o nome de outra empresa. O teste
+antigo do Word exigia o nome da conta no título: o defeito estava cimentado num teste.
+Conserto em código (`c976722`, Live 22/10 20:59): o parecer tem o campo **"empresa da peça"**,
+escrito pela pessoa, sem nada pré-preenchido; o Word não sai com ele em branco; o teste passou a
+exigir que o nome da conta não apareça no documento. A descrição da peça **não** vai para o
+título: é anotação interna. O modelo nunca recebeu o nome da conta (só a descrição).
+
+**A causa.** O Avaliador só existe dentro de uma conta de cliente, e prospect não tem conta: não
+havia lugar para a leitura de prospect morar. O título errado foi sintoma. Ficar na conta errada
+também punha o custo no teto mensal da conta errada e deixava a leitura exposta à rotina de zerar
+cliente (`scripts/zerar_cliente.py` apaga as leituras do Avaliador da conta). As correções à mão e
+o parecer **não** eram problema: pertencem à leitura (por `analise_id`), não à conta.
+
+**A regra (decisão de 22/10).** Leitura de **prospect** vai para a conta interna **"Loyall:
+prospects"** (conta 28). Leitura de **cliente** continua na conta do cliente. O teto mensal passa a
+separar o que a Loyall gasta prospectando do que gasta dentro de cliente. A regra é de operação: o
+código não impede ler um prospect dentro da conta de um cliente (um lembrete no formulário de
+nova leitura fica como possibilidade, não feito).
+
+#### 4.69.1 A correção de dado — exceção declarada da §16 do `CLAUDE.md`
+Conserto de dado real em produção, **não fabricação**. Registro obrigatório:
+
+- **Objeto:** `avaliador_analises` id 32 (site da E2Carbon, seis páginas, 22/10).
+- **Comando:** script fora do repositório (`mover_32.py`, shell do Render), modos `conferir` e
+  `gravar`: muda só `empresa_id` da leitura 32; compara todas as colunas da leitura antes e depois
+  e para se mudar qualquer outra.
+- **Antes:** `empresa_id = 5` (Grupo Carbel, cliente). **Depois:** `empresa_id = 28` ("Loyall:
+  prospects"), só o `empresa_id` alterado (relatado pelo Alexandre a partir da saída do `gravar`,
+  22/10).
+- **Arrasto:** as correções à mão e o parecer da #32 seguem a leitura, sem mudar; o custo da
+  leitura e o do rascunho do parecer passam a contar no teto mensal da conta 28 (o gasto do mês
+  soma pela conta da leitura).
+- **Motivo:** o de cima. A conta 28 foi criada pela tela, para este fim.
+
 ---
 
 ## 5. Os cases
