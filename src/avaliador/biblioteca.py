@@ -15,6 +15,10 @@ Regra do Word, decidida em 23/10:
   bloco quando a peça não tem cliente nomeado, e a frase dela sai junto);
 - o sorteio é função do número da leitura e do subpilar: a mesma leitura dá sempre as mesmas
   frases, na tela e no Word, sem nada gravado; leituras diferentes dão sorteios diferentes.
+  Consequência aceita pelo Alexandre (23/10, calcular e não congelar): editar o TEXTO de uma
+  frase muda o Word de toda leitura que a sorteou, inclusive antiga (o sorteio é pelo
+  código, então a escolha não muda; só o texto). Já incluir ou tirar frase de um subpilar
+  muda o sorteio de todas as leituras naquele subpilar.
   Nenhuma frase se repete na peça: cada frase é de um subpilar só e o sorteio é sem reposição.
 - código de marca, de subpilar e nome de pilar nunca estão no texto (conferido ao carregar).
 """

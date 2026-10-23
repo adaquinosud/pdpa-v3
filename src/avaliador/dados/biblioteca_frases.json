@@ -434,7 +434,7 @@
         "a situação do leitor",
         "o papel do leitor"
       ],
-      "texto": "Nada aqui diferencia este cliente dos outros que você atende. Se não há diferença no papel, ele vai supor que não há no atendimento."
+      "texto": "Nada aqui diferencia quem lê dos outros que você atende. Se não há diferença no papel, ele vai supor que não há no atendimento."
     },
     {
       "codigo": "Pa1.8",
@@ -499,7 +499,7 @@
         "ganho em número",
         "preço"
       ],
-      "texto": "Não diz em quanto tempo isso se paga. Essa é a pergunta que trava a assinatura."
+      "texto": "Não diz em quanto tempo isso se paga. Essa é a pergunta que trava a decisão."
     },
     {
       "codigo": "Pa2.8",
@@ -742,7 +742,7 @@
       "serve_a": [
         "o que vem a seguir"
       ],
-      "texto": "O documento resolve o hoje e não diz o que vem depois. É a conversa que cria o próximo contrato."
+      "texto": "O documento resolve o hoje e não diz o que vem depois. É a conversa que traz o cliente de volta."
     },
     {
       "codigo": "A3.2",
