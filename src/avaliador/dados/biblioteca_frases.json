@@ -1,0 +1,809 @@
+{
+  "fonte": "biblioteca-podada.md, podada e ligada às marcas em 23/10/2026",
+  "frases": [
+    {
+      "codigo": "P1.1",
+      "subpilar": "P1",
+      "estado": "word",
+      "serve_a": [
+        "como e em que prazo"
+      ],
+      "texto": "Enquanto não está escrito, o prazo que vale é o que o cliente imaginou, e ele imagina sempre mais curto."
+    },
+    {
+      "codigo": "P1.2",
+      "subpilar": "P1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "O que não está no papel não deixa de existir: passa a existir na cabeça do cliente, no formato que for melhor para ele."
+    },
+    {
+      "codigo": "P1.3",
+      "subpilar": "P1",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "\"Incluso\" sem lista é uma conta que vai ser feita depois, com você do lado de quem perde."
+    },
+    {
+      "codigo": "P1.4",
+      "subpilar": "P1",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento promete o resultado e omite o que o resultado precisa do cliente. Na cobrança, o esforço que ele não fez vai aparecer como atraso seu."
+    },
+    {
+      "codigo": "P1.6",
+      "subpilar": "P1",
+      "estado": "word",
+      "serve_a": [
+        "o que não entrega"
+      ],
+      "texto": "Falta dizer o que não está incluído. Toda peça que não diz isso está prometendo tudo."
+    },
+    {
+      "codigo": "P1.7",
+      "subpilar": "P1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "O cliente vai comparar sua entrega com a expectativa que ele formou lendo isso, não com o que você quis dizer."
+    },
+    {
+      "codigo": "P1.8",
+      "subpilar": "P1",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "A promessa está em adjetivo: rápido, completo, sob medida. Adjetivo não se cumpre nem se descumpre, só gera discussão."
+    },
+    {
+      "codigo": "P2.1",
+      "subpilar": "P2",
+      "estado": "word",
+      "serve_a": [
+        "critério de aceitação",
+        "quando termina"
+      ],
+      "texto": "Não há critério de pronto. Sem ele, quem decide se ficou bom é o humor de quem recebe."
+    },
+    {
+      "codigo": "P2.2",
+      "subpilar": "P2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento diz o que será entregue, não como se reconhece que ficou certo. É aí que nasce o retrabalho não pago."
+    },
+    {
+      "codigo": "P2.3",
+      "subpilar": "P2",
+      "estado": "word",
+      "serve_a": [
+        "padrão"
+      ],
+      "texto": "Falta o padrão mínimo. Se você não o define, cada cliente usa como referência o melhor trabalho que já viu."
+    },
+    {
+      "codigo": "P2.4",
+      "subpilar": "P2",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Dois clientes vão ler isso e esperar duas coisas diferentes. Os dois vão achar que estavam certos."
+    },
+    {
+      "codigo": "P2.5",
+      "subpilar": "P2",
+      "estado": "word",
+      "serve_a": [
+        "padrão",
+        "critério de aceitação"
+      ],
+      "texto": "Sem padrão descrito, sua melhor entrega cria a expectativa e sua entrega média cria a reclamação."
+    },
+    {
+      "codigo": "P2.6",
+      "subpilar": "P2",
+      "estado": "word",
+      "serve_a": [
+        "padrão"
+      ],
+      "texto": "Quem executa também lê este documento. Se ele não diz o padrão, cada pessoa da sua equipe entrega o que considera suficiente."
+    },
+    {
+      "codigo": "P2.8",
+      "subpilar": "P2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "A entrega está descrita pelo que tem dentro, não pelo que o cliente vai poder fazer com ela. É a segunda coisa que ele usa para julgar."
+    },
+    {
+      "codigo": "P3.1",
+      "subpilar": "P3",
+      "estado": "word",
+      "serve_a": [
+        "o que garante a repetição"
+      ],
+      "texto": "Este documento funciona se a pessoa certa atender. Falta dizer o que acontece quando não é ela."
+    },
+    {
+      "codigo": "P3.2",
+      "subpilar": "P3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Nada aqui garante que a segunda compra será igual à primeira. O cliente só descobre isso na segunda."
+    },
+    {
+      "codigo": "P3.3",
+      "subpilar": "P3",
+      "estado": "word",
+      "serve_a": [
+        "o que garante a repetição"
+      ],
+      "texto": "Falta dizer se o resultado depende de quem executa. Se depender, o cliente está comprando uma pessoa, não a sua empresa."
+    },
+    {
+      "codigo": "P3.4",
+      "subpilar": "P3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Sem padrão escrito, a experiência varia de uma vez para a outra, e a reputação é formada pela pior delas."
+    },
+    {
+      "codigo": "P3.5",
+      "subpilar": "P3",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "A peça descreve um bom dia. Falta descrever o dia comum."
+    },
+    {
+      "codigo": "P3.6",
+      "subpilar": "P3",
+      "estado": "word",
+      "serve_a": [
+        "o que garante a repetição"
+      ],
+      "texto": "Falta o que acontece quando quem atendia sai. Para o cliente, é o teste de se ele contratou a empresa ou um favor."
+    },
+    {
+      "codigo": "P3.7",
+      "subpilar": "P3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Uma entrega excelente seguida de uma morna não soma: a segunda apaga a primeira e vira a sua média na cabeça dele."
+    },
+    {
+      "codigo": "P3.8",
+      "subpilar": "P3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Não há nada aqui que o cliente possa esperar que se repita. Relação se constrói em cima do que se repete."
+    },
+    {
+      "codigo": "D1.1",
+      "subpilar": "D1",
+      "estado": "word",
+      "serve_a": [
+        "por onde falar",
+        "tempo de resposta"
+      ],
+      "texto": "Falta dizer por onde falar com você e em quanto tempo há resposta. Na ausência disso, \"logo\" significa agora."
+    },
+    {
+      "codigo": "D1.2",
+      "subpilar": "D1",
+      "estado": "word",
+      "serve_a": [
+        "quem atende"
+      ],
+      "texto": "O documento não diz quem é a pessoa. Cliente sem nome para procurar procura o dono."
+    },
+    {
+      "codigo": "D1.3",
+      "subpilar": "D1",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "Há canal, não há horário. O cliente vai testar o canal exatamente no horário em que você não está."
+    },
+    {
+      "codigo": "D1.4",
+      "subpilar": "D1",
+      "estado": "word",
+      "serve_a": [
+        "canal fora do expediente",
+        "dias de expediente",
+        "horário"
+      ],
+      "texto": "Falta o que fazer fora do horário. Toda urgência acontece fora do horário."
+    },
+    {
+      "codigo": "D1.5",
+      "subpilar": "D1",
+      "estado": "word",
+      "serve_a": [
+        "tempo de resposta"
+      ],
+      "texto": "Prazo de resposta não escrito é prazo de resposta cobrado como imediato."
+    },
+    {
+      "codigo": "D1.6",
+      "subpilar": "D1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Não diz o que acontece se a primeira tentativa não for respondida. É nesse silêncio que o cliente decide que você não liga."
+    },
+    {
+      "codigo": "D1.7",
+      "subpilar": "D1",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento abre três canais e não diz qual vale. Três canais sem hierarquia é nenhum canal."
+    },
+    {
+      "codigo": "D1.8",
+      "subpilar": "D1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Falta o caminho de escalada. Sem ele, a escalada acontece de qualquer forma, e passa por fora de você."
+    },
+    {
+      "codigo": "D2.1",
+      "subpilar": "D2",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "O documento só descreve o caminho em que tudo dá certo. O cliente vai julgar você pelo outro."
+    },
+    {
+      "codigo": "D2.2",
+      "subpilar": "D2",
+      "estado": "word",
+      "serve_a": [
+        "o que acontece quando dá errado"
+      ],
+      "texto": "Falta dizer o que acontece se falhar. Quem não escreve isso está dizendo ao cliente que nunca falha."
+    },
+    {
+      "codigo": "D2.3",
+      "subpilar": "D2",
+      "estado": "word",
+      "serve_a": [
+        "prazo de solução"
+      ],
+      "texto": "Não há prazo para correção. Prazo de correção não escrito é medido em dias de paciência."
+    },
+    {
+      "codigo": "D2.4",
+      "subpilar": "D2",
+      "estado": "word",
+      "serve_a": [
+        "quem acionar",
+        "para quem sobe"
+      ],
+      "texto": "Falta quem responde quando dá errado. No vácuo, responde quem o cliente conhece, provavelmente você."
+    },
+    {
+      "codigo": "D2.5",
+      "subpilar": "D2",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Não diz de quem é o custo do erro. Essa conversa vai acontecer uma vez, no pior momento possível."
+    },
+    {
+      "codigo": "D2.6",
+      "subpilar": "D2",
+      "estado": "word",
+      "serve_a": [
+        "o que impede repetir"
+      ],
+      "texto": "Sem regra de correção, cada caso será negociado do zero e sua equipe decidirá por conta própria o que ceder."
+    },
+    {
+      "codigo": "D2.7",
+      "subpilar": "D2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento tem garantia e não tem o procedimento de acioná-la. Garantia sem procedimento é uma frase."
+    },
+    {
+      "codigo": "D2.8",
+      "subpilar": "D2",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Falta o reconhecimento de que algo pode dar errado. Cliente não espera perfeição: espera saber o que acontece quando não é."
+    },
+    {
+      "codigo": "D3.1",
+      "subpilar": "D3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Nada aqui obriga você a avisar antes. O cliente vai descobrir o problema sozinho, e aí o problema é outro."
+    },
+    {
+      "codigo": "D3.2",
+      "subpilar": "D3",
+      "estado": "word",
+      "serve_a": [
+        "quando e por onde avisa"
+      ],
+      "texto": "Falta dizer quando o cliente será informado de mudança de prazo. Sem isso, ele é informado no dia em que o prazo venceu."
+    },
+    {
+      "codigo": "D3.3",
+      "subpilar": "D3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Atraso avisado é contratempo; atraso descoberto é quebra de confiança. O documento não trata nenhum dos dois."
+    },
+    {
+      "codigo": "D3.4",
+      "subpilar": "D3",
+      "estado": "word",
+      "serve_a": [
+        "frequência do acompanhamento"
+      ],
+      "texto": "Falta o ponto de contato intermediário. Entre o acerto e a entrega, o silêncio é lido como abandono."
+    },
+    {
+      "codigo": "D3.5",
+      "subpilar": "D3",
+      "estado": "word",
+      "serve_a": [
+        "o que avisa antes",
+        "aviso de risco"
+      ],
+      "texto": "Não há aviso de mudança de preço, de equipe ou de condição. O cliente só saberá quando já não puder reagir."
+    },
+    {
+      "codigo": "D3.6",
+      "subpilar": "D3",
+      "estado": "word",
+      "serve_a": [
+        "quando e por onde avisa"
+      ],
+      "texto": "Falta dizer quem avisa. Aviso que depende de alguém se lembrar não acontece."
+    },
+    {
+      "codigo": "D3.7",
+      "subpilar": "D3",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "A peça prevê notícia só no fim. O que muda a relação é o que você conta no meio."
+    },
+    {
+      "codigo": "D3.8",
+      "subpilar": "D3",
+      "estado": "word",
+      "serve_a": [
+        "como monitora"
+      ],
+      "texto": "Não diz nada sobre o que fazer quando você souber de um problema antes do cliente. Esse é o momento mais valioso que você tem."
+    },
+    {
+      "codigo": "Pa1.1",
+      "subpilar": "Pa1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Este documento serve para qualquer cliente. É por isso que nenhum se reconhece nele."
+    },
+    {
+      "codigo": "Pa1.2",
+      "subpilar": "Pa1",
+      "estado": "word",
+      "serve_a": [
+        "a situação do leitor"
+      ],
+      "texto": "Falta qualquer sinal de que você entendeu o caso dele. Peça sem isso é tabela de preços com capa."
+    },
+    {
+      "codigo": "Pa1.3",
+      "subpilar": "Pa1",
+      "estado": "word",
+      "serve_a": [
+        "a situação do leitor",
+        "o papel do leitor"
+      ],
+      "texto": "O texto fala do que você faz e não do que ele tem. Quem lê conclui que você não perguntou."
+    },
+    {
+      "codigo": "Pa1.4",
+      "subpilar": "Pa1",
+      "estado": "cliente_nomeado",
+      "serve_a": [
+        "problemas que o cliente relatou"
+      ],
+      "texto": "Não há uma linha sobre o problema específico que levou o cliente a te procurar. Era a primeira coisa que ele queria ver escrita."
+    },
+    {
+      "codigo": "Pa1.5",
+      "subpilar": "Pa1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "O documento trata o cliente como etapa de um processo seu. Ele está tratando isso como a solução de um problema dele."
+    },
+    {
+      "codigo": "Pa1.6",
+      "subpilar": "Pa1",
+      "estado": "cliente_nomeado",
+      "serve_a": [
+        "nome de quem vai ler",
+        "como levantou a necessidade"
+      ],
+      "texto": "Falta nome, contexto, situação. Um documento genérico comunica o quanto você está disposto a se envolver."
+    },
+    {
+      "codigo": "Pa1.7",
+      "subpilar": "Pa1",
+      "estado": "word",
+      "serve_a": [
+        "a situação do leitor",
+        "o papel do leitor"
+      ],
+      "texto": "Nada aqui diferencia este cliente dos outros que você atende. Se não há diferença no papel, ele vai supor que não há no atendimento."
+    },
+    {
+      "codigo": "Pa1.8",
+      "subpilar": "Pa1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Está escrito na sua língua, não na dele. Essa distância é a primeira coisa que ele sente."
+    },
+    {
+      "codigo": "Pa2.1",
+      "subpilar": "Pa2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento diz o preço e não diz o que o preço evita. Cliente não compara preço com valor: compara preço com preço."
+    },
+    {
+      "codigo": "Pa2.2",
+      "subpilar": "Pa2",
+      "estado": "word",
+      "serve_a": [
+        "ganho em número"
+      ],
+      "texto": "Falta a conta do lado dele. Sem ela, o seu valor é um custo."
+    },
+    {
+      "codigo": "Pa2.3",
+      "subpilar": "Pa2",
+      "estado": "cliente_nomeado",
+      "serve_a": [
+        "ganho em número"
+      ],
+      "texto": "Não há nada aqui que permita ao cliente defender esse gasto para quem assina. Ele vai ter que inventar o argumento sozinho."
+    },
+    {
+      "codigo": "Pa2.4",
+      "subpilar": "Pa2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O preço aparece sem referência. Número sem referência é sempre caro."
+    },
+    {
+      "codigo": "Pa2.5",
+      "subpilar": "Pa2",
+      "estado": "word",
+      "serve_a": [
+        "ganho em número"
+      ],
+      "texto": "Falta dizer o que acontece se ele não fizer nada. É a única comparação em que você sempre ganha."
+    },
+    {
+      "codigo": "Pa2.6",
+      "subpilar": "Pa2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento lista entregas. Entrega é o que você faz; valor é o que muda na empresa dele. Falta a segunda coluna."
+    },
+    {
+      "codigo": "Pa2.7",
+      "subpilar": "Pa2",
+      "estado": "word",
+      "serve_a": [
+        "ganho em número",
+        "preço"
+      ],
+      "texto": "Não diz em quanto tempo isso se paga. Essa é a pergunta que trava a assinatura."
+    },
+    {
+      "codigo": "Pa2.8",
+      "subpilar": "Pa2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O desconto aparece antes da justificativa do valor. Nessa ordem, o desconto confirma que o preço era inflado."
+    },
+    {
+      "codigo": "Pa2.9",
+      "subpilar": "Pa2",
+      "estado": "word",
+      "serve_a": [
+        "preço",
+        "como forma o preço"
+      ],
+      "texto": "Não há valor em lugar nenhum. Quem não vê preço supõe o pior, pergunta por educação e decide em outro lugar."
+    },
+    {
+      "codigo": "Pa2.10",
+      "subpilar": "Pa2",
+      "estado": "word",
+      "serve_a": [
+        "cancelamento",
+        "dinheiro de volta"
+      ],
+      "texto": "Falta dizer como se sai. Quem não sabe como sair pensa duas vezes antes de entrar."
+    },
+    {
+      "codigo": "Pa2.11",
+      "subpilar": "Pa2",
+      "estado": "word",
+      "serve_a": [
+        "custo por fora",
+        "condições de pagamento",
+        "impostos"
+      ],
+      "texto": "Não diz o que ainda vai ser cobrado depois. Todo custo que aparece depois é lido como armadilha, mesmo quando não é."
+    },
+    {
+      "codigo": "Pa3.1",
+      "subpilar": "Pa3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "O documento termina na entrega. Para o cliente, é ali que o problema dele começa."
+    },
+    {
+      "codigo": "Pa3.2",
+      "subpilar": "Pa3",
+      "estado": "word",
+      "serve_a": [
+        "depois da entrega"
+      ],
+      "texto": "Falta dizer o que acontece depois. Silêncio depois da entrega é lido como \"consegui o que eu queria\"."
+    },
+    {
+      "codigo": "Pa3.3",
+      "subpilar": "Pa3",
+      "estado": "word",
+      "serve_a": [
+        "por quanto tempo continua"
+      ],
+      "texto": "Não há acompanhamento previsto. A segunda venda nasce nesse período, e ele não existe no papel."
+    },
+    {
+      "codigo": "Pa3.4",
+      "subpilar": "Pa3",
+      "estado": "word",
+      "serve_a": [
+        "canal pós-contratação"
+      ],
+      "texto": "Falta quem cuida do cliente depois que o vendedor sai de cena. Essa troca de mãos é onde a maioria dos clientes se perde."
+    },
+    {
+      "codigo": "Pa3.5",
+      "subpilar": "Pa3",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento prevê suporte por tempo determinado e não diz o que vem após. O cliente lê a data de validade da sua atenção."
+    },
+    {
+      "codigo": "Pa3.6",
+      "subpilar": "Pa3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Nada aqui trata do uso. Entregar e não acompanhar o uso é garantir que o resultado não aparece."
+    },
+    {
+      "codigo": "Pa3.7",
+      "subpilar": "Pa3",
+      "estado": "word",
+      "serve_a": [
+        "contato que não é venda",
+        "quem não segue adiante"
+      ],
+      "texto": "Falta o momento de revisão. Sem data marcada, a conversa seguinte só acontece se houver problema."
+    },
+    {
+      "codigo": "Pa3.8",
+      "subpilar": "Pa3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "O relacionamento termina quando a nota fiscal é emitida. Está escrito, mesmo que sem essas palavras."
+    },
+    {
+      "codigo": "A1.1",
+      "subpilar": "A1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Falta a razão de ser você. Sem ela, a decisão vira preço."
+    },
+    {
+      "codigo": "A1.2",
+      "subpilar": "A1",
+      "estado": "cliente_nomeado",
+      "serve_a": null,
+      "texto": "O documento não dá ao cliente nenhum argumento para usar internamente. Quem defende sua proposta lá dentro está desarmado."
+    },
+    {
+      "codigo": "A1.3",
+      "subpilar": "A1",
+      "estado": "word",
+      "serve_a": [
+        "certificação",
+        "resultado anterior em número",
+        "clientes nomeados"
+      ],
+      "texto": "Não há prova. Prova não é elogio: é um caso parecido com o dele, com o que mudou."
+    },
+    {
+      "codigo": "A1.4",
+      "subpilar": "A1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Falta dizer o risco de te contratar e como ele é controlado. Quem não fala do risco faz o cliente imaginá-lo maior."
+    },
+    {
+      "codigo": "A1.5",
+      "subpilar": "A1",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O texto afirma competência e não a demonstra. Afirmação não sustenta a decisão de quem vai assinar."
+    },
+    {
+      "codigo": "A1.6",
+      "subpilar": "A1",
+      "estado": "word",
+      "serve_a": [
+        "reconhecimento de terceiro",
+        "voz de fora"
+      ],
+      "texto": "Falta a comparação com a alternativa. Se você não a faz, o cliente faz, e com a informação do seu concorrente."
+    },
+    {
+      "codigo": "A1.7",
+      "subpilar": "A1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Nada aqui ajuda quem decide a explicar a escolha se der errado. É disso que ele tem medo."
+    },
+    {
+      "codigo": "A1.8",
+      "subpilar": "A1",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "Falta o que você não faz. Quem não recusa nada não é especialista em nada."
+    },
+    {
+      "codigo": "A2.1",
+      "subpilar": "A2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento responde exatamente o que foi pedido. Não há nada aqui que o cliente já não soubesse."
+    },
+    {
+      "codigo": "A2.2",
+      "subpilar": "A2",
+      "estado": "word",
+      "serve_a": [
+        "opinião técnica"
+      ],
+      "texto": "Falta a sua leitura do problema. Preço qualquer um informa; opinião é o que ele está comprando."
+    },
+    {
+      "codigo": "A2.3",
+      "subpilar": "A2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "Não há nada que o cliente não tenha pedido. Essa é a diferença entre fornecedor e conselheiro, e ela aparece no papel."
+    },
+    {
+      "codigo": "A2.4",
+      "subpilar": "A2",
+      "estado": "word",
+      "serve_a": [
+        "contraria o leitor"
+      ],
+      "texto": "Falta dizer o que você faria diferente do que ele pediu. Se concorda com tudo, você é cotação."
+    },
+    {
+      "codigo": "A2.5",
+      "subpilar": "A2",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "O documento executa o pedido sem questionar a premissa. Se a premissa estiver errada, você entregou bem a coisa errada."
+    },
+    {
+      "codigo": "A2.6",
+      "subpilar": "A2",
+      "estado": "word",
+      "serve_a": [
+        "opinião técnica",
+        "ensino que serve sem contratar"
+      ],
+      "texto": "Falta o que a sua experiência diz sobre casos como esse. É a única parte que o concorrente não copia."
+    },
+    {
+      "codigo": "A2.7",
+      "subpilar": "A2",
+      "estado": "word",
+      "serve_a": [
+        "o que o leitor erra",
+        "limitação do que oferece"
+      ],
+      "texto": "Não há alerta nenhum. Quem já fez isso dez vezes sabe onde trava, e não escreveu."
+    },
+    {
+      "codigo": "A2.8",
+      "subpilar": "A2",
+      "estado": "word",
+      "serve_a": [
+        "comparação com alternativas"
+      ],
+      "texto": "O texto não oferece alternativa. Uma única opção não é escolha, é condição."
+    },
+    {
+      "codigo": "A3.1",
+      "subpilar": "A3",
+      "estado": "word",
+      "serve_a": [
+        "o que vem a seguir"
+      ],
+      "texto": "O documento resolve o hoje e não diz o que vem depois. É a conversa que cria o próximo contrato."
+    },
+    {
+      "codigo": "A3.2",
+      "subpilar": "A3",
+      "estado": "word",
+      "serve_a": [
+        "o que olhar agora"
+      ],
+      "texto": "Falta o próximo passo. Sem ele, o próximo passo do cliente será com outra pessoa."
+    },
+    {
+      "codigo": "A3.3",
+      "subpilar": "A3",
+      "estado": "word",
+      "serve_a": [
+        "o que olhar agora"
+      ],
+      "texto": "Não há nada sobre o que ele deveria estar olhando e não está. Essa frase é a que faz ligar de volta."
+    },
+    {
+      "codigo": "A3.4",
+      "subpilar": "A3",
+      "estado": "tela",
+      "serve_a": null,
+      "texto": "Falta a ordem. Você listou o que fazer e não disse o que fazer primeiro, que é a dúvida que paralisa."
+    },
+    {
+      "codigo": "A3.5",
+      "subpilar": "A3",
+      "estado": "word",
+      "serve_a": null,
+      "texto": "O documento é uma resposta, não uma recomendação. Resposta se compara; recomendação se segue."
+    },
+    {
+      "codigo": "A3.6",
+      "subpilar": "A3",
+      "estado": "word",
+      "serve_a": [
+        "recomendação de comprar menos"
+      ],
+      "texto": "Falta dizer o que acontece se ele fizer só uma parte. Ele vai fazer só uma parte."
+    },
+    {
+      "codigo": "A3.7",
+      "subpilar": "A3",
+      "estado": "word",
+      "serve_a": [
+        "o que vem a seguir",
+        "custo de não fazer nada"
+      ],
+      "texto": "Não há horizonte. Sem o que vem em seis meses, essa compra é um gasto isolado na cabeça dele."
+    },
+    {
+      "codigo": "A3.8",
+      "subpilar": "A3",
+      "estado": "word",
+      "serve_a": [
+        "o que vem a seguir",
+        "riscos do próprio trabalho"
+      ],
+      "texto": "Falta o aviso do que vai mudar no mercado dele. Quem traz isso não precisa disputar preço."
+    }
+  ]
+}

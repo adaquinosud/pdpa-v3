@@ -106,7 +106,7 @@
 {% if parecer and pode_corrigir %}
 <section data-secao="parecer" class="border border-loyall-300 rounded p-3 space-y-2 bg-loyall-50">
   <h4 class="text-xs uppercase tracking-wider text-loyall-700">O parecer</h4>
-  <p class="text-xs text-loyall-500">Abra cada subpilar, corrija os trechos e escreva o achado. Vão para o parecer: a frase da ordem, um trecho por marca (até quatro por subpilar), o que a peça não diz e o achado.</p>
+  <p class="text-xs text-loyall-500">Abra cada subpilar, corrija os trechos e escreva o achado. Vão para o parecer: a frase da ordem, um trecho por marca (até quatro por subpilar), o que a peça não diz, no subpilar vazio o porquê de custar e o achado.</p>
   {{ campo('empresa_da_peca', 'Empresa da peça (sai no título do Word)', parecer_textos.empresa_da_peca, 1) }}
   {# a página da frente do Word, igual (parecer.frente, 22/10): uma linha por subpilar #}
   <details data-frente open class="text-sm">
@@ -149,6 +149,8 @@
         <div class="space-y-1 mt-2">
           <div class="text-xs text-loyall-400">{{ sp.subpilar.pergunta | replace(" — ", ", ") }}</div>
           {{ simetrico(sp) }}
+          {% set custa = parecer.custa.get(sp.subpilar.codigo) if parecer and pode_corrigir else none %}
+          {% if custa %}<div data-custa class="text-sm text-loyall-700"><span class="text-xs text-loyall-500">Por que custa (sorteado da biblioteca; vai para o Word antes do achado):</span> {{ custa | join(' ') }}</div>{% endif %}
           {{ campo(sp.subpilar.codigo, 'O achado', achado) }}
         </div>
       </details>

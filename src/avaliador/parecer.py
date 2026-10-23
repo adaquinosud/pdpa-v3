@@ -19,7 +19,10 @@ Regras de seleção, decididas em 21-22/10:
 - o código da marca nunca aparece; a frase do "não diz" é a da marca (``frase_da_marca``);
 - peça SEM cliente com nome: as exceções (o grupo à parte) não entram; COM cliente com nome
   elas já estão dentro de Pa1 e Pa2;
-- subpilar sem resposta: "Não encontramos no texto nada que responda a essa expectativa."
+- subpilar sem resposta: "Não encontramos no texto nada que responda a essa expectativa.";
+  depois do que a peça não diz e antes do achado, até três frases da biblioteca do "por que
+  custa" (``biblioteca.sorteio``, 23/10): a ordem do bloco fica ausência, por que ela custa,
+  achado.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from difflib import SequenceMatcher
 from typing import List, Optional
 
 from src.api.painel import NOME_PILAR
+from src.avaliador import biblioteca
 from src.avaliador.extracao import RODAPE, _normalizar
 from src.avaliador.servico import (
     MARCA_ESTA,
@@ -268,6 +272,9 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
                         for x in sp["marcas"]
                         if x["estado"] == MARCA_NAO_ESTA
                     ],
+                    "custa": biblioteca.sorteio(
+                        numero, s.codigo, sp["marcas"], tela.get("cliente_nomeado")
+                    ),
                     "achado": achado,
                 }
             )
@@ -280,6 +287,8 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
         "ordem": textos["ordem"].strip(),
         "frente": frente(tela),
         "pilares": pilares,
+        # a tela mostra as mesmas frases no bloco do subpilar (só as sorteadas, 23/10)
+        "custa": {sp["codigo"]: sp["custa"] for pl in pilares for sp in pl["subpilares"]},
         "nota_c": textos["nota_c"].strip(),
         "pendencias": list(dict.fromkeys(pendencias)),  # sem repetir, na ordem
         "falta": falta,
@@ -340,6 +349,8 @@ def gerar_docx(p: dict) -> bytes:
                 rotulo("O que a peça não diz")
                 for t in sp["nao_diz"]:
                     doc.add_paragraph(t, style="List Bullet")
+            if sp.get("custa"):
+                doc.add_paragraph(" ".join(sp["custa"]))
             rotulo("O achado")
             doc.add_paragraph(sp["achado"])
     if p["nota_c"]:
