@@ -13,6 +13,11 @@
     <span data-aviso="documento"{% if form.url %} hidden{% endif %}>O documento vai para um modelo externo da Anthropic para ser lido.</span><span data-aviso="pagina"{% if not form.url %} hidden{% endif %}>O texto das páginas vai para um modelo externo da Anthropic para ser lido.</span> Pelos termos comerciais da Anthropic, o conteúdo enviado é tratado como informação confidencial e não pode ser usado para treinar modelos. O texto fica guardado enquanto esta análise estiver aberta, para você poder reler sem enviar de novo. Ele é apagado quando você clicar em concluir, e apagado sozinho depois de {{ dias_retencao }} dias sem uso. Depois disso ficam só os trechos citados na leitura. Você também pode apagar a leitura inteira, com o resumo e os trechos citados; aí fica só o registro do custo.
   </div>
 
+  {# Lembrete (23/10): leitura de prospect mora na conta interna (Contexto-Mestre §4.69). Só
+     avisa; o código não impede ler prospect aqui. #}
+  {% if not conta_de_prospects %}
+  <p data-lembrete-prospect class="text-xs text-loyall-600 border-l-2 border-loyall-300 pl-2">Peça de prospect? Faça a leitura na conta “Loyall: prospects”, não na conta de um cliente.</p>
+  {% endif %}
   <form hx-post="{{ url_for('ui.avaliador_novo', empresa_id=empresa_id) }}"
         hx-encoding="multipart/form-data" hx-target="#avaliador-painel" hx-swap="outerHTML"
         class="space-y-2">

@@ -552,3 +552,15 @@ def test_peca_de_medicao_sem_botoes_e_recusada_na_rota(
     a = db_session.get(AvaliadorAnalise, aid)
     db_session.refresh(a)
     assert a.texto_json is not None and a.status == "pronta"
+
+
+def test_lembrete_de_prospect_some_so_na_conta_de_prospects(client_loyall, db_session, empresa):
+    """23/10 (§4.69): leitura de prospect vai para a conta interna. O formulário lembra em toda
+    conta, menos nela."""
+    html = client_loyall.get(_url(empresa, "")).get_data(as_text=True)
+    assert "data-lembrete-prospect" in html and "Loyall: prospects" in html
+    p = Empresa(nome=servico.CONTA_PROSPECTS)
+    db_session.add(p)
+    db_session.commit()
+    html = client_loyall.get(_url(p, "")).get_data(as_text=True)
+    assert "data-lembrete-prospect" not in html

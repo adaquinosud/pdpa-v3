@@ -736,6 +736,10 @@ def desfazer_correcao(s: Session, a: AvaliadorAnalise, correcao_id: int) -> None
 CAMPO_ORDEM = "ordem"
 CAMPO_NOTA_C = "nota_c"
 CAMPO_EMPRESA = "empresa_da_peca"
+# A conta interna onde mora a leitura de prospect (decisão de 22/10, Contexto-Mestre §4.69).
+# Prospect não tem conta própria; lido dentro da conta de um cliente, o custo cai no teto
+# dele e a leitura vai junto se a conta for zerada.
+CONTA_PROSPECTS = "Loyall: prospects"
 
 
 def parecer_de(a: AvaliadorAnalise) -> Optional[AvaliadorParecer]:

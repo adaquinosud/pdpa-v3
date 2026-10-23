@@ -63,11 +63,19 @@ def _lista(s, empresa_id: int):
     )
 
 
+def _conta_de_prospects(s, empresa_id: int) -> bool:
+    from src.models.empresa import Empresa
+
+    e = s.get(Empresa, empresa_id)
+    return e is not None and e.nome == servico.CONTA_PROSPECTS
+
+
 def _painel(s, empresa_id: int, erro=None, analise_html=None, form=None):
     return render_template(
         "partials/explorar_avaliador.html",
         empresa_id=empresa_id,
         analises=_lista(s, empresa_id),
+        conta_de_prospects=_conta_de_prospects(s, empresa_id),
         rotulo_status=ROTULO_STATUS,
         dias_retencao=servico.dias_retencao(),
         limite_mb=LIMITE_BYTES // (1024 * 1024),
