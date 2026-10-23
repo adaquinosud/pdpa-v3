@@ -3381,6 +3381,51 @@ estrutura, não sentido: frase nova passa pela leitura humana.
 
 ---
 
+### 4.71 Avaliador: o trecho cortado sai no parecer com a frase inteira (23/out · só admin)
+
+**O defeito.** O modelo cita pedaço de frase, e o Word imprimia o pedaço. Na Fibrav (#33), seis
+trechos começavam em minúscula no meio da frase ("a dureza Barcol", "realizamos ensaios que
+confirmam cura"); o do ASME parava em "testes". Trecho cortado também leva o rascunho do modelo a
+completar por conta própria (a "cidade" inventada na #31).
+
+**Primeira regra, rejeitada na prévia: a linha inteira** (`6459632`). Quando o trecho começava no
+meio de uma linha da peça, o Word imprimia a linha. A prévia nas #31, #32 e #33 (16 trechos
+mudavam) mostrou três defeitos: puxou frase sem relação (#31, Eficácia Operacional abriu com a
+definição do produto mensal), inflou citação (#32, bloco de seis frases e umas 400 letras com
+argumento de venda) e pôs "…" onde nada faltava (sete trechos da Fibrav). Lição: "começa no meio da
+linha" é posição; o defeito é de sentido.
+
+**A regra no ar: a frase inteira** (`23efe36`, Live 23/10 19:48). Na validação do Alexandre (48
+trechos das #32 e #33, 14 que não se sustentam sozinhos), sete se resolvem por regra:
+- trecho que começa no meio de uma frase completa para trás até o fim da frase anterior; trecho
+  que termina no meio dela, para a frente até o fim da frase;
+- nunca passa da linha da peça (no PDF, o parágrafo; em tabela, a célula). Dois-pontos no fim da
+  linha com o resto embaixo não é completado;
+- "…" só quando a frase completada passa de 500 caracteres, e só do lado cortado;
+- ponto de abreviação ("Sr.", "Ltda."), decimal e ponto seguido de minúscula não fecham frase;
+- sem o texto da peça guardado, sai o trecho como foi citado;
+- a seleção compara o texto impresso (dois trechos da mesma frase saem uma vez);
+- a tela continua mostrando o trecho citado; o Word e o rascunho do modelo levam a frase inteira;
+  a base do rascunho continua sobre os trechos citados (os rascunhos já conferidos não voltam a
+  pedir conferência).
+
+**Medido na prévia (shell do Render, 23/10):** 8 trechos mudam nas três peças, contra 16 da regra
+da linha; nenhum traz frase de fora; a E2Carbon (#32) não muda nada. Cinco melhoram claramente
+(ASME, Barcol, inspeção visual, Reparos, Consistência); dois ganham conector que aponta para trás
+("Nesse sentido,", "Ademais,"), aceitos pelo Alexandre: tirar o conector seria editar o texto do
+cliente. O Word de todas as peças muda, inclusive o da #31.
+
+**O que esta regra NÃO resolve.** Os outros sete dos 14 são julgamento, não regra: fila de nomes
+sem frase, rótulo ("Veículo: JORNAL DA EPTV", "enviar mensagem"), nome e cargo soltos, frase que
+retoma algo de fora ("Essa mudança impõe desafios"). E o caso da Localiza (#31), "Se for diferente
+da que você abriu": o trecho começa no começo da frase, e o "da que" retoma o "agência" da frase
+anterior. A regra só o completa para a frente. **Ele continua esperando a checagem com modelo**
+(frente desenhada em 23/10, não aberta: uma chamada por parecer perguntando se cada trecho se
+sustenta sozinho, estimada em R$ 0,12 a R$ 0,29; antes de ligar, um gabarito com a leitura do
+Alexandre; decisão pendente sobre travar o Word até a checagem).
+
+---
+
 ## 5. Os cases
 
 **Club Med (id 16, maduro — valida o método):** ferida Pa2 Mutualidade no RA
