@@ -25,6 +25,7 @@ Regras de seleção, decididas em 21-22/10:
 from __future__ import annotations
 
 import io
+from difflib import SequenceMatcher
 from typing import List, Optional
 
 from src.api.painel import NOME_PILAR
@@ -59,13 +60,32 @@ def _ordem_da_marca(x: dict, escolhas: dict) -> List[dict]:
     )
 
 
+# Dois trechos que dividem um pedaço de texto maior que esta fração do MENOR deles contam
+# como o mesmo trecho (22/10, Exemplo da #32: "Na primeira etapa do programa, dez produtores…"
+# e "dez produtores… São pequenas propriedades…", nenhum contido no outro, saíram os dois).
+SOBREPOSICAO = 0.5
+# ... e o pedaço comum tem de ter pelo menos isto: começo igual curto ("Veículo: AGRO+" e
+# "Veículo: EMBRAPII") não faz dois trechos serem o mesmo
+MIN_COMUM = 40
+
+
+def _repete(a: str, b: str) -> bool:
+    """Os dois trechos (normalizados) dizem o mesmo: um contido no outro, ou um pedaço comum
+    maior que ``SOBREPOSICAO`` do menor e com pelo menos ``MIN_COMUM`` caracteres."""
+    if a in b or b in a:
+        return True
+    comum = SequenceMatcher(None, a, b, autojunk=False).find_longest_match(0, len(a), 0, len(b))
+    return comum.size >= MIN_COMUM and comum.size > SOBREPOSICAO * min(len(a), len(b))
+
+
 def _escolhidos(
     marcas: List[dict], escolhas: Optional[dict] = None, impressos: Optional[List[str]] = None
 ) -> List[dict]:
     """Um trecho por marca (o primeiro de ``_ordem_da_marca``), na ordem do Manual, até
-    quatro por bloco. Trecho já usado no bloco
-    não se repete, e trecho já impresso em outro bloco (``impressos``) também não, a não ser
-    que seja o escolhido pela pessoa: a marca usa o seguinte dela, se houver."""
+    quatro por bloco. Trecho que repete um já usado no bloco (``_repete``: igual, contido ou
+    com a maior parte em comum) não entra, nem o que repete um já impresso em outro bloco
+    (``impressos``), a não ser que seja o escolhido pela pessoa: a marca usa o seguinte dela,
+    se houver."""
     escolhas = escolhas or {}
     impressos = impressos or []
     out, usados = [], []
@@ -76,7 +96,7 @@ def _escolhidos(
         for e in _ordem_da_marca(x, escolhas):
             alvo = _normalizar(e["trecho"])
             fora = [] if alvo == quero else impressos
-            if any(alvo in u or u in alvo for u in usados + fora):
+            if any(_repete(alvo, u) for u in usados + fora):
                 continue
             out.append({"codigo": x["codigo"], **e})
             usados.append(alvo)

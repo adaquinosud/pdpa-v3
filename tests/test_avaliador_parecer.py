@@ -449,3 +449,22 @@ def test_titulo_do_word_e_a_empresa_da_peca_nunca_a_da_conta(
     servico.apagar_leitura(a)
     db_session.commit()
     assert db_session.query(AvaliadorParecer).one().empresa_da_peca == ""
+
+
+def test_trecho_com_a_maior_parte_em_comum_nao_se_repete():
+    """22/10, Exemplo da #32: dois trechos que se sobrepõem sem um conter o outro."""
+    t1 = (
+        "Na primeira etapa do programa, dez produtores certificados pelo Fair Trade, ligados à "
+        "Cooperativa dos Costas, em Boa Esperança (MG), participaram primeira etapa do projeto."
+    )
+    t2 = (
+        "dez produtores certificados pelo Fair Trade, ligados à Cooperativa dos Costas, em Boa "
+        "Esperança (MG), participaram primeira etapa do projeto. São pequenas propriedades de "
+        "agricultura familiar"
+    )
+    outro = "A E2Carbon e o Sicredi uniram forças para impulsionar a sustentabilidade no campo."
+    tela = _tela([("A1", [("A1.04", [(t1, "", 5)]), ("A1.06", [(t2, "", 5), (outro, "", 5)])])])
+    assert [e["trecho"] for e in P.selecao(tela)["A1"]] == [t1, outro]
+    # pouco texto em comum não é repetição, nem começo igual curto
+    assert not P._repete("o carro reserva chega em 24h", "o carro novo chega amanhã cedo")
+    assert not P._repete("veiculo: agro+", "veiculo: embrapii")
