@@ -3340,6 +3340,47 @@ Conserto de dado real em produção, **não fabricação**. Registro obrigatóri
 
 ---
 
+### 4.70 Avaliador: "Por que isso custa" no subpilar vazio do parecer (23/out · só admin)
+
+**O que é.** A biblioteca de frases que o Alexandre escreveu em 11/10: por subpilar, por que a
+ausência custa dinheiro. Ela foi podada pelo teste de viagem e ligada às marcas em 23/10. A fonte
+é um `.md` fora do repositório (`~/Documents/PDPA-pareceres/biblioteca-podada.md`). O extrato
+versionado é `src/avaliador/dados/biblioteca_frases.json`, gerado por `scripts/extrair_biblioteca.py`.
+Tem 97 frases: 73 vão ao Word, 20 só na tela (sem uso por enquanto), 4 só com cliente nomeado; as
+2 cortadas ficam só no `.md`. Em produção desde `7e90c94` (Live 23/10 18:13).
+
+**A regra (decisão de 23/10).**
+- Só em subpilar **vazio**: nenhuma marca "está" na tela já corrigida. Frase que pressupõe que a
+  peça diga algo ("há canal, não há horário") é estado "só na tela" e nunca vai ao Word.
+- Até três por subpilar vazio. Antes eram três no documento inteiro; mudou de propósito, porque
+  são os blocos sem citação nenhuma.
+- Entram as frases do estado WORD; as de cliente nomeado, só em peça com cliente nomeado. Frase
+  com lista de marcas só sai ao lado de ausência de uma delas.
+- No bloco: o que a peça diz, o que não diz, **"Por que isso custa"** (título próprio, como as
+  outras três partes), o achado. A tela mostra só as sorteadas, no mesmo lugar.
+- O rascunho do modelo **não** recebe as frases: o achado tem de dizer o que as listas não
+  dizem, e com as frases à vista o modelo as repetiria.
+- Código de marca, de subpilar e nome de pilar nunca no texto; a validação ao carregar confere
+  (código, travessão, texto repetido, marca do "serve a" existente no Manual, ao menos três
+  frases por subpilar em peça sem cliente nomeado).
+
+**O sorteio é calculado, não gravado (decisão de 23/10).** É função do número da leitura e do
+código do subpilar: a mesma leitura dá sempre as mesmas frases, na tela e no Word. **Consequência
+aceita:** editar o texto de uma frase muda o Word de toda leitura que a sorteou, inclusive antiga.
+Incluir ou tirar frase de um subpilar muda o sorteio de todas as leituras naquele subpilar.
+
+**Medido.** Subpilares vazios nas leituras prontas (shell do Render, 23/10, tela corrigida;
+critério: nenhuma marca "está"; "sem conferência" não conta): #24 a #27 dois cada; #28 dois; #29
+três; #30 quatro; #31 dois; #32 três; #33 quatro. Bateu com a conta do Alexandre (Fibrav 4,
+E2Carbon 3, Localiza 2). Prévia dos blocos no ar antes do merge: 2 na #31, 3 na #32, 4 na #33.
+
+**Erro de texto que a validação não pega.** Três frases do Word pressupunham venda formal ou
+cliente nomeado e não viajavam para site: Pa1.7 ("este cliente"), Pa2.7 ("assinatura"), A3.1
+("próximo contrato"). Foram trocadas pelo Alexandre em 23/10 (`7e90c94`). A validação confere
+estrutura, não sentido: frase nova passa pela leitura humana.
+
+---
+
 ## 5. Os cases
 
 **Club Med (id 16, maduro — valida o método):** ferida Pa2 Mutualidade no RA
