@@ -3322,8 +3322,17 @@ Conserto de dado real em produção, **não fabricação**. Registro obrigatóri
   `gravar`: muda só `empresa_id` da leitura 32; compara todas as colunas da leitura antes e depois
   e para se mudar qualquer outra.
 - **Antes:** `empresa_id = 5` (Grupo Carbel, cliente). **Depois:** `empresa_id = 28` ("Loyall:
-  prospects"), só o `empresa_id` alterado (relatado pelo Alexandre a partir da saída do `gravar`,
-  22/10).
+  prospects"), só o `empresa_id` alterado. Saída do `gravar` (22/10):
+  ```
+  #32 pronta | descrição: 'Website da E2Carbon empresa que trata do crédito de carbono'
+  antes:  conta 5 'Grupo Carbel'
+  depois: conta 28 'Loyall: prospects'
+  custo da leitura US$ 0.1409 | itens 0e871b413613e024 | texto 611e21a562496fc4
+  correções: 8 | parecer: 1 (ficam na leitura, não mudam)
+  campos alterados na #32: ['empresa_id']
+
+  GRAVADO: a #32 está em 'Loyall: prospects'.
+  ```
 - **Arrasto:** as correções à mão e o parecer da #32 seguem a leitura, sem mudar; o custo da
   leitura e o do rascunho do parecer passam a contar no teto mensal da conta 28 (o gasto do mês
   soma pela conta da leitura).
