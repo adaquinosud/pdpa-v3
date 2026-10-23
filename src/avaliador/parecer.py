@@ -33,7 +33,7 @@ from typing import List, Optional
 
 from src.api.painel import NOME_PILAR
 from src.avaliador import biblioteca
-from src.avaliador.extracao import RODAPE, _normalizar
+from src.avaliador.extracao import RODAPE, _normalizar, linha_inteira
 from src.avaliador.servico import (
     MARCA_ESTA,
     MARCA_NAO_ESTA,
@@ -46,6 +46,19 @@ MAX_TRECHOS = 4
 SEM_RESPOSTA = "Não encontramos no texto nada que responda a essa expectativa."
 # o título das frases da biblioteca no bloco (23/10: as outras três partes têm título)
 ROTULO_CUSTA = "Por que isso custa"
+
+
+def impresso(e: dict, doc=None) -> str:
+    """O texto que o parecer imprime para o trecho ``e`` (23/10): a linha inteira da peça
+    quando o trecho começa no meio dela (``extracao.linha_inteira``); senão, o trecho como foi
+    citado. Sem o texto da peça guardado (``doc`` None: leitura concluída ou com mais de 30
+    dias sem uso) não há como saber onde a linha começa, e sai o trecho como foi citado. A
+    tela continua mostrando o trecho citado."""
+    if doc is None:
+        return e["trecho"]
+    if "impresso" not in e:
+        e["impresso"] = linha_inteira(doc, e.get("pagina_encontrada"), e["trecho"]) or e["trecho"]
+    return e["impresso"]
 
 
 def _ordem_da_marca(x: dict, escolhas: dict) -> List[dict]:
@@ -85,7 +98,10 @@ def _repete(a: str, b: str) -> bool:
 
 
 def _escolhidos(
-    marcas: List[dict], escolhas: Optional[dict] = None, impressos: Optional[List[str]] = None
+    marcas: List[dict],
+    escolhas: Optional[dict] = None,
+    impressos: Optional[List[str]] = None,
+    doc=None,
 ) -> List[dict]:
     """Até quatro trechos por bloco. Primeira volta: um trecho de cada marca respondida, na
     ordem do Manual (o primeiro de ``_ordem_da_marca`` que não repete). Se sobrar lugar, novas
@@ -93,7 +109,8 @@ def _escolhidos(
     (23/10: na Fibrav, Qualidade da Entrega tinha duas marcas com três trechos cada e saíam
     dois). Trecho que repete um já usado no bloco (``_repete``: igual, contido ou com a maior
     parte em comum) não entra, nem o que repete um já impresso em outro bloco (``impressos``),
-    a não ser que seja o escolhido pela pessoa."""
+    a não ser que seja o escolhido pela pessoa. A comparação é pelo texto IMPRESSO
+    (``impresso``): dois trechos da mesma linha da peça viram a mesma linha inteira."""
     escolhas = escolhas or {}
     impressos = impressos or []
     out, usados = [], []
@@ -105,8 +122,8 @@ def _escolhidos(
             quero = _normalizar(escolhas.get(x["codigo"], ""))
             while fila:
                 e = fila.pop(0)
-                alvo = _normalizar(e["trecho"])
-                fora = [] if alvo == quero else impressos
+                fora = [] if _normalizar(e["trecho"]) == quero else impressos
+                alvo = _normalizar(impresso(e, doc))
                 if any(_repete(alvo, u) for u in usados + fora):
                     continue
                 out.append({"codigo": x["codigo"], **e})
@@ -120,13 +137,14 @@ def selecao(tela: dict, escolhas: Optional[dict] = None) -> dict:
     bloco, não marca: trecho já impresso num bloco anterior não volta, a não ser que o bloco
     fique vazio sem ele (decisão de 22/10)."""
     impressos: List[str] = []
+    doc = tela.get("documento")
     out = {}
     for bloco in tela["pilares"]:
         for sp in bloco["subpilares"]:
-            picks = _escolhidos(sp["marcas"], escolhas, impressos)
+            picks = _escolhidos(sp["marcas"], escolhas, impressos, doc)
             if not picks:  # sem os repetidos o bloco ficaria vazio: eles voltam
-                picks = _escolhidos(sp["marcas"], escolhas)
-            impressos += [_normalizar(e["trecho"]) for e in picks]
+                picks = _escolhidos(sp["marcas"], escolhas, doc=doc)
+            impressos += [_normalizar(impresso(e, doc)) for e in picks]
             out[sp["subpilar"].codigo] = picks
     return out
 
@@ -268,7 +286,7 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
                 {
                     "codigo": s.codigo,
                     "nome": s.nome,
-                    "diz": [e["trecho"] for e in escolhidos[s.codigo]],
+                    "diz": [impresso(e, tela.get("documento")) for e in escolhidos[s.codigo]],
                     "nao_diz": [
                         frase_da_marca(x["texto"], False)
                         for x in sp["marcas"]

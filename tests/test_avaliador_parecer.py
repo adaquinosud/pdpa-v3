@@ -61,8 +61,9 @@ def test_montar_escolhe_um_trecho_por_marca_e_lista_o_que_falta(db_session, empr
     a = _pronta_servico(db_session, empresa)
     p = _montar(a)
     d1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "D1")
-    # D1.01 e D1.04 citam o mesmo trecho: entra uma vez só
-    assert d1["diz"] == [HORARIO[1]]
+    # D1.01 e D1.04 citam o mesmo trecho: entra uma vez só. O trecho começa no meio da linha
+    # da peça, e o parecer imprime a linha inteira (23/10)
+    assert d1["diz"] == ["Atendimento de segunda a sexta das 8h às 18h pelo gerente de conta."]
     assert "Não diz em que dias da semana há expediente." in d1["nao_diz"]
     assert not any("D1." in t for t in d1["nao_diz"])  # código nunca aparece
     a1 = next(s for pl in p["pilares"] for s in pl["subpilares"] if s["codigo"] == "A1")
@@ -521,3 +522,119 @@ def test_completa_ate_quatro_com_o_segundo_trecho_das_marcas():
         ("P2.02", "Ensaio de du"),
         ("P2.03", "Espessura mí"),
     ]
+
+
+# ── a linha inteira do trecho que começa no meio dela (23/10) ──────────────────
+
+LINHA_31 = (
+    "Você pode devolver o carro em qualquer agência Localiza. "
+    "Se for diferente da que você abriu, haverá taxa de retorno."
+)
+
+
+def _doc(formato, texto):
+    from src.avaliador.extracao import Documento, Pagina
+
+    return Documento(formato, [Pagina(1, texto)])
+
+
+@pytest.mark.parametrize(
+    "formato, texto, trecho, sai",
+    [
+        # começa no meio: a linha inteira
+        ("web", f"Devolução\n{LINHA_31}", "Se for diferente da que você abriu", LINHA_31),
+        # começa no começo da linha, ou depois só de marcador: o trecho como foi citado
+        ("web", f"Devolução\n{LINHA_31}", "Você pode devolver o carro em qualquer", None),
+        ("web", "• Atendimento por telefone e e-mail", "Atendimento por telefone", None),
+        # título emendado ao texto de baixo (a emenda aceita na conferência): começa na linha
+        ("web", f"Devolução\n{LINHA_31}", "Devolução: Você pode devolver o carro", None),
+        # PDF: a quebra simples é a linha impressa; a unidade é o parágrafo
+        (
+            "pdf",
+            "Você pode devolver o carro em qualquer\nagência Localiza. Se for diferente da que\n"
+            "você abriu, haverá taxa de retorno.\n\nOutro parágrafo.",
+            "Se for diferente da que você abriu",
+            LINHA_31,
+        ),
+        # tabela: a célula é a unidade
+        ("pptx", "Plano | Inclui suporte técnico 24h | R$ 10", "Inclui suporte técnico", None),
+        (
+            "pptx",
+            "Plano | Inclui suporte técnico 24h | R$ 10",
+            "suporte técnico 24h",
+            "Inclui suporte técnico 24h",
+        ),  # fmt: skip
+        # não achado (texto diferente): o trecho como foi citado
+        ("web", LINHA_31, "Isto não está na peça de jeito nenhum", None),
+    ],
+)
+def test_linha_inteira_so_quando_o_trecho_comeca_no_meio(formato, texto, trecho, sai):
+    from src.avaliador.extracao import linha_inteira
+
+    assert linha_inteira(_doc(formato, texto), 1, trecho) == sai
+
+
+def test_linha_longa_sai_com_o_trecho_e_reticencias():
+    from src.avaliador.extracao import LIMITE_LINHA, linha_inteira
+
+    longa = "Texto de antes. " * 40 + "Se for diferente da que você abriu, há taxa."
+    assert len(longa) > LIMITE_LINHA
+    assert (
+        linha_inteira(_doc("web", longa), 1, "Se for diferente da que você abriu")
+        == "… Se for diferente da que você abriu"
+    )
+
+
+def test_sem_o_texto_da_peca_sai_o_trecho_como_foi_citado():
+    e = {"trecho": "Se for diferente da que você abriu", "pagina_encontrada": 1}
+    assert P.impresso(e, None) == e["trecho"]
+    assert P.impresso(e, _doc("web", LINHA_31)) == LINHA_31
+
+
+def test_dois_trechos_da_mesma_linha_saem_uma_vez_so():
+    tela = _tela(
+        [
+            ("P1", [("P1.01", [("Você pode devolver o carro em qualquer agência", "")]),
+                    ("P1.02", [("Se for diferente da que você abriu", "")])]),
+        ]
+    )  # fmt: skip
+    tela["documento"] = _doc("web", f"Devolução\n{LINHA_31}")
+    sel = P.selecao(tela)
+    assert [P.impresso(e, tela["documento"]) for e in sel["P1"]] == [
+        "Você pode devolver o carro em qualquer agência"
+    ]
+    tela["documento"] = None  # sem a linha inteira os dois trechos são diferentes
+    for x in tela["pilares"][0]["subpilares"][0]["marcas"]:
+        for e in x["evidencias"]:
+            e.pop("impresso", None)
+    assert len(P.selecao(tela)["P1"]) == 2
+
+
+def test_word_e_rascunho_levam_a_linha_inteira_a_tela_e_a_base_nao(
+    client_loyall, db_session, empresa, teto
+):
+    from src.avaliador import rascunho as R
+
+    a = _pronta_servico(db_session, empresa)
+    tela = servico.organizar_marcas(servico.carregar_regua(), a, servico.correcoes_de(a))
+    linha = "Atendimento de segunda a sexta das 8h às 18h pelo gerente de conta."
+    texto, base = R.entrada(tela, {}, a.descricao)
+    assert linha in texto
+    # a base é a dos trechos como foram citados: igual à de uma tela sem o texto da peça
+    sem_doc = dict(tela, documento=None)
+    for b in sem_doc["pilares"]:
+        for sp in b["subpilares"]:
+            for x in sp["marcas"]:
+                for e in x["evidencias"]:
+                    e.pop("impresso", None)
+    texto_sem, base_sem = R.entrada(sem_doc, {}, a.descricao)
+    assert linha not in texto_sem and HORARIO[1] in texto_sem and base == base_sem
+    _preencher(db_session, a)
+    p = _montar(a)
+    assert not p["pendencias"]
+    from docx import Document
+
+    pars = [x.text for x in Document(io.BytesIO(P.gerar_docx(p))).paragraphs]
+    assert f"“{linha}”" in pars
+    html = client_loyall.get(_url(empresa, f"/{a.id}")).get_data(as_text=True)
+    assert HORARIO[1] in html and linha not in html  # a tela mostra o trecho citado

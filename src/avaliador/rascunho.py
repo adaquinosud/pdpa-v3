@@ -6,9 +6,13 @@ diz. A peça inteira não vai: o achado fala do que o bloco mostra (decisão de 
 pessoa conferiu cada trecho antes. Não leva texto aprovado de parecer nenhum como exemplo:
 a #31 é o gabarito da medição e não pode estar dentro do pedido.
 
-A base do rascunho é o hash dos blocos que o modelo leu. Se uma correção ou uma escolha de
-trecho muda os blocos depois, o campo que veio do rascunho e ainda não foi editado pela
-pessoa volta a pedir conferência (CLAUDE.md §12: texto escrito sobre a tela velha).
+A base do rascunho é o hash dos blocos com os trechos COMO FORAM CITADOS (a tela). Se uma
+correção ou uma escolha de trecho muda os blocos depois, o campo que veio do rascunho e ainda
+não foi editado pela pessoa volta a pedir conferência (CLAUDE.md §12: texto escrito sobre a
+tela velha). O modelo lê o trecho como o Word o imprime (a linha inteira quando ele começa no
+meio dela, 23/10: o trecho cortado o levou a inventar "cidade" na #31); a base não, para a
+linha inteira, que não muda nada na tela, não fazer os rascunhos já conferidos pedirem
+conferência de novo.
 """
 
 from __future__ import annotations
@@ -48,9 +52,10 @@ def sistema() -> str:
     return (Path(__file__).parent / "prompts" / "parecer_rascunho.md").read_text(encoding="utf-8")
 
 
-def blocos(tela: dict, escolhas: dict) -> str:
+def blocos(tela: dict, escolhas: dict, como_no_word: bool = True) -> str:
     """O que o modelo lê: por pilar e subpilar, a linha da frente, os trechos do parecer e o
-    que a peça não diz. É também a base do rascunho (``base``)."""
+    que a peça não diz. Com ``como_no_word=False`` (os trechos como foram citados), é a base
+    do rascunho (``base``)."""
     sel = P.selecao(tela, escolhas)
     frente = {x["codigo"]: x["linha"] for x in P.frente(tela)}
     out = []
@@ -60,7 +65,8 @@ def blocos(tela: dict, escolhas: dict) -> str:
             s = sp["subpilar"]
             out.append(f"\n{s.codigo} · {s.nome}")
             out.append(f"Em uma linha: {frente[s.codigo]}")
-            trechos = [e["trecho"] for e in sel[s.codigo]]
+            doc = tela.get("documento") if como_no_word else None
+            trechos = [P.impresso(e, doc) for e in sel[s.codigo]]
             diz = [
                 frase_da_marca(x["texto"], True) for x in sp["marcas"] if x["estado"] == MARCA_ESTA
             ]
@@ -92,7 +98,10 @@ def entrada(tela: dict, escolhas: dict, descricao: str) -> Tuple[str, str]:
     cliente = {True: "feita para um cliente com nome", False: "sem cliente com nome"}.get(
         tela.get("cliente_nomeado"), "sem informação sobre cliente com nome"
     )
-    return f"A PEÇA: {descricao.strip() or 'sem descrição'} ({cliente}).\n\n{b}", base(b)
+    return (
+        f"A PEÇA: {descricao.strip() or 'sem descrição'} ({cliente}).\n\n{b}",
+        base(blocos(tela, escolhas, como_no_word=False)),
+    )
 
 
 def validar(obj: dict) -> dict:

@@ -750,3 +750,59 @@ def localizar_trecho(
             else:
                 return p.numero, MARCA_ELISAO.join(literais), AJUSTE_ELISAO
     return None, trecho, ""
+
+
+# O trecho que começa no meio de uma linha da peça (23/10, #31: "Se for diferente da que você
+# abriu…", sem a frase de antes, que diz "agência") sai no parecer com a linha inteira. Linha
+# mais longa que isto: o trecho como foi citado, com "…" na frente, para o corte ficar à vista.
+LIMITE_LINHA = 500
+RETICENCIAS = "… "
+
+
+def _unidades(texto: str, formato: str) -> List[str]:
+    """As linhas da peça, como a peça as escreve. No PDF a quebra simples é só o fim da linha
+    impressa (o pdftotext quebra o parágrafo onde a página quebrou): a unidade é o parágrafo,
+    entre linhas em branco. Em tabela (pptx, docx), cada célula é uma unidade."""
+    if formato == "pdf":
+        blocos = re.split(r"\n\s*\n", texto)
+    else:
+        blocos = texto.split("\n")
+    out = []
+    for b in blocos:
+        partes = b.split(SEPARADOR_CELULA) if formato in FORMATOS_COM_TABELA else [b]
+        out += [" ".join(x.split()) for x in partes if x.strip()]
+    return out
+
+
+def linha_inteira(doc: Documento, pagina: Optional[int], trecho: str) -> Optional[str]:
+    """O que o parecer imprime no lugar do trecho, quando o trecho começa no MEIO de uma linha
+    da peça: a linha inteira (do começo da linha em que o trecho começa até o fim da linha em
+    que ele termina), ou, se ela passa de ``LIMITE_LINHA``, ``RETICENCIAS`` + o trecho.
+    ``None``: o trecho começa no começo da linha (ou depois só de marcador, como "•"), ou não
+    foi achado (elisão, texto já apagado): imprime-se o trecho como foi citado."""
+    alvo = _normalizar(trecho)
+    if len(alvo) < MIN_CARACTERES_TRECHO or MARCA_ELISAO.strip() in trecho:
+        return None
+    ordem = sorted(doc.paginas, key=lambda p: 0 if p.numero == pagina else 1)
+    for p in ordem:
+        for campo in (p.texto, p.notas):
+            unidades = _unidades(campo, doc.formato)
+            fonte, inicios, pos = [], [], 0
+            for u in unidades:
+                n = _normalizar(u)
+                inicios.append(pos)
+                fonte.append(n)
+                pos += len(n) + 1
+            m = _padrao(alvo).search("\n".join(fonte))
+            if m is None:
+                continue
+            k = max(i for i, x in enumerate(inicios) if x <= m.start())
+            antes = fonte[k][: m.start() - inicios[k]]
+            if not re.search(r"\w", antes):
+                return None
+            j = max(i for i, x in enumerate(inicios) if x < m.end())
+            linha = " ".join(unidades[k : j + 1])  # noqa: E203
+            if len(linha) > LIMITE_LINHA:
+                return RETICENCIAS + " ".join(trecho.split())
+            return linha
+    return None
