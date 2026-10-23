@@ -204,6 +204,30 @@ def _duas(db_session, a, codigo, t1, t2):
     db_session.commit()
 
 
+def _encher_p1(db_session, a):
+    """P1.02, P1.03 e P1.04 respondidas, um trecho cada: com a P1.01 o bloco fecha os quatro
+    lugares na primeira volta, e o segundo trecho da P1.01 fica de fora (sobra o botão)."""
+    g = json.loads(a.itens_json)
+    frases = {
+        "P1.02": "Não estão incluídos deslocamentos fora da capital.",
+        "P1.03": "A instalação acontece em até dez dias úteis após o aceite.",
+        "P1.04": "O cliente envia a planta baixa antes da visita técnica.",
+    }
+    for m in g["marcas"]:
+        if m["codigo"] in frases:
+            m["esta"] = True
+            m["evidencias"] = [
+                {
+                    "pagina": 2,
+                    "trecho": frases[m["codigo"]],
+                    "conferido": True,
+                    "pagina_encontrada": 2,
+                }
+            ]
+    a.itens_json = json.dumps(g)
+    db_session.commit()
+
+
 def test_usar_este_no_parecer_troca_o_trecho_sem_virar_correcao(db_session, empresa, teto):
     from src.models.avaliador import AvaliadorCorrecao
 
@@ -215,22 +239,24 @@ def test_usar_este_no_parecer_troca_o_trecho_sem_virar_correcao(db_session, empr
         "Trecho curto da marca",
         "Outro trecho, bem mais comprido, da mesma marca",
     )
+    _encher_p1(db_session, a)
     p1 = lambda: next(  # noqa: E731
         s for pl in _montar(a)["pilares"] for s in pl["subpilares"] if s["codigo"] == "P1"
     )
-    assert p1()["diz"] == ["Trecho curto da marca"]
+    assert p1()["diz"][0] == "Trecho curto da marca" and len(p1()["diz"]) == 4
     servico.escolher_trecho(
         db_session, a, "P1.01", "Outro trecho, bem mais comprido, da mesma marca", None
     )
     db_session.commit()
-    assert p1()["diz"] == ["Outro trecho, bem mais comprido, da mesma marca"]
+    assert p1()["diz"][0] == "Outro trecho, bem mais comprido, da mesma marca"
+    assert "Trecho curto da marca" not in p1()["diz"]
     assert db_session.query(AvaliadorCorrecao).count() == 0  # a tabela de erros fica limpa
     # o escolhido foi recusado depois: volta ao automático
     servico.recusar_trecho(
         db_session, a, "P1.01", "Outro trecho, bem mais comprido, da mesma marca", None
     )
     db_session.commit()
-    assert p1()["diz"] == ["Trecho curto da marca"]
+    assert p1()["diz"][0] == "Trecho curto da marca"
     with pytest.raises(AvaliacaoRecusada, match="não é uma resposta desta marca"):
         servico.escolher_trecho(
             db_session, a, "P1.01", "Outro trecho, bem mais comprido, da mesma marca", None
@@ -249,6 +275,7 @@ def test_tela_mostra_usar_este_so_em_marca_que_vai_para_o_parecer(
         "Trecho curto da marca",
         "Outro trecho, bem mais comprido, da mesma marca",
     )
+    _encher_p1(db_session, a)
     html = client_loyall.get(_url(empresa, f"/{aid}")).get_data(as_text=True)
     assert html.count("usar este no parecer") == 1  # só o segundo da P1.01
     html = client_loyall.post(
@@ -468,3 +495,29 @@ def test_trecho_com_a_maior_parte_em_comum_nao_se_repete():
     # pouco texto em comum não é repetição, nem começo igual curto
     assert not P._repete("o carro reserva chega em 24h", "o carro novo chega amanhã cedo")
     assert not P._repete("veiculo: agro+", "veiculo: embrapii")
+
+
+def test_completa_ate_quatro_com_o_segundo_trecho_das_marcas():
+    """23/10, Fibrav: duas marcas respondidas com três trechos cada saíam com dois trechos no
+    Word. Primeira volta, um de cada marca; depois o seguinte, até quatro."""
+    tela = _tela(
+        [
+            (
+                "P2",
+                [
+                    ("P2.02", [("Norma ASME RTP-1 de vasos.", "", 3),
+                               ("Ensaio de dureza Barcol em cada lote.", "", 3),
+                               ("Perda por ignição medida em laboratório.", "", 3)]),
+                    ("P2.03", [("Ensaios de tração e flexão do laminado.", "", 4),
+                               ("Espessura mínima conferida na entrega.", "", 4),
+                               ("Teste hidrostático antes do embarque.", "", 4)]),
+                ],
+            )
+        ]
+    )  # fmt: skip
+    assert [(e["codigo"], e["trecho"][:12]) for e in P.selecao(tela)["P2"]] == [
+        ("P2.02", "Norma ASME R"),
+        ("P2.03", "Ensaios de t"),
+        ("P2.02", "Ensaio de du"),
+        ("P2.03", "Espessura mí"),
+    ]

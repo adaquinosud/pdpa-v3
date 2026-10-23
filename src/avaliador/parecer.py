@@ -81,28 +81,31 @@ def _repete(a: str, b: str) -> bool:
 def _escolhidos(
     marcas: List[dict], escolhas: Optional[dict] = None, impressos: Optional[List[str]] = None
 ) -> List[dict]:
-    """Um trecho por marca (o primeiro de ``_ordem_da_marca``), na ordem do Manual, até
-    quatro por bloco. Trecho que repete um já usado no bloco (``_repete``: igual, contido ou
-    com a maior parte em comum) não entra, nem o que repete um já impresso em outro bloco
-    (``impressos``), a não ser que seja o escolhido pela pessoa: a marca usa o seguinte dela,
-    se houver."""
+    """Até quatro trechos por bloco. Primeira volta: um trecho de cada marca respondida, na
+    ordem do Manual (o primeiro de ``_ordem_da_marca`` que não repete). Se sobrar lugar, novas
+    voltas pegam o trecho seguinte das marcas que têm mais, na mesma ordem, até fechar quatro
+    (23/10: na Fibrav, Qualidade da Entrega tinha duas marcas com três trechos cada e saíam
+    dois). Trecho que repete um já usado no bloco (``_repete``: igual, contido ou com a maior
+    parte em comum) não entra, nem o que repete um já impresso em outro bloco (``impressos``),
+    a não ser que seja o escolhido pela pessoa."""
     escolhas = escolhas or {}
     impressos = impressos or []
     out, usados = [], []
-    for x in marcas:
-        if x["estado"] != MARCA_ESTA:
-            continue
-        quero = _normalizar(escolhas.get(x["codigo"], ""))
-        for e in _ordem_da_marca(x, escolhas):
-            alvo = _normalizar(e["trecho"])
-            fora = [] if alvo == quero else impressos
-            if any(_repete(alvo, u) for u in usados + fora):
-                continue
-            out.append({"codigo": x["codigo"], **e})
-            usados.append(alvo)
-            break
-        if len(out) == MAX_TRECHOS:
-            break
+    filas = [(x, _ordem_da_marca(x, escolhas)) for x in marcas if x["estado"] == MARCA_ESTA]
+    while len(out) < MAX_TRECHOS and any(fila for _, fila in filas):
+        for x, fila in filas:
+            if len(out) == MAX_TRECHOS:
+                break
+            quero = _normalizar(escolhas.get(x["codigo"], ""))
+            while fila:
+                e = fila.pop(0)
+                alvo = _normalizar(e["trecho"])
+                fora = [] if alvo == quero else impressos
+                if any(_repete(alvo, u) for u in usados + fora):
+                    continue
+                out.append({"codigo": x["codigo"], **e})
+                usados.append(alvo)
+                break
     return out
 
 
