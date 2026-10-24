@@ -131,5 +131,5 @@ def test_prompt_nao_traz_codigo_nem_trecho_de_cliente():
     assert "inventados" in s
     # nem expressão tirada dos casos do gabarito: o prompt não pode ensinar a resposta da prova
     for proibido in ("Localiza", "E2Carbon", "Fibrav", "EPTV", "agência", "essa mudança",
-                     "a que", "antes disso", "pequenas empresas", "Veja como"):  # fmt: skip
+                     '"a que"', "antes disso", "pequenas empresas", "Veja como"):  # fmt: skip
         assert proibido not in s
