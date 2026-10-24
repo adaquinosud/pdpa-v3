@@ -55,6 +55,7 @@ from src.models.avaliador import (
     STATUS_LENDO,
     STATUS_PENDENTE,
     STATUS_PRONTA,
+    CORRECAO_DEVOLUCAO,
     CORRECAO_INCLUSAO,
     CORRECAO_RECUSA,
     AvaliadorAnalise,
@@ -95,7 +96,13 @@ def gasto_do_mes(s: Session, empresa_id: int, agora: Optional[datetime] = None) 
         .join(AvaliadorAnalise, AvaliadorAnalise.id == AvaliadorParecer.analise_id)
         .where(AvaliadorAnalise.empresa_id == empresa_id, AvaliadorParecer.rascunho_em >= inicio)
     )
-    return float(total or 0.0) + float(rascunhos or 0.0)
+    # a verificação dos trechos (24/10) também, no mês em que foi feita
+    verificacoes = s.scalar(
+        select(func.coalesce(func.sum(AvaliadorParecer.verificacao_custo_usd), 0.0))
+        .join(AvaliadorAnalise, AvaliadorAnalise.id == AvaliadorParecer.analise_id)
+        .where(AvaliadorAnalise.empresa_id == empresa_id, AvaliadorParecer.verificacao_em >= inicio)
+    )
+    return float(total or 0.0) + float(rascunhos or 0.0) + float(verificacoes or 0.0)
 
 
 def checar_teto(s: Session, empresa_id: int, estimativa_usd: float) -> None:
@@ -293,6 +300,8 @@ def _frase(x: dict, esta: bool) -> dict:
         "porque_importa": x["porque_importa"],
         "nota": x["nota"],
         "recusadas": x.get("recusadas", []),
+        # os trechos que a verificação tirou do Word (24/10): a tela mostra, com o motivo
+        "excluidas": x.get("excluidas", []),
         "corrigida": x.get("corrigida", False),
     }
 
@@ -338,7 +347,12 @@ def _aplicar_correcoes(m: dict, correcoes: List[AvaliadorCorrecao]) -> dict:
     "não está" (ou sem conferência) com trecho incluído passa a "está". A recusa vale também
     para a citação que não foi achada na peça: é como a pessoa resolve o "sem conferência"
     (a tela não mostra o texto dela; ver o template)."""
-    minhas = [c for c in correcoes if c.marca_codigo == m["codigo"]]
+    # a devolução ao Word (24/10) não muda a resposta da marca: vale na verificação
+    minhas = [
+        c
+        for c in correcoes
+        if c.marca_codigo == m["codigo"] and c.tipo in (CORRECAO_RECUSA, CORRECAO_INCLUSAO)
+    ]
     recusa = {c.trecho: c for c in minhas if c.tipo == CORRECAO_RECUSA}
     ok, recusadas = [], []
     for e in m.get("evidencias", []):
@@ -373,6 +387,50 @@ def _aplicar_correcoes(m: dict, correcoes: List[AvaliadorCorrecao]) -> dict:
             "corrigida": bool(minhas)}  # fmt: skip
 
 
+def _decisoes_da_verificacao(a: AvaliadorAnalise) -> dict:
+    """{chave do trecho: decisão} gravadas pela verificação (``verificar_trechos``)."""
+    if not isinstance(a, AvaliadorAnalise):  # leitura montada à mão (prévia, teste)
+        return {}
+    p = parecer_de(a)
+    return json.loads((p.verificacao_json if p is not None else None) or "{}").get("trechos", {})
+
+
+def _aplicar_verificacao(
+    linha: dict, decididas: dict, devolvidas: dict, doc, pendentes: set
+) -> dict:
+    """A verificação dos trechos (24/10) por cima da marca já corrigida: trecho excluído
+    (navegação, lista, dois-pontos sem o que anuncia) sai das evidências e vai para
+    ``excluidas``, que a tela mostra com a etiqueta do motivo; trecho devolvido ao Word pela
+    pessoa (``devolver_trecho``) fica. Marca "está" que fica sem trecho passa a "não está"
+    (saída A do Alexandre: nada se afirma sem trecho), para a tela, o Word, a frente, as frases
+    do "por que custa" e o rascunho, que leem todos este estado. Trecho sem decisão gravada vai
+    para ``pendentes`` e fica como está até ser verificado."""
+    from src.avaliador import sozinho
+
+    ok, fora = [], []
+    for e in linha["evidencias"]:
+        if not e.get("conferido"):
+            ok.append(e)
+            continue
+        k = sozinho.chave(e, doc)
+        d = decididas.get(k)
+        if d is None:
+            pendentes.add(k)
+            ok.append(e)
+        elif d["decisao"] != sozinho.EXCLUI:
+            ok.append(e)
+        elif k in devolvidas:
+            ok.append({**e, "devolvido_id": devolvidas[k]})
+        else:
+            fora.append(
+                {**e, "etiqueta": sozinho.ETIQUETAS.get(d.get("tipo"), "não entra no Word")}
+            )
+    estado = linha["estado"]
+    if estado == MARCA_ESTA and fora and not any(e.get("conferido") for e in ok):
+        estado = MARCA_NAO_ESTA
+    return {**linha, "evidencias": ok, "excluidas": fora, "estado": estado}
+
+
 def organizar_marcas(
     regua: Regua, a: AvaliadorAnalise, correcoes: Optional[List[AvaliadorCorrecao]] = None
 ) -> dict:
@@ -395,11 +453,27 @@ def organizar_marcas(
     correcoes = correcoes or []
     da_regua = {m.codigo: m for m in regua.marcas}
     separa = a.cliente_nomeado is False
+    doc = Documento.de_json(a.texto_json) if getattr(a, "texto_json", None) else None
+    # a verificação dos trechos (24/10); as peças de medição ficam fora (linha de base)
+    isenta = getattr(a, "id", None) in PECAS_DE_MEDICAO
+    decididas = {} if isenta else _decisoes_da_verificacao(a)
+    devolvidas = {}
+    if not isenta:
+        from src.avaliador import sozinho
+
+        for c in correcoes:
+            if c.tipo == CORRECAO_DEVOLUCAO:
+                ch = sozinho.chave({"trecho": c.trecho, "pagina_encontrada": c.pagina}, doc)
+                devolvidas[ch] = c.id
+    pendentes: set = set()
     linhas, a_parte = [], []
     for m in g["marcas"]:
         r = da_regua.get(m["codigo"])
+        corrigida = _aplicar_correcoes(m, correcoes)
+        if not isenta:
+            corrigida = _aplicar_verificacao(corrigida, decididas, devolvidas, doc, pendentes)
         linha = {
-            **_aplicar_correcoes(m, correcoes),
+            **corrigida,
             "porque_importa": r.porque_importa if r else "",
             # leitura anterior a uma mudança do Manual: a pergunta gravada já não é a de hoje
             "nota": (
@@ -437,7 +511,10 @@ def organizar_marcas(
         "cliente_nomeado": a.cliente_nomeado,
         # o texto da peça, para o parecer imprimir a frase inteira do trecho cortado no
         # meio dela (parecer.impresso, 23/10); None quando o texto já foi apagado
-        "documento": (Documento.de_json(a.texto_json) if getattr(a, "texto_json", None) else None),
+        "documento": doc,
+        # a verificação dos trechos (24/10): quantos ainda não passaram por ela; com algum, o
+        # Word não sai (parecer.montar)
+        "verificacao": {"isenta": isenta, "pendentes": len(pendentes), "feita": bool(decididas)},
         "achados": g["achados"],
         "contradicoes": g["contradicoes"],
         "pilares": pilares,
@@ -759,7 +836,7 @@ def textos_do_parecer(a: AvaliadorAnalise) -> dict:
     if p is None:
         return {
             "empresa_da_peca": "", "ordem": "", "nota_c": "", "achados": {}, "escolhas": {},
-            "rascunho": {},
+            "rascunho": {}, "verificacao_custo_usd": 0.0,
         }  # fmt: skip
     return {
         "empresa_da_peca": p.empresa_da_peca or "",
@@ -768,6 +845,7 @@ def textos_do_parecer(a: AvaliadorAnalise) -> dict:
         "achados": json.loads(p.achados_json or "{}"),
         "escolhas": json.loads(p.escolhas_json or "{}"),
         "rascunho": json.loads(p.rascunho_json or "{}"),
+        "verificacao_custo_usd": float(p.verificacao_custo_usd or 0.0),
     }
 
 
@@ -778,6 +856,7 @@ def _parecer_ou_novo(s: Session, a: AvaliadorAnalise) -> AvaliadorParecer:
             analise_id=a.id, empresa_da_peca="", ordem="", achados_json="{}", nota_c="",
             escolhas_json="{}",
             rascunho_json="{}", rascunho_custo_usd=0.0,
+            verificacao_json="{}", verificacao_custo_usd=0.0,
         )  # fmt: skip
         s.add(p)
     return p
@@ -887,6 +966,11 @@ def rascunhar_parecer(
             "Antes do rascunho, resolva as marcas sem conferência: o modelo escreve a partir "
             "do que a tela mostra, e ela ainda não está fechada."
         )
+    if falta["verificar"]:
+        raise AvaliacaoRecusada(
+            "Antes do rascunho, verifique os trechos: o rascunho é escrito sobre os trechos "
+            "que vão para o Word, e eles ainda não passaram pela verificação."
+        )
     campos = [CAMPO_ORDEM, *SUBPILARES_ORDEM]
     escrito = {CAMPO_ORDEM: textos["ordem"], **textos["achados"]}
     vazios = [c for c in campos if not (escrito.get(c) or "").strip()]
@@ -976,6 +1060,7 @@ def apagar_leitura(a: AvaliadorAnalise) -> None:
             p.ordem, p.nota_c, p.achados_json, p.escolhas_json = "", "", "{}", "{}"
             p.empresa_da_peca = ""
             p.rascunho_json = "{}"  # o texto do modelo também fala da peça; o gasto fica
+            p.verificacao_json = "{}"  # chaveada pelo texto dos trechos; o gasto fica
     apagar_texto(a, "leitura_apagada")
     a.descricao = ""
     a.arquivo_nome = None
@@ -984,6 +1069,132 @@ def apagar_leitura(a: AvaliadorAnalise) -> None:
     a.itens_json = "[]"
     a.paginas_sem_texto_json = "[]"
     a.status = STATUS_APAGADA
+
+
+# ── a verificação dos trechos (24/10) ───────────────────────────────────────
+
+
+def _linhas_da_tela(tela: dict) -> List[dict]:
+    out = [x for b in tela["pilares"] for sp in b["subpilares"] for x in sp["marcas"]]
+    return out + tela["fora_dos_doze"]["marcas"] + tela["a_parte"]
+
+
+def _pendentes(tela: dict, decididas: dict) -> List[dict]:
+    """As evidências conferidas que ainda não passaram pela verificação (as que já passaram
+    estão decididas, inclusive as excluídas)."""
+    from src.avaliador import sozinho
+
+    doc = tela["documento"]
+    return [
+        e
+        for x in _linhas_da_tela(tela)
+        for e in x["evidencias"]
+        if e.get("conferido") and sozinho.chave(e, doc) not in decididas
+    ]
+
+
+def estimativa_verificacao(a: AvaliadorAnalise, tela: dict) -> float:
+    """Pior caso da verificação dos trechos pendentes, em US$ (a chamada e a nova tentativa):
+    o botão diz antes. 0 quando não há o que verificar."""
+    from src.avaliador import sozinho
+
+    lista = sozinho.itens(_pendentes(tela, _decisoes_da_verificacao(a)), tela["documento"])
+    if not lista:
+        return 0.0
+    entrada = len(sozinho.sistema()) + len(sozinho.entrada(lista)) + len(sozinho.PEDIDO)
+    return motor._pior_caso_usd(a.modelo, entrada, sozinho.max_tokens(lista)) * motor.TENTATIVAS
+
+
+def verificar_trechos(
+    s: Session, a: AvaliadorAnalise, usuario_id: Optional[int], client=None
+) -> int:
+    """O modelo decide, para cada trecho ainda não verificado, se ele vai ao Word ou sai
+    (navegação, lista, dois-pontos sem o que anuncia; ``src/avaliador/sozinho.py``). Grava a
+    decisão por trecho no parecer; o resultado gravado da leitura não muda. O gasto fica
+    gravado mesmo se a chamada falhar, e entra no teto mensal pela data. As peças de medição
+    não são verificadas. Devolve quantos trechos foram verificados."""
+    from src.avaliador import sozinho
+
+    _exigir_corrigivel(a)
+    if e_peca_de_medicao(a):
+        raise AvaliacaoRecusada(
+            "Peça de medição não é verificada: ela é a linha de base, e o Word dela sai como antes."
+        )
+    tela = organizar_marcas(carregar_regua(), a, correcoes_de(a))
+    decididas = _decisoes_da_verificacao(a)
+    lista = sozinho.itens(_pendentes(tela, decididas), tela["documento"])
+    if not lista:
+        return 0
+    limite = estimativa_verificacao(a, tela)
+    checar_teto(s, a.empresa_id, limite)  # antes do gasto
+    if client is None:
+        from src.classifier.classifier_v3 import _get_client
+
+        client = _get_client()
+    p = _parecer_ou_novo(s, a)
+    orc = {"total": motor.Uso(), "limite": limite}
+    try:
+        decisoes = motor._chamar(
+            client, a.modelo, sozinho.sistema(), sozinho.entrada(lista), sozinho.PEDIDO,
+            sozinho.max_tokens(lista), sozinho.validador(lista), orc, sozinho.TEMPERATURA,
+        )  # fmt: skip
+    except Exception as e:  # noqa: BLE001 — o gasto conta mesmo na falha
+        p.verificacao_custo_usd = (p.verificacao_custo_usd or 0.0) + orc["total"].custo_usd
+        p.verificacao_em = datetime.utcnow()
+        logger.warning(f"[avaliador] verificação dos trechos falhou na leitura {a.id}: {e!r}")
+        raise AvaliacaoRecusada(
+            f"A verificação dos trechos não saiu ({type(e).__name__}). O Word continua "
+            f"esperando por ela; o gasto desta tentativa, US$ {virg(orc['total'].custo_usd, 4)}, "
+            "fica registrado."
+        ) from None
+    trechos = dict(decididas)
+    for x in lista:
+        trechos[x["chave"]] = decisoes[x["n"]]
+    p.verificacao_json = json.dumps(
+        {"versao": sozinho.VERSAO, "trechos": trechos}, ensure_ascii=False
+    )
+    p.verificacao_custo_usd = (p.verificacao_custo_usd or 0.0) + orc["total"].custo_usd
+    p.verificacao_em = datetime.utcnow()
+    marcar_uso(a)
+    return len(lista)
+
+
+def _verificar_no_fim(s: Session, a: AvaliadorAnalise, client) -> None:
+    """No fim de toda leitura nova. Se falhar (teto, resposta recusada), a leitura fica pronta
+    do mesmo jeito e a tela pede a verificação antes do Word: degrada à vista."""
+    if e_peca_de_medicao(a):
+        return
+    try:
+        verificar_trechos(s, a, None, client=client)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[avaliador] verificação no fim da leitura {a.id} ficou pendente: {e}")
+
+
+def devolver_trecho(
+    s: Session, a: AvaliadorAnalise, codigo: str, trecho: str, usuario_id: Optional[int]
+) -> None:
+    """A pessoa devolve ao Word um trecho que a verificação tirou. Fica gravado como correção
+    (``devolucao``), que é a medida de uso da verificação: quantas exclusões as pessoas
+    desfazem. Desfazer a devolução tira o trecho de novo."""
+    _exigir_corrigivel(a)
+    tela = organizar_marcas(carregar_regua(), a, correcoes_de(a))
+    linha = next((x for x in _linhas_da_tela(tela) if x["codigo"] == codigo), None)
+    alvo = _normalizar(trecho)
+    ev = next(
+        (e for e in (linha or {}).get("excluidas", []) if _normalizar(e["trecho"]) == alvo), None
+    )
+    if ev is None:
+        raise AvaliacaoRecusada(
+            "Esse trecho não está entre os que a verificação tirou desta marca."
+        )
+    s.add(
+        AvaliadorCorrecao(
+            analise_id=a.id, conteudo_hash=a.conteudo_hash, marca_codigo=codigo,
+            marca_texto=linha["texto"], tipo=CORRECAO_DEVOLUCAO, trecho=ev["trecho"],
+            pagina=ev.get("pagina_encontrada"), usuario_id=usuario_id,
+        )
+    )  # fmt: skip
+    marcar_uso(a)
 
 
 # ── processamento (thread) ────────────────────────────────────────────────
@@ -1023,6 +1234,8 @@ def processar(analise_id: int, client=None) -> None:
             a.regua_versao = regua.versao
             a.status = STATUS_PRONTA
             a.atualizado_em = datetime.utcnow()
+            s.commit()
+            _verificar_no_fim(s, a, client)
         except Exception as e:  # noqa: BLE001 — toda falha vira estado visível
             a.status = STATUS_FALHOU
             a.erro_motivo = f"leitura: {type(e).__name__}"

@@ -250,7 +250,17 @@ def montar(tela: dict, textos: dict, numero: int, data: str, cobertura: dict) ->
         "conferir": 0,
         "regua": False,
         "rascunho": 0,
+        "verificar": 0,
     }
+    # a verificação dos trechos (24/10) vem antes do Word: trecho que não passou por ela
+    # trava o Word até a pessoa verificar (as peças de medição são isentas)
+    verif = tela.get("verificacao") or {}
+    if verif.get("pendentes") and not verif.get("isenta"):
+        falta["verificar"] = verif["pendentes"]
+        pendencias.append(
+            "Verifique os trechos antes do Word (botão “verificar trechos”, acima): "
+            f"{verif['pendentes']} ainda não passaram pela verificação."
+        )
     escolhidos = selecao(tela, textos.get("escolhas"))
     empresa = (textos.get("empresa_da_peca") or "").strip()
     if not empresa:

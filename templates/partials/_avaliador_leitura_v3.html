@@ -25,6 +25,11 @@
 {% macro recusadas(f) %}{% for e in f.recusadas %}
         <div data-recusado class="text-xs text-loyall-400 ml-2">{% if e.conferido %}<span class="line-through">“{{ e.trecho }}”</span>{% else %}<span class="line-through">a citação que não foi achada na peça</span>{% endif %} recusado à mão{% if pode_corrigir %} · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% endif %}</div>
 {% endfor %}{% endmacro %}
+{# a verificação dos trechos (24/10): o trecho que não entra no Word aparece com o que ele é, e a
+   pessoa pode devolver; a devolução fica gravada como correção (a medida de uso). #}
+{% macro excluidas(f) %}{% for e in f.excluidas %}
+        <div data-excluido class="text-xs text-loyall-400 ml-2">“{{ e.trecho }}” · <span class="text-amber-700">{{ e.etiqueta }}</span>{% if pode_corrigir %} · {{ acao('devolver', 'devolver ao Word', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}</div>
+{% endfor %}{% endmacro %}
 {% macro form_incluir(codigo) %}
           <form hx-post="{{ url_for('ui.avaliador_corrigir', empresa_id=empresa_id, aid=a.id, acao='incluir') }}" hx-target="#avaliador-analise" hx-swap="outerHTML" class="flex gap-2 mt-1 ml-2">
             <input type="hidden" name="codigo" value="{{ codigo }}">
@@ -63,23 +68,26 @@
         {% for e in f.evidencias %}
         {{ cit.citacoes([e], True) }}
         {% if pode_corrigir %}<div class="ml-4 text-xs space-x-2">{% if (f.codigo, e.trecho) in no_parecer %}<span class="text-emerald-700">vai para o parecer</span>{% elif e.conferido and f.codigo in no_parecer | map(attribute=0) | list %}{{ acao('escolher', 'usar este no parecer', {'codigo': f.codigo, 'trecho': e.trecho}, 'text-emerald-700') }}{% endif %}
-          {% if e.incluido %}<span class="text-amber-700">incluído à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% else %}{{ acao('recusar', 'não responde', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}</div>{% endif %}
+          {% if e.incluido %}<span class="text-amber-700">incluído à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.correcao_id}) }}{% else %}{{ acao('recusar', 'não responde', {'codigo': f.codigo, 'trecho': e.trecho}) }}{% endif %}
+          {% if e.devolvido_id %}<span data-devolvido class="text-amber-700">devolvido ao Word à mão</span> · {{ acao('desfazer', 'desfazer', {'correcao_id': e.devolvido_id}) }}{% endif %}</div>{% endif %}
         {% endfor %}
         {{ recusadas(f) }}
+        {{ excluidas(f) }}
         {% if pode_corrigir and texto_disponivel %}{{ form_incluir(f.codigo) }}{% endif %}
         </div>
       </details>
 {% endmacro %}
 {% macro marca_nao_diz(f, com_subpilar) %}
       {% set linha %}<span data-marca="{{ f.codigo }}" data-estado="nao_esta" class="text-loyall-500"><span class="text-loyall-300">✗</span> {% if com_subpilar %}{{ f.grupo }} · {% endif %}{{ f.frase }}{{ marcas_extras(f) }}</span>{% endset %}
-      {% if pode_corrigir and (texto_disponivel or f.recusadas) %}
+      {% if pode_corrigir and (texto_disponivel or f.recusadas or f.excluidas) %}
       <details class="text-sm"><summary class="cursor-pointer">{{ linha }}</summary>
         {% if f.porque_importa %}<div class="text-xs text-loyall-500 ml-2">{{ f.porque_importa }}</div>{% endif %}
         {{ recusadas(f) }}
+        {{ excluidas(f) }}
         {% if texto_disponivel %}{{ form_incluir(f.codigo) }}{% endif %}
       </details>
       {% else %}
-      <div class="text-sm">{{ linha }}{{ recusadas(f) }}</div>
+      <div class="text-sm">{{ linha }}{{ recusadas(f) }}{{ excluidas(f) }}</div>
       {% endif %}
 {% endmacro %}
 {% macro simetrico(b, com_subpilar=False) %}
@@ -117,11 +125,25 @@
     {% endfor %}
     </div>
   </details>
+  {# a verificação dos trechos (24/10): antes do rascunho e do Word; o custo vem antes #}
+  {% if L.verificacao.isenta %}
+  <div data-verificar class="text-xs text-loyall-500">Peça de medição: os trechos não são verificados, e o Word sai como antes.</div>
+  {% elif L.verificacao.pendentes %}
+  <div data-verificar class="text-xs">
+    <form hx-post="{{ url_for('ui.avaliador_verificar', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML" hx-indicator="#verificando" hx-disabled-elt="find button" class="inline">
+      <button class="px-3 py-1 rounded border border-loyall-400 text-loyall-800 bg-white hover:bg-loyall-100">Verificar {{ L.verificacao.pendentes }} {{ 'trecho' if L.verificacao.pendentes == 1 else 'trechos' }}</button>
+    </form>
+    <span class="text-loyall-500">custo de no máximo US$ {{ verificacao_teto_usd | virg(2) }}; o Word e o rascunho esperam a verificação, que tira o que é botão, menu, lista de nomes ou anúncio sem conteúdo.</span>
+    <span id="verificando" class="htmx-indicator text-amber-700">verificando (até um minuto)…</span>
+  </div>
+  {% endif %}
   {# o rascunho do modelo (fatia 3): só preenche campo em branco; o custo vem antes #}
   {% if campos_em_branco %}
   <div data-rascunho-pedir class="text-xs">
     {% if parecer.falta.conferir or parecer.falta.regua %}
     <span class="text-loyall-500">O rascunho da ordem e dos achados fica disponível depois de resolver as marcas sem conferência.</span>
+    {% elif parecer.falta.verificar %}
+    <span class="text-loyall-500">O rascunho da ordem e dos achados fica disponível depois de verificar os trechos.</span>
     {% else %}
     <form hx-post="{{ url_for('ui.avaliador_rascunho', empresa_id=empresa_id, aid=a.id) }}" hx-target="#avaliador-analise" hx-swap="outerHTML" hx-indicator="#rascunho-escrevendo" hx-disabled-elt="find button" class="inline">
       <button class="px-3 py-1 rounded border border-loyall-400 text-loyall-800 bg-white hover:bg-loyall-100">Rascunhar {{ 'a ordem e ' if not parecer_textos.ordem.strip() else '' }}{{ campos_em_branco - (0 if parecer_textos.ordem.strip() else 1) }} {{ 'achado em branco' if campos_em_branco - (0 if parecer_textos.ordem.strip() else 1) == 1 else 'achados em branco' }}</button>

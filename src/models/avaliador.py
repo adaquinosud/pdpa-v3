@@ -97,6 +97,9 @@ class AvaliadorAnalise(Base):
 # Guarda trecho de peça de cliente: nada daqui vira fixture nem vai para o repositório.
 CORRECAO_RECUSA = "recusa"  # um trecho citado pela leitura não responde à marca
 CORRECAO_INCLUSAO = "inclusao"  # a pessoa achou na peça o trecho que responde
+# a pessoa devolve ao Word um trecho que a verificação tirou (24/10): é a medida de uso da
+# verificação, quantas exclusões as pessoas desfazem
+CORRECAO_DEVOLUCAO = "devolucao"
 
 
 class AvaliadorCorrecao(Base):
@@ -152,6 +155,12 @@ class AvaliadorParecer(Base):
     rascunho_custo_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     rascunho_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     rascunho_versao: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # a verificação dos trechos (24/10, ``src/avaliador/sozinho.py``): {"versao", "trechos":
+    # {texto impresso normalizado: {"decisao": "passa" | "exclui", "tipo", "por_que"}}}. O
+    # custo entra no teto mensal pela data da verificação, como o rascunho.
+    verificacao_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    verificacao_custo_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    verificacao_em: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     usuario_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
     )

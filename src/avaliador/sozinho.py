@@ -38,6 +38,12 @@ PASSA, EXCLUI = "passa", "exclui"
 DECISOES = (PASSA, EXCLUI)
 NAVEGACAO, LISTA, DOIS_PONTOS = "navegacao", "lista", "dois_pontos"
 TIPOS = (NAVEGACAO, LISTA, DOIS_PONTOS)
+# o que a tela diz do trecho excluído (24/10, o Alexandre): o que o trecho É, não a regra
+ETIQUETAS = {
+    NAVEGACAO: "não entra no Word: é botão ou menu do site",
+    LISTA: "não entra no Word: é lista de nomes, sem frase",
+    DOIS_PONTOS: "não entra no Word: anuncia uma coisa que não vem",
+}
 LIMITE_POR_QUE = 200  # caracteres: "até quinze palavras", com folga
 # decisão, não texto: a saída por trecho é curta
 TOKENS_POR_TRECHO = 60
@@ -50,6 +56,12 @@ def sistema() -> str:
     return (Path(__file__).parent / "prompts" / "trecho_sozinho.md").read_text(encoding="utf-8")
 
 
+def chave(e: dict, doc) -> str:
+    """A chave de um trecho na verificação: o texto IMPRESSO, normalizado. O mesmo texto
+    citado por duas marcas é um trecho só."""
+    return _normalizar(P.impresso(e, doc))
+
+
 def itens(trechos: List[dict], doc) -> List[dict]:
     """Os trechos a verificar, um por texto impresso (o mesmo texto citado por duas marcas é
     verificado uma vez). ``trechos``: as evidências como vêm da tela (``pagina_encontrada``,
@@ -57,12 +69,12 @@ def itens(trechos: List[dict], doc) -> List[dict]:
     out, vistos = [], set()
     for e in trechos:
         texto = " ".join(P.impresso(e, doc).split())
-        chave = _normalizar(texto)
-        if chave in vistos:
+        k = chave(e, doc)
+        if k in vistos:
             continue
-        vistos.add(chave)
+        vistos.add(k)
         viz = vizinhas(doc, e.get("pagina_encontrada"), texto) if doc is not None else None
-        out.append({"n": len(out) + 1, "trecho": texto, **(viz or {
+        out.append({"n": len(out) + 1, "chave": k, "trecho": texto, **(viz or {
             "antes": None, "antes_outra_linha": False, "depois": None,
             "depois_outra_linha": False})})  # fmt: skip
     return out

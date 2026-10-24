@@ -158,7 +158,7 @@ def test_rascunho_so_preenche_em_branco_e_o_word_espera_a_pessoa(db_session, emp
     assert p.rascunho_custo_usd > 0 and p.rascunho_versao == R.VERSAO
     # o gasto entra no teto mensal da empresa
     assert servico.gasto_do_mes(db_session, empresa.id) == pytest.approx(
-        a.custo_usd + p.rascunho_custo_usd
+        a.custo_usd + p.rascunho_custo_usd + p.verificacao_custo_usd
     )
     # o Word espera a pessoa passar por cada campo
     m = _montar(a)

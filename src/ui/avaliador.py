@@ -151,6 +151,11 @@ def _render_analise(empresa_id: int, a: AvaliadorAnalise, erro=None, s=None) -> 
             parecer_mod.estado_do_rascunho(tela, servico.textos_do_parecer(a)) if tela else {}
         ),
         campos_em_branco=_campos_em_branco(a) if tela else 0,
+        verificacao_teto_usd=(
+            servico.estimativa_verificacao(a, tela)
+            if tela and tela["verificacao"]["pendentes"] and not tela["verificacao"]["isenta"]
+            else 0.0
+        ),
         rascunho_teto_usd=(
             servico.estimativa_rascunho(a, tela) if tela and _campos_em_branco(a) else 0.0
         ),
@@ -295,6 +300,10 @@ def avaliador_corrigir(empresa_id: int, aid: int, acao: str):
         fn = lambda s, a: servico.recusar_nao_achadas(  # noqa: E731
             s, a, f.get("codigo", ""), usuario_id
         )
+    elif acao == "devolver":
+        fn = lambda s, a: servico.devolver_trecho(  # noqa: E731
+            s, a, f.get("codigo", ""), f.get("trecho", ""), usuario_id
+        )
     elif acao == "desfazer":
         fn = lambda s, a: servico.desfazer_correcao(  # noqa: E731
             s, a, int(f.get("correcao_id") or 0)
@@ -332,6 +341,16 @@ def avaliador_parecer_salvar(empresa_id: int, aid: int):
             "partials/_avaliador_parecer_pendencias.html",
             parecer=_parecer(a, tela), empresa_id=empresa_id, a=a, salvo=True, oob=True,
         )  # fmt: skip
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/avaliador/<int:aid>/verificar", methods=["POST"])
+@loyall_required_ui
+def avaliador_verificar(empresa_id: int, aid: int):
+    """A verificação dos trechos que ainda não passaram por ela (leitura antiga, trecho que veio
+    de correção, ou a do fim da leitura que falhou). Chamada paga: o teto é conferido antes; o
+    gasto fica gravado mesmo na falha."""
+    usuario_id = get_current_user().id
+    return _acao(empresa_id, aid, lambda s, a: servico.verificar_trechos(s, a, usuario_id))
 
 
 @ui_bp.route(

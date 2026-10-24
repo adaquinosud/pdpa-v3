@@ -125,10 +125,28 @@ def _etapa_de_marcas(pedido, presentes):
     return {"marcas": out}
 
 
+def _verificacao(entrada: str, exclui) -> dict:
+    """A resposta da verificação dos trechos (24/10): "passa" para todo trecho, menos os que
+    contêm um dos textos de ``exclui`` ({texto: tipo}), que saem com o tipo dado."""
+    out = []
+    for n, trecho in re.findall(r"^\[(\d+)\]\ntrecho: “(.*)”$", entrada, re.M):
+        tipo = next((t for k, t in (exclui or {}).items() if k in trecho), None)
+        out.append({"n": int(n), "decisao": "exclui" if tipo else "passa", "tipo": tipo,
+                    "por_que": "dublê"})  # fmt: skip
+    return {"trechos": out}
+
+
+def _leitura(chamadas):
+    """As chamadas da leitura, sem a da verificação dos trechos que vem no fim (24/10)."""
+    return [c for c in chamadas if not c["messages"][0]["content"][-1]["text"].startswith(
+        "Decida cada trecho")]  # fmt: skip
+
+
 class Dublê:
-    def __init__(self, respostas=None, quebra=False):
+    def __init__(self, respostas=None, quebra=False, exclui=None):
         self.respostas = list(respostas or [resposta_v25()])
         self.quebra = quebra
+        self.exclui = exclui  # a verificação dos trechos: {texto: tipo} que sai do Word
         self.chamadas = []
         self.messages = self
 
@@ -137,6 +155,13 @@ class Dublê:
         if self.quebra:
             raise ConnectionError("rede caiu")
         conteudo = kw["messages"][0]["content"]
+        if isinstance(conteudo, list) and conteudo[-1]["text"].startswith("Decida cada trecho"):
+            texto = json.dumps(_verificacao(conteudo[0]["text"], self.exclui), ensure_ascii=False)
+            return SimpleNamespace(
+                content=[SimpleNamespace(type="text", text=texto)],
+                usage=SimpleNamespace(input_tokens=1000, output_tokens=200,
+                                      cache_creation_input_tokens=0, cache_read_input_tokens=0),
+            )  # fmt: skip
         r = self.respostas[0]
         if isinstance(conteudo, list) and isinstance(r, dict) and r.get("v25"):
             # formato 3: responde pela etapa pedida no fim da mensagem; a resposta inteira
@@ -250,7 +275,8 @@ def test_caminho_feliz_arquivo(db_session, empresa, teto):
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.resumo is None and a.erro_motivo is None
     assert a.prompt_versao == "avaliador-v27-marcas"
-    assert len(cli.chamadas) == 5  # uma por pilar (a última com o bloco C) e os achados
+    # uma por pilar (a última com o bloco C) e os achados; depois, a verificação dos trechos
+    assert len(_leitura(cli.chamadas)) == 5 and len(cli.chamadas) == 6
     assert DESCRICAO in cli.chamadas[0]["messages"][0]["content"][0]["text"]
     assert a.custo_usd > 0 and a.origem == "arquivo" and a.formato == "pptx"
     assert servico.formato_da_leitura(a) == servico.FORMATO_MARCAS == servico.FORMATO_ATUAL
@@ -361,7 +387,7 @@ def test_leitura_de_versao_antiga_na_fila_sai_nas_marcas_de_hoje(db_session, emp
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v27-marcas"
     assert servico.formato_da_leitura(a) == servico.FORMATO_MARCAS
-    assert '"forte"' not in cli.chamadas[0]["system"] and len(cli.chamadas) == 5
+    assert '"forte"' not in cli.chamadas[0]["system"] and len(_leitura(cli.chamadas)) == 5
 
 
 def test_falha_nos_achados_falha_a_leitura_e_cobra(db_session, empresa, teto):
@@ -451,7 +477,7 @@ def test_leitura_v20_na_fila_e_lida_com_o_pedido_de_hoje(db_session, empresa, te
     cli = Dublê()
     a = _rodar(db_session, aid, cli)
     assert a.status == STATUS_PRONTA and a.prompt_versao == "avaliador-v27-marcas"
-    assert len(cli.chamadas) == 5
+    assert len(_leitura(cli.chamadas)) == 5
 
 
 def test_peca_de_medicao_nao_perde_texto_nem_leitura(db_session, empresa, teto, monkeypatch):
