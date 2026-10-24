@@ -3419,10 +3419,77 @@ cliente. O Word de todas as peças muda, inclusive o da #31.
 sem frase, rótulo ("Veículo: JORNAL DA EPTV", "enviar mensagem"), nome e cargo soltos, frase que
 retoma algo de fora ("Essa mudança impõe desafios"). E o caso da Localiza (#31), "Se for diferente
 da que você abriu": o trecho começa no começo da frase, e o "da que" retoma o "agência" da frase
-anterior. A regra só o completa para a frente. **Ele continua esperando a checagem com modelo**
+anterior. A regra não muda nada nele: o trecho começa no começo da frase e termina em ponto
+(corrigido em 24/10; a primeira redação dizia que ele era completado para a frente, e a oitava
+mudança da prévia era outra, "Após 30 dias —" na Mutualidade da #31, que fica). **Ele continua
+esperando a checagem com modelo**
 (frente desenhada em 23/10, não aberta: uma chamada por parecer perguntando se cada trecho se
 sustenta sozinho, estimada em R$ 0,12 a R$ 0,29; antes de ligar, um gabarito com a leitura do
 Alexandre; decisão pendente sobre travar o Word até a checagem).
+
+### 4.72 Avaliador: verificação do trecho que vai sozinho para o parecer (24/out · só admin · branch, não ligada)
+
+**A regra decidida pelo Alexandre (24/10), com seis casos reais na mão.** Antes do Word e antes
+da seleção de até quatro: cada trecho (o IMPRESSO, já com a frase inteira da §4.71) passa, é
+completado com a frase vizinha, ou sai. Trecho excluído que era o único da marca faz a marca cair
+para "não está" (saída A: nada se afirma sem trecho; a pessoa devolve pela correção). A tela mostra
+o excluído com etiqueta discreta, sem pendência. As peças de medição (24, 25, 26, 28, 31) ficam
+isentas: são linha de base, não entrega. Roda sozinha no fim de leitura nova; na leitura antiga e no
+trecho vindo de correção, ao gerar o Word, com o custo dito no botão.
+
+**Primeiro gabarito: NÃO PASSOU** (branch `feat/avaliador-trecho-sozinho`, `693e7bb`; shell do
+Render, 24/10; R$ 0,61). Gabarito à mão do Alexandre, com as vizinhas reais (`vizinhas.py`): 49
+textos distintos no Word das #31 (28) e #32 (21); 41 passam, 1 completa para trás ("Se for
+diferente…", com a frase da agência), 7 excluem. Critério fixado antes: nenhum dos que passam
+tocado, todos os outros acertados, no máximo 2 mudando entre três rodadas (temperatura 0).
+- 5 dos 41 tocados nas três rodadas. Quatro eram contatos (central 24h, endereço da sede, suporte
+  pós-venda, e-mail e telefones da #32), excluídos como "rótulo" porque o exemplo do prompt dizia
+  que "Telefone: 0800…" era rótulo. **Erro de autoria do Code**: o exemplo era inventado e contrariava
+  o gabarito. Se tivesse subido, D1.04, D1.07 e D2.02 da #31 cairiam para "não está": falta
+  fabricada pelo próprio conserto. O quinto ("Se ultrapassar o limite contratado…") foi completado
+  para trás sem precisar.
+- "Essa mudança impõe desafios…" passou nas três; "Pra quem fica com o carro por mais de 29 dias."
+  oscilou; "Se for diferente…" oscilou (exclui, exclui, anterior).
+- Antes da rodada, duas correções do prompt: "anterior" só quando a frase de antes É o antecedente
+  (completar com a frase que só está antes fabrica antecedente falso, e falso é pior que
+  incompleto: na #32, "Essa mudança" juntada ao prazo das pequenas empresas); e as expressões de
+  exemplo da primeira versão eram tiradas dos próprios casos do gabarito ("essa mudança", "a que"),
+  o que invalidaria a medição. Um teste passou a barrar expressões dos casos no prompt.
+
+**Escopo cortado, decisão do Alexandre: v1 só com três exclusões.** Navegação (rótulo de link,
+botão ou cartão que só nomeia e elogia; rótulo de campo cujo valor é só um nome, como "Veículo:
+X"), lista de nomes sem frase, e trecho que termina em dois-pontos sem o que anuncia. Dado que o
+leitor usa (telefone, e-mail, endereço) passa. Completar (para trás e para a frente) saiu do prompt,
+do validador e da junção: para a frente não tinha nenhum caso medido; para trás oscilou. O
+julgamento "se entende sozinho" saiu.
+
+**Segundo gabarito, v1: PASSOU** (`62cbe9c`; R$ 0,70). Os 5 excluem nas três rodadas (#31: "Portal
+do Cliente…", "Envie sua mensagem…"; #32: "Veja como…:", a lista de produtores, "Veículo: JORNAL DA
+EPTV…"); os 44 passam nas três; 1 trecho mudou só o tipo (lista/navegação), com a decisão igual.
+**Ressalva:** medido nos mesmos 49 trechos que motivaram o corte de escopo; em peça nova não há
+medição. A proteção é a etiqueta na tela e a correção; mede-se pelo uso (exclusões desfeitas).
+
+**O que a v1 não resolve.** Conserta cinco dos oito trechos ruins das duas peças. Os três que sobram
+são a família da frase que aponta para fora de si ("Essa mudança…", "Se for diferente da que…",
+"Pra quem fica…"), que foi o que deu origem a esta frente; vão ao Word como antes.
+
+**Não ligado ainda.** Falta: gravar (proposta: três colunas no `AvaliadorParecer`, migração
+pendente de OK), rodar no fim da leitura e ao gerar o Word, a etiqueta na tela (texto a decidir:
+a frase "não se entende sozinho" é anterior ao corte de escopo), a isenção das peças de medição e
+a marca que vira "não está" (olhando todos os trechos da marca na tela, não só os do Word).
+
+**Achado lateral, a premissa que não se confirmou.** "Rótulo de link, que já estava fora" não
+estava fora em lugar nenhum do código: era classe de erro identificada e nunca consertada. Entra na
+v1 como navegação. Na #31 o "Portal da privacidade" da P2.08 não está no Word de hoje (inferido:
+recusado pelas correções; não conferido).
+
+**Achado lateral, a leitura de site.** O "nada" depois de "Veja como…:" na #32 não é cartão
+descartado: o extrator de site faz uma "página" por seção (título h1-h6), e os dez cartões estão na
+seção seguinte, "Conheça nossas soluções:", lidos e citados na tela. A vizinha não atravessa
+seção. Ficou à vista que o extrator descarta sem aviso o que está em nav, form, button, dialog,
+iframe, svg, canvas, papel de navegação, escondido, e, quando há `<main>`, o que fica fora dele.
+Script de auditoria escrito (`descartes_site.py`, fora do repositório, sem modelo e sem custo),
+para rodar nas leituras de site.
 
 ---
 
