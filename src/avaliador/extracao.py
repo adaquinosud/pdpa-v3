@@ -854,3 +854,51 @@ def frase_inteira(doc: Documento, pagina: Optional[int], trecho: str) -> Optiona
                 )
             return frase
     return None
+
+
+def _frases(texto: str, formato: str) -> List[Tuple[str, int]]:
+    """As frases de um campo da página, na ordem: (frase, índice da linha). Mesma regra de fim
+    de frase de ``frase_inteira``."""
+    out = []
+    for i, u in enumerate(_unidades(texto or "", formato)):
+        ini = 0
+        for f in _fins(u) + [len(u)]:
+            if u[ini:f].strip():
+                out.append((u[ini:f].strip(), i))
+            ini = f
+    return out
+
+
+def vizinhas(doc: Documento, pagina: Optional[int], texto: str) -> Optional[dict]:
+    """A frase de antes e a de depois de ``texto`` (o trecho como o parecer o imprime) na
+    página da peça, para a verificação do trecho que se entende sozinho (24/10). Ao contrário
+    de ``frase_inteira``, ATRAVESSA linha: o que um trecho terminado em dois-pontos anuncia
+    costuma estar na linha de baixo. ``{"antes", "antes_outra_linha", "depois",
+    "depois_outra_linha"}``, com None onde a página começa ou acaba; None se o texto não é
+    achado (elisão, frase longa com reticências)."""
+    alvo = _normalizar(texto)
+    if len(alvo) < MIN_CARACTERES_TRECHO or MARCA_ELISAO.strip() in texto:
+        return None
+    ordem = sorted(doc.paginas, key=lambda p: 0 if p.numero == pagina else 1)
+    for p in ordem:
+        for campo in (p.texto, p.notas):
+            frs = _frases(campo, doc.formato)
+            fonte = [f.translate(_TROCAS) for f, _ in frs]
+            inicios, pos = [], 0
+            for n in fonte:
+                inicios.append(pos)
+                pos += len(n) + 1
+            m = _padrao(alvo).search("\n".join(fonte))
+            if m is None:
+                continue
+            k = max(i for i, x in enumerate(inicios) if x <= m.start())
+            j = max(i for i, x in enumerate(inicios) if x < m.end())
+            antes = frs[k - 1] if k > 0 else None
+            depois = frs[j + 1] if j + 1 < len(frs) else None
+            return {
+                "antes": antes[0] if antes else None,
+                "antes_outra_linha": bool(antes and antes[1] != frs[k][1]),
+                "depois": depois[0] if depois else None,
+                "depois_outra_linha": bool(depois and depois[1] != frs[j][1]),
+            }
+    return None
