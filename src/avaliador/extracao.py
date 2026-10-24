@@ -873,7 +873,11 @@ def vizinhas(doc: Documento, pagina: Optional[int], texto: str) -> Optional[dict
     """A frase de antes e a de depois de ``texto`` (o trecho como o parecer o imprime) na
     página da peça, para a verificação do trecho que se entende sozinho (24/10). Ao contrário
     de ``frase_inteira``, ATRAVESSA linha: o que um trecho terminado em dois-pontos anuncia
-    costuma estar na linha de baixo. ``{"antes", "antes_outra_linha", "depois",
+    costuma estar na linha de baixo. NÃO atravessa a página do documento, e no site a página
+    é a SEÇÃO (o trecho entre dois títulos, ``pagina_web``): o que vem depois do último
+    parágrafo de uma seção está na seção seguinte e aqui sai None (24/10, E2Carbon: "Veja
+    como…:" no fim de uma seção, os cartões na seção "Conheça nossas soluções:").
+    ``{"antes", "antes_outra_linha", "depois",
     "depois_outra_linha"}``, com None onde a página começa ou acaba; None se o texto não é
     achado (elisão, frase longa com reticências)."""
     alvo = _normalizar(texto)
