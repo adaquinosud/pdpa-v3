@@ -3435,7 +3435,9 @@ completado com a frase vizinha, ou sai. Trecho excluído que era o único da mar
 para "não está" (saída A: nada se afirma sem trecho; a pessoa devolve pela correção). A tela mostra
 o excluído com etiqueta discreta, sem pendência. As peças de medição (24, 25, 26, 28, 31) ficam
 isentas: são linha de base, não entrega. Roda sozinha no fim de leitura nova; na leitura antiga e no
-trecho vindo de correção, ao gerar o Word, com o custo dito no botão.
+trecho vindo de correção, ao gerar o Word, com o custo dito no botão. (Depois do primeiro gabarito
+a completação saiu, e "ao gerar o Word" virou o botão "Verificar N trechos": ver "Escopo cortado" e
+"Como ficou no app".)
 
 **Primeiro gabarito: NÃO PASSOU** (branch `feat/avaliador-trecho-sozinho`, `693e7bb`; shell do
 Render, 24/10; R$ 0,61). Gabarito à mão do Alexandre, com as vizinhas reais (`vizinhas.py`): 49
@@ -3531,8 +3533,11 @@ recusado pelas correções; não conferido).
 
 **Achado lateral, a leitura de site.** O "nada" depois de "Veja como…:" na #32 não é cartão
 descartado: o extrator de site faz uma "página" por seção (título h1-h6), e os dez cartões estão na
-seção seguinte, "Conheça nossas soluções:", lidos e citados na tela. A vizinha não atravessa
-seção. Ficou à vista que o extrator descarta sem aviso o que está em nav, form, button, dialog,
+seção seguinte, "Conheça nossas soluções:", lidos e citados na tela. Conferido no texto guardado
+(`busca_texto.py`, 24/10): os dez cartões estão na seção 10, "Conheça nossas soluções:", da página
+/produtos-e-servicos/, com o texto completo; há uma linha solta "U" entre o quarto e o quinto
+cartão (provável nome de ícone que escapou como texto; não passa no tamanho mínimo de trecho). A
+vizinha não atravessa seção. Ficou à vista que o extrator descarta sem aviso o que está em nav, form, button, dialog,
 iframe, svg, canvas, papel de navegação, escondido, e, quando há `<main>`, o que fica fora dele.
 Script de auditoria escrito (`descartes_site.py`, fora do repositório, sem modelo e sem custo),
 para rodar nas leituras de site.
