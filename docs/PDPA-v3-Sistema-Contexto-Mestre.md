@@ -3427,7 +3427,7 @@ esperando a checagem com modelo**
 sustenta sozinho, estimada em R$ 0,12 a R$ 0,29; antes de ligar, um gabarito com a leitura do
 Alexandre; decisão pendente sobre travar o Word até a checagem).
 
-### 4.72 Avaliador: verificação do trecho que vai sozinho para o parecer (24/out · só admin · branch, não ligada)
+### 4.72 Avaliador: verificação do trecho que vai sozinho para o parecer (24/out · só admin · `b6985df`)
 
 **A regra decidida pelo Alexandre (24/10), com seis casos reais na mão.** Antes do Word e antes
 da seleção de até quatro: cada trecho (o IMPRESSO, já com a frase inteira da §4.71) passa, é
@@ -3466,17 +3466,63 @@ julgamento "se entende sozinho" saiu.
 **Segundo gabarito, v1: PASSOU** (`62cbe9c`; R$ 0,70). Os 5 excluem nas três rodadas (#31: "Portal
 do Cliente…", "Envie sua mensagem…"; #32: "Veja como…:", a lista de produtores, "Veículo: JORNAL DA
 EPTV…"); os 44 passam nas três; 1 trecho mudou só o tipo (lista/navegação), com a decisão igual.
-**Ressalva:** medido nos mesmos 49 trechos que motivaram o corte de escopo; em peça nova não há
-medição. A proteção é a etiqueta na tela e a correção; mede-se pelo uso (exclusões desfeitas).
+**Ressalva, nas palavras aceitas pelo Alexandre:** o acerto foi medido nos mesmos 49 trechos que
+motivaram o corte de escopo; então o que está verificado é o comportamento nesses 49, e em peça
+nova nada foi medido.
 
 **O que a v1 não resolve.** Conserta cinco dos oito trechos ruins das duas peças. Os três que sobram
 são a família da frase que aponta para fora de si ("Essa mudança…", "Se for diferente da que…",
 "Pra quem fica…"), que foi o que deu origem a esta frente; vão ao Word como antes.
 
-**Não ligado ainda.** Falta: gravar (proposta: três colunas no `AvaliadorParecer`, migração
-pendente de OK), rodar no fim da leitura e ao gerar o Word, a etiqueta na tela (texto a decidir:
-a frase "não se entende sozinho" é anterior ao corte de escopo), a isenção das peças de medição e
-a marca que vira "não está" (olhando todos os trechos da marca na tela, não só os do Word).
+**Como ficou no app** (`b6985df`, migração aditiva `d7a3c5e9f1b2`):
+- grava em `avaliador_pareceres` (`verificacao_json` por trecho impresso, `verificacao_custo_usd`,
+  `verificacao_em`); o custo entra no teto mensal pela data, como o rascunho, e o cabeçalho da
+  tela mostra "+ verificação dos trechos US$ …"; apagar a leitura limpa as decisões (guardam texto
+  da peça), o custo fica;
+- roda sozinha no fim de toda leitura nova; se falhar (teto, resposta recusada), a leitura fica
+  pronta e o trecho fica pendente: o Word e o rascunho esperam, e o botão "Verificar N trechos"
+  diz o custo máximo antes. O mesmo botão serve à leitura antiga e ao trecho que veio de correção
+  (verificado sozinho);
+- a tela mostra o trecho excluído com o que ele é, uma etiqueta por motivo (texto do Alexandre):
+  "não entra no Word: é botão ou menu do site", "… é lista de nomes, sem frase", "… anuncia uma
+  coisa que não vem", e "devolver ao Word" ao lado;
+- marca que fica sem trecho vira "não está" para a tela, o Word, a frente, o "por que custa" e o
+  rascunho (todos leem o mesmo estado); a regra olha todos os trechos da marca na tela, não só os
+  do Word;
+- as peças de medição (24, 25, 26, 28, 31) não são verificadas e o Word delas sai como antes.
+
+**A medida de uso.** Devolver ao Word grava uma correção do tipo `devolucao` em
+`avaliador_correcoes` (quem, quando; desfazer marca `desfeita_em`). Quantas exclusões as pessoas
+desfazem é o número que vai dizer se a regra serve no mundo:
+`SELECT count(*) FROM avaliador_correcoes WHERE tipo = 'devolucao' AND desfeita_em IS NULL`.
+
+**O ponto cego, registrado.** A prévia não lista os trechos que passaram, então não há como saber
+se algum deveria ter saído. E a medida pelo botão de devolver só pega o erro de uma direção, o
+trecho tirado à toa. O trecho que deveria ter saído e ficou só aparece se uma pessoa ler o Word e
+estranhar. Não é piora em relação a antes, mas é um ponto cego que fica.
+
+**Prévia com dado real** (shell do Render, 24/10, R$ 0,49; todos os trechos da tela, não só os do
+Word). #32: 8 de 35 textos saem, nenhuma marca cai: os três do gabarito e mais cinco "Veículo: …"
+da seção "E2Carbon na Mídia" que estavam só na tela. #33 (Fibrav): 3 de 38 saem: "Escreva sua
+mensagem!" e "enviar mensagem" (botões do formulário) e "Escreva sua mensagem! Responderemos o mais
+breve possível!", e com ele a Pa3.03 cai para "não está".
+
+**Pa3.03 da #33: deixa cair** (decisão do Alexandre). A marca pergunta se existe canal depois da
+venda; o que respondia por ela era o formulário de contato do site, o mesmo que qualquer visitante
+usa antes de comprar, e ele não diz quem atende, nem quando, nem que serve a quem já é cliente. A
+resposta antiga estava errada: a regra conserta, não fabrica; a ausência já existia, escondida
+atrás de um botão. "Responderemos o mais breve possível" é a promessa vaga já catalogada como
+classe de erro em 21/10: não dá ao leitor nada com que agir. **Mas o acerto foi por motivo
+errado**: o modelo leu o conjunto como formulário e não viu a promessa dentro. A próxima peça com
+uma promessa vaga grudada num botão pode cair do mesmo jeito sem que a promessa seja boa.
+
+**Os "Veículo: …" e a prova de imprensa.** Se a imprensa fosse a única prova do reconhecimento de
+terceiro, a marca cairia, e isso está certo: nada se afirma sem trecho citável, e uma lista de nomes
+de veículos não dá frase para citar (não diz o que a imprensa disse, nem quando, nem sobre o quê).
+A peça que quer provar reconhecimento precisa escrever uma frase sobre isso; se só empilha nomes e
+logotipos, a ausência é dela. A pessoa tem o botão de devolver se julgar diferente num caso
+concreto. Na #32 a A1.02 não cai porque tem o trecho da parceria com o Sicredi. Este caso vai
+acontecer.
 
 **Achado lateral, a premissa que não se confirmou.** "Rótulo de link, que já estava fora" não
 estava fora em lugar nenhum do código: era classe de erro identificada e nunca consertada. Entra na
