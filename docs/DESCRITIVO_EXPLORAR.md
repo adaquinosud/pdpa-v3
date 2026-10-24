@@ -959,105 +959,164 @@ cross-fonte dela). O link é visível só para Loyall (a tela de pessoa é restr
 **Só admin Loyall nesta primeira versão.** A liberação para cliente é decisão separada.
 
 O Avaliador lê uma **peça do relacionamento com o cliente** (documento, apresentação, proposta ou
-o **texto de uma conversa** colado) pelos pilares do PDPA. Antes de enviar, a pessoa diz em uma
-linha **o que é a peça e para que ela serve**; a leitura leva isso em conta.
+o **texto de uma conversa** colado) pela régua do PDPA. Antes de enviar, a pessoa diz em uma linha
+**o que é a peça e para que ela serve**; a leitura leva isso em conta.
 
-**O parecer (desde 17/10)** vem nesta ordem:
-1. **A peça:** que tipo de peça é, para quem foi escrita, em que situação será lida, e **o que foi
-   lido** (quantas páginas, quais ficaram sem texto, que imagens não são lidas; no site, que só a
-   página enviada foi lida, com o rodapé, e que os links não foram seguidos). Essa parte é
-   declarada pelo sistema, não pela leitura.
-2. **Achados que atravessam:** leituras da peça inteira que não cabem em subpilar nenhum. Se não
-   houver, a tela diz que não há.
-3. **Contradição interna:** a peça contra ela mesma, no texto lido. Se não houver, a tela diz.
-4. **O Lastro:** o **ponto de partida** (o pilar mais baixo com algo fora de "Sim", calculado pelo
-   sistema) e um texto sobre o que está aberto na base desta peça. Se o texto não nomeia o ponto
-   de partida calculado, a tela avisa.
-5. **Posições vagas:** as conversas que a peça nunca levanta, só o nome, uma linha cada.
-6. **Placar:** quantos Sim, quantos Parcial, quantos Não.
-7. **Os doze**, por pilar: para cada subpilar, a pergunta do Manual, **um veredito** (**Sim**: o
-   leitor consegue agir com o que está escrito; **Parcial**: a peça trata do assunto, mas não dá
-   para agir só com o que está escrito; **Não**: a peça não toca no assunto), onde está ou o que
-   falta, com o trecho, e o que deveria ter.
+**A régua são 79 marcas.** Cada marca é uma pergunta de presença, do tipo "a peça diz tal coisa?",
+e só tem duas respostas: **está**, e aí vem o trecho literal da peça que responde, ou **não está**.
+Não há nota, não há meio termo, não há "parcial". É a diferença central em relação ao formato
+anterior: antes a leitura dava um veredito por subpilar e explicava o veredito; agora ela aponta
+onde a coisa está escrita, ou registra que não está escrita.
 
-Leitura feita **antes de 17/10** aparece no formato daquela época (forte, falta e melhorar por
-subpilar, com resumo), com o aviso **"Leitura no formato anterior"**; "Reler com esta descrição"
-lê de novo no formato atual enquanto o texto estiver guardado.
+**Por que presença e não julgamento:** a pergunta de presença é a única que duas pessoas respondem
+igual lendo a mesma peça. "A peça diz por quanto tempo a empresa continua disponível depois da
+entrega?" tem uma resposta só. "A peça é clara sobre o pós-venda?" tem uma resposta por leitor.
 
-**A régua é o capítulo 2 do Manual de Operação, literal**: os quatro pilares e os doze subpilares
-com o texto do Manual, sem versão paralela.
+As marcas se distribuem pelos **quatro pilares e doze subpilares** do capítulo 2 do Manual de
+Operação, mais um bloco à parte, **"O que dá para conferir na peça"**, com as marcas que não
+pertencem a pilar nenhum e servem para checar o que a peça afirma de dado, pesquisa, prazo e
+tecnologia de terceiro.
 
-**Duas regras:**
+**A tela** mostra as marcas agrupadas por subpilar. Na marca respondida aparece o trecho da peça.
+Na marca não respondida aparece só a marca. Subpilar em que a peça não diz nada aparece inteiro
+vazio, e isso é informação, não falha: é o lugar onde a peça não entra.
+
+**A pessoa corrige.** Toda marca pode ser mudada na tela por quem lê. O que estava "está" vira "não
+está", e o contrário. A correção fica registrada e é ela que vale no parecer, não a resposta
+original da máquina. É assim que o erro da ferramenta deixa de virar erro do parecer.
+
+**O parecer** tem quatro partes, nesta ordem:
+
+1. **A ordem.** A frase que diz por onde a conversa com esse cliente começa. Texto livre, escrito
+   pela pessoa.
+2. **O que a peça diz.** Os trechos literais, sem a pergunta da marca ao lado.
+3. **O que a peça não diz.** Uma frase por marca vazia.
+4. **O achado.** Uma frase, escrita por uma pessoa, dizendo o que aquilo significa para esse
+   cliente.
+
+Na frente do parecer vem a página **"Em uma página"**, o resumo para quem só vai ler isso. Junto das
+ausências vem o bloco **"Por que isso custa"**, com as frases escritas pelos autores do método que
+dizem, em linguagem de cliente, o que cada buraco cobra de quem vende.
+
+**Rascunho:** o parecer é editável antes de sair. A pessoa escreve a ordem e o achado, escolhe os
+trechos, e o texto fica guardado.
+
+**De onde vem o "Por que isso custa".** A marca diz o que a peça não escreveu. A frase diz o que
+isso cobra do lado de fora, na expectativa de quem lê. Esse segundo lado é o que o método chama de
+**ruptura**: não o tema que faltou, mas a expectativa que o cliente tinha e que a peça deixou
+aberta. O bloco "Por que isso custa" é a primeira parte da ruptura que entrou no app.
+
+**A verificação dos trechos.** Antes de gerar o Word, cada trecho passa por uma conferência: ele se
+entende sozinho fora da peça? Três tipos não passam e ficam de fora do Word:
+
+- **botão ou menu do site**, que nomeia uma coisa e a elogia sem dizer o que ela faz;
+- **lista de nomes**, sem nenhuma frase que diga algo sobre eles;
+- **frase que anuncia e não entrega**, terminando em dois pontos sem o conteúdo prometido.
+
+O trecho excluído **continua aparecendo na tela**, com uma etiqueta dizendo o motivo e um botão
+**"devolver ao Word"** ao lado, porque a decisão final é de quem lê. Se o trecho excluído era o
+único daquela marca, a marca passa a contar como **"não está"**, pela regra de que nada se afirma
+sem trecho citável.
+
+A verificação roda sozinha no fim de toda leitura nova, com custo próprio somado ao da leitura e
+mostrado separado no cabeçalho. Em leitura antiga, e no trecho que entra por correção, ela roda
+pelo botão **"Verificar N trechos"**, que mostra o custo máximo antes. Enquanto houver trecho sem
+verificar, o Word e o rascunho esperam.
+
+**As peças de medição (24, 25, 26, 28 e 31) não são verificadas**, e a tela diz isso. O Word delas
+sai no formato anterior, de propósito: elas são instrumento de medida e mudá-las queima a linha de
+base.
+
+**A conta da leitura.** O parecer em Word leva no título o nome da empresa da conta onde a leitura
+foi feita. Por isso **cada peça é lida dentro da conta da empresa a que a peça pertence**. Ler a
+peça da empresa A dentro da conta da empresa B produz um Word que conta à empresa A que a empresa B
+é cliente ou prospect da Loyall.
+
+**O parecer em Word (.docx)** sai pronto para enviar. Três regras governam os trechos:
+
+- **Completa até quatro:** cada subpilar leva até quatro trechos. Se a pessoa escolheu menos, o
+  Word completa com outros trechos já achados naquele subpilar. Marca que ficou sem trecho nenhum
+  continua sem trecho; o Word não inventa citação.
+- **Frase inteira:** o trecho citado sai como frase completa, não cortado no meio.
+- **Trecho que se repete:** quando o mesmo trecho responde a mais de uma marca, ele sai uma vez só.
+
+**Leitura feita antes das marcas** aparece no formato da época, com o aviso de formato anterior.
+"Reler com esta descrição" lê de novo no formato atual, enquanto o texto da peça estiver guardado.
+
+**Duas regras que não mudaram:**
 
 - **Toda afirmação sobre o que está na peça vem com o trecho citado.** O trecho é conferido contra o
   texto extraído; o que não for achado aparece como **"citação não encontrada na peça"**, nunca como
-  citação. O que falta não tem trecho, porque ausência não se cita. Um "Não" que mesmo assim traz um
-  trecho achado na peça ganha o aviso **"veredito Não com trecho achado na peça: confira"**.
+  citação. O que falta não tem trecho, porque ausência não se cita.
 - **Resultado de outro cliente, case ou credencial não conta como prova para este cliente.**
 
-**Pistas:** a leitura usa como pista (não como resposta pronta) as frases de buracos comuns escritas
-pelos autores do método: a biblioteca de documento para arquivo, a de conversa para texto colado.
+**O que entra:** PowerPoint (.pptx), Word (.docx), PDF, texto colado, ou o **endereço de uma página
+pública do site**.
 
-**O que entra:** PowerPoint (.pptx), Word (.docx), PDF, texto colado, ou o **endereço de uma
-página pública do site**.
-
-**Word (.docx):** entra o texto do corpo e as tabelas (uma linha da tabela por linha, células
-separadas por "|"). Cabeçalho, rodapé, comentários de margem, notas de rodapé e texto oculto ficam
-de fora, e o sumário automático também. **Alteração marcada vale como está:** o que foi riscado não
-entra na leitura; o que foi inserido entra. Sem número de página, a citação vem com o **título da
-seção** (parágrafo com estilo de título, ou parágrafo curto, de até 60 caracteres, todo em
-maiúsculas e sem ponto final, como "PRAZO") ou, antes do primeiro título ou num documento sem
+**Peça em Word (.docx):** entra o texto do corpo e as tabelas (uma linha da tabela por linha,
+células separadas por "|"). Cabeçalho, rodapé, comentários de margem, notas de rodapé e texto
+oculto ficam de fora, e o sumário automático também. **Alteração marcada vale como está:** o que foi
+riscado não entra na leitura; o que foi inserido entra. Sem número de página, a citação vem com o
+**título da seção** (parágrafo com estilo de título, ou parágrafo curto, de até 60 caracteres, todo
+em maiúsculas e sem ponto final, como "PRAZO") ou, antes do primeiro título ou num documento sem
 títulos, com **as primeiras palavras do parágrafo**. Título que se repete no documento leva a ordem
-("“Preços” (2ª)"). Numeração automática de cláusula e de lista
-não aparece no texto lido. .doc antigo, .rtf e arquivo do LibreOffice são recusados com a
-instrução de salvar como .docx ou exportar como PDF; Word com senha também.
+("“Preços” (2ª)"). Numeração automática de cláusula e de lista não aparece no texto lido. .doc
+antigo, .rtf e arquivo do LibreOffice são recusados com a instrução de salvar como .docx ou exportar
+como PDF; Word com senha também.
 
 **Página do site:** **uma página por vez**, não o site inteiro. A ferramenta busca a página, tira
-menu, scripts e formulários, e lê o texto que sobra. **O rodapé entra** (desde 17/10), numa seção
-própria no fim, chamada "rodapé da página": é onde costumam estar telefone e e-mail. A tela diz **qual endereço foi lido**
-(se o site redirecionou, é o endereço final). Sem número de página, a citação vem com o **título da
-seção** onde o trecho está, ou, na abertura da página, com **as primeiras palavras do parágrafo**.
-Quando a página não pode ser lida, nada é cobrado e a tela diz o motivo e o que fazer: página que
-pede senha, site que recusa leitura automática (o app se apresenta como é, não como navegador),
-montada por script (menos de 300 caracteres de texto),
-que não existe, que é um PDF, grande demais, ou que demora demais. Na maioria dos casos a saída é
-**salvar a página como PDF no navegador e enviar o PDF**. Endereço de rede interna não é buscado.
+menu, scripts e formulários, e lê o texto que sobra. **O rodapé entra**, numa seção própria no fim,
+chamada "rodapé da página": é onde costumam estar telefone e e-mail. A tela diz **qual endereço foi
+lido** (se o site redirecionou, é o endereço final). Sem número de página, a citação vem com o
+**título da seção** onde o trecho está, ou, na abertura da página, com **as primeiras palavras do
+parágrafo**. Quando a página não pode ser lida, nada é cobrado e a tela diz o motivo e o que fazer:
+página que pede senha, site que recusa leitura automática (o app se apresenta como é, não como
+navegador), montada por script (menos de 300 caracteres de texto), que não existe, que é um PDF,
+grande demais, ou que demora demais. Na maioria dos casos a saída é **salvar a página como PDF no
+navegador e enviar o PDF**. Endereço de rede interna não é buscado.
 
 **Aviso:** antes de enviar, a tela diz que a peça vai para um modelo externo da Anthropic, que pelos
 termos comerciais da Anthropic o conteúdo é tratado como confidencial e não pode ser usado para
 treinar modelos, e por quanto tempo o texto fica guardado. Com um endereço preenchido, a primeira
 frase passa a falar do **texto da página**.
 
-**Arquivos:** O formato do arquivo é reconhecido pelo
-conteúdo, não pela extensão. .ppt antigo e PDF com senha são recusados com a mensagem do que
-fazer. **Páginas sem texto** (slide desenhado como imagem) e **páginas com texto ilegível**
-(o programa que gerou o PDF codificou o texto de um jeito que sai como caracteres de controle no
-lugar das letras) são listadas com o critério; o conteúdo delas não foi lido. Se o arquivo
-inteiro sai ilegível, ele é recusado antes de qualquer custo, com a mensagem do que fazer (gerar o
-PDF por outro programa ou colar o texto). **PDF com palavras grudadas** ("quetrava", "maisvolume", comum no PDF
-exportado pelo Mac) ou **palavras partidas pela ligadura** ("Con guracao" no lugar de
-"Configuracao", no PDF do Keynote e do Pages): o PDF é lido por dois extratores e fica o que sai
-melhor; se os dois saem
-grudados, a leitura é recusada antes de qualquer custo, com o número na tela ("5 de 1.500
-palavras") e o que fazer (enviar o arquivo original, gerar o PDF por outro programa ou colar o
-texto).
+**Arquivos:** o formato do arquivo é reconhecido pelo conteúdo, não pela extensão. .ppt antigo e PDF
+com senha são recusados com a mensagem do que fazer. **Páginas sem texto** (slide desenhado como
+imagem) e **páginas com texto ilegível** (o programa que gerou o PDF codificou o texto de um jeito
+que sai como caracteres de controle no lugar das letras) são listadas com o critério; o conteúdo
+delas não foi lido. Se o arquivo inteiro sai ilegível, ele é recusado antes de qualquer custo, com a
+mensagem do que fazer (gerar o PDF por outro programa ou colar o texto). **PDF com palavras
+grudadas** ("quetrava", "maisvolume", comum no PDF exportado pelo Mac) ou **palavras partidas pela
+ligadura** ("Con guracao" no lugar de "Configuracao", no PDF do Keynote e do Pages): o PDF é lido
+por dois extratores e fica o que sai melhor; se os dois saem grudados, a leitura é recusada antes de
+qualquer custo, com o número na tela ("5 de 1.500 palavras") e o que fazer (enviar o arquivo
+original, gerar o PDF por outro programa ou colar o texto).
 
 Citação de **linha de tabela** (PowerPoint, Word) aparece célula por célula (“Essencial” ·
-“R$ 8.000”): a divisão entre células não existe como texto no documento, e assim cada pedaço se
-acha com a busca.
+“R$ 8.000”): a divisão entre células não existe como texto no documento, e assim cada pedaço se acha
+com a busca.
 
-**Como a leitura é feita:** em sete etapas: situar a peça, um pilar por vez (quatro), os achados e a
-contradição depois dos doze, e o texto do Lastro. Leva cerca de dois minutos; a tela se atualiza
-sozinha. Se só o texto do Lastro falhar, a análise fica pronta com o ponto de partida calculado e a
-tela diz **"Texto do Lastro não gerado (motivo)"**.
+**Como a leitura é feita:** em cinco chamadas ao modelo, uma por pilar, com o bloco "O que dá para
+conferir na peça" junto do quarto pilar, e depois os achados que atravessam e a contradição
+interna. A tela se atualiza sozinha a cada três segundos.
+
+**O bloco recolhido.** Além das marcas, a leitura produz **achados que atravessam** a peça inteira
+e **contradições internas**, a peça contra ela mesma. Os dois aparecem na tela num bloco recolhido,
+rotulado **"Rascunho do modelo, não conferido"**, com a contagem de cada um. Eles **não vão para o
+Word**: são pista para quem escreve o achado, não afirmação do parecer.
+
+**Não há placar.** Nenhuma contagem de marcas respondidas e não respondidas aparece na tela. Os
+únicos números são os do bloco recolhido e o do botão "Rascunhar N achados em branco".
 
 **Reler:** a análise aberta pode ser relida com outra descrição, sem enviar a peça de novo (uma
 leitura nova, com custo).
 
-**Custo e retenção:** cada leitura grava o custo em US$. Há um **teto mensal por empresa**; teto zero
+**Custo e retenção:** cada leitura grava o custo em US$, e a verificação dos trechos grava o dela
+em separado; os dois aparecem no cabeçalho e contam no **teto mensal por empresa**. Teto zero
 desliga a ferramenta. O texto da peça fica guardado só enquanto a análise está aberta: é apagado ao
-**concluir**, ou sozinho depois dos dias configurados sem uso (hoje 7). Fica o parecer, com os
-trechos citados. **Apagar leitura** (confirmação uma vez; não na fila nem lendo) tira a peça inteira,
+**concluir**, ou sozinho depois dos dias sem uso configurados. **O aviso antes de enviar mostra o
+número de dias em uso**, e é ali que se confere. **As peças de medição nunca são apagadas.** Fica o
+parecer, com os trechos citados. **Apagar leitura** (confirmação uma vez; não na fila nem lendo) tira a peça inteira,
 inclusive os trechos citados, e deixa só o registro de custo, que conta no teto mensal.
 
 ---
