@@ -3539,8 +3539,13 @@ seção seguinte, "Conheça nossas soluções:", lidos e citados na tela. Confer
 cartão (provável nome de ícone que escapou como texto; não passa no tamanho mínimo de trecho). A
 vizinha não atravessa seção. Ficou à vista que o extrator descarta sem aviso o que está em nav, form, button, dialog,
 iframe, svg, canvas, papel de navegação, escondido, e, quando há `<main>`, o que fica fora dele.
-Script de auditoria escrito (`descartes_site.py`, fora do repositório, sem modelo e sem custo),
-para rodar nas leituras de site.
+Script de auditoria (`descartes_site.py`, fora do repositório, sem modelo e sem custo) rodado em
+24/10, 19h12, nas leituras 31, 32, 33 e 24: descartado Loyall 3%, Localiza 7%, E2Carbon 6%, Fibrav
+62%. Os 62% da Fibrav são uma barra de menu de 8.152 caracteres repetida em seis páginas (96% do
+descarte dela); dentro dela estão o telefone e o endereço, que entraram pelo rodapé assim mesmo.
+Nenhuma ausência fabricada nas quatro peças. **Decisão do Alexandre: o dado de contato dentro do
+menu fica fora e o extrator não muda. Risco conhecido e aceito, não conserto pendente**: num site
+em que o contato só esteja no menu, sem repetir no rodapé, as marcas de canal podem sair "não está".
 
 ---
 
