@@ -974,40 +974,44 @@ entrega?" tem uma resposta só. "A peça é clara sobre o pós-venda?" tem uma r
 
 As marcas se distribuem pelos **quatro pilares e doze subpilares** do capítulo 2 do Manual de
 Operação, mais um bloco à parte, **"O que dá para conferir na peça"**, com as marcas que não
-pertencem a pilar nenhum e servem para checar o que a peça afirma de dado, pesquisa, prazo e
-tecnologia de terceiro.
+pertencem a pilar nenhum e servem para checar o que a peça afirma: a fonte e a data do dado ou da
+pesquisa que cita, os termos técnicos que usa e as tecnologias que nomeia.
 
 **A tela** mostra as marcas agrupadas por subpilar. Na marca respondida aparece o trecho da peça.
 Na marca não respondida aparece só a marca. Subpilar em que a peça não diz nada aparece inteiro
 vazio, e isso é informação, não falha: é o lugar onde a peça não entra.
 
-**A pessoa corrige.** Toda marca pode ser mudada na tela por quem lê. O que estava "está" vira "não
-está", e o contrário. A correção fica registrada e é ela que vale no parecer, não a resposta
-original da máquina. É assim que o erro da ferramenta deixa de virar erro do parecer.
+**A pessoa corrige.** Toda marca pode ser corrigida na tela por quem lê: um trecho citado que não
+responde à marca é recusado ("não responde"), e a marca sem nenhum trecho que sobra passa a "não
+está"; um trecho achado na peça é incluído ("incluir trecho da peça", enquanto o texto da peça
+estiver guardado), e a marca passa a "está". A correção fica registrada, pode ser desfeita, e é
+ela que vale no parecer, não a resposta original da máquina. É assim que o erro da ferramenta
+deixa de virar erro do parecer.
 
-**O parecer** tem quatro partes, nesta ordem:
+**O parecer** abre com o nome da empresa da peça no título, a página **"Em uma página"** (uma
+linha por subpilar, o resumo para quem só vai ler isso) e **a ordem**, a frase que diz por onde a
+conversa com esse cliente começa. Depois, subpilar por subpilar, nesta ordem:
 
-1. **A ordem.** A frase que diz por onde a conversa com esse cliente começa. Texto livre, escrito
-   pela pessoa.
-2. **O que a peça diz.** Os trechos literais, sem a pergunta da marca ao lado.
-3. **O que a peça não diz.** Uma frase por marca vazia.
-4. **O achado.** Uma frase, escrita por uma pessoa, dizendo o que aquilo significa para esse
-   cliente.
+1. **O que a peça diz.** Os trechos literais, sem a pergunta da marca ao lado.
+2. **O que a peça não diz.** Uma frase por marca vazia.
+3. **Por que isso custa**, só no subpilar em que a peça não diz nada: até três frases escritas
+   pelos autores do método, sorteadas da biblioteca, que dizem em linguagem de cliente o que esse
+   buraco cobra. A mesma leitura sorteia sempre as mesmas.
+4. **O achado.** Escrito por uma pessoa, dizendo o que aquilo significa para esse cliente.
 
-Na frente do parecer vem a página **"Em uma página"**, o resumo para quem só vai ler isso. Junto das
-ausências vem o bloco **"Por que isso custa"**, com as frases escritas pelos autores do método que
-dizem, em linguagem de cliente, o que cada buraco cobra de quem vende.
-
-**Rascunho:** o parecer é editável antes de sair. A pessoa escreve a ordem e o achado, escolhe os
-trechos, e o texto fica guardado.
+**Rascunho:** a ordem e os achados são escritos na tela e ficam guardados. O botão **"Rascunhar"**
+pede ao modelo um rascunho só dos campos em branco (o custo máximo aparece antes); cada campo
+rascunhado fica pendente até a pessoa aceitar como está ou editar, e o Word espera por isso. Se uma
+correção muda os trechos depois, o rascunho que ainda não foi editado volta a pedir conferência.
 
 **De onde vem o "Por que isso custa".** A marca diz o que a peça não escreveu. A frase diz o que
 isso cobra do lado de fora, na expectativa de quem lê. Esse segundo lado é o que o método chama de
 **ruptura**: não o tema que faltou, mas a expectativa que o cliente tinha e que a peça deixou
 aberta. O bloco "Por que isso custa" é a primeira parte da ruptura que entrou no app.
 
-**A verificação dos trechos.** Antes de gerar o Word, cada trecho passa por uma conferência: ele se
-entende sozinho fora da peça? Três tipos não passam e ficam de fora do Word:
+**A verificação dos trechos.** Antes de gerar o Word, cada trecho passa por uma conferência: ele é
+uma afirmação, ou é um pedaço da peça que não diz nada sozinho? Três tipos não passam e ficam de
+fora do Word:
 
 - **botão ou menu do site**, que nomeia uma coisa e a elogia sem dizer o que ela faz;
 - **lista de nomes**, sem nenhuma frase que diga algo sobre eles;
@@ -1024,21 +1028,27 @@ pelo botão **"Verificar N trechos"**, que mostra o custo máximo antes. Enquant
 verificar, o Word e o rascunho esperam.
 
 **As peças de medição (24, 25, 26, 28 e 31) não são verificadas**, e a tela diz isso. O Word delas
-sai no formato anterior, de propósito: elas são instrumento de medida e mudá-las queima a linha de
-base.
+sai como saía antes da verificação, de propósito: elas são instrumento de medida e mudá-las queima
+a linha de base.
 
-**A conta da leitura.** O parecer em Word leva no título o nome da empresa da conta onde a leitura
-foi feita. Por isso **cada peça é lida dentro da conta da empresa a que a peça pertence**. Ler a
-peça da empresa A dentro da conta da empresa B produz um Word que conta à empresa A que a empresa B
-é cliente ou prospect da Loyall.
+**A empresa da peça e a conta da leitura.** O título do Word leva o nome que a pessoa escreve no
+campo **"Empresa da peça"**, nunca o da conta onde a leitura foi feita; sem esse nome o Word não
+sai. A leitura e o custo moram na conta: peça de um cliente é lida na conta dele, e **peça de
+prospect é lida na conta "Loyall: prospects"** (o formulário lembra disso nas outras contas). Ler
+o prospect na conta de um cliente põe o custo no teto do cliente e leva a leitura junto se a conta
+for zerada.
 
 **O parecer em Word (.docx)** sai pronto para enviar. Três regras governam os trechos:
 
-- **Completa até quatro:** cada subpilar leva até quatro trechos. Se a pessoa escolheu menos, o
-  Word completa com outros trechos já achados naquele subpilar. Marca que ficou sem trecho nenhum
-  continua sem trecho; o Word não inventa citação.
-- **Frase inteira:** o trecho citado sai como frase completa, não cortado no meio.
-- **Trecho que se repete:** quando o mesmo trecho responde a mais de uma marca, ele sai uma vez só.
+- **Até quatro por subpilar:** primeiro um trecho de cada marca respondida, na ordem do Manual;
+  se sobrar lugar, mais trechos das marcas que têm mais, até quatro. "Usar este no parecer" escolhe
+  qual trecho de uma marca vai primeiro. Marca sem trecho continua sem trecho; o Word não inventa
+  citação.
+- **Frase inteira:** o trecho cortado no meio de uma frase sai com a frase completa (sem passar da
+  linha da peça; frase longa demais sai como foi citada, com "…" do lado cortado).
+- **Trecho que se repete:** quando o mesmo trecho responde a mais de uma marca, ele sai uma vez só;
+  e o trecho já impresso num subpilar não volta no seguinte, a não ser que o subpilar fique vazio
+  sem ele.
 
 **Leitura feita antes das marcas** aparece no formato da época, com o aviso de formato anterior.
 "Reler com esta descrição" lê de novo no formato atual, enquanto o texto da peça estiver guardado.
@@ -1046,8 +1056,10 @@ peça da empresa A dentro da conta da empresa B produz um Word que conta à empr
 **Duas regras que não mudaram:**
 
 - **Toda afirmação sobre o que está na peça vem com o trecho citado.** O trecho é conferido contra o
-  texto extraído; o que não for achado aparece como **"citação não encontrada na peça"**, nunca como
-  citação. O que falta não tem trecho, porque ausência não se cita.
+  texto extraído; a marca cujo trecho não foi achado aparece **sem conferência** ("confira: a
+  leitura diz que está, mas o trecho citado não foi achado na peça"), nunca como citação, e o Word
+  espera a pessoa resolver (incluir o trecho certo ou marcar que não está). O que falta não tem
+  trecho, porque ausência não se cita.
 - **Resultado de outro cliente, case ou credencial não conta como prova para este cliente.**
 
 **O que entra:** PowerPoint (.pptx), Word (.docx), PDF, texto colado, ou o **endereço de uma página
@@ -1105,8 +1117,10 @@ e **contradições internas**, a peça contra ela mesma. Os dois aparecem na tel
 rotulado **"Rascunho do modelo, não conferido"**, com a contagem de cada um. Eles **não vão para o
 Word**: são pista para quem escreve o achado, não afirmação do parecer.
 
-**Não há placar.** Nenhuma contagem de marcas respondidas e não respondidas aparece na tela. Os
-únicos números são os do bloco recolhido e o do botão "Rascunhar N achados em branco".
+**Não há placar.** Não há nota nem total da peça. Cada subpilar, fechado, mostra só quantas das
+suas marcas a peça diz ("a peça diz 2 de 6") e, se houver, quantas estão para conferir; os outros
+números da tela são os do bloco recolhido e os dos botões ("Rascunhar N achados em branco",
+"Verificar N trechos").
 
 **Reler:** a análise aberta pode ser relida com outra descrição, sem enviar a peça de novo (uma
 leitura nova, com custo).
