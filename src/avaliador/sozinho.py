@@ -1,23 +1,26 @@
-"""A verificação do trecho que se entende sozinho (regra do Alexandre, 24/10).
+"""A verificação do trecho que vai sozinho para o parecer (regra do Alexandre, 24/10; v1 com o
+escopo cortado depois do gabarito das #31 e #32).
 
-Cada trecho vai sozinho para o parecer, e quem lê o parecer não tem a peça. O modelo decide,
-trecho a trecho, nesta ordem:
-- rótulo (de campo, de link ou de botão) e lista de nomes sem frase: saem sempre;
-- o trecho se entende sozinho: sai como está;
-- termina anunciando o que vem (dois-pontos): completa com a frase de depois;
-- aponta para trás ("isso", "esse serviço") e a frase de antes É o antecedente: completa com
-  ela. Frase que só está antes não serve (24/10, o Alexandre: completar com ela fabricaria um
-  antecedente falso, e falso é pior que incompleto);
-- nenhuma vizinha resolve: sai.
-O modelo só decide; quem junta o texto é o código (``aplicar``), com a frase vizinha literal
-da peça (``extracao.vizinhas``). O trecho lido é o IMPRESSO (``parecer.impresso``, já com a
-frase inteira de 23/10): senão o mesmo trecho seria completado por duas regras.
+Cada trecho vai sozinho para o parecer, e quem lê o parecer não tem a peça. A v1 só tira três
+tipos de trecho, os que o modelo julgou igual nas três rodadas do gabarito:
+- navegação: rótulo de link, de botão ou de cartão que só nomeia uma coisa e a elogia, e
+  rótulo de campo cujo valor é só um nome ("Veículo: X"). Dado que o leitor usa (telefone,
+  e-mail, endereço) não é rótulo: passa;
+- lista de nomes sem uma frase sobre eles;
+- trecho que termina anunciando o que vem (dois-pontos) sem trazer o que anuncia.
+Todo o resto passa. O julgamento "se entende sozinho?" diante de palavra que aponta para fora
+do trecho ("essa…", "a que…") NÃO está na v1: no gabarito o modelo errou ou oscilou nos três
+casos dessa família, e completar com a frase vizinha podia fabricar antecedente falso. Esses
+trechos vão ao Word como antes, com a frase inteira (``parecer.impresso``).
 
-Os exemplos do prompt são inventados: os seis casos das #31 e #32 que deram origem à regra são
-o gabarito e não entram no pedido (confidencialidade e medição).
+As vizinhas na peça (``extracao.vizinhas``) vão ao modelo só como contexto, para reconhecer
+navegação; nada é juntado ao trecho. O trecho lido é o IMPRESSO, já com a frase inteira.
 
-Esta é a primeira parte (24/10): o pedido, a validação e a junção, para o gabarito rodar.
-Gravar o resultado, travar o Word, a etiqueta na tela e o botão das leituras antigas vêm
+Os exemplos do prompt são inventados: os casos das #31 e #32 são o gabarito e não entram no
+pedido (confidencialidade e medição; o teste barra as expressões deles).
+
+Esta é a parte do pedido e da validação, para o gabarito rodar. Gravar o resultado, travar o
+Word, a etiqueta na tela, a isenção das peças de medição e a marca que vira "não está" vêm
 depois do gabarito.
 """
 
@@ -30,11 +33,11 @@ from src.avaliador import parecer as P
 from src.avaliador.extracao import _normalizar, vizinhas
 from src.avaliador.motor import RespostaInvalida
 
-VERSAO = "trecho-sozinho-v1"
-PASSA, SEGUINTE, ANTERIOR, EXCLUI = "passa", "seguinte", "anterior", "exclui"
-DECISOES = (PASSA, SEGUINTE, ANTERIOR, EXCLUI)
-ROTULO, LISTA, SEM_VIZINHA = "rotulo", "lista", "sem_vizinha"
-TIPOS = (ROTULO, LISTA, SEM_VIZINHA)
+VERSAO = "trecho-sozinho-v2"
+PASSA, EXCLUI = "passa", "exclui"
+DECISOES = (PASSA, EXCLUI)
+NAVEGACAO, LISTA, DOIS_PONTOS = "navegacao", "lista", "dois_pontos"
+TIPOS = (NAVEGACAO, LISTA, DOIS_PONTOS)
 LIMITE_POR_QUE = 200  # caracteres: "até quinze palavras", com folga
 # decisão, não texto: a saída por trecho é curta
 TOKENS_POR_TRECHO = 60
@@ -88,9 +91,7 @@ def max_tokens(lista: List[dict]) -> int:
 
 
 def validador(lista: List[dict]):
-    """A validação da resposta para ``lista``: um item por trecho, decisão e tipo coerentes,
-    e a vizinha pedida existe. Resposta que pede vizinha inexistente é recusada (nova
-    tentativa), não trocada em silêncio por "exclui"."""
+    """A validação da resposta para ``lista``: um item por trecho, decisão e tipo coerentes."""
     por_n = {x["n"]: x for x in lista}
 
     def validar(obj: dict) -> dict:
@@ -106,10 +107,6 @@ def validador(lista: List[dict]):
                 raise RespostaInvalida(f"[{n}] decisão desconhecida: {dec!r}")
             if (dec == EXCLUI) != (tipo in TIPOS) or (tipo is not None and tipo not in TIPOS):
                 raise RespostaInvalida(f"[{n}] tipo {tipo!r} não combina com {dec!r}")
-            if dec == ANTERIOR and por_n[n]["antes"] is None:
-                raise RespostaInvalida(f"[{n}] pediu a frase de antes, e não há")
-            if dec == SEGUINTE and por_n[n]["depois"] is None:
-                raise RespostaInvalida(f"[{n}] pediu a frase de depois, e não há")
             por_que = d.get("por_que") or ""
             if not isinstance(por_que, str) or len(por_que) > LIMITE_POR_QUE:
                 raise RespostaInvalida(f"[{n}] por_que ausente ou longo demais")
@@ -123,11 +120,6 @@ def validador(lista: List[dict]):
 
 
 def aplicar(x: dict, d: dict) -> Optional[str]:
-    """O texto que vai ao parecer pela decisão ``d`` sobre o item ``x``; None: o trecho sai."""
-    if d["decisao"] == PASSA:
-        return x["trecho"]
-    if d["decisao"] == SEGUINTE:
-        return f"{x['trecho']} {x['depois']}"
-    if d["decisao"] == ANTERIOR:
-        return f"{x['antes']} {x['trecho']}"
-    return None
+    """O texto que vai ao parecer pela decisão ``d`` sobre o item ``x``; None: o trecho sai.
+    Nada é juntado: o trecho passa como está ou sai."""
+    return x["trecho"] if d["decisao"] == PASSA else None

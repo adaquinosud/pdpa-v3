@@ -76,17 +76,19 @@ def _resposta(*decs):
                         for i, (d, t) in enumerate(decs, 1)]}  # fmt: skip
 
 
-BOA = _resposta(("passa", None), ("anterior", None), ("seguinte", None), ("exclui", "sem_vizinha"))
+BOA = _resposta(
+    ("passa", None), ("passa", None), ("exclui", "dois_pontos"), ("exclui", "navegacao")
+)
 
 
-def test_validacao_e_juncao_pela_frase_literal_da_peca():
+def test_validacao_e_o_trecho_passa_como_esta_ou_sai_nada_e_juntado():
     lista = _lista()
     d = S.validador(lista)(BOA)
     textos = [S.aplicar(x, d[x["n"]]) for x in lista]
     assert textos == [
         "A entrega padrão leva cinco dias úteis.",
-        "A entrega padrão leva cinco dias úteis. Esse prazo vale também para pedidos urgentes.",
-        "Os benefícios incluem: Seguro, manutenção e carro reserva.",
+        "Esse prazo vale também para pedidos urgentes.",  # a frase de antes não é juntada
+        None,
         None,
     ]
 
@@ -99,20 +101,15 @@ def test_validacao_e_juncao_pela_frase_literal_da_peca():
         (_resposta(*[("talvez", None)] * 4), "desconhecida"),
         (_resposta(("exclui", None), *[("passa", None)] * 3), "não combina"),
         (_resposta(("passa", "lista"), *[("passa", None)] * 3), "não combina"),
-        (_resposta(("anterior", None), *[("passa", None)] * 3), "frase de antes"),
+        (_resposta(("exclui", "sem_vizinha"), *[("passa", None)] * 3), "não combina"),
+        # completar saiu da v1 (24/10): o modelo que pedir completação é recusado
+        (_resposta(("anterior", None), *[("passa", None)] * 3), "desconhecida"),
+        (_resposta(*[("passa", None)] * 3, ("seguinte", None)), "desconhecida"),
     ],
 )
 def test_validacao_recusa_resposta_errada(resposta, erro):
     with pytest.raises(RespostaInvalida, match=erro):
         S.validador(_lista())(resposta)
-
-
-def test_vizinha_que_nao_existe_e_recusada_e_nao_vira_exclusao():
-    # a última frase da página não tem frase de depois
-    lista = S.itens([{"pagina_encontrada": 1, "trecho": "FALE CONOSCO e mais nada"}], _doc())
-    assert lista[0]["depois"] is None
-    with pytest.raises(RespostaInvalida):
-        S.validador(lista)(_resposta(("seguinte", None)))
 
 
 def test_chamada_com_temperatura_zero_e_nova_tentativa_quando_recusa():
@@ -121,7 +118,7 @@ def test_chamada_com_temperatura_zero_e_nova_tentativa_quando_recusa():
     orc = {"total": motor.Uso(), "limite": None}
     d = motor._chamar(m, "claude-sonnet-4-6", S.sistema(), S.entrada(lista), S.PEDIDO,
                       S.max_tokens(lista), S.validador(lista), orc, S.TEMPERATURA)  # fmt: skip
-    assert d[4]["tipo"] == "sem_vizinha" and len(m.chamadas) == 2
+    assert d[4]["tipo"] == "navegacao" and len(m.chamadas) == 2
     assert all(c["temperature"] == 0.0 for c in m.chamadas)
     assert "faltam" in m.chamadas[1]["messages"][0]["content"][1]["text"]
 
@@ -129,7 +126,9 @@ def test_chamada_com_temperatura_zero_e_nova_tentativa_quando_recusa():
 def test_prompt_nao_traz_codigo_nem_trecho_de_cliente():
     s = S.sistema()
     assert "inventados" in s
+    assert '"anterior"' not in s and '"seguinte"' not in s  # fora da v1
     # nem expressão tirada dos casos do gabarito: o prompt não pode ensinar a resposta da prova
     for proibido in ("Localiza", "E2Carbon", "Fibrav", "EPTV", "agência", "essa mudança",
-                     '"a que"', "antes disso", "pequenas empresas", "Veja como"):  # fmt: skip
+                     '"a que"', "antes disso", "pequenas empresas", "Veja como",
+                     "Portal do Cliente", "Envie sua mensagem", "Conheça nossas"):  # fmt: skip
         assert proibido not in s
