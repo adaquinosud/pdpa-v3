@@ -51,9 +51,9 @@ ROTULO_CUSTA = "Por que isso custa"
 def impresso(e: dict, doc=None) -> str:
     """O texto que o parecer imprime para o trecho ``e`` (23/10): a frase inteira da peça
     quando o trecho foi cortado no meio dela (``extracao.frase_inteira``); senão, o trecho
-    como foi citado. Sem o texto da peça guardado (``doc`` None: leitura concluída ou com mais
-    de 30 dias sem uso) não há como saber onde a frase começa, e sai o trecho como foi
-    citado. A tela continua mostrando o trecho citado."""
+    como foi citado. Sem o texto da peça guardado (``doc`` None: leitura concluída, ou sem uso
+    há mais de ``AVALIADOR_DIAS_RETENCAO_TEXTO`` dias) não há como saber onde a frase começa,
+    e sai o trecho como foi citado. A tela continua mostrando o trecho citado."""
     if doc is None:
         return e["trecho"]
     if "impresso" not in e:

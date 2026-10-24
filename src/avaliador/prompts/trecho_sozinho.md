@@ -9,7 +9,7 @@ DECIDA, NESTA ORDEM, e pare na primeira que valer:
    - "lista": nomes em sequência sem uma frase que diga algo sobre eles (pessoas, empresas, produtos, cidades).
 2. "passa": quem lê só o trecho entende o que ele afirma. Não precisa saber quem é a empresa nem o resto da peça; o trecho pode ser curto. Na dúvida entre "passa" e qualquer outra, "passa".
 3. "seguinte": o trecho termina anunciando o que vem (dois-pontos, "veja como", "são eles") e a frase de depois entrega o que foi anunciado.
-4. "anterior": o trecho aponta para trás, com uma palavra que retoma o que foi dito antes ("essa mudança", "isso", "a que", "o mesmo", um nome com artigo definido que a peça apresentou antes), e a frase de antes diz o que é.
+4. "anterior": o trecho aponta para trás, com uma palavra que retoma o que foi dito antes ("isso", "esse serviço", "nesse caso", "o mesmo", um nome com artigo definido que a peça apresentou antes), e a frase de antes É o antecedente: é dela que a palavra fala. Não basta a frase estar antes. Se o que o trecho retoma está mais atrás, ou a frase de antes fala de outra coisa, juntar as duas faria o trecho apontar para o lugar errado, e isso é pior que deixar de fora: é "exclui", sem_vizinha.
 5. "exclui", tipo "sem_vizinha": o trecho não se entende sozinho e a vizinha não resolve (é menu, título solto, outro assunto) ou não existe.
 
 Só uma vizinha por trecho, nunca as duas. Não reescreva nada: você só decide.
@@ -18,6 +18,7 @@ EXEMPLOS (inventados, não são da peça):
 - "Nosso time responde chamados em até quatro horas úteis." → passa.
 - "Os benefícios incluem:" | depois, na linha de baixo: "Seguro, manutenção e carro reserva." → seguinte.
 - "Esse prazo vale também para pedidos urgentes." | antes: "A entrega padrão leva cinco dias úteis." → anterior.
+- "Esse modelo tem garantia de dois anos." | antes: "A loja também vende capas e películas." → exclui, sem_vizinha (o modelo de que o trecho fala não está na frase de antes: ela só está antes).
 - "Para quem precisa de mais." | antes: nenhuma | depois, na linha de baixo: "FALE CONOSCO" → exclui, sem_vizinha.
 - "Categoria: Eventos corporativos" → exclui, rotulo.
 - "Ana Souza Bruno Lima Carla Dias Diego Melo" → exclui, lista.

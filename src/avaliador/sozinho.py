@@ -5,7 +5,9 @@ trecho a trecho, nesta ordem:
 - rótulo (de campo, de link ou de botão) e lista de nomes sem frase: saem sempre;
 - o trecho se entende sozinho: sai como está;
 - termina anunciando o que vem (dois-pontos): completa com a frase de depois;
-- aponta para trás ("essa mudança", "a que"): completa com a frase de antes;
+- aponta para trás ("isso", "esse serviço") e a frase de antes É o antecedente: completa com
+  ela. Frase que só está antes não serve (24/10, o Alexandre: completar com ela fabricaria um
+  antecedente falso, e falso é pior que incompleto);
 - nenhuma vizinha resolve: sai.
 O modelo só decide; quem junta o texto é o código (``aplicar``), com a frase vizinha literal
 da peça (``extracao.vizinhas``). O trecho lido é o IMPRESSO (``parecer.impresso``, já com a
