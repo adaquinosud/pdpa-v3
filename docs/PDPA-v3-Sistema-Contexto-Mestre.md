@@ -3547,6 +3547,69 @@ Nenhuma ausência fabricada nas quatro peças. **Decisão do Alexandre: o dado d
 menu fica fora e o extrator não muda. Risco conhecido e aceito, não conserto pendente**: num site
 em que o contato só esteja no menu, sem repetir no rodapé, as marcas de canal podem sair "não está".
 
+### 4.73 Avaliador: o lote de oito marcas, uma rodada (24/out · só admin · Manual v15, branch `feat/lote-marcas-2410`)
+
+**Desenho, decidido antes.** Uma rodada só: o que passar entra, o que não passar é descartado e não
+volta, sem segunda tentativa e sem ajuste de redação depois do resultado. Portão nas #24 (site da
+Loyall) e #31 (site da Localiza), pelo texto guardado, régua montada em memória: 5 leituras com os
+textos novos e 5 de controle em cada peça (20 leituras; R$ 16,12, fora do teto do app; 41 min).
+Gabarito escrito pelo Alexandre antes de rodar (16 respostas, 6 "está"), com âncoras literais da
+peça. Critério: entra a marca que, nas duas peças, ficar com o mesmo estado nas 5 leituras novas e
+bater com o gabarito (o estado; quando "está", em cada leitura um trecho conferido com âncora, e
+nada do que o gabarito proíbe). Antes de rodar, três textos ajustados pelo Alexandre (P2.01 sem "fim
+do prazo"; P2.04 "devolve em dinheiro"; C.04 "no próprio trabalho") e quatro respostas do gabarito
+corrigidas (#24 A3.04 e Pa3.01 para "não está"; #31 P2.01 com a segunda âncora; a âncora da Pa1.06
+transcrita errada).
+
+**Entram quatro** (Manual v15, `acfff66`):
+- **P2.04** "Diz o que a empresa devolve em dinheiro, refaz ou desconta se não cumprir o que
+  prometeu?": "está" na #24 (a cobrança que não acontece), "não está" na #31, nas cinco.
+- **Pa1.06** "Diz quais problemas a empresa que vai ler esta peça está vivendo?" (nome curto
+  "problemas que o cliente vive"): "está" na #24 com os trechos do leitor e sem o caso de outro
+  cliente; "não está" na #31.
+- **Pa3.01** "Diz o que a empresa faz pelo cliente depois que o contrato acaba?" (nome curto
+  "depois do contrato") e **Pa3.02** "Diz por quanto tempo depois do fim do contrato a empresa
+  continua disponível?": **entram pela metade.** O gabarito delas é "não está" nas duas peças:
+  provaram que pararam de errar, não que acertam quando a peça tem. Falta uma peça que responda.
+- Biblioteca: Pa1.4 e Pa3.2 trocam o ponteiro; a Pa3.2 passa a "Silêncio depois que o contrato acaba
+  é lido como …".
+
+**Saem quatro, que não voltam** (ficam com o texto e o nome do v14):
+- **P2.01**: "está" estável na #24 ("Seis entregáveis, ao final da terceira semana", "sessão
+  executiva · entrega dos anexos"), contra "não está" no gabarito; instável na #31 (4 de 5).
+- **Pa2.02**: na #31 uma leitura citou "Aluguel até 50% mais barato…" e outra o programa de
+  fidelidade ("A cada R$5,00 pagos…"). **Não é problema de redação**: é a terceira redação que falha
+  do mesmo jeito, a fidelidade entrando como formação de preço. Conclusão escrita pelo Alexandre
+  antes: pergunta de presença não dá conta; a marca precisa ser partida em duas. Quem pegar isso
+  depois não tenta uma quarta redação.
+- **A3.04**: "está" estável na #24, contra "não está" no gabarito. **Erro de gabarito, do
+  Alexandre, não da marca**: o Code apontou que a justificativa era mais frouxa que a pergunta, o
+  esperado foi mudado para "não está", e a rodada mostrou uma leitura citando um trecho por oferta
+  ("Compra a diretoria comercial. Ocupa o orçamento de…"), que é dizer para quem cada uma serve. O
+  gabarito original estava certo e foi afrouxado. Pela regra não volta, e a regra está certa: existe
+  para não desfazer decisão depois de ver resultado.
+- **C.04**: "está" estável na #24, de novo com "ERP, CRM, SCM e Analytics". O "pelo nome" não fechou
+  a porta da categoria.
+
+**O que fica registrado sem decidir:**
+- **C.03 quebrou de novo** (na #31): texto novo 0 de 5 "está", controle 4 de 5. É mudança, não
+  ruído; o script a classificou como ruído porque o controle divergiu uma vez (defeito do script:
+  o próximo compara quantas leituras mudaram em cada braço). Roda na mesma chamada da C.04 e da
+  A3.04, que saíram: o efeito não sobe.
+- **Pa1.01 da #31: custo aceito de olhos abertos.** Com os textos novos caiu de "está" para "não
+  está" em 4 de 5 (controle 5 de 5 "está"); a Pa1.04, em 1 de 5. As duas rodam na chamada da Pa1.06,
+  que entra. O teste de vizinhança que responderia isso foi cortado de propósito; a prova que a
+  Pa1.01 perde é um pedaço de frase sem sujeito ("Pra quem fica com o carro por mais de 29 dias."),
+  e 4 de 5 é instabilidade, não tombo limpo. A rede é a correção na tela.
+- Ruído que aparece também no controle (#31: P1.07, P2.08, P3.02, D1.03, D3.03, D3.05, Pa2.01); #24
+  A3.02 em 1 de 5 e #31 Pa1.03 em 1 de 5.
+
+**Consequência do merge, aceita antes.** Toda leitura antiga passa a ter pergunta reescrita nas
+quatro marcas, e o Word dela pede leitura nova. O Word da #31 já foi baixado e **não tem volta**
+(peça de medição, linha de base). Os da #32 e #33 precisam estar baixados antes do merge. Merge
+proposto para depois da leitura nova da Localiza (terça) e de São Lourenço (quarta), para o Word que
+vai ao cliente sair na régua conhecida.
+
 ---
 
 ## 5. Os cases
