@@ -3637,6 +3637,17 @@ que o teste possa desmentir.
   chamadas, cerca de R$ 3, teto R$ 5). O controle de 24/10 foi no v14 e não serve: a Pa1.06, Pa3.01
   e Pa3.02 mudaram no v15, na mesma chamada. De graça: se a Pa1.01 cai com a Pa2.02 sozinha.
 
+**Uma medição vale para exatamente a combinação medida, não para um subconjunto dela (achado de
+24/10, à noite).** O portão do lote mediu quatro marcas do pilar Parceria juntas (Pa1.06, Pa3.01,
+Pa3.02 e a Pa2.02 na redação com lista), na mesma chamada. Subiram três, sem a Pa2.02: a combinação
+que foi para o ar (v15, 22:13) nunca tinha sido medida. A consequência apareceu na primeira medição
+da chamada como ela está no ar (o braço de controle do portão da Pa2.02, mais abaixo): a Pa3.01 na
+#24 dá "está" em 4 de 5, quando o gabarito diz "não está", e no portão do lote dava "não está" nas
+5. **Regra que passa a valer: quando um lote é medido junto e só parte dele sobe, o que subiu precisa
+de uma medição própria antes do merge; o raio é o pilar, então a medição é da chamada do pilar
+inteira.** O erro é dos dois: o Code recomendou subir as quatro, o Alexandre aprovou, e o "raio é o
+pilar" tinha acabado de ser escrito.
+
 **Consequência do merge, aceita antes.** Toda leitura antiga passa a ter pergunta reescrita nas
 quatro marcas, e o Word dela pede leitura nova. O Word da #31 já foi baixado e **não tem volta**
 (peça de medição, linha de base). Os da #32 e #33 foram baixados antes do merge. O v15 foi conferido
