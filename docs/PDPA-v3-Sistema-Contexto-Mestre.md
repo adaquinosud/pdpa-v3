@@ -3648,6 +3648,40 @@ de uma medição própria antes do merge; o raio é o pilar, então a medição 
 inteira.** O erro é dos dois: o Code recomendou subir as quatro, o Alexandre aprovou, e o "raio é o
 pilar" tinha acabado de ser escrito.
 
+**O portão da Pa2.02: passou, e sobe no v16** (shell do Render, 24/10; só a chamada do pilar Pa,
+5 com o texto novo e 5 de controle no v15, nas #24 e #31; R$ 3,35, 8 min). "Está" nas 5 nas duas
+peças, sempre com âncora ("preço fechados", "cada unidade adicional"; "quilômetros excedentes",
+"pacotes de km"), e a fidelidade não apareceu em nenhuma: a lista era a porta. O nome curto fica
+("como forma o preço"); a Pa2.9 da biblioteca, que aponta para ele, não muda.
+
+**O que o braço de controle mostrou (a chamada Pa como estava no ar, v15)**, lido pelo Alexandre no
+bruto (`le_pa202.py`, sem custo), contra o gabarito do lote e a tela corrigida da #31:
+- a vizinhança é real e pequena: dos 42 pares de marca e peça da chamada, 37 não se mexeram com a
+  Pa2.02 nova; cinco mudaram, quase todas por uma leitura;
+- Pa2.02: errada na #31 no v15, certa nas duas com a nova (ganho);
+- Pa3.01 na #24: "está" em 4 de 5 no v15 (gabarito "não está"), 1 de 5 com a Pa2.02 nova (ganho
+  grande, e repara o que subiu errado às 22:13). No v15 ela cita exatamente o trecho que citava com
+  a pergunta antiga ("O parecer é fechado em si. Quem quiser seguir pode contratar a Leitura
+  Contínua"): a reescrita dela não fechou essa porta; o que fechou em parte foi a vizinha. Não é
+  revertida: com a Pa2.02 ao lado erra 1 de 5, a faixa que o Alexandre aceita (marca que balança, a
+  pessoa corrige na tela); o que não se aceita é errar de forma consistente;
+- Pa1.04 na #31: 4 de 5 no v15, 5 de 5 com a nova, a tela diz "está" (ganho);
+- Pa2.01 na #31: 5 de 5 no v15, 4 de 5 com a nova, a tela diz "não está" (ganho pequeno);
+- Pa2.05 na #31: 5 de 5 no v15, 2 de 5 com a nova, a tela diz "está" (perda). **Disputa de
+  trecho**, propriedade do instrumento e não defeito de redação: ela e a Pa2.02 disputam "será
+  cobrado o valor dos quilômetros excedentes"; com a pergunta nova o modelo entrega o trecho à
+  Pa2.02, e a Pa2.05 passa a depender do outro trecho dela (o valor adicional por devolver em agência
+  diferente), que acha em 2 de 5;
+- Pa3.03 na #24: 5 de 5 no v15, 4 de 5 com a nova (a quinta das cinco que mudaram; se o "está" dela
+  na #24 é certo, é uma segunda perda pequena, de uma leitura);
+- Pa1.06 e Pa3.02 limpas no v15, batendo com o gabarito e estáveis nas duas peças: das três que
+  subiram às 22:13, duas funcionam;
+- Pa1.01 na #31: "está" em 5 de 5 no v15 e com a nova. A queda do portão do lote vinha da Pa2.02 com
+  lista, que não subiu.
+
+**Vizinhança: vira hábito, não frente.** Mexeu numa marca, roda a chamada do pilar dela antes do
+merge (cerca de R$ 3 e oito minutos, as duas peças, 5 e 5). Não precisa de investigação própria.
+
 **Consequência do merge, aceita antes.** Toda leitura antiga passa a ter pergunta reescrita nas
 quatro marcas, e o Word dela pede leitura nova. O Word da #31 já foi baixado e **não tem volta**
 (peça de medição, linha de base). Os da #32 e #33 foram baixados antes do merge. O v15 foi conferido
