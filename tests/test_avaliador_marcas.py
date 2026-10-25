@@ -22,7 +22,7 @@ from src.avaliador.regua import (
     validar,
 )
 
-DOCX = Path("data/PDPA_Manual_Operacao_v15.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v16.docx")
 
 
 def _script():
@@ -69,7 +69,8 @@ def test_marcas_como_decidido_em_18_10_e_na_regua_de_79():
 def test_textos_do_manual_de_hoje():
     """Os sete textos trocados em 21/10 (régua de 79), os de 21/10 no v12 que ficaram, e o lote
     de 24/10 no v15: sobem P2.04, Pa1.06, Pa3.01 e Pa3.02; P2.01, Pa2.02, A3.04 e C.04 não
-    passaram no portão e ficam com o texto de antes."""
+    passaram no portão e ficam com o texto de antes (a Pa2.02 voltou pela exceção de 24/10, no v16).
+    """
     texto = {m.codigo: m.texto for m in carregar_regua().marcas}
     assert texto["P2.01"] == "Diz em que momento a entrega está concluída?"
     # P2.02: "ou método" saiu no portão (balançou numa de cinco leituras); fica o texto do v12
@@ -85,7 +86,8 @@ def test_textos_do_manual_de_hoje():
     assert texto["Pa3.02"] == (
         "Diz por quanto tempo depois do fim do contrato a empresa continua disponível?"
     )
-    assert texto["Pa2.02"] == "Diz como o valor é formado, por unidade, por hora ou fechado?"
+    # Pa2.02: a exceção de 24/10 (§4.73), no v16: sem a lista de alternativas
+    assert texto["Pa2.02"] == "Diz de que depende o valor que será cobrado?"
     assert texto["A3.04"] == "Recomenda comprar menos, ou depois, ou outra coisa?"
     assert texto["C.04"] == "Nomeia as tecnologias, softwares ou ferramentas que usa?"
     curto = {m.codigo: m.nome_curto for m in carregar_regua().marcas}

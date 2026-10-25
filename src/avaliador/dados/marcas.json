@@ -1,5 +1,5 @@
 {
-  "fonte": "PDPA_Manual_Operacao_v15.docx, capítulo 17",
+  "fonte": "PDPA_Manual_Operacao_v16.docx, capítulo 17",
   "titulo": "17. Marcas de leitura de documento",
   "abertura": [
     "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas da metodologia; aqui estão as doze perguntas do leitor, uma por subpilar, e o que um documento mostra por escrito sobre cada uma.",
@@ -401,7 +401,7 @@
     {
       "codigo": "Pa2.02",
       "grupo": "Pa2",
-      "texto": "Diz como o valor é formado, por unidade, por hora ou fechado?",
+      "texto": "Diz de que depende o valor que será cobrado?",
       "nome_curto": "como forma o preço",
       "so_cliente_nomeado": false,
       "porque_importa": ""
