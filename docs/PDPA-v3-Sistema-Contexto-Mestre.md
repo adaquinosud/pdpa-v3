@@ -3604,6 +3604,39 @@ transcrita errada).
 - Ruído que aparece também no controle (#31: P1.07, P2.08, P3.02, D1.03, D3.03, D3.05, Pa2.01); #24
   A3.02 em 1 de 5 e #31 Pa1.03 em 1 de 5.
 
+**O raio de uma mudança é o pilar dela (achado no código, 24/10).** As cinco chamadas da leitura
+são independentes: cada uma leva o Manual (capítulo 2), a peça e **só as marcas do seu pilar**
+(`marcas.instrucao_etapa`); o bloco C vai na chamada do pilar A. Nenhuma chamada vê a resposta da
+outra (a dos achados, a última, recebe as marcas conferidas, mas não muda resposta de marca). Então
+mudar o texto de uma marca só pode mexer na resposta das marcas da mesma chamada. Isso explica o
+resultado do lote sem hipótese: a C.03 caiu junto da A3.04 e da C.04 porque as três viajam na
+mesma chamada; a Pa1.01 caiu na chamada da Pa1.06, Pa2.02, Pa3.01 e Pa3.02. Muda o desenho de
+toda medição futura: o efeito colateral se procura no pilar da mudança, e a medição de uma marca
+pode rodar só a chamada dela. Dois dias de especulação sobre vizinhança estavam respondidos no
+código.
+
+**A exceção da Pa2.02 (decisão do Alexandre, 24/10, registrada antes de rodar).** A regra de "o que
+não passa não volta" foi suspensa uma vez, para a Pa2.02. O motivo: as três redações que falharam
+tinham em comum a lista de alternativas ("por unidade, por hora, por volume ou fechado"), e nenhuma
+delas tratou essa lista como a variável. O programa de fidelidade é literalmente uma regra por
+unidade, então a lista era a porta. A quarta redação tira a lista inteira, o que é hipótese nova
+sobre uma causa nomeada, não variação do mesmo enunciado. A exceção é invocável porque é
+verificável: a causa proposta é constante nas três falhas, e o teste a derruba se estiver errada.
+**Se esta falhar, a marca é partida em duas e não há quinta redação.** A regra existe para barrar o
+"desta vez é diferente", e a única defesa legítima é nomear a diferença antes de rodar, de um jeito
+que o teste possa desmentir.
+- Texto: "Diz de que depende o valor que será cobrado?". O teste: o trecho determina quanto a
+  empresa vai cobrar? "Será cobrado o valor dos quilômetros excedentes" determina; "A cada R$ 5,00
+  pagos você ganha 1 ponto" não, determina o que o cliente ganha.
+- Gabarito: #24 "está", âncoras "preço fechados" ou "cada unidade adicional"; #31 "está", âncoras
+  "pacotes de km", "quilômetros excedentes", "período utilizado" ou "últimos 30 dias corridos";
+  proibido "ganha 1 ponto" e "r$5,00 pagos". As duas últimas âncoras entraram porque, com a pergunta
+  mais aberta, respondem de verdade ao que o leitor quer saber da própria conta: apertar o gabarito
+  e a marca sair por ter acertado foi o que custou a A3.04.
+- Desenho: só a chamada do pilar Pa, 5 com o texto novo e 5 de controle no v15, nas #24 e #31 (20
+  chamadas, cerca de R$ 3, teto R$ 5). O controle de 24/10 foi no v14 e não serve: a Pa1.06, Pa3.01
+  e Pa3.02 mudaram no v15, na mesma chamada. De graça: se a Pa1.01 cai com a Pa2.02 sozinha.
+
 **Consequência do merge, aceita antes.** Toda leitura antiga passa a ter pergunta reescrita nas
 quatro marcas, e o Word dela pede leitura nova. O Word da #31 já foi baixado e **não tem volta**
 (peça de medição, linha de base). Os da #32 e #33 foram baixados antes do merge. O v15 foi conferido
