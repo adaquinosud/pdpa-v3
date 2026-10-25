@@ -3606,9 +3606,16 @@ transcrita errada).
 
 **Consequência do merge, aceita antes.** Toda leitura antiga passa a ter pergunta reescrita nas
 quatro marcas, e o Word dela pede leitura nova. O Word da #31 já foi baixado e **não tem volta**
-(peça de medição, linha de base). Os da #32 e #33 precisam estar baixados antes do merge. Merge
-proposto para depois da leitura nova da Localiza (terça) e de São Lourenço (quarta), para o Word que
-vai ao cliente sair na régua conhecida.
+(peça de medição, linha de base). Os da #32 e #33 foram baixados antes do merge. O v15 foi conferido
+e aprovado pelo Alexandre.
+
+**Merge antes da leitura nova da Localiza (terça, para São Lourenço na quarta), decisão do
+Alexandre.** O Code propôs esperar a quarta, para o Word que vai ao cliente sair na régua conhecida;
+a conta estava incompleta. A régua nova arrisca a Pa1.01 na Localiza, mas conserta três marcas na
+mesma peça: com o texto de hoje a #31 respondia "está" na Pa3.01 (o portal do cliente, que existe
+durante) e na Pa3.02 ("24h") nas 5 leituras de controle, e na P2.04 ("assistência 24h" como
+reparação) em 3 de 5; com o texto novo, as três dão "não está" nas 5, a resposta certa. Três
+consertos contra um risco, e o Word antigo da Localiza está salvo como reserva.
 
 ---
 
