@@ -405,7 +405,7 @@
       "subpilar": "Pa1",
       "estado": "cliente_nomeado",
       "serve_a": [
-        "problemas que o cliente relatou"
+        "problemas que o cliente vive"
       ],
       "texto": "Não há uma linha sobre o problema específico que levou o cliente a te procurar. Era a primeira coisa que ele queria ver escrita."
     },
@@ -551,9 +551,9 @@
       "subpilar": "Pa3",
       "estado": "word",
       "serve_a": [
-        "depois da entrega"
+        "depois do contrato"
       ],
-      "texto": "Falta dizer o que acontece depois. Silêncio depois da entrega é lido como \"consegui o que eu queria\"."
+      "texto": "Falta dizer o que acontece depois. Silêncio depois que o contrato acaba é lido como \"consegui o que eu queria\"."
     },
     {
       "codigo": "Pa3.3",

@@ -22,7 +22,7 @@ from src.avaliador.regua import (
     validar,
 )
 
-DOCX = Path("data/PDPA_Manual_Operacao_v14.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v15.docx")
 
 
 def _script():
@@ -66,17 +66,34 @@ def test_marcas_como_decidido_em_18_10_e_na_regua_de_79():
     assert r.versao.startswith("manual+marcas+pistas:")
 
 
-def test_textos_do_manual_v13():
-    """Os sete textos trocados em 21/10 (régua de 79), e os de 21/10 no v12 que ficaram."""
+def test_textos_do_manual_de_hoje():
+    """Os sete textos trocados em 21/10 (régua de 79), os de 21/10 no v12 que ficaram, e o lote
+    de 24/10 no v15: sobem P2.04, Pa1.06, Pa3.01 e Pa3.02; P2.01, Pa2.02, A3.04 e C.04 não
+    passaram no portão e ficam com o texto de antes."""
     texto = {m.codigo: m.texto for m in carregar_regua().marcas}
     assert texto["P2.01"] == "Diz em que momento a entrega está concluída?"
     # P2.02: "ou método" saiu no portão (balançou numa de cinco leituras); fica o texto do v12
     assert texto["P2.02"] == "Diz qual padrão, protocolo ou referência ela segue?"
-    assert texto["P2.04"] == "Diz o que acontece se a entrega não atender o que foi combinado?"
+    assert texto["P2.04"] == (
+        "Diz o que a empresa devolve em dinheiro, refaz ou desconta se não cumprir o que prometeu?"
+    )
     assert texto["P3.04"] == (
         "Diz o que acontece se o cliente precisar de mais ou de menos do que foi combinado?"
     )
-    assert texto["Pa1.06"] == "Diz quais problemas o próprio cliente relatou?"
+    assert texto["Pa1.06"] == "Diz quais problemas a empresa que vai ler esta peça está vivendo?"
+    assert texto["Pa3.01"] == "Diz o que a empresa faz pelo cliente depois que o contrato acaba?"
+    assert texto["Pa3.02"] == (
+        "Diz por quanto tempo depois do fim do contrato a empresa continua disponível?"
+    )
+    assert texto["Pa2.02"] == "Diz como o valor é formado, por unidade, por hora ou fechado?"
+    assert texto["A3.04"] == "Recomenda comprar menos, ou depois, ou outra coisa?"
+    assert texto["C.04"] == "Nomeia as tecnologias, softwares ou ferramentas que usa?"
+    curto = {m.codigo: m.nome_curto for m in carregar_regua().marcas}
+    assert curto["Pa1.06"] == "problemas que o cliente vive"
+    assert curto["Pa3.01"] == "depois do contrato"
+    assert (
+        curto["A3.04"] == "recomendação de comprar menos" and curto["C.04"] == "tecnologia que usa"
+    )
     assert texto["Pa1.08"] == "Oferece uma forma de experimentar antes de pagar?"
     assert texto["A1.01"] == "Traz alguém de fora falando na peça, com nome e cargo?"
     assert texto["A1.03"] == (

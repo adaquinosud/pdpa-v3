@@ -1,5 +1,5 @@
 {
-  "fonte": "PDPA_Manual_Operacao_v14.docx, capítulo 17",
+  "fonte": "PDPA_Manual_Operacao_v15.docx, capítulo 17",
   "titulo": "17. Marcas de leitura de documento",
   "abertura": [
     "Este capítulo é usado na leitura de documentos da empresa: propostas, apresentações, páginas do site. Ele não muda o capítulo 2. Lá estão as doze perguntas da metodologia; aqui estão as doze perguntas do leitor, uma por subpilar, e o que um documento mostra por escrito sobre cada uma.",
@@ -129,7 +129,7 @@
     {
       "codigo": "P2.04",
       "grupo": "P2",
-      "texto": "Diz o que acontece se a entrega não atender o que foi combinado?",
+      "texto": "Diz o que a empresa devolve em dinheiro, refaz ou desconta se não cumprir o que prometeu?",
       "nome_curto": "o que acontece se falhar",
       "so_cliente_nomeado": false,
       "porque_importa": ""
@@ -369,8 +369,8 @@
     {
       "codigo": "Pa1.06",
       "grupo": "Pa1",
-      "texto": "Diz quais problemas o próprio cliente relatou?",
-      "nome_curto": "problemas que o cliente relatou",
+      "texto": "Diz quais problemas a empresa que vai ler esta peça está vivendo?",
+      "nome_curto": "problemas que o cliente vive",
       "so_cliente_nomeado": true,
       "porque_importa": ""
     },
@@ -457,15 +457,15 @@
     {
       "codigo": "Pa3.01",
       "grupo": "Pa3",
-      "texto": "Diz o que acontece depois que a entrega termina?",
-      "nome_curto": "depois da entrega",
+      "texto": "Diz o que a empresa faz pelo cliente depois que o contrato acaba?",
+      "nome_curto": "depois do contrato",
       "so_cliente_nomeado": false,
       "porque_importa": ""
     },
     {
       "codigo": "Pa3.02",
       "grupo": "Pa3",
-      "texto": "Diz por quanto tempo a empresa continua disponível depois da entrega?",
+      "texto": "Diz por quanto tempo depois do fim do contrato a empresa continua disponível?",
       "nome_curto": "por quanto tempo continua",
       "so_cliente_nomeado": false,
       "porque_importa": ""

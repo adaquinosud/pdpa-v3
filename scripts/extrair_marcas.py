@@ -30,7 +30,7 @@ import docx
 
 from src.api.painel import NOME_SUBPILAR
 
-DOCX = Path("data/PDPA_Manual_Operacao_v14.docx")
+DOCX = Path("data/PDPA_Manual_Operacao_v15.docx")
 SAIDA = Path("src/avaliador/dados/marcas.json")
 TITULO = "Marcas de leitura de documento"
 FORA_DOS_DOZE = "O que dá para conferir na peça"
