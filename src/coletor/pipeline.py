@@ -42,6 +42,7 @@ from typing import Optional
 from src.models.fonte import Fonte
 from src.models.verbatim import Verbatim
 from src.utils.db import db_session
+from src.utils.nul import sem_nul
 import logging
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,10 @@ def processar_verbatim_coletado(
         ``Verbatim`` persistido se inserção ocorreu. ``None`` se foi
         descartado (texto curto sem rating, ou duplicata).
     """
+    # Byte nulo: o Postgres recusa e o item se perderia (ver src/utils/nul.py).
+    if (texto and "\x00" in texto) or (autor and "\x00" in autor):
+        logger.warning(f"[pipeline] fonte {fonte.id}: byte nulo removido do texto/autor")
+        texto, autor = sem_nul(texto), sem_nul(autor)
     texto_normalizado = (texto or "").strip()
     tem_texto = len(texto_normalizado) >= MIN_CHARS_PARA_PROCESSAR
 

@@ -1204,3 +1204,16 @@ def test_planejar_padrao_cap_setado_respeita(db_session):
     f.ra_max_casos = 50
     db_session.commit()
     assert ra.planejar_coortes(db_session, f) == [{"acao": "amostra", "cap": 50}]
+
+
+def test_adapter_remove_byte_nulo_de_todo_o_record():
+    """\\x00 em qualquer campo (descrição, título, thread) seria recusado pelo
+    Postgres e o caso se perderia — o adapter limpa o record inteiro."""
+    thread = [{"message": "resposta\x00 da empresa"}]
+    item = _reclamacao("NUL1", descricao="Cobrança\x00 indevida", interactions=thread)
+    item["title"] = "Tít\x00ulo"
+    norm = adaptar_reclamacao(item)
+    assert norm["descricao_texto"] == "Cobrança indevida"
+    assert norm["titulo"] == "Título"
+    assert "\x00" not in norm["thread_json"] and "\\u0000" not in norm["thread_json"]
+    assert item["descriptionText"] == "Cobrança\x00 indevida"  # entrada não é mutada

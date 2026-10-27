@@ -151,3 +151,22 @@ def test_processar_texto_entra_sem_classificacao(fonte_local):
     assert v.subpilar is None
     assert v.tipo is None
     assert v.confianca is None
+
+
+# ── byte nulo (\x00) — o Postgres recusa; a suíte (SQLite) aceita ───────
+# Por isso os testes verificam a AUSÊNCIA do byte no que foi gravado.
+
+
+def test_processar_remove_byte_nulo_do_texto_e_autor(fonte_local):
+    """Avaliação real (fonte 431, 27/10/2026) tinha dois \\x00 no meio do texto e se
+    perdeu no INSERT. Agora entra, sem o byte, com o resto do texto intacto."""
+    v = processar_verbatim_coletado(
+        texto="Atendimento\x00\x00 muito demorado",
+        fonte=fonte_local,
+        autor="Jo\x00ão",
+        review_id_externo="r-nul-1",
+    )
+    assert v is not None
+    assert v.texto == "Atendimento muito demorado"
+    assert "\x00" not in (v.autor or "")
+    assert v.autor == "João"

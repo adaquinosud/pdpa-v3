@@ -19,6 +19,8 @@ import re
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from src.utils.nul import sem_nul
+
 ADAPTER_VERSAO = "blackfalcondata-v1"
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -109,6 +111,9 @@ def adaptar_reclamacao(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     if not isinstance(item, dict):
         return None
+    # Byte nulo em qualquer campo (texto, thread): o Postgres recusa e o caso se
+    # perderia. Limpa o record inteiro antes de mapear (ver src/utils/nul.py).
+    item = sem_nul(item)
     if item.get("recordType") != "complaint":
         return None  # record de empresa (scorecard) — ignorado nesta frente
     origem_id = item.get("id")
