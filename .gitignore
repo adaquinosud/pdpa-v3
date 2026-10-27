@@ -67,3 +67,6 @@ data/*.json
 data/*.md
 data/*.xlsx
 data/*.docx
+
+# Claude Code: preferência de máquina (o .claude/settings.json é do projeto e é versionado)
+.claude/settings.local.json
