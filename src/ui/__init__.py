@@ -3606,19 +3606,10 @@ def htmx_inativar_fonte(fonte_id: int):
             loc = s.get(Local, f.entidade_id)
             if loc is not None:
                 local_map[loc.id] = loc.nome
-        _ = (
-            f.id,
-            f.empresa_id,
-            f.entidade_tipo,
-            f.entidade_id,
-            f.conector_tipo,
-            f.url,
-            f.ativo,
-            f.ultima_coleta,
-            f.criada_em,
-            f.observacao,
-        )
-        s.expunge(f)
+        # Wrap no view-model, como no salvar. O ORM cru deixava `eh_ra` Undefined→falsy:
+        # numa fonte RA reativada a linha voltava com "disparar" (que roda o SCORECARD)
+        # e SEM "coletar aberturas" — medido na 29 em 27/10 (execução 7092).
+        f = _wrap_fonte(f, nome_local=local_map.get(f.entidade_id))
     return render_template("partials/fonte_item.html", f=f, local_nome=local_map)
 
 

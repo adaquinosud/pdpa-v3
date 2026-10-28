@@ -330,3 +330,20 @@ def test_delete_empresa_cascateia_tudo(client_loyall):
     assert client_loyall.get(f"/api/agrupamentos/{a['id']}").status_code == 404
     assert client_loyall.get(f"/api/locais/{local['id']}").status_code == 404
     assert client_loyall.get(f"/api/fontes/{f['id']}").status_code == 404
+
+
+def test_fonte_RA_reativada_pela_tela_volta_com_os_botoes_RA(client_loyall):
+    """27/10, empresa 29: reativar a fonte RA na tela devolvia a linha com o ORM cru →
+    `eh_ra` Undefined → botão "disparar" (que roda o SCORECARD) e SEM "coletar
+    aberturas". O clique em "disparar" gerou a execução 7092 com input de scorecard."""
+    e = client_loyall.post("/api/empresas/", json={"nome": "EfonRA"}).get_json()
+    loc = client_loyall.post(f"/api/empresas/{e['id']}/locais", json={"nome": "L"}).get_json()
+    f = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes",
+        json={"conector_tipo": "reclame_aqui", "url": "unimed-x"},
+    ).get_json()
+    client_loyall.patch(f"/api/fontes/{f['id']}/inativar")  # desliga pela API
+    html = client_loyall.patch(f"/ui/fontes/{f['id']}/inativar").get_data(as_text=True)
+    assert "coletar aberturas" in html
+    assert ">scorecard<" in html
+    assert ">disparar<" not in html
