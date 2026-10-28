@@ -166,12 +166,12 @@
   {% endif %}
   <table class="tese-grid">
     <tr>
-      <td class="k"><div class="kl">A voz pública</div><div class="kn">{{ d.tese.voz.pct }}%</div></td>
-      <td class="v">das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}). Somando todas as fontes, só em {{ d.tese.subpilar_nome }}, o ratio é <strong>{{ d.tese.voz.ratio | virg }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
+      <td class="k"><div class="kl">A voz pública</div><div class="kn">{% if d.tese.voz.total %}{{ d.tese.voz.pct }}%{% else %}—{% endif %}</div></td>
+      <td class="v">{% if d.tese.voz.total %}das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}).{% else %}<strong>Sem base no ReclameAqui:</strong> nenhuma reclamação foi coletada para esta análise, então a concentração não é medida.{% endif %} Somando todas as fontes, só em {{ d.tese.subpilar_nome }}, o ratio é <strong>{{ d.tese.voz.ratio | virg }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
     </tr>
     <tr>
-      <td class="k"><div class="kl">A conduta</div><div class="kn">{% if d.ato2a.maturidade.madura %}{{ d.tese.conduta.resolve }}%{% else %}{{ d.tese.conduta.responde }}%{% endif %}</div></td>
-      <td class="v">{% if d.ato2a.maturidade.madura %}responde <strong>{{ d.tese.conduta.responde }}%</strong>, resolve <strong>{{ d.tese.conduta.resolve }}%</strong>, enfrenta a causa em <strong>{{ d.tese.conduta.causa }}%</strong>.{% else %}responde <strong>{{ d.tese.conduta.responde }}%</strong>; resolução e causa-raiz <em>em maturação</em> — base recente, ainda não julgada.{% endif %}</td>
+      <td class="k"><div class="kl">A conduta</div><div class="kn">{% if d.ato2a.sem_base %}—{% elif d.ato2a.maturidade.madura %}{{ d.tese.conduta.resolve }}%{% else %}{{ d.tese.conduta.responde }}%{% endif %}</div></td>
+      <td class="v">{% if d.ato2a.sem_base %}<strong>Sem base no ReclameAqui:</strong> sem reclamações coletadas, a conduta (responder, resolver, enfrentar a causa) não é medida.{% elif d.ato2a.maturidade.madura %}responde <strong>{{ d.tese.conduta.responde }}%</strong>, resolve <strong>{{ d.tese.conduta.resolve }}%</strong>, enfrenta a causa em <strong>{{ d.tese.conduta.causa }}%</strong>.{% else %}responde <strong>{{ d.tese.conduta.responde }}%</strong>; resolução e causa-raiz <em>em maturação</em> — base recente, ainda não julgada.{% endif %}</td>
     </tr>
     {% if d.tese.profundidade.nivel %}
     <tr>
@@ -266,6 +266,9 @@
   <div class="eyebrow">Ato 2 · a evidência pública</div>
   <h2 class="manchete">{{ d.ato2a.manchete.l1 }}<br>{{ d.ato2a.manchete.l2 }}</h2>
   <div class="rule"></div>
+  {% if d.ato2a.sem_base %}
+  <p class="method" style="text-align:center;font-size:11.5pt;max-width:150mm;margin:5mm auto"><strong>Nenhuma reclamação do ReclameAqui foi coletada para esta análise.</strong> Sem casos, a conduta pública — responder, resolver, enfrentar a causa — não é medida aqui. <em>Ausência de base não é desempenho, nem bom nem ruim.</em></p>
+  {% else %}
   {% if d.ato2a.maturidade.madura %}
   <div class="funil">
     <div class="step s1"><div class="fn">{{ d.ato2a.funil.responde }}%</div><div class="fl">responde{% if d.ato2a.funil.base_responde %} · dos {{ d.ato2a.funil.base_responde }} casos maduros{% endif %}</div></div>
@@ -289,6 +292,7 @@
   <p class="muted" style="text-align:center;font-size:9.5pt;margin-top:1mm">nota média {{ d.ato2a.nota_media | virg(1) }}/10 · {{ d.ato2a.n_avaliados }} avaliados</p>
   {% set rc = d.ato2a.reconciliacao %}
   <p class="muted" style="text-align:center;font-size:8.5pt;margin-top:1mm">Bases: {{ rc.respondidas }} respondidas + {{ rc.nao_respondidas_maduras }} não respondidas = {{ rc.maduros }} casos maduros · {{ rc.total }} no total = {{ rc.maduros }} maduros + {{ rc.imaturos }} recentes · nota sobre {{ rc.avaliados }} avaliados.</p>
+  {% endif %}
 
   {% for c in d.ato2a.citacoes %}
   <div class="quote">{{ c.texto }}<span class="src">— {{ c.fonte }}</span></div>

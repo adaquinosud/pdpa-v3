@@ -105,6 +105,11 @@ def test_montar_dados_completo(db_session):
     assert d["tese"]["voz"]["total"] == 4 and d["tese"]["voz"]["pct"] == 100
     assert d["tese"]["voz"]["detratores"] == 4
     assert isinstance(d["tese"]["conduta"]["resolve"], int)
+    # caminho feliz do gate "sem base": COM casos RA, o impresso mede e não declara ausência
+    assert d["ato2a"]["sem_base"] is False
+    _html = _render(d)
+    assert "Sem base no ReclameAqui" not in _html
+    assert "(4 de 4" in _html
     # ato2a: funil + desfechos + citação curada (espessa, causa não resolvida)
     assert d["ato2a"]["funil"]["responde"] == 100
     # item 5: cada degrau declara sua base (denominadores distintos)

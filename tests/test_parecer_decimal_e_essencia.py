@@ -177,3 +177,34 @@ def test_os_fatos_da_sintese_carregam_o_subpilar_do_ratio(db_session):
     iv = _facts_sintese(d)["intensidade_voz_total"]
     assert iv["subpilar"] == d["tese"]["subpilar_nome"]
     assert "só deste subpilar" in iv["base"]
+
+
+# ── ZERO casos RA é AUSÊNCIA DE BASE, não desempenho (§9/§10) ──────────────────
+# 28/10/2026, empresa 29: o impresso dizia "responde 0%" e "0% (0 de 0)" a uma
+# cooperativa que responde 100% no site do ReclameAqui — o RA dela nunca tinha sido
+# coletado. O conselho leria o 0% como medição.
+
+_SEM_RA = [("google_maps", "detrator", 9), ("google_maps", "promotor", 2)]
+
+
+def test_sem_caso_RA_o_impresso_declara_e_NAO_imprime_zero(db_session):
+    d = montar_dados(_empresa(db_session, "semra", _SEM_RA).id)
+    assert d["ato2a"]["sem_base"] is True
+    html = _render(d)
+    assert "Sem base no ReclameAqui" in html
+    assert "(0 de 0)" not in html
+    assert "responde <strong>0%</strong>" not in html
+    assert "dos 0 casos" not in html
+    assert d["ato2a"]["manchete"] == {"l1": "Sem base", "l2": "no ReclameAqui."}
+
+
+def test_sem_caso_RA_a_sintese_NAO_recebe_numero_do_RA(db_session):
+    from src.relatorios.parecer import _facts_sintese
+
+    f = _facts_sintese(montar_dados(_empresa(db_session, "semraf", _SEM_RA).id))
+    assert f["conduta"] == {
+        "sem_base": True,
+        "motivo": "nenhuma reclamação do ReclameAqui coletada; conduta não medida",
+    }
+    assert f["concentracao_ra"]["sem_base"] is True
+    assert "pct" not in f["concentracao_ra"]

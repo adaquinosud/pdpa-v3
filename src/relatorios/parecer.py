@@ -38,7 +38,7 @@ PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # no Contexto-Mestre não substitui: o doc serve a quem lê o doc, a versão serve a
 # quem lê o código. Prompt mudou → bump, e o custo entra na mesa (§13), não no
 # lugar da regra.
-PROMPT_SINTESE_VER = "v2.2-ratio-do-subpilar"
+PROMPT_SINTESE_VER = "v2.3-ra-sem-base"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -583,12 +583,17 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         # sem rótulo → o Sonnet colava ("aprofunda") e produzia número impossível
         # (intensidade > concentração é normal: universo mais amplo). Separados +
         # rotulados, o prompt consegue exigir a base de cada um na prosa.
-        "concentracao_ra": {
-            "pct": v["pct"],  # % das reclamações RA que caem no subpilar-ferida
-            "n_no_subpilar": v["n"],
-            "total": v["total"],
-            "base": "reclamações no ReclameAqui",  # SÓ RA
-        },
+        # Sem reclamação RA coletada → SEM números: o 0 viraria '0% das reclamações'.
+        "concentracao_ra": (
+            {
+                "pct": v["pct"],  # % das reclamações RA que caem no subpilar-ferida
+                "n_no_subpilar": v["n"],
+                "total": v["total"],
+                "base": "reclamações no ReclameAqui",  # SÓ RA
+            }
+            if v["total"]
+            else {"sem_base": True, "base": "reclamações no ReclameAqui — nenhuma coletada"}
+        ),
         "intensidade_voz_total": {
             "detratores": v["detratores"],  # contagem all-time do subpilar
             "promotores": v["promotores"],
@@ -605,27 +610,35 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
         "maduros_pct": d["ato2a"]["maturidade"]["maduros_pct"],
         # Conduta: responde é imediato (sempre). resolve/causa SÓ entram quando a
         # base é madura — imatura NÃO recebe os números (Sonnet não tem o que citar).
-        "conduta": {
-            # CADA taxa tem base PRÓPRIA (item 5 — não misturar denominadores):
-            "responde_pct": t["conduta"]["responde"],
-            "responde_base": (
-                "da base madura (queixas antigas o bastante para já terem sido "
-                "respondidas), NÃO o total"
-            ),
-            **(
-                {
-                    "resolve_pct": t["conduta"]["resolve"],
-                    "resolve_base": "dos casos avaliados",
-                    # % em que a EMPRESA atacou a causa-raiz (consertou, não só
-                    # compensou). NÃO é '% em que a empresa é a causa' — não inverter.
-                    # Base = casos com desfecho classificado (NÃO 'ocorrências'/'resolvidos').
-                    "enfrenta_a_causa_pct": t["conduta"]["causa"],
-                    "enfrenta_a_causa_base": "dos casos com desfecho classificado",
-                }
-                if d["ato2a"]["maturidade"]["madura"]
-                else {}
-            ),
-        },
+        # Sem caso RA → a conduta NÃO é medida: sem números (o 0 viraria 'responde 0%').
+        "conduta": (
+            {
+                "sem_base": True,
+                "motivo": "nenhuma reclamação do ReclameAqui coletada; conduta não medida",
+            }
+            if d["ato2a"].get("sem_base")
+            else {
+                # CADA taxa tem base PRÓPRIA (item 5 — não misturar denominadores):
+                "responde_pct": t["conduta"]["responde"],
+                "responde_base": (
+                    "da base madura (queixas antigas o bastante para já terem sido "
+                    "respondidas), NÃO o total"
+                ),
+                **(
+                    {
+                        "resolve_pct": t["conduta"]["resolve"],
+                        "resolve_base": "dos casos avaliados",
+                        # % em que a EMPRESA atacou a causa-raiz (consertou, não só
+                        # compensou). NÃO é '% em que a empresa é a causa' — não inverter.
+                        # Base = casos com desfecho classificado (NÃO 'ocorrências'/'resolvidos').
+                        "enfrenta_a_causa_pct": t["conduta"]["causa"],
+                        "enfrenta_a_causa_base": "dos casos com desfecho classificado",
+                    }
+                    if d["ato2a"]["maturidade"]["madura"]
+                    else {}
+                ),
+            }
+        ),
         "ruptura_nivel": t["profundidade"]["nivel"],
         "ruptura_frase": t["profundidade"]["frase"],
         "consultam_ia_pct": d["ato2c"]["stat"]["pct"],
@@ -966,7 +979,13 @@ def montar_dados(
     # Base imatura → manchete de maturação (não julga a conduta).
     _resp_pct = casos.taxa_resposta or 0
     _causa_pct = casos.taxa_causa or 0
-    if not _madura:
+    # ⚠️ §9/§10 — ZERO casos RA é AUSÊNCIA DE BASE, não desempenho. Na 29 (28/out) o
+    # impresso dizia 'responde 0%' a uma cooperativa que responde 100% no site do RA,
+    # porque o RA dela nunca tinha sido coletado. Sem base: declara, não mede.
+    _ra_sem_base = not (casos.total or 0)
+    if _ra_sem_base:
+        _manchete = {"l1": "Sem base", "l2": "no ReclameAqui."}
+    elif not _madura:
         _manchete = {"l1": "A base ainda", "l2": "é recente."}
     else:
         _l1 = (
@@ -1055,6 +1074,7 @@ def montar_dados(
         },
         "ato2a": {
             "manchete": _manchete,  # bug 1: parametrizada (ou 'base recente' se imatura)
+            "sem_base": _ra_sem_base,  # zero casos RA → o Ato 2 declara, não imprime 0%
             "maturidade": {  # bug 4: gate — julga a conduta só com lastro temporal
                 "madura": _madura,
                 "maduros_pct": _maduros_pct,

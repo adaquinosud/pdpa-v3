@@ -16,6 +16,10 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
     empresa. Cite SEMPRE com o nome do subpilar ("em <subpilar>, somando todas as
     fontes, …"). NUNCA o chame de "ratio agregado", "razão geral" ou qualquer forma
     que o leitor tome pelo número da empresa inteira.
+  ⚠️ SEM BASE: se ``concentracao_ra.sem_base`` ou ``conduta.sem_base`` vier true, NÃO
+  há número do ReclameAqui — NÃO cite percentual, NÃO julgue a conduta (nem "reativa",
+  nem "responde pouco"). Diga, no máximo, que a base do ReclameAqui não foi coletada.
+  Ausência de base NÃO é 0% e NÃO é desempenho ruim.
   São leituras COMPLEMENTARES (a CONCENTRAÇÃO no ReclameAqui × a INTENSIDADE em todas as
   fontes), não aninhadas nem apresentadas como "do mesmo problema".
   PROIBIDO ligá-las com "aprofunda / detalha / dos quais / desses / é um zoom / do mesmo

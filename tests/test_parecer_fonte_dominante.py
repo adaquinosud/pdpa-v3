@@ -139,6 +139,9 @@ def test_decimais_do_impresso_saem_com_VIRGULA(db_session):
     )
     d = montar_dados(e.id)
     d["ato2a"]["nota_media"] = 7.0
+    # O fixture não cria Caso: sem isto o Ato 2 declara "sem base" e não imprime a nota.
+    # O teste é da VÍRGULA, então finge a base que já fingia ao injetar a nota.
+    d["ato2a"]["sem_base"] = False
     d["ato2b"]["concentracao"]["ratio"] = 0.5
     html = _render(d)
     assert "7,0/10" in html
