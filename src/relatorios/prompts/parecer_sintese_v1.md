@@ -12,6 +12,10 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
     todas as fontes" (universo MAIOR — RA + demais canais + avaliações por nota).
     Ao citar esses números, diga SEMPRE "todas as fontes" (ou "manifestações
     públicas", nunca "reclamações").
+    ⚠️ É o ratio DO SUBPILAR-FERIDA (``intensidade_voz_total.subpilar``), NÃO o da
+    empresa. Cite SEMPRE com o nome do subpilar ("em <subpilar>, somando todas as
+    fontes, …"). NUNCA o chame de "ratio agregado", "razão geral" ou qualquer forma
+    que o leitor tome pelo número da empresa inteira.
   São leituras COMPLEMENTARES (a CONCENTRAÇÃO no ReclameAqui × a INTENSIDADE em todas as
   fontes), não aninhadas nem apresentadas como "do mesmo problema".
   PROIBIDO ligá-las com "aprofunda / detalha / dos quais / desses / é um zoom / do mesmo
@@ -50,7 +54,8 @@ Lastro: ``pilar`` + ``subpilares`` crítico/fraco dele; ``coincide_com_ferida`` 
 null = nada trava antes da ferida);
 ``concentracao_ra`` (``pct``, ``n_no_subpilar``/``total``, ``base`` = "reclamações
 no ReclameAqui"); ``intensidade_voz_total`` (``detratores``/``promotores``/
-``ratio``, ``base`` = "manifestações públicas de todas as fontes") — universos
+``ratio``, ``subpilar``, ``base`` = "manifestações públicas de todas as fontes, só
+deste subpilar") — universos
 DISTINTOS, ver a REGRA MÁXIMA; ``conduta`` (``responde_pct``/``resolve_pct``/
 ``enfrenta_a_causa_pct``); ``ruptura_nivel`` +
 ``ruptura_frase``; ``consultam_ia_pct``, ``ias``, ``encaminhamentos``; ``topo`` /

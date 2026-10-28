@@ -153,3 +153,27 @@ def test_o_prompt_nao_pede_mais_a_essencia():
     assert "``essencia`` — objeto" not in txt, "o item de saída continua no prompt"
     assert '"essencia": {"missao"' not in txt, "o exemplo de JSON ainda pede o campo"
     assert "essencia_declarada" in txt, "a ENTRADA continua — `ausentes` depende dela"
+
+
+# ── o ESCOPO do ratio: subpilar, nunca a empresa ───────────────────────────────
+# 28/10/2026, empresa 29: o impresso dizia "No diagnóstico geral, o ratio é 0,11" e a
+# síntese escreveu "ratio agregado de 0,11". Os dois números eram do subpilar-ferida;
+# a razão da empresa na base inteira era 8,6. Lido por um conselho, o 0,11 sem escopo
+# vira o número da empresa — a leitura oposta do mesmo cliente.
+
+
+def test_o_impresso_nomeia_o_SUBPILAR_ao_dar_o_ratio(db_session):
+    d = montar_dados(_empresa(db_session, "esc", _BEXP).id)
+    html = _render(d)
+    nome = d["tese"]["subpilar_nome"]
+    assert f"só em {nome}, o ratio é <strong>" in html
+    assert "diagnóstico geral" not in html
+
+
+def test_os_fatos_da_sintese_carregam_o_subpilar_do_ratio(db_session):
+    from src.relatorios.parecer import _facts_sintese
+
+    d = montar_dados(_empresa(db_session, "facts", _BEXP).id)
+    iv = _facts_sintese(d)["intensidade_voz_total"]
+    assert iv["subpilar"] == d["tese"]["subpilar_nome"]
+    assert "só deste subpilar" in iv["base"]

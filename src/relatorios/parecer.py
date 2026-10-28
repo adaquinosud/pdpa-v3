@@ -38,7 +38,7 @@ PROMPT_SINTESE = Path(__file__).parent / "prompts" / "parecer_sintese_v1.md"
 # no Contexto-Mestre não substitui: o doc serve a quem lê o doc, a versão serve a
 # quem lê o código. Prompt mudou → bump, e o custo entra na mesa (§13), não no
 # lugar da regra.
-PROMPT_SINTESE_VER = "v2.1-essencia-literal"
+PROMPT_SINTESE_VER = "v2.2-ratio-do-subpilar"
 
 # Pilar PDPA → prática do Caminho (premissa; o Manual é a fonte canônica):
 # P Precisão→Integridade · D Disponibilidade→Presença · Pa Parceria→Conexão ·
@@ -593,8 +593,12 @@ def _facts_sintese(d: Dict[str, Any]) -> Dict[str, Any]:
             "detratores": v["detratores"],  # contagem all-time do subpilar
             "promotores": v["promotores"],
             "ratio": v["ratio"],
-            # base = todas as fontes (RA + demais canais + nota-sem-texto)
-            "base": "manifestações públicas de todas as fontes",
+            # ⚠️ ESCOPO = o subpilar-ferida, NÃO a empresa. Sem esta chave o Sonnet
+            # escreveu "ratio agregado de 0,11" na 29 (28/10/2026), lido como o número
+            # da empresa — cuja razão na base inteira era 8,6.
+            "subpilar": t["subpilar_nome"],
+            # base = todas as fontes (RA + demais canais + nota-sem-texto), só do subpilar
+            "base": "manifestações públicas de todas as fontes, só deste subpilar",
         },
         # maturidade da base: se imatura, a conduta NÃO deve ser acusada (bug 4):
         "base_madura": d["ato2a"]["maturidade"]["madura"],
