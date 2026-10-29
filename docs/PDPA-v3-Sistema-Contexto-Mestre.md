@@ -5228,8 +5228,13 @@ alfabética do código.** Lido no código (`diagnostico_pontual.py` e `resumo_ex
 — o inverso do Lastro, que põe Aconselhamento por último. No PDF da 29 a seção não tem
 nenhuma linha de D2, o gargalo, e são quase todas A1–A3; a página 3 manda atacar D2 e a
 página 7 recomenda onze ações sem nenhuma em D2. O título "Top" afirma uma ordenação que
-não existe. Se o D2 aparece depois do filtro de escopo: **pendente de consulta**. Frente
-própria (critério de ordenação é decisão do Alexandre).
+não existe. **Medido depois do filtro de escopo** (consulta só leitura na 29, 29/out,
+resultado relatado): o D2 entra em **uma de seis** perspectivas (tecnologia); fica fora de
+ativação, marketing, pessoas, processos e produto_preco. Em processos a ação de D2 é a de
+ordem 0 e perde para A1 e A2 só pelo alfabeto. **São dois consertos**: o filtro não resolve
+este. Proposta em mesa (não decidida): ordenar pela sequência de ação que o próprio
+relatório imprime (1º D2, 2º Pa2, 3º A2) — aí "Top" passa a ser verdade. Falta definir o
+critério para os subpilares fora da sequência. Fatia própria, depois do filtro de escopo.
 
 **Backlog de impresso, com prova** (conferido no template/código em 29/out, salvo onde dito):
 1. **Legenda N1–N4** (`templates/relatorios/diagnostico_pontual.html:72-93`): a tabela "Os
