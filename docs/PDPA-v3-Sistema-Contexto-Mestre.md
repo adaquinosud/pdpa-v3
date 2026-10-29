@@ -4945,6 +4945,94 @@ que o app** — idealmente lendo o registro de filtros de uma função única, p
 forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, de
 **uma cópia certa mascarando três erradas.**
 
+### 6.28 🔥 Gargalo por subpilar, a legenda que vaza a régua, e a ferida que não chega ao prompt (29/out)
+
+Três achados da mesma rodada. A fatia do gargalo **não está no ar**: vive na branch
+`fix/gargalo-subpilar` (`a6bede2`, só o núcleo), sem merge. Enquanto não entra, os três
+relatórios (Diagnóstico Pontual, Resumo Executivo, Plano Executivo) seguem **fora de uso**.
+
+#### 6.28.1 O gargalo só pela soma deixava cliente com subpilar zerado sem gargalo
+
+A regra (`gargalo_sequencial`) olhava só a SOMA do pilar. Pilar bom pela soma, com um
+subpilar crítico de volume alto dentro, não travava nada — e o impresso dizia "sem gargalo".
+
+**Regra nova, decidida por Alexandre (29/out):** quebra crítica = soma < 0,5 **ou** subpilar
+crítico (`ratio < 0,5`, lido de `FAIXAS_RATIO`) com volume `total ≥ 30`
+(`VOLUME_CONFIANCA_ALTA`, piso que já decidia em três lugares); ganha o 1º pilar na ordem
+P → D → Pa → A; fraco pela soma é o 2º critério. Leitura **sequencial**, não literal: pilar
+anterior quebrado pela soma vence subpilar crítico posterior.
+
+**Medido** (probe `scripts/probe_gargalo_subpilar.py`, `39b5a40`, Shell do Render, 29/out,
+escopo EMPRESA, all-time). Critério de "muda": gargalo pela regra nova ≠ gargalo atual.
+Piso 30 muda **3 de 12** empresas com agregado:
+
+| emp | empresa | atual → novo | efeito |
+|---|---|---|---|
+| 4 | BH Airport | — → P | ganha gargalo |
+| 16 | Club Med Brasil | D → P | troca |
+| 29 | Unimed Circuito | — → D | ganha gargalo |
+
+A previsão do Alexandre para a 29, registrada antes de rodar, bateu exata: D2 0,11 (prom 3,
+conv 0, det 28, total 31) passa; Pa2 0,22 (total 23) e A2 0,33 (total 4) não.
+
+Subpilar zerado dentro de pilar bom ou excelente pela soma, no mesmo probe: **BH Airport**
+Pa2 0,02 (286 det em 300) com Parceria 5,37; **Club Med** Pa2 0,00 (487 det em 499) com
+Parceria 9,99; **Grupo Carbel** Pa2 0,01 (72 det em 73).
+
+**Não medido ainda:** escopo loja e agrupamento (a regra é a mesma e muda ali também) e o
+custo da regeneração — o gargalo entra no hash das leituras diagnósticas e das sugestões
+estruturais, e o pós-coleta regenera sozinho. Probe estendido antes de qualquer merge.
+
+**Pendência de Alexandre:** BH Airport e Unimed Circuito passam a ter gargalo, e a Club Med
+troca de D para P. Muda o Plano Executivo e a sequência de ação das três. Quem avisa esses
+clientes, e como, é decisão dele.
+
+#### 6.28.2 A ferida interna não chega ao Parecer nem ao Plano Executivo
+
+`pilares_com_ferida_interna` aparece na tela, no Diagnóstico Pontual, no Resumo Executivo e
+no Painel de Governança. **`parecer.py` não a chama** (medido por busca, 29/out). O modelo
+escreveu "desempenho saudável, mas sem gargalo identificado" **sem saber que a ferida existia**.
+Não era o modelo inventando: era o modelo sem a informação. Ver a trava em §7.
+
+Depois da fatia, gargalo `None` ⟹ nenhuma ferida interna (invariante testada em
+`tests/test_gargalo_subpilar.py`): a frase deixa de esconder crítico ≥ 30. Pode coexistir
+com crítico **abaixo** do piso, e "saudável" cobre pilar em atenção (1,0–2,0) — conferir a
+frase na fatia.
+
+#### 6.28.3 🔒 A legenda impressa vaza a régua — e a reescreve errado
+
+`templates/relatorios/diagnostico_pontual.html:72-90`, seção "00 · Como Ler", tabela "Os 5
+Níveis de Saúde". HTML **digitado à mão** (porte do doc-ouro v2, `2d49243`, 28/mai): não é
+LLM e **não vem de `FAIXAS_RATIO`** (§8 do CLAUDE.md). Quatro defeitos:
+
+1. **`≤ 0,5`** contra a régua `< 0,5`: 0,50 exato é crítico na legenda e fraco no código.
+2. **Cabeçalho "5 níveis", tabela com 4 linhas.** N2 funde fraco (0,5–1,0) e atenção
+   (1,0–2,0) sob "Fragiliza pilares seguintes" — mas o gargalo só olha abaixo de 1,0. A
+   legenda ensina que atenção fragiliza a sequência; o motor não trata assim.
+3. **A mesma fusão por RÓTULO nas macros:** `faixa_to_n` e `lastro_interp`
+   (`templates/relatorios/_macros.html`) comparam `faixa in ('fraco','atencao')`, e imprimem
+   N1–N4 também no Resumo Executivo e no Longitudinal.
+4. **N5 é outro eixo:** `src/planos/consolidar.py:85` rotula a ORIGEM da ação de venda
+   ("N5 cruzamento"/"N5 tema"). No Plano Executivo, N1–N4 é saúde e N5 é origem — dois
+   critérios de nomeação na mesma página, nenhum definido.
+
+**O cofre:** `PDPA-Loyall-Contexto-Mestre.md:90` põe "os níveis N1–N4" entre o que **nunca**
+se expõe. Os três impressos expõem.
+
+**Decisão de Alexandre (29/out):** frente própria, **depois** da fatia do gargalo e **antes**
+de os relatórios voltarem ao uso. Opção (a): sai N1–N4 e N5 do impresso, entram os nomes das
+cinco faixas; a tabela é gerada de `FAIXAS_RATIO`, nunca digitada.
+
+**Texto corrido que perde o sentido na troca** (varrido 29/out): o Mapa de Conversão,
+`diagnostico_pontual.html:230` ("O que move conversíveis de N2 para N3") e `:237` (cabeçalho
+"O que move de N2 para N3") — mistura valência (conversível) com nível, e não sobrevive a
+uma tradução 1:1; o Longitudinal, `diagnostico_longitudinal.html:45` ("N1↔N2, N2↔N3"); e as
+células que imprimem só "N1"…"N4" sem o nome da faixa (`diagnostico_pontual.html:210-292`,
+`resumo_executivo.html:151-154`, `:282-285`). Texto já gerado por LLM e cacheado não foi
+varrido (os prompts proíbem "N1–N4", mas proibição não é verificação).
+
+---
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **`server_default`: `sa.text(...)` para EXPRESSÃO, string crua para LITERAL — e
@@ -5659,6 +5747,14 @@ forem quatro cópias, todo filtro novo é uma chance de 22 falhas — ou, pior, 
   época e o assunto volta com o número. O script fica fora do repositório
   (`~/Documents/PDPA-pareceres/sem_citacao.py`; shell do Render, `python sem_citacao.py 31 32
   33`), porque lê leitura de peça de cliente.
+
+- **QUANDO O IMPRESSO CONTRADIZ O DIAGNÓSTICO, A PRIMEIRA PERGUNTA É SE O PROMPT RECEBEU O
+  DADO — NÃO SE O MODELO ERROU.** Registrada em 29/out (§6.28.2): o Parecer disse "sem
+  gargalo identificado" para empresa com subpilar a 0,02 e 300 de volume, porque a ferida
+  interna nunca entrou nos fatos do prompt. Não era alucinação: era ausência de entrada.
+  É a §15 do CLAUDE.md na forma mais pura.
+  🔒 **Regra:** antes de mexer no texto do prompt ou culpar o modelo, liste os fatos que o
+  prompt recebe e confira se o dado da contradição está entre eles.
 
 ---
 
