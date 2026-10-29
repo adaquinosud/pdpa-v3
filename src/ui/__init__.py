@@ -6206,7 +6206,8 @@ def _ultima_geracao(s, modelo, empresa_id, ag_id):
 
     q = s.query(func.max(modelo.gerado_em)).filter(modelo.empresa_id == empresa_id)
     q = q.filter(
-        modelo.agrupamento_id.is_(None) if ag_id is None else modelo.agrupamento_id == ag_id
+        modelo.agrupamento_id.is_(None) if ag_id is None else modelo.agrupamento_id == ag_id,
+        modelo.local_id.is_(None),  # geração de LOJA não é a "última geração" da empresa
     )
     return q.scalar()
 

@@ -191,13 +191,20 @@ def montar_dados(
                 )
             )
 
-        # Sugestões estruturais — top por perspectiva (2 por frente, ordem)
+        # Sugestões estruturais — 2 por perspectiva, na ordem do código do subpilar.
+        # Escopo empresa ESTRITO (ambos NULL), como as leituras acima: sem isso entravam
+        # linhas de loja e agrupamento (no PDF da 29, 29/out, P1 da loja 415 em 2,25 contra
+        # 1,90 da empresa na tabela do mesmo documento).
         from collections import defaultdict
 
         sug_por_persp: Dict[str, List] = defaultdict(list)
         for r in (
             s.query(SugestaoEstrutural)
-            .filter(SugestaoEstrutural.empresa_id == empresa_id)
+            .filter(
+                SugestaoEstrutural.empresa_id == empresa_id,
+                SugestaoEstrutural.agrupamento_id.is_(None),
+                SugestaoEstrutural.local_id.is_(None),
+            )
             .order_by(SugestaoEstrutural.subpilar, SugestaoEstrutural.ordem)
             .all()
         ):

@@ -51,7 +51,9 @@ def montar_contexto(s, empresa_id: int, ag_id: Optional[int] = None, corte=None)
         "lastro": " → ".join(NOME_PILAR[p] for p in ("P", "D", "Pa", "A")),
     }
 
-    # 2. Diagnóstico (leituras persistidas, escopo agrupamento)
+    # 2. Diagnóstico (leituras persistidas, escopo agrupamento). Sem o local_id NULL, a
+    # leitura de cada LOJA (agrupamento NULL, local set) entrava na visão empresa: o mesmo
+    # subpilar saía duas vezes, uma delas "indisponível — não use" (medido em 29/out).
     leituras = (
         s.query(LeituraDiagnostico)
         .filter(
@@ -61,6 +63,7 @@ def montar_contexto(s, empresa_id: int, ag_id: Optional[int] = None, corte=None)
                 if ag_id is not None
                 else LeituraDiagnostico.agrupamento_id.is_(None)
             ),
+            LeituraDiagnostico.local_id.is_(None),
         )
         .all()
     )
