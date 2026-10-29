@@ -3,7 +3,7 @@
 Regra sequencial (decisão de 29/out): quebra crítica = soma < 0,5 OU subpilar crítico
 ≥ piso; ganha o 1º na ordem P → D → Pa → A; fraco pela soma é o 2º critério. Antes, só a
 soma contava — empresa com pilar bom pela soma e subpilar zerado dentro ficava SEM gargalo
-(BH Airport: Parceria 5,37, Pa2 0,02 com 300 de volume).
+(probe de 29/out: BH Airport e Unimed Circuito).
 """
 
 from __future__ import annotations
@@ -38,8 +38,9 @@ def _agg(raw, completar=True):
     return out
 
 
-def test_bh_airport_pilar_bom_com_subpilar_zerado_vira_gargalo():
-    """Falha sem a correção: pela soma, Parceria é excelente e o gargalo era None."""
+def test_pilar_bom_com_subpilar_zerado_vira_gargalo():
+    """Falha sem a correção: pela soma, Parceria é excelente e o gargalo era None.
+    Caso sintético no formato do Pa2 de prod (det ≈ 95% de 300), não o agg de uma empresa."""
     agg = _agg({"Pa1": (1493, 0, 95), "Pa2": (12, 2, 286)})
     assert gargalo_sequencial(agg) == "Pa"
     d = gargalo_detalhe(agg)
@@ -110,7 +111,7 @@ def test_gargalo_none_implica_sem_ferida_interna(seed):
     """Invariante entre as duas réguas que agora dividem o predicado: se nada quebra o
     Lastro, não pode existir ferida interna (crítico ≥ piso escondido num pilar OK). É o
     que torna verdadeira a frase de 'sem gargalo'. Testado contra agg aleatório; e o teste
-    é testado: a BH Airport (caso conhecido) tem ferida interna E gargalo."""
+    é testado: um caso conhecido (Pa bom pela soma, Pa2 zerado) tem ferida interna E gargalo."""
     rnd = random.Random(seed)
     for _ in range(400):
         raw = {
@@ -121,5 +122,5 @@ def test_gargalo_none_implica_sem_ferida_interna(seed):
         agg = _agg(raw, completar=False)
         if gargalo_sequencial(agg) is None:
             assert pilares_com_ferida_interna(agg) == {}
-    bh = _agg({"Pa1": (1493, 0, 95), "Pa2": (12, 2, 286)})
-    assert pilares_com_ferida_interna(bh) and gargalo_sequencial(bh) == "Pa"
+    conhecido = _agg({"Pa1": (1493, 0, 95), "Pa2": (12, 2, 286)})
+    assert pilares_com_ferida_interna(conhecido) and gargalo_sequencial(conhecido) == "Pa"

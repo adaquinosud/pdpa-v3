@@ -505,7 +505,7 @@ def gargalo_detalhe(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[
     ``subpilares`` = os críticos ≥ piso DO pilar eleito (pode ser vazio na soma).
 
     Quem imprime o ratio do gargalo precisa do motivo: com ``"subpilar_critico"`` o ratio
-    do PILAR pode ser bom (ex.: Parceria 5,37 com Pa2 em 0,02) e não explica a eleição."""
+    do PILAR pode ser bom (ex.: pilar 5,37 com um subpilar em 0,02) e não explica a eleição."""
     ratios = ratios_por_pilar(agg)
     criticos_sub = subpilares_criticos(agg, piso)
     for p in PILARES_ORDEM:
@@ -524,7 +524,8 @@ def gargalo_sequencial(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[st
     """Pilar-gargalo do Lastro (código) — só o pilar de ``gargalo_detalhe``, que tem a
     regra e o motivo. Substituiu a regra ANTIGA de "menor ratio" (posicional-agnóstica) e,
     depois, a regra só-pela-soma, que deixava sem gargalo empresa com pilar bom pela soma
-    e subpilar zerado dentro (BH Airport: Parceria 5,37, Pa2 0,02 com 300 de volume)."""
+    e subpilar crítico de volume alto dentro (probe de 29/out: BH Airport e Unimed
+    Circuito sem gargalo; Club Med trocava de pilar)."""
     d = gargalo_detalhe(agg, piso)
     return d["pilar"] if d else None
 
