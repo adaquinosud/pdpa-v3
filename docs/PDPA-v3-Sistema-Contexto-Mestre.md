@@ -5023,13 +5023,33 @@ se expõe. Os três impressos expõem.
 de os relatórios voltarem ao uso. Opção (a): sai N1–N4 e N5 do impresso, entram os nomes das
 cinco faixas; a tabela é gerada de `FAIXAS_RATIO`, nunca digitada.
 
-**Texto corrido que perde o sentido na troca** (varrido 29/out): o Mapa de Conversão,
-`diagnostico_pontual.html:230` ("O que move conversíveis de N2 para N3") e `:237` (cabeçalho
-"O que move de N2 para N3") — mistura valência (conversível) com nível, e não sobrevive a
-uma tradução 1:1; o Longitudinal, `diagnostico_longitudinal.html:45` ("N1↔N2, N2↔N3"); e as
-células que imprimem só "N1"…"N4" sem o nome da faixa (`diagnostico_pontual.html:210-292`,
-`resumo_executivo.html:151-154`, `:282-285`). Texto já gerado por LLM e cacheado não foi
-varrido (os prompts proíbem "N1–N4", mas proibição não é verificação).
+**Itens da frente da legenda** (varrido 29/out, decisão do Alexandre sobre os itens 2 e 3):
+
+1. **Troca de vocabulário:** células que imprimem só "N1"…"N4" sem o nome da faixa
+   (`diagnostico_pontual.html:210-292`, `resumo_executivo.html:151-154`, `:282-285`) e o
+   Longitudinal (`diagnostico_longitudinal.html:45`, "N1↔N2, N2↔N3"). Aqui a troca resolve.
+2. **🔥 O Mapa de Conversão é item PRÓPRIO, não troca de vocabulário.**
+   `diagnostico_pontual.html:230` ("O que move conversíveis de N2 para N3") e `:237`
+   (cabeçalho "O que move de N2 para N3") misturam **valência** (conversível) com **nível de
+   saúde** (faixa) — dois eixos diferentes. Trocar a palavra não resolve: a frase precisa ser
+   **reescrita** a partir do que a seção de fato mede.
+3. **Texto já gerado por LLM e cacheado NÃO foi varrido.** Os prompts proíbem "N1–N4", mas
+   proibição não é verificação: pode haver "N2" solto em prosa guardada. Quando a frente
+   entrar, precisa de uma passada sobre o cache (leituras, sugestões, seções dos relatórios).
+
+#### 6.28.4 🔒 A fatia do gargalo não entra sem janela combinada (decisão do Alexandre, 29/out)
+
+Leitura diagnóstica stale **bloqueia o impresso** (gate de staleness, §10). No merge da
+fatia, as leituras dos escopos cujo gargalo muda ficam stale de uma vez, e os relatórios
+dessas contas ficam **bloqueados até a regeneração**. A Unimed Circuito não importa (os
+relatórios dela já estão fora de uso); **BH Airport e Club Med Brasil são clientes vivos**.
+
+Ordem: (1) número do `scripts/probe_gargalo_escopos.py` (`9666bb5`) — quantas leituras e
+sugestões a regra invalida, por escopo; (2) Alexandre combina a janela, porque alguém pode
+precisar baixar relatório dessas contas durante a regeneração; (3) só então o merge. Isso é
+operação, não código. Se o número vier alto, a saída já usada na Unimed (§ recoleta) vale:
+segurar o limiar de pós-coleta das empresas afetadas e soltar depois — decidido com o
+número na mesa.
 
 ---
 
