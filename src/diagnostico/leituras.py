@@ -11,11 +11,14 @@ boas). A ``acao`` alimenta o futuro Plano de Ação (CP-B2).
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from src.utils.hashing import hash_payload
+
+logger = logging.getLogger(__name__)
 
 PROMPT_PATH = Path(__file__).parent.parent / "anomalias" / "prompts" / "leitura_diagnostico_v1.md"
 
@@ -442,6 +445,16 @@ def gerar_e_persistir_diagnostico(
         except Exception as exc:  # noqa: BLE001 — registra e segue
             m["falhas"] += 1
             m["erros"].append({"subpilar": sub, "erro": str(exc)[:160]})
+            # O pós-coleta não lê ``erros`` — sem este log a falha não deixa rastro (a
+            # leitura anterior fica no banco). Truncamento/texto bruto: frente própria.
+            logger.warning(
+                "leitura diagnóstica: falha empresa=%s ag=%s loja=%s subpilar=%s: %s",
+                empresa_id,
+                agrupamento_id,
+                local_id,
+                sub,
+                exc,
+            )
 
     with db_session() as s:
         for sub, leitura, acao, dh in resultados:

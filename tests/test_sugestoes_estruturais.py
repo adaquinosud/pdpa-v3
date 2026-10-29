@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import json as _json
+import logging as _logging
 from datetime import datetime
+from types import SimpleNamespace as _NS
 
+import pytest as _pytest
+
+from src.planos import sugestoes as _sg
 from src.planos.sugestoes import _normalizar_sugestoes, _parse_json, gerar_e_persistir_sugestoes
 from src.models.sugestao_estrutural import SugestaoEstrutural
 from src.models.verbatim import Verbatim
@@ -310,3 +316,103 @@ def test_botao_regenerar_rate_limit(client_loyall, db_session):
     h = r.get_data(as_text=True)
     assert "Aguarde até 1h" in h  # recusado
     assert "Já existe" in h  # mas a aba é re-renderizada com os dados atuais
+
+
+# ── Truncamento no teto de tokens (Pa2 da empresa 29, 29/out) ─────────────────
+# A resposta parou no teto no meio da 6ª sugestão; o fallback ``_OBJ`` pegava até o último
+# ``}`` (fim da 5ª) e o erro saía "Expecting ',' delimiter: line 27 column 6" — sem dizer
+# que era corte, sem guardar o texto, e o comando seguia sem o subpilar.
+
+
+def _sug(p):
+    return {"perspectiva": p, "acao": f"Ação de {p} com texto", "justificativa": f"Porque {p}."}
+
+
+_SEIS = ["produto_preco", "processos", "pessoas", "tecnologia", "ativacao", "marketing"]
+_COMPLETO = "```json\n" + _json.dumps({"sugestoes": [_sug(p) for p in _SEIS]}, indent=2) + "\n```"
+# corte no MEIO da 6ª sugestão, como a resposta do Pa2 parada no teto
+_CORTADO = _COMPLETO[: _COMPLETO.index('"marketing"') + 30]
+
+
+def _fake_client(monkeypatch, raw, stop, t_out=1200):
+    resp = _NS(
+        content=[_NS(type="text", text=raw)],
+        stop_reason=stop,
+        usage=_NS(input_tokens=3000, output_tokens=t_out),
+    )
+    cli = _NS(messages=_NS(create=lambda **kw: resp))
+    import src.classifier.classifier_v3 as cv3
+
+    monkeypatch.setattr(cv3, "_get_client", lambda: cli)
+
+
+def test_o_corte_reproduz_o_erro_da_29_no_parser_antigo():
+    """Documenta o sintoma: o texto cortado, pelo parse sozinho, dá o erro enganoso."""
+    with _pytest.raises(ValueError, match="Expecting ',' delimiter"):
+        _sg._parse_json(_CORTADO)
+
+
+def test_stop_max_tokens_vira_erro_de_truncamento_com_bruto(monkeypatch):
+    _fake_client(monkeypatch, _CORTADO, "max_tokens")
+    with _pytest.raises(_sg.RespostaTruncada, match="truncada no teto de 2400 tokens") as ei:
+        _sg._chamar_sonnet({"x": 1})
+    assert ei.value.bruto == _CORTADO
+    assert (ei.value.tokens_in, ei.value.tokens_out) == (3000, 1200)
+
+
+def test_resposta_completa_com_cerca_passa(monkeypatch):
+    _fake_client(monkeypatch, _COMPLETO, "end_turn", t_out=1138)
+    d = _sg._chamar_sonnet({"x": 1})
+    assert len(d["sugestoes"]) == 6 and d["_out"] == 1138
+
+
+def test_json_invalido_sem_corte_carrega_bruto(monkeypatch):
+    _fake_client(monkeypatch, "não é json", "end_turn", t_out=10)
+    with _pytest.raises(_sg.RespostaInvalida) as ei:
+        _sg._chamar_sonnet({"x": 1})
+    assert not isinstance(ei.value, _sg.RespostaTruncada)
+    assert ei.value.bruto == "não é json"
+
+
+def test_invalida_tenta_de_novo_uma_vez_e_conta_o_custo(client_loyall, db_session):
+    e, a, loc, f = _ctx(client_loyall, "retry")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.commit()
+    chamadas = []
+
+    def fake(payload):
+        chamadas.append(1)
+        if len(chamadas) == 1:
+            raise _sg.RespostaInvalida("JSON inválido", "lixo", 900, 50)
+        return {"sugestoes": [_sug("processos")], "_in": 900, "_out": 300}
+
+    m = gerar_e_persistir_sugestoes(e["id"], a["id"], subpilares=["P1"], gerar_fn=fake)
+    assert len(chamadas) == 2 and m["retentativas"] == 1
+    assert m["subpilares"] == 1 and m["erros"] == []
+    assert (m["in"], m["out"]) == (1800, 350)  # a tentativa que falhou também custa
+
+
+def test_truncada_nao_tenta_de_novo_loga_bruto_e_mantem_as_antigas(
+    client_loyall, db_session, caplog
+):
+    e, a, loc, f = _ctx(client_loyall, "trunc")
+    _verb(db_session, e, loc, f, "P1", "detrator", 8)
+    db_session.commit()
+    gerar_e_persistir_sugestoes(
+        e["id"], a["id"], subpilares=["P1"], gerar_fn=lambda p: {"sugestoes": [_sug("pessoas")]}
+    )
+    chamadas = []
+
+    def fake(payload):
+        chamadas.append(1)
+        raise _sg.RespostaTruncada("resposta truncada no teto de 2400 tokens", _CORTADO, 3000, 2400)
+
+    with caplog.at_level(_logging.WARNING, logger="src.planos.sugestoes"):
+        m = gerar_e_persistir_sugestoes(e["id"], a["id"], subpilares=["P1"], gerar_fn=fake)
+    assert len(chamadas) == 1  # corte é determinístico: sem 2ª chamada paga
+    assert m["erros"][0]["subpilar"] == "P1" and "truncada" in m["erros"][0]["erro"]
+    assert (m["in"], m["out"]) == (3000, 2400)
+    assert "subpilar=P1" in caplog.text and '"marketing"' in caplog.text  # o bruto no log
+    # a geração anterior FICA (só sucesso apaga) — é o fóssil que o log passa a denunciar
+    rows = db_session.query(SugestaoEstrutural).filter_by(empresa_id=e["id"], subpilar="P1").all()
+    assert [r.perspectiva for r in rows] == ["pessoas"]

@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from src.models.plano_acao import PERSPECTIVAS
+
+logger = logging.getLogger(__name__)
 
 # Envelope aninhado {"sugestoes":[...]} — precisa de match ganancioso (o parser
 # raso do rotulador pegaria só a 1ª sugestão interna).
@@ -39,7 +42,28 @@ def _parse_json(raw: str) -> Dict[str, Any]:
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "sugestao_estrutural_v1.md"
 SONNET_MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 1200
+# 1200 truncava: o Pa2 da empresa 29 (6 sugestões) usou 1138 numa chamada completa e foi
+# cortado no meio da 6ª nas duas anteriores (29/out) — o fallback ``_OBJ`` pegava até o
+# último ``}`` e o erro saía como "Expecting ',' delimiter", sem dizer que era corte. Só se
+# paga o que é usado: o teto maior não encarece a chamada que cabia.
+MAX_TOKENS = 2400
+
+
+class RespostaInvalida(ValueError):
+    """A resposta do Sonnet não virou sugestões. Carrega o texto BRUTO e o uso de tokens:
+    a falha precisa ser legível depois (o bruto) e paga (o uso) — tokens de chamada que
+    falhou também custam (§13 do CLAUDE.md)."""
+
+    def __init__(self, msg: str, bruto: str = "", tokens_in: int = 0, tokens_out: int = 0):
+        super().__init__(msg)
+        self.bruto = bruto
+        self.tokens_in = tokens_in
+        self.tokens_out = tokens_out
+
+
+class RespostaTruncada(RespostaInvalida):
+    """O Sonnet parou no teto (``stop_reason == "max_tokens"``). Determinístico para o
+    mesmo payload — tentar de novo paga duas vezes pelo mesmo corte, então NÃO há retry."""
 
 
 def _chamar_sonnet(payload: Dict[str, Any], prompt_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -58,13 +82,36 @@ def _chamar_sonnet(payload: Dict[str, Any], prompt_path: Optional[Path] = None) 
         messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
     )
     raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
-    data = _parse_json(raw)
-    if not isinstance(data, dict):
-        raise ValueError("resposta do Sonnet não é objeto JSON")
     usage = getattr(resp, "usage", None)
-    data["_in"] = int(getattr(usage, "input_tokens", 0) or 0)
-    data["_out"] = int(getattr(usage, "output_tokens", 0) or 0)
+    t_in = int(getattr(usage, "input_tokens", 0) or 0)
+    t_out = int(getattr(usage, "output_tokens", 0) or 0)
+    if getattr(resp, "stop_reason", None) == "max_tokens":
+        raise RespostaTruncada(
+            f"resposta truncada no teto de {MAX_TOKENS} tokens (saída {t_out})", raw, t_in, t_out
+        )
+    try:
+        data = _parse_json(raw)
+    except ValueError as exc:  # JSONDecodeError é ValueError
+        raise RespostaInvalida(f"JSON inválido: {exc}", raw, t_in, t_out) from exc
+    if not isinstance(data, dict):
+        raise RespostaInvalida("resposta do Sonnet não é objeto JSON", raw, t_in, t_out)
+    data["_in"] = t_in
+    data["_out"] = t_out
     return data
+
+
+def _gerar_com_retry(gerar: Callable, payload: Dict[str, Any], m: Dict[str, Any]):
+    """Uma 2ª tentativa só para resposta inválida que NÃO seja corte (aí pode ser variação
+    do modelo). Os tokens da tentativa que falhou entram em ``m`` — custo de verdade."""
+    try:
+        return gerar(payload)
+    except RespostaTruncada:
+        raise
+    except RespostaInvalida as exc:
+        m["in"] += exc.tokens_in
+        m["out"] += exc.tokens_out
+        m["retentativas"] += 1
+        return gerar(payload)
 
 
 def _normalizar_sugestoes(data: Dict[str, Any]) -> List[Dict[str, str]]:
@@ -154,12 +201,13 @@ def gerar_e_persistir_sugestoes(
         "por_perspectiva": {},
         "in": 0,
         "out": 0,
+        "retentativas": 0,
         "erros": [],
     }
     resultados = []
     for sub, payload, dh in alvos:
         try:
-            data = gerar(payload)
+            data = _gerar_com_retry(gerar, payload, m)
             sugs = _normalizar_sugestoes(data)
             resultados.append((sub, sugs, dh))
             m["subpilares"] += 1
@@ -170,7 +218,22 @@ def gerar_e_persistir_sugestoes(
             m["in"] += int(data.get("_in", 0) or 0)
             m["out"] += int(data.get("_out", 0) or 0)
         except Exception as exc:  # noqa: BLE001 — registra e segue
+            m["in"] += getattr(exc, "tokens_in", 0)
+            m["out"] += getattr(exc, "tokens_out", 0)
             m["erros"].append({"subpilar": sub, "erro": str(exc)[:160]})
+            # O texto BRUTO vai para o log: é ele que diz o que o modelo escreveu. Sem isto,
+            # o Pa2 da 29 custou 4 chamadas pagas e 1h30 para achar um corte (29/out). As
+            # linhas anteriores do subpilar FICAM no banco (só sucesso apaga) — o log é o
+            # único rastro de que elas não são desta geração.
+            logger.warning(
+                "sugestões: falha empresa=%s ag=%s loja=%s subpilar=%s: %s | bruto=%r",
+                empresa_id,
+                ag_ef,
+                local_id,
+                sub,
+                exc,
+                getattr(exc, "bruto", None),
+            )
 
     with db_session() as s:
         for sub, sugs, dh in resultados:
