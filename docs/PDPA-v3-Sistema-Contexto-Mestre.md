@@ -5047,9 +5047,85 @@ relatórios dela já estão fora de uso); **BH Airport e Club Med Brasil são cl
 Ordem: (1) número do `scripts/probe_gargalo_escopos.py` (`9666bb5`) — quantas leituras e
 sugestões a regra invalida, por escopo; (2) Alexandre combina a janela, porque alguém pode
 precisar baixar relatório dessas contas durante a regeneração; (3) só então o merge. Isso é
-operação, não código. Se o número vier alto, a saída já usada na Unimed (§ recoleta) vale:
+operação, não código. Se o número vier alto, a saída já usada na Unimed (§6.29, 27/out) vale:
 segurar o limiar de pós-coleta das empresas afetadas e soltar depois — decidido com o
 número na mesa.
+
+#### 6.28.5 ⚠️ EXCEÇÃO à regra de medição — os prompts novos do gargalo medidos DEPOIS do merge
+
+A regra do §7 (*"mudança no pedido a LLM só vale depois de medida por leitura paga"*,
+antes do merge) **continua valendo como está**. Esta é uma exceção, aprovada por Alexandre
+em 29/out, para a opção 1 da fatia do gargalo (prompts de capa, paradoxo e contexto
+estratégico recebem o ratio do subpilar que travou o pilar).
+
+**Motivo, os dois juntos:** (1) o conteúdo real do prompt — o payload da empresa — só existe
+em produção; da branch não há como montá-lo; (2) os relatórios da conta medida (Unimed
+Circuito, 29) já estavam **fora de uso** por esta mesma frente, então nada chega ao cliente
+entre o merge e a leitura.
+
+**Condições:** a medição é a regeneração da 29 logo após o merge, e **o PDF da 29 vai para a
+leitura do Alexandre antes de qualquer relatório voltar ao uso** — medição é leitura de
+gente, não suíte verde. Se a leitura não segurar, reverte antes.
+
+🔒 **Não é a nova redação da regra.** Sem os dois motivos acima, a ordem não se inverte.
+
+---
+
+### 6.29 Empresa 29 — o limiar temporário do pós-coleta (27/out)
+
+Mudança temporária em produção que só estava escrita na memória de sessão do agente —
+registrada aqui em 29/out por pedido do Alexandre.
+
+| | |
+|---|---|
+| **Campo** | `empresas.pos_coleta_limiar`, empresa 29 (Unimed Circuito das Águas) |
+| **Valor anterior** | `None` (herda `LIMIAR_NOVOS_DEFAULT` = 10) |
+| **Valor temporário** | `100000`, posto em 27/out |
+| **Motivo** | recoleta histórica do Google (`PDPA_COLETA_DESDE_OVERRIDE=2005-01-01`, 509 novos): segurar a CAUDA (embeddings → temas → ações → anomalias → diagnóstico/sugestões, inclusive por loja) até ter o número do custo, que o pós-coleta não persiste |
+| **Devolução** | devolvido a `None` em 27/out (efetivo 10), e a cauda rodada à mão: US$ 0,3077 |
+| **Quem devolve** | Alexandre, no Shell do Render |
+
+**Fonte do registro:** a memória de sessão de 27/out, **não** um comando de hoje. O estado
+atual foi confirmado pelo comando (§2 do CLAUDE.md), no Shell do Render, em 29/out por volta
+das 14h de Brasília — saída colada por Alexandre:
+
+```
+limiar_coluna= None efetivo= 10
+pos_coleta_status= completo concluido_em= 2026-10-29 12:31:13.793252
+pendencias= {'subpilar_null': 0, 'desfecho_null': 0, 'embeddings_faltando': 0, 'cache_defasado': False, 'cache_snapshot': 98, 'cache_live': 98}
+pendente_cauda= 0
+```
+
+Limiar devolvido (`None`, efetivo 10), nada sem classificar, nenhum caso sem desfecho, cauda
+sem pendência, cache de TEMAS em dia (`cache_snapshot`/`cache_live` = volume em `TemaCache` ×
+verbatins vinculados a temas ativos — **não** é contagem de leituras). O relatório da 29 não
+está incompleto por dado faltando; o defeito dele era só a regra do gargalo (§6.28).
+O comando, para repetir:
+
+```
+PYTHONPATH=. python - <<'PY'
+from src.utils.db import db_session
+from src.models.empresa import Empresa
+from src.temas.watchdog import pendencias_pos_coleta
+from src.temas.pos_coleta import contar_pendente_cauda, limiar_efetivo
+with db_session() as s:
+    e = s.get(Empresa, 29)
+    print("limiar_coluna=", e.pos_coleta_limiar, "efetivo=", limiar_efetivo(29))
+    print("pos_coleta_status=", e.pos_coleta_status, "concluido_em=", e.pos_coleta_concluido_em)
+print("pendencias=", pendencias_pos_coleta(29))
+print("pendente_cauda=", contar_pendente_cauda(29))
+PY
+```
+
+⚠️ **O erro que motivou este registro:** em 29/out o agente afirmou que o limiar "está em
+100000", lendo a linha-resumo do índice da própria memória sem abrir o registro, que dizia
+o contrário. A linha-resumo tinha a forma de fato verificado (§3).
+
+**O que o limiar segura, e o que não segura** (lido no código, `src/temas/pos_coleta.py`,
+`executar_pos_coleta`): a CABEÇA — classificação dos verbatins novos e desfecho dos casos
+de RA — roda **sempre**, antes do gate. O limiar só segura a CAUDA. Logo, limiar alto
+**não deixa comentário sem classificar**; deixa sem embedding, sem tema e com leitura/
+sugestão desatualizada.
 
 ---
 
