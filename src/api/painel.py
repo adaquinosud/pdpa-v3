@@ -423,6 +423,10 @@ FAIXAS_RATIO = (
 # régua canônica é o NÚMERO; a faixa é a tradução (ver eh_elo_travado).
 RATIO_EMPATE = 1.0
 
+# Teto da faixa "critico" — lido de FAIXAS_RATIO, nunca reescrito: crítico é ``ratio < 0,5``
+# (0,50 exato é fraco).
+RATIO_CRITICO = FAIXAS_RATIO[0][0]
+
 
 def faixa_ratio(ratio: float) -> str:
     """Devolve a faixa semântica do ratio (5 níveis, cores do painel).
@@ -458,26 +462,71 @@ def ratios_por_pilar(agg: Dict[str, Dict[str, Any]]) -> Dict[str, float]:
     }
 
 
-def gargalo_sequencial(agg: Dict[str, Dict[str, Any]]) -> Optional[str]:
-    """Gargalo do Lastro — regra SEQUENCIAL em duas camadas (definição de método).
+def subpilares_criticos(agg: Dict[str, Dict[str, Any]], piso=None) -> List[str]:
+    """Grão SUBPILAR, régua canônica: subpilares em CRÍTICO (``ratio`` abaixo do teto da
+    faixa crítica de ``FAIXAS_RATIO``) com volume (``total``) ≥ ``piso``, em ordem canônica.
 
-    A jornada P→D→Pa→A trava no primeiro elo QUEBRADO. O crítico tem PRECEDÊNCIA
-    sobre a posição (é a quebra que trava tudo); só na ausência de crítico o primeiro
-    fraco assume. Dentro de cada camada, o primeiro na ordem canônica:
+    Fonte ÚNICA do predicado "subpilar crítico que sustenta veredito" — a eleição do
+    gargalo (``gargalo_sequencial``) e a ferida interna (``pilares_com_ferida_interna``)
+    delegam a ESTA função; duas cópias divergiriam em silêncio (§7).
 
-    1. primeiro pilar (com volume) CRÍTICO — ``ratio < 0.5``;
-    2. senão, primeiro pilar FRACO — ``0.5 ≤ ratio < 1.0``;
-    3. senão (nada abaixo de 1.0), ``None`` — nada quebrado, não há gargalo.
+    ``piso`` default = ``VOLUME_CONFIANCA_ALTA`` (30), o piso de confiança que o sistema já
+    usa no grão subpilar — não número novo. Subpilar sem sinal P/D (prom+det=0) não conta:
+    ``calcular_ratio(0,0)`` daria 0.0 e o faria falso-crítico."""
+    if piso is None:
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
 
-    Limiares vêm de ``FAIXAS_RATIO`` (fonte única). Substitui a regra ANTIGA de
-    "menor ratio" (posicional-agnóstica), que contradizia o cabeçalho sequencial do
-    Lastro (ex.: Aconselhamento, último pilar, virava gargalo por ter o menor ratio)."""
+        piso = VOLUME_CONFIANCA_ALTA
+    return [
+        sub
+        for sub in SUBPILARES_ORDEM
+        if sub in agg
+        and (agg[sub]["prom"] + agg[sub]["det"]) > 0
+        and agg[sub]["ratio"] < RATIO_CRITICO
+        and agg[sub]["total"] >= piso
+    ]
+
+
+def gargalo_detalhe(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[str, Any]]:
+    """Gargalo do Lastro com o MOTIVO da eleição — regra SEQUENCIAL (definição de método).
+
+    A jornada P→D→Pa→A trava no primeiro elo QUEBRADO. Duas camadas:
+
+    1. QUEBRA CRÍTICA — soma do pilar crítica (``ratio < 0,5``) OU subpilar crítico com
+       volume ≥ ``piso`` (``subpilares_criticos``). Ganha o primeiro na ordem canônica: um
+       pilar anterior quebrado pela soma vence um posterior quebrado por subpilar, porque o
+       pilar inicial travado puxa os seguintes;
+    2. senão, primeiro pilar FRACO pela soma — ``0,5 ≤ ratio < 1,0``;
+    3. senão, ``None`` — nada quebrado, não há gargalo.
+
+    Retorna ``{pilar, motivo, subpilares}``. ``motivo``: ``"soma_critica"`` (a soma do
+    pilar já é crítica), ``"subpilar_critico"`` (a soma NÃO é crítica — às vezes nem
+    fraca — e quem quebra o pilar é subpilar crítico ≥ piso) ou ``"soma_fraca"``.
+    ``subpilares`` = os críticos ≥ piso DO pilar eleito (pode ser vazio na soma).
+
+    Quem imprime o ratio do gargalo precisa do motivo: com ``"subpilar_critico"`` o ratio
+    do PILAR pode ser bom (ex.: Parceria 5,37 com Pa2 em 0,02) e não explica a eleição."""
     ratios = ratios_por_pilar(agg)
-    criticos = [p for p in PILARES_ORDEM if p in ratios and ratios[p] < 0.5]
-    if criticos:
-        return criticos[0]
-    fracos = [p for p in PILARES_ORDEM if p in ratios and ratios[p] < 1.0]
-    return fracos[0] if fracos else None
+    criticos_sub = subpilares_criticos(agg, piso)
+    for p in PILARES_ORDEM:
+        subs = [s for s in criticos_sub if PILAR_DE_SUBPILAR.get(s) == p]
+        if p in ratios and ratios[p] < RATIO_CRITICO:
+            return {"pilar": p, "motivo": "soma_critica", "subpilares": subs}
+        if subs:
+            return {"pilar": p, "motivo": "subpilar_critico", "subpilares": subs}
+    for p in PILARES_ORDEM:
+        if p in ratios and ratios[p] < RATIO_EMPATE:
+            return {"pilar": p, "motivo": "soma_fraca", "subpilares": []}
+    return None
+
+
+def gargalo_sequencial(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[str]:
+    """Pilar-gargalo do Lastro (código) — só o pilar de ``gargalo_detalhe``, que tem a
+    regra e o motivo. Substituiu a regra ANTIGA de "menor ratio" (posicional-agnóstica) e,
+    depois, a regra só-pela-soma, que deixava sem gargalo empresa com pilar bom pela soma
+    e subpilar zerado dentro (BH Airport: Parceria 5,37, Pa2 0,02 com 300 de volume)."""
+    d = gargalo_detalhe(agg, piso)
+    return d["pilar"] if d else None
 
 
 def abaixo_do_empate(ratio) -> bool:
@@ -539,23 +588,22 @@ def pilares_com_ferida_interna(agg: Dict[str, Dict[str, Any]], piso=None) -> Dic
     """Par do ``ratios_por_pilar``: onde a SOMA do pilar esconde um subpilar crítico.
 
     Um pilar que aparenta OK pela soma (ratio ≥ 1,0) mas carrega, por dentro, subpilar em
-    CRÍTICO (ratio < 0,5) com volume ≥ ``piso``. Retorna ``{pilar: [{subpilar, ratio, det,
-    total}]}`` em ordem canônica; pilares sem ferida interna ficam de fora.
+    CRÍTICO com volume ≥ ``piso`` — predicado de ``subpilares_criticos`` (fonte única, a
+    MESMA que elege o gargalo). Retorna ``{pilar: [{subpilar, ratio, det, total}]}`` em
+    ordem canônica; pilares sem ferida interna ficam de fora.
 
-    ``piso`` default = ``VOLUME_CONFIANCA_ALTA`` (30) — o MESMO piso de confiança que o
-    sistema já usa no grão subpilar, não número novo. Subpilar ABAIXO do piso NÃO gera
+    ``piso`` default = ``VOLUME_CONFIANCA_ALTA`` (30). Subpilar ABAIXO do piso NÃO gera
     declaração e NÃO vira "saudável": apenas não sustenta veredito.
 
-    §7: o gargalo NÃO muda. Isto só DECLARA o que a soma oculta — não altera faixa do pilar
-    nem elege gargalo. Régua canônica: um caller por superfície, nunca recalcular local."""
-    if piso is None:
-        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
-
-        piso = VOLUME_CONFIANCA_ALTA
+    Isto DECLARA o que a soma oculta; não altera a faixa do pilar. Desde que o subpilar
+    crítico ≥ piso também quebra o pilar no ``gargalo_detalhe``, todo pilar daqui é
+    candidato a gargalo: ou É o gargalo (motivo ``subpilar_critico``), ou vem DEPOIS de um
+    pilar anterior já quebrado. Logo, gargalo None ⟹ nenhuma ferida interna."""
     rp = ratios_por_pilar(agg)
+    criticos = subpilares_criticos(agg, piso)
     out: Dict[str, Any] = {}
     for p in PILARES_ORDEM:
-        if rp.get(p, 0.0) < 1.0:
+        if rp.get(p, 0.0) < RATIO_EMPATE:
             continue  # pilar não aparenta OK — o próprio pilar/gargalo já sinaliza
         feridas = [
             {
@@ -564,12 +612,8 @@ def pilares_com_ferida_interna(agg: Dict[str, Dict[str, Any]], piso=None) -> Dic
                 "det": agg[sub]["det"],
                 "total": agg[sub]["total"],
             }
-            for sub in SUBPILARES_ORDEM
-            if sub in agg
-            and PILAR_DE_SUBPILAR.get(sub) == p
-            and (agg[sub]["prom"] + agg[sub]["det"]) > 0  # sem sinal P/D não conta
-            and agg[sub]["ratio"] < 0.5
-            and agg[sub]["total"] >= piso
+            for sub in criticos
+            if PILAR_DE_SUBPILAR.get(sub) == p
         ]
         if feridas:
             out[p] = feridas

@@ -506,9 +506,15 @@ def _mapa_lastro_pesquisa(valencia: Dict[str, Dict[str, int]]) -> List[Dict[str,
         gargalo_sequencial,
     )
 
-    # agg no shape que a regra canônica consome (só prom/det importam).
+    # agg no shape que a regra canônica consome: prom/det (soma do pilar) + ratio/total
+    # (subpilar crítico ≥ piso também quebra o pilar — ``subpilares_criticos``).
     agg = {
-        sub: {"prom": v["promotor"], "det": v["detrator"]}
+        sub: {
+            "prom": v["promotor"],
+            "det": v["detrator"],
+            "total": v["total"],
+            "ratio": calcular_ratio(v["promotor"], v["detrator"]),
+        }
         for sub, v in valencia.items()
         if v["total"] > 0
     }

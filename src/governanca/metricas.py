@@ -297,7 +297,9 @@ def ordenar_acoes_cenario(agg, subpilares_alta):
 
 def gargalo_de_agg(agg):
     """Gargalo do Lastro (pilar, ratio) — delega à regra canônica SEQUENCIAL de
-    painel.py (primeiro crítico na ordem P→D→Pa→A; senão primeiro fraco; senão None).
+    painel.py (primeira QUEBRA CRÍTICA na ordem P→D→Pa→A — soma < 0,5 ou subpilar crítico
+    ≥ piso —; senão primeiro fraco; senão None). ⚠️ O ratio devolvido é o do PILAR: com
+    gargalo eleito por subpilar ele pode ser bom (ver ``gargalo_detalhe``).
     Fonte única: antes tinha uma 2ª cópia da regra "menor ratio", que voltaria a
     divergir do Lastro se corrigíssemos só a de leituras.py."""
     from src.api.painel import gargalo_sequencial, ratios_por_pilar
