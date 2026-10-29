@@ -5194,11 +5194,56 @@ chamada que falhou entram no custo.
    da empresa; na tabela por pilar do Diagnóstico a ação é `sug[0]`, e o empate de `ordem=0`
    entre empresa e loja é decidido pelo banco. O Plano Executivo não tem o defeito
    (`_rows_resolvidos`). **Medido na 29:** 19 sugestões de loja, em três unidades (410: 4,
-   423: 4, 415: 11). Conserto = primeiro da fila, **segurado** até a leitura do PDF da 29
-   mostrar se o defeito chega ao cliente.
+   423: 4, 415: 11). **Provado no PDF da 29** (leitura de 29/out, ver §6.31): os dois
+   caminhos, dois casos cada. Conserto em `fix/sugestoes-escopo-impresso` (`5fe3d87`),
+   **não mergeado** em 29/out — junto foram mais dois caminhos com o mesmo predicado
+   incompleto: o contexto do chat (`src/ia/contexto.py`, listava o D2 duas vezes, a da loja
+   como "indisponível — não use") e `_ultima_geracao` da tela.
 
 **Custo do caso:** quatro chamadas pagas e uma hora e meia para achar o que o texto bruto
 da primeira falha teria mostrado de graça (registro do Alexandre — ver a trava em §7).
+
+---
+
+### 6.31 Leitura do PDF da 29 (29/out) — o que passou e os defeitos de impresso provados
+
+**A medição do §6.28.5 passou** (Parecer, Resumo Executivo e Diagnóstico Pontual): a capa
+diz "Em D2 Eficácia Operacional: 28 críticas para 3 elogios, ratio 0,11"; o Mapa de Lastro
+traz "Travado por D2 em 0,11 (28 detratores)" com "Interrompe"; a sequência sai 1º D2,
+2º Pa2, 3º A2; nenhum dos três atribui o 0,11 ao pilar.
+
+**Mistura de escopo — os quatro casos do PDF** (§6.30, item 5):
+- Diagnóstico, Plano de Ação · Disponibilidade, 2ª linha: "ratio de 9,99 e 60 promotores
+  em 74 respostas… 3 detratores" — é a loja 415, D1 ordem 0; a empresa tem 9,00, 72 e 8, e
+  a caixa de impacto da mesma linha usa os números da empresa.
+- Diagnóstico, Plano de Ação · Parceria, Empatia Comercial: "zero detratores em 170
+  respondentes" — loja 423, Pa1 ordem 0; a empresa tem 7.
+- Resumo, Produto e Preço, P1: "ratio 2,25 em faixa bom" — loja 415, P1 ordem 1; a tabela
+  do mesmo documento diz 1,90, atenção.
+- Resumo, Tecnologia, 2ª linha de D1 — loja 415, D1 ordem 2.
+
+**Segundo defeito, que o filtro de escopo NÃO resolve: "Top por perspectiva" é ordem
+alfabética do código.** Lido no código (`diagnostico_pontual.py` e `resumo_executivo.py`):
+`order_by(subpilar, ordem)` e as 2 primeiras por perspectiva. A1, A2, A3 vêm antes de tudo
+— o inverso do Lastro, que põe Aconselhamento por último. No PDF da 29 a seção não tem
+nenhuma linha de D2, o gargalo, e são quase todas A1–A3; a página 3 manda atacar D2 e a
+página 7 recomenda onze ações sem nenhuma em D2. O título "Top" afirma uma ordenação que
+não existe. Se o D2 aparece depois do filtro de escopo: **pendente de consulta**. Frente
+própria (critério de ordenação é decisão do Alexandre).
+
+**Backlog de impresso, com prova** (conferido no template/código em 29/out, salvo onde dito):
+1. **Legenda N1–N4** (`templates/relatorios/diagnostico_pontual.html:72-93`): a tabela "Os
+   5 Níveis de Saúde" lista **quatro** (N2 junta fraco e atenção, "0,5–2,0"), a faixa
+   crítica sai "≤ 0,5" e o código usa `<` (FAIXAS_RATIO). Já registrado como frente (§6.28.3);
+   o PDF mostra N1–N4 dezenas de vezes nos dois relatórios.
+2. **"Reduz 0 detratores e libera 0 conversíveis"** e projeção "9,99 → 9,99": o Plano de
+   Ação pega os 3 subpilares de pior ratio do pilar mesmo quando o pilar inteiro é bom e o
+   subpilar não tem detrator; a frase de impacto e a projeção saem com zero/sem mudança.
+3. **"12 subpilares" escrito à mão no Resumo** (`resumo_executivo.html:124` e `:273`,
+   `resumo_executivo.py:430`) — mostra 10; o Diagnóstico diz "10 de 12 com volume".
+4. **Layout, relatado da leitura, não conferido:** no Parecer, a linha "caso mai/2026" da
+   página dos casos sai por cima do rodapé; o painel de Encerramento Executivo tem cinco
+   caixas e quatro dizem "não calibrado" ou traço — e é a última coisa que o cliente vê.
 
 ---
 
