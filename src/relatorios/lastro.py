@@ -5,8 +5,9 @@ o MESMO laço — pilar ``SimpleNamespace`` + seleção ``sub_pior``/``sub_melho
 ``LeituraDiagnostico`` — em duas cópias que derivavam sozinhas. Uma cópia só, aqui.
 
 NÃO recalcula a régua de gargalo: recebe ``gargalo`` já resolvido pela régua canônica
-(``_gargalo`` / ``gargalo_sequencial``). A marcação de subpilar (🚩) é grão SEPARADO —
-vive em ``eh_elo_travado`` (painel.py) e é aplicada no Confronto, não aqui.
+(``_gargalo`` / ``gargalo_sequencial``) e, opcionalmente, o ``detalhe`` dela
+(``gargalo_detalhe``) — de onde sai o subpilar que ELEGEU o pilar. A marcação de subpilar
+(🚩) é grão SEPARADO — vive em ``eh_elo_travado`` (painel.py) e é aplicada no Confronto.
 """
 
 from __future__ import annotations
@@ -22,14 +23,25 @@ def montar_lastro(
     feridas_map: Dict[str, list],
     *,
     incluir_subs_data: bool = False,
+    detalhe: Optional[Dict[str, Any]] = None,
 ) -> SimpleNamespace:
     """Monta a tabela de pilares (Lastro) + as duas leituras destacadas por pilar.
 
     Retorna namespace com ``pilares`` (lista de SimpleNamespace na ordem canônica),
     ``pilar_leitura_gargalo`` (code→texto do sub_pior), ``pilar_leitura_ativo``
-    (code→texto do sub_melhor), ``pilar_sub_destaque`` (code→{pior,melhor}) e
-    ``pilar_subs_data`` (code→lista de dicts por subpilar; só se ``incluir_subs_data``).
-    """
+    (code→texto do sub_melhor), ``pilar_sub_destaque`` (code→{pior,melhor}),
+    ``pilar_subs_data`` (code→lista de dicts por subpilar; só se ``incluir_subs_data``) e
+    ``gargalo_eleitor`` (o subpilar que elegeu o gargalo, ou None).
+
+    ``detalhe`` = ``gargalo_detalhe(agg)``. Gargalo eleito por SUBPILAR (motivo
+    ``subpilar_critico``): o pilar ganha ``gargalo_por`` (os subpilares que o travam, com
+    ratio e detratores) e o destaque "pior" do pilar passa a ser o ELEITOR — a âncora do
+    texto é quem elegeu o pilar, não o menor ratio (que pode ser subpilar abaixo do piso;
+    §7: comparar pela propriedade eleitora). Pela soma, nada muda."""
+    eleitor = None
+    gargalo_por: List[Dict[str, Any]] = []
+    if detalhe and detalhe.get("pilar") == gargalo and detalhe.get("eleitor"):
+        eleitor = detalhe["eleitor"]
     from src.api.painel import (
         NOME_PILAR,
         NOME_SUBPILAR,
@@ -37,7 +49,11 @@ def montar_lastro(
         PILARES_ORDEM,
         calcular_ratio,
         faixa_ratio,
+        gargalo_travado_por,
     )
+
+    if eleitor is not None:
+        gargalo_por = gargalo_travado_por(agg, detalhe)
 
     pilares: List[SimpleNamespace] = []
     pilar_leitura_gargalo: Dict[str, str] = {}
@@ -64,10 +80,13 @@ def montar_lastro(
                 conv=conv,
                 det=det,
                 gargalo=(code == gargalo),
+                gargalo_por=gargalo_por if code == gargalo else [],
                 ferida_interna=feridas_map.get(code, []),
             )
         )
         sub_pior = min(subs, key=lambda x: agg[x]["ratio"])
+        if eleitor is not None and code == gargalo:
+            sub_pior = eleitor["subpilar"]
         sub_melhor = max(subs, key=lambda x: agg[x]["ratio"])
         pilar_sub_destaque[code] = {"pior": sub_pior, "melhor": sub_melhor}
         if sub_pior in leituras:
@@ -96,4 +115,23 @@ def montar_lastro(
         pilar_leitura_ativo=pilar_leitura_ativo,
         pilar_sub_destaque=pilar_sub_destaque,
         pilar_subs_data=pilar_subs_data,
+        gargalo_eleitor=eleitor,
     )
+
+
+def ratio_do_gargalo(lastro: SimpleNamespace, gargalo: Optional[str]) -> Dict[str, Any]:
+    """O número que EXPLICA o gargalo, com o dono dele — fonte única para os payloads dos
+    impressos (capa, paradoxo, contexto) e para o texto sem LLM.
+
+    Eleito pela soma → ``{ratio do pilar, de="pilar", subpilar=None}``. Eleito por subpilar
+    → ``{ratio do ELEITOR, de="subpilar", subpilar="Pa2 Mutualidade"}``: o ratio do pilar
+    pode ser bom (5,37) e não explica a eleição; imprimi-lo como "ratio do gargalo" faria o
+    cliente ler um pilar excelente como o elo quebrado (opção 1, decisão de 29/out — a mesma
+    correção do ratio da tese, ``3f8fdde``). Sem gargalo → tudo None."""
+    if not gargalo:
+        return {"ratio": None, "de": None, "subpilar": None}
+    e = lastro.gargalo_eleitor
+    if e:
+        return {"ratio": e["ratio"], "de": "subpilar", "subpilar": f"{e['subpilar']} {e['nome']}"}
+    ratio = next((p.ratio for p in lastro.pilares if p.codigo == gargalo), None)
+    return {"ratio": ratio, "de": "pilar", "subpilar": None}

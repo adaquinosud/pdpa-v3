@@ -45,6 +45,16 @@ def test_pilar_bom_com_subpilar_zerado_vira_gargalo():
     assert gargalo_sequencial(agg) == "Pa"
     d = gargalo_detalhe(agg)
     assert d["motivo"] == "subpilar_critico" and d["subpilares"] == ["Pa2"]
+    assert d["eleitor"]["subpilar"] == "Pa2" and d["eleitor"]["ratio"] < 0.05
+
+
+def test_eleitor_e_o_de_menor_ratio_entre_os_que_elegem():
+    """Dois subpilares críticos ≥ piso no mesmo pilar (soma não crítica, Pa3 cobre): o
+    eleitor é o de menor ratio."""
+    agg = _agg({"Pa1": (40, 0, 90), "Pa2": (10, 0, 200), "Pa3": (500, 0, 10)})
+    d = gargalo_detalhe(agg)
+    assert d["subpilares"] == ["Pa1", "Pa2"]
+    assert d["eleitor"]["subpilar"] == "Pa2"
 
 
 def test_empresa_29_numeros_do_probe():
@@ -53,7 +63,10 @@ def test_empresa_29_numeros_do_probe():
     o teste prova a eleição pelos três críticos, não o agg real da 29."""
     agg = _agg({"D2": (3, 0, 28), "Pa2": (4, 1, 18), "A2": (1, 0, 3)})
     d = gargalo_detalhe(agg)
-    assert d == {"pilar": "D", "motivo": "subpilar_critico", "subpilares": ["D2"]}
+    assert (d["pilar"], d["motivo"], d["subpilares"]) == ("D", "subpilar_critico", ["D2"])
+    e = d["eleitor"]
+    assert (e["subpilar"], e["det"], e["prom"], e["total"]) == ("D2", 28, 3, 31)
+    assert e["nome"] == "Eficácia Operacional" and round(e["ratio"], 2) == 0.11
 
 
 def test_piso_e_inclusivo_e_abaixo_nao_elege():
@@ -77,6 +90,7 @@ def test_sequencial_pilar_anterior_quebrado_pela_soma_vence_subpilar_posterior()
     agg = _agg({"P1": (1, 0, 10), "P2": (1, 0, 10), "P3": (1, 0, 10), "Pa2": (0, 0, 300)})
     d = gargalo_detalhe(agg)
     assert d["pilar"] == "P" and d["motivo"] == "soma_critica" and d["subpilares"] == []
+    assert d["eleitor"] is None  # eleito pela soma: o ratio que explica é o do pilar
 
 
 def test_quebra_critica_por_subpilar_vence_fraco_anterior():
@@ -88,7 +102,12 @@ def test_quebra_critica_por_subpilar_vence_fraco_anterior():
 
 def test_sem_quebra_critica_cai_no_fraco_pela_soma():
     agg = _agg({"D1": (70, 0, 100), "D2": (70, 0, 100), "D3": (70, 0, 100)})
-    assert gargalo_detalhe(agg) == {"pilar": "D", "motivo": "soma_fraca", "subpilares": []}
+    assert gargalo_detalhe(agg) == {
+        "pilar": "D",
+        "motivo": "soma_fraca",
+        "subpilares": [],
+        "eleitor": None,
+    }
 
 
 def test_tudo_saudavel_sem_gargalo():

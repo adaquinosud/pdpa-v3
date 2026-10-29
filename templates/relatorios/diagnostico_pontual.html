@@ -157,13 +157,12 @@ ordem desperdiça esforço.</p>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4 · {{ p.faixa | acento }}</span>
         {%- else %}{{ p.faixa | acento }}{% endif %}
       </td>
-      <td>{{ M.lastro_interp(p.faixa) }}</td>
+      <td>{{ M.lastro_interp_pilar(p) }}</td>
       <td style="text-align:right">{{ p.total }}</td>
       <td class="muted">{{ p.prom }} · {{ p.conv }} · {{ p.det }}</td>
     </tr>
-    {% if p.ferida_interna %}{# Fatia 7: pilar OK pela soma escondendo subpilar crítico — acrescenta, não muda a faixa #}
-    <tr><td colspan="6" style="background:#fef7ed;color:#92400e;font-size:8.5pt;padding:2pt 6pt">⚠ Aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</td></tr>
-    {% endif %}
+    {# Fatia 7 (ferida interna) + opção 1 (gargalo travado por subpilar) — uma linha só #}
+    {{ M.linha_abaixo_do_pilar(p) }}
     {% endfor %}
   </tbody>
 </table>

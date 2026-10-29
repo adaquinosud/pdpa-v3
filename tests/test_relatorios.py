@@ -366,3 +366,71 @@ def test_render_pdf_levanta_indisponivel_sem_libs():
     except Exception as e:  # noqa: BLE001
         raise AssertionError(f"deveria levantar PdfIndisponivel, veio {type(e).__name__}: {e}")
     # se passou (libs presentes), tudo bem — nada a verificar aqui
+
+
+@pytest.mark.parametrize("tipo", ["resumo_executivo", "diagnostico_pontual"])
+def test_gargalo_por_subpilar_no_impresso_e_nos_payloads(
+    client_loyall, db_session, monkeypatch, tipo
+):
+    """Opção 1 (29/out), ponta a ponta: Parceria boa pela soma (1,65) e Pa2 crítico com 36
+    de volume → gargalo Pa POR SUBPILAR. O impresso diz "Travado por Pa2" com o ratio DELE,
+    e todo payload LLM que leva o ratio do gargalo leva o do Pa2 + de quem ele é — nunca
+    o 1,65 do pilar como se fosse o número do gargalo."""
+    import json
+    from datetime import datetime as _dt
+
+    import src.relatorios.llm_secoes as mod
+    from src.models.verbatim import Verbatim
+
+    vistos = []
+    fake = mod._chamar_sonnet
+
+    def _grava(prompt, payload, max_tokens=500):
+        vistos.append(json.loads(payload) if isinstance(payload, str) else payload)
+        return fake(prompt, payload, max_tokens)
+
+    monkeypatch.setattr(mod, "_chamar_sonnet", _grava)
+
+    e = _empresa(client_loyall, f"tp-{tipo}")
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L", "agrupamento_id": a["id"]}
+    ).get_json()
+    f = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": "ChIJtp"}
+    ).get_json()
+    for sub, t, n in [
+        ("Pa1", "promotor", 60),
+        ("Pa1", "detrator", 2),
+        ("Pa2", "detrator", 35),
+        ("Pa2", "promotor", 1),
+    ]:
+        for i in range(n):
+            db_session.add(
+                Verbatim(
+                    empresa_id=e["id"],
+                    fonte_id=f["id"],
+                    local_id=loc["id"],
+                    texto=f"verbatim {sub} {t} {i}",
+                    subpilar=sub,
+                    tipo=t,
+                    tem_texto=True,
+                    data_criacao_original=_dt(2026, 5, 1),
+                    hash_dedup=f"htp{tipo}{sub}{t}{i}-{_dt.utcnow().timestamp()}",
+                )
+            )
+    db_session.commit()
+    h = client_loyall.get(f"/empresas/{e['id']}/relatorios/{tipo}").get_data(as_text=True)
+
+    assert "Travado por Pa2 Mutualidade em 0,03 (35 detratores)" in h
+    assert "a soma do pilar (1,65)" in h
+    par = [p for p in vistos if "gargalo_ratio_de" in p]
+    assert par and all(p["gargalo_ratio_de"] == "subpilar" for p in par)
+    assert all(round(p["gargalo_ratio"], 2) == 0.03 for p in par)
+    assert all(p["gargalo_subpilar"] == "Pa2 Mutualidade" for p in par)
+    capa = [p for p in vistos if "gargalo_travado_por" in p]
+    assert capa and capa[0]["gargalo_travado_por"]["subpilar"] == "Pa2 Mutualidade"
+    if tipo == "diagnostico_pontual":
+        ctx = [p for p in vistos if isinstance(p.get("gargalo"), dict)]
+        assert ctx and ctx[0]["gargalo"]["ratio_de"] == "subpilar"
+        assert round(ctx[0]["gargalo"]["ratio"], 2) == 0.03

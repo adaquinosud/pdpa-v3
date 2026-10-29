@@ -503,7 +503,8 @@ def _mapa_lastro_pesquisa(valencia: Dict[str, Dict[str, int]]) -> List[Dict[str,
         SUBPILARES_ORDEM,
         calcular_ratio,
         faixa_ratio,
-        gargalo_sequencial,
+        gargalo_detalhe,
+        gargalo_travado_por,
     )
 
     # agg no shape que a regra canônica consome: prom/det (soma do pilar) + ratio/total
@@ -518,7 +519,9 @@ def _mapa_lastro_pesquisa(valencia: Dict[str, Dict[str, int]]) -> List[Dict[str,
         for sub, v in valencia.items()
         if v["total"] > 0
     }
-    gargalo = gargalo_sequencial(agg)
+    _gdet = gargalo_detalhe(agg)
+    gargalo = _gdet["pilar"] if _gdet else None
+    travado_por = gargalo_travado_por(agg, _gdet)  # opção 1: quem trava, se eleito por subpilar
 
     def _sub_card(sub: str) -> Dict[str, Any]:
         r = calcular_ratio(valencia[sub]["promotor"], valencia[sub]["detrator"])
@@ -550,6 +553,7 @@ def _mapa_lastro_pesquisa(valencia: Dict[str, Dict[str, int]]) -> List[Dict[str,
                 "faixa": faixa_ratio(ratio),
                 "total": total,
                 "gargalo": pil == gargalo,
+                "gargalo_por": travado_por if pil == gargalo else [],
                 "subpilares": [_sub_card(s) for s in subs],
             }
         )

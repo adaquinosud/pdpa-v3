@@ -15,6 +15,8 @@ import json
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from src.utils.fmt import virg
+
 SONNET_MODEL = "claude-sonnet-4-6"
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
@@ -122,6 +124,9 @@ REGRAS:
 - ``numero_manchete``: 1 frase de no MÁXIMO 18 palavras com NÚMEROS REAIS do payload
   (ratio, contagem, percentual). Cite o subpilar gargalo pelo nome. Direta, sem
   jargão. Ex.: "Em Calibração da Promessa: 89 críticas para 24 elogios — ratio 0,27".
+  Se ``gargalo_travado_por`` vier preenchido, o pilar foi TRAVADO POR UM SUBPILAR:
+  use os números DELE (``gargalo_travado_por``: subpilar, ratio, det, prom), com o nome
+  dele — NUNCA o ratio de ``gargalo_pilar``, que pode ser bom e não explica o gargalo.
 - ``frase_soco``: escolha do payload ``verbatins_detrator`` o trecho MAIS impactante
   (até 32 palavras), copie LITERALMENTE entre aspas. NUNCA invente fala — só recorte
   contínuo do texto original. Sem reticências fora do texto real.
@@ -225,8 +230,14 @@ PARADOXO CENTRAL da empresa em 2 a 3 frases (≤80 palavras totais).
 ESTRUTURA OBRIGATÓRIA do parágrafo:
 1. Nomeie o ATIVO mais forte — pilar ``ativo_pilar`` (ratio ``ativo_ratio``), ancorado
    no subpilar de destaque ``ativo_subpilar``; use ``ativo_leitura`` como evidência.
-2. Nomeie o GAP mais crítico — pilar ``gargalo_pilar`` (ratio ``gargalo_ratio``), ancorado
-   no subpilar pior ``gargalo_subpilar``; use ``gargalo_leitura`` como evidência.
+2. Nomeie o GAP mais crítico — pilar ``gargalo_pilar``, ancorado no subpilar
+   ``gargalo_subpilar``; use ``gargalo_leitura`` como evidência. O ``gargalo_ratio`` é
+   de quem ``gargalo_ratio_de`` diz:
+   - ``"pilar"`` → é o ratio do pilar: "pilar X (ratio Y)".
+   - ``"subpilar"`` → o pilar foi TRAVADO POR UM SUBPILAR: o ratio é DO SUBPILAR
+     ``gargalo_subpilar``, não do pilar. Escreva "X, travado por <subpilar> (ratio Y)".
+     NUNCA atribua esse número ao pilar ("Parceria tem ratio 0,02" é FALSO), nem diga
+     que o pilar inteiro vai mal: a soma do pilar pode ser boa — quem quebra é o subpilar.
 3. Costure a tensão — por que esse ativo NÃO compensa esse gap, e qual é a pergunta
    estratégica real (o leitor deveria fechar essa página com uma pergunta na cabeça).
 
@@ -289,6 +300,7 @@ def compor_paradoxo_puro(
     ativo_ratio: Optional[float] = None,
     gargalo_subpilar: Optional[str] = None,
     gargalo_ratio: Optional[float] = None,
+    gargalo_ratio_de: Optional[str] = None,
 ) -> str:
     """Composição estritamente assemblativa, sem LLM. Junta a leitura cacheada do
     sub_melhor do pilar ativo e a do sub_pior do pilar gargalo em uma narrativa
@@ -299,13 +311,20 @@ def compor_paradoxo_puro(
         return ""
 
     def _cabecalho(pilar: str, sub: Optional[str], ratio: Optional[float]) -> str:
+        if pilar == gargalo_pilar and gargalo_ratio_de == "subpilar" and sub:
+            # eleito por subpilar: o ratio é DO subpilar e vai colado ao nome dele — o do
+            # pilar pode ser bom e não explica a eleição (opção 1, 29/out).
+            peca = f"{pilar}, travada por {sub}"
+            if ratio is not None:
+                peca += f" (ratio {virg(ratio, 2)})"
+            return peca
         peca = pilar
         if sub:
             peca += (
                 f" (sustentado por {sub})" if pilar == ativo_pilar else f" (pressionado por {sub})"
             )
         if ratio is not None:
-            peca += f", ratio {ratio:.2f}"
+            peca += f", ratio {virg(ratio, 2)}"  # impresso: decimal com vírgula (§11)
         return peca
 
     partes: List[str] = []
@@ -350,6 +369,9 @@ Produza EXATAMENTE 3 PARÁGRAFOS, separados por linha em branco, na ordem:
 2. **Momento operacional** — 2-3 frases. Use os números do payload:
    indice_geral, volume_total, fontes ativas, pilar gargalo (com nome e ratio),
    pilar ativo. Aponte a tensão estrutural do momento, sem repetir o paradoxo.
+   O ``gargalo.ratio`` é de quem ``gargalo.ratio_de`` diz: com ``"subpilar"``, o pilar
+   foi TRAVADO POR UM SUBPILAR (``gargalo.subpilar``) e o ratio é DELE — escreva
+   "<pilar>, travado por <subpilar> (ratio Y)", NUNCA o atribua ao pilar.
 
 3. **Hipótese sobre a percepção da liderança (ponto cego)** — 2-3 frases. O que
    a liderança PROVAVELMENTE acredita estar funcionando vs o que os dados

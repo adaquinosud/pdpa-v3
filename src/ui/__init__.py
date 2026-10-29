@@ -1912,7 +1912,7 @@ def _carregar_transversais(s, empresa_id, agrupamento_id=None, limite=10):
 # ── B6.6 CP-5: tela dedicada de temas ─────────────────────────────────
 
 
-def _montar_mapa_lastro(n1, n2, gargalo, feridas=None):
+def _montar_mapa_lastro(n1, n2, gargalo, feridas=None, travado_por=None):
     """Mapa de Lastro: 4 pilares (ratio+faixa) com seus subpilares + gargalo.
 
     Reusa os dados de painel_nivel1 (pilares) e painel_nivel2 (matriz de
@@ -1923,7 +1923,10 @@ def _montar_mapa_lastro(n1, n2, gargalo, feridas=None):
 
     ``feridas`` (Fatia 7): ``{pilar: [{nome, ratio, det}]}`` da régua canônica
     ``pilares_com_ferida_interna`` (piso 30) — o subpilar crítico que a soma do pilar
-    esconde. Só o callout; não muda a faixa do pilar. None = sem marcação."""
+    esconde. Só o callout; não muda a faixa do pilar. None = sem marcação.
+
+    ``travado_por`` (opção 1, 29/out): ``gargalo_travado_por`` — os subpilares que travam
+    o pilar-gargalo quando ele foi eleito POR SUBPILAR. Vai só no card do gargalo."""
     from src.api.painel import PILARES_ORDEM
 
     feridas = feridas or {}
@@ -1948,6 +1951,7 @@ def _montar_mapa_lastro(n1, n2, gargalo, feridas=None):
                 "conversivel": p.get("conversivel", 0),
                 "detrator": p.get("detrator", 0),
                 "gargalo": pid == gargalo,
+                "gargalo_por": (travado_por or []) if pid == gargalo else [],
                 "subpilares": subs_por_pilar.get(pid, []),
                 "ferida_interna": feridas.get(pid, []),  # subpilar crítico oculto (piso 30)
             }
@@ -2186,6 +2190,11 @@ def _aba_temas(empresa_id, empresa_w):
 
         _agg_ml = agregar_subpilares(s, empresa_id, ag_filtro)
         gargalo = _gargalo(_agg_ml)
+        # opção 1 (29/out): gargalo eleito por subpilar → o card nomeia quem trava.
+        from src.api.painel import gargalo_detalhe as _gdet_ml
+        from src.api.painel import gargalo_travado_por as _gtp_ml
+
+        _travado_ml = _gtp_ml(_agg_ml, _gdet_ml(_agg_ml))
         _fer_ml = {  # Fatia 7: subpilar crítico oculto por pilar (régua canônica, piso 30)
             p: [
                 {
@@ -2198,7 +2207,7 @@ def _aba_temas(empresa_id, empresa_w):
             for p, fer in _pcfi(_agg_ml).items()
         }
 
-    mapa_lastro = _montar_mapa_lastro(n1, n2, gargalo, _fer_ml)
+    mapa_lastro = _montar_mapa_lastro(n1, n2, gargalo, _fer_ml, travado_por=_travado_ml)
 
     # Fatia 2: etiqueta de quadrante de Propagação por tema — SÓ os ACIONÁVEIS
     # (Crítico/Acelerando); os demais quadrantes vivem só na tela Propagação. Assim a

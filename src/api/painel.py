@@ -499,25 +499,62 @@ def gargalo_detalhe(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[
     2. senão, primeiro pilar FRACO pela soma — ``0,5 ≤ ratio < 1,0``;
     3. senão, ``None`` — nada quebrado, não há gargalo.
 
-    Retorna ``{pilar, motivo, subpilares}``. ``motivo``: ``"soma_critica"`` (a soma do
-    pilar já é crítica), ``"subpilar_critico"`` (a soma NÃO é crítica — às vezes nem
-    fraca — e quem quebra o pilar é subpilar crítico ≥ piso) ou ``"soma_fraca"``.
+    Retorna ``{pilar, motivo, subpilares, eleitor}``. ``motivo``: ``"soma_critica"`` (a
+    soma do pilar já é crítica), ``"subpilar_critico"`` (a soma NÃO é crítica — às vezes
+    nem fraca — e quem quebra o pilar é subpilar crítico ≥ piso) ou ``"soma_fraca"``.
     ``subpilares`` = os críticos ≥ piso DO pilar eleito (pode ser vazio na soma).
 
-    Quem imprime o ratio do gargalo precisa do motivo: com ``"subpilar_critico"`` o ratio
-    do PILAR pode ser bom (ex.: pilar 5,37 com um subpilar em 0,02) e não explica a eleição."""
+    ``eleitor`` (só no motivo ``"subpilar_critico"``; senão None) = o subpilar que explica a
+    eleição — o de MENOR ratio entre os que elegeram (empate: mais detratores) —, como
+    ``{subpilar, nome, ratio, det, prom, total}``. Quem imprime o ratio do gargalo usa ESTE
+    número, com o nome dele: o ratio do PILAR pode ser bom (ex.: pilar 5,37 com um subpilar
+    em 0,02) e não explica a eleição (opção 1, decisão de 29/out)."""
     ratios = ratios_por_pilar(agg)
     criticos_sub = subpilares_criticos(agg, piso)
     for p in PILARES_ORDEM:
         subs = [s for s in criticos_sub if PILAR_DE_SUBPILAR.get(s) == p]
         if p in ratios and ratios[p] < RATIO_CRITICO:
-            return {"pilar": p, "motivo": "soma_critica", "subpilares": subs}
+            return {"pilar": p, "motivo": "soma_critica", "subpilares": subs, "eleitor": None}
         if subs:
-            return {"pilar": p, "motivo": "subpilar_critico", "subpilares": subs}
+            e = min(subs, key=lambda s: (agg[s]["ratio"], -agg[s]["det"]))
+            eleitor = {
+                "subpilar": e,
+                "nome": NOME_SUBPILAR.get(e, e),
+                "ratio": agg[e]["ratio"],
+                "det": agg[e]["det"],
+                "prom": agg[e]["prom"],
+                "total": agg[e]["total"],
+            }
+            return {
+                "pilar": p,
+                "motivo": "subpilar_critico",
+                "subpilares": subs,
+                "eleitor": eleitor,
+            }
     for p in PILARES_ORDEM:
         if p in ratios and ratios[p] < RATIO_EMPATE:
-            return {"pilar": p, "motivo": "soma_fraca", "subpilares": []}
+            return {"pilar": p, "motivo": "soma_fraca", "subpilares": [], "eleitor": None}
     return None
+
+
+def gargalo_travado_por(
+    agg: Dict[str, Dict[str, Any]], detalhe: Optional[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Os subpilares que travam o pilar-gargalo quando ele foi eleito POR SUBPILAR, em ordem
+    canônica, como ``[{subpilar, nome, ratio, det}]``. ``[]`` quando eleito pela soma (ou sem
+    gargalo). Fonte única da linha "travado por" — tela (Mapa de Lastro) e impressos
+    (``montar_lastro``) delegam aqui."""
+    if not detalhe or detalhe.get("motivo") != "subpilar_critico":
+        return []
+    return [
+        {
+            "subpilar": x,
+            "nome": NOME_SUBPILAR.get(x, x),
+            "ratio": agg[x]["ratio"],
+            "det": agg[x]["det"],
+        }
+        for x in detalhe["subpilares"]
+    ]
 
 
 def gargalo_sequencial(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[str]:

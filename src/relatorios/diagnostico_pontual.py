@@ -103,7 +103,7 @@ def montar_dados(
         faixa_indice_geral,
         painel_nivel1,
     )
-    from src.diagnostico.leituras import _gargalo, agregar_subpilares
+    from src.diagnostico.leituras import agregar_subpilares
     from src.utils.fmt import virg
     from src.relatorios.gates import bloquear_se_stale as _bloquear_se_stale
     from src.models.anomalia import AnomaliaDetectada
@@ -136,7 +136,11 @@ def montar_dados(
         _bloquear_se_stale(s, empresa_id, empresa_nome)
 
         agg = agregar_subpilares(s, empresa_id, None)
-        gargalo = _gargalo(agg)
+        # Detalhe da régua canônica: o pilar E o subpilar que o elegeu (opção 1, 29/out).
+        from src.api.painel import gargalo_detalhe as _gdet_fn
+
+        _gdet = _gdet_fn(agg)
+        gargalo = _gdet["pilar"] if _gdet else None
         # Fatia 7: subpilar crítico oculto num pilar OK pela soma (piso 30) — DECLARADO no
         # impresso (peça de cliente). Régua canônica pilares_com_ferida_interna.
         from src.api.painel import NOME_SUBPILAR as _NSd
@@ -330,14 +334,17 @@ def montar_dados(
     # ─── Pilares (Lastro) + leituras destacadas por pilar ───────────────────
     # Builder editorial ÚNICO (Fatia 8, camada 2) — mesma fonte que o Resumo
     # Executivo. ``incluir_subs_data`` porque o Diagnóstico detalha subpilar a subpilar.
-    from src.relatorios.lastro import montar_lastro
+    from src.relatorios.lastro import montar_lastro, ratio_do_gargalo
 
-    _lastro = montar_lastro(agg, gargalo, leituras, _feridas_map, incluir_subs_data=True)
+    _lastro = montar_lastro(
+        agg, gargalo, leituras, _feridas_map, incluir_subs_data=True, detalhe=_gdet
+    )
     pilares = _lastro.pilares
     pilar_subs_data = _lastro.pilar_subs_data
     pilar_leitura_ativo = _lastro.pilar_leitura_ativo
     pilar_leitura_gargalo = _lastro.pilar_leitura_gargalo
     pilar_sub_destaque = _lastro.pilar_sub_destaque
+    _rg = ratio_do_gargalo(_lastro, gargalo)
 
     # ─── Confronto Visual ──────────────────────────────────────────────────
     confronto: List[SimpleNamespace] = []
@@ -481,6 +488,18 @@ def montar_dados(
             ),
             None,
         ),
+        # Pilar eleito por SUBPILAR: o número que explica é o do subpilar, com o nome.
+        # None = eleito pela soma (o ratio do pilar acima é o que explica).
+        "gargalo_travado_por": (
+            {
+                "subpilar": _rg["subpilar"],
+                "ratio": _rg["ratio"],
+                "det": _lastro.gargalo_eleitor["det"],
+                "prom": _lastro.gargalo_eleitor["prom"],
+            }
+            if _rg["de"] == "subpilar"
+            else None
+        ),
         "indice_geral": indice,
         "indice_faixa": indice_faixa,
         "verbatins_detrator": [{"texto": t, "subpilar": sub} for t, sub in verbatins_choque],
@@ -515,9 +534,10 @@ def montar_dados(
             else None
         ),
         "gargalo_leitura": pilar_leitura_gargalo.get(gargalo) if gargalo else None,
-        "gargalo_ratio": (
-            next((p.ratio for p in pilares if p.codigo == gargalo), None) if gargalo else None
-        ),
+        # ratio que EXPLICA o gargalo + de quem é ("pilar" | "subpilar"); com "subpilar" é o
+        # do ``gargalo_subpilar`` (o eleitor), nunca o do pilar (opção 1, 29/out).
+        "gargalo_ratio": _rg["ratio"],
+        "gargalo_ratio_de": _rg["de"],
         "indice_geral": indice,
         "indice_faixa": indice_faixa,
     }
@@ -544,7 +564,11 @@ def montar_dados(
         "gargalo": {
             "codigo": gargalo,
             "nome": gargalo_nome,
-            "ratio": next((p.ratio for p in pilares if p.codigo == gargalo), None),
+            # o ratio que EXPLICA o gargalo: do pilar (eleito pela soma) ou do subpilar
+            # que o travou (``ratio_de="subpilar"``, nomeado em ``subpilar``) — opção 1.
+            "ratio": _rg["ratio"],
+            "ratio_de": _rg["de"],
+            "subpilar": _rg["subpilar"],
         },
         "ativo": {
             "codigo": ativo_code,

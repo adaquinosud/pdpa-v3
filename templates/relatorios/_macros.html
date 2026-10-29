@@ -33,3 +33,19 @@
 {%- elif faixa == 'excelente' -%}n4
 {%- else -%}{%- endif -%}
 {%- endmacro %}
+
+{# Gargalo eleito por SUBPILAR (opção 1, 29/out): o pilar pode ser bom pela soma, mas um
+   subpilar crítico ≥ piso o quebra. A célula do Lastro diz Interrompe (é o elo quebrado),
+   e a linha de baixo nomeia quem trava, com o ratio DELE — nunca o do pilar. Substitui o
+   aviso de ferida interna nesse pilar (seria o mesmo subpilar dito duas vezes). #}
+{% macro lastro_interp_pilar(p) -%}
+{%- if p.gargalo_por -%}{{ lastro_interp('critico') }}{%- else -%}{{ lastro_interp(p.faixa) }}{%- endif -%}
+{%- endmacro %}
+
+{% macro linha_abaixo_do_pilar(p, colspan=6) -%}
+{%- if p.gargalo_por %}
+    <tr><td colspan="{{ colspan }}" style="background:#fdecec;color:#8B2020;font-size:8.5pt;padding:2pt 6pt">🚩 Travado por {% for sp in p.gargalo_por %}{{ sp.subpilar }} {{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar ({{ p.ratio | virg }}) dilui o buraco, mas é este subpilar que quebra a sequência.</td></tr>
+{%- elif p.ferida_interna %}
+    <tr><td colspan="{{ colspan }}" style="background:#fef7ed;color:#92400e;font-size:8.5pt;padding:2pt 6pt">⚠ Aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</td></tr>
+{%- endif %}
+{%- endmacro %}
