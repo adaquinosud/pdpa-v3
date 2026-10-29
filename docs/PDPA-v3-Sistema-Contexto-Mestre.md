@@ -5129,6 +5129,45 @@ sugestão desatualizada.
 
 ---
 
+### 6.30 🔥 Gerador que falha em silêncio — o Pa2 da 29 e o que ele revelou (29/out)
+
+**O caso.** `flask sugestoes-perspectiva --empresa 29` falhou no Pa2 duas vezes com
+`Expecting ',' delimiter: line 27 column 6` (US$ 0,1121 e 0,1086). Prova de uma chamada, só
+leitura: `stop_reason=end_turn`, **1.138 de 1.200 tokens** — o Pa2 vive na beira do teto. A
+posição do erro coincide com o fim da 5ª sugestão numa resposta cortada na 6ª: sem a cerca
+de fechamento, o fallback `_OBJ` pega até o último `}` e o erro sai enganoso. Truncamento nas
+duas falhas = **inferido** (nenhuma registrou `stop_reason` — esse é o defeito).
+Conserto em `fix/sugestoes-truncamento` (`28e73a9`): teto 2.400, `stop_reason=max_tokens` vira
+erro nomeado sem retry, JSON inválido sem corte tem 1 retry, texto bruto no log, tokens da
+chamada que falhou entram no custo.
+
+**O que estava invisível — medido no código, 29/out:**
+1. **O pós-coleta descarta os erros.** `gerar_e_persistir_sugestoes` junta `erros`, e
+   `gerar_e_persistir_diagnostico` junta `falhas`/`erros`; `src/temas/pos_coleta.py` não lê
+   nenhum dos dois — nem loga, nem persiste. Só o comando de terminal imprimia.
+   **Consequência: não há como contar as falhas passadas** — elas não deixaram registro.
+   A partir do `28e73a9` as duas passam a logar (o log do Render é o único rastro, e tem
+   retenção limitada).
+2. **Falha deixa fóssil.** Só sucesso apaga as linhas do subpilar; numa falha, a geração
+   anterior fica no banco sem marca de velha. Probe `scripts/probe_sugestoes_fosseis.py`
+   (`edc8798`, $0) conta, por escopo: em dia, defasada (hash ≠ dado de hoje), fóssil
+   (defasada E outro subpilar do mesmo escopo gerado depois — sinal, não prova), sem hash,
+   órfã. **Número: pendente da rodada no Shell.**
+3. **Nenhum gerador lê `stop_reason`** (busca em `src/`, 29/out). Nos geradores de JSON o
+   corte vira erro de parse; nas seções em PROSA dos relatórios (capa 400, paradoxo 300,
+   contexto 500 tokens) vira **texto cortado no PDF, sem aviso**. Já cobrou antes: o
+   classificador subiu 1024→2048 por truncar JSON (`src/classifier/classifier_v3.py:89`).
+   **Frente própria**, não entrou na fatia.
+4. **A distribuição por perspectiva não é estável.** Mesmo dado, mesmo prompt, duas rodadas:
+   total igual (38), mas 5 das 6 perspectivas mudaram (marketing 8→9, ativação 7→9,
+   processos 9→8, tecnologia 3→2, produto_preco 2→1). O corte por perspectiva **não vira
+   número para o cliente** sem essa ressalva ou uma medição da variação.
+
+**Custo do caso:** quatro chamadas pagas e uma hora e meia para achar o que o texto bruto
+da primeira falha teria mostrado de graça (registro do Alexandre — ver a trava em §7).
+
+---
+
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
 
 - **`server_default`: `sa.text(...)` para EXPRESSÃO, string crua para LITERAL — e
@@ -5851,6 +5890,14 @@ sugestão desatualizada.
   É a §15 do CLAUDE.md na forma mais pura.
   🔒 **Regra:** antes de mexer no texto do prompt ou culpar o modelo, liste os fatos que o
   prompt recebe e confira se o dado da contradição está entre eles.
+
+- **TODO GERADOR LLM GUARDA O TEXTO BRUTO DA RESPOSTA QUE FALHOU.** Regra do Alexandre,
+  29/out (§6.30): o Pa2 da 29 custou quatro chamadas pagas e uma hora e meia para descobrir
+  um corte que o texto bruto da primeira falha mostrava de graça. Guardar o bruto é o
+  conserto que paga os outros.
+  🔒 **Regra:** gerador novo (ou mexido) loga — ou persiste — o texto bruto, o motivo de
+  parada (`stop_reason`) e o uso de tokens de toda chamada que não virou resultado, com a
+  empresa, o escopo e o alvo. Falha sem bruto não é falha registrada.
 
 ---
 
