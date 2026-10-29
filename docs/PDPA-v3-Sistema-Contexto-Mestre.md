@@ -5127,6 +5127,12 @@ de RA — roda **sempre**, antes do gate. O limiar só segura a CAUDA. Logo, lim
 **não deixa comentário sem classificar**; deixa sem embedding, sem tema e com leitura/
 sugestão desatualizada.
 
+**Contagem por fonte, conferida no banco em 29/out:** 1.227 manifestações. O Google tem
+**695 no banco**, não 696: 696 foi o que o coletor **recebeu** em 27/out, e uma avaliação
+de 2022 da 431 se perdeu pelo byte nulo (`fix/coleta-byte-nulo`). **O número do banco é
+695** — o 696 está em documento de cliente, e a lista 696 + 503 + 14 + 8 + 7 somava 1.228.
+O D2 tem 28 detratores; o Parecer entregue dizia 27, e era ele que estava errado.
+
 ---
 
 ### 6.30 🔥 Gerador que falha em silêncio — o Pa2 da 29 e o que ele revelou (29/out)
@@ -5152,7 +5158,27 @@ chamada que falhou entram no custo.
    anterior fica no banco sem marca de velha. Probe `scripts/probe_sugestoes_fosseis.py`
    (`edc8798`, $0) conta, por escopo: em dia, defasada (hash ≠ dado de hoje), fóssil
    (defasada E outro subpilar do mesmo escopo gerado depois — sinal, não prova), sem hash,
-   órfã. **Número: pendente da rodada no Shell.**
+   órfã.
+   **Número (29/out, duas rodadas no Shell, saídas relatadas pelo Alexandre):**
+   - 1ª rodada, probe `edc8798`, base toda: empresa 118 subpilares com sugestão, 100 em
+     dia, 18 defasadas (17 fósseis); loja 287, 174 em dia, 106 defasadas (52 fósseis),
+     7 órfãs. **O probe se validou:** pegou o fóssil do Pa2 da 29, com a hora da falha,
+     sem ninguém dizer onde estava.
+   - **Mas "fóssil" ali misturava a regra do gargalo do mesmo dia** (`f565fce`): o gargalo
+     entra no payload de todo subpilar (`eh_gargalo`/`gargalo_pilar`), então todo escopo
+     cujo gargalo mudou ficou defasado de uma vez. Separado **por linha**, não por lista de
+     escopos: recalcula-se o hash com o gargalo da regra ANTIGA; se bate, a regra é a
+     ÚNICA causa. 2ª rodada (consulta só leitura, $0, empresa 4 excluída por decisão):
+     - empresa: 106 em dia, **0 defasada, 0 fóssil** — as regenerações do dia fecharam os
+       17. É o número que mostra que a limpeza funcionou.
+     - loja: 136 em dia, 6 órfãs; **só a regra:** 7 defasadas + 25 fósseis = 32;
+       **outra causa:** 38 defasadas + 13 fósseis = 51.
+   - **O número de fósseis do §6.30 é 13** (fóssil com outra causa que não a regra), em duas
+     contas: Hermes Pardini 11, AmBev 2. Club Med e Localiza foram inteiramente a regra.
+   - A contagem por pilar dos 69 (Parceria 29, Disponibilidade 21, …), usada como evidência
+     a favor do truncamento, **caiu**: 25 dos 52 fósseis de loja eram a regra. A hipótese
+     "Parceria concentra fósseis porque gera a resposta mais longa" fica sem a evidência e
+     só volta medindo o tamanho da resposta por pilar.
 3. **Nenhum gerador lê `stop_reason`** (busca em `src/`, 29/out). Nos geradores de JSON o
    corte vira erro de parse; nas seções em PROSA dos relatórios (capa 400, paradoxo 300,
    contexto 500 tokens) vira **texto cortado no PDF, sem aviso**. Já cobrou antes: o
@@ -5162,6 +5188,14 @@ chamada que falhou entram no custo.
    total igual (38), mas 5 das 6 perspectivas mudaram (marketing 8→9, ativação 7→9,
    processos 9→8, tecnologia 3→2, produto_preco 2→1). O corte por perspectiva **não vira
    número para o cliente** sem essa ressalva ou uma medição da variação.
+5. **O Diagnóstico Pontual e o Resumo Executivo leem sugestões sem filtro de escopo**
+   (`src/relatorios/diagnostico_pontual.py:230`, `src/relatorios/resumo_executivo.py:199`:
+   só `empresa_id`). Linhas de loja e de agrupamento — órfãs incluídas — entram no impresso
+   da empresa; na tabela por pilar do Diagnóstico a ação é `sug[0]`, e o empate de `ordem=0`
+   entre empresa e loja é decidido pelo banco. O Plano Executivo não tem o defeito
+   (`_rows_resolvidos`). **Medido na 29:** 19 sugestões de loja, em três unidades (410: 4,
+   423: 4, 415: 11). Conserto = primeiro da fila, **segurado** até a leitura do PDF da 29
+   mostrar se o defeito chega ao cliente.
 
 **Custo do caso:** quatro chamadas pagas e uma hora e meia para achar o que o texto bruto
 da primeira falha teria mostrado de graça (registro do Alexandre — ver a trava em §7).
