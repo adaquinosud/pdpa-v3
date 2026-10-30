@@ -5195,8 +5195,8 @@ chamada que falhou entram no custo.
    entre empresa e loja é decidido pelo banco. O Plano Executivo não tem o defeito
    (`_rows_resolvidos`). **Medido na 29:** 19 sugestões de loja, em três unidades (410: 4,
    423: 4, 415: 11). **Provado no PDF da 29** (leitura de 29/out, ver §6.31): os dois
-   caminhos, dois casos cada. Conserto em `fix/sugestoes-escopo-impresso` (`5fe3d87`),
-   **não mergeado** em 29/out — junto foram mais dois caminhos com o mesmo predicado
+   caminhos, dois casos cada. Conserto mergeado na main como `a40a66f` (na branch era
+   `5fe3d87`, antes do rebase), no ar confirmado pelo `/healthz` — junto foram mais dois caminhos com o mesmo predicado
    incompleto: o contexto do chat (`src/ia/contexto.py`, listava o D2 duas vezes, a da loja
    como "indisponível — não use") e `_ultima_geracao` da tela.
 
@@ -5235,6 +5235,7 @@ ordem 0 e perde para A1 e A2 só pelo alfabeto. **São dois consertos**: o filtr
 este. Proposta em mesa (não decidida): ordenar pela sequência de ação que o próprio
 relatório imprime (1º D2, 2º Pa2, 3º A2) — aí "Top" passa a ser verdade. Falta definir o
 critério para os subpilares fora da sequência. Fatia própria, depois do filtro de escopo.
+**Decidido e construído em §6.32.**
 
 **Backlog de impresso, com prova** (conferido no template/código em 29/out, salvo onde dito):
 1. **Legenda N1–N4** (`templates/relatorios/diagnostico_pontual.html:72-93`): a tabela "Os
@@ -5244,11 +5245,88 @@ critério para os subpilares fora da sequência. Fatia própria, depois do filtr
 2. **"Reduz 0 detratores e libera 0 conversíveis"** e projeção "9,99 → 9,99": o Plano de
    Ação pega os 3 subpilares de pior ratio do pilar mesmo quando o pilar inteiro é bom e o
    subpilar não tem detrator; a frase de impacto e a projeção saem com zero/sem mudança.
+   **Causa medida na 29 (30/out, simulação da §6.32):** o P2 tem 4 manifestações, todas
+   elogios, e ganha linha no Plano com impacto zero — o Plano pega os 3 piores de cada
+   pilar sem exigir crítica. A correção provável é a mesma régua da §6.32. Fila.
 3. **"12 subpilares" escrito à mão no Resumo** (`resumo_executivo.html:124` e `:273`,
    `resumo_executivo.py:430`) — mostra 10; o Diagnóstico diz "10 de 12 com volume".
 4. **Layout, relatado da leitura, não conferido:** no Parecer, a linha "caso mai/2026" da
    página dos casos sai por cima do rodapé; o painel de Encerramento Executivo tem cinco
    caixas e quatro dizem "não calibrado" ou traço — e é a última coisa que o cliente vê.
+
+---
+
+### 6.32 Sequência de ação e "Top por perspectiva": uma chave, e o ratio com a base (30/out)
+
+**A regra.** `painel.chave_sequencia` = (grupo, posição do pilar no Lastro, ratio). Grupo 0 =
+travando (`abaixo_do_empate`, ratio < `RATIO_EMPATE` = 1,0, comparação estrita) com volume
+≥ 30; grupo 1 = travando abaixo de 30; grupo 2 = o resto. Ratio `None` vai para o fim do
+pilar. Dois usos, nenhuma cópia: a **Sequência de ação** dos dois impressos (filtro do empate +
+corte em 5, `sequencia_de_acao`) e o **Top por perspectiva** (ordena os 12, sem filtro e sem
+corte). Antes eram a regra (pilar, ratio) escrita inline duas vezes e o alfabeto do código.
+
+**Por que três grupos e não dois.** A primeira versão (travando, pilar, ratio) fechava o buraco
+da chave sem filtro, em que o P1 em 1,90 passava na frente do D2 em 0,11. Mas deixava um
+subpilar com 1 manifestação ocupar vaga na frente. Volume baixo **rebaixa, não corta**
+("marcar, não cortar", decisão do Alexandre). Quando há mais de 5 travando, o corte leva
+primeiro o grupo 1 — os cinco que vão para o cliente são os mais sustentados pela base — e
+a linha "Mais N subpilares travados fora da lista: X com base, Y com base pequena" declara
+quem ficou de fora (§9). A opção de o grupo 1 sair sempre foi rejeitada: faria o item mais
+fraco expandir a lista que o corte existe para segurar.
+
+**O piso de 30 é o do gargalo** (`VOLUME_CONFIANCA_ALTA`, o mesmo de `subpilares_criticos`).
+A regra aproxima a sequência da régua do gargalo em vez de afastar. **Não é** o probe da lista
+única (gargalo e sequência na mesma régua), que segue separado e não aprovado: a sequência e
+a seção concordam entre si, mas nenhuma das duas concorda com o gargalo.
+
+**Sem selo no impresso — o ratio sai com a base.** A ideia era reusar o selo de confiança da
+tela (🟡/🔴). Caiu porque nos dois impressos 🔴 já é "N1 · crítico" / "Interrompe", inclusive
+no Mapa de Lastro logo acima da sequência: "🔴 4" seria lido como crítico (corolário do §7).
+Decisão do Alexandre: nenhum rótulo; mostrar em quanta coisa o número se apoia. A linha sai
+"(ratio 0,33 · 3 críticas em 4 manifestações)" — "críticas" é a palavra que o prompt da
+capa usa (`llm_secoes.py:126`), "manifestações" é a do Parecer; a base inclui conversíveis.
+O piso decide a ordem por dentro e **não aparece escrito** para o cliente. A mesma regra foi
+aplicada onde o impresso mostrava ratio sem base: a linha 🚩/⚠ do Mapa de Lastro ("28
+detratores" → "28 críticas em 31 manifestações") e a faixa de 12 subpilares do Resumo.
+
+**Título único:** "Sequência de ação — regra de execução" nos dois (eram "Sequência de Lastro"
+no Diagnóstico, que já não é Lastro puro, e "Sequência de ação recomendada" no Resumo), com a
+regra em palavras na legenda.
+
+**Previsão registrada antes do PDF** (simulação só leitura no Shell do Render, empresa 29,
+30/out, resultado relatado; P3 e D3 não têm volume e não entram no `agg`):
+
+```
+ordem nova: D2, Pa2, A2, P1, P2, D1, Pa1, Pa3, A3, A1
+
+persp            hoje (alfabeto)   chave corrigida
+ativacao         A1#2, A3#2        D2#3, Pa2#5
+marketing        A1#3, A2#3        D2#4, Pa2#4
+pessoas          A1#1, A2#0        D2#2, Pa2#2
+processos        A1#0, A2#1        D2#0, Pa2#1
+produto_preco    A2#2, P1#1        Pa2#0, A2#2
+tecnologia       D1#1, D2#1        D2#1, Pa2#3
+
+sequência: 1º D2 (0,11 · 28 críticas em 31) | 2º Pa2 (0,22 · 18 em 23) | 3º A2 (0,33 · 3 em 4)
+```
+
+Hoje 9 das 12 linhas da seção são de Aconselhamento; com a chave, o D2 aparece em 5 frentes e
+o Pa2 nas 6. O P1 sai da seção — não some do documento: tem ações próprias no Plano de Ação de
+Precisão (relatado, não conferido). Conferência depois do deploy: os dois PDFs da 29 contra esta tabela.
+
+**Ficou fora, com motivo:**
+- **A tela (Explorar › Planos) não muda nesta fatia.** Ela ordena as estruturais pela
+  prioridade derivada do RÓTULO da faixa (`_FAIXA_PRIORIDADE`, `consolidar.py:20` — o padrão
+  do §8), sem corte; o Plano Executivo também, via `consolidar_acoes`. Enquanto durar, tela e
+  PDF dão **duas respostas diferentes para "o que eu faço primeiro"** no mesmo produto. Frente
+  própria.
+- **"Em formação" tem dois sentidos na tela:** selo de volume 10–29 no Leaderboard e histórico
+  < 3 meses na Governança. Fila.
+- **"verbatins" no impresso** (caixa de Engajamento, "alta · 1227 verbatins") é jargão nosso
+  num documento que vai para fora: unificar com "manifestações". Fila. Idem o cabeçalho "Det."
+  das tabelas de Confronto.
+- O selo de Engajamento já aparece no impresso com 🔴 ("🔴 baixa") — colisão anterior, menor,
+  porque leva o rótulo ao lado. Fila.
 
 ---
 
