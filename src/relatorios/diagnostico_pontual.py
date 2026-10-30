@@ -95,13 +95,14 @@ def montar_dados(
         NOME_PILAR,
         NOME_SUBPILAR,
         PILAR_DE_SUBPILAR,
-        PILARES_ORDEM,
         SUBPILARES_ORDEM,
-        abaixo_do_empate,
         calcular_indice_geral,
+        chave_sequencia,
         eh_elo_travado,
         faixa_indice_geral,
         painel_nivel1,
+        regua_sequencia,
+        sequencia_de_acao,
     )
     from src.diagnostico.leituras import agregar_subpilares
     from src.utils.fmt import virg
@@ -223,21 +224,22 @@ def montar_dados(
                 )
                 verbatins_choque = [(t[:280], sub) for t, sub in rows if t]
 
-        # Sugestões estruturais por subpilar (para tabela DIMENSÃO/AÇÃO/COMO/IMPACTO).
+        # Sugestões estruturais por subpilar (para tabela DIMENSÃO/AÇÃO/COMO/IMPACTO) e o Top
+        # por perspectiva, na ordem de painel.chave_sequencia (a mesma da Sequência de ação).
         # Escopo empresa ESTRITO (ambos NULL), como as leituras acima: sem isso as linhas de
         # cada loja e agrupamento entravam no documento da empresa — no PDF da 29 (29/out) a
         # tabela de Disponibilidade trouxe o texto da loja 415 (ratio 9,99) ao lado do 9,00.
         sug_por_subpilar = defaultdict(list)
         sug_por_persp = defaultdict(list)
-        for r in (
+        for r in sorted(
             s.query(SugestaoEstrutural)
             .filter(
                 SugestaoEstrutural.empresa_id == empresa_id,
                 SugestaoEstrutural.agrupamento_id.is_(None),
                 SugestaoEstrutural.local_id.is_(None),
             )
-            .order_by(SugestaoEstrutural.subpilar, SugestaoEstrutural.ordem)
-            .all()
+            .all(),
+            key=lambda r: (chave_sequencia(r.subpilar, agg), r.subpilar, r.ordem),
         ):
             sug_por_subpilar[r.subpilar].append(
                 SimpleNamespace(
@@ -435,11 +437,10 @@ def montar_dados(
         )
 
     # ─── Priorização (Sequência do Lastro) ─────────────────────────────────
-    _pos = {p: i for i, p in enumerate(PILARES_ORDEM)}
-    prio = sorted(
-        (sub for sub in agg if abaixo_do_empate(agg[sub]["ratio"])),
-        key=lambda sub: (_pos.get(PILAR_DE_SUBPILAR.get(sub, "Z"), 99), agg[sub]["ratio"]),
-    )[:5]
+    # Chave ÚNICA (painel.chave_sequencia): travando com base → travando com base pequena →
+    # o resto; dentro do grupo, Lastro e ratio. ``prio_fora`` = travados que o corte deixou
+    # de fora, por grupo — o impresso declara (§9: nada some sem aviso).
+    prio, prio_fora = sequencia_de_acao(agg)
     priorizacao = [
         SimpleNamespace(
             subpilar=sub,
@@ -450,6 +451,7 @@ def montar_dados(
             ratio=agg[sub]["ratio"],
             faixa=agg[sub]["faixa"],
             det=agg[sub]["det"],
+            total=agg[sub]["total"],
             acao=(leituras.get(sub)[1] if leituras.get(sub) else None),
         )
         for sub in prio
@@ -755,6 +757,8 @@ def montar_dados(
         "pilares": pilares,
         "confronto": confronto,
         "priorizacao": priorizacao,
+        "prio_fora": prio_fora,
+        "regua_seq": regua_sequencia(),
         "sug_por_persp": sug_por_persp,
         "anomalias": anomalias,
         # seções LLM cacheadas (compartilhadas com B1' por escopo_h)

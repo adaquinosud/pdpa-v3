@@ -179,7 +179,7 @@ def test_resumo_executivo_doc_ouro(client_loyall, db_session):
     assert "Paradoxo central" in h and "FAKE paradoxo costurado" in h
     assert "Mapa de Lastro" in h and "Precisão" in h  # pilar gargalo nomeado
     assert "Interpretação do Lastro" in h  # coluna nova doc-ouro
-    assert "Sequência de ação" in h
+    assert "Sequência de ação — regra de execução" in h
     assert "Confronto Visual PDPA" in h and "Calibração da Promessa em colapso" in h
     assert "Sugestões Estruturais" in h and "Recalibre a promessa" in h
     assert "Encerramento Executivo" in h and "Onde investir primeiro" in h  # cap-stone B1'
@@ -247,7 +247,7 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     assert "Três descobertas" in h and "d1" in h  # TE
     assert "Paradoxo central" in h  # RE
     assert "Mapa de Lastro" in h and "Disponibilidade" in h  # RE
-    assert "Sequência de Lastro" in h  # RE síntese
+    assert "Sequência de ação — regra de execução" in h  # RE síntese (título único nos dois)
     assert "Confronto Visual PDPA" in h and "D2" in h  # 02
     assert "Disponibilidade travada" in h and "Revisar SLA" in h  # cache leitura
     assert "Mapa de Conversão" in h  # MC
@@ -422,7 +422,7 @@ def test_gargalo_por_subpilar_no_impresso_e_nos_payloads(
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/{tipo}").get_data(as_text=True)
 
-    assert "Travado por Pa2 Mutualidade em 0,03 (35 detratores)" in h
+    assert "Travado por Pa2 Mutualidade em 0,03 (35 críticas em 36 manifestações)" in h
     assert "a soma do pilar (1,65)" in h
     par = [p for p in vistos if "gargalo_ratio_de" in p]
     assert par and all(p["gargalo_ratio_de"] == "subpilar" for p in par)

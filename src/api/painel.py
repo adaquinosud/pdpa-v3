@@ -23,7 +23,7 @@ Filtros aceitos via query string:
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
@@ -552,6 +552,7 @@ def gargalo_travado_por(
             "nome": NOME_SUBPILAR.get(x, x),
             "ratio": agg[x]["ratio"],
             "det": agg[x]["det"],
+            "total": agg[x]["total"],
         }
         for x in detalhe["subpilares"]
     ]
@@ -574,6 +575,62 @@ def abaixo_do_empate(ratio) -> bool:
     perguntas, escopo de pesquisa) — compara o NÚMERO, não o rótulo, que é só a tradução.
     ``None`` (célula muda, sem sinal P/D) → False."""
     return ratio is not None and ratio < RATIO_EMPATE
+
+
+def grupo_sequencia(d: Optional[Dict[str, Any]], piso=None) -> int:
+    """Grupo do subpilar na ordem de ação: 0 = travando (``abaixo_do_empate``) com volume
+    ≥ ``piso``; 1 = travando com volume abaixo do piso; 2 = o resto. Volume baixo REBAIXA,
+    não corta (decisão de 30/out: marcar, não cortar). ``piso`` default =
+    ``VOLUME_CONFIANCA_ALTA`` (30), o mesmo de ``subpilares_criticos`` (régua do gargalo)."""
+    d = d or {}
+    if not abaixo_do_empate(d.get("ratio")):
+        return 2
+    if piso is None:
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
+        piso = VOLUME_CONFIANCA_ALTA
+    return 0 if (d.get("total") or 0) >= piso else 1
+
+
+def chave_sequencia(sub: str, agg: Dict[str, Dict[str, Any]], piso=None) -> tuple:
+    """Chave ÚNICA de "o que fazer primeiro": (grupo, posição do pilar no Lastro, ratio).
+    Dois usos, nenhuma cópia: a Sequência de ação dos impressos (filtro do empate + corte,
+    ``sequencia_de_acao``) e o Top por perspectiva das sugestões (os 12, sem filtro).
+    Ratio ``None`` vai para o fim do pilar. NÃO é a régua do gargalo (``gargalo_detalhe``)."""
+    d = agg.get(sub) or {}
+    ratio = d.get("ratio")
+    return (
+        grupo_sequencia(d, piso),
+        PILARES_ORDEM.index(PILAR_DE_SUBPILAR[sub]) if sub in PILAR_DE_SUBPILAR else 99,
+        ratio if ratio is not None else float("inf"),
+    )
+
+
+def sequencia_de_acao(
+    agg: Dict[str, Dict[str, Any]], limite: int = 5, piso=None
+) -> Tuple[List[str], Dict[int, int]]:
+    """Sequência de ação dos impressos: só quem trava (``abaixo_do_empate``), na ordem de
+    ``chave_sequencia``, cortada em ``limite``. Devolve (subpilares, fora) — ``fora`` conta
+    por grupo (0/1) os travados que o corte deixou de fora, para o impresso declarar."""
+    travados = sorted(
+        (sub for sub in agg if abaixo_do_empate(agg[sub].get("ratio"))),
+        key=lambda sub: chave_sequencia(sub, agg, piso),
+    )
+    fora: Dict[int, int] = {}
+    for sub in travados[limite:]:
+        g = grupo_sequencia(agg[sub], piso)
+        fora[g] = fora.get(g, 0) + 1
+    return travados[:limite], fora
+
+
+def regua_sequencia() -> Dict[str, Any]:
+    """Números da legenda da Sequência de ação, lidos das constantes — a copy não
+    reescreve limiar (empate, ordem dos pilares). O piso de volume decide a ordem por
+    dentro e não aparece escrito para o cliente (decisão de 30/out)."""
+    return {
+        "empate": RATIO_EMPATE,
+        "pilares": [NOME_PILAR[p] for p in PILARES_ORDEM],
+    }
 
 
 def eh_elo_travado(subpilar: str, gargalo_pilar, ratio) -> bool:

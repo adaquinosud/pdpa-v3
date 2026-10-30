@@ -168,15 +168,17 @@ ordem desperdiça esforço.</p>
 </table>
 
 {% if d.priorizacao %}
-<h3>Sequência de Lastro — regra de execução</h3>
+<h3>Sequência de ação — regra de execução</h3>
 <p class="sequencia-inline">
   {% for x in d.priorizacao %}
   <span class="ord">{{ loop.index }}º</span>
   <strong>{{ x.subpilar }}</strong> → {{ x.nome }}{% if x.gargalo %} 🚩{% endif %}
-  <span class="muted">(ratio {{ x.ratio | virg }} · {{ x.det }} det)</span>
+  <span class="muted">(ratio {{ x.ratio | virg }} · {{ M.base(x.det, x.total) }})</span>
   {%- if not loop.last %}<span class="sep">|</span>{% endif %}
   {% endfor %}
 </p>
+{{ M.linha_fora(d.prio_fora) }}
+{{ M.legenda_sequencia(d.regua_seq) }}
 {% endif %}
 
 {# ═════════════════════════════════════════════════════════════════════════
@@ -420,6 +422,9 @@ ordem desperdiça esforço.</p>
 {% if d.sug_por_persp %}
 {{ M.titulo_secao('SE', 'Sugestões Estruturais · Top por perspectiva',
                   'Onde construir fundação — mudanças por frente de consultoria.') }}
+<p class="muted" style="font-size:8pt; margin:0 0 2pt">
+  Em cada frente, as duas primeiras na mesma ordem da Sequência de ação.
+</p>
 {% for code, label, icon in _PERSP %}
 {% if d.sug_por_persp.get(code) %}
 <div class="persp-titulo"><span class="label">{{ label }}</span></div>
