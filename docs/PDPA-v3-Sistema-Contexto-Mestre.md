@@ -5283,11 +5283,22 @@ a seção concordam entre si, mas nenhuma das duas concorda com o gargalo.
 tela (🟡/🔴). Caiu porque nos dois impressos 🔴 já é "N1 · crítico" / "Interrompe", inclusive
 no Mapa de Lastro logo acima da sequência: "🔴 4" seria lido como crítico (corolário do §7).
 Decisão do Alexandre: nenhum rótulo; mostrar em quanta coisa o número se apoia. A linha sai
-"(ratio 0,33 · 3 críticas em 4 manifestações)" — "críticas" é a palavra que o prompt da
-capa usa (`llm_secoes.py:126`), "manifestações" é a do Parecer; a base inclui conversíveis.
+"(ratio 0,33 · 3 críticas para 1 elogio, em 4 manifestações)" — "críticas para elogios" é a
+forma que a capa já usa (`llm_secoes.py:126`), "manifestações" é a palavra do Parecer; o
+total inclui conversíveis. **Os dois termos do ratio vão juntos** (decisão do Alexandre,
+30/out): só "críticas em manifestações" engana quando há muito conversível — "10 críticas em
+215 manifestações" soa como quase ninguém reclamou, quando só 15 tomaram partido. Na 29 as
+duas formas dizem o mesmo (os três travados quase não têm conversível); a diferença aparece
+noutra empresa. Singular e plural nos três termos (macro `base`, com teste).
 O piso decide a ordem por dentro e **não aparece escrito** para o cliente. A mesma regra foi
 aplicada onde o impresso mostrava ratio sem base: a linha 🚩/⚠ do Mapa de Lastro ("28
-detratores" → "28 críticas em 31 manifestações") e a faixa de 12 subpilares do Resumo.
+detratores" → "28 críticas para 3 elogios, em 31 manifestações") e a faixa de 12 subpilares
+do Resumo (esta só com o total embaixo do ratio).
+
+**Defeito pego antes do merge (meu):** na primeira versão a linha ⚠ saía "30 críticas em **0**
+manifestações" — o mapa das feridas dos dois relatórios copiava `det` e não `total`, e o
+teste da macro passava um dict pronto. Corrigido no mesmo passo dos elogios, com teste de
+RENDER dos dois relatórios que falhava antes.
 
 **Título único:** "Sequência de ação — regra de execução" nos dois (eram "Sequência de Lastro"
 no Diagnóstico, que já não é Lastro puro, e "Sequência de ação recomendada" no Resumo), com a
@@ -5307,12 +5318,28 @@ processos        A1#0, A2#1        D2#0, Pa2#1
 produto_preco    A2#2, P1#1        Pa2#0, A2#2
 tecnologia       D1#1, D2#1        D2#1, Pa2#3
 
-sequência: 1º D2 (0,11 · 28 críticas em 31) | 2º Pa2 (0,22 · 18 em 23) | 3º A2 (0,33 · 3 em 4)
+sequência: 1º D2 (0,11 · 28 em 31) | 2º Pa2 (0,22 · 18 em 23) | 3º A2 (0,33 · 3 em 4)
+
+chave antiga (pilar, ratio), mesma tabela:
+ativacao       P1#3, P2#2
+marketing      P1#0, P2#3
+pessoas        P2#1, D2#2
+processos      P1#2, P2#0
+produto_preco  P1#1, Pa2#0
+tecnologia     D2#1, D1#1
 ```
 
+Linha esperada no PDF: "1º D2 → Eficácia Operacional 🚩 (ratio 0,11 · 28 críticas para 3
+elogios, em 31 manifestações) | 2º Pa2 … (ratio 0,22 · 18 críticas para 4 elogios, em 23
+manifestações) | 3º A2 … (ratio 0,33 · 3 críticas para 1 elogio, em 4 manifestações)".
+
 Hoje 9 das 12 linhas da seção são de Aconselhamento; com a chave, o D2 aparece em 5 frentes e
-o Pa2 nas 6. O P1 sai da seção — não some do documento: tem ações próprias no Plano de Ação de
-Precisão (relatado, não conferido). Conferência depois do deploy: os dois PDFs da 29 contra esta tabela.
+o Pa2 nas 6. Com a chave antiga sem grupo, P1 ou P2 abririam **5 das 6** frentes (critério:
+primeiro item da frente; só tecnologia abre com D2) — o texto relatado dizia quatro, mas
+pessoas abre com P2. O P1 sai da seção — não some do documento: tem ações próprias no Plano
+de Ação de Precisão (relatado, não conferido no banco; visto em dois renders de 29/out, com as
+linhas "P1 Calibração da Promessa" e "P2 Qualidade da Entrega"). Conferência depois do
+deploy: os dois PDFs da 29 contra esta tabela.
 
 **Ficou fora, com motivo:**
 - **A tela (Explorar › Planos) não muda nesta fatia.** Ela ordena as estruturais pela
