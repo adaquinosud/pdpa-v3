@@ -100,6 +100,8 @@ def montar_dados(
                     "nome": _NSr.get(f["subpilar"], f["subpilar"]),
                     "ratio": f["ratio"],
                     "det": f["det"],
+                    "prom": f["prom"],
+                    "total": f["total"],
                 }
                 for f in fer
             ]
@@ -282,6 +284,7 @@ def montar_dados(
             ratio=agg[sub]["ratio"],
             faixa=agg[sub]["faixa"],
             det=agg[sub]["det"],
+            prom=agg[sub]["prom"],
             total=agg[sub]["total"],
             acao=(leituras.get(sub)[1] if leituras.get(sub) else None),
         )

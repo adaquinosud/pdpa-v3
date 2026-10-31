@@ -6,7 +6,7 @@ subpilar (A1–A3 primeiro). Agora as duas usam a mesma chave — (grupo, pilar,
 grupo 0 = travando com volume ≥ piso, 1 = travando abaixo do piso, 2 = o resto. A sequência
 filtra os travados e corta em 5 (quem fica de fora é declarado); a seção ordena os 12.
 O piso decide a ordem por dentro e não aparece escrito: o impresso mostra a BASE do ratio
-("3 críticas em 4 manifestações") — sem selo, sem rótulo (🔴 já é N1 na mesma página).
+("3 críticas para 1 elogio, em 4 manifestações") — sem selo, sem rótulo (🔴 já é N1 na mesma página).
 """
 
 from __future__ import annotations
@@ -77,9 +77,10 @@ def _macros(client_loyall):
 
 def test_base_por_extenso(client_loyall):
     m = _macros(client_loyall)
-    assert str(m.base(3, 4)) == "3 críticas em 4 manifestações"
-    assert str(m.base(1, 1)) == "1 crítica em 1 manifestação"
-    assert str(m.base(None, None)) == "0 críticas em 0 manifestações"
+    assert str(m.base(3, 1, 4)) == "3 críticas para 1 elogio, em 4 manifestações"
+    assert str(m.base(28, 3, 31)) == "28 críticas para 3 elogios, em 31 manifestações"
+    assert str(m.base(1, 0, 1)) == "1 crítica para 0 elogios, em 1 manifestação"
+    assert str(m.base(None, None, None)) == "0 críticas para 0 elogios, em 0 manifestações"
 
 
 def test_linha_de_quem_ficou_de_fora(client_loyall):
@@ -160,7 +161,9 @@ def test_impresso_usa_a_mesma_chave_na_sequencia_e_na_secao(client_loyall, conta
     seq = seq.split("</p>", 1)[0]
     assert seq.index("<strong>D2</strong>") < seq.index("<strong>A1</strong>")
     assert "<strong>P1</strong>" not in seq  # não trava, não entra
-    assert "(ratio 0,33 · 3 críticas em 4 manifestações)" in seq  # a base, não um selo
+    assert (
+        "(ratio 0,33 · 3 críticas para 1 elogio, em 4 manifestações)" in seq
+    )  # a base, não um selo
     assert "Regra: primeiro o que está travando" in h
     assert "🔴" not in seq  # 🔴 já é N1 na mesma página: nada de selo na sequência
 
@@ -177,15 +180,22 @@ def test_travado_por_mostra_a_base(client_loyall):
     p = {
         "ratio": 0.8,
         "gargalo_por": [
-            {"subpilar": "D2", "nome": "Agilidade", "ratio": 0.11, "det": 28, "total": 31}
+            {
+                "subpilar": "D2",
+                "nome": "Agilidade",
+                "ratio": 0.11,
+                "det": 28,
+                "prom": 3,
+                "total": 31,
+            }
         ],
     }
-    assert "D2 Agilidade em 0,11 (28 críticas em 31 manifestações)" in str(
+    assert "D2 Agilidade em 0,11 (28 críticas para 3 elogios, em 31 manifestações)" in str(
         m.linha_abaixo_do_pilar(p)
     )
 
 
-def test_gargalo_travado_por_leva_o_total():
+def test_gargalo_travado_por_leva_a_base():
     """Pa1 bom pela soma, Pa2 crítico com base: o pilar é travado PELO subpilar."""
     from src.api.painel import gargalo_detalhe, gargalo_travado_por
 
@@ -194,4 +204,52 @@ def test_gargalo_travado_por_leva_o_total():
         "Pa2": {"ratio": 0.03, "total": 36, "det": 35, "prom": 1, "conv": 0, "faixa": "critico"},
     }
     tp = gargalo_travado_por(agg, gargalo_detalhe(agg))
-    assert [(x["subpilar"], x["total"]) for x in tp] == [("Pa2", 36)]
+    assert [(x["subpilar"], x["prom"], x["total"]) for x in tp] == [("Pa2", 1, 36)]
+
+
+@pytest.fixture
+def conta_ferida(client_loyall, db_session):
+    """P2 crítico com base trava P (🚩); D2 crítico com base num D que a soma salva (⚠)."""
+    from src.models.verbatim import Verbatim
+
+    e = _empresa(client_loyall, "fer")
+    loc = client_loyall.post(f"/api/empresas/{e['id']}/locais", json={"nome": "L"}).get_json()
+    f = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": "ChIJfer"}
+    ).get_json()
+    for sub, tipo, n in [
+        ("P1", "promotor", 100),
+        ("P2", "detrator", 35),
+        ("P2", "promotor", 1),
+        ("D1", "promotor", 100),
+        ("D2", "detrator", 30),
+        ("D2", "promotor", 2),
+        ("D2", "conversivel", 3),
+    ]:
+        for i in range(n):
+            db_session.add(
+                Verbatim(
+                    empresa_id=e["id"],
+                    fonte_id=f["id"],
+                    local_id=loc["id"],
+                    texto=f"v{i}",
+                    subpilar=sub,
+                    tipo=tipo,
+                    tem_texto=True,
+                    data_criacao_original=_dt(2026, 5, 1),
+                    hash_dedup=f"hfer{sub}{tipo}{i}-{_dt.utcnow().timestamp()}",
+                )
+            )
+    db_session.commit()
+    _stamp_hashes(db_session, e["id"])
+    return e["id"]
+
+
+@pytest.mark.parametrize("tipo", ["diagnostico_pontual", "resumo_executivo"])
+def test_linhas_do_mapa_mostram_a_base_inteira(client_loyall, conta_ferida, tipo):
+    """A ⚠ saía "30 críticas em 0 manifestações": o mapa das feridas não copiava o total."""
+    h = client_loyall.get(f"/empresas/{conta_ferida}/relatorios/{tipo}").get_data(as_text=True)
+    h = " ".join(h.split())
+    assert "(35 críticas para 1 elogio, em 36 manifestações)" in h  # 🚩 P2
+    assert "(30 críticas para 2 elogios, em 35 manifestações)" in h  # ⚠ D2, com conversíveis
+    assert "em 0 manifestações" not in h

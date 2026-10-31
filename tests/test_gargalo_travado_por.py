@@ -127,7 +127,10 @@ def test_impresso_linha_travado_por_substitui_ferida_e_interrompe(app):
     pa.ferida_interna = [{"nome": "Mutualidade", "ratio": 0.02, "det": 286}]
     html = _render_linha(app, pa)
     assert "Interrompe" in html  # o pilar-gargalo é o elo quebrado, não "Âncora"
-    assert "Travado por Pa2 Mutualidade em 0,02 (286 críticas em 294 manifestações)" in html
+    assert (
+        "Travado por Pa2 Mutualidade em 0,02 (286 críticas para 6 elogios, em 294 manifestações)"
+        in html
+    )
     assert "Aparenta saudável" not in html  # mesmo subpilar não sai duas vezes
 
 

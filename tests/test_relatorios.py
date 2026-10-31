@@ -422,7 +422,9 @@ def test_gargalo_por_subpilar_no_impresso_e_nos_payloads(
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/{tipo}").get_data(as_text=True)
 
-    assert "Travado por Pa2 Mutualidade em 0,03 (35 críticas em 36 manifestações)" in h
+    assert (
+        "Travado por Pa2 Mutualidade em 0,03 (35 críticas para 1 elogio, em 36 manifestações)" in h
+    )
     assert "a soma do pilar (1,65)" in h
     par = [p for p in vistos if "gargalo_ratio_de" in p]
     assert par and all(p["gargalo_ratio_de"] == "subpilar" for p in par)

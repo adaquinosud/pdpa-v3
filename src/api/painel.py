@@ -552,6 +552,7 @@ def gargalo_travado_por(
             "nome": NOME_SUBPILAR.get(x, x),
             "ratio": agg[x]["ratio"],
             "det": agg[x]["det"],
+            "prom": agg[x]["prom"],
             "total": agg[x]["total"],
         }
         for x in detalhe["subpilares"]
@@ -705,6 +706,7 @@ def pilares_com_ferida_interna(agg: Dict[str, Dict[str, Any]], piso=None) -> Dic
                 "subpilar": sub,
                 "ratio": agg[sub]["ratio"],
                 "det": agg[sub]["det"],
+                "prom": agg[sub]["prom"],
                 "total": agg[sub]["total"],
             }
             for sub in criticos

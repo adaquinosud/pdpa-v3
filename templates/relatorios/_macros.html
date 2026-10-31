@@ -44,17 +44,19 @@
 
 {% macro linha_abaixo_do_pilar(p, colspan=6) -%}
 {%- if p.gargalo_por %}
-    <tr><td colspan="{{ colspan }}" style="background:#fdecec;color:#8B2020;font-size:8.5pt;padding:2pt 6pt">🚩 Travado por {% for sp in p.gargalo_por %}{{ sp.subpilar }} {{ sp.nome }} em {{ sp.ratio | virg }} ({{ base(sp.det, sp.total) }}){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar ({{ p.ratio | virg }}) dilui o buraco, mas é este subpilar que quebra a sequência.</td></tr>
+    <tr><td colspan="{{ colspan }}" style="background:#fdecec;color:#8B2020;font-size:8.5pt;padding:2pt 6pt">🚩 Travado por {% for sp in p.gargalo_por %}{{ sp.subpilar }} {{ sp.nome }} em {{ sp.ratio | virg }} ({{ base(sp.det, sp.prom, sp.total) }}){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar ({{ p.ratio | virg }}) dilui o buraco, mas é este subpilar que quebra a sequência.</td></tr>
 {%- elif p.ferida_interna %}
-    <tr><td colspan="{{ colspan }}" style="background:#fef7ed;color:#92400e;font-size:8.5pt;padding:2pt 6pt">⚠ Aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ base(sp.det, sp.total) }}){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</td></tr>
+    <tr><td colspan="{{ colspan }}" style="background:#fef7ed;color:#92400e;font-size:8.5pt;padding:2pt 6pt">⚠ Aparenta saudável, mas carrega {% for sp in p.ferida_interna %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ base(sp.det, sp.prom, sp.total) }}){% if not loop.last %}, {% endif %}{% endfor %} — a soma do pilar dilui o buraco.</td></tr>
 {%- endif %}
 {%- endmacro %}
 
 
-{# A base de um ratio, por extenso: "3 críticas em 4 manifestações". Mostrar em quanta
-   coisa o número se apoia, em vez de rotular (decisão de 30/out — sem selo no impresso). #}
-{% macro base(det, total) -%}
-{{ det or 0 }} crítica{{ 's' if (det or 0) != 1 }} em {{ total or 0 }} manifestaç{{ 'ão' if (total or 0) == 1 else 'ões' }}
+{# A base de um ratio, por extenso: "3 críticas para 1 elogio, em 4 manifestações". Mostrar
+   em quanta coisa o número se apoia, em vez de rotular (decisão de 30/out — sem selo no
+   impresso). Os dois termos do ratio vão juntos: com muito conversível, "10 críticas em 215
+   manifestações" soaria como quase ninguém reclamou, quando só 15 tomaram partido. #}
+{% macro base(det, prom, total) -%}
+{{ det or 0 }} crítica{{ 's' if (det or 0) != 1 }} para {{ prom or 0 }} elogio{{ 's' if (prom or 0) != 1 }}, em {{ total or 0 }} manifestaç{{ 'ão' if (total or 0) == 1 else 'ões' }}
 {%- endmacro %}
 
 {# Sequência de ação: a regra em palavras. O piso de volume decide a ordem por dentro e não

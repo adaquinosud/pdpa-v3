@@ -173,7 +173,7 @@ ordem desperdiça esforço.</p>
   {% for x in d.priorizacao %}
   <span class="ord">{{ loop.index }}º</span>
   <strong>{{ x.subpilar }}</strong> → {{ x.nome }}{% if x.gargalo %} 🚩{% endif %}
-  <span class="muted">(ratio {{ x.ratio | virg }} · {{ M.base(x.det, x.total) }})</span>
+  <span class="muted">(ratio {{ x.ratio | virg }} · {{ M.base(x.det, x.prom, x.total) }})</span>
   {%- if not loop.last %}<span class="sep">|</span>{% endif %}
   {% endfor %}
 </p>
