@@ -5295,6 +5295,14 @@ aplicada onde o impresso mostrava ratio sem base: a linha 🚩/⚠ do Mapa de La
 detratores" → "28 críticas para 3 elogios, em 31 manifestações") e a faixa de 12 subpilares
 do Resumo (esta só com o total embaixo do ratio).
 
+**Adiado com motivo — a faixa "Onde investir primeiro" do Resumo fica só com o total.** O mesmo
+defeito dos conversíveis vale para ela, e não se mexe agora (decisão de 30/out): (1) é
+recapitulação no fim do documento, não onde se decide — quem decide lê a Sequência e o Plano
+de Ação, já corrigidos; (2) a 6,5pt, "28/3 · 31" vira notação cifrada, pior que nenhuma;
+(3) **o que decide:** a faixa carrega os selos N1/N2/N4, que saem antes da legenda deles — o
+próximo item da fila — e ela vai ser redesenhada de qualquer jeito. Mexer agora é arrumar
+duas vezes. Entra no redesenho da faixa.
+
 **Defeito pego antes do merge (meu):** na primeira versão a linha ⚠ saía "30 críticas em **0**
 manifestações" — o mapa das feridas dos dois relatórios copiava `det` e não `total`, e o
 teste da macro passava um dict pronto. Corrigido no mesmo passo dos elogios, com teste de
@@ -6087,6 +6095,16 @@ deploy: os dois PDFs da 29 contra esta tabela.
   🔒 **Regra:** gerador novo (ou mexido) loga — ou persiste — o texto bruto, o motivo de
   parada (`stop_reason`) e o uso de tokens de toda chamada que não virou resultado, com a
   empresa, o escopo e o alvo. Falha sem bruto não é falha registrada.
+
+- **TESTE DE LINHA IMPRESSA GERA O RELATÓRIO — NÃO MONTA O DADO NA MÃO.** Registrada em 30/out
+  (§6.32): a linha ⚠ do Mapa de Lastro saiu "30 críticas em 0 manifestações" na branch, com o
+  teste da macro verde — ele passava um dict pronto, com `total`, e o caminho real (o mapa das
+  feridas dos dois relatórios) não copiava o `total`. Só apareceu porque o relatório foi
+  renderizado. Pego antes do merge; teria ido para documento de cliente. Mesma família da
+  §5 do CLAUDE.md: o dado viaja por montagens intermediárias que o teste da ponta pula.
+  🔒 **Regra:** linha que vai para o impresso tem teste que gera o relatório pela rota (dado
+  no banco → montagem → template) e confere o texto. Teste de macro com dado montado à mão
+  pode existir ao lado, para o plural e o formato, mas não substitui o de render.
 
 ---
 
