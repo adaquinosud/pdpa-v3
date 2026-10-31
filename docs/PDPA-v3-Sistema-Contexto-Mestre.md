@@ -5349,6 +5349,13 @@ de Ação de Precisão (relatado, não conferido no banco; visto em dois renders
 linhas "P1 Calibração da Promessa" e "P2 Qualidade da Entrega"). Conferência depois do
 deploy: os dois PDFs da 29 contra esta tabela.
 
+**Verificação passou (31/out; deploy `113e234` confirmado no `/healthz` em 30/out 21:51, três
+leituras).** Dez de dez contra a previsão, lido nos PDFs da 29 pelo Alexandre e pelo outro
+Claude (relatado — eu não li os PDFs): a sequência saiu idêntica nos dois relatórios, com o
+singular em "1 elogio"; a seção por frente bateu linha a linha com a tabela (D2 e Pa2 em cinco
+frentes, Pa2 e A2 em produto e preço, P1 fora de todas); a linha do Mapa de Lastro traz a
+base; nenhuma linha "em 0 manifestações"; título igual nos dois, com a regra embaixo.
+
 **Ficou fora, com motivo:**
 - **A tela (Explorar › Planos) não muda nesta fatia.** Ela ordena as estruturais pela
   prioridade derivada do RÓTULO da faixa (`_FAIXA_PRIORIDADE`, `consolidar.py:20` — o padrão
@@ -5359,7 +5366,11 @@ deploy: os dois PDFs da 29 contra esta tabela.
   < 3 meses na Governança. Fila.
 - **"verbatins" no impresso** (caixa de Engajamento, "alta · 1227 verbatins") é jargão nosso
   num documento que vai para fora: unificar com "manifestações". Fila. Idem o cabeçalho "Det."
-  das tabelas de Confronto.
+  das tabelas de Confronto. **Mesma frente, visto no PDF da 29 depois do deploy:** o documento
+  fala três línguas para as mesmas duas coisas — a linha nova diz "28 críticas para 3 elogios,
+  em 31 manifestações", a justificativa do modelo logo abaixo diz "28 detratores em 31
+  respostas" e a caixa de Engajamento diz "1227 verbatins". Já existia; a correção deixou
+  visível. Inclui o texto de modelo (prompt + cache), não só o template.
 - O selo de Engajamento já aparece no impresso com 🔴 ("🔴 baixa") — colisão anterior, menor,
   porque leva o rótulo ao lado. Fila.
 
