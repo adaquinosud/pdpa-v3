@@ -5374,6 +5374,79 @@ base; nenhuma linha "em 0 manifestações"; título igual nos dois, com a regra 
 - O selo de Engajamento já aparece no impresso com 🔴 ("🔴 baixa") — colisão anterior, menor,
   porque leva o rótulo ao lado. Fila.
 
+### 6.33 Legenda dos níveis e horizontes do impresso — o que as sondas de 31/out mediram
+
+Inventário antes da especificação da frente da legenda. Sonda `scripts/sonda_niveis.py`
+(só leitura, US$ 0, `55afbea`, saída relatada pelo Alexandre; empresa 4 fora pelo veto).
+
+**Níveis N1–N4 só existem nos templates.** Texto de modelo em cache que cita "N1"–"N5":
+**zero** em 405 leituras, 1.734 sugestões e 167 seções de `relatorio_cache`. "nível" aparece
+em 50 leituras, 71 sugestões e 17 seções; "faixa" em 82, 247 e 41 — português corrente, fica.
+Nada a regenerar por causa da troca. (Se um dia regenerar o `relatorio_cache` que cita
+"nível"/"faixa": 11 empresas, US$ 0,57 = R$ 3,30, Sonnet, câmbio 5,80.)
+
+**Onde N1–N4 aparecem no impresso (código):** Diagnóstico Pontual — tabela "Os 5 Níveis de
+Saúde" escrita à mão (`diagnostico_pontual.html:72`, diz cinco e lista quatro; "≤ 0,5" está
+errado no ponto exato, o código é `< 0,5`), tabela de pilares, Confronto, "O que move de N2 para
+N3", quarta tabela; Resumo — pilares, Confronto, faixa "Onde investir primeiro"; Mapa de Lastro
+nos dois (cores, sem "N"); Longitudinal — legenda "Mudança de nível", matriz (cor), quebras.
+**Duas cópias do mapa faixa→nível:** macro `faixa_to_n` (`_macros.html:29`, lista de rótulos —
+§8) e `_NIVEL` (`diagnostico_longitudinal.py:46`).
+
+**O N2 esconde o critério que o próprio impresso usa.** Fraco (0,5–1,0) está abaixo do empate e
+trava; atenção (1,0–2,0) não. É exatamente o corte da Sequência de ação (§6.32). O P1 da 29 em
+1,90 ficou fora da seção por ser atenção — e na legenda impressa está no mesmo N2 de um
+subpilar em 0,8, que entraria. **Escopo da frente:** a linha N2 vira duas, com faixa e efeito no
+Lastro de cada uma; o mapa faixa→nível vira fonte única.
+
+**Defeito, entra na frente:** o Longitudinal imprime o nome cru da faixa — "caiu de atencao para
+critico", sem acento — na tabela de quebras (`diagnostico_longitudinal.html:140`) e nos Próximos
+Passos (`diagnostico_longitudinal.py:273`); o mesmo valor vai ao payload do modelo (`:246`).
+
+**Quebras do Longitudinal com cinco faixas em vez de quatro níveis:** 76 → 79 na base inteira
+(+3, todas fraco↔atenção, nas empresas 5, 17 e 25). Pode fazer.
+
+**Item próprio — quebras do Longitudinal em base pequena:** **65 das 79** quebras estão em
+célula com menos de 30 manifestações (empresa 5: 12 de 12; 15: 6 de 6; 29: 5 de 5; 17: 18 de
+22). A seção reporta em boa parte oscilação de base pequena, como "ruptura de operação". Mesma
+família do A2 com 4 manifestações (§6.32). Sem piso hoje. Fila, frente própria.
+
+**Defeito de render — célula de Ocorrências em branco nos Temas.** O número existe ("atendimento
+personalizado" = 17, sonda). Reproduzido localmente com PDF real (WeasyPrint): **a linha da
+tabela quebra entre páginas** — nome e número ficam no pé de uma página, a continuação do
+exemplo desce para a seguinte com as colunas Tema e Ocorrências vazias; nome em duas linhas pode
+se partir também. Nenhum template tem `break-inside: avoid` em linha de tabela. Não conferido
+contra o PDF da 29 (não li o arquivo). Conserto provável: uma regra de CSS em `base_pdf.html`,
+vale para todas as tabelas dos impressos.
+
+**Temas × base na mesma página.** O impresso conta vínculos tema↔verbatim sem filtro de data; o
+motor só vincula a janela dos temas (180 dias antes da última coleta, com texto). Na 29: 74
+detratores na base do relatório, 11 dentro da janela, 8 ligados a tema; a tabela soma 6.
+
+**Horizontes — proposta de janela única RETIRADA.** O outro Claude propôs alinhar o diagnóstico
+em 180 dias sem ter lido o §4.40.1 e a trava do §7, que já decidiram: horizonte segue o que o
+indicador mede; ratio e Índice valem período inteiro. Retirada pelo próprio proponente.
+**Mas a segunda metade da trava não é cumprida no impresso:** "a tela declara o horizonte de
+cada seção" — o impresso não declara nada, e por isso Temas e o resto se contradizem na mesma
+página. **Defeito**; conserto = uma linha por seção com o período; entra na frente da legenda
+(mesmos templates).
+- A prova de agosto cobriu só o Índice PDPA (+0,2 a +2,1). Gargalo e Sequência no período inteiro
+  × 180 dias: medição em `scripts/sonda_horizonte.py` parte B (branch `chore/sonda-horizonte`,
+  a mergear). Se quase nenhum gargalo muda, a decisão fica confirmada com prova; se muitos
+  mudam, decisão do Alexandre.
+- **Achados no caminho, não medidos:** o Longitudinal ancora os 6 trimestres em HOJE
+  (`_ultimos_quarters`, `utcnow`), contra a regra do §7 de ancorar no dado; e a linha "180 dias —
+  Parecer" do §4.40.1 parece desatualizada (não há 180 no `parecer.py`; a conduta vem da janela da
+  coleta RA + maturidade de 30 dias). Ler a função inteira antes de corrigir a tabela.
+
+**Poda de verbatim.** Nenhuma rotina automática apaga, arquiva ou ignora verbatim antigo. A base
+de cada empresa cresce sem limite. A única poda é `flask retencao-aplicar` (`app.py:242`):
+manual, **sem cron**, DELETE de tudo com mais de 18 meses (`PDPA_RETENCAO_MESES`) **em todas as
+empresas de uma vez**, irreversível. Se já rodou em produção: a `sonda_horizonte` lista as
+execuções em `eventos_manutencao`. Apagar o antigo continua fora de cogitação (§4.41: custa
+regeneração de temas, e o Longitudinal vive do histórico); se o diagnóstico precisar de janela,
+o caminho é filtrar no cálculo.
+
 ---
 
 ## 7. Decisões de método travadas (não reabrir sem Alexandre)
