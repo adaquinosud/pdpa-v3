@@ -5415,9 +5415,18 @@ família do A2 com 4 manifestações (§6.32). Sem piso hoje. Fila, frente próp
 personalizado" = 17, sonda). Reproduzido localmente com PDF real (WeasyPrint): **a linha da
 tabela quebra entre páginas** — nome e número ficam no pé de uma página, a continuação do
 exemplo desce para a seguinte com as colunas Tema e Ocorrências vazias; nome em duas linhas pode
-se partir também. Nenhum template tem `break-inside: avoid` em linha de tabela. Não conferido
-contra o PDF da 29 (não li o arquivo). Conserto provável: uma regra de CSS em `base_pdf.html`,
-vale para todas as tabelas dos impressos.
+se partir também. Nenhum template tem `break-inside: avoid` em linha de tabela. **Sintoma
+da 29 (descrito pelo outro Claude, que leu o PDF):** no alto da página, cabeçalho repetido,
+"atendimento personalizado" e o exemplo presentes, só Ocorrências vazia; "atendimento 18"
+completa no pé da página anterior. **Reproduzido com essa aparência exata** (varredura de altura
+antes da tabela de promotores, PDF real): o **17 fica sozinho no pé da página de cima**, numa
+linha sem nome e sem exemplo — célula de uma linha cabe, nome e exemplo de duas linhas descem.
+Mesma causa das duas aparências: a linha se parte. **Consertado** com `tr { break-inside: avoid;
+}` em `base_pdf.html` (vale para os cinco impressos que o estendem; o Parecer tem CSS próprio e
+só tabelas de layout). Teste `test_pdf_linha_inteira.py` gera PDF e varre a quebra: falha sem a
+regra, passa com ela; **pula** onde não há WeasyPrint com libs nativas (a suíte local pula).
+Conferência pendente: re-render dos dois relatórios da 29 depois do deploy — nenhuma tabela com
+buraco branco grande.
 
 **Temas × base na mesma página.** O impresso conta vínculos tema↔verbatim sem filtro de data; o
 motor só vincula a janela dos temas (180 dias antes da última coleta, com texto). Na 29: 74
@@ -5477,8 +5486,36 @@ comparando o gargalo do período inteiro com o dos últimos 180 dias. Sempre esc
 não se distingue de "não calculado" (§9). Travas: **uma régua** (`gargalo_detalhe` com
 `agregar_subpilares(desde=...)`, mesmo piso, nenhuma regra nova); **uma definição de "últimos
 180 dias"** (`temas.janela.data_corte`, âncora na última coleta, não hoje); **fora do modelo**
-(não entra em prompt nem narrativa; custo zero). Frases a definir. Casos e a previsão por empresa
-para conferir o PDF: ver as decisões abertas abaixo — o caso "some" não é "sem volume".
+(não entra em prompt nem narrativa; custo zero).
+
+**Correção registrada (31/out, do outro Claude, que a escreveu):** a leitura "na Unimed o gargalo
+some por ausência de diagnóstico por falta de volume" não se sustenta — a 29 tem 435
+manifestações na janela e nenhum pilar travado. Retirada por ele.
+
+**Decisões (31/out, aprovadas):**
+1. **Gargalo some na janela:** fato com os números, sem interpretação — "Nos últimos 180 dias
+   nenhum pilar trava (435 manifestações; 9 de 10 subpilares com menos de 30)". Os dois números
+   saem do mesmo `agregar_subpilares`; nenhuma régua nova. Redação final no PDF.
+2. **Sem gargalo nos dois períodos:** imprime (§9) — "Sem gargalo no período inteiro nem nos
+   últimos 180 dias".
+3. **"O mesmo gargalo" = pilar E subpilar eleitor.** "P(P1) → P(P2)" é achado e sai.
+4. **O 1º da Sequência entra na MESMA linha:** a linha compara o gargalo; quando o 1º da
+   Sequência também muda, acrescenta uma oração; quando só o 1º muda, a linha fala só dele.
+
+**Previsão por empresa (da sonda; conferir o PDF contra ela):**
+```
+5  Carbel        gargalo igual (D)            · 1º da Sequência muda: P2 → D1
+6  Pardini       igual (P), 1º igual (P1)
+7  AmBev         igual (D/D1), 1º igual (D1)
+15 Club Med (t.) igual (P), 1º igual (P2)
+16 Club Med BR   gargalo muda: P1 → Pa2       · 1º da Sequência muda: P1 → Pa2
+17 Localiza      igual (P/P1), 1º igual (P1)
+18 (teste)       igual (A), 1º igual (D2)
+20 (teste)       sem gargalo nos dois períodos, 1º igual (D1)
+25 Lab. Marcelo  nenhum pilar trava em 180d (8 de 10 subpilares < 30), 1º igual (P1)
+27 BEXP          gargalo igual (P)            · 1º da Sequência muda: Pa2 → P1
+29 Unimed        nenhum pilar trava em 180d (435 manif.; 9 de 10 < 30) · 1º muda: D2 → P1
+```
 - **Achado no caminho, não medido:** a linha "180 dias — Parecer" do §4.40.1 parece desatualizada
   (não há 180 no `parecer.py`; a conduta vem da janela da coleta RA + maturidade de 30 dias). Ler a
   função inteira antes de corrigir a tabela.
