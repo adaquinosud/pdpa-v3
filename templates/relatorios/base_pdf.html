@@ -104,6 +104,9 @@
 
   /* ── Tabelas ────────────────────────────────────────────────────────────── */
   table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 4pt 0 8pt; }
+  /* Linha inteira na mesma página: partida, a célula de uma linha só (Ocorrências) ficava
+     sozinha no pé da página e nome + exemplo desciam com a coluna vazia (Temas da 29, 31/out). */
+  tr { break-inside: avoid; }
   th, td { border-bottom: 1px solid var(--linha); padding: 4pt 6pt;
            text-align: left; vertical-align: top; }
   th {
