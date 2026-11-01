@@ -5430,10 +5430,55 @@ indicador mede; ratio e Índice valem período inteiro. Retirada pelo próprio p
 cada seção" — o impresso não declara nada, e por isso Temas e o resto se contradizem na mesma
 página. **Defeito**; conserto = uma linha por seção com o período; entra na frente da legenda
 (mesmos templates).
-- A prova de agosto cobriu só o Índice PDPA (+0,2 a +2,1). Gargalo e Sequência no período inteiro
-  × 180 dias: medição em `scripts/sonda_horizonte.py` parte B (branch `chore/sonda-horizonte`,
-  a mergear). Se quase nenhum gargalo muda, a decisão fica confirmada com prova; se muitos
-  mudam, decisão do Alexandre.
+- A prova de agosto cobriu só o Índice PDPA (+0,2 a +2,1). **Gargalo e Sequência medidos em
+  31/out** (`scripts/sonda_horizonte.py`, `13492f5`, saída colada pelo Alexandre; empresa 4 fora).
+
+**Medido (sonda_horizonte, 31/out).** Base: 41.269 verbatins, 42% dentro dos 180 dias; 9.139
+detratores, 48% dentro. **`retencao-aplicar` nunca rodou** (nenhuma linha em
+`eventos_manutencao`) — nenhum verbatim foi podado até hoje.
+
+```
+empresa                   gargalo inteiro -> 180d   1º seq inteiro -> 180d   subs < 30 na janela
+5  Grupo Carbel           D -> D                    P2 -> D1                 8 de 11
+6  Hermes Pardini         P -> P                    P1 -> P1                 3 de 12
+7  AmBev Service Desk     D(D1) -> D(D1)            D1 -> D1                 4 de 8
+15 Club Med (teste)       P -> P                    P2 -> P2                 9 de 11
+16 Club Med Brasil        P(P1) -> Pa(Pa2)          P1 -> Pa2                7 de 12
+17 Localiza               P(P1) -> P(P1)            P1 -> P1                 3 de 12
+18 Empresa Pesquisa (t.)  A -> A                    D2 -> D2                 5 de 5
+20 Teste Dener I (t.)     — -> —                    D1 -> D1                 5 de 5
+25 Lab. Marcelo Magalhães P -> —                    P1 -> P1                 8 de 10
+27 Grupo BEXP             P -> P                    Pa2 -> P1                8 de 9
+29 Unimed Circuito        D(D2) -> —                D2 -> P1                 9 de 10
+gargalo muda em 3 de 11; 1º da Sequência muda em 4 de 11
+```
+(Das 11, três são teste — 15, 18, 20. Nas 8 reais o gargalo muda nas mesmas 3.)
+
+**Dois motivos diferentes, e é o que importa:**
+- **Club Med Brasil — muda de verdade.** P1 no período inteiro, Pa2 nos últimos 180 dias, com
+  volume de sobra (14.596 verbatins, 4.783 na janela, 7 de 12 subpilares abaixo de 30). O
+  gargalo estrutural está sendo puxado por dez anos de base.
+- **Unimed (29) e Lab. Marcelo (25) — o gargalo some.** ⚠️ Leitura do código, não do relato:
+  `gargalo_detalhe` devolve `None` quando **nenhum pilar está quebrado** — a soma do pilar não tem
+  piso; só o subpilar crítico exige 30. Na 29, a janela tem 435 manifestações, nenhum pilar fica
+  abaixo do empate pela soma, e o D2 não elege porque tem menos de 30. "—" é "nada quebrado na
+  janela", que mistura "melhorou" com "base pequena por subpilar". Não é "sem volume" — a
+  empresa tem volume; os subpilares não.
+- Fora do gargalo: em Carbel e BEXP o gargalo é o mesmo e o **1º da Sequência muda** (P2 → D1;
+  Pa2 → P1).
+
+**Conclusão (aprovada pelo Alexandre):** a decisão do §4.40.1 de usar o período inteiro se
+confirma, agora com prova — no volume atual, 180 dias não diagnostica a maioria das contas. Mas
+a Club Med Brasil mostra que o diagnóstico estrutural pode estar desatualizado sem ninguém ver.
+
+**Especificação recebida (31/out), vai junto com a frente da legenda.** Uma linha nova, calculada
+e impressa, junto do gargalo no Mapa de Lastro dos dois impressos (lugar do "Travado por"),
+comparando o gargalo do período inteiro com o dos últimos 180 dias. Sempre escrita — silêncio
+não se distingue de "não calculado" (§9). Travas: **uma régua** (`gargalo_detalhe` com
+`agregar_subpilares(desde=...)`, mesmo piso, nenhuma regra nova); **uma definição de "últimos
+180 dias"** (`temas.janela.data_corte`, âncora na última coleta, não hoje); **fora do modelo**
+(não entra em prompt nem narrativa; custo zero). Frases a definir. Casos e a previsão por empresa
+para conferir o PDF: ver as decisões abertas abaixo — o caso "some" não é "sem volume".
 - **Achado no caminho, não medido:** a linha "180 dias — Parecer" do §4.40.1 parece desatualizada
   (não há 180 no `parecer.py`; a conduta vem da janela da coleta RA + maturidade de 30 dias). Ler a
   função inteira antes de corrigir a tabela.
