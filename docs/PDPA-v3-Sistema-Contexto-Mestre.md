@@ -5434,10 +5434,19 @@ página. **Defeito**; conserto = uma linha por seção com o período; entra na 
   × 180 dias: medição em `scripts/sonda_horizonte.py` parte B (branch `chore/sonda-horizonte`,
   a mergear). Se quase nenhum gargalo muda, a decisão fica confirmada com prova; se muitos
   mudam, decisão do Alexandre.
-- **Achados no caminho, não medidos:** o Longitudinal ancora os 6 trimestres em HOJE
-  (`_ultimos_quarters`, `utcnow`), contra a regra do §7 de ancorar no dado; e a linha "180 dias —
-  Parecer" do §4.40.1 parece desatualizada (não há 180 no `parecer.py`; a conduta vem da janela da
-  coleta RA + maturidade de 30 dias). Ler a função inteira antes de corrigir a tabela.
+- **Achado no caminho, não medido:** a linha "180 dias — Parecer" do §4.40.1 parece desatualizada
+  (não há 180 no `parecer.py`; a conduta vem da janela da coleta RA + maturidade de 30 dias). Ler a
+  função inteira antes de corrigir a tabela.
+
+**Item próprio — o Longitudinal ancora os trimestres em HOJE, não no dado.** `montar_dados` pega
+`_ultimos_quarters(6)`, que parte de `datetime.utcnow()`
+(`diagnostico_longitudinal.py:_ultimos_quarters`). Contra a regra do §7 ("ancorar em `MAX(data)`
+e não em hoje, senão uma pausa de coleta esvazia a janela e o indicador some") — a mesma que a
+Previsibilidade, a Trajetória e a Concentração já seguem. Consequência: **conta parada vai
+mostrando trimestres vazios à medida que o tempo passa, sem nada ter mudado**, e as quebras
+somem com eles; o documento lê ausência de coleta nossa como ausência de dado (§9). Não é da
+frente da legenda; mesma família da semana. Fila, frente própria; antes de corrigir, medir
+quantas empresas têm hoje trimestre vazio só por causa da âncora.
 
 **Poda de verbatim.** Nenhuma rotina automática apaga, arquiva ou ignora verbatim antigo. A base
 de cada empresa cresce sem limite. A única poda é `flask retencao-aplicar` (`app.py:242`):
