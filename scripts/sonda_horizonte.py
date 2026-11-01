@@ -10,6 +10,12 @@ ENTRA, mesma semântica do ``filtro_janela``), dentro de 15 meses (janela de col
 e o mesmo só para detratores. A âncora é a dos temas de propósito: é a régua que produziu os
 "11 detratores dentro da janela" da sonda_niveis.
 
+Parte B (pedido de 31/out): a decisão de agosto (ratio no período inteiro) foi provada só
+para o Índice PDPA. Por empresa, o gargalo (``gargalo_detalhe``, régua canônica) e o 1º da
+Sequência de ação (``sequencia_de_acao``) com o período inteiro × com a janela dos temas
+(``agregar_subpilares(desde=data_corte)``), e quantos subpilares com dado ficam abaixo do piso
+de 30 na janela curta. Não muda nada: mede se a decisão continua valendo para o gargalo.
+
 No fim: toda execução registrada de ``flask retencao-aplicar`` (a única poda de verbatim que
 existe; manual, sem cron) em ``eventos_manutencao``.
 """
@@ -19,6 +25,9 @@ from datetime import timedelta
 
 from sqlalchemy import func
 
+from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+from src.api.painel import gargalo_detalhe, sequencia_de_acao
+from src.diagnostico.leituras import agregar_subpilares
 from src.models.empresa import Empresa
 from src.models.evento_manutencao import EventoManutencao
 from src.models.verbatim import Verbatim as V
@@ -72,6 +81,39 @@ with db_session() as s:
         f"  TOTAL: {tot['t']} verbatins, {tot['j']} em 180d ({_pct(tot['j'], tot['t'])});",
         f"{tot['d']} detratores, {tot['dj']} em 180d ({_pct(tot['dj'], tot['d'])})",
     )
+    print("")
+    print("== B. GARGALO e 1o da Sequencia: periodo inteiro x janela de 180 dias")
+    print("empresa | gargalo inteiro -> 180d | 1o seq inteiro -> 180d | subs < 30 na janela")
+
+    def _g(agg):
+        d = gargalo_detalhe(agg)
+        if not d:
+            return "—"
+        el = (d.get("eleitor") or {}).get("subpilar")
+        return d["pilar"] + (f"({el})" if el else "")
+
+    n_emp = mud_g = mud_s = 0
+    for emp, nome in emps:
+        if emp in PULA:
+            continue
+        cheio = agregar_subpilares(s, emp, None)
+        if not cheio:
+            continue
+        corte = data_corte(emp, s)
+        curto = agregar_subpilares(s, emp, None, desde=corte) if corte else cheio
+        g1, g2 = _g(cheio), _g(curto)
+        s1 = (sequencia_de_acao(cheio)[0] or ["—"])[0]
+        s2 = (sequencia_de_acao(curto)[0] or ["—"])[0]
+        baixos = sum(1 for d in curto.values() if (d.get("total") or 0) < VOLUME_CONFIANCA_ALTA)
+        n_emp += 1
+        mud_g += g1 != g2
+        mud_s += s1 != s2
+        marca = " <-- muda" if (g1 != g2 or s1 != s2) else ""
+        print(
+            f"  {emp} {nome[:22]!r} | {g1} -> {g2} | {s1} -> {s2} |",
+            f"{baixos} de {len(curto)}{marca}",
+        )
+    print(f"  TOTAL: {n_emp} empresas; gargalo muda em {mud_g}; 1o da Sequencia muda em {mud_s}")
     print("")
     print("retencao-aplicar executado (eventos_manutencao, tipo=retencao_verbatins):")
     ev = (
