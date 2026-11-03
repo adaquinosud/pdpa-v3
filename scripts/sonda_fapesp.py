@@ -105,6 +105,12 @@ with db_session() as s:
         print(f"  {_rotulo(setor)} | {len(es)} | {nl} | {nv} | {nc}")
     print(f"  TOTAL | {len(ids)} | {tl} | {tv} | {tc}")
     print("organizações com pelo menos 1 manifestação:", sum(1 for e in ids if vb.get(e)))
+    print("")
+    print("distribuição por organização, da maior para a menor (sem nome; setor ao lado):")
+    print("posição | setor | manifestações | classificadas")
+    ordem_v = sorted((e for e in ids if vb.get(e)), key=lambda e: -vb[e][0])
+    for i, e in enumerate(ordem_v, 1):
+        print(f"  {i} | {_rotulo(emps[e])} | {vb[e][0]} | {vb[e][1]}")
 
     print("")
     print("manifestações por fonte (conector) | total | classificadas")
@@ -258,6 +264,26 @@ with db_session() as s:
             .all()
         ):
             print(f"  {mes} | {n} | {virg(usd or 0, 4)}")
+        print("Avaliador, período inteiro, leituras prontas, por formato:")
+        print("  formato | modelo | leituras | págs médias | US$ mín | US$ médio | US$ máx")
+        for fmt, mod, n, pg, lo, md, hi in (
+            s.query(
+                AvaliadorAnalise.formato,
+                AvaliadorAnalise.modelo,
+                func.count(AvaliadorAnalise.id),
+                func.avg(AvaliadorAnalise.n_paginas),
+                func.min(AvaliadorAnalise.custo_usd),
+                func.avg(AvaliadorAnalise.custo_usd),
+                func.max(AvaliadorAnalise.custo_usd),
+            )
+            .filter(AvaliadorAnalise.status == "pronta")
+            .group_by(AvaliadorAnalise.formato, AvaliadorAnalise.modelo)
+            .all()
+        ):
+            print(
+                f"  {fmt} | {mod} | {n} | {virg(float(pg or 0), 1)} |",
+                f"{virg(lo or 0, 4)} | {virg(float(md or 0), 4)} | {virg(hi or 0, 4)}",
+            )
     except Exception as exc:
         s.rollback()
         print(f"  não medido: {type(exc).__name__}")
