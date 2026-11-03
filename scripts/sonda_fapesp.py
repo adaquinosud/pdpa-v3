@@ -154,6 +154,7 @@ with db_session() as s:
     print("setor | ano | organizações com relatório | seções")
     for (setor, ano), (no, ns) in sorted(agg.items()):
         print(f"  {_rotulo(setor)} | {ano} | {no} | {ns}")
+    print(f"organizações com ao menos uma seção, qualquer ano: {len({e for e, _, _ in rel})}")
     print("")
     print("Avaliador de documentos (avaliador_analises) por setor e ano:")
     try:
@@ -356,6 +357,10 @@ with db_session() as s:
         print(f"  {sub} | {dist.get(sub, 0)} | {_pct(dist.get(sub, 0), tot)}")
     fora12 = sum(n for k, n in dist.items() if k not in SUBPILARES_ORDEM)
     print(f"  total {tot}; fora dos 12: {fora12}")
+    if tot:  # taxa com 4 casas: é o p do piso, 1 casa de % não basta
+        rara = min(SUBPILARES_ORDEM, key=lambda x: dist.get(x, 0))
+        n_rara = dist.get(rara, 0)
+        print(f"  posição mais rara: {rara} | {n_rara} de {tot} | taxa {virg(n_rara / tot, 4)}")
 
     print("")
     print("o mesmo por setor (% dentro do setor):")
