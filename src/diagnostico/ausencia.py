@@ -1,95 +1,57 @@
-"""Posição vaga: o painel afirma que uma das doze posições está vazia numa empresa.
+"""Posição sem relato: o painel mostra qual das doze posições não tem relato no escopo.
 
-O piso de confiança (30, ``VOLUME_CONFIANCA_ALTA``) responde "dá para ler?". Este módulo
-responde outra pergunta, "está vazia?", com outro piso: o de ausência.
+Dois estados por posição, em qualquer escopo (empresa, agrupamento ou loja):
+- ``presente``: 1+ manifestação ancorada COM TEXTO na posição;
+- ``sem_relato``: zero com texto. Só-nota é nota, não relato: não muda o estado (o número
+  dela vai na própria linha).
 
-Três estados por posição, no escopo da EMPRESA:
-- ``presente``: 1+ manifestação ancorada COM TEXTO na posição (o volume segue no selo);
-- ``vaga``: zero, e o total ancorado com texto da empresa >= piso de ausência;
-- ``indeterminada``: zero, e o total < piso, ou não existe piso (p = 0).
+Ao lado do zero, o teto: com N manifestações ancoradas com texto no escopo e zero na posição,
+o limite superior de 95% da taxa real é 1 − α^(1/N), α = 0,05. Usa só o próprio escopo: nada
+de outras empresas, que não são intercambiáveis (a chance de uma fala por posição depende do
+setor) e cujo dado não entra na leitura de outro cliente. Sem limiar: o teto carrega a própria
+força (N = 20 dá 13,9%, N = 1.219 dá 0,245%).
 
-Piso de ausência: N = ln(α) ÷ ln(1 − p), arredondado para cima, α = 0,05, p = taxa da
-posição mais rara na REFERÊNCIA. É o volume a partir do qual, se a posição tivesse ao menos
-a taxa da mais rara, a chance de ver zero fica abaixo de 5%. Calculado na hora: depende da
-distribuição do corpus, que muda a cada coleta.
+"Sem relato" descreve o que foi coletado. Chamar a posição de vaga é leitura, não estado, e
+"posição vaga" já é do Avaliador (``src/avaliador/veredito.py``), noutro sentido.
 
-Referência = a base menos a própria empresa (usar a própria seria circular) e menos
-``EMPRESAS_FORA_DA_REFERENCIA``. Denominador = manifestação ancorada COM TEXTO, na empresa e
-na referência: a só-nota recebe o subpilar dominante de um pilar por proporção
-(``distribuicao_simbolos``), nunca cai numa posição rara, e só inflaria o total.
-
-"Vaga" quer dizer vaga NO QUE FOI COLETADO: a referência mistura fontes, e uma empresa
-coletada numa fonte só pode zerar uma posição que a fonte não produz.
+Contagens vêm do mesmo ``agregar_subpilares`` do Confronto, no mesmo escopo: com texto +
+só-nota = o volume da linha na tabela de cima, por construção.
 """
 
-import math
 from typing import Any, Dict, Optional
 
 ALFA_AUSENCIA = 0.05
 
-# Fora da referência, declarado na tela. 4 = conta sob veto (não se roda nada nela);
-# 15, 18, 20 = contas de teste.
-EMPRESAS_FORA_DA_REFERENCIA = {4: "conta sob veto", 15: "teste", 18: "teste", 20: "teste"}
-
-PRESENTE, VAGA, INDETERMINADA = "presente", "vaga", "indeterminada"
+PRESENTE, SEM_RELATO = "presente", "sem_relato"
 
 
-def piso_ausencia(p: float, alfa: float = ALFA_AUSENCIA) -> Optional[int]:
-    """N = ln(α) ÷ ln(1 − p), para cima. ``None`` quando não existe piso (p fora de (0, 1))."""
-    if not 0 < p < 1:
+def teto_ausencia(n: int, alfa: float = ALFA_AUSENCIA) -> Optional[float]:
+    """1 − α^(1/N): limite superior da taxa real de uma posição com zero em N. ``None`` sem N."""
+    if n <= 0:
         return None
-    return math.ceil(math.log(alfa) / math.log(1 - p))
+    return 1 - alfa ** (1 / n)
 
 
-def estado_posicoes(s, empresa_id: int, fora: Optional[Dict[int, str]] = None) -> Dict[str, Any]:
-    """Estado de cada uma das doze posições da empresa + o cálculo que o sustenta."""
-    from sqlalchemy import func
-
+def estado_posicoes(
+    agg: Dict[str, Dict[str, Any]], agg_texto: Dict[str, Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Estado de cada uma das doze posições + o teto. ``agg`` é o agregado com só-nota e
+    ``agg_texto`` o só-texto, ambos de ``agregar_subpilares`` no escopo da tela."""
     from src.api.painel import SUBPILARES_ORDEM
-    from src.models.verbatim import Verbatim as V
-
-    fora = EMPRESAS_FORA_DA_REFERENCIA if fora is None else fora
-    excluidas = set(fora) | {empresa_id}
-    base = s.query(V.subpilar, func.count(V.id)).filter(
-        V.subpilar.in_(SUBPILARES_ORDEM), V.tem_texto.is_(True)
-    )
-    proprio = dict(base.filter(V.empresa_id == empresa_id).group_by(V.subpilar).all())
-    ref = dict(base.filter(V.empresa_id.notin_(excluidas)).group_by(V.subpilar).all())
-    so_nota = dict(
-        s.query(V.subpilar, func.count(V.id))
-        .filter(
-            V.empresa_id == empresa_id,
-            V.subpilar.in_(SUBPILARES_ORDEM),
-            V.tem_texto.is_(False),
-        )
-        .group_by(V.subpilar)
-        .all()
-    )
-
-    ref_total = sum(ref.values())
-    mais_rara = min(SUBPILARES_ORDEM, key=lambda x: ref.get(x, 0))
-    p = ref.get(mais_rara, 0) / ref_total if ref_total else 0.0
-    piso = piso_ausencia(p)
-    total = sum(proprio.values())
 
     estados = {}
     for sub in SUBPILARES_ORDEM:
-        n = proprio.get(sub, 0)
-        if n > 0:
-            estado = PRESENTE
-        elif piso is not None and total >= piso:
-            estado = VAGA
-        else:
-            estado = INDETERMINADA
-        estados[sub] = {"estado": estado, "n_texto": n, "n_so_nota": so_nota.get(sub, 0)}
-
+        n = agg_texto.get(sub, {}).get("total", 0)
+        estados[sub] = {
+            "estado": PRESENTE if n > 0 else SEM_RELATO,
+            "n_texto": n,
+            "n_so_nota": agg.get(sub, {}).get("total", 0) - n,
+        }
+    total = sum(e["n_texto"] for e in estados.values())
+    teto = teto_ausencia(total)
     return {
         "estados": estados,
-        "total_empresa": total,
-        "referencia_total": ref_total,
-        "mais_rara": mais_rara,
-        "n_mais_rara": ref.get(mais_rara, 0),
-        "p": p,
-        "piso": piso,
-        "fora": {eid: motivo for eid, motivo in sorted(fora.items()) if eid != empresa_id},
+        "total": total,
+        "teto": teto,
+        "um_em": round(1 / teto) if teto else None,  # "1 em cada X", inteiro mais próximo
     }

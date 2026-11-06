@@ -5074,14 +5074,12 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
             )
         )
 
-    # Posição vaga (interno, só admin no template): só no escopo da empresa — o piso de
-    # ausência compara o total da EMPRESA contra a referência (base menos a empresa).
-    ausencia = None
-    if ag_id is None and local_id is None:
-        from src.diagnostico.ausencia import estado_posicoes
+    # Posição sem relato (interno, só admin no template), em qualquer escopo: usa só o
+    # próprio escopo e os mesmos agregados do Confronto.
+    from src.diagnostico.ausencia import estado_posicoes
 
-        ausencia = estado_posicoes(s, empresa_id)
-        ausencia["nomes"] = NOME_SUBPILAR
+    ausencia = estado_posicoes(agg, agg_texto)
+    ausencia["nomes"] = NOME_SUBPILAR
 
     ultima = max((r.gerado_em for r in leituras.values()), default=None)
     return SimpleNamespace(

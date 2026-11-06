@@ -1,27 +1,30 @@
-"""Posição vaga (src/diagnostico/ausencia.py): piso de ausência e os três estados."""
+"""Posição sem relato (src/diagnostico/ausencia.py): dois estados e o teto do próprio escopo."""
 
 from __future__ import annotations
 
 from itertools import count
 
-from src.diagnostico.ausencia import piso_ausencia, estado_posicoes
+from src.diagnostico.ausencia import estado_posicoes, teto_ausencia
+from src.diagnostico.leituras import agregar_subpilares
 from src.models.verbatim import Verbatim
 
 _seq = count()
-DOZE = ["P1", "P2", "P3", "D1", "D2", "D3", "Pa1", "Pa2", "Pa3", "A1", "A2", "A3"]
 
 
 def _empresa(client_loyall, nome):
     e = client_loyall.post("/api/empresas/", json={"nome": nome}).get_json()
-    loc = client_loyall.post(f"/api/empresas/{e['id']}/locais", json={"nome": "L"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L", "agrupamento_id": a["id"]}
+    ).get_json()
     f = client_loyall.post(
         f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": f"ChIJ{nome}"}
     ).get_json()
-    return e["id"], loc["id"], f["id"]
+    return e["id"], loc["id"], f["id"], a["id"]
 
 
 def _verb(db_session, emp, sub, n, tem_texto=True):
-    eid, lid, fid = emp
+    eid, lid, fid, _ = emp
     for _ in range(n):
         i = next(_seq)
         db_session.add(
@@ -38,107 +41,94 @@ def _verb(db_session, emp, sub, n, tem_texto=True):
         )
 
 
-def _referencia(db_session, emp):
-    """Referência com p conhecido: 2 em cada posição, 1 no A3 → 23, p = 1/23, piso 68."""
-    for sub in DOZE:
-        _verb(db_session, emp, sub, 1 if sub == "A3" else 2)
+def test_teto_nos_valores_do_aceite():
+    # empresa 5: N 1.219 → 0,245%, 1 em cada 407; empresa 29: N 600 → 0,498%, 1 em cada 201
+    t = teto_ausencia(1219)
+    assert f"{100 * t:.3f}" == "0.245" and round(1 / t) == 407
+    t = teto_ausencia(600)
+    assert f"{100 * t:.3f}" == "0.498" and round(1 / t) == 201
+    assert f"{100 * teto_ausencia(20):.1f}" == "13.9"
+    assert teto_ausencia(0) is None
 
 
-def test_piso_ausencia_valores_medidos_e_sem_piso():
-    # os dois casos do teste de aceite (valores medidos em produção, 06/nov)
-    assert piso_ausencia(82 / 27110) == 989
-    assert piso_ausencia(74 / 27729) == 1122
-    assert piso_ausencia(1 / 23) == 68
-    # posição mais rara com zero na referência → não existe piso (ln(1) = 0)
-    assert piso_ausencia(0.0) is None
-    assert piso_ausencia(1.0) is None
+def test_dois_estados_e_so_nota_nao_e_relato():
+    agg = {"P1": {"total": 70}, "A3": {"total": 5}}
+    agg_texto = {"P1": {"total": 60}}
+    r = estado_posicoes(agg, agg_texto)
+    assert r["total"] == 60 and r["um_em"] == round(1 / teto_ausencia(60))
+    assert r["estados"]["P1"] == {"estado": "presente", "n_texto": 60, "n_so_nota": 10}
+    assert r["estados"]["A3"] == {"estado": "sem_relato", "n_texto": 0, "n_so_nota": 5}
+    assert r["estados"]["D3"] == {"estado": "sem_relato", "n_texto": 0, "n_so_nota": 0}
+    assert {e["estado"] for e in r["estados"].values()} == {"presente", "sem_relato"}
 
 
-def test_acima_do_piso_zerada_sai_vaga_e_so_nota_nao_conta(client_loyall, db_session):
-    ref = _empresa(client_loyall, "AusRef1")
+def test_sem_texto_nao_tem_teto():
+    r = estado_posicoes({"P1": {"total": 9}}, {})
+    assert r["total"] == 0 and r["teto"] is None and r["um_em"] is None
+
+
+def test_texto_mais_so_nota_bate_com_o_volume_do_confronto(client_loyall, db_session):
+    """O bloco liga "com texto" ao número da tabela de cima pela soma com a só-nota."""
     alvo = _empresa(client_loyall, "AusAlvo1")
-    _referencia(db_session, ref)
-    _verb(db_session, alvo, "P1", 60)
-    _verb(db_session, alvo, "P3", 6)
-    _verb(db_session, alvo, "D3", 2)
-    _verb(db_session, alvo, "A3", 5, tem_texto=False)  # só-nota: não é presença
+    _verb(db_session, alvo, "Pa1", 7)
+    _verb(db_session, alvo, "Pa1", 3, tem_texto=False)
+    _verb(db_session, alvo, "D2", 4, tem_texto=False)
+    _verb(db_session, alvo, "sem_lastro", 5)
     db_session.commit()
 
-    r = estado_posicoes(db_session, alvo[0], fora={})
-    assert r["total_empresa"] == 68 and r["piso"] == 68
-    assert r["mais_rara"] == "A3" and r["n_mais_rara"] == 1 and r["referencia_total"] == 23
-    e = r["estados"]
-    assert e["A3"] == {"estado": "vaga", "n_texto": 0, "n_so_nota": 5}
-    assert e["P3"]["estado"] == "presente" and e["D3"]["estado"] == "presente"
-    assert e["Pa1"]["estado"] == "vaga"
+    agg = agregar_subpilares(db_session, alvo[0])
+    estados = estado_posicoes(agg, agregar_subpilares(db_session, alvo[0], so_texto=True))[
+        "estados"
+    ]
+    for sub, e in estados.items():
+        assert e["n_texto"] + e["n_so_nota"] == agg.get(sub, {}).get("total", 0), sub
 
 
-def test_abaixo_do_piso_nenhuma_vaga(client_loyall, db_session):
-    ref = _empresa(client_loyall, "AusRef2")
-    alvo = _empresa(client_loyall, "AusAlvo2")
-    _referencia(db_session, ref)
-    _verb(db_session, alvo, "P1", 59)
-    _verb(db_session, alvo, "A3", 8)
-    db_session.commit()
-
-    r = estado_posicoes(db_session, alvo[0], fora={})
-    assert r["total_empresa"] == 67 < r["piso"] == 68
-    estados = {sub: e["estado"] for sub, e in r["estados"].items()}
-    assert "vaga" not in estados.values()
-    assert estados["P3"] == estados["D3"] == "indeterminada"
-    assert estados["A3"] == "presente"
+def _url(emp):
+    return f"/empresas/{emp[0]}/explorar/tab/diagnostico"
 
 
-def test_referencia_exclui_a_propria_empresa_e_as_de_fora(client_loyall, db_session):
-    ref = _empresa(client_loyall, "AusRef3")
-    alvo = _empresa(client_loyall, "AusAlvo3")
-    fora = _empresa(client_loyall, "AusFora3")
-    _referencia(db_session, ref)
-    _verb(db_session, alvo, "P1", 70)
-    _verb(db_session, fora, "A3", 50)  # se entrasse, o A3 deixaria de ser a mais rara
-    db_session.commit()
-
-    r = estado_posicoes(db_session, alvo[0], fora={fora[0]: "teste"})
-    assert r["referencia_total"] == 23 and r["n_mais_rara"] == 1  # nem alvo, nem fora
-    assert r["fora"] == {fora[0]: "teste"}
-
-
-def test_sem_piso_toda_zerada_sai_indeterminada(client_loyall, db_session):
-    ref = _empresa(client_loyall, "AusRef4")
-    alvo = _empresa(client_loyall, "AusAlvo4")
-    for sub in DOZE[:-1]:  # referência sem nenhum A3 → p = 0
-        _verb(db_session, ref, sub, 2)
-    _verb(db_session, alvo, "P1", 500)
-    db_session.commit()
-
-    r = estado_posicoes(db_session, alvo[0], fora={})
-    assert r["piso"] is None and r["p"] == 0
-    assert r["estados"]["A3"]["estado"] == "indeterminada"
-    assert r["estados"]["D3"]["estado"] == "indeterminada"
-
-
-def test_tela_mostra_ao_admin_so_no_escopo_empresa_e_esconde_do_cliente(
-    client_loyall, client_cliente_factory, db_session, monkeypatch
+def test_tela_mostra_ao_admin_nos_tres_escopos_e_esconde_do_cliente(
+    client_loyall, client_cliente_factory, db_session
 ):
-    import src.diagnostico.ausencia as aus
-
-    monkeypatch.setattr(aus, "EMPRESAS_FORA_DA_REFERENCIA", {})
-    ref = _empresa(client_loyall, "AusRef5")
-    alvo = _empresa(client_loyall, "AusAlvo5")
-    _referencia(db_session, ref)
-    _verb(db_session, alvo, "P1", 68)
+    alvo = _empresa(client_loyall, "AusAlvo2")
+    outra = _empresa(client_loyall, "AusOutra2")
+    _verb(db_session, alvo, "P1", 20)
+    _verb(db_session, alvo, "A3", 5, tem_texto=False)
+    _verb(db_session, outra, "A3", 500)  # outra empresa não muda nada: não há referência
     db_session.commit()
-    url = f"/empresas/{alvo[0]}/explorar/tab/diagnostico"
+    teto = f"{100 * teto_ausencia(20):.3f}".replace(".", ",")
 
-    h = client_loyall.get(url).get_data(as_text=True)
-    assert 'id="posicoes-vagas"' in h
-    assert 'data-subpilar="A3" data-estado="vaga"' in h
-    assert "vaga no que foi coletado" in h
-    assert 'data-subpilar="P1" data-estado="presente"' in h
-    assert "Piso de ausência: 68 manifestações" in h and "p = 0,04348" in h
-
-    loja = client_loyall.get(f"{url}?local_id={alvo[1]}").get_data(as_text=True)
-    assert 'id="posicoes-vagas"' not in loja  # só no escopo da empresa
+    for q in ("", f"?agrupamento_id={alvo[3]}", f"?local_id={alvo[1]}"):
+        h = client_loyall.get(_url(alvo) + q).get_data(as_text=True)
+        assert 'id="posicoes-sem-relato"' in h, q
+        assert 'data-subpilar="A3" data-estado="sem_relato"' in h, q
+        assert 'data-subpilar="P1" data-estado="presente"' in h, q
+        assert f"{teto}% · 1 em cada 7" in h, q  # N 20 → 13,911%
+        assert "N = 20" in h, q
+        assert "vaga" not in h.split('id="posicoes-sem-relato"')[1], q
+        assert 'title="Confiança por volume com texto: 20"' in h, q
 
     cli = client_cliente_factory(alvo[0])
-    assert 'id="posicoes-vagas"' not in cli.get(url).get_data(as_text=True)
+    assert 'id="posicoes-sem-relato"' not in cli.get(_url(alvo)).get_data(as_text=True)
+
+
+def test_tela_sem_texto_declara_e_nao_mostra_tabela(client_loyall, db_session):
+    alvo = _empresa(client_loyall, "AusAlvo3")
+    _verb(db_session, alvo, "P1", 6, tem_texto=False)
+    db_session.commit()
+
+    h = client_loyall.get(_url(alvo)).get_data(as_text=True)
+    bloco = h.split('id="posicoes-sem-relato"')[1]
+    assert "Sem manifestação com texto neste escopo: nenhum teto calculável." in bloco
+    assert "data-estado=" not in bloco
+
+
+def test_tela_liga_com_texto_ao_confronto(client_loyall, db_session):
+    alvo = _empresa(client_loyall, "AusAlvo4")
+    _verb(db_session, alvo, "P1", 68)
+    _verb(db_session, alvo, "P1", 5, tem_texto=False)
+    db_session.commit()
+
+    h = client_loyall.get(_url(alvo)).get_data(as_text=True)
+    assert "No Confronto" in h and ">73<" in h  # 68 com texto + 5 só-nota
