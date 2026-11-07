@@ -132,3 +132,17 @@ def test_tela_liga_com_texto_ao_confronto(client_loyall, db_session):
 
     h = client_loyall.get(_url(alvo)).get_data(as_text=True)
     assert "No Confronto" in h and ">73<" in h  # 68 com texto + 5 só-nota
+
+
+def test_rodape_descreve_o_mecanismo_da_so_nota(client_loyall, db_session):
+    """Pilar por proporção, subpilar dominante, por loja (distribuicao_simbolos.py)."""
+    alvo = _empresa(client_loyall, "AusAlvo5")
+    _verb(db_session, alvo, "P1", 3)
+    db_session.commit()
+
+    bloco = (
+        client_loyall.get(_url(alvo)).get_data(as_text=True).split('id="posicoes-sem-relato"')[1]
+    )
+    assert "recebe pilar pela proporção dos textos da mesma valência e subpilar dominante" in bloco
+    assert "calculados por loja" in bloco
+    assert "recebe subpilar por proporção" not in bloco
