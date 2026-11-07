@@ -63,6 +63,14 @@ def test_piso_conta_so_texto_e_30_e_cheio():
     assert not r["A1"]["cheio"]
 
 
+def test_sem_texto_a_regra_declara_sem_base_e_nao_da_cartao():
+    """A trava mora na regra: quem a chama direto (tela, texto do modelo) não recebe doze criar."""
+    r = cartoes_posicao({"P1": {"prom": 0, "conv": 0, "det": 6, "total": 6}}, {})
+    assert r["sem_base"] and r["cartoes"] == [] and r["so_nota"] == 6
+    assert cartoes_posicao({}, {})["sem_base"]
+    assert not cartoes_posicao({}, {"P1": {"prom": 1, "conv": 0, "det": 0, "total": 1}})["sem_base"]
+
+
 def test_teto_e_contagem_usam_so_texto():
     agg = {"P1": {"prom": 0, "conv": 0, "det": 70, "total": 70}}
     agg_texto = {"P1": {"prom": 0, "conv": 0, "det": 60, "total": 60}}

@@ -14,7 +14,7 @@
 <div id="tela-posicoes">
 <p class="text-xs text-loyall-400 italic mb-3">Todo o histórico. Conta só manifestação com texto.</p>
 
-{% if not p.total %}
+{% if p.sem_base %}
 <div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
   Sem manifestação com texto neste escopo: nenhum veredito calculável.{% if p.so_nota %} Há {{ n(p.so_nota) }} {{ 'nota' if p.so_nota == 1 else 'notas' }} sem texto, que não votam.{% endif %}
 </div>

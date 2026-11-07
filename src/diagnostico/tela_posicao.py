@@ -15,6 +15,10 @@ ou seja, o endereço é derivado, e é o endereço que esta tela julga. O númer
 cartão, em linha própria. O piso do cartão cheio e o teto da casa vazia também contam só
 texto.
 
+Escopo sem nenhuma manifestação com texto não tem veredito: ``cartoes_posicao`` devolve
+``sem_base`` e nenhum cartão. Doze "criar" sem base seria leitura fabricada, e quem consome a
+regra (a tela, o texto do modelo) não pode recebê-los.
+
 Vocabulário próprio, em língua de cliente: esta tela não usa as palavras do Confronto
 (subpilar, ratio, faixa, ruptura), para o cliente não tentar casar os números.
 """
@@ -62,9 +66,15 @@ def veredito(falam_bem: int, neutros: int, romperam: int) -> str:
 def cartoes_posicao(
     agg: Dict[str, Dict[str, Any]], agg_texto: Dict[str, Dict[str, Any]]
 ) -> Dict[str, Any]:
-    """Os doze cartões + o teto da casa vazia. ``agg`` é o agregado com só-nota e
-    ``agg_texto`` o só-texto, ambos de ``agregar_subpilares`` no escopo da tela."""
+    """Os doze cartões + o teto da casa vazia, ou ``sem_base`` sem cartão. ``agg`` é o
+    agregado com só-nota e ``agg_texto`` o só-texto, ambos de ``agregar_subpilares`` no
+    escopo da tela."""
     from src.api.painel import SUBPILARES_ORDEM
+
+    n = sum(agg_texto.get(sub, {}).get("total", 0) for sub in SUBPILARES_ORDEM)
+    so_nota = sum(agg.get(sub, {}).get("total", 0) for sub in SUBPILARES_ORDEM) - n
+    if n == 0:  # sem base: estado declarado, não doze "criar"
+        return {"sem_base": True, "cartoes": [], "total": 0, "so_nota": so_nota}
 
     cartoes = []
     for sub in SUBPILARES_ORDEM:
@@ -87,13 +97,13 @@ def cartoes_posicao(
                 "confianca": selo_confianca(total)[0],
             }
         )
-    n = sum(c["total"] for c in cartoes)
     teto = teto_ausencia(n)
     contagem = {v: sum(1 for c in cartoes if c["veredito"] == v) for v in SIGNIFICADO}
     return {
+        "sem_base": False,
         "cartoes": cartoes,
         "total": n,
-        "so_nota": sum(c["so_nota"] for c in cartoes),
+        "so_nota": so_nota,
         "teto": teto,
         "um_em": round(1 / teto) if teto else None,
         "contagem": contagem,
