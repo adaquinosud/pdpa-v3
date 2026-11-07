@@ -4072,6 +4072,15 @@ _EXPLORAR_TABS = [
         "grupo": "diagnostico",
         "escopo_aceito": ["agrupamento", "local"],
     },
+    # Tela de leitura por posição (espec 07/11): veredito pela contagem com texto. Só admin
+    # até a decisão de abrir ao cliente.
+    {
+        "id": "posicoes",
+        "label": "Posições",
+        "grupo": "diagnostico",
+        "escopo_aceito": ["agrupamento", "local"],
+        "so_loyall": True,
+    },
     {
         "id": "concentracao",
         "label": "Concentração",
@@ -5092,6 +5101,18 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         regen_msg=None,
         escopo=escopo,
     )
+
+
+def _explorar_posicoes(s, empresa_id, ag_id, local_id=None):
+    """Tela de leitura por posição: os doze cartões no escopo (empresa, agrupamento ou
+    loja), all-time como o Diagnóstico. Regra em ``src/diagnostico/tela_posicao.py``."""
+    from src.diagnostico.leituras import agregar_subpilares
+    from src.diagnostico.tela_posicao import cartoes_posicao
+
+    ag = None if local_id is not None else ag_id  # loja tem precedência, como no Diagnóstico
+    agg = agregar_subpilares(s, empresa_id, ag, local_id)
+    agg_texto = agregar_subpilares(s, empresa_id, ag, local_id, so_texto=True)
+    return cartoes_posicao(agg, agg_texto)
 
 
 def _explorar_quadro(s, empresa_id, ag_id, local_id=None):
@@ -6325,6 +6346,7 @@ def _explorar_contexto(empresa_id, tab):
             _explorar_diagnostico(s, empresa_id, ag_id, local_id) if tab == "diagnostico" else None
         )
         quadro = _explorar_quadro(s, empresa_id, ag_id, local_id) if tab == "quadro" else None
+        posicoes = _explorar_posicoes(s, empresa_id, ag_id, local_id) if tab == "posicoes" else None
         casos = None
         if tab == "casos":
             casos = _explorar_casos(
@@ -6399,6 +6421,7 @@ def _explorar_contexto(empresa_id, tab):
         "evolucao": evolucao,
         "diagnostico": diagnostico,
         "quadro": quadro,
+        "posicoes": posicoes,
         "casos": casos,
         "reputacao_ia": reputacao_ia,
         "vitrine": vitrine,

@@ -372,6 +372,30 @@ lista de 3 subpilares (código·nome, ratio, badge). (Termos no glossário.)
 
 ---
 
+## POSIÇÕES (o que a empresa faz em cada posição, só admin)
+
+**Propósito.** Uma pergunta por posição: o que a empresa faz aqui? Doze cartões, um por posição, com
+nome em língua de cliente (Cumprir o que promete, Enxergar antes e avisar…). É a ótica da posição; o
+Diagnóstico é a ótica do fato. As duas telas não dividem vocabulário. Fonte:
+`src/diagnostico/tela_posicao.py`, montada por `_explorar_posicoes` (ui).
+
+**Veredito.** Pela contagem das manifestações **com texto**, sem modelo e sem razão. A maior das três
+colunas nomeia: romperam → **consertar**; falam bem → **proteger**; neutros (o conversível) só quando
+for estritamente a maior → **ocupar**; nenhuma manifestação com texto → **criar**. Empate entre falam
+bem e romperam → consertar.
+
+**Só-nota.** Não vota: a valência é dela, mas o subpilar é derivado (pilar pela proporção dos textos da
+mesma valência, subpilar dominante, por loja). Aparece no cartão em linha própria ("mais N notas sem
+texto, fora desta conta").
+
+**Confiança.** Cartão cheio a partir de 30 manifestações com texto, tracejado abaixo. O veredito sai
+sempre. No cartão **criar**, o teto 1 − 0,05^(1/N), com N = manifestações com texto do próprio escopo.
+Sem nenhuma manifestação com texto no escopo, a tela declara que não há veredito calculável.
+
+**Filtros.** Escopo do header (empresa, agrupamento, loja); todo o histórico.
+
+---
+
 ## 11. CONCENTRAÇÃO
 
 **Propósito.** Mostra **onde** os detratores se concentram entre as lojas — se o problema é de poucas

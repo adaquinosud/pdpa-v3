@@ -1,0 +1,56 @@
+{# Tab Posições — o que a empresa faz em cada posição. Veredito pela contagem com texto
+   (src/diagnostico/tela_posicao.py); a palavra dá o veredito, a forma do cartão dá a confiança
+   (cheio a partir do piso, tracejado abaixo). Vocabulário próprio: nada do Confronto aqui. #}
+{% set p = posicoes %}
+{% set _mil = "{:,}" %}
+{% set vclass = {
+  'consertar': 'text-rose-700',
+  'proteger':  'text-emerald-700',
+  'ocupar':    'text-amber-700',
+  'criar':     'text-loyall-600',
+} %}
+{% macro n(x) %}{% if x %}{{ _mil.format(x)|replace(",", ".") }}{% else %}—{% endif %}{% endmacro %}
+
+<div id="tela-posicoes">
+<p class="text-xs text-loyall-400 italic mb-3">Todo o histórico. Conta só manifestação com texto.</p>
+
+{% if not p.total %}
+<div class="text-center text-loyall-400 py-12 border border-dashed border-loyall-200 rounded-lg">
+  Sem manifestação com texto neste escopo: nenhum veredito calculável.{% if p.so_nota %} Há {{ n(p.so_nota) }} {{ 'nota' if p.so_nota == 1 else 'notas' }} sem texto, que não votam.{% endif %}
+</div>
+{% else %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+  {% for c in p.cartoes %}
+  <div class="rounded-lg p-3 bg-white border-2 {% if c.cheio %}border-solid border-loyall-300{% else %}border-dashed border-loyall-200{% endif %}"
+       data-posicao="{{ c.sub }}" data-veredito="{{ c.veredito }}" data-cheio="{{ 'sim' if c.cheio else 'nao' }}" data-confianca="{{ c.confianca }}">
+    <div class="text-sm font-medium text-loyall-800">{{ c.nome }}</div>
+    <div class="text-lg font-bold capitalize {{ vclass[c.veredito] }}">{{ c.veredito }}</div>
+    <div class="text-[11px] text-loyall-500 mb-2">{{ c.significado }}</div>
+    {% if c.veredito == 'criar' %}
+      {% if p.teto %}
+      <div class="text-xs text-loyall-600">Nenhuma manifestação com texto. Teto: {{ (p.teto * 100)|virg(3) }}% · 1 em cada {{ n(p.um_em) }}</div>
+      {% endif %}
+    {% else %}
+    <table class="w-full text-xs">
+      <tr class="text-[11px] text-loyall-500">
+        <td>Falam bem</td><td>Neutros</td><td>Romperam</td><td class="text-right">Total</td>
+      </tr>
+      <tr class="font-medium text-loyall-800">
+        <td>{{ n(c.falam_bem) }}</td><td>{{ n(c.neutros) }}</td><td>{{ n(c.romperam) }}</td><td class="text-right">{{ n(c.total) }}</td>
+      </tr>
+    </table>
+    {% endif %}
+    {% if c.so_nota %}
+    <div class="text-[11px] text-loyall-400 mt-1">mais {{ n(c.so_nota) }} {{ 'nota' if c.so_nota == 1 else 'notas' }} sem texto, fora desta conta</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<p class="text-[11px] text-loyall-400 mt-3">
+  A maior das três colunas nomeia o veredito: romperam, consertar; falam bem, proteger; neutros só quando for estritamente a maior, ocupar; nenhuma manifestação, criar. Empate entre falam bem e romperam: consertar.
+  Cartão cheio a partir de {{ p.piso }} manifestações com texto, tracejado abaixo.
+  {% if p.teto %}Teto da posição sem manifestação: 1 − 0,05^(1/N), com N = {{ n(p.total) }} manifestações com texto neste escopo.{% endif %}
+</p>
+{% endif %}
+</div>
