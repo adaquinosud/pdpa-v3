@@ -404,6 +404,12 @@ com base que não sustenta (menos da metade forte); (2) base com metade ou mais 
 mostra a soma. Uma frase por condição; havendo mais de uma candidata, a de maior total. Regra em
 `entre_posicoes` (`src/diagnostico/tela_posicao.py`).
 
+**Frase do cartão (modelo).** Só cartão cheio em consertar, proteger ou ocupar. O Sonnet lê até 8 trechos
+do lado do veredito e 2 do outro (os mais recentes, com identificadores mascarados) e responde a pergunta
+da posição ("Pergunta do leitor" do Cap. 17 do Manual). O código rejeita frase com algarismo ou com palavra
+do Confronto. Gera só pelo botão do admin, que mostra a estimativa em R$ antes; toda chamada fica em
+`frases_posicao` com o custo, aceita ou rejeitada. Frase de números antigos não aparece.
+
 **Filtros.** Escopo do header (empresa, agrupamento, loja); todo o histórico.
 
 ---

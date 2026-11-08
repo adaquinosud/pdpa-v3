@@ -81,6 +81,9 @@ PLANO: list[tuple[str, str, str]] = [
     ("ratios mensais", "ratios_mensais", _DIRETO),
     ("temas", "temas", _DIRETO),
     ("leituras de diagnóstico", "leituras_diagnostico", _DIRETO),
+    # Frases da aba Posições: derivam dos verbatins e levam o custo de cada chamada; como o
+    # Avaliador e a sonda IA, o wipe por cliente leva o custo junto.
+    ("frases da aba Posições", "frases_posicao", _DIRETO),
     ("sugestões estruturais", "sugestoes_estruturais", _DIRETO),
     ("status de ações", "acoes_status", _DIRETO),
     ("cache de relatório", "relatorio_cache", _DIRETO),

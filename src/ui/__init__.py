@@ -5119,7 +5119,37 @@ def _explorar_posicoes(s, empresa_id, ag_id, local_id=None):
     ag = None if local_id is not None else ag_id  # loja tem precedência, como no Diagnóstico
     agg = agregar_subpilares(s, empresa_id, ag, local_id)
     agg_texto = agregar_subpilares(s, empresa_id, ag, local_id, so_texto=True)
-    return cartoes_posicao(agg, agg_texto)
+    r = cartoes_posicao(agg, agg_texto)
+    if r["sem_base"]:
+        return r
+
+    # Fatia 3: frase do modelo só se vigente (hash = números de agora); o resto fica calado.
+    from src.diagnostico.frase_posicao import (
+        CAMBIO_BRL,
+        CUSTO_ESTIMADO_CARTAO_USD,
+        elegivel,
+        frases_vigentes,
+        gasto_escopo_usd,
+        payload_cartao,
+    )
+    from src.utils.hashing import hash_payload
+
+    hashes = {
+        c["sub"]: hash_payload(payload_cartao(s, empresa_id, ag, local_id, c))
+        for c in r["cartoes"]
+        if elegivel(c)
+    }
+    vigentes = frases_vigentes(s, empresa_id, ag, local_id, hashes)
+    for c in r["cartoes"]:
+        c["frase"] = vigentes.get(c["sub"])
+    pendentes = len([sub for sub in hashes if sub not in vigentes])
+    r["frases"] = {
+        "cambio": CAMBIO_BRL,
+        "pendentes": pendentes,
+        "estimativa_usd": pendentes * CUSTO_ESTIMADO_CARTAO_USD,
+        "gasto_usd": gasto_escopo_usd(s, empresa_id, ag, local_id),
+    }
+    return r
 
 
 def _explorar_quadro(s, empresa_id, ag_id, local_id=None):
@@ -6737,6 +6767,31 @@ def explorar_regenerar_subpilar(empresa_id: int):
     alvo = ctx.get("diagnostico")
     if alvo is not None:
         alvo.regen_msg = msg
+    return render_template("partials/explorar_conteudo.html", **ctx)
+
+
+@ui_bp.route("/empresas/<int:empresa_id>/explorar/posicoes/frases", methods=["POST"])
+@loyall_required_ui
+def explorar_posicoes_frases(empresa_id: int):
+    """Escreve (Sonnet) a frase dos cartões cheios do escopo que ainda não têm frase vigente.
+    Gasto pago, por ação deliberada do admin: o botão mostra a estimativa em R$ antes, e o
+    custo real de cada chamada fica em ``frases_posicao``. Devolve a aba atualizada."""
+    from src.diagnostico.frase_posicao import CAMBIO_BRL, gerar_frases
+    from src.utils.fmt import virg
+
+    filtros, ag_id, _ = _explorar_filtros()
+    local_id = int(filtros["local_id"]) if filtros["local_id"].isdigit() else None
+    m = gerar_frases(empresa_id, ag_id, local_id)
+    ctx = _explorar_contexto(empresa_id, "posicoes")
+    if ctx is None:
+        return render_template("404.html"), 404
+    if ctx.get("posicoes") is not None:
+        usd = m["custo_usd"]
+        ctx["posicoes"]["msg_frases"] = (
+            f"{m['aceitas']} frases escritas, {m['rejeitadas']} rejeitadas pela trava; custo "
+            f"medido US$ {virg(usd, 4)} (R$ {virg(usd * CAMBIO_BRL, 2)} a R$ {virg(CAMBIO_BRL, 2)}"
+            "/US$)." + (f" Rejeitadas: {'; '.join(m['motivos'])}." if m["motivos"] else "")
+        )
     return render_template("partials/explorar_conteudo.html", **ctx)
 
 
