@@ -144,53 +144,8 @@
   </table>
 </div>
 
-{# ── Posição sem relato (interno, só admin). Estado e teto vêm prontos de
-   src/diagnostico/ausencia.py; a copy não reescreve a régua, só mostra o número. #}
+{# ── Posição sem relato (interno, só admin): o parcial é o mesmo do Painel. #}
 {% if eh_loyall and d.ausencia %}
-{% set a = d.ausencia %}
-{% set _mil = "{:,}" %}
-<div id="posicoes-sem-relato" class="mt-4 border border-loyall-200 rounded-lg p-3">
-  <h3 class="text-sm font-semibold text-loyall-700 mb-1">Posições: presente ou sem relato <span class="text-[10px] uppercase tracking-wide px-1 py-0.5 rounded bg-loyall-100 text-loyall-600">interno</span></h3>
-  {% if a.teto is none %}
-  <p class="text-xs text-loyall-500">Sem manifestação com texto neste escopo: nenhum teto calculável.</p>
-  {% else %}
-  <p class="text-xs text-loyall-500 mb-2">
-    Base: {{ _mil.format(a.total)|replace(",", ".") }} manifestações com texto neste escopo.
-    Numa posição sem relato, a taxa real fica abaixo do teto com 95% de confiança: teto = 1 − 0,05^(1/N), com N = {{ _mil.format(a.total)|replace(",", ".") }}.
-  </p>
-  <div class="overflow-x-auto">
-  <table class="w-full text-xs">
-    <thead>
-      <tr class="text-[11px] text-loyall-500 uppercase tracking-wide">
-        <th class="text-left px-2 py-1 font-medium">Posição</th>
-        <th class="text-left px-2 py-1 font-medium">Estado</th>
-        <th class="text-right px-2 py-1 font-medium">Com texto</th>
-        <th class="text-right px-2 py-1 font-medium">Só-nota</th>
-        <th class="text-right px-2 py-1 font-medium">No Confronto</th>
-        <th class="text-left px-2 py-1 font-medium">Teto</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sub, e in a.estados.items() %}
-      <tr class="border-t border-loyall-100" data-subpilar="{{ sub }}" data-estado="{{ e.estado }}">
-        <td class="px-2 py-1 whitespace-nowrap"><span title="Confiança por volume com texto: {{ e.n_texto }}" class="cursor-help">{{ selo_emoji(e.n_texto) }}</span> <strong>{{ sub }}</strong> <span class="text-loyall-400">· {{ a.nomes.get(sub, sub) }}</span></td>
-        <td class="px-2 py-1">{% if e.estado == 'presente' %}<span class="px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">presente</span>{% else %}<span class="px-1.5 py-0.5 rounded border bg-loyall-50 text-loyall-700 border-loyall-300">sem relato</span>{% endif %}</td>
-        <td class="px-2 py-1 text-right font-medium text-loyall-800">{{ _mil.format(e.n_texto)|replace(",", ".") }}</td>
-        <td class="px-2 py-1 text-right text-loyall-500">{{ _mil.format(e.n_so_nota)|replace(",", ".") }}</td>
-        <td class="px-2 py-1 text-right text-loyall-500">{{ _mil.format(e.n_texto + e.n_so_nota)|replace(",", ".") }}</td>
-        <td class="px-2 py-1 whitespace-nowrap">{% if e.estado == 'sem_relato' %}{{ (a.teto * 100)|virg(3) }}% · 1 em cada {{ _mil.format(a.um_em)|replace(",", ".") }}{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  <p class="text-[11px] text-loyall-400 mt-2">
-    Conta só manifestação com texto: só-nota é nota, não relato (recebe pilar pela proporção dos textos da mesma valência e subpilar dominante, calculados por loja, ou pelo escopo acima quando a loja tem menos de 30 textos; não por leitura).
-    "No Confronto" = com texto + só-nota, o volume da linha na tabela acima.
-    O selo aqui é pelo volume com texto. Quando ele for menor que o do Confronto, é porque parte daquele volume não foi lida: é só-nota, e o número está na coluna Só-nota da mesma linha.
-    "Sem relato" descreve o que foi coletado neste escopo, só com o dado dele.
-  </p>
-  {% endif %}
-</div>
+{% with a = d.ausencia %}{% include "partials/_posicoes_sem_relato.html" %}{% endwith %}
 {% endif %}
 {% endif %}

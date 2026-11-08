@@ -430,3 +430,8 @@
   <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>2.0–5.0 bom</span>
   <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-600"></span>5.0–9.99 excelente</span>
 </div>
+
+{# Bloco "Posições: presente ou sem relato" — o MESMO parcial do Diagnóstico (só admin). #}
+{% if eh_loyall and ausencia %}
+{% with a = ausencia, filtro_ignorado = (filtros.fonte_id or filtros.periodo) %}{% include "partials/_posicoes_sem_relato.html" %}{% endwith %}
+{% endif %}

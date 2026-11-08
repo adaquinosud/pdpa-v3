@@ -143,6 +143,76 @@ def test_rodape_descreve_o_mecanismo_da_so_nota(client_loyall, db_session):
     bloco = (
         client_loyall.get(_url(alvo)).get_data(as_text=True).split('id="posicoes-sem-relato"')[1]
     )
-    assert "recebe pilar pela proporção dos textos da mesma valência e subpilar dominante" in bloco
-    assert "calculados por loja" in bloco
+    assert "Recebe o pilar pela proporção dos textos da mesma valência e entra no subpilar" in bloco
+    assert "dominante, calculados por loja" in bloco
     assert "recebe subpilar por proporção" not in bloco
+
+
+def _bloco(h):
+    return h.split('id="posicoes-sem-relato"')[1]
+
+
+def test_rodape_uma_linha_por_coluna_com_numeros_do_codigo(client_loyall, db_session):
+    """Cada coluna da tabela tem a sua linha no rodapé, e todo número citado vem das
+    constantes (selo, piso da distribuição, margem) e do escopo (N, teto, 1 em cada)."""
+    import re
+
+    from src.api.engajamento import VOLUME_CONFIANCA_ALTA, VOLUME_CONFIANCA_MEDIA
+    from src.coletor.distribuicao_simbolos import PISO_TEXTOS
+
+    alvo = _empresa(client_loyall, "AusAlvo6")
+    _verb(db_session, alvo, "P1", 20)
+    db_session.commit()
+
+    bloco = _bloco(client_loyall.get(_url(alvo)).get_data(as_text=True))
+    colunas = re.findall(r'<th class="[^"]*">([^<]+)</th>', bloco)
+    rodape = re.findall(r'<dt class="[^"]*">([^<]+)</dt>', bloco)
+    assert (
+        colunas == rodape == ["Posição", "Estado", "Com texto", "Só-nota", "No Confronto", "Teto"]
+    )
+
+    a, m = VOLUME_CONFIANCA_ALTA, VOLUME_CONFIANCA_MEDIA
+    assert f"verde a partir de {a} manifestações com texto, amarelo de {m} a {a - 1}" in bloco
+    assert f"vermelho abaixo de {m}." in bloco
+    assert f"menos de {PISO_TEXTOS} textos" in bloco
+    teto = f"{100 * teto_ausencia(20):.3f}".replace(".", ",")
+    assert "teto = 1 − 0,05^(1/N)" in bloco
+    assert f"Aqui, N = 20, e o teto dá {teto}%, ou 1 relato em cada 7." in bloco
+    assert "ainda haveria 5% de chance de ela não aparecer nenhuma vez em 20" in bloco
+    assert "cliente em cada" not in bloco  # N conta relatos, não clientes
+
+
+def _url_painel(emp):
+    return f"/empresas/{emp[0]}/explorar/tab/painel"
+
+
+def test_painel_mostra_o_mesmo_bloco_ao_admin_e_esconde_do_cliente(
+    client_loyall, client_cliente_factory, db_session
+):
+    alvo = _empresa(client_loyall, "AusAlvo7")
+    _verb(db_session, alvo, "P1", 20)
+    _verb(db_session, alvo, "A3", 5, tem_texto=False)
+    db_session.commit()
+
+    diag = _bloco(client_loyall.get(_url(alvo)).get_data(as_text=True))
+    for q in ("", f"?agrupamento_id={alvo[3]}", f"?local_id={alvo[1]}"):
+        h = client_loyall.get(_url_painel(alvo) + q).get_data(as_text=True)
+        assert 'id="posicoes-sem-relato"' in h, q
+        assert 'data-subpilar="A3" data-estado="sem_relato"' in h, q
+        assert "não segue o filtro de fonte" not in h, q
+    # mesmo parcial: o rodapé do Painel é o do Diagnóstico, letra por letra
+    painel = _bloco(client_loyall.get(_url_painel(alvo)).get_data(as_text=True))
+    rodape = lambda b: b.split('id="posicoes-rodape"')[1].split("</dl>")[0]  # noqa: E731
+    assert rodape(painel) == rodape(diag)
+
+    cli = client_cliente_factory(alvo[0])
+    assert 'id="posicoes-sem-relato"' not in cli.get(_url_painel(alvo)).get_data(as_text=True)
+
+
+def test_painel_com_filtro_de_periodo_declara_que_o_bloco_nao_segue(client_loyall, db_session):
+    alvo = _empresa(client_loyall, "AusAlvo8")
+    _verb(db_session, alvo, "P1", 20)
+    db_session.commit()
+
+    h = client_loyall.get(_url_painel(alvo) + "?periodo=30d").get_data(as_text=True)
+    assert "não segue o filtro de fonte nem o de período desta tela" in _bloco(h)

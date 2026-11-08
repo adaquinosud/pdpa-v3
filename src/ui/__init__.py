@@ -1771,6 +1771,20 @@ def _aba_painel(empresa_id, empresa_w):
             (escopo_id if escopo_tipo == "loja" else None),
         )
         _rp_fi = ratios_por_pilar(_agg_fi)
+        # Bloco "Posições: presente ou sem relato" (só admin no template), o mesmo parcial
+        # do Diagnóstico: mesmo escopo e mesmo agregado (histórico completo, sem fonte/período).
+        from src.diagnostico.ausencia import estado_posicoes
+
+        ausencia = estado_posicoes(
+            _agg_fi,
+            agregar_subpilares(
+                s,
+                empresa_id,
+                (escopo_id if escopo_tipo == "agrupamento" else None),
+                (escopo_id if escopo_tipo == "loja" else None),
+                so_texto=True,
+            ),
+        )
         feridas_internas = [
             {
                 "pilar": p,
@@ -1792,6 +1806,7 @@ def _aba_painel(empresa_id, empresa_w):
     return {
         "n1": n1,
         "feridas_internas": feridas_internas,
+        "ausencia": ausencia,
         "n2": n2,
         "filtros": filtros,
         "agrupamentos": agrupamentos,
@@ -5095,7 +5110,6 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
     from src.diagnostico.ausencia import estado_posicoes
 
     ausencia = estado_posicoes(agg, agg_texto)
-    ausencia["nomes"] = NOME_SUBPILAR
 
     ultima = max((r.gerado_em for r in leituras.values()), default=None)
     return SimpleNamespace(

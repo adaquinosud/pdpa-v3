@@ -36,8 +36,13 @@ def estado_posicoes(
     agg: Dict[str, Dict[str, Any]], agg_texto: Dict[str, Dict[str, Any]]
 ) -> Dict[str, Any]:
     """Estado de cada uma das doze posições + o teto. ``agg`` é o agregado com só-nota e
-    ``agg_texto`` o só-texto, ambos de ``agregar_subpilares`` no escopo da tela."""
-    from src.api.painel import SUBPILARES_ORDEM
+    ``agg_texto`` o só-texto, ambos de ``agregar_subpilares`` no escopo da tela.
+
+    ``regua`` leva os cortes que o rodapé do bloco cita (margem do teto, cortes do selo, piso
+    da distribuição do só-nota), lidos das constantes: a copy não reescreve número."""
+    from src.api.engajamento import VOLUME_CONFIANCA_ALTA, VOLUME_CONFIANCA_MEDIA
+    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
+    from src.coletor.distribuicao_simbolos import PISO_TEXTOS
 
     estados = {}
     for sub in SUBPILARES_ORDEM:
@@ -54,4 +59,11 @@ def estado_posicoes(
         "total": total,
         "teto": teto,
         "um_em": round(1 / teto) if teto else None,  # "1 em cada X", inteiro mais próximo
+        "nomes": NOME_SUBPILAR,
+        "regua": {
+            "alfa": ALFA_AUSENCIA,
+            "selo_alta": VOLUME_CONFIANCA_ALTA,
+            "selo_media": VOLUME_CONFIANCA_MEDIA,
+            "piso_textos": PISO_TEXTOS,
+        },
     }
