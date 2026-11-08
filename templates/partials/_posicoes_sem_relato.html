@@ -44,14 +44,15 @@
   {% set _n = _mil.format(a.total)|replace(",", ".") %}
   {% set _x = _mil.format(a.um_em)|replace(",", ".") %}
   <dl id="posicoes-rodape" class="text-[11px] text-loyall-400 mt-2 space-y-0.5">
-    <div><dt class="inline font-medium text-loyall-500">Posição</dt> — <dd class="inline">O selo colorido diz quanta confiança o volume com texto dá. Verde a partir de {{ r.selo_alta }} manifestações com texto, amarelo de {{ r.selo_media }} a {{ r.selo_alta - 1 }}, vermelho abaixo de {{ r.selo_media }}. Quando o selo estiver mais baixo do que o volume no Confronto faria esperar, é porque parte daquele volume não foi lida: é só-nota, e o número está na coluna ao lado.</dd></div>
+    <div><dt class="inline font-medium text-loyall-500">Posição</dt> — <dd class="inline">O selo colorido diz quanta confiança o volume com texto dá. Verde a partir de {{ r.selo_alta }} manifestações com texto, amarelo de {{ r.selo_media }} a {{ r.selo_alta - 1 }}, vermelho abaixo de {{ r.selo_media }}. Quando o selo estiver mais baixo do que o volume no Confronto faria esperar, é porque parte daquele volume não foi lida: é só-nota, e o número está na coluna Só-nota.</dd></div>
     <div><dt class="inline font-medium text-loyall-500">Estado</dt> — <dd class="inline">presente quer dizer que alguém escreveu sobre essa posição neste escopo. Sem relato quer dizer que ninguém escreveu nenhuma vez.</dd></div>
     <div><dt class="inline font-medium text-loyall-500">Com texto</dt> — <dd class="inline">manifestações em que o cliente escreveu alguma coisa.</dd></div>
     <div><dt class="inline font-medium text-loyall-500">Só-nota</dt> — <dd class="inline">avaliação com estrela e sem texto. A distribuição entre os pilares é calculada loja por loja, pela proporção de textos da mesma valência, e a só-nota é contada no subpilar dominante daquela loja. Quando a loja tem menos de {{ r.piso_textos }} textos, a conta sobe para o escopo acima.</dd></div>
     <div><dt class="inline font-medium text-loyall-500">No Confronto</dt> — <dd class="inline">a soma dos dois, com texto mais só-nota.</dd></div>
     <div><dt class="inline font-medium text-loyall-500">Teto</dt> — <dd class="inline">só aparece em posição sem relato, e é calculado assim: teto = 1 − {{ r.alfa|virg(2) }} ^ (1 ÷ N), com N = manifestações com texto neste escopo.
       O que esse número quer dizer. Em {{ _n }} relatos essa posição não apareceu nenhuma vez. Se ela estivesse acontecendo em mais de 1 relato a cada {{ _x }}, era muito provável que tivesse aparecido pelo menos uma vez. O {{ r.alfa|virg(2) }} é a dúvida que aceitamos: mesmo numa posição que acontece em 1 a cada {{ _x }}, sobra {{ _alfa_pct }}% de chance de ela não aparecer nenhuma vez. Por isso o teto é o limite de cima, não a frequência medida.
-      Quanto mais relatos a empresa tem, mais apertado fica o teto, e mais forte fica a afirmação. O cálculo usa só os relatos deste escopo. Nenhuma outra empresa e nenhum outro escopo entram na conta.</dd></div>
+      Essa conta só vale se um relato sobre essa posição fosse reconhecido caso existisse. Se a leitura não enxerga essa posição, o zero pode ser cegueira da ferramenta em vez de ausência na empresa.
+      Quanto mais relatos o escopo tem, mais apertado fica o teto, e mais forte fica a afirmação. O cálculo usa só os relatos deste escopo. Nenhuma outra empresa e nenhum outro escopo entram na conta.</dd></div>
   </dl>
   {% endif %}
 </div>

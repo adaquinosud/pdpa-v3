@@ -182,6 +182,9 @@ def test_rodape_uma_linha_por_coluna_com_numeros_do_codigo(client_loyall, db_ses
     assert "sobra 5% de chance de ela não aparecer nenhuma vez" in bloco
     assert f"{teto}% · 1 em cada 7" in bloco  # o valor do teto fica na coluna
     assert "cliente em cada" not in bloco  # N conta relatos, não clientes
+    assert "e o número está na coluna Só-nota." in bloco
+    assert "Quanto mais relatos o escopo tem," in bloco
+    assert "o zero pode ser cegueira da ferramenta em vez de ausência na empresa" in bloco
 
 
 def _url_painel(emp):
