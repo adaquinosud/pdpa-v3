@@ -31,7 +31,7 @@
         {% if loc.fontes_ativas_nao_ra > 0 %}
       <button hx-post="{{ url_for('ui.htmx_disparar_local', local_id=loc.id) }}"
               hx-target="#loc-{{ loc.id }}-coleta" hx-swap="innerHTML"
-              hx-confirm="Coletar {{ loc.fontes_ativas_nao_ra }} fonte(s) deste local. Gera custo Apify. Cooldown 15 min.{% if loc.fontes_ativas_ra %} ATENÇÃO: {{ loc.fontes_ativas_ra }} fonte(s) ReclameAqui deste local trazem APENAS o scorecard (US$ {{ '%.3f'|format(loc.custo_scorecard_ra) }}) — não as reclamações. Para as aberturas, use 'coletar aberturas' na linha da fonte.{% endif %}"
+              hx-confirm="Coletar {{ loc.fontes_ativas_nao_ra }} fonte(s) deste local. Gera custo Apify. Cooldown 15 min.{% if loc.fontes_ativas_ra %} ATENÇÃO: {{ loc.fontes_ativas_ra }} fonte(s) ReclameAqui deste local trazem APENAS o scorecard (US$ {{ '%.3f'|format(loc.custo_scorecard_ra) }}) — não as reclamações. Para as aberturas, use 'coletar aberturas' na linha da fonte.{% endif %} Depois, classifica só as avaliações novas; temas, diagnóstico e sugestões (Sonnet) da empresa só rodam se as pendências chegarem a {{ limiar_pos_coleta(loc.empresa_id) }}. Para reprocessar tudo, use ♻️ Reprocessar empresa."
               class="text-loyall-700 hover:underline"
               title="{% if loc.fontes_ativas_ra %}RA vai por scorecard; aberturas só pelo botão da fonte{% else %}Coleta as fontes ativas do local{% endif %}">🔄 coletar</button>
       <span id="loc-{{ loc.id }}-coleta" class="text-loyall-500"></span>
@@ -47,7 +47,7 @@
          que nenhuma. Quem conserta é a §6.15, junto com o no-op. #}
       <button hx-post="{{ url_for('ui.htmx_disparar_local', local_id=loc.id) }}"
               hx-target="#loc-{{ loc.id }}-coleta" hx-swap="innerHTML"
-              hx-confirm="Disparar coleta de TODAS as fontes ativas do local '{{ loc.nome }}'? Gera custo Apify. Cooldown 15 min."
+              hx-confirm="Disparar coleta de TODAS as fontes ativas do local '{{ loc.nome }}'? Gera custo Apify. Cooldown 15 min. Depois, classifica só as avaliações novas; temas, diagnóstico e sugestões (Sonnet) da empresa só rodam se as pendências chegarem a {{ limiar_pos_coleta(loc.empresa_id) }}. Para reprocessar tudo, use ♻️ Reprocessar empresa."
               class="text-loyall-700 hover:underline" title="Coleta todas as fontes ativas">🔄 coletar</button>
       <span id="loc-{{ loc.id }}-coleta" class="text-loyall-500"></span>
         {% endif %}

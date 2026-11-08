@@ -939,8 +939,8 @@ def importar_arquivo(
         )
         stats["lote_id"] = lote.id
 
-    # Gatilho pós-coleta (force=True, limiar=1) — APÓS o commit, pra a thread ver
-    # os verbatins. Roda classificação→temas→detecção→…→leitura em daemon-thread.
+    # Gatilho pós-coleta — APÓS o commit, pra a thread ver os verbatins. Classifica o que
+    # entrou; a cauda (temas→…→leitura) roda se as pendências passarem do limiar da empresa.
     if disparar_pos and stats["importados"] > 0:
         from src.coletor.orquestrador import disparar_pos_coleta_async
 

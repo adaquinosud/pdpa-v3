@@ -246,26 +246,41 @@ def _rodar_async(fn, *, app=None, label: str) -> bool:
 
 
 def disparar_pos_coleta_async(empresa_id: int, app=None) -> None:
-    """Enfileira ``executar_pos_coleta`` numa daemon-thread (não bloqueia o
-    handler). Reusa ``_rodar_async``. No-op em TESTING."""
+    """Pós-coleta depois de uma COLETA ou IMPORT (botões, API, import Excel), numa
+    daemon-thread. Mesmo gate da noturna: a cabeça classifica só o que entrou e a cauda
+    (temas, diagnóstico e sugestões com Sonnet, relatórios) só roda se as pendências da
+    empresa passarem do limiar dela. Antes era ``force=True``: um clique em uma fonte
+    reprocessava a empresa inteira sem avisar. No-op em TESTING."""
+
+    def _fn():
+        from src.temas.pos_coleta import executar_pos_coleta
+
+        executar_pos_coleta(empresa_id)
+
+    _rodar_async(_fn, app=app, label=f"pos-coleta-{empresa_id}")
+
+
+def disparar_reprocessamento_async(empresa_id: int, app=None) -> None:
+    """O "♻️ Reprocessar" da empresa: pós-coleta inteiro, ignorando o limiar (``force``).
+    É o único caminho da tela que força; o botão diz o tamanho antes. No-op em TESTING."""
 
     def _fn():
         from src.temas.pos_coleta import executar_pos_coleta
 
         executar_pos_coleta(empresa_id, limiar=1, force=True)
 
-    _rodar_async(_fn, app=app, label=f"pos-coleta-{empresa_id}")
+    _rodar_async(_fn, app=app, label=f"reprocessar-{empresa_id}")
 
 
 def _coletar_fonte_e_pos(fonte_id: int, empresa_id: int) -> None:
     """Coleta 1 fonte (reusa ``_coletar_fonte_direto`` — herda o timeout-por-fonte
-    do CP-1) e, se não falhou no Apify, encadeia o pós-coleta. Roda DENTRO da
+    do CP-1) e, se não falhou no Apify, encadeia o pós-coleta com o gate da empresa. Roda DENTRO da
     daemon-thread do dispatch on-demand (CP-5b)."""
     stats = _coletar_fonte_direto(fonte_id)
     if not stats.get("falhou_apify"):
         from src.temas.pos_coleta import executar_pos_coleta
 
-        executar_pos_coleta(empresa_id, limiar=1, force=True)
+        executar_pos_coleta(empresa_id)  # gate da empresa, como a noturna
 
 
 def disparar_coleta_fonte_async(fonte_id: int, empresa_id: int, app=None) -> None:
@@ -292,7 +307,7 @@ def _coletar_aberturas_e_pos(fonte_id: int, empresa_id: int) -> None:
     if not stats.get("falhou_apify"):
         from src.temas.pos_coleta import executar_pos_coleta
 
-        executar_pos_coleta(empresa_id, limiar=1, force=True)
+        executar_pos_coleta(empresa_id)  # gate da empresa, como a noturna
 
 
 def disparar_aberturas_fonte_async(fonte_id: int, empresa_id: int, app=None) -> None:

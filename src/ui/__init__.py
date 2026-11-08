@@ -3998,17 +3998,17 @@ def htmx_reprocessar_empresa(empresa_id: int):
     empresa em segundo plano, SEM coletar — destrava o reprocessamento após
     reagrupar lojas sem depender do terminal (CP-UX-reprocessar).
 
-    Fire-and-forget: reusa ``disparar_pos_coleta_async`` (thread daemon) tal como
-    está; a requisição retorna na hora. NÃO há tracking de conclusão — o operador
-    recarrega a página depois. PODE consumir LLM (diagnóstico/sugestões com
-    skip-by-hash) — avisado no botão. Gated a admin Loyall."""
+    Fire-and-forget: ``disparar_reprocessamento_async`` (thread daemon, ``force``); a
+    requisição retorna na hora. NÃO há tracking de conclusão — o operador recarrega a
+    página depois. Consome LLM (diagnóstico/sugestões com skip-by-hash) — o botão diz o
+    tamanho antes (``tamanho_reprocessamento``). Gated a admin Loyall."""
     user = get_current_user()
     if user is None or user.papel != PAPEL_LOYALL:
         return ("<div class='text-red-600 text-xs'>Restrito a admin Loyall.</div>", 403)
 
-    from src.coletor.orquestrador import disparar_pos_coleta_async
+    from src.coletor.orquestrador import disparar_reprocessamento_async
 
-    disparar_pos_coleta_async(empresa_id)
+    disparar_reprocessamento_async(empresa_id)
     return (
         "<div class='px-3 py-2 rounded bg-emerald-50 border-l-4 border-emerald-400 "
         "text-xs text-emerald-800'>✓ Reprocessamento iniciado em segundo plano. "

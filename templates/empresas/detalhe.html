@@ -57,10 +57,11 @@
     <button hx-get="{{ url_for('ui.htmx_editar_empresa_modal', empresa_id=empresa.id) }}"
             hx-target="body" hx-swap="beforeend"
             class="text-xs px-2 py-1 rounded border border-loyall-200 hover:bg-loyall-100 text-loyall-700">editar</button>
+    {% set _tr = tamanho_reprocessamento(empresa.id) %}
     <button hx-post="{{ url_for('ui.htmx_reprocessar_empresa', empresa_id=empresa.id) }}"
             hx-target="#reprocessar-msg" hx-swap="innerHTML" hx-indicator="#reprocessar-loading"
-            hx-confirm="Reprocessar TODA a empresa? Pode consumir LLM (alguns centavos). Roda em segundo plano."
-            title="Recalcula números e regenera o que mudou. Pode consumir LLM (centavos)."
+            hx-confirm="Reprocessar TODA a empresa, ignorando o limiar? Classifica {{ _tr.pendentes }} pendentes com Haiku; refaz temas sobre {{ _tr.com_texto }} manifestações com texto; diagnóstico e sugestões com Sonnet da empresa e de {{ _tr.lojas }} {{ 'loja' if _tr.lojas == 1 else 'lojas' }} com volume próprio (só o que mudou). Custo em R$ não é medido. Roda em segundo plano."
+            title="Recalcula números e regenera o que mudou, ignorando o limiar. Consome LLM."
             class="text-xs px-2 py-1 rounded border border-sky-300 text-sky-800 bg-sky-50 hover:bg-sky-100">♻️ Reprocessar empresa</button>
     <span id="reprocessar-loading" class="htmx-indicator text-xs text-loyall-400">iniciando…</span>
     {% include 'partials/coleta_noturna_toggle.html' %}

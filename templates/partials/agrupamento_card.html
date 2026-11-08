@@ -27,7 +27,7 @@
       {% if a.tem_fontes and a.ativo and not em_producao() %}
       <button hx-post="{{ url_for('ui.htmx_disparar_agrupamento', agrupamento_id=a.id) }}"
               hx-target="#ag-{{ a.id }}-coleta" hx-swap="innerHTML"
-              hx-confirm="Disparar coleta de TODOS os locais de '{{ a.nome }}' ({{ a.locais|length }} locais · {{ a.fontes_ativas }} fontes ativas)? Custo Apify proporcional. Pode demorar minutos. Cooldown 15 min."
+              hx-confirm="Disparar coleta de TODOS os locais de '{{ a.nome }}' ({{ a.locais|length }} locais · {{ a.fontes_ativas }} fontes ativas)? Custo Apify proporcional. Pode demorar minutos. Cooldown 15 min. Depois, classifica só as avaliações novas; temas, diagnóstico e sugestões (Sonnet) da empresa só rodam se as pendências chegarem a {{ limiar_pos_coleta(a.empresa_id) }}. Para reprocessar tudo, use ♻️ Reprocessar empresa."
               class="text-loyall-700 hover:underline" title="Coleta todos os locais (só dev)">🔄 coletar</button>
       <span id="ag-{{ a.id }}-coleta" class="text-loyall-500"></span>
       {% endif %}

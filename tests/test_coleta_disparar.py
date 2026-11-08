@@ -178,15 +178,15 @@ def test_reprocessar_cliente_403(client_cliente_factory, db_session: Session) ->
 def test_reprocessar_loyall_dispara_async(
     client_loyall: FlaskClient, db_session: Session, monkeypatch
 ) -> None:
-    """Loyall: 200 + banner, e a rota CHAMA disparar_pos_coleta_async com o
-    empresa_id (wiring — sem rodar o pipeline). Confirma o fire-and-forget."""
+    """Loyall: 200 + banner, e a rota CHAMA disparar_reprocessamento_async (o único
+    caminho forçado) com o empresa_id (wiring — sem rodar o pipeline)."""
     empresa = Empresa(nome="ReprocLoyall")
     db_session.add(empresa)
     db_session.commit()
 
     chamadas = []
     monkeypatch.setattr(
-        "src.coletor.orquestrador.disparar_pos_coleta_async",
+        "src.coletor.orquestrador.disparar_reprocessamento_async",
         lambda empresa_id, *a, **k: chamadas.append(empresa_id),
     )
 

@@ -51,12 +51,12 @@
     {% if f.ativo %}
     <button hx-post="{{ url_for('ui.htmx_disparar_fonte', fonte_id=f.id) }}"
             hx-target="#fonte-{{ f.id }}-result" hx-swap="innerHTML"
-            hx-confirm="Disparar coleta Apify de '{{ f.conector_tipo }}'? Gera custo Apify imediato."
+            hx-confirm="Disparar coleta Apify de '{{ f.conector_tipo }}'? Gera custo Apify imediato. Depois, classifica só as avaliações novas; temas, diagnóstico e sugestões (Sonnet) da empresa só rodam se as pendências chegarem a {{ limiar_pos_coleta(f.empresa_id) }}. Para reprocessar tudo, use ♻️ Reprocessar empresa."
             class="text-loyall-700 hover:underline">{% if f.eh_ra %}scorecard{% else %}disparar{% endif %}</button>
     {% if f.eh_ra and f.ra_modo != 'completo' and f.ra_cap_efetivo and f.ra_cap_efetivo > 0 %}
     <button hx-post="{{ url_for('ui.htmx_disparar_aberturas', fonte_id=f.id) }}"
             hx-target="#fonte-{{ f.id }}-result" hx-swap="innerHTML"
-            hx-confirm="{% if f.ra_dias_desde_coleta is not none and f.ra_dias_desde_coleta <= 7 %}Última coleta há {{ f.ra_dias_desde_coleta }} dia(s). O LATEST re-baixa o MESMO lote e re-cobra ~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }} (~{{ f.ra_cap_efetivo }} casos). Coletar assim?{% else %}Coletar ~{{ f.ra_cap_efetivo }} aberturas (~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }})? Gera custo Apify imediato.{% endif %}"
+            hx-confirm="{% if f.ra_dias_desde_coleta is not none and f.ra_dias_desde_coleta <= 7 %}Última coleta há {{ f.ra_dias_desde_coleta }} dia(s). O LATEST re-baixa o MESMO lote e re-cobra ~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }} (~{{ f.ra_cap_efetivo }} casos). Coletar assim?{% else %}Coletar ~{{ f.ra_cap_efetivo }} aberturas (~US$ {{ '%.2f'|format(f.ra_custo_por_coleta) }})? Gera custo Apify imediato.{% endif %} Depois, classifica só as avaliações novas; temas, diagnóstico e sugestões (Sonnet) da empresa só rodam se as pendências chegarem a {{ limiar_pos_coleta(f.empresa_id) }}. Para reprocessar tudo, use ♻️ Reprocessar empresa."
             class="text-loyall-700 hover:underline">coletar aberturas</button>
     {% endif %}
     {% endif %}

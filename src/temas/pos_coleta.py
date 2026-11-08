@@ -111,6 +111,27 @@ def contar_novos(empresa_id: int) -> int:
         )
 
 
+def tamanho_reprocessamento(empresa_id: int) -> Dict[str, int]:
+    """O tamanho do que o "♻️ Reprocessar" vai rodar, contado (não estimado em R$, que não
+    é medido): pendentes de classificação, manifestações com texto da empresa (base dos
+    temas) e lojas com diagnóstico próprio (cada uma ganha diagnóstico e sugestões)."""
+    from sqlalchemy import func
+
+    from src.diagnostico.leituras import lojas_qualificadas
+    from src.models.verbatim import Verbatim
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        com_texto = (
+            s.query(func.count(Verbatim.id))
+            .filter(Verbatim.empresa_id == empresa_id, Verbatim.tem_texto.is_(True))
+            .scalar()
+            or 0
+        )
+        lojas = len(lojas_qualificadas(s, empresa_id))
+    return {"pendentes": contar_novos(empresa_id), "com_texto": com_texto, "lojas": lojas}
+
+
 def contar_pendente_cauda(empresa_id: int) -> int:
     """Material que a CAUDA ainda não consumiu = verbatins com texto SEM embedding do
     MODELO_PADRAO. É o sinal do gate da cauda (corte #4).

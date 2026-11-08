@@ -158,6 +158,14 @@ def create_app() -> Flask:
     def em_producao() -> bool:
         return os.getenv("FLASK_ENV") == "production"
 
+    # Avisos dos botões de coleta e do Reprocessar (números do código, não estimativa):
+    # o limiar que segura a cauda do pós-coleta e o tamanho do reprocessamento forçado.
+    from src.temas.pos_coleta import limiar_efetivo as _limiar_efetivo
+    from src.temas.pos_coleta import tamanho_reprocessamento as _tamanho_reproc
+
+    app.add_template_global(_limiar_efetivo, "limiar_pos_coleta")
+    app.add_template_global(_tamanho_reproc, "tamanho_reprocessamento")
+
     _register_cli_commands(app)
 
     # Health check (liveness) — 200 trivial, SEM auth e SEM tocar o banco. O Render
