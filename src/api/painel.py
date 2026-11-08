@@ -120,6 +120,13 @@ def calcular_ratio(promotor: int, detrator: int) -> float:
     return min(RATIO_CAP_SUPERIOR, round(promotor / detrator, 2))
 
 
+def tem_sinal_pd(promotor: int, detrator: int) -> bool:
+    """Há razão P/D a ler: pelo menos um promotor ou um detrator. Sem os dois (0/0, só
+    conversível), ``calcular_ratio`` devolve 0.0, que a faixa leria como crítico — não é
+    medição. Fonte única do descarte: gargalo, ferida e a exibição do Diagnóstico usam esta."""
+    return promotor + detrator > 0
+
+
 def _fmt_ratio_num(v: float) -> str:
     """1 casa decimal, vírgula pt-BR; inteiro quando exato (6.0→'6', 1.5→'1,5')."""
     r = round(v, 1)
@@ -481,7 +488,7 @@ def subpilares_criticos(agg: Dict[str, Dict[str, Any]], piso=None) -> List[str]:
         sub
         for sub in SUBPILARES_ORDEM
         if sub in agg
-        and (agg[sub]["prom"] + agg[sub]["det"]) > 0
+        and tem_sinal_pd(agg[sub]["prom"], agg[sub]["det"])
         and agg[sub]["ratio"] < RATIO_CRITICO
         and agg[sub]["total"] >= piso
     ]

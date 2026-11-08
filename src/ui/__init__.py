@@ -5009,6 +5009,12 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         agg_texto = agregar_subpilares(s, empresa_id, ag_id, so_texto=True)
     nota_pesada_por_sub = marcar_nota_pesada(agg, agg_texto)
 
+    from src.api.painel import tem_sinal_pd
+
+    def _rf(d):
+        """(ratio, faixa) para exibir; sem promotor nem detrator não há razão: (None, None)."""
+        return (d["ratio"], d["faixa"]) if tem_sinal_pd(d["prom"], d["det"]) else (None, None)
+
     confronto = []
     for sub in SUBPILARES_ORDEM:
         d = agg.get(sub)
@@ -5029,8 +5035,8 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                 det=d["det"],
                 conv=d["conv"],
                 prom=d["prom"],
-                ratio=d["ratio"],
-                faixa=d["faixa"],
+                ratio=_rf(d)[0],
+                faixa=_rf(d)[1],
                 proximity=px["valor"],
                 proximity_faixa=px["faixa"],
                 rs_estoque=formatar_estoque(_estoque.get(sub)),
@@ -5059,12 +5065,13 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
         conv = sum(agg[x]["conv"] for x in subs)
         det = sum(agg[x]["det"] for x in subs)
         ratio = calcular_ratio(prom, det)
+        ratio, faixa = (ratio, faixa_ratio(ratio)) if tem_sinal_pd(prom, det) else (None, None)
         pilares.append(
             SimpleNamespace(
                 pilar=p,
                 nome=NOME_PILAR.get(p, p),
                 ratio=ratio,
-                faixa=faixa_ratio(ratio),
+                faixa=faixa,
                 total=prom + conv + det,
                 prom=prom,
                 conv=conv,
@@ -5075,8 +5082,8 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                     SimpleNamespace(
                         subpilar=x,
                         nome=NOME_SUBPILAR.get(x, x),
-                        ratio=agg[x]["ratio"],
-                        faixa=agg[x]["faixa"],
+                        ratio=_rf(agg[x])[0],
+                        faixa=_rf(agg[x])[1],
                     )
                     for x in subs
                 ],

@@ -86,7 +86,7 @@
         <td class="text-right px-2 py-2 {% if c.det %}text-rose-700 font-medium{% else %}text-loyall-300{% endif %}">{{ c.det }}</td>
         <td class="text-right px-2 py-2 {% if c.conv %}text-amber-700{% else %}text-loyall-300{% endif %}">{{ c.conv }}</td>
         <td class="text-right px-2 py-2 {% if c.prom %}text-emerald-700{% else %}text-loyall-300{% endif %}">{{ c.prom }}</td>
-        <td class="text-right px-2 py-2 font-bold text-loyall-800">{{ '%.2f'|format(c.ratio) }}</td>
+        <td class="text-right px-2 py-2 font-bold text-loyall-800">{% if c.ratio is none %}<span class="text-loyall-300 font-normal cursor-help" title="Sem promotor nem detrator: não há razão a ler (só conversíveis).">—</span>{% else %}{{ '%.2f'|format(c.ratio) }}{% endif %}</td>
         <td class="text-center px-2 py-2">
           {% if c.proximity is not none %}
           {% set pxf = {'distante':{'bg':'bg-rose-100','text':'text-rose-700'},'medio':{'bg':'bg-amber-100','text':'text-amber-800'},'proximo':{'bg':'bg-emerald-100','text':'text-emerald-700'}}.get(c.proximity_faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
@@ -96,7 +96,7 @@
           <span class="text-loyall-300" title="Volume insuficiente (&lt; 10 verbatins) — Proximity precisa de mais lastro que o ratio">—</span>
           {% endif %}
         </td>
-        <td class="text-center px-2 py-2"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span></td>
+        <td class="text-center px-2 py-2">{% if c.faixa is none %}<span class="text-loyall-300 cursor-help" title="Sem promotor nem detrator: não há razão a ler (só conversíveis)." data-sem-sinal="{{ c.subpilar }}">—</span>{% else %}<span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span>{% endif %}</td>
         <td class="text-right px-2 py-2 text-xs">
           {% if c.rs_estoque %}<span class="text-emerald-700 font-medium" title="Conversíveis × LTV por loja (ticket × frequência); cobertura parcial quando nem todas têm LTV">{{ c.rs_estoque }}</span>{% else %}<span class="text-loyall-300" title="Nenhuma loja deste subpilar tem LTV cadastrado">—</span>{% endif %}
         </td>

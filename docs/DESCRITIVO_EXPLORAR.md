@@ -359,7 +359,8 @@ lista de 3 subpilares (código·nome, ratio, badge). (Termos no glossário.)
    relatos escritos** a sustentam (a % dispara, o nº de relatos dimensiona a fragilidade — 42% com 3.000
    relatos é robusto; 72% com 95 é frágil). Display-only, não muda a classificação.
 2. **Det / Conv / Prom** — contagens por tipo.
-3. **Ratio** — promotores ÷ detratores (ver glossário).
+3. **Ratio** — promotores ÷ detratores (ver glossário). Sem promotor nem detrator (só conversíveis) não há
+   razão: aparece "—", e não 0,00, também na faixa e no Mapa de Lastro.
 4. **Proximity** (0–100) + faixa — distância da excelência; "—" se <10 verbatins (sem base).
 5. **Faixa** do ratio (badge).
 6. **R$ Estoque** — quanto de receita está "parado" em clientes parcialmente satisfeitos deste subpilar
