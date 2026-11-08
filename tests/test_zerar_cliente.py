@@ -65,6 +65,7 @@ def test_cobertura_total_das_tabelas():
     from src.models.base import Base
 
     classificadas = {t for _, t, _ in zc.PLANO} | set(zc.MANTIDAS) | set(zc.GLOBAIS_IGNORADAS)
+    classificadas |= {t for _, t, _, _ in zc.LIMPAR}
     todas = set(Base.metadata.tables.keys())
 
     nao_classificadas = todas - classificadas
@@ -87,6 +88,8 @@ def test_categorias_sao_disjuntas():
     assert plano.isdisjoint(mantidas)
     assert plano.isdisjoint(globais)
     assert mantidas.isdisjoint(globais)
+    limpar = {t for _, t, _, _ in zc.LIMPAR}
+    assert limpar.isdisjoint(plano | mantidas | globais)
 
 
 def test_confirmar_interativo_aceita_id_e_sim(monkeypatch):
@@ -192,3 +195,35 @@ def test_aplicar_apaga_alvo_mantem_estrutura_e_outras(db_session, monkeypatch):
     assert _count("verbatins", zc._DIRETO, 5) == 1
     assert _count("relatorio_cache", zc._DIRETO, 5) == 1
     assert _count("fontes", zc._DIRETO, 5) == 1
+
+
+def test_aplicar_apaga_texto_da_frase_e_mantem_o_custo(db_session, monkeypatch):
+    """O gasto é da Loyall: a linha de frases_posicao fica com custo e tokens; o texto sai."""
+    from src.models.frase_posicao import FrasePosicao
+
+    _seed_empresa(6, "Pardini", com_dados=True)
+    _seed_empresa(5, "Carbel", com_dados=True)
+    with prod_db_session() as s:
+        for eid in (6, 5):
+            s.add(
+                FrasePosicao(
+                    empresa_id=eid,
+                    subpilar="P1",
+                    dados_hash="h",
+                    frase="O que foi vendido não chega.",
+                    modelo="m",
+                    prompt_versao="v",
+                    tokens_in=1000,
+                    tokens_out=50,
+                    custo_usd=0.00375,
+                )
+            )
+    monkeypatch.setattr(builtins, "input", lambda _: "6")
+
+    assert zc.main("6", aplicar=True) == 0
+    with prod_db_session() as s:
+        alvo = s.query(FrasePosicao).filter_by(empresa_id=6).one()
+        assert alvo.frase is None and alvo.custo_usd == 0.00375 and alvo.tokens_in == 1000
+        assert alvo.motivo_rejeicao == "texto apagado no zerar_cliente"
+        outra = s.query(FrasePosicao).filter_by(empresa_id=5).one()
+        assert outra.frase == "O que foi vendido não chega."  # empresa 5 intocada

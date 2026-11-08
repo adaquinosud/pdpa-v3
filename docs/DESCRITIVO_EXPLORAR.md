@@ -408,7 +408,8 @@ mostra a soma. Uma frase por condição; havendo mais de uma candidata, a de mai
 do lado do veredito e 2 do outro (os mais recentes, com identificadores mascarados) e responde a pergunta
 da posição ("Pergunta do leitor" do Cap. 17 do Manual). O código rejeita frase com algarismo ou com palavra
 do Confronto. Gera só pelo botão do admin, que mostra a estimativa em R$ antes; toda chamada fica em
-`frases_posicao` com o custo, aceita ou rejeitada. Frase de números antigos não aparece.
+`frases_posicao` com o custo, aceita ou rejeitada. Frase de números antigos não aparece. O cartão
+declara o alcance: "No que foi lido (N de M relatos):", com os números do código.
 
 **Filtros.** Escopo do header (empresa, agrupamento, loja); todo o histórico.
 

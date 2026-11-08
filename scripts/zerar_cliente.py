@@ -81,9 +81,6 @@ PLANO: list[tuple[str, str, str]] = [
     ("ratios mensais", "ratios_mensais", _DIRETO),
     ("temas", "temas", _DIRETO),
     ("leituras de diagnóstico", "leituras_diagnostico", _DIRETO),
-    # Frases da aba Posições: derivam dos verbatins e levam o custo de cada chamada; como o
-    # Avaliador e a sonda IA, o wipe por cliente leva o custo junto.
-    ("frases da aba Posições", "frases_posicao", _DIRETO),
     ("sugestões estruturais", "sugestoes_estruturais", _DIRETO),
     ("status de ações", "acoes_status", _DIRETO),
     ("cache de relatório", "relatorio_cache", _DIRETO),
@@ -136,6 +133,18 @@ PLANO: list[tuple[str, str, str]] = [
     ("lotes de import", "importacao_lotes", _DIRETO),
     # casos RA depois de verbatins: verbatins.caso_id → casos (filho antes do pai).
     ("casos ReclameAqui", "casos", _DIRETO),
+]
+
+# Linhas que FICAM, com o texto apagado: o gasto é da Loyall e medidor que esquece gasto é o
+# defeito que o registro existe para evitar (decisão de 08/11). O texto derivado do cliente
+# sai; tokens, modelo e custo_usd ficam. (rótulo, tabela, SET, where-das-linhas-com-texto)
+LIMPAR: list[tuple[str, str, str, str]] = [
+    (
+        "frases da aba Posições (custo fica)",
+        "frases_posicao",
+        "frase = NULL, motivo_rejeicao = 'texto apagado no zerar_cliente'",
+        _DIRETO + " AND frase IS NOT NULL",
+    ),
 ]
 
 # Estrutura que DEVE permanecer (não entra no PLANO de deleção).
@@ -200,7 +209,8 @@ def _validar_schema(session) -> None:
     """Aborta se algum nome de tabela do PLANO/MANTIDAS não existe no banco vivo
     (protege contra typo ou drift de schema antes de qualquer escrita)."""
     existentes = set(inspect(session.get_bind()).get_table_names())
-    alvo = {t for _, t, _ in PLANO} | set(MANTIDAS) | {"verbatins", "temas"}
+    alvo = {t for _, t, _ in PLANO} | {t for _, t, _, _ in LIMPAR} | set(MANTIDAS)
+    alvo |= {"verbatins", "temas"}
     faltando = sorted(alvo - existentes)
     if faltando:
         raise SystemExit(
@@ -271,6 +281,11 @@ def main(empresa, aplicar: bool) -> int:
             print(f"    {c:>8}  {tab:<28} ({rotulo})")
         print(f"    {'─' * 8}")
         print(f"    {total:>8}  TOTAL")
+        limpar = [(r, t, st, w, _count(s, t, w, eid)) for r, t, st, w in LIMPAR]
+        print("\n[zerar] linhas que ficam com o texto apagado (o custo fica):")
+        for rotulo, tab, _, _, c in limpar:
+            print(f"    {c:>8}  {tab:<28} ({rotulo})")
+        total += sum(c for *_, c in limpar)
         _provar_isolamento(s, eid)
 
         if not aplicar:
@@ -291,6 +306,9 @@ def main(empresa, aplicar: bool) -> int:
 
         # ── DELETE em transação atômica (commit no fim do db_session) ──────
         print("\n[zerar] apagando…")
+        for rotulo, tab, set_, where, _ in limpar:
+            res = s.execute(text(f"UPDATE {tab} SET {set_} WHERE {where}"), {"eid": eid})
+            print(f"    ~{res.rowcount or 0:<8} {tab} ({rotulo})")
         apagadas = 0
         for rotulo, tab, where in PLANO:
             res = s.execute(text(f"DELETE FROM {tab} WHERE {where}"), {"eid": eid})
@@ -301,6 +319,7 @@ def main(empresa, aplicar: bool) -> int:
         # ── PÓS-CHECK (ainda na transação): derivados=0, estrutura intacta ─
         print("\n[zerar] pós-check (na transação, antes do commit):")
         restou = sum(_count(s, tab, where, eid) for _, tab, where in PLANO)
+        restou += sum(_count(s, tab, where, eid) for _, tab, _, where in LIMPAR)
         print(f"    derivados restantes p/ empresa {eid}: {restou}  (esperado: 0)")
         for tab, where in MANTIDAS_CHECK:
             print(f"    mantida {tab:<20}: {_count(s, tab, where, eid)}  (estrutura preservada)")

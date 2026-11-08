@@ -50,7 +50,7 @@
     <div class="text-sm font-medium text-loyall-800">{{ c.nome }}</div>
     <div class="text-lg font-bold first-letter:uppercase {{ vclass[c.veredito] }}">{{ c.rotulo }}</div>
     <div class="text-[11px] text-loyall-500 mb-2">{{ c.significado }}</div>
-    {% if c.frase %}<p class="text-xs italic text-loyall-700 mb-2" data-frase="{{ c.sub }}">{{ c.frase }}</p>{% endif %}
+    {% if c.frase %}<p class="text-xs text-loyall-700 mb-2"><span class="text-[11px] text-loyall-500 not-italic">No que foi lido ({{ n(c.frase_lidos) }} de {{ n(c.total) }} relatos):</span> <span class="italic" data-frase="{{ c.sub }}">{{ c.frase }}</span></p>{% endif %}
     {% if c.veredito in ('criar', 'sem_base') %}
       {% if p.teto %}
       <div class="text-xs text-loyall-600">Nenhuma manifestação com texto. Teto: {{ (p.teto * 100)|virg(3) }}% · 1 em cada {{ n(p.um_em) }}</div>

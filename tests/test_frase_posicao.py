@@ -113,6 +113,7 @@ def test_frase_aparece_e_some_quando_os_numeros_mudam(client_loyall, db_session)
 
     h = client_loyall.get(url).get_data(as_text=True)
     assert 'data-frase="P1">O que foi vendido não chega.' in h
+    assert "No que foi lido (8 de 30 relatos):" in h  # 8 do veredito, nenhum do outro lado
     assert "Frases em dia neste escopo." in h
 
     _verb(db_session, alvo, "P1", "detrator", 1, texto="novo relato")

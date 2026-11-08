@@ -5134,14 +5134,20 @@ def _explorar_posicoes(s, empresa_id, ag_id, local_id=None):
     )
     from src.utils.hashing import hash_payload
 
-    hashes = {
-        c["sub"]: hash_payload(payload_cartao(s, empresa_id, ag, local_id, c))
+    payloads = {
+        c["sub"]: payload_cartao(s, empresa_id, ag, local_id, c)
         for c in r["cartoes"]
         if elegivel(c)
     }
+    hashes = {sub: hash_payload(p) for sub, p in payloads.items()}
     vigentes = frases_vigentes(s, empresa_id, ag, local_id, hashes)
     for c in r["cartoes"]:
         c["frase"] = vigentes.get(c["sub"])
+        p = payloads.get(c["sub"])
+        # quantos relatos o modelo leu: o cartão declara, o modelo não escreve número
+        c["frase_lidos"] = (
+            len(p["trechos_do_veredito"]) + len(p["trechos_do_outro_lado"]) if p else 0
+        )
     pendentes = len([sub for sub in hashes if sub not in vigentes])
     r["frases"] = {
         "cambio": CAMBIO_BRL,
