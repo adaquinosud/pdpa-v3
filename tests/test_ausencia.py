@@ -105,7 +105,7 @@ def test_tela_mostra_ao_admin_nos_tres_escopos_e_esconde_do_cliente(
         assert 'data-subpilar="A3" data-estado="sem_relato"' in h, q
         assert 'data-subpilar="P1" data-estado="presente"' in h, q
         assert f"{teto}% · 1 em cada 7" in h, q  # N 20 → 13,911%
-        assert "N = 20" in h, q
+        assert "Em 20 relatos" in h, q
         assert "vaga" not in h.split('id="posicoes-sem-relato"')[1], q
         assert 'title="Confiança por volume com texto: 20"' in h, q
 
@@ -143,8 +143,8 @@ def test_rodape_descreve_o_mecanismo_da_so_nota(client_loyall, db_session):
     bloco = (
         client_loyall.get(_url(alvo)).get_data(as_text=True).split('id="posicoes-sem-relato"')[1]
     )
-    assert "Recebe o pilar pela proporção dos textos da mesma valência e entra no subpilar" in bloco
-    assert "dominante, calculados por loja" in bloco
+    assert "A distribuição entre os pilares é calculada loja por loja" in bloco
+    assert "contada no subpilar dominante daquela loja" in bloco
     assert "recebe subpilar por proporção" not in bloco
 
 
@@ -172,13 +172,15 @@ def test_rodape_uma_linha_por_coluna_com_numeros_do_codigo(client_loyall, db_ses
     )
 
     a, m = VOLUME_CONFIANCA_ALTA, VOLUME_CONFIANCA_MEDIA
-    assert f"verde a partir de {a} manifestações com texto, amarelo de {m} a {a - 1}" in bloco
+    assert f"Verde a partir de {a} manifestações com texto, amarelo de {m} a {a - 1}" in bloco
     assert f"vermelho abaixo de {m}." in bloco
-    assert f"menos de {PISO_TEXTOS} textos" in bloco
+    assert f"Quando a loja tem menos de {PISO_TEXTOS} textos, a conta sobe" in bloco
     teto = f"{100 * teto_ausencia(20):.3f}".replace(".", ",")
-    assert "teto = 1 − 0,05^(1/N)" in bloco
-    assert f"Aqui, N = 20, e o teto dá {teto}%, ou 1 relato em cada 7." in bloco
-    assert "ainda haveria 5% de chance de ela não aparecer nenhuma vez em 20" in bloco
+    assert "teto = 1 − 0,05 ^ (1 ÷ N)" in bloco
+    assert "Em 20 relatos essa posição não apareceu nenhuma vez." in bloco
+    assert "em mais de 1 relato a cada 7, era muito provável" in bloco
+    assert "sobra 5% de chance de ela não aparecer nenhuma vez" in bloco
+    assert f"{teto}% · 1 em cada 7" in bloco  # o valor do teto fica na coluna
     assert "cliente em cada" not in bloco  # N conta relatos, não clientes
 
 
@@ -199,7 +201,7 @@ def test_painel_mostra_o_mesmo_bloco_ao_admin_e_esconde_do_cliente(
         h = client_loyall.get(_url_painel(alvo) + q).get_data(as_text=True)
         assert 'id="posicoes-sem-relato"' in h, q
         assert 'data-subpilar="A3" data-estado="sem_relato"' in h, q
-        assert "não segue o filtro de fonte" not in h, q
+        assert "não segue o filtro desta tela" not in h, q
     # mesmo parcial: o rodapé do Painel é o do Diagnóstico, letra por letra
     painel = _bloco(client_loyall.get(_url_painel(alvo)).get_data(as_text=True))
     rodape = lambda b: b.split('id="posicoes-rodape"')[1].split("</dl>")[0]  # noqa: E731
@@ -215,4 +217,4 @@ def test_painel_com_filtro_de_periodo_declara_que_o_bloco_nao_segue(client_loyal
     db_session.commit()
 
     h = client_loyall.get(_url_painel(alvo) + "?periodo=30d").get_data(as_text=True)
-    assert "não segue o filtro de fonte nem o de período desta tela" in _bloco(h)
+    assert "Este bloco não segue o filtro desta tela." in _bloco(h)
