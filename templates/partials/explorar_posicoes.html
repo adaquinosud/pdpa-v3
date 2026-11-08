@@ -8,6 +8,7 @@
   'proteger':  'text-emerald-700',
   'ocupar':    'text-amber-700',
   'criar':     'text-loyall-600',
+  'sem_base':  'text-loyall-400',
 } %}
 {% macro n(x) %}{% if x %}{{ _mil.format(x)|replace(",", ".") }}{% else %}—{% endif %}{% endmacro %}
 
@@ -19,14 +20,22 @@
   Sem manifestação com texto neste escopo: nenhum veredito calculável.{% if p.so_nota %} Há {{ n(p.so_nota) }} {{ 'nota' if p.so_nota == 1 else 'notas' }} sem texto, que não votam.{% endif %}
 </div>
 {% else %}
+{% if p.entre_posicoes %}
+<div id="entre-posicoes" class="mb-3 rounded-lg border border-loyall-200 bg-loyall-50 p-3">
+  <div class="text-[11px] uppercase tracking-wide text-loyall-500 mb-1">Entre as posições</div>
+  {% for f in p.entre_posicoes %}
+  <p class="text-sm text-loyall-800{% if not loop.last %} mb-1{% endif %}" data-condicao="{{ f.condicao }}">{{ f.texto }}</p>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
   {% for c in p.cartoes %}
   <div class="rounded-lg p-3 bg-white border-2 {% if c.cheio %}border-solid border-loyall-300{% else %}border-dashed border-loyall-200{% endif %}"
        data-posicao="{{ c.sub }}" data-veredito="{{ c.veredito }}" data-cheio="{{ 'sim' if c.cheio else 'nao' }}" data-confianca="{{ c.confianca }}">
     <div class="text-sm font-medium text-loyall-800">{{ c.nome }}</div>
-    <div class="text-lg font-bold capitalize {{ vclass[c.veredito] }}">{{ c.veredito }}</div>
+    <div class="text-lg font-bold first-letter:uppercase {{ vclass[c.veredito] }}">{{ c.rotulo }}</div>
     <div class="text-[11px] text-loyall-500 mb-2">{{ c.significado }}</div>
-    {% if c.veredito == 'criar' %}
+    {% if c.veredito in ('criar', 'sem_base') %}
       {% if p.teto %}
       <div class="text-xs text-loyall-600">Nenhuma manifestação com texto. Teto: {{ (p.teto * 100)|virg(3) }}% · 1 em cada {{ n(p.um_em) }}</div>
       {% endif %}
@@ -50,6 +59,8 @@
 <p class="text-[11px] text-loyall-400 mt-3">
   A maior das três colunas nomeia o veredito: romperam, consertar; falam bem, proteger; neutros só quando for estritamente a maior, ocupar; nenhuma manifestação, criar. Empate entre falam bem e romperam: consertar.
   Cartão cheio a partir de {{ p.piso }} manifestações com texto, tracejado abaixo.
+  Posição sem manifestação diz criar quando o teto fica abaixo de {{ (p.teto_criar * 100)|round|int }}%; acima disso, sem base para dizer.
+  Entre as posições só entram cartões cheios e posições em criar.
   {% if p.teto %}Teto da posição sem manifestação: 1 − 0,05^(1/N), com N = {{ n(p.total) }} manifestações com texto neste escopo.{% endif %}
 </p>
 {% endif %}

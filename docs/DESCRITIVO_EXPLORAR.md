@@ -391,8 +391,18 @@ mesma valência, subpilar dominante, por loja). Aparece no cartão em linha pró
 texto, fora desta conta").
 
 **Confiança.** Cartão cheio a partir de 30 manifestações com texto, tracejado abaixo. O veredito sai
-sempre. No cartão **criar**, o teto 1 − 0,05^(1/N), com N = manifestações com texto do próprio escopo.
-Sem nenhuma manifestação com texto no escopo, a tela declara que não há veredito calculável.
+sempre. Posição sem manifestação diz **criar** só quando o teto 1 − 0,05^(1/N) do escopo (N =
+manifestações com texto do próprio escopo) fica abaixo de 5%; acima disso diz **sem base para dizer**.
+O teto aparece no cartão. Sem nenhuma manifestação com texto no escopo, a tela declara que não há
+veredito calculável.
+
+**Entre as posições.** Frases fixas, disparadas por condição, com a pergunta do pilar no lugar do nome
+(Precisão "A palavra dele vale?", Disponibilidade "Eu alcanço ele?", Parceria "Ele está do meu lado?",
+Aconselhamento "Ele sabe mais que eu?"). Só entram cartões cheios e posições em criar. (1) Topo forte
+com base que não sustenta (menos da metade forte); (2) base com metade ou mais forte e topo rompido;
+(3) pilar cuja soma dá proteger mas que tem, dentro, posição forte e posição rompida — a frase não
+mostra a soma. Uma frase por condição; havendo mais de uma candidata, a de maior total. Regra em
+`entre_posicoes` (`src/diagnostico/tela_posicao.py`).
 
 **Filtros.** Escopo do header (empresa, agrupamento, loja); todo o histórico.
 
