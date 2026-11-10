@@ -34,6 +34,12 @@ sobre texto e número que chegam ao cliente. É a entrada do inventário por ori
   INFERIDO por código):** as ações de relacionamento e de venda de TODA anomalia com texto entram no
   Plano de Ação (`consolidar._itens_anomalia`) — aba Planos e PDF Plano Executivo, que imprime todas.
   Se a recomendação de bônus está num desses campos, ela vai ao papel por esse caminho.
+- **MEDIDO** (`sonda_plano_anomalia`, 10/11): vai. O bônus por NPS chegava ao cliente pelo Plano de
+  Ação — 4 itens, 1 de prioridade alta. 42 dos 124 itens do Plano da Carbel vinham de anomalia.
+- **DECIDIDO e feito (10/11, `3ebe15b`, branch `fix/anomalia-fora-do-cliente`):** sai a seção de
+  alertas do Resumo e do Pontual, sai o campo de anomalias do texto das 3 descobertas, e as ações
+  vindas de anomalia saem do Plano de Ação (aba e PDF Plano Executivo). Na Carbel ficam 82 itens.
+  Uma regeração de descobertas, R$ 0,068 medido; só a empresa 5 tem noturna ligada.
 - **Por que é o primeiro:** é ação recomendada ao cliente usando a metodologia concorrente.
 
 ## 2. Anomalia sem validação sai no impresso
@@ -220,6 +226,15 @@ sobre eles. As três disparam o item 5 na próxima passada.
 - **INFERIDO:** tudo (leitura de código e `git log -S`).
 - **Quem vê:** cliente. Visão Financeira é outro bloco, só admin, e não usa nenhum dos três.
 - **Estado:** passou a ser decisão do inventário (09/11), não conserto avulso.
+- **Origem do driver (MEDIDO, `git log -S`):** commit `2d49243`, 28/05/2026, escrito direto no
+  código, com o comentário "conforme decisão do mapa de porte" — documento que não existe no
+  repositório.
+- **DECIDIDO (Alexandre, 10/11) — o item deixa de ser pendência:** o driver vira "O que está em
+  jogo", uma frase por posição (texto do Alexandre, sem a metade de métrica), e o Mapa Financeiro
+  ganha rodapé: "O que está em jogo é leitura da Loyall sobre o que cada posição sustenta no
+  negócio. Não vem dos relatos dos seus clientes." No impacto das ações, "Em jogo:". **É a regra do
+  terceiro grupo aplicada pela primeira vez: opinião nossa aparece, mas assinada.** Horizonte e
+  taxa de sucesso seguem no inventário. Feito em `3ebe15b`.
 
 ## 11. Custo registrado abaixo do real
 
@@ -246,6 +261,12 @@ sobre eles. As três disparam o item 5 na próxima passada.
   recriada volta para a fila "sem perspectiva" e é classificada de novo; a antiga fica órfã.
 - **Custo:** não medido. O custo da classificação de perspectiva não é gravado por ação.
 - **Quem vê:** interno (gasto e lixo de tabela); nenhum status preenchido por gente foi perdido.
+- **MEDIDO** (`sonda_plano_anomalia`, 10/11): o mesmo acontecia com as ações de ANOMALIA, guardadas
+  pelo id da anomalia, que muda a cada detecção. Na Carbel, 1.606 dos 1.636 registros de ação de
+  anomalia apontam para anomalia que não existe mais, todos com perspectiva paga; 50 só de
+  novembro, cerca de dezessete por noite desde domingo.
+- **Parte viva fechada (10/11, `3ebe15b`):** com as ações de anomalia fora do Plano de Ação, elas
+  deixam de ir para a fila de perspectiva — a reclassificação noturna para.
 
 ## 13. Anomalia de indicador lê o ratio mensal de loja com piso de 3, não de 30
 
