@@ -898,6 +898,12 @@ def _register_cli_commands(app: Flask) -> None:
             f"diag_gerados={r.loja_diag_gerados} diag_pulados={r.loja_diag_pulados} "
             f"sug_geradas={r.loja_sug_geradas} sug_pulados={r.loja_sug_pulados})"
         )
+        # Quantos textos de anomalia o modelo escreveu nesta passada (só os sem texto ainda;
+        # teto 50). Antes não saía em lugar nenhum — ninguém sabia quanto se gerava por noite.
+        click.echo(
+            f"[pos-coleta] leituras de anomalia geradas={r.anomalias_leituras_geradas} "
+            f"(falhas={r.anomalias_leituras_falhas})"
+        )
         click.echo(f"[pos-coleta] custo estimado ~${r.custo_estimado_usd}")
 
     # ── CP-poscoleta-watchdog: flask pos-coleta-watchdog (retoma pós-coleta) ──
