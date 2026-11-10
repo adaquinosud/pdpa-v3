@@ -123,7 +123,9 @@ def responder(
 
     dados = montar_contexto(s, empresa_id, ag_id, corte)
     contexto = formatar_contexto(dados)
-    system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    from src.api.painel import regra_metrica_para_prompt
+
+    system_prompt = PROMPT_PATH.read_text(encoding="utf-8") + regra_metrica_para_prompt()
     gerar = gerar_fn or _chamar_sonnet
     out = gerar(system_prompt, contexto, pergunta)
 
@@ -190,7 +192,9 @@ def responder_stream(
         contexto = formatar_contexto(dados)
         c_hash = contexto_hash(dados)
 
-    system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    from src.api.painel import regra_metrica_para_prompt
+
+    system_prompt = PROMPT_PATH.read_text(encoding="utf-8") + regra_metrica_para_prompt()
     gerar = stream_fn or _chamar_sonnet_stream
     partes = []
     for delta in gerar(system_prompt, contexto, pergunta):

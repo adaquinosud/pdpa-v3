@@ -149,6 +149,22 @@ def pouca_base(total: Optional[int]) -> bool:
     return (total or 0) < VOLUME_CONFIANCA_ALTA
 
 
+def regra_metrica_para_prompt() -> str:
+    """Regra 4 (Alexandre, 10/11/2026): texto do modelo não cita nem recomenda métrica de outra
+    metodologia. Fonte única, anexada ao system de todo gerador que escreve texto lido pelo
+    cliente. Citar para CONTRASTAR é permitido; como medida, meta ou recomendação, não. Prompt
+    fora do hash: anexar não regera nada sozinho."""
+    return """
+
+REGRA DE MÉTRICA (obrigatória):
+- Não use, cite nem recomende métrica de outra metodologia — NPS, CSAT, CES, "índice de
+  satisfação", "nota de satisfação" ou equivalente — como medida, meta, critério de bônus ou
+  comissão, ou forma de acompanhar resultado. A medida do PDPA é a razão entre promotores e
+  detratores e a posição nos subpilares.
+- Só é permitido citar uma dessas métricas para CONTRASTAR com o PDPA (ex.: "onde o NPS vê ruído,
+  o PDPA vê oportunidade"), nunca para recomendá-la."""
+
+
 def regra_numero_para_prompt() -> str:
     """Regra de escrita do teto e do piso para texto gerado por modelo — com o piso lido da
     constante (prompt que reescreve número é fóssil). Anexada ao system prompt pelos geradores

@@ -111,14 +111,14 @@ def _gravar_cache(
 def _chamar_sonnet(
     system_prompt: str, user_payload: str, max_tokens: int = 500
 ) -> Tuple[str, int, int]:
-    from src.api.painel import regra_numero_para_prompt
+    from src.api.painel import regra_metrica_para_prompt, regra_numero_para_prompt
     from src.classifier.classifier_v3 import _get_client
 
     client = _get_client()
     resp = client.messages.create(
         model=SONNET_MODEL,
         max_tokens=max_tokens,
-        system=system_prompt + regra_numero_para_prompt(),
+        system=system_prompt + regra_numero_para_prompt() + regra_metrica_para_prompt(),
         messages=[{"role": "user", "content": user_payload}],
     )
     txt = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()

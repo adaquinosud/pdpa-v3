@@ -177,7 +177,12 @@ def _gerar_acao_llm(
     from src.classifier.classifier_v3 import _get_client
     from src.temas.rotulador import _parse_label_json
 
-    system_prompt = Path(prompt_path or ACAO_PROMPT_PATH).read_text(encoding="utf-8")
+    from src.api.painel import regra_metrica_para_prompt
+
+    system_prompt = (
+        Path(prompt_path or ACAO_PROMPT_PATH).read_text(encoding="utf-8")
+        + regra_metrica_para_prompt()
+    )
     try:
         client = _get_client()
         resposta = client.messages.create(

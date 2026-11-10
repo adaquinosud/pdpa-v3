@@ -62,7 +62,9 @@ def gerar_leitura_sequencial(n1_payload: Dict[str, Any]) -> str:
         from src.classifier.classifier_v3 import _get_client
 
         client = _get_client()
-        system_prompt = _carregar_prompt()
+        from src.api.painel import regra_metrica_para_prompt
+
+        system_prompt = _carregar_prompt() + regra_metrica_para_prompt()
 
         # Sem detrator (caminho A do teto) vai como FATO, sem número: o 9,99 ali não é
         # divisão. Faixa e pouca base vão prontas do código — o modelo não recalcula a régua.

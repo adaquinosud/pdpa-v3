@@ -177,7 +177,9 @@ def gerar_frases(
     from src.utils.hashing import hash_payload
 
     chamar = chamar or _chamar_modelo
-    sistema = PROMPT_PATH.read_text(encoding="utf-8")
+    from src.api.painel import regra_metrica_para_prompt
+
+    sistema = PROMPT_PATH.read_text(encoding="utf-8") + regra_metrica_para_prompt()
     ag = None if local_id is not None else ag_id
     m = {"chamadas": 0, "aceitas": 0, "rejeitadas": 0, "custo_usd": 0.0, "motivos": []}
     with db_session() as s:

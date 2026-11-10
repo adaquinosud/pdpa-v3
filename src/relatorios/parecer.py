@@ -718,8 +718,14 @@ def sintetizar_parecer(
 
         def gerar_fn(payload):  # noqa: E731
             # parecer_sintese_v1.md (≥1024 tok) → prompt caching (texto do system idêntico).
+            from src.api.painel import regra_metrica_para_prompt
+
             return _chamar_sonnet(
-                payload, PROMPT_SINTESE, parse_fn=_extrair_json_aninhado, cachear=True
+                payload,
+                PROMPT_SINTESE,
+                parse_fn=_extrair_json_aninhado,
+                cachear=True,
+                regra_extra=regra_metrica_para_prompt(),
             )
 
     data = gerar_fn(facts)

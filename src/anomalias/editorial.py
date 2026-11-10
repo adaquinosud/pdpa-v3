@@ -504,6 +504,7 @@ def _chamar_sonnet(
     *,
     parse_fn: Optional[Callable[[str], Any]] = None,
     cachear: bool = False,
+    regra_extra: str = "",
 ) -> Dict[str, Any]:
     """Chama o Sonnet com o payload de negócio. Returns dict (7 chaves) + tokens.
 
@@ -516,7 +517,11 @@ def _chamar_sonnet(
     from src.temas.rotulador import _parse_label_json
 
     parse = parse_fn or _parse_label_json
-    system_prompt = Path(prompt_path or LEITURA_PROMPT_PATH).read_text(encoding="utf-8")
+    # ``regra_extra``: regra anexada por quem gera texto lido pelo cliente (regra de métrica);
+    # os classificadores que reusam esta função não passam nada.
+    system_prompt = (
+        Path(prompt_path or LEITURA_PROMPT_PATH).read_text(encoding="utf-8") + regra_extra
+    )
     client = _get_client()
     # Prompt caching (só ``cachear=True``): o TEXTO do system é idêntico — apenas
     # embrulhado num bloco com cache_control p/ o prefixo fixo (rubrica) ser lido a
@@ -553,7 +558,11 @@ def gerar_leitura(
     from src.utils.db import db_session
 
     # leitura de anomalia usa leitura_anomalia_v1.md (≥1024 tok) → prompt caching.
-    gerar = gerar_fn or (lambda p: _chamar_sonnet(p, cachear=True))
+    from src.api.painel import regra_metrica_para_prompt
+
+    gerar = gerar_fn or (
+        lambda p: _chamar_sonnet(p, cachear=True, regra_extra=regra_metrica_para_prompt())
+    )
     builders = {
         "indicador": montar_payload_indicador,
         "tema": montar_payload_tema,
