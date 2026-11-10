@@ -274,7 +274,19 @@ Carbel" = o mesmo caminho roda para ela.
 | 12 | Ação recriada → perspectiva paga de novo | **4.007 mortos** (antes de 19/07); **547 vivos** | sim — 56 da Carbel depois de 19/07, 13 em novembro | depende da decisão do 5 | nada antes da decisão |
 
 **Decididos:** 4 → (a) + (c). 8a → só guarda. 12 (parte morta) → só registro.
-**Pendentes de decisão do Alexandre:** 2, 5 (e com ele 12), 10.
+- **2 (Alexandre, 09/11):** nenhuma anomalia jamais foi validada — o estado nunca virou processo e
+  filtrar por ele esvaziaria o relatório. A impressão fica como está; o rótulo "validação" sai
+  ou é renomeado, para ninguém achar que alguém conferiu. Revisão de verdade, se vier, é trabalho
+  novo. Registrado; não mexer agora.
+- **5 (Alexandre, 09/11):** em vez de proteger andamento e responsável, eles saem. Entra
+  **exportação**: a pessoa marca as ações, com o descritivo, e baixa um arquivo para usar onde
+  trabalha. Nada fica preso ao id da linha; a ação pode ser reescrita sem perda. Condição para
+  quando for construído: o arquivo leva **de onde a ação veio, a posição a que pertence e o que
+  os clientes disseram que a gerou** — ação exportada sem origem é a mesma doença desta frente.
+  Registrado; não mexer agora.
+- **12:** fica vivo só o desperdício de pagar duas vezes a mesma classificação de perspectiva
+  (dinheiro, pequeno).
+**Pendente de decisão:** 10 (no inventário).
 **Esperando sonda:** risco de perda de (a) — só a linha da Carbel importa; se houver risco real, a
 guarda é proposta antes do código.
 
