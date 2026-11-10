@@ -343,10 +343,17 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   regra mandava escrever "no teto da régua" quando o detrator não vem; o modelo deduziu "sem
   detrator" do 9,99. Aqui coincide com o dado (A1 e Pa3 não têm detrator no agregado), mas a
   afirmação não estava no pacote.
-- **A conferir (`sonda_conferir_numeros`):** a descrição de Aconselhamento diz que Orientação (A2),
-  com 7 críticas para 10 elogios, tem "mais da metade do seu volume em zona de atrito" — só é
-  verdade se houver mais de 3 conversíveis; e dois números iguais em lugares diferentes — 84
-  detratores em Mutualidade (Pa2) e 84 críticas em Acessibilidade (D1).
+- **Conferido (`sonda_conferir_numeros`, 10/11):** os dois 84 estão certos — Pa2 tem 84 detratores
+  e D1 tem 84. Coincidência real.
+- **Não pegou — conta errada sobre número certo (achado de outra natureza):** a descrição de
+  Aconselhamento diz que Orientação (A2) tem "mais da metade do seu volume em zona de atrito".
+  **MEDIDO:** A2 tem 10 elogios, 0 conversíveis e 7 críticas, total 17; 7 de 17 é 41%, e sem
+  conversível não há leitura que chegue à metade. O modelo recebeu os números certos e escreveu uma
+  proporção falsa em cima deles. Diferente dos dois buracos de pacote acima: ali faltava dado; aqui
+  o dado estava lá e a conta saiu errada.
+- **Pergunta aberta, para medir depois (não agora):** com que frequência o modelo afirma proporção
+  ou comparação a partir dos números que recebeu? O "157 onde era 155" do run de 06/11 era desta
+  família. Não se pega com marcação automática — só lendo o texto contra o pacote.
 - **Já conhecido, agora em prosa:** a narrativa traz o "índice médio" por trimestre (3,79 → 5,18 →
   3,01 → 3,71 → 2,85), que é a média de ratios com teto — a pendência de cálculo do item 8.
 
