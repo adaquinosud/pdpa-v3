@@ -246,6 +246,40 @@ sobre eles. As três disparam o item 5 na próxima passada.
 
 ---
 
+## Causa viva × causa morta (09/11, escopo do Alexandre)
+
+**Regra de escopo:** execução — limpeza de dado, regeração paga, medição — **só na Carbel**
+(empresa 5); as outras empresas do app são de teste. **Conserto de causa** vale para o código
+inteiro (é compartilhado) sempre que a causa estiver viva, mesmo que o achado tenha aparecido em
+outra empresa. Causa morta: só registro. O inventário continua sendo do produto inteiro.
+
+"Viva" = o código que produziu o achado continua igual hoje (leitura de código). "Pode voltar na
+Carbel" = o mesmo caminho roda para ela.
+
+| # | Achado | Causa | Volta na Carbel? | O que consertar (código, uma vez) | O que fazer na Carbel |
+|---|---|---|---|---|---|
+| 1 | Anomalia recomenda bônus por NPS | viva — o prompt das anomalias não proíbe métrica de fora | sim — já está lá (10964, 10968, 10971, 10976, 10961) | regra no prompt das anomalias | regerar essas, com custo medido antes |
+| 2 | Anomalia sem validação sai no PDF | viva — o filtro do Resumo/Pontual não olha validação | sim — a 10961 sai hoje | **decisão pendente:** filtrar por validação ou declarar no papel | depende da decisão |
+| 3 | Cruzamento falso / peso inflado | viva — mesma causa do 4 | sim — "atendimento" já está com o peso em dobro; cruzamento falso ainda não, por volume | o conserto do 4 + cruzamento ignorar bucket None ao recalcular | corrigir os 3 vínculos, recalcular (US$ 0), regerar 2 ações e as anomalias 10966/10967 |
+| 4 | Bucket None (torneira) | viva — a Carbel criou 3 vínculos em 08/11 | sim | **(a) + (c)** (decidido) | os 3 vínculos via (c) |
+| 5 | Regeração automática e poda de ação | viva — é o desenho atual | sim | **decisão pendente:** se poda/apagar ação em falha é aceitável e se id muda | nada antes da decisão |
+| 6 | Nome de subpilar inventado / "pilar" | viva — pacote do cruzamento só com código; prompt sem regra | sim — 10961, 10962 | nome no pacote + regras no prompt das anomalias | regerar 10961, 10962 |
+| 7 | Pacote escreve "9.99 (… 0 críticas)" | viva | sim — 10961 | trocar a frase do pacote | regerar 10961 |
+| 8 | 9,99 / faixa sem piso em tela e papel | viva | sim — A1, Pa3 e lojas | exibição (escopo já combinado); `ratio_em_palavras` B; radar "10,0" | regerar a lista já aprovada (R$ 0,62 / teto R$ 1,14) |
+| 8a | Texto reserva "ratio 9,99, 0 detratores" | viva no código, **inativa nos dados** | só se um subpilar ficar sem sugestão | guarda (decidido: não é conserto) | nada |
+| 8b | Média do Longitudinal sobre valores no teto | viva | sim | pendência de cálculo (declarada) | nada agora |
+| 9 | Frase do topo do Painel ensina 9.99 | viva | sim | prompt e pacote da frase | nada (é gerada a cada carga) |
+| 10 | Driver, horizonte, taxa de sucesso | viva — escritos no código | sim — saem no PDF da Carbel | decisão do inventário | nada agora |
+| 11 | Custo registrado abaixo do real | viva | sim — afeta o custo que reportamos | somar tokens de cache em anomalias e sugestões | nada |
+| 12 | Ação recriada → perspectiva paga de novo | **4.007 mortos** (antes de 19/07); **547 vivos** | sim — 56 da Carbel depois de 19/07, 13 em novembro | depende da decisão do 5 | nada antes da decisão |
+
+**Decididos:** 4 → (a) + (c). 8a → só guarda. 12 (parte morta) → só registro.
+**Pendentes de decisão do Alexandre:** 2, 5 (e com ele 12), 10.
+**Esperando sonda:** risco de perda de (a) — só a linha da Carbel importa; se houver risco real, a
+guarda é proposta antes do código.
+
+---
+
 ## Decisões registradas (não reabrir sem motivo novo)
 
 - **Nome de funcionário** em verbatim e exemplo fica sem máscara (Alexandre, 09/11): são
