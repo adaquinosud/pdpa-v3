@@ -143,11 +143,7 @@ sobre eles. As três disparam o item 5 na próxima passada.
   - **4.554 registros de status de ação N5 já apontam para ação que não existe mais** (5: 388;
     6: 700; 7: 199; 15: 155; 16: 1.820; 17: 1.192; 18: 4; 25: 21; 27: 45; 29: 30). **Nenhum**
     tem status diferente de "pendente" ou responsável preenchido.
-- **INFERIDO, não verificado:** esses registros também guardam a perspectiva da ação, que a
-  pós-coleta classifica com Sonnet (`src/temas/pos_coleta.py:1074-1077`, "só ações sem
-  perspectiva"). Ação apagada e recriada com outro id ganharia nova classificação paga e deixaria
-  a antiga órfã. Não medi quantos órfãos têm perspectiva preenchida, nem de quando são — podem
-  ser do comportamento antigo de apagar e regerar tudo.
+- Os 4.554 órfãos e a perspectiva paga: ver item 12.
 - Não é decisão de método nem defeito de um conserto: é comportamento existente, sem registro.
   Esbarra na regra "sem deletar registro em produção" — se ela vale para dado derivado é decisão.
 - **Quem vê:** cliente (aba Plano de Ação, PDF Plano Executivo); o trabalho perdido é do cliente.
@@ -231,6 +227,22 @@ sobre eles. As três disparam o item 5 na próxima passada.
   sugestão estrutural (`src/planos/sugestoes.py:260`) ignora os tokens de cache; o classificador
   faz certo (`classifier_v3.py:435-436`). O `custo_usd` das ações de venda é constante (item 5).
 - **Quem vê:** interno.
+
+## 12. A ferramenta ainda apaga ação de venda e paga de novo a perspectiva
+
+- **MEDIDO** (`sonda_orfaos_n5`, 09/11): dos 4.554 registros de status órfãos, **todos** têm
+  perspectiva preenchida — cada um foi uma classificação por modelo (Sonnet, em lotes de 20,
+  `src/planos/perspectiva.py`). Por mês: jun 2.281; jul 2.046; ago 139; set 45; out 30; nov 13.
+  - 4.007 são de antes de 19/07, quando entrou o hash-skip das ações (commit `917a96e`, 18/07):
+    resto do comportamento antigo de apagar e regerar tudo.
+  - **547 são de depois** (16: 369; 5: 56; 27: 45; 29: 30; 17: 22; 25: 21; 18: 4) e **43 dos
+    últimos 30 dias** (29: 30; 5: 13 — os da Carbel são de novembro). Continua acontecendo.
+  - Existem hoje 355 ações N5 e 302 registros de status apontando para elas.
+- **INFERIDO:** os caminhos são os do item 5 — poda de alvo que sumiu, ação apagada quando a
+  regeração falha, alvo que troca de tipo (cruzamento ↔ pontual) e ganha id novo. Cada ação
+  recriada volta para a fila "sem perspectiva" e é classificada de novo; a antiga fica órfã.
+- **Custo:** não medido. O custo da classificação de perspectiva não é gravado por ação.
+- **Quem vê:** interno (gasto e lixo de tabela); nenhum status preenchido por gente foi perdido.
 
 ---
 
