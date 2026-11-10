@@ -1867,6 +1867,15 @@ def _register_cli_commands(app: Flask) -> None:
 
         sec, subs = R._lista(secoes), R._lista(sugestoes)
         ids = [int(x) for x in R._lista(anomalias)]
+        faltam = R.anomalias_ausentes(empresa_id, ids) if ids else []
+        if faltam:
+            click.echo(
+                f"ERRO: anomalias {faltam} não existem na empresa {empresa_id}. "
+                "Os ids mudam a cada detecção (pós-coleta); pegue os de hoje antes "
+                "de medir ou regerar. Nada foi feito.",
+                err=True,
+            )
+            raise SystemExit(1)
         if medir:
             linhas = []
             if sec:

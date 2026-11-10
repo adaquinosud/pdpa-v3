@@ -159,3 +159,14 @@ def test_comando_medir_roda_fora_de_requisicao(client_loyall, db_session, app, m
     assert "desc" in r.output.lower() or "_PROMPT_DESC_PILAR" in r.output
     assert "Nada foi gravado" in r.output
     assert db_session.query(RelatorioCache).filter_by(empresa_id=e["id"]).count() == 0
+
+
+def test_comando_para_se_a_anomalia_nao_existe(client_loyall, app):
+    """Os ids de anomalia mudam a cada detecção; o --medir de 10/11 recebeu 8 ids de 09/11 e
+    não mediu nenhum, sem avisar. Agora para, nomeia os ids e não faz nada."""
+    eid = _empresa(client_loyall, "RegIdsAus")
+    r = app.test_cli_runner().invoke(
+        args=["regerar-textos", "--empresa-id", str(eid), "--anomalias", "999999", "--medir"]
+    )
+    assert r.exit_code == 1
+    assert "999999" in r.output and "Nada foi feito" in r.output

@@ -167,6 +167,23 @@ def medir_anomalias(empresa_id: int, ids: List[int]) -> List[Dict[str, Any]]:
     return out
 
 
+def anomalias_ausentes(empresa_id: int, ids: List[int]) -> List[int]:
+    """Ids pedidos que não existem nesta empresa. Os ids de anomalia MUDAM a cada detecção
+    (a pós-coleta apaga e regrava ``anomalias_detectadas``, preservando o texto por tipo+chave):
+    id de ontem pode não existir hoje. O comando para em vez de ignorar em silêncio."""
+    from src.models.anomalia import AnomaliaDetectada
+    from src.utils.db import db_session
+
+    with db_session() as s:
+        achados = {
+            i
+            for (i,) in s.query(AnomaliaDetectada.id).filter(
+                AnomaliaDetectada.empresa_id == empresa_id, AnomaliaDetectada.id.in_(ids)
+            )
+        }
+    return sorted(set(ids) - achados)
+
+
 def resumo_custo(linhas: List[Dict[str, Any]]) -> Dict[str, float]:
     teto = sum(_preco(x["modelo"], x["entrada"], x["teto_saida"]) for x in linhas)
     so_entrada = sum(_preco(x["modelo"], x["entrada"], 0) for x in linhas)
