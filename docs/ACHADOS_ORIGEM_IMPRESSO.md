@@ -384,10 +384,11 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   (`_loja_mais_impactou`) ainda pesa volume × diferença de ratios com teto. Uma loja que passa de
   sem detrator para 1 detrator move ~9 pontos de ratio e tende a ganhar a eleição. A exibição não
   mostra mais a diferença, mas a escolha da loja ainda vem dela. Régua, não exibição.
-  **FECHADO (10/11, decisão do Alexandre): não vira frente própria.** A eleição da loja que mais
-  impactou é o primeiro cliente da especificação do "o que mudou" — o conserto certo é eleger pela
-  contagem, não pelo ratio, e isso está na seção 8 dessa especificação
-  (`docs/ESPEC_O_QUE_MUDOU.md`, §8).
+  **ABERTO, com dono próprio (10/11).** Primeiro foi fechado como "primeiro cliente" da
+  especificação do "o que mudou" (v1, §8). A v2 da especificação (`docs/ESPEC_O_QUE_MUDOU.md`, §11)
+  desfaz isso: "**Não corrige**, por duas razões: o §7 recusa comparação entre lojas, e consertar
+  aquilo seria mexer em coisa que já roda, o que esta frente não faz." O conserto continua sendo
+  eleger por contagem, não por ratio; quem faz não está decidido.
 - **Limite conhecido, mostrado pela prévia (10/11, `previa_evolucao_carbel` na Carbel, saída lida
   pelo Alexandre):** o Pa1, único subpilar com volume, tem ratios reais por trimestre de 13,7 · 12,6
   · 39,1 · 28,0 · 8,9 · 9,8 · 6,7 — e a tela desenha 9,99 nos quatro primeiros. O teto não erra só
