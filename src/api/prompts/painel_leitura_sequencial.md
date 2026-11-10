@@ -13,7 +13,11 @@ O Lastro Relacional não é uma lista de quatro pilares paralelos — é uma **s
 
 **Leitura sequencial é o método:** identifique o primeiro pilar com ratio crítico ou fraco. Se for Precisão, a entrega básica está falhando — todo investimento "acima" é cosmético. Se for Disponibilidade, a operação não suporta. Se Parceria está baixa mas Precisão e Disponibilidade ok, a relação é funcional mas fria. Se só Aconselhamento é baixo, o cliente está satisfeito mas não advogado.
 
-**Faixas do ratio P/D (Cap. 4):** 0.0–0.5 crítico · 0.5–1.0 fraco · 1.0–2.0 atenção · 2.0–5.0 bom · 5.0+ excelente. Cap em 9.99.
+**Faixa de cada pilar:** vem pronta no campo `faixa` (crítico, fraco, atenção, bom, excelente). Use a faixa recebida; não a recalcule a partir do ratio.
+
+**Sem detrator:** quando `sem_detrator` é verdadeiro, o pilar tem promotores e nenhum detrator. Não existe razão a dividir: o `ratio` vem vazio. Diga "sem detrator" e não escreva número de ratio para esse pilar.
+
+**Pouca base:** quando `pouca_base` é verdadeiro, o pilar tem volume abaixo do piso de confiança e a `faixa` vem vazia. Não tire conclusão de força ou fraqueza desse pilar; diga que há pouca base.
 
 **Padrões de divergência:** se Aconselhamento é alto enquanto Precisão é baixo, alerta de relação dividida entre segmentos — alguns clientes celebram, outros são decepcionados em pontos básicos.
 
@@ -21,7 +25,7 @@ O Lastro Relacional não é uma lista de quatro pilares paralelos — é uma **s
 
 Você receberá um JSON com:
 - `total_verbatins`: quantos verbatins totais no recorte.
-- `pilares`: dicionário com chaves P/D/Pa/A, cada um trazendo `ratio`, `total`, `promotor`, `conversivel`, `detrator`.
+- `pilares`: dicionário com chaves P/D/Pa/A, cada um trazendo `ratio` (vazio quando não há detrator), `sem_detrator`, `faixa` (vazia quando há pouca base), `pouca_base`, `total`, `promotor`, `conversivel`, `detrator`.
 - `indice_geral`: Teto do Lastro — nota 0-10 (o teto que o pior pilar impõe).
 - `previsibilidade`: 0-100 (homogeneidade entre subpilares).
 
@@ -39,20 +43,20 @@ Regras de estilo:
 - Concisão: 2-3 frases. Sem clichês corporativos ("é fundamental", "buscamos sempre", etc.).
 - Acionável: ao menos uma frase deve sinalizar a alavanca (contratual, processo, capacitação, comunicação).
 - Honestidade: se o volume é baixo (< 50 verbatins), começar reconhecendo a limitação amostral.
-- Não invente números além dos fornecidos.
+- Não invente números além dos fornecidos. Decimal com vírgula (0,4), nunca ponto.
 
 ## Exemplos
 
-Input parcial: `{"pilares": {"P": {"ratio": 0.4}, "D": {"ratio": 1.8}, "Pa": {"ratio": 9.99}, "A": {"ratio": 9.99}}}`
+Input parcial: `{"pilares": {"P": {"ratio": 0.4, "faixa": "critico"}, "D": {"ratio": 1.8, "faixa": "atencao"}, "Pa": {"ratio": null, "sem_detrator": true, "faixa": "excelente"}, "A": {"ratio": null, "sem_detrator": true, "faixa": "excelente"}}}`
 
 Output:
 ```json
-{"leitura": "A Precisão trava a jornada em ratio crítico de 0.4 — a entrega básica não corresponde ao prometido. Os pilares seguintes saturam (Parceria e Aconselhamento em 9.99) num padrão clássico de relação dividida: parte dos clientes celebra a marca enquanto outra parte sofre falha contratual. Alavanca primária: revisão contratual da promessa comercial, não capacitação."}
+{"leitura": "A Precisão trava a jornada em ratio crítico de 0,4 — a entrega básica não corresponde ao prometido. Parceria e Aconselhamento aparecem sem detrator, num padrão clássico de relação dividida: parte dos clientes celebra a marca enquanto outra parte sofre falha contratual. Alavanca primária: revisão contratual da promessa comercial, não capacitação."}
 ```
 
-Input parcial: `{"pilares": {"P": {"ratio": 4.5}, "D": {"ratio": 3.8}, "Pa": {"ratio": 4.2}, "A": {"ratio": 0.8}}}`
+Input parcial: `{"pilares": {"P": {"ratio": 4.5, "faixa": "bom"}, "D": {"ratio": 3.8, "faixa": "bom"}, "Pa": {"ratio": 4.2, "faixa": "bom"}, "A": {"ratio": 0.8, "faixa": "fraco"}}}`
 
 Output:
 ```json
-{"leitura": "Os três primeiros pilares estão saudáveis (Precisão 4.5, Disponibilidade 3.8, Parceria 4.2), mas o Aconselhamento fica em 0.8 — clientes funcionalmente satisfeitos mas sem se tornarem advogados da marca. Alavanca: comunicação que ative a recomendação espontânea, programas de indicação ou conteúdo de referência setorial."}
+{"leitura": "Os três primeiros pilares estão saudáveis (Precisão 4,5, Disponibilidade 3,8, Parceria 4,2), mas o Aconselhamento fica em 0,8 — clientes funcionalmente satisfeitos mas sem se tornarem advogados da marca. Alavanca: comunicação que ative a recomendação espontânea, programas de indicação ou conteúdo de referência setorial."}
 ```

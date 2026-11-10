@@ -64,9 +64,16 @@ def gerar_leitura_sequencial(n1_payload: Dict[str, Any]) -> str:
         client = _get_client()
         system_prompt = _carregar_prompt()
 
+        # Sem detrator (caminho A do teto) vai como FATO, sem número: o 9,99 ali não é
+        # divisão. Faixa e pouca base vão prontas do código — o modelo não recalcula a régua.
+        from src.api.painel import pouca_base, sem_detrator
+
         pilares_simples = {
             p["pilar"]: {
-                "ratio": p["ratio"],
+                "ratio": (None if sem_detrator(p["promotor"], p["detrator"]) else p["ratio"]),
+                "sem_detrator": sem_detrator(p["promotor"], p["detrator"]),
+                "faixa": None if pouca_base(p["total"]) else p.get("faixa"),
+                "pouca_base": pouca_base(p["total"]),
                 "total": p["total"],
                 "promotor": p["promotor"],
                 "conversivel": p["conversivel"],

@@ -85,6 +85,7 @@ def test_leitura_com_volume_chama_sonnet_e_extrai_json(monkeypatch):
             {
                 "pilar": "P",
                 "ratio": 0.4,
+                "faixa": "critico",
                 "total": 50,
                 "promotor": 10,
                 "conversivel": 5,
@@ -129,6 +130,17 @@ def test_leitura_com_volume_chama_sonnet_e_extrai_json(monkeypatch):
     # Input user é JSON com os ratios
     user_msg = json.loads(chamadas[0]["messages"][0]["content"])
     assert user_msg["pilares"]["P"]["ratio"] == 0.4
+    # Pa e A: promotores e nenhum detrator — vai o FATO, sem o 9,99 (que não é divisão)
+    assert user_msg["pilares"]["Pa"]["ratio"] is None
+    assert user_msg["pilares"]["Pa"]["sem_detrator"] is True
+    assert "9.99" not in chamadas[0]["messages"][0]["content"]
+    # abaixo do piso, a faixa não vai — vai o estado; acima, vai a faixa pronta do código
+    assert user_msg["pilares"]["A"]["pouca_base"] is True
+    assert user_msg["pilares"]["A"]["faixa"] is None
+    assert user_msg["pilares"]["P"]["pouca_base"] is False
+    # o prompt não ensina mais o teto nem reescreve a régua das faixas
+    assert "9.99" not in chamadas[0]["system"] and "9,99" not in chamadas[0]["system"]
+    assert "0.0–0.5" not in chamadas[0]["system"]
 
 
 def test_leitura_aceita_resposta_com_markdown_fence(monkeypatch):
