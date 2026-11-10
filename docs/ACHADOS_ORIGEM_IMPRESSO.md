@@ -116,9 +116,19 @@ sobre eles. As três disparam o item 5 na próxima passada.
     id da ação (`n5:{id}`): ação apagada ou recriada com outro id deixa esse trabalho órfão.
   - O `custo_usd` gravado em cada ação é a constante `CUSTO_USD_POR_ACAO = 0.006`, não medição.
 - **INFERIDO:** todo o acima (leitura de código).
-- **Pendente de medida** (`sonda_none_acoes`, partes B e C): quantas ações regeram com o
-  conserto do None e quanto custam (entrada medida, saída no teto); quantos status/responsáveis
-  já estão órfãos hoje.
+- **MEDIDO** (`sonda_none_acoes_bc`, 09/11):
+  - **18 ações** levam bucket None no pacote de hoje e regeram sozinhas com qualquer conserto do
+    None (12 de cruzamento, 6 pontuais; empresas 5, 15, 17, 25, 27, 29). Entrada medida 15.809
+    tokens; teto **R$ 1,53** (saída no teto de 800 por ação; a real tende a ser menor).
+  - As 18 têm status "pendente" e nenhum responsável: hoje nenhum trabalho humano seria perdido.
+  - **4.554 registros de status de ação N5 já apontam para ação que não existe mais** (5: 388;
+    6: 700; 7: 199; 15: 155; 16: 1.820; 17: 1.192; 18: 4; 25: 21; 27: 45; 29: 30). **Nenhum**
+    tem status diferente de "pendente" ou responsável preenchido.
+- **INFERIDO, não verificado:** esses registros também guardam a perspectiva da ação, que a
+  pós-coleta classifica com Sonnet (`src/temas/pos_coleta.py:1074-1077`, "só ações sem
+  perspectiva"). Ação apagada e recriada com outro id ganharia nova classificação paga e deixaria
+  a antiga órfã. Não medi quantos órfãos têm perspectiva preenchida, nem de quando são — podem
+  ser do comportamento antigo de apagar e regerar tudo.
 - Não é decisão de método nem defeito de um conserto: é comportamento existente, sem registro.
   Esbarra na regra "sem deletar registro em produção" — se ela vale para dado derivado é decisão.
 - **Quem vê:** cliente (aba Plano de Ação, PDF Plano Executivo); o trabalho perdido é do cliente.
@@ -209,7 +219,6 @@ sobre eles. As três disparam o item 5 na próxima passada.
 ## Sondas pendentes
 
 - `sonda_pre_entrega` — as 5 anomalias críticas da Carbel no PDF; "P1 → P3"; texto reserva.
-- `sonda_none_acoes_bc` — ações que regeram com o conserto do None e custo; status/responsável órfãos. (A 1ª versão quebrou na parte B por erro meu — objeto lido fora da sessão; a parte A rodou.)
 
 ## Inventário (frente principal)
 
