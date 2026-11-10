@@ -105,6 +105,23 @@ sobre eles. As três disparam o item 5 na próxima passada.
 - **INFERIDO** tudo nesta tabela (leitura de código; tempos são estimativa minha).
 - Leitura minha, não decisão: (a) e (c) não se excluem — (a) fecha a torneira, (c) ou a variante
   limpa o histórico. (b) é a única que mexe no ritmo da pós-coleta.
+- **DECIDIDO (Alexandre, 09/11): (a) + (c).** (a) fecha a torneira; (c) limpa os 144 vínculos.
+- **Confirmações antes de implementar (INFERIDO, leitura de código):**
+  - *O comentário pulado entra na passada seguinte?* Sim, sem perder nada, com duas condições.
+    O pipeline de temas relê **toda** a janela a cada cauda (`src/temas/pipeline.py:487-488`, sem
+    filtro de "só novos"), então o comentário já classificado entra quando a próxima cauda rodar.
+    (1) A próxima cauda só roda quando o estoque de comentários **sem embedding** passa o limiar
+    (`contar_pendente_cauda`, `src/temas/pos_coleta.py:135-165`) — e o comentário pulado já ganhou
+    embedding na mesma cauda em que foi pulado, então ele não ajuda a disparar a próxima: espera
+    volume novo. Em empresa pequena, dias. (2) Ele precisa continuar dentro da janela de temas
+    (`data_corte`), que é contada pela data do comentário.
+  - *Sem lastro continua entrando?* Sim. `sem_lastro` é resposta do classificador, gravada como
+    texto (`subpilar = 'sem_lastro'`, `tipo = 'inativo'`, regra em `classifier_v3.py:26`), não nulo.
+    O filtro de (a) é "subpilar e tipo não nulos" — pula só o que ainda não tem resposta. Hoje o
+    bucket `sem_lastro:inativo` já aparece nos cruzamentos (item "Decisões", parâmetro de método).
+    Caso à parte: comentário com falha terminal de classificação (`prompt_versao =
+    'falha-classificacao'`) fica sem subpilar e, com (a), fica fora dos temas enquanto não for
+    reclassificado.
 
 ## 5. O sistema regera e apaga ações de venda sozinho (ninguém sabia)
 
@@ -148,6 +165,16 @@ sobre eles. As três disparam o item 5 na próxima passada.
 - **INFERIDO e NÃO confirmado:** a causa ser o pacote do cruzamento mandar só códigos. O teste
   pago (R$ 0,35) não testou: o pacote de hoje leva `["A1", "None", "Pa1"]` e a troca exigia só
   códigos válidos; controle e teste saíram iguais e limpos.
+- **Leitura do Alexandre (09/11), registrada:** o modelo não inventa ao acaso — traduz as posições
+  para vocabulário comum de atendimento (D1→Acesso; D2→Acolhimento/Atendimento; D3→Agilidade;
+  P1→Processo; P3→Experiência/Relacionamento; Pa1→Ambiente; Pa2 e Pa3→Pós-atendimento;
+  A1→Atendimento Personalizado; a 5628 rebatiza quatro de uma vez e chama todas de "pilar").
+  Isso reforça mandar o **nome** no pacote em vez de regra no prompt, e vale para todo texto que
+  hoje recebe só o código.
+- **Ressalva (MEDIDO, mesma saída):** a direção é consistente — vocabulário comum —, a tabela não:
+  D2, P3 e Pa3 recebem dois nomes diferentes cada; Pa2 e Pa3 recebem o mesmo. E a base é pequena:
+  13 ocorrências em 7 textos, 7 delas da empresa 6 (saúde). Quais textos hoje recebem só o código
+  ainda não foi levantado — é pergunta do inventário.
 - **Quem vê:** cliente (aba Anomalias; PDF se no top 5 crítico).
 
 ## 7. O pacote da anomalia escreve "9.99 (114 elogios para 0 críticas)"
