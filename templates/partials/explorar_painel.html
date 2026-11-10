@@ -1,12 +1,15 @@
 {# Conteúdo da aba 'painel' do Hub Explorar. Extraído de templates/empresas/painel.html.
    Renderizado via partials/explorar_conteudo.html (full-load). #}
-{# Faixas semânticas do ratio P/D conforme Manual PDPA v3, Cap. 4 #}
+{# Faixas semânticas do ratio P/D conforme Manual PDPA v3, Cap. 4. 'pouca_base' não é faixa:
+   abaixo do piso de confiança (pouca_base, fonte única no Python) a faixa — boa ou ruim — dá
+   lugar a um estado neutro; o número continua, a cor e o rótulo não. #}
 {% set classes_faixa = {
   'critico':   {'bg':'bg-rose-100',      'text':'text-rose-700',      'dot':'bg-rose-500',    'lbl':'crítico'},
   'fraco':     {'bg':'bg-orange-100',    'text':'text-orange-700',    'dot':'bg-orange-500',  'lbl':'fraco'},
   'atencao':   {'bg':'bg-amber-100',     'text':'text-amber-800',     'dot':'bg-amber-400',   'lbl':'atenção'},
   'bom':       {'bg':'bg-emerald-100',   'text':'text-emerald-700',   'dot':'bg-emerald-400', 'lbl':'bom'},
   'excelente': {'bg':'bg-emerald-200',   'text':'text-emerald-800',   'dot':'bg-emerald-600', 'lbl':'excelente'},
+  'pouca_base': {'bg':'bg-loyall-100',   'text':'text-loyall-500',    'dot':'bg-loyall-300',  'lbl':'pouca base'},
 } %}
 
 <div class="mb-3 flex items-start justify-between gap-3">
@@ -136,7 +139,7 @@
        template não recomputa mais pior×2). Sem pilar com volume → some. #}
     {% set _com_vol = n1.pilares | selectattr('total') | list %}
     {% set _pior = (_com_vol | min(attribute='ratio')) if _com_vol else none %}
-    <div class="text-xs text-loyall-400 mt-2">Não é média — é o pior pilar que define o teto. O Lastro é sequência: um elo fraco limita o conjunto, mesmo com os outros fortes.{% if _pior and n1.indice_geral_governado_pelo_pior %} Aqui, {{ _pior.nome }} em {{ ('%.2f'|format(_pior.ratio))|replace('.', ',') }} é o teto.{% endif %}</div>
+    <div class="text-xs text-loyall-400 mt-2">Não é média — é o pior pilar que define o teto. O Lastro é sequência: um elo fraco limita o conjunto, mesmo com os outros fortes.{% if _pior and n1.indice_geral_governado_pelo_pior %} Aqui, {{ _pior.nome }} em {{ ratio_exibido(_pior.ratio, _pior.promotor, _pior.detrator) }} é o teto.{% endif %}</div>
     {# Fatia 7: pilar que aparenta saudável escondendo subpilar crítico (soma dilui). ACRESCENTA — não troca a faixa do pilar. #}
     {% if feridas_internas %}
     <div class="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-700">
@@ -241,7 +244,7 @@
   {% set pct_prom = (100 * p.promotor / p.total) if p.total else 0 %}
   {% set pct_conv = (100 * p.conversivel / p.total) if p.total else 0 %}
   {% set pct_detr = (100 * p.detrator / p.total) if p.total else 0 %}
-  {% set fcls = classes_faixa.get(p.faixa, classes_faixa['atencao']) %}
+  {% set fcls = classes_faixa['pouca_base'] if pouca_base(p.total) else classes_faixa.get(p.faixa, classes_faixa['atencao']) %}
   <div class="bg-white border border-loyall-200 rounded p-4">
     <div class="flex items-baseline justify-between">
       <div class="text-xs uppercase tracking-wider text-loyall-400">{{ p.pilar }}</div>
@@ -253,7 +256,7 @@
     {# Ratio P/D — com os operandos à mostra, pra o número não parecer calculado sobre o volume. #}
     <div class="mt-3 flex items-center gap-2">
       <span class="text-xs uppercase tracking-wider text-loyall-400">Ratio P/D</span>
-      <span class="text-xl font-semibold {{ fcls.text }}">{{ p.ratio | virg }}</span>
+      <span class="text-xl font-semibold {{ fcls.text }}">{{ ratio_exibido(p.ratio, p.promotor, p.detrator) }}</span>
       {% if p.total %}<span class="text-xs text-loyall-400 tabular-nums"
         title="O Ratio P/D é {{ p.promotor }} promotores ÷ {{ p.detrator }} detratores. Os {{ p.conversivel }} conversíveis estão no volume ({{ p.total }}), fora do ratio.">{{ p.promotor }}P·{{ p.detrator }}D</span>{% endif %}
       <span class="ml-auto text-xs px-1.5 py-0.5 rounded {{ fcls.bg }} {{ fcls.text }}">
@@ -262,7 +265,7 @@
     </div>
     {% if p.total %}
     {# Tradução do ratio em linguagem simples (CP-ratio-palavras), discreta sob o número. #}
-    <div class="text-xs text-loyall-400 mt-0.5">{{ ratio_em_palavras(p.ratio) }}</div>
+    <div class="text-xs text-loyall-400 mt-0.5">{{ ratio_em_palavras(p.ratio, p.promotor, p.detrator) }}</div>
     {% endif %}
     {% if p.historico_quarters %}
     {# Histórico de ratio dos últimos 4 quarters (CP-ratio-historico); clicável → drawer. #}
@@ -271,7 +274,7 @@
         hx-get="{{ url_for('ui.painel_quarter_detalhe', empresa_id=empresa.id) }}?pilar={{ p.pilar }}&quarter={{ h.chave }}&agrupamento_id={{ filtros.agrupamento_id }}&local_id={{ filtros.local_id }}"
         hx-target="body" hx-swap="beforeend"
         title="{{ h.total }} verbatins no {{ h.q }} (todos os tipos)"
-        class="inline-flex flex-col items-center leading-tight hover:text-loyall-700 hover:underline cursor-pointer"><span>{{ h.q }}·{{ h.ratio | virg }}</span><span class="text-loyall-300 tabular-nums">{{ h.total }}</span></button>{% endfor %}
+        class="inline-flex flex-col items-center leading-tight hover:text-loyall-700 hover:underline cursor-pointer"><span>{{ h.q }}·{{ ratio_exibido(h.ratio, h.prom, h.det) }}</span><span class="text-loyall-300 tabular-nums">{{ h.total }}</span></button>{% endfor %}
     </div>
     {% endif %}
 
@@ -340,7 +343,7 @@
       {% if filtros.fonte_id %}{% set _ = query_base.append('fonte_id=' ~ filtros.fonte_id) %}{% endif %}
       {% set qs_base = '&'.join(query_base) %}
       {% for c in n2.matriz %}
-      {% set fcls = classes_faixa.get(c.faixa, classes_faixa['atencao']) %}
+      {% set fcls = classes_faixa['pouca_base'] if pouca_base(c.total) else classes_faixa.get(c.faixa, classes_faixa['atencao']) %}
       {% set link_subpilar = url_for('ui.verbatins_empresa', empresa_id=empresa.id) ~ '?subpilar=' ~ c.subpilar ~ (('&' ~ qs_base) if qs_base else '') %}
       <tr class="border-t border-loyall-100 hover:bg-loyall-50">
         <td class="p-0">
@@ -379,8 +382,8 @@
         </td>
         <td class="text-right px-3 py-1.5">
           {% if c.total %}
-          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold {{ fcls.bg }} {{ fcls.text }}">
-            {{ c.ratio | virg }}
+          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold {{ fcls.bg }} {{ fcls.text }}"{% if pouca_base(c.total) %} title="Pouca base: {{ c.total }} verbatins, abaixo do piso de confiança. O número fica; a faixa não se lê."{% endif %}>
+            {{ ratio_exibido(c.ratio, c.promotor, c.detrator) }}
           </span>
           {% else %}<span class="text-loyall-300">—</span>{% endif %}
         </td>

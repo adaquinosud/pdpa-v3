@@ -349,8 +349,9 @@ def test_calcular_ratio_cap_em_caso_muito_alto():
 def test_ratio_em_palavras_casos_do_spec():
     from src.api.painel import ratio_em_palavras
 
-    # cap superior → sem detratores; cap inferior/zero → nenhum promotor
-    assert ratio_em_palavras(9.99) == "sem detratores"
+    # cap superior SEM as contagens → "no teto da régua" (vale nos dois caminhos do teto);
+    # cap inferior/zero → nenhum promotor
+    assert ratio_em_palavras(9.99) == "no teto da régua"
     assert ratio_em_palavras(0.0) == "nenhum promotor"
     # ratio ≥ 1: "X promotores para cada detrator" (singular quando X=1)
     assert ratio_em_palavras(6.0) == "6 promotores para cada detrator"
@@ -359,6 +360,35 @@ def test_ratio_em_palavras_casos_do_spec():
     # ratio < 1: "1 promotor para cada X detratores"
     assert ratio_em_palavras(0.5) == "1 promotor para cada 2 detratores"
     assert ratio_em_palavras(0.125) == "1 promotor para cada 8 detratores"
+
+
+def test_ratio_em_palavras_no_teto_separa_os_dois_caminhos():
+    """Caminho A (promotor sem detrator) é fato, não medida: "sem detrator". Caminho B (divisão
+    real cortada no teto) diz a razão real e que ela passa do teto — antes os dois saíam
+    "sem detratores", falso no B."""
+    from src.api.painel import ratio_em_palavras
+
+    assert ratio_em_palavras(9.99, 51, 0) == "sem detrator"
+    assert ratio_em_palavras(9.99, 1, 0) == "sem detrator"
+    assert ratio_em_palavras(9.99, 1250, 89) == (
+        "14 promotores para cada detrator, acima do teto da régua"
+    )
+    # abaixo do teto, as contagens não mudam a frase
+    assert ratio_em_palavras(2.0, 20, 10) == "2 promotores para cada detrator"
+    assert ratio_em_palavras(0.0, 0, 5) == "nenhum promotor"
+
+
+def test_sem_detrator_e_pouca_base_fonte_unica():
+    from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+    from src.api.painel import pouca_base, sem_detrator
+
+    assert sem_detrator(1, 0) and sem_detrator(51, 0)
+    assert not sem_detrator(0, 0)  # 0/0 não é "sem detrator": não há razão a ler
+    assert not sem_detrator(10, 1)
+    # o piso sai da constante do selo, não de número escrito aqui
+    assert pouca_base(VOLUME_CONFIANCA_ALTA - 1)
+    assert not pouca_base(VOLUME_CONFIANCA_ALTA)
+    assert pouca_base(None)
 
 
 def test_ratio_em_palavras_decimal_virgula_ptbr():

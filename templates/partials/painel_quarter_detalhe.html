@@ -8,7 +8,7 @@
       <div>
         <div class="text-xs uppercase tracking-wider text-loyall-400">{{ d.ano }} · {{ d.quarter_label }}</div>
         <h2 id="quarter-drawer-titulo" class="text-lg font-semibold text-loyall-800">
-          {{ d.pilar_nome }} <span class="text-loyall-400">·</span> Ratio {{ '%.2f'|format(d.ratio) }}
+          {{ d.pilar_nome }} <span class="text-loyall-400">·</span> Ratio {{ ratio_exibido(d.ratio, d.prom, d.det) }}
         </h2>
       </div>
       <button type="button" onclick="document.getElementById('quarter-drawer').remove()"
@@ -36,7 +36,7 @@
         {% set lv = d.loja.variacao %}
         <div class="text-sm text-loyall-800 font-medium">{{ d.loja.nome }}</div>
         <div class="text-xs text-loyall-500">
-          ratio {{ '%.2f'|format(d.loja.ratio) }} ·
+          ratio {{ ratio_exibido(d.loja.ratio, d.loja.prom, d.loja.det) }} ·
           <span class="{% if lv < 0 %}text-rose-700{% elif lv > 0 %}text-emerald-700{% endif %}">
             {% if lv < 0 %}↓{% elif lv > 0 %}↑{% else %}→{% endif %} {{ '%.2f'|format(lv|abs) }}
           </span>

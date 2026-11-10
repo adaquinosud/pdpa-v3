@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 
-from src.api.engajamento import engajamento_escopo
+from src.api.engajamento import VOLUME_CONFIANCA_ALTA, engajamento_escopo
 from src.utils.sql import fmt_ano_mes
 from src.auth import cliente_pode_ver_empresa
 from src.models.local import Local
@@ -135,17 +135,46 @@ def _fmt_ratio_num(v: float) -> str:
     return f"{r:.1f}".replace(".", ",")
 
 
-def ratio_em_palavras(ratio: float) -> str:
+def sem_detrator(promotor: Optional[int], detrator: Optional[int]) -> bool:
+    """Caminho A do teto: há promotor e nenhum detrator — ``calcular_ratio`` devolve 9,99 sem
+    dividir nada. A EXIBIÇÃO (tela e papel) diz o fato, "sem detrator", no lugar do número.
+    Fonte única dessa decisão; o valor que contas, índices e hashes recebem não muda."""
+    return (detrator or 0) == 0 and (promotor or 0) > 0
+
+
+def pouca_base(total: Optional[int]) -> bool:
+    """Volume abaixo do piso de confiança (``VOLUME_CONFIANCA_ALTA``, o corte do selo verde).
+    Na EXIBIÇÃO, a faixa (rótulo e cor) dá lugar a "pouca base" em TODAS as faixas — boa ou
+    ruim —, e o número fica. Não muda faixa, gargalo nem nenhuma conta."""
+    return (total or 0) < VOLUME_CONFIANCA_ALTA
+
+
+def ratio_em_palavras(
+    ratio: float, promotor: Optional[int] = None, detrator: Optional[int] = None
+) -> str:
     """Tradução do ratio P/D em linguagem simples (CP-ratio-palavras).
 
-    - ratio ≥ cap (9.99) → "sem detratores" (saturação positiva)
+    Com ``promotor``/``detrator`` (o que o cartão tem na mão):
+    - sem detrator (caminho A do teto) → "sem detrator"
+    - no teto com detrator (caminho B) → "X promotores para cada detrator, acima do teto da
+      régua" (X = razão real das contagens; o número exibido ao lado segue no teto)
+    Sem as contagens (ex.: telas de pesquisa): ratio ≥ teto → "no teto da régua", que vale nos
+    dois caminhos.
     - ratio ≤ 0          → "nenhum promotor"
     - ratio ≥ 1          → "X promotores para cada detrator"
     - ratio < 1          → "1 promotor para cada X detratores"
     X com 1 casa (vírgula pt-BR), inteiro quando exato; singular quando X=1.
     """
+    if promotor is not None and detrator is not None:
+        if sem_detrator(promotor, detrator):
+            return "sem detrator"
+        if detrator > 0 and ratio >= RATIO_CAP_SUPERIOR:
+            return (
+                f"{_fmt_ratio_num(promotor / detrator)} promotores para cada detrator, "
+                "acima do teto da régua"
+            )
     if ratio >= RATIO_CAP_SUPERIOR:
-        return "sem detratores"
+        return "no teto da régua"
     if ratio <= RATIO_CAP_INFERIOR:
         return "nenhum promotor"
     if ratio >= 1:
@@ -218,6 +247,9 @@ def historico_quarters_pilares(s, empresa_id, ag_id=None, local_id=None, n=4):
                 "ano": ano,
                 "chave": f"{ano}Q{quarter}",  # p/ o hx-get do drawer de detalhe
                 "ratio": calcular_ratio(prom, det),
+                # contagens do ratio, p/ a exibição dizer "sem detrator" no caminho A do teto
+                "prom": prom,
+                "det": det,
                 "total": tot,  # N de verbatins do quarter (todos os tipos)
             }
             for (ano, quarter, prom, det, tot) in ultimos
@@ -312,12 +344,19 @@ def _loja_mais_impactou(s, empresa_id, pilar, sel, prev, ag_id, local_id):
         r_prev = calcular_ratio(prev_acc[lid][0], prev_acc[lid][1])
         contrib = (prom + det) * (r_sel - r_prev)  # volume × variação
         if melhor is None or abs(contrib) > melhor[0]:
-            melhor = (abs(contrib), lid, r_sel, round(r_sel - r_prev, 2))
+            melhor = (abs(contrib), lid, r_sel, round(r_sel - r_prev, 2), prom, det)
     if melhor is None:
         return None
-    _, lid, r_sel, var = melhor
+    _, lid, r_sel, var, prom, det = melhor
     loc = s.get(Local, lid)
-    return {"nome": loc.nome if loc else f"loja {lid}", "ratio": r_sel, "variacao": var}
+    # prom/det só p/ a exibição ("sem detrator" no caminho A do teto)
+    return {
+        "nome": loc.nome if loc else f"loja {lid}",
+        "ratio": r_sel,
+        "variacao": var,
+        "prom": prom,
+        "det": det,
+    }
 
 
 def _tema_dominante_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id):
@@ -406,6 +445,8 @@ def quarter_detalhe_pilar(s, empresa_id, pilar, ano, quarter, ag_id=None, local_
         "quarter_label": f"Q{quarter}",
         "ano": ano,
         "ratio": ratio,
+        "prom": prom,  # contagens só p/ exibição
+        "det": det,
         "variacao": variacao,
         "loja": loja,
         "tema": _tema_dominante_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id),

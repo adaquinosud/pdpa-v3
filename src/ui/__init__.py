@@ -5099,6 +5099,10 @@ def _explorar_diagnostico(s, empresa_id, ag_id, local_id=None):
                         nome=NOME_SUBPILAR.get(x, x),
                         ratio=_rf(agg[x])[0],
                         faixa=_rf(agg[x])[1],
+                        # contagens só p/ exibição ("sem detrator", "pouca base")
+                        prom=agg[x]["prom"],
+                        det=agg[x]["det"],
+                        total=agg[x]["total"],
                     )
                     for x in subs
                 ],

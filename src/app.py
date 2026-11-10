@@ -69,11 +69,29 @@ def create_app() -> Flask:
 
     # Tradução do ratio P/D em linguagem simples (CP-ratio-palavras): texto
     # discreto sob o número do ratio nos cards de pilar do Painel.
+    from src.api.painel import pouca_base as _pouca_base
     from src.api.painel import ratio_em_palavras as _ratio_em_palavras
+    from src.api.painel import sem_detrator as _sem_detrator
 
     @app.template_global("ratio_em_palavras")
-    def ratio_em_palavras(ratio) -> str:  # noqa: ANN001
-        return _ratio_em_palavras(float(ratio or 0))
+    def ratio_em_palavras(ratio, prom=None, det=None) -> str:  # noqa: ANN001
+        return _ratio_em_palavras(float(ratio or 0), prom, det)
+
+    # Exibição do ratio (tela e papel), fonte única: caminho A do teto (promotor sem
+    # detrator) sai "sem detrator" no lugar do 9,99; sem as contagens, sai o número. Só
+    # exibição — o valor que contas, índices e hashes recebem não muda.
+    @app.template_global("ratio_exibido")
+    def ratio_exibido(ratio, prom=None, det=None, casas=2) -> str:  # noqa: ANN001
+        from src.utils.fmt import virg
+
+        if prom is not None and det is not None and _sem_detrator(prom, det):
+            return "sem detrator"
+        return virg(ratio, casas)
+
+    # Volume abaixo do piso de confiança: a faixa (rótulo e cor) vira "pouca base".
+    @app.template_global("pouca_base")
+    def pouca_base(total) -> bool:  # noqa: ANN001
+        return _pouca_base(total)
 
     # Markdown leve nas respostas do IA Chat (CP-B4): bold + listas + quebras.
     from src.utils.markdown_leve import render_md_leve

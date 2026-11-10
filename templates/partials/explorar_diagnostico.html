@@ -80,13 +80,14 @@
     </thead>
     <tbody>
       {% for c in d.confronto %}
-      {% set fc = fclass.get(c.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
+      {% set _cpb = pouca_base(c.det + c.conv + c.prom) %}
+      {% set fc = {'bg':'bg-loyall-100','text':'text-loyall-500'} if _cpb else fclass.get(c.faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
       <tr class="border-t border-loyall-100 align-top">
         <td class="px-3 py-2"><span title="Confiança por volume: {{ c.det + c.conv + c.prom }} verbatins" class="cursor-help">{{ selo_emoji(c.det + c.conv + c.prom) }}</span> <span class="font-medium text-loyall-800">{{ c.subpilar }}</span> <span class="text-xs text-loyall-400">· {{ c.nome }}</span>{% if c.nota_pesada %} <span class="ml-1 inline-block text-[10px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-800 cursor-help" title="{{ c.pct_nota }}% dos verbatins deste subpilar são só-nota (avaliação sem texto escrito). A leitura se apoia em {{ c.n_relato }} relatos.">★ {{ c.pct_nota }}% nota · {{ c.n_relato }} relatos</span>{% endif %}</td>
         <td class="text-right px-2 py-2 {% if c.det %}text-rose-700 font-medium{% else %}text-loyall-300{% endif %}">{{ c.det }}</td>
         <td class="text-right px-2 py-2 {% if c.conv %}text-amber-700{% else %}text-loyall-300{% endif %}">{{ c.conv }}</td>
         <td class="text-right px-2 py-2 {% if c.prom %}text-emerald-700{% else %}text-loyall-300{% endif %}">{{ c.prom }}</td>
-        <td class="text-right px-2 py-2 font-bold text-loyall-800">{% if c.ratio is none %}<span class="text-loyall-300 font-normal cursor-help" title="Sem promotor nem detrator: não há razão a ler (só conversíveis).">—</span>{% else %}{{ '%.2f'|format(c.ratio) }}{% endif %}</td>
+        <td class="text-right px-2 py-2 font-bold text-loyall-800">{% if c.ratio is none %}<span class="text-loyall-300 font-normal cursor-help" title="Sem promotor nem detrator: não há razão a ler (só conversíveis).">—</span>{% else %}{{ ratio_exibido(c.ratio, c.prom, c.det) }}{% endif %}</td>
         <td class="text-center px-2 py-2">
           {% if c.proximity is not none %}
           {% set pxf = {'distante':{'bg':'bg-rose-100','text':'text-rose-700'},'medio':{'bg':'bg-amber-100','text':'text-amber-800'},'proximo':{'bg':'bg-emerald-100','text':'text-emerald-700'}}.get(c.proximity_faixa, {'bg':'bg-loyall-100','text':'text-loyall-600'}) %}
@@ -96,7 +97,7 @@
           <span class="text-loyall-300" title="Volume insuficiente (&lt; 10 verbatins) — Proximity precisa de mais lastro que o ratio">—</span>
           {% endif %}
         </td>
-        <td class="text-center px-2 py-2">{% if c.faixa is none %}<span class="text-loyall-300 cursor-help" title="Sem promotor nem detrator: não há razão a ler (só conversíveis)." data-sem-sinal="{{ c.subpilar }}">—</span>{% else %}<span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}">{{ c.faixa }}</span>{% endif %}</td>
+        <td class="text-center px-2 py-2">{% if c.faixa is none %}<span class="text-loyall-300 cursor-help" title="Sem promotor nem detrator: não há razão a ler (só conversíveis)." data-sem-sinal="{{ c.subpilar }}">—</span>{% else %}<span class="text-[10px] uppercase px-1.5 py-0.5 rounded {{ fc.bg }} {{ fc.text }}"{% if _cpb %} title="Pouca base: {{ c.det + c.conv + c.prom }} verbatins, abaixo do piso de confiança. O número fica; a faixa não se lê."{% endif %}>{{ 'pouca base' if _cpb else c.faixa }}</span>{% endif %}</td>
         <td class="text-right px-2 py-2 text-xs">
           {% if c.rs_estoque %}<span class="text-emerald-700 font-medium" title="Conversíveis × LTV por loja (ticket × frequência); cobertura parcial quando nem todas têm LTV">{{ c.rs_estoque }}</span>{% else %}<span class="text-loyall-300" title="Nenhuma loja deste subpilar tem LTV cadastrado">—</span>{% endif %}
         </td>
