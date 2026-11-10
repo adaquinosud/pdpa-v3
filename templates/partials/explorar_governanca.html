@@ -146,7 +146,7 @@
       <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" dominant-baseline="middle"
             font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
       <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" dominant-baseline="middle"
-            font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— sem dado' if e.null else e.ratio | virg(1) }}</text>
+            font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— sem dado' if e.null else ratio_exibido(e.ratio, e.prom, e.det) }}</text>
       {% endfor %}
     </svg>
     <div class="text-[10px] text-loyall-400 mt-1 text-center">Eixo tracejado = sem dado. Ratio P/D por pilar na régua (9,99 = cap do sistema).</div>
@@ -156,7 +156,7 @@
       <div class="flex items-center justify-between border border-loyall-100 rounded px-2 py-1">
         <span class="text-loyall-600">{{ e.pilar }} · {{ e.nome }}</span>
         {% if e.null %}<span class="text-loyall-300">—</span>
-        {% else %}<span class="font-semibold text-{{ rcls.get(e.faixa,'slate') }}-600">{{ e.ratio | virg(1) }}</span>{% set fi = (g.feridas_internas | selectattr('pilar', 'equalto', e.pilar) | list | first) %}{% if fi %}<span class="text-amber-600 ml-1 cursor-help" title="Aparenta saudável, mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma dilui.">⚠</span>{% endif %}{% endif %}
+        {% else %}<span class="font-semibold text-{{ 'slate' if pouca_base(e.total) else rcls.get(e.faixa,'slate') }}-600"{% if pouca_base(e.total) %} title="Pouca base: {{ e.total }} verbatins, abaixo do piso de confiança."{% endif %}>{{ ratio_exibido(e.ratio, e.prom, e.det) }}</span>{% set fi = (g.feridas_internas | selectattr('pilar', 'equalto', e.pilar) | list | first) %}{% if fi %}<span class="text-amber-600 ml-1 cursor-help" title="Aparenta saudável, mas carrega {% for sp in fi.subpilares %}{{ sp.nome }} em {{ sp.ratio | virg }} ({{ sp.det }} detratores){% if not loop.last %}, {% endif %}{% endfor %} — a soma dilui.">⚠</span>{% endif %}{% endif %}
       </div>
       {% endfor %}
     </div>

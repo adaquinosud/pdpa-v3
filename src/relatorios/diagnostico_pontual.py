@@ -396,6 +396,7 @@ def montar_dados(
                 nome=NOME_SUBPILAR.get(sub, sub),
                 conv=agg[sub]["conv"],
                 faixa=agg[sub]["faixa"],
+                total=agg[sub]["total"],  # só p/ exibição ("pouca base")
                 o_que_move=(
                     (lt[1] if lt and lt[1] else None)
                     or "Diagnóstico ainda não capturou padrão dominante."
@@ -425,6 +426,7 @@ def montar_dados(
                 subpilar=sub,
                 nome=NOME_SUBPILAR.get(sub, sub),
                 faixa=d_["faixa"],
+                total=d_["total"],  # só p/ exibição ("pouca base")
                 proximity=_px.get("valor"),  # None (sub-floor) → "—" no template
                 proximity_faixa=_px.get("faixa"),
                 # CP-impacto-rs: conversíveis × LTV_loja, com cobertura parcial.

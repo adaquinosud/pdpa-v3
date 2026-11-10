@@ -82,16 +82,17 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
   </thead>
   <tbody>
     {% for p in d.pilares %}
-    {% set n = M.faixa_to_n(p.faixa) %}
+    {% set n = M.nivel_n(p.faixa, p.total) %}
     <tr{% if p.gargalo %} style="background:#fdecec"{% endif %}>
       <td><strong>{{ p.codigo }}</strong> {{ p.nome }}{% if p.gargalo %}
-        <span class="badge b-critico">🚩 gargalo</span>{% endif %}</td>
-      <td style="text-align:right"><strong>{{ p.ratio | virg }}</strong></td>
+        <span class="badge b-critico">🚩 gargalo</span>{% endif %}{{ M.gargalo_pouca_base(p) }}</td>
+      <td style="text-align:right"><strong>{{ ratio_exibido(p.ratio, p.prom, p.det) }}</strong></td>
       <td>
         {%- if n == 'n1' %}<span class="cel-n1">🔴 N1 · {{ p.faixa | acento }}</span>
         {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2 · {{ p.faixa | acento }}</span>
         {%- elif n == 'n3' %}<span class="cel-n3">✓ N3 · {{ p.faixa | acento }}</span>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4 · {{ p.faixa | acento }}</span>
+        {%- elif n == 'pb' %}<span class="cel-pb">pouca base</span>
         {%- else %}{{ p.faixa | acento }}{% endif %}
       </td>
       <td>{{ M.lastro_interp_pilar(p) }}</td>
@@ -111,7 +112,7 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
   {% for x in d.priorizacao %}
   <span class="ord">{{ loop.index }}º</span>
   <strong>{{ x.subpilar }}</strong> → {{ x.nome }}{% if x.gargalo %} 🚩{% endif %}
-  <span class="muted">(ratio {{ x.ratio | virg }} · {{ M.base(x.det, x.prom, x.total) }})</span>
+  <span class="muted">(ratio {{ ratio_exibido(x.ratio, x.prom, x.det) }} · {{ M.base(x.det, x.prom, x.total) }})</span>
   {%- if not loop.last %}<span class="sep">|</span>{% endif %}
   {% endfor %}
 </p>
@@ -139,7 +140,7 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
   </thead>
   <tbody>
     {% for c in d.confronto %}
-    {% set n = M.faixa_to_n(c.faixa) %}
+    {% set n = M.nivel_n(c.faixa, c.det + c.conv + c.prom) %}
     <tr>
       <td><strong>{{ c.subpilar }}</strong>{% if c.gargalo %} 🚩{% endif %}
           <br><span class="muted" style="font-size:8.5pt">{{ c.nome }}</span></td>
@@ -147,12 +148,13 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
         {{ c.det }}</td>
       <td style="text-align:right">{{ c.conv }}</td>
       <td style="text-align:right">{{ c.prom }}</td>
-      <td style="text-align:right"><strong>{{ c.ratio | virg }}</strong></td>
+      <td style="text-align:right"><strong>{{ ratio_exibido(c.ratio, c.prom, c.det) }}</strong></td>
       <td>
         {%- if n == 'n1' %}<span class="cel-n1">🔴 N1</span>
         {%- elif n == 'n2' %}<span class="cel-n2">⚠ N2</span>
         {%- elif n == 'n3' %}<span class="cel-n3">✓ N3</span>
         {%- elif n == 'n4' %}<span class="cel-n4">★ N4</span>
+        {%- elif n == 'pb' %}<span class="cel-pb">pouca base</span>
         {%- else %}{{ c.faixa | acento }}{% endif %}
       </td>
       <td style="text-align:right">{{ c.n_fontes }}</td>
@@ -264,7 +266,8 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
     <div class="h-valor" style="font-size:10pt">
       {% for p in d.pilares -%}
       {{ p.codigo }}
-      {%- if M.faixa_to_n(p.faixa) == 'n1' %} 🔴
+      {%- if pouca_base(p.total) %} (pouca base)
+      {%- elif M.faixa_to_n(p.faixa) == 'n1' %} 🔴
       {%- elif M.faixa_to_n(p.faixa) == 'n2' %} ⚠
       {%- elif M.faixa_to_n(p.faixa) == 'n3' %} ✓
       {%- elif M.faixa_to_n(p.faixa) == 'n4' %} ★{% endif %}
@@ -279,7 +282,7 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
 <table class="subpilares-strip">
   <tr>
     {% for c in d.confronto %}
-    {% set n = M.faixa_to_n(c.faixa) %}
+    {% set n = M.nivel_n(c.faixa, c.det + c.conv + c.prom) %}
     <td{% if n %} class="cel-{{ n }}"{% endif %}>
       <div class="sp-codigo">{{ c.subpilar }}</div>
       <div class="sp-faixa">
@@ -287,9 +290,10 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
         {%- elif n == 'n2' %}⚠ N2
         {%- elif n == 'n3' %}✓ N3
         {%- elif n == 'n4' %}★ N4
+        {%- elif n == 'pb' %}pouca base
         {%- else %}—{% endif %}
       </div>
-      <div class="sp-ratio">{{ c.ratio | virg }}</div>
+      <div class="sp-ratio">{{ ratio_exibido(c.ratio, c.prom, c.det) }}</div>
       <div class="sp-base">{{ c.total or 0 }}</div>
     </td>
     {% endfor %}

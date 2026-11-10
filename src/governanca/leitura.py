@@ -319,6 +319,10 @@ def pilares_ratio_radar(agg: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, A
             "valor": round(min(r, 9.99) / 9.99 * 100, 1),
             "faixa": faixa_ratio(r),
             "ratio": r,
+            # contagens só p/ exibição ("sem detrator" no caminho A do teto)
+            "prom": acc["promotor"],
+            "det": acc["detrator"],
+            "total": acc["promotor"] + acc["conversivel"] + acc["detrator"],
         }
     return out
 
@@ -437,6 +441,9 @@ def radar_svg_data(pilares: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
                     "valor": val,
                     "faixa": d.get("faixa"),
                     "ratio": d.get("ratio"),
+                    "prom": d.get("prom"),
+                    "det": d.get("det"),
+                    "total": d.get("total"),
                     "tip": tip,
                     "lab": lab,
                     "vx": vx,

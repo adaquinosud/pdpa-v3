@@ -70,15 +70,15 @@
       <td><strong>{{ linha.subpilar }}</strong>
           <br><span class="muted" style="font-size:7.5pt">{{ linha.nome }}</span></td>
       {% for c in linha.celulas %}
-        {% set n = M.faixa_to_n(c.faixa) %}
-        <td style="text-align:center{% if n %}; background:var(--{{ n[0] }}1-bg)
+        {% set n = M.nivel_n(c.faixa, c.total) %}
+        <td style="text-align:center{% if n == 'pb' and not c.vazio %}; background:var(--pb-bg); color:var(--pb-tx); font-style:italic{% elif n and n != 'pb' %}; background:var(--{{ n[0] }}1-bg)
                   {%- if n == 'n1' %}; background:var(--n1-bg); color:var(--n1-tx)
                   {%- elif n == 'n2' %}; background:var(--n2-bg); color:var(--n2-tx)
                   {%- elif n == 'n3' %}; background:var(--n3-bg); color:var(--n3-tx)
                   {%- elif n == 'n4' %}; background:var(--n4-bg); color:var(--n4-tx)
                   {% endif %}{% endif %}">
           {%- if c.vazio -%}<span class="muted">—</span>
-          {%- else -%}{{ c.ratio | virg }}{%- endif -%}
+          {%- else -%}{{ ratio_exibido(c.ratio, c.prom, c.det) }}{%- endif -%}
         </td>
       {% endfor %}
       <td style="text-align:center; font-weight:700; font-size:11pt;
@@ -131,17 +131,19 @@
   </thead>
   <tbody>
     {% for q in d.quebras %}
-    {% set n_old = M.faixa_to_n(q.nivel_anterior) %}
-    {% set n_new = M.faixa_to_n(q.nivel_novo) %}
+    {% set n_old = M.nivel_n(q.nivel_anterior, q.total_anterior) %}
+    {% set n_new = M.nivel_n(q.nivel_novo, q.total_novo) %}
     <tr>
       <td><strong>{{ q.subpilar }}</strong> · {{ q.nome }}</td>
       <td>{{ q.de }}</td>
       <td>
-        <span class="cel-{{ n_old }}">{{ q.nivel_anterior }}</span>
-        → <span class="cel-{{ n_new }}">{{ q.nivel_novo }}</span>
+        <span class="cel-{{ n_old }}">{{ 'pouca base' if n_old == 'pb' else q.nivel_anterior }}</span>
+        → <span class="cel-{{ n_new }}">{{ 'pouca base' if n_new == 'pb' else q.nivel_novo }}</span>
+        {#- A quebra continua eleita pela régua; com pouca base num dos lados, diz isso. -#}
+        {% if n_old == 'pb' or n_new == 'pb' %}<br><span class="muted" style="font-size:7.5pt">quebra eleita com pouca base</span>{% endif %}
       </td>
       <td style="text-align:right; font-size:8.5pt">
-        {{ q.ratio_anterior | virg }} → {{ q.ratio_novo | virg }}
+        {{ ratio_exibido(q.ratio_anterior, q.prom_anterior, q.det_anterior) }} → {{ ratio_exibido(q.ratio_novo, q.prom_novo, q.det_novo) }}
       </td>
       <td>
         {%- if q.direcao == 'piora' -%}

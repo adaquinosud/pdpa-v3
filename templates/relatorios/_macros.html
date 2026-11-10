@@ -26,6 +26,12 @@
 {%- else -%}—{%- endif -%}
 {%- endmacro %}
 
+{# Nível para EXIBIR: abaixo do piso de confiança (pouca_base, fonte única no Python) vira
+   'pb' — "pouca base", neutro, em qualquer faixa. faixa_to_n segue sendo a tradução da faixa. #}
+{% macro nivel_n(faixa, total) -%}
+{%- if pouca_base(total) -%}pb{%- else -%}{{ faixa_to_n(faixa) }}{%- endif -%}
+{%- endmacro %}
+
 {% macro faixa_to_n(faixa) -%}
 {%- if faixa == 'critico' -%}n1
 {%- elif faixa in ('fraco', 'atencao') -%}n2
@@ -39,7 +45,14 @@
    e a linha de baixo nomeia quem trava, com o ratio DELE — nunca o do pilar. Substitui o
    aviso de ferida interna nesse pilar (seria o mesmo subpilar dito duas vezes). #}
 {% macro lastro_interp_pilar(p) -%}
-{%- if p.gargalo_por -%}{{ lastro_interp('critico') }}{%- else -%}{{ lastro_interp(p.faixa) }}{%- endif -%}
+{%- if p.gargalo_por -%}{{ lastro_interp('critico') }}
+{%- elif pouca_base(p.total) -%}<span class="cel-pb lastro-cell">pouca base</span>
+{%- else -%}{{ lastro_interp(p.faixa) }}{%- endif -%}
+{%- endmacro %}
+
+{# Gargalo eleito pela soma do pilar com volume abaixo do piso: continua eleito, e diz isso. #}
+{% macro gargalo_pouca_base(p) -%}
+{%- if p.gargalo and not p.gargalo_por and pouca_base(p.total) %}<br><span class="muted" style="font-size:8pt">eleito com pouca base: {{ p.total }} manifestaç{{ 'ão' if p.total == 1 else 'ões' }}</span>{% endif -%}
 {%- endmacro %}
 
 {% macro linha_abaixo_do_pilar(p, colspan=6) -%}

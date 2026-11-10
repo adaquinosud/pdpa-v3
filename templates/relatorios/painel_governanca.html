@@ -87,7 +87,7 @@
     {% for e in r.eixos %}
       {% if not e.null %}<circle cx="{{ e.vx }}" cy="{{ e.vy }}" r="3" fill="#1B6B61"/>{% endif %}
       <text x="{{ e.lab[0] }}" y="{{ e.lab[1] }}" text-anchor="middle" font-size="10" fill="#1A1A2E" font-weight="bold">{{ e.pilar }}</text>
-      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— s/d' if e.null else e.ratio | virg(1) }}</text>
+      <text x="{{ e.lab[0] }}" y="{{ e.lab[1] + 11 }}" text-anchor="middle" font-size="9" fill="{{ '#9b9384' if e.null else '#1B6B61' }}">{{ '— s/d' if e.null else ratio_exibido(e.ratio, e.prom, e.det) }}</text>
     {% endfor %}
   </svg>
   {% endif %}

@@ -200,6 +200,13 @@ def montar_dados(
                         direcao=("piora" if nb < na else "melhora"),
                         ratio_anterior=a.ratio,
                         ratio_novo=b.ratio,
+                        # contagens dos dois lados, só p/ exibição ("sem detrator", "pouca base")
+                        prom_anterior=a.prom,
+                        det_anterior=a.det,
+                        total_anterior=a.total,
+                        prom_novo=b.prom,
+                        det_novo=b.det,
+                        total_novo=b.total,
                     )
                 )
     quebras.sort(key=lambda x: (x.direcao, x.de), reverse=True)

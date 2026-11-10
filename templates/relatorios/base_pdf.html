@@ -30,6 +30,8 @@
     --n2-bg: #FEF6E8; --n2-tx: #7A5820;   /* atenção/fraco — Fragiliza */
     --n3-bg: #EEF6EC; --n3-tx: #2E5C24;   /* bom — Sustenta */
     --n4-bg: #E2EFED; --n4-tx: #0E4840;   /* excelente — Âncora */
+    /* Pouca base (abaixo do piso de confiança): não é nível — estado neutro, a faixa não se lê */
+    --pb-bg: #F1F2F4; --pb-tx: #5B6472;
   }
 
   /* Cadeias de fonte como variáveis CSS (reuso nos seletores) */
@@ -132,6 +134,7 @@
   .cel-n2 { background: var(--n2-bg); color: var(--n2-tx); font-weight: 700; }
   .cel-n3 { background: var(--n3-bg); color: var(--n3-tx); font-weight: 700; }
   .cel-n4 { background: var(--n4-bg); color: var(--n4-tx); font-weight: 700; }
+  .cel-pb { background: var(--pb-bg); color: var(--pb-tx); font-weight: 400; font-style: italic; }
   .cel-det-n1 { background: var(--n1-bg); color: var(--n1-tx); font-weight: 700; }
 
   /* ── Cards genéricos ───────────────────────────────────────────────────── */
