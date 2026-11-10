@@ -324,6 +324,29 @@ guarda é proposta antes do código.
 
 ## Inventário (frente principal)
 
+### Parâmetros escolhidos por nós (lista viva)
+
+Grupo (2) do inventário: números de régua que não saem de medição. Cada um com onde vive e de
+onde veio. Começa com os que esta frente tocou; cresce com o inventário.
+
+| Parâmetro | Valor | Onde | Origem |
+|---|---|---|---|
+| Piso de confiança (selo verde, "pouca base") | 30 | `engajamento.VOLUME_CONFIANCA_ALTA` | decisão (Engajamento E0-E3) |
+| Teto do ratio | 9,99 | `painel.RATIO_CAP_SUPERIOR` | Manual Cap. 4 |
+| Faixas do ratio | 0,5 / 1 / 2 / 5 | `painel.FAIXAS_RATIO` | Manual Cap. 4 |
+| Janela de temas | 180 dias | `temas/janela.py` (env `PDPA_TEMAS_JANELA_DIAS`) | decisão ("horizonte acionável") |
+| Limiar da cauda da pós-coleta | 10 | `pos_coleta.LIMIAR_NOVOS_DEFAULT` | derivado de dois pisos de 10; "não medido" (comentário) |
+| Anomalia indicador — elegibilidade da loja | ≥ 6 meses e ≥ 3 verbatins/mês | `camada1.THRESHOLD_MESES/VERB_MES` | herdado do v2 (`anomalia.py`) |
+| Anomalia indicador — célula mensal mínima | ≥ 3 verbatins; baseline com ≥ 2 lojas | `camada1._baselines` | herdado do v2 |
+| Anomalia indicador — calibração cross | (z − 0,9) / 1,5; z com teto 5; 3 meses recentes; MAD ≥ 0,1 senão std ≥ 0,01 | `camada1._score_cross_sectional` | v2, commit `4ac0b56` (12/05/2026): calibrado para manter 4 casos validados à mão (Pardini, Subway, Foco…) e ~1,6% crítico — calibrado contra o parque da época |
+| Anomalia indicador — temporal | série ≥ 4 meses; IForest 64 árvores; conta só se o último mês é outlier; < 0,6 → 0; senão 40 + (x − 0,6) × 150 | `camada1._score_temporal/_normalizar_temporal` | v3 (troca do Merlion do v2); calibração no código, sem medição registrada |
+| Severidade | ≥ 70 crítico · ≥ 40 atenção; crítico só com temporal cai para atenção; volta a crítico com tema negativo no mesmo subpilar | `camada1`, `combinador._aplicar_corroboracao` | 70/40 herdado do v2; rebaixamento e corroboração = calibração v3 |
+| Anomalia tema — trend | ≥ 3 meses; ≥ 3 menções no mês; dispara com variação ≥ 50% ou Δ ≥ 5; crítico com Δ ≥ 10 ou (variação ≥ 100% e Δ ≥ 5); score 9·√Δ (teto 80) + 10·variação (teto 20) | `camada2` (env `PDPA_TREND_MIN_VOL/DELTA`) | decisão v3 |
+| Anomalia tema novo / sumiu | cosine ≥ 0,85 contra re-rotulagem; sumiço com volume ≥ 5; score volume × 5; sempre atenção | `camada2._detectar_diff` | decisão v3 |
+| Anomalia cruzamento novo / agravou / aliviou | Δpeso ≥ 50% entre snapshots mensais; score peso × 3; sempre atenção | `camada2._detectar_diff_cruzamentos` | decisão v3 |
+| Peso do cruzamento | ln(volume + 1) × subpilares × tipos (sem_lastro conta) | `cruzamento.calcular_peso` | decisão B7 |
+
+
 Grupos: (1) o que o cliente disse; (2) calculado por regra declarada — com os **parâmetros
 escolhidos por nós** registrados dentro da regra; (3) decisão nossa sem medição; (4) texto do
 modelo. Item = fonte distinta (constante, campo, seção de texto do modelo), não cada ocorrência.
