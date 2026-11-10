@@ -305,6 +305,18 @@ sobre eles. As três disparam o item 5 na próxima passada.
   10993 gravada D1 com a pontuação de Pa1.
 - **Quem vê:** cliente.
 
+## 16. Linhas soltas no fim do molde de todo PDF
+
+- **O quê:** `templates/relatorios/base_pdf.html` terminava com `</content>` e `</invoke>` depois do
+  `</html>` — restos de uma escrita de arquivo por agente, colados no molde que todos os PDFs de
+  cliente herdam.
+- **MEDIDO** (`git log -S`): entraram no commit `2d49243`, 28/05/2026 (o mesmo do driver), e
+  ficaram em produção até `3ebe15b`, 10/11/2026 — mais de cinco meses.
+- **INFERIDO:** depois do `</html>`, o leitor de HTML do gerador de PDF põe as duas tags no corpo,
+  sem texto; provavelmente nada aparecia na página. Não verificado em PDF.
+- **Mesma família dos outros achados:** coisa que ninguém olhou e que saía em todo PDF de cliente.
+- **Removidas** em `3ebe15b` (10/11).
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
@@ -354,6 +366,15 @@ guarda é proposta antes do código.
 ---
 
 ## Decisões registradas (não reabrir sem motivo novo)
+
+- **Regra 4 (Alexandre, 10/11): nenhum texto do modelo cita ou recomenda métrica de fora** — NPS,
+  CSAT, CES, índice de satisfação ou equivalente — em todo gerador que escreve texto ao cliente
+  (textos do relatório, leituras diagnósticas, sugestões, ações de venda, síntese do Parecer,
+  frase do Painel, chat; frase de posição por coerência). **Citar para contrastar é permitido;
+  citar como medida, meta ou recomendação não.** Por isso o subtítulo fixo do Mapa de Conversão
+  ("Onde o NPS vê ruído, o PDPA vê oportunidade") fica: é contraste e é o argumento da casa.
+- A sugestão estrutural de loja da Carbel com "índice de satisfação" fica para depois (R$ 0,10 não
+  justifica acrescentar escopo de loja ao `regerar-textos` agora).
 
 - **Nome de funcionário** em verbatim e exemplo fica sem máscara (Alexandre, 09/11): são
   comentários públicos aos quais a empresa já tem acesso; a ferramenta não traz nada
