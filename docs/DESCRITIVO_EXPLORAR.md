@@ -1353,6 +1353,14 @@ o texto + contexto e devolve 1 das 6 + confiança. O usuário pode trocar no dro
   **9,99**; sem promotores → **0,0** (`calcular_ratio`, painel). **Faixas:** <0,5 crítico · 0,5–1,0 fraco
   · 1,0–2,0 atenção · 2,0–5,0 bom · ≥5,0 excelente. (Ratio 1,0 = tantos promotores quanto detratores;
   2,0 = o dobro de promotores.)
+  **Exibição (tela e papel):** com promotores e nenhum detrator o cálculo devolve o teto 9,99 sem
+  dividir nada — a tela e o papel mostram **"sem detrator"** no lugar do número
+  (`painel.sem_detrator`). Abaixo do piso de confiança (`VOLUME_CONFIANCA_ALTA`, o corte do selo
+  verde) a faixa, boa ou ruim, dá lugar a **"pouca base"** e o número fica (`painel.pouca_base`);
+  gargalo eleito pela soma com pouca base continua eleito e diz "eleito com pouca base"; quebra de
+  nível do Longitudinal com pouca base num dos lados diz isso. Só exibição: o valor que contas,
+  índices, gargalo e hashes recebem não muda. Pendência de cálculo declarada: a média do
+  Longitudinal ("ratio médio" por trimestre) ainda é feita sobre valores no teto.
 
 - **tipos (de avaliação)** — **promotor**: elogio claro (objeto concreto + adjetivo positivo);
   **conversível**: neutro/ambíguo/misto, mas com alguma ligação à marca — é "capital em formação", dá pra
