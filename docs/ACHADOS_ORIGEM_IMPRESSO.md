@@ -357,6 +357,23 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
 - **Já conhecido, agora em prosa:** a narrativa traz o "índice médio" por trimestre (3,79 → 5,18 →
   3,01 → 3,71 → 2,85), que é a média de ratios com teto — a pendência de cálculo do item 8.
 
+## 18. O conserto do 9,99 não chegou à aba Evolução nem à variação do detalhe do trimestre
+
+- **O quê:** a aba Evolução (cliente) plota a série de ratio por mês/trimestre/semestre com o teto:
+  bucket com promotor e nenhum detrator aparece como 9,99 na curva e no tooltip; bucket com 1 ou 2
+  comentários tem a mesma cor e peso dos outros. O detalhe do trimestre (aba Painel e Mapa) já
+  diz "sem detrator" no número do pilar e da loja, mas a "variação vs trimestre anterior" ainda é
+  feita sobre os ratios com teto.
+- **MEDIDO por código:** `_explorar_evolucao` (`src/ui/__init__.py`) calcula `calcular_ratio` por
+  bucket e manda a série; `templates/partials/explorar_evolucao.html` plota `s.ratio` e o tooltip
+  escreve "ratio … · total … · det … · prom …". `quarter_detalhe_pilar` (`src/api/painel.py`)
+  calcula `delta` sobre os dois ratios com teto.
+- **Já existe o que o conserto precisa:** a série leva, por ponto, promotores, detratores e total
+  (vêm de `ratios_mensais`). As linhas de referência "limite atenção (1,0)" e "limite bom (2,0)"
+  estão escritas à mão no template (copy que reescreve o corte — §8 do `CLAUDE.md`).
+- **Quem vê:** cliente (aba Evolução, grupo Explorar; detalhe do trimestre a partir do Painel).
+- **Estado:** registrado; não é para fazer agora (10/11). Tamanho na mensagem de 10/11.
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
