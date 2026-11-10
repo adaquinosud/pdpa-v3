@@ -370,7 +370,7 @@ def _loja_mais_impactou(s, empresa_id, pilar, sel, prev, ag_id, local_id):
         alvo[lid][0] += prom or 0
         alvo[lid][1] += det or 0
 
-    melhor = None  # (|contrib|, lid, ratio_sel, variacao)
+    melhor = None  # (|contrib|, lid, ratio_sel, variacao exibida, prom, det)
     for lid, (prom, det) in sel_acc.items():
         if lid not in prev_acc:
             continue  # precisa dos 2 quarters p/ ter variação
@@ -378,7 +378,10 @@ def _loja_mais_impactou(s, empresa_id, pilar, sel, prev, ag_id, local_id):
         r_prev = calcular_ratio(prev_acc[lid][0], prev_acc[lid][1])
         contrib = (prom + det) * (r_sel - r_prev)  # volume × variação
         if melhor is None or abs(contrib) > melhor[0]:
-            melhor = (abs(contrib), lid, r_sel, round(r_sel - r_prev, 2), prom, det)
+            # Variação EXIBIDA: se um dos lados está sem detrator, não há duas razões a subtrair.
+            sd = sem_detrator(prom, det) or sem_detrator(*prev_acc[lid])
+            var = None if sd else round(r_sel - r_prev, 2)
+            melhor = (abs(contrib), lid, r_sel, var, prom, det)
     if melhor is None:
         return None
     _, lid, r_sel, var, prom, det = melhor
@@ -467,8 +470,15 @@ def quarter_detalhe_pilar(s, empresa_id, pilar, ano, quarter, ag_id=None, local_
     loja = None
     if idx > 0:
         pa, pqu, pprom, pdet = serie[idx - 1]
+        # Um lado sem detrator (caminho A do teto) → não há variação a medir: delta None e o
+        # template diz qual lado. Subtrair o 9,99 inventaria a magnitude.
+        sd_atual, sd_ant = sem_detrator(prom, det), sem_detrator(pprom, pdet)
         variacao = {
-            "delta": round(ratio - calcular_ratio(pprom, pdet), 2),
+            "delta": (
+                None if (sd_atual or sd_ant) else round(ratio - calcular_ratio(pprom, pdet), 2)
+            ),
+            "sem_detrator_atual": sd_atual,
+            "sem_detrator_anterior": sd_ant,
             "quarter_anterior": f"Q{pqu}",
         }
         loja = _loja_mais_impactou(s, empresa_id, pilar, (ano, quarter), (pa, pqu), ag_id, local_id)
@@ -508,6 +518,17 @@ RATIO_EMPATE = 1.0
 # Teto da faixa "critico" — lido de FAIXAS_RATIO, nunca reescrito: crítico é ``ratio < 0,5``
 # (0,50 exato é fraco).
 RATIO_CRITICO = FAIXAS_RATIO[0][0]
+
+
+def limite_inferior_faixa(faixa: str) -> float:
+    """Onde a faixa começa, lido de ``FAIXAS_RATIO`` (o teto da faixa anterior). Para linhas de
+    referência em gráfico — nunca reescrever o corte no template."""
+    anterior = 0.0
+    for limite, label in FAIXAS_RATIO:
+        if label == faixa:
+            return anterior
+        anterior = limite
+    raise KeyError(faixa)
 
 
 def faixa_ratio(ratio: float) -> str:

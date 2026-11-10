@@ -52,12 +52,14 @@
 {% else %}
 <div class="bg-white border border-loyall-200 rounded-lg p-5">
   <div style="height:480px"><canvas id="ev-chart"></canvas></div>
+  {# Cortes lidos da régua (painel.FAIXAS_RATIO via _explorar_evolucao), nunca escritos aqui. #}
   <p class="text-xs text-loyall-400 mt-3">
-    Linhas tracejadas: referência de faixa — <span class="text-amber-700">1,0 (limite atenção)</span> e
-    <span class="text-emerald-700">2,0 (limite bom)</span>. Lacunas = períodos sem dados.
+    Linhas tracejadas: referência de faixa —{% for r in evolucao.referencias %} <span class="{{ 'text-amber-700' if r.faixa == 'atencao' else 'text-emerald-700' }}">{{ r.rotulo }}</span>{% if not loop.last %} e{% endif %}{% endfor %}.
+    Lacunas = períodos sem dados. ▲ no topo = <strong>sem detrator</strong>: há promotores e nenhum detrator, não há razão a dividir — o ponto sai da curva.
+    Ponto vazado = <strong>pouca base</strong> no período.
   </p>
 </div>
-<script type="application/json" id="ev-data">{{ {'buckets': evolucao.buckets, 'series': evolucao.series} | tojson }}</script>
+<script type="application/json" id="ev-data">{{ {'buckets': evolucao.buckets, 'series': evolucao.series, 'referencias': evolucao.referencias} | tojson }}</script>
 <script>
   (function () {
     function draw() {
@@ -69,18 +71,37 @@
       if (window._evChart) { try { window._evChart.destroy(); } catch (e) {} }
       // Paleta consistente e distinguível (até 5 séries + 2 referências).
       var palette = ["#2563eb", "#d97706", "#dc2626", "#059669", "#7c3aed", "#0891b2", "#be185d"];
-      var datasets = payload.series.map(function (s, i) {
+      // Topo do eixo: acima do maior ratio medido (o ponto "sem detrator" não entra na conta).
+      var maxv = 3;
+      payload.series.forEach(function (s) { s.ratio.forEach(function (r) { if (r != null && r > maxv) maxv = r; }); });
+      var topo = Math.round(maxv * 1.1 * 10) / 10;
+      var datasets = [];
+      payload.series.forEach(function (s, i) {
         var col = palette[i % palette.length];
-        return {
+        // Pouca base: ponto vazado (o número fica; a cor cheia não).
+        datasets.push({
           label: s.label, data: s.ratio, borderColor: col, backgroundColor: col + "22",
           borderWidth: 2.5, tension: 0.25, spanGaps: false, pointRadius: 3, pointHoverRadius: 5,
-        };
+          pointBackgroundColor: s.pouca_base.map(function (pb) { return pb ? "#ffffff" : col; }),
+          pointBorderColor: col, _serie: i, _tipo: "ratio",
+        });
+        // Sem detrator: marcador no topo, fora da curva.
+        if (s.sem_detrator.some(Boolean)) {
+          datasets.push({
+            label: s.label + " · sem detrator", showLine: false, pointStyle: "triangle",
+            pointRadius: 6, pointHoverRadius: 7, borderColor: col, backgroundColor: col,
+            data: s.sem_detrator.map(function (sd) { return sd ? topo : null; }),
+            _serie: i, _tipo: "sem_detrator",
+          });
+        }
       });
       var n = payload.buckets.length;
-      datasets.push({label: "limite atenção (1,0)", data: Array(n).fill(1.0),
-        borderColor: "#f59e0b", borderDash: [6, 4], borderWidth: 1, pointRadius: 0, fill: false});
-      datasets.push({label: "limite bom (2,0)", data: Array(n).fill(2.0),
-        borderColor: "#10b981", borderDash: [6, 4], borderWidth: 1, pointRadius: 0, fill: false});
+      var refCor = {atencao: "#f59e0b", bom: "#10b981"};
+      payload.referencias.forEach(function (r) {
+        datasets.push({label: r.rotulo,
+          data: Array(n).fill(r.valor), borderColor: refCor[r.faixa] || "#9ca3af",
+          borderDash: [6, 4], borderWidth: 1, pointRadius: 0, fill: false});
+      });
       window._evChart = new Chart(el.getContext('2d'), {
         type: 'line',
         data: {labels: payload.buckets, datasets: datasets},
@@ -89,22 +110,31 @@
           interaction: {mode: 'index', intersect: false},
           scales: {
             y: {title: {display: true, text: 'Ratio (promotor / detrator)'},
-                suggestedMin: 0, suggestedMax: 3, grid: {color: '#eef0f2'}},
+                suggestedMin: 0, suggestedMax: topo, grid: {color: '#eef0f2'}},
             x: {grid: {color: '#f6f7f8'}},
           },
           plugins: {
             legend: {position: 'top', align: 'start', labels: {usePointStyle: true, boxWidth: 8, font: {size: 12}}},
             tooltip: {
               callbacks: {
+                // O triângulo fica no topo só para ser visto: a altura não é valor, não se escreve.
+                label: function (item) {
+                  if (item.dataset._tipo === "sem_detrator") return item.dataset.label;
+                  return item.dataset.label + ": " + item.formattedValue;
+                },
                 afterBody: function (items) {
                   if (!items.length) return '';
-                  var s = payload.series[items[0].datasetIndex];
+                  var ds = items[0].dataset;
+                  if (!ds || ds._serie == null) return '';
+                  var s = payload.series[ds._serie];
                   var i = items[0].dataIndex;
                   if (!s || !s.total) return '';
+                  var base = ' · total ' + s.total[i] + ' · det ' + s.detratores[i] +
+                             ' · prom ' + s.promotores[i];
+                  if (s.sem_detrator[i]) return 'sem detrator' + base;
                   var r = s.ratio[i];
-                  return 'ratio ' + (r == null ? '—' : r) +
-                         ' · total ' + s.total[i] + ' · det ' + s.detratores[i] +
-                         ' · prom ' + s.promotores[i];
+                  return 'ratio ' + (r == null ? '—' : String(r).replace('.', ',')) + base +
+                         (s.pouca_base[i] ? ' · pouca base' : '');
                 },
               },
             },

@@ -93,7 +93,7 @@ def test_tab_evolucao_grafico(client_loyall, db_session):
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/evolucao").get_data(as_text=True)
     assert "Granularidade" in h and "Agrupar por" in h  # controles
     assert 'id="ev-chart"' in h and 'id="ev-data"' in h  # canvas + payload JSON
-    assert "limite atenção" in h  # legenda das linhas de referência
+    assert "início de atenção (1,0)" in h  # legenda das linhas de referência (lida da régua)
 
 
 def test_evolucao_agrupar_subpilar_multiselect(client_loyall, db_session):

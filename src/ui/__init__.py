@@ -4801,7 +4801,13 @@ def _explorar_evolucao(
     por bucket (mês/trimestre/semestre) × grupo (empresa/subpilar/loja/agrupamento),
     null em buckets vazios (gap). Sem seleção explícita → top-5 grupos por volume.
     Guarda de frescor: popula ratios_mensais se estiver vazia."""
-    from src.api.painel import NOME_SUBPILAR, calcular_ratio
+    from src.api.painel import (
+        NOME_SUBPILAR,
+        calcular_ratio,
+        limite_inferior_faixa,
+        pouca_base,
+        sem_detrator,
+    )
     from src.models.agrupamento import Agrupamento
     from src.models.anomalia import RatioMensal
     from src.models.local import Local
@@ -4869,7 +4875,7 @@ def _explorar_evolucao(
             label = f"{g} · {NOME_SUBPILAR.get(g, g)}"
         else:
             label = nomes.get(g, str(g))
-        ratio, det, prom, tot = [], [], [], []
+        ratio, det, prom, tot, sem_det, pb = [], [], [], [], [], []
         for b in buckets:
             d = agg.get((b, g))
             if d is None or d["tot"] == 0:
@@ -4877,15 +4883,41 @@ def _explorar_evolucao(
                 det.append(0)
                 prom.append(0)
                 tot.append(0)
+                sem_det.append(False)
+                pb.append(False)
             else:
-                ratio.append(calcular_ratio(d["prom"], d["det"]))
+                # Sem detrator (caminho A do teto): não há razão a dividir — o ponto SAI da
+                # curva (lacuna) e o template marca no topo. O 9,99 não vira altura de ponto.
+                sd = sem_detrator(d["prom"], d["det"])
+                ratio.append(None if sd else calcular_ratio(d["prom"], d["det"]))
                 det.append(d["det"])
                 prom.append(d["prom"])
                 tot.append(d["tot"])
+                sem_det.append(sd)
+                pb.append(pouca_base(d["tot"]))
         series.append(
-            {"label": label, "ratio": ratio, "detratores": det, "promotores": prom, "total": tot}
+            {
+                "label": label,
+                "ratio": ratio,
+                "detratores": det,
+                "promotores": prom,
+                "total": tot,
+                "sem_detrator": sem_det,
+                "pouca_base": pb,
+            }
         )
-    return {"buckets": buckets, "series": series}
+    # Linhas de referência lidas da régua (antes: 1,0 e 2,0 escritos à mão no template).
+    from src.utils.fmt import acento, virg
+
+    referencias = [
+        {
+            "faixa": f,
+            "valor": limite_inferior_faixa(f),
+            "rotulo": f"início de {acento(f).lower()} ({virg(limite_inferior_faixa(f), 1)})",
+        }
+        for f in ("atencao", "bom")
+    ]
+    return {"buckets": buckets, "series": series, "referencias": referencias}
 
 
 def _escopo_loja(s, empresa_id, ag_id, local_id, modelo):
@@ -6407,6 +6439,7 @@ def _explorar_contexto(empresa_id, tab):
                 "selecionados": valores,
                 "buckets": dados["buckets"],
                 "series": dados["series"],
+                "referencias": dados["referencias"],
             }
         diagnostico = (
             _explorar_diagnostico(s, empresa_id, ag_id, local_id) if tab == "diagnostico" else None

@@ -22,10 +22,17 @@
       <section>
         <div class="text-xs uppercase tracking-wider text-loyall-400 mb-1">Variação</div>
         {% set delta = d.variacao.delta %}
+        {% if delta is none %}
+        {# Um dos lados sem detrator: não há duas razões a subtrair (o 9,99 não é medida). #}
+        <div class="text-sm text-loyall-600">
+          sem variação a medir — {% if d.variacao.sem_detrator_atual and d.variacao.sem_detrator_anterior %}sem detrator neste quarter e em {{ d.variacao.quarter_anterior }}{% elif d.variacao.sem_detrator_atual %}sem detrator neste quarter{% else %}sem detrator em {{ d.variacao.quarter_anterior }}{% endif %}
+        </div>
+        {% else %}
         <div class="text-sm {% if delta < 0 %}text-rose-700{% elif delta > 0 %}text-emerald-700{% else %}text-loyall-600{% endif %}">
           {% if delta < 0 %}↓{% elif delta > 0 %}↑{% else %}→{% endif %}
-          {{ '%.2f'|format(delta|abs) }} <span class="text-loyall-500">vs {{ d.variacao.quarter_anterior }}</span>
+          {{ (delta|abs) | virg(2) }} <span class="text-loyall-500">vs {{ d.variacao.quarter_anterior }}</span>
         </div>
+        {% endif %}
       </section>
       {% endif %}
 
@@ -37,9 +44,13 @@
         <div class="text-sm text-loyall-800 font-medium">{{ d.loja.nome }}</div>
         <div class="text-xs text-loyall-500">
           ratio {{ ratio_exibido(d.loja.ratio, d.loja.prom, d.loja.det) }} ·
+          {% if lv is none %}
+          <span>sem variação a medir (sem detrator num dos quarters)</span>
+          {% else %}
           <span class="{% if lv < 0 %}text-rose-700{% elif lv > 0 %}text-emerald-700{% endif %}">
-            {% if lv < 0 %}↓{% elif lv > 0 %}↑{% else %}→{% endif %} {{ '%.2f'|format(lv|abs) }}
+            {% if lv < 0 %}↓{% elif lv > 0 %}↑{% else %}→{% endif %} {{ (lv|abs) | virg(2) }}
           </span>
+          {% endif %}
         </div>
       </section>
       {% endif %}
