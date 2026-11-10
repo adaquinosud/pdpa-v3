@@ -50,8 +50,17 @@ def _bloco_cacheado(sysarg, md_path):
 def test_sugestoes_cacheia_byte_identico(rec):
     from src.planos import sugestoes
 
+    from src.api.painel import regra_numero_para_prompt
+
     sugestoes._chamar_sonnet({"a": 1})
-    _bloco_cacheado(rec["system"], sugestoes.PROMPT_PATH)
+    # o .md + a regra de número (teto/piso, lida do código) — ainda UM bloco cacheado, estável
+    # entre chamadas (o prefixo cacheável não varia).
+    sysarg = rec["system"]
+    assert isinstance(sysarg, list) and len(sysarg) == 1
+    assert sysarg[0]["cache_control"] == {"type": "ephemeral"}
+    assert sysarg[0]["text"] == (
+        sugestoes.PROMPT_PATH.read_text(encoding="utf-8") + regra_numero_para_prompt()
+    )
     # user inalterado (payload JSON), modelo e max_tokens inalterados
     assert rec["messages"][0]["content"] == json.dumps({"a": 1}, ensure_ascii=False)
     assert rec["model"] == sugestoes.SONNET_MODEL and rec["max_tokens"] == sugestoes.MAX_TOKENS
@@ -98,8 +107,11 @@ def test_editorial_casos_default_nao_cacheia(rec):
 def test_llm_secoes_nao_cacheia(rec):
     from src.relatorios import llm_secoes
 
+    from src.api.painel import regra_numero_para_prompt
+
     llm_secoes._chamar_sonnet("RUBRICA FIXA DE RELATORIO", "payload", max_tokens=100)
-    assert rec["system"] == "RUBRICA FIXA DE RELATORIO"  # string pura, intocada
+    # string pura (sem cache_control): a rubrica + a regra de número (teto/piso do código)
+    assert rec["system"] == "RUBRICA FIXA DE RELATORIO" + regra_numero_para_prompt()
 
 
 # ── a diferença é SÓ o cache_control (mesmo prompt, texto idêntico) ────
