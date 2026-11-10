@@ -384,6 +384,15 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   (`_loja_mais_impactou`) ainda pesa volume × diferença de ratios com teto. Uma loja que passa de
   sem detrator para 1 detrator move ~9 pontos de ratio e tende a ganhar a eleição. A exibição não
   mostra mais a diferença, mas a escolha da loja ainda vem dela. Régua, não exibição — frente própria.
+- **Limite conhecido, mostrado pela prévia (10/11, `previa_evolucao_carbel` na Carbel, saída lida
+  pelo Alexandre):** o Pa1, único subpilar com volume, tem ratios reais por trimestre de 13,7 · 12,6
+  · 39,1 · 28,0 · 8,9 · 9,8 · 6,7 — e a tela desenha 9,99 nos quatro primeiros. O teto não erra só
+  o valor, erra a FORMA da curva: mostra linha reta e depois queda, onde houve subida até 39 e
+  queda até 6,7. O conserto não alcança esses pontos: eles têm detrator, são o caminho B (divisão
+  real cortada no teto), não o "sem detrator". Limite do item 18, não defeito dele.
+- **Fundamento da especificação do "o que mudou":** ela trabalha em CONTAGEM (promotor,
+  conversível, detrator, total — `ratios_mensais` guarda as quatro) e nunca em ratio, exatamente
+  por isso: qualquer série de ratio herda o teto e desenha forma falsa onde a posição vai bem.
 
 ---
 
