@@ -372,7 +372,18 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   (vêm de `ratios_mensais`). As linhas de referência "limite atenção (1,0)" e "limite bom (2,0)"
   estão escritas à mão no template (copy que reescreve o corte — §8 do `CLAUDE.md`).
 - **Quem vê:** cliente (aba Evolução, grupo Explorar; detalhe do trimestre a partir do Painel).
-- **Estado:** registrado; não é para fazer agora (10/11). Tamanho na mensagem de 10/11.
+- **Decisão (10/11):** ponto sem detrator SAI da curva e vira marcador no topo — deixar o ponto na
+  altura do 9,99 transforma o valor inventado em posição, e o olho lê a altura antes do rótulo.
+  Linhas de referência lidas da régua.
+- **Corrigido em `db62fd5` (branch `fix/evolucao-teto`).** Evolução: lacuna + triângulo no topo,
+  tooltip "sem detrator" sem número (a altura do triângulo não é valor), pouca base em ponto
+  vazado, vírgula no tooltip; referências via `limite_inferior_faixa` (`FAIXAS_RATIO`). Detalhe do
+  trimestre: com um lado sem detrator, "sem variação a medir" no pilar e na loja; `'%.2f'` → `virg`.
+  Testes em `tests/test_evolucao_teto.py` (falham sem o fix).
+- **Fica aberto (MEDIDO por código):** a ELEIÇÃO da "loja que mais impactou"
+  (`_loja_mais_impactou`) ainda pesa volume × diferença de ratios com teto. Uma loja que passa de
+  sem detrator para 1 detrator move ~9 pontos de ratio e tende a ganhar a eleição. A exibição não
+  mostra mais a diferença, mas a escolha da loja ainda vem dela. Régua, não exibição — frente própria.
 
 ---
 
