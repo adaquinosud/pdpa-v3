@@ -68,13 +68,20 @@ sobre texto e número que chegam ao cliente. É a entrada do inventário por ori
   - Em 5 das 6 empresas o vínculo nasceu 0–0,4 h depois da coleta; na Carbel, em **08/11 18h46**.
     Na 15, 465 h depois.
   - 21 temas têm vínculo None; **10 são feitos só de None**, todos ativos (15: 1; 17: 5; 27: 2; 29: 2).
+  - Dos 10: **7 viraram ação de venda pontual** (17: "estorno pendente" alto, "acidente veículo"
+    médio, "multa trânsito" médio; 27: "transparência negociação" médio, "atendimento
+    profissional" baixo; 29: "demora raio-x" médio, "atendimento hospitalar" médio). Os 10 estão na
+    lista de temas das telas (`temas_cache`, 1 a 3 linhas cada). Nenhum virou anomalia nem entrou
+    em cruzamento (`sonda_none_acoes`, parte A, 09/11).
+  - **INFERIDO:** essas 7 ações saem na aba Plano de Ação e no PDF Plano Executivo (mesmo caminho
+    do item 3). Na lista de temas aparecem com subpilar real, não "None" — por que a lista não
+    herda o None não foi verificado.
 - **INFERIDO** — quatro caminhos pelos quais o pipeline de temas lê verbatim não classificado:
   limite do `classificar_pendentes`; lote batch que não drena e volta sem classificar; trava de
   outro processo classificando (pula); temas rodados fora da pós-coleta (`src/app.py:689`).
   Qual caminho causou cada caso: não medido.
 - **Correção de premissa (09/11):** o sistema leu esses textos — o rótulo do tema vem do modelo
   lendo os representativos. O que faltou foi a classificação em posição.
-- **Pendente:** onde aparecem os 10 temas só-None (`sonda_none_acoes`, parte A).
 - **Quem vê:** cliente, pelos itens 3 e 5.
 
 ### Opções de conserto de processo (para decisão do Alexandre)
@@ -202,7 +209,7 @@ sobre eles. As três disparam o item 5 na próxima passada.
 ## Sondas pendentes
 
 - `sonda_pre_entrega` — as 5 anomalias críticas da Carbel no PDF; "P1 → P3"; texto reserva.
-- `sonda_none_acoes` — onde aparecem os 10 temas só-None; ações que regeram e custo; órfãos.
+- `sonda_none_acoes_bc` — ações que regeram com o conserto do None e custo; status/responsável órfãos. (A 1ª versão quebrou na parte B por erro meu — objeto lido fora da sessão; a parte A rodou.)
 
 ## Inventário (frente principal)
 
