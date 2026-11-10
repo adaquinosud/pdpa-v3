@@ -320,6 +320,36 @@ sobre eles. As três disparam o item 5 na próxima passada.
   cerca de seis meses em produção sem ninguém olhar.
 - **Removidas** em `3ebe15b` (10/11).
 
+## 17. Primeiros textos com os prompts novos (Carbel, 10/11) — o que pegou e o que não pegou
+
+Regeração de 10/11 (`regerar-textos`, 9 chamadas: descobertas, desc_pilar A e Pa, insight A e Pa,
+narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18 textos
+(`sonda_textos_novos`).
+
+- **Pegou (MEDIDO, nos 18 textos):** nenhum "9,99" nem "ratio máximo"; nenhuma métrica de fora;
+  nomes das posições todos oficiais; "pilar" só para os quatro pilares. Onde o pacote traz o
+  volume (sugestões), a regra de pouca base funcionou: a sugestão Pa3 diz "com volume ainda pequeno
+  (10 manifestações) não é possível confirmar a solidez da faixa".
+- **Não pegou — pouca base onde o pacote não leva volume:** a descrição e o insight de Parceria
+  chamam Comprometimento Relacional (Pa3, 10 manifestações) de "sólida" e de "excelência
+  relacional". **Causa (MEDIDO por código):** o pacote da descrição do pilar leva, por subpilar,
+  `ratio`, `faixa`, `det` e a leitura — não o volume (`diagnostico_pontual.py`, `payload_desc`). A
+  regra está no prompt; o dado que ela precisa não está no pacote. Mesma lição dos nomes: regra
+  sem dado não se cumpre.
+- **Não pegou — fato que não recebeu:** a narrativa longitudinal afirma "sem detrator registrado
+  em Comprometimento Relacional em nenhum dos cinco quarters" e "Exemplo (A1) igualmente sem
+  detrator em todos os seis quarters". **MEDIDO por código:** as células por trimestre vão ao
+  modelo só com `ratio` e `faixa` (`diagnostico_longitudinal.py`, `celulas`), sem detratores. A
+  regra mandava escrever "no teto da régua" quando o detrator não vem; o modelo deduziu "sem
+  detrator" do 9,99. Aqui coincide com o dado (A1 e Pa3 não têm detrator no agregado), mas a
+  afirmação não estava no pacote.
+- **A conferir (`sonda_conferir_numeros`):** a descrição de Aconselhamento diz que Orientação (A2),
+  com 7 críticas para 10 elogios, tem "mais da metade do seu volume em zona de atrito" — só é
+  verdade se houver mais de 3 conversíveis; e dois números iguais em lugares diferentes — 84
+  detratores em Mutualidade (Pa2) e 84 críticas em Acessibilidade (D1).
+- **Já conhecido, agora em prosa:** a narrativa traz o "índice médio" por trimestre (3,79 → 5,18 →
+  3,01 → 3,71 → 2,85), que é a média de ratios com teto — a pendência de cálculo do item 8.
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
