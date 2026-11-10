@@ -30,7 +30,10 @@ sobre texto e número que chegam ao cliente. É a entrada do inventário por ori
   saem no PDF. A Carbel tem **uma** anomalia crítica — a 10961 —, e é ela que Resumo e Pontual
   imprimem: diz "enquanto o NPS ainda é forte", traz o 9,99 com zero detratores (item 7), os nomes
   inventados (item 6) e está com validação pendente (item 2).
-- **Quem vê:** cliente — as de bônus, na aba Anomalias; a 10961, também no papel.
+- **Quem vê:** cliente — as de bônus, na aba Anomalias; a 10961, também no papel. **Correção (10/11,
+  INFERIDO por código):** as ações de relacionamento e de venda de TODA anomalia com texto entram no
+  Plano de Ação (`consolidar._itens_anomalia`) — aba Planos e PDF Plano Executivo, que imprime todas.
+  Se a recomendação de bônus está num desses campos, ela vai ao papel por esse caminho.
 - **Por que é o primeiro:** é ação recomendada ao cliente usando a metodologia concorrente.
 
 ## 2. Anomalia sem validação sai no impresso
@@ -255,8 +258,9 @@ sobre eles. As três disparam o item 5 na próxima passada.
   entra; com 3, entra.
 - **INFERIDO** (`camada1.py:43-66` e `:69-101`): mês só com conversíveis (0P, 0D, ≥ 3 no total)
   entra com ratio 0,0 (`calcular_ratio` de 0/0) e dá o maior z possível.
-- **Pendente de medida:** `sonda_anomalia_mecanismo` — as células mensais por trás das anomalias
-  de indicador da Carbel de hoje.
+- **MEDIDO** (`sonda_anomalia_mecanismo`, 10/11): a mediana das lojas está no teto (log1p 2,4 ≈
+  9,99); a maioria das células mensais tem de 1 a 4 comentários. Detecção estacionada (decisão de
+  10/11, `docs/ANOMALIAS_ETAPA0.md`).
 - **Quem vê:** cliente (aba Anomalias; PDF quando crítica).
 
 ## 14. Corte de severidade e calibração vieram de casos à mão, não de medição
@@ -276,8 +280,8 @@ sobre eles. As três disparam o item 5 na próxima passada.
   score vem do temporal (ex.: 10962, cross 0,0 e final 100,0), o subpilar escrito no texto que vai
   ao cliente pode ser outro. Rótulo errado em texto de cliente.
 - **INFERIDO** (`camada1.py:220-231`).
-- **Pendente de medida:** `sonda_anomalia_mecanismo` mostra, por anomalia, o z e o temporal de cada
-  subpilar.
+- **MEDIDO** (10/11): confirmado em três casos — 10982 e 10987 gravadas Pa1 com o 100 vindo de P2/D2;
+  10993 gravada D1 com a pontuação de Pa1.
 - **Quem vê:** cliente.
 
 ---

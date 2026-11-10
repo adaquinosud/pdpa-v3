@@ -72,3 +72,42 @@ preservando o texto por tipo e chave — o id muda, nada se perde.
 
 Parâmetros: lista "Parâmetros escolhidos por nós" em `docs/ACHADOS_ORIGEM_IMPRESSO.md`.
 Achados que saíram desta leitura: itens 13, 14 e 15 de lá.
+
+## Medido na Carbel (10/11, `sonda_anomalia_mecanismo`)
+
+- **A régua entre lojas é o próprio teto.** A mediana das lojas sai 2,4 em log1p em quase todo
+  mês; log1p(9,99) = 2,397. A loja "típica" de um mês está no teto.
+- **Células mensais pequenas.** Na maioria dos meses mostrados as células têm de 1 a 4
+  comentários. Com isso o ratio cai em poucos valores: na maior parte 9,99 ou 0,0; aparecem
+  também 1,0, 2,0, 3,0 e 0,5. Ex.: loja 150, D1, cinco meses com 1 ou 2 comentários e ratio 0,0.
+- **Item 15 confirmado em três casos:**
+  - 10982 (loja 143), gravada Pa1: Pa1 pontua no cross (z 1,73 → 55), mas o 100 do final veio do
+    temporal de P2 e D2;
+  - 10987 (loja 156), gravada Pa1: Pa1 com z 0,66 (cross 0) e fora da lista temporal; o 100 veio de P2;
+  - 10993 (loja 150), gravada D1: z zero em D1 e Pa1 (fica o primeiro na ordem), pontuação temporal
+    vinda de Pa1.
+- Anomalias de cruzamento de hoje: "agravou: atendimento vendedor" (10990) e "novo: pós venda"
+  (10996). As 10966 e 10967 de 09/11 não existem mais; a hipótese de que vinham do peso inflado
+  pelo bucket None ficou sem verificar.
+
+## Decisão (Alexandre, 10/11): detecção ESTACIONADA
+
+Não consertar e não trocar de algoritmo. O problema não é o algoritmo, é a **entrada e o
+recorte**: entra um ratio com teto, calculado sobre células mensais de 1 a 4 comentários. Nenhuma
+biblioteca conserta isso.
+
+Limite aritmético, Carbel, 1.457 comentários com texto (12 posições, 18 lojas, 10 marcas):
+
+| Recorte | Comentários por célula |
+|---|---|
+| loja × posição × mês (o de hoje) | 0,6 |
+| marca × posição × mês | 1,0 |
+| marca × posição × trimestre | 3,0 |
+| empresa × posição × mês | 10,1 |
+| empresa × posição × trimestre | 30,4 |
+| empresa × posição × semestre | 60,7 |
+
+Agrupar por marca piora (dez marcas em dezoito lojas). E a média engana: Pa1 tem 1.072 dos 1.457;
+as outras onze posições somam 385 (≈ 35 cada) — fora o Pa1, 2,9 por mês, 8,8 por trimestre, 17,5
+por semestre. Hoje só o Pa1 tem volume para comparação no tempo. **Quando for retomado, a primeira
+pergunta é em que recorte existe dado suficiente, não qual biblioteca usar.**
