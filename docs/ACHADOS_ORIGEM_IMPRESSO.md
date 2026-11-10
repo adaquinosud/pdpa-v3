@@ -307,6 +307,17 @@ guarda é proposta antes do código.
 - Regerar as 4 anomalias de cruzamento (10966, 10967, 10838, 10855) só **depois** do conserto do
   None, com custo medido na hora; a 10855 fala de um cruzamento que deixa de existir.
 
+## Regra de operação da regeração (10/11)
+
+- **Medir e regerar no mesmo dia, antes das 3h (horário de Brasília).** Os ids de anomalia mudam a
+  cada detecção: a pós-coleta apaga e regrava `anomalias_detectadas`, preservando o texto por tipo
+  e chave. Recalcular a cada coleta é o certo e o id trocar não perde nem custa nada; mas o id de
+  ontem não serve para o comando de hoje. Pegar os ids do dia (sonda só de leitura), medir com
+  `flask regerar-textos … --medir`, e regerar em seguida.
+- O comando para e nomeia o id que não existe na empresa (`6c7e999`); antes ignorava em silêncio.
+- Regerar a descrição de um pilar regera também o insight final dele (o pacote do insight leva o
+  texto da descrição): dois textos a mais por pilar pedido, que aparecem na medição.
+
 ## Sondas pendentes
 
 - Nenhuma. (Opcional: data e perspectiva dos 4.554 status órfãos do item 5.)
