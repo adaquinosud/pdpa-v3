@@ -46,12 +46,29 @@ def _confianca(tem_tema: bool, tem_cruzamento: bool, cross_forte: bool, volume: 
     return "baixa"
 
 
+def _subpilares_nomeados(codigos) -> List[Dict[str, str]]:
+    """Códigos de subpilar → ``[{codigo, nome}]`` com o nome OFICIAL. Com só o código, o modelo
+    traduzia a posição para vocabulário comum de atendimento (D1 → "Delivery", Pa3 →
+    "Pós-atendimento"). Bucket de verbatim ainda sem classificação ("None") não é posição e
+    fica fora; ``sem_lastro`` vai nomeado como tal."""
+    from src.api.painel import NOME_SUBPILAR
+
+    out = []
+    for c in sorted(set(codigos)):
+        if c in NOME_SUBPILAR:
+            out.append({"codigo": c, "nome": NOME_SUBPILAR[c]})
+        elif c == "sem_lastro":
+            out.append({"codigo": c, "nome": "sem lastro (fora das doze posições)"})
+    return out
+
+
 def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Dict[str, Any]:
     """Constrói o payload de negócio p/ uma anomalia de indicador (loja×subpilar)."""
     from sqlalchemy import func
 
-    from src.api.painel import NOME_SUBPILAR, calcular_ratio
+    from src.api.painel import NOME_SUBPILAR, calcular_ratio, sem_detrator
     from src.models.agrupamento import Agrupamento
+    from src.utils.fmt import virg
     from src.models.anomalia import RatioMensal
     from src.models.empresa import Empresa
     from src.models.local import Local
@@ -187,7 +204,7 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
         if any(b.split(":")[0] == sub for b in buckets):
             cruzamento_relacionado = {
                 "label": cr.tema_label,
-                "pilares": sorted({b.split(":")[0] for b in buckets}),
+                "subpilares": _subpilares_nomeados(b.split(":")[0] for b in buckets),
             }
             break
 
@@ -200,11 +217,20 @@ def montar_payload_indicador(s, empresa_id: int, anomalia: Dict[str, Any]) -> Di
         "escopo": f"{loc_nome}"
         + (f" · {ag_nome}" if ag_nome else "")
         + f" · subpilar {sub} ({nome_sub})",
+        # Sem detrator (caminho A do teto) não tem razão a dividir: o 9,99 ali não é medida
+        # — a frase dizia "ratio 9.99 (114 elogios para 0 críticas)" e o modelo repetia.
         "o_que_mudou": (
-            f"ratio promotor/detrator em {sub} está em {ratio_agg} "
-            f"({prom} elogios para {detr} críticas em {volume} avaliações)"
-            if ratio_agg is not None
-            else f"sinal em {sub}"
+            f"{sub} ({nome_sub}) tem {prom} elogios e nenhuma crítica em {volume} avaliações"
+            " — sem detrator"
+            if ratio_agg is not None and sem_detrator(prom, detr)
+            else (
+                (
+                    f"ratio promotor/detrator em {sub} ({nome_sub}) está em {virg(ratio_agg)} "
+                    f"({prom} elogios para {detr} críticas em {volume} avaliações)"
+                )
+                if ratio_agg is not None
+                else f"sinal em {sub} ({nome_sub})"
+            )
         ),
         "comparacao_pares": (
             "bem abaixo da maioria das lojas comparáveis da empresa"
@@ -274,7 +300,7 @@ def _cruzamento_do_tema(s, empresa_id: int, nome: str) -> Optional[Dict[str, Any
             buckets = json.loads(cr.buckets_envolvidos_json or "[]")
             return {
                 "label": cr.tema_label,
-                "pilares": sorted({b.split(":")[0] for b in buckets}),
+                "subpilares": _subpilares_nomeados(b.split(":")[0] for b in buckets),
             }
     return None
 
@@ -396,7 +422,6 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
     """Payload de negócio p/ anomalia de cruzamento N4 (causa raiz transversal)."""
     from sqlalchemy import func
 
-    from src.api.painel import NOME_SUBPILAR
     from src.models.empresa import Empresa
     from src.models.temas import TemaCruzamento
     from src.temas.cobertura import temas_volume_live_subq
@@ -426,7 +451,7 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
             "concentracao": None,
             "pares_saudaveis": [],
             "tema_relacionado": label,
-            "cruzamento_relacionado": {"label": label, "pilares": []},
+            "cruzamento_relacionado": {"label": label, "subpilares": []},
             "acao_n5_existente": None,
             "exemplos": [],
             "setor": setor,
@@ -434,8 +459,8 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
         }
 
     buckets = json.loads(cr.buckets_envolvidos_json or "[]")
-    pilares = sorted({b.split(":")[0] for b in buckets})
-    nomes_sub = sorted({NOME_SUBPILAR.get(p, p) for p in pilares})
+    subs = _subpilares_nomeados(b.split(":")[0] for b in buckets)
+    nomes_sub = [f"{x['codigo']} {x['nome']}" for x in subs]
     _tc = temas_volume_live_subq(s)  # régua live (= telas)
     volume = int(
         s.query(func.coalesce(func.sum(_tc.c.volume), 0))
@@ -451,11 +476,11 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
         "tipo_sinal": "cruzamento",
         "escopo": f"cruzamento '{cr.tema_label}' · subpilares {', '.join(nomes_sub)}",
         "o_que_mudou": (
-            f"o tema '{cr.tema_label}' atravessa {len(pilares)} subpilares "
+            f"o tema '{cr.tema_label}' atravessa {len(subs)} subpilares "
             f"({', '.join(nomes_sub)}) — é causa raiz, não problema isolado"
         ),
         "comparacao_pares": (
-            f"presente em {cr.n_subpilares_distintos or len(pilares)} subpilares distintos "
+            f"presente em {len(subs)} subpilares distintos "
             "(quanto mais transversal, mais estrutural)"
         ),
         "tendencia": anomalia.get("tendencia"),
@@ -465,7 +490,7 @@ def montar_payload_cruzamento(s, empresa_id: int, anomalia: Dict[str, Any]) -> D
         "concentracao": None,
         "pares_saudaveis": [],
         "tema_relacionado": cr.tema_label,
-        "cruzamento_relacionado": {"label": cr.tema_label, "pilares": pilares},
+        "cruzamento_relacionado": {"label": cr.tema_label, "subpilares": subs},
         "acao_n5_existente": acao_n5,
         "exemplos": [],
         "setor": setor,

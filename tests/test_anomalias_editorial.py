@@ -249,7 +249,13 @@ def test_payload_cruzamento_transversal(client_loyall, db_session):
     }
     payload = montar_payload_cruzamento(db_session, e["id"], anomalia)
     assert payload["tipo_sinal"] == "cruzamento"
-    assert payload["cruzamento_relacionado"]["pilares"] == ["D2", "Pa1"]
+    # o pacote leva o NOME oficial de cada subpilar — com só o código, o modelo traduzia
+    # a posição para vocabulário comum (D1 → "Delivery", Pa3 → "Pós-atendimento")
+    assert payload["cruzamento_relacionado"]["subpilares"] == [
+        {"codigo": "D2", "nome": "Eficácia Operacional"},
+        {"codigo": "Pa1", "nome": "Empatia Comercial"},
+    ]
+    assert "Eficácia Operacional" in payload["escopo"]
     assert "atravessa 2 subpilares" in payload["o_que_mudou"]
     assert payload["volume_afetado"] == 12
     # transversal (n_sub>=2) + volume>=5 → alta
@@ -479,3 +485,51 @@ def test_gerar_e_persistir_leituras_apenas_sem_leitura(client_loyall, db_session
     ja = db_session.query(AnomaliaDetectada).filter_by(empresa_id=e["id"], chave="ja-tem").first()
     assert json.loads(nova.leitura_editorial)["o_que"]  # leitura gerada agora
     assert json.loads(ja.leitura_editorial)["o_que"] == "antiga"  # intacta, não regerada
+
+
+def test_subpilares_nomeados_tira_bucket_sem_classificacao():
+    """Bucket "None:None" (verbatim que entrou nos temas antes de ser classificado) não é
+    posição: não vai ao pacote nem conta como subpilar atravessado."""
+    from src.anomalias.editorial import _subpilares_nomeados
+
+    assert _subpilares_nomeados(["A1", "None", "Pa1", "Pa1"]) == [
+        {"codigo": "A1", "nome": "Exemplo"},
+        {"codigo": "Pa1", "nome": "Empatia Comercial"},
+    ]
+    assert _subpilares_nomeados(["sem_lastro"])[0]["codigo"] == "sem_lastro"
+
+
+def test_prompt_da_anomalia_proibe_metrica_de_fora_e_reserva_pilar():
+    from src.anomalias.editorial import LEITURA_PROMPT_PATH
+
+    p = LEITURA_PROMPT_PATH.read_text(encoding="utf-8")
+    assert "NPS" in p and "bônus" in p  # proibição explícita, com o caso real
+    assert "Subpilar não é pilar" in p
+    assert "Nome de subpilar só o recebido" in p
+    assert "{label, pilares}" not in p
+
+
+def test_o_que_mudou_sem_detrator_nao_escreve_o_teto(client_loyall, db_session):
+    """Caminho A do teto: o pacote dizia "ratio … está em 9.99 (114 elogios para 0 críticas)" e o
+    modelo repetia "9,99 … zero detratores" (anomalia 10961 da Carbel). Sem detrator não tem
+    razão a dividir: o pacote diz o fato, com o nome do subpilar, e nenhum número de ratio."""
+    e, a, loc, f = _ctx(client_loyall, "p9")
+    db_session.add(
+        RatioMensal(
+            empresa_id=e["id"],
+            local_id=loc["id"],
+            agrupamento_id=a["id"],
+            subpilar="Pa1",
+            periodo="2026-10",
+            promotor=114,
+            conversivel=15,
+            detrator=0,
+            total=129,
+            ratio=9.99,
+        )
+    )
+    db_session.commit()
+    anomalia = {"local_id": loc["id"], "agrupamento_id": a["id"], "subpilar": "Pa1"}
+    o = montar_payload_indicador(db_session, e["id"], anomalia)["o_que_mudou"]
+    assert "sem detrator" in o and "Empatia Comercial" in o
+    assert "9.99" not in o and "9,99" not in o and "ratio" not in o

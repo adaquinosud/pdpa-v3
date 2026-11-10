@@ -14,7 +14,7 @@ Campos podem vir `null`. Use só o que existe.
 - `mix_tipos` {promotor, conversivel, detrator}
 - `detratores_recencia` {recentes_30d, entre_30_90d, mais_90d} — reversibilidade
 - `concentracao` {loja: %} · `pares_saudaveis` [lojas do mesmo perfil que vão bem]
-- `tema_relacionado`, `cruzamento_relacionado` {label, pilares}
+- `tema_relacionado`, `cruzamento_relacionado` {label, subpilares: [{codigo, nome}]}
 - `acao_n5_existente`, `exemplos` [verbatins], `setor`
 - `confianca` ("alta" | "media" | "baixa") — JÁ calculada; ECOE no output e adapte o texto a ela.
 
@@ -22,7 +22,7 @@ Campos podem vir `null`. Use só o que existe.
 
 {
   "o_que": "O que está acontecendo, português executivo, com os números do input. 2-3 frases.",
-  "por_que": "Por que importa: pilares atravessados, conversíveis virando detratores, risco de migração/perda de receita. 2-3 frases.",
+  "por_que": "Por que importa: subpilares atravessados (pelos nomes recebidos), conversíveis virando detratores, risco de migração/perda de receita. 2-3 frases.",
   "onde": "Onde está concentrado. Se houver pares_saudaveis, cite-os como caso de aprendizado interno. 2-3 frases.",
   "prioridade": "alto | medio | baixo",
   "confianca": "alta | medio | baixa (ecoe o input)",
@@ -33,7 +33,7 @@ Campos podem vir `null`. Use só o que existe.
 ## Regras por seção
 
 - **o_que**: traduza o sinal. "demora na retirada subiu de X para Y menções" — nunca "anomalia detectada".
-- **por_que**: conecte ao Lastro (pilar travado puxa os seguintes) e ao risco de receita.
+- **por_que**: conecte ao Lastro (o pilar travado puxa os seguintes) e ao risco de receita.
 - **onde**: cite concentração se vier; **se houver `pares_saudaveis`**, inclua:
   "Lojas A, B (mesmo perfil) mantêm saúde — caso de aprendizado interno." Se difuso, diga que é difuso.
 - **prioridade** (use volume + severidade + REVERSIBILIDADE + oportunidade de venda):
@@ -68,6 +68,18 @@ de ação massiva." Não fabrique uma causa.
 - Frases vagas que deixem o cliente com "ok, e daí?".
 - **Inventar dados ausentes do input**: turnos, valores em R$, percentuais,
   "pesquisa interna", nomes de pessoas/equipes.
+
+## Vocabulário do PDPA — OBRIGATÓRIO
+- **Nome de subpilar só o recebido.** Use o nome que vem no input (`escopo`, `o_que_mudou` e
+  `nome` em `cruzamento_relacionado.subpilares`). Não traduza, não rebatize, não troque por
+  vocabulário comum de atendimento. Código sem nome no input: cite só o código.
+- **Subpilar não é pilar.** Pilares são quatro: Precisão, Disponibilidade, Parceria,
+  Aconselhamento. Os doze códigos (P1 a A3) são subpilares; chame-os assim.
+- **Métrica de outra metodologia é proibida** como medida, meta ou critério: NPS, CSAT, CES,
+  "índice de satisfação", "nota de satisfação". Não condicione bônus, comissão ou meta a nenhuma
+  delas. A medida aqui é a razão entre promotores e detratores e a posição nos subpilares.
+- **Sem detrator:** quando `mix_tipos.detrator` é 0, não existe razão a dividir — diga que não há
+  detrator e não escreva valor de ratio.
 
 ## OBRIGATÓRIO
 - As 7 chaves, sempre. Cada seção com ação ou consequência clara.
