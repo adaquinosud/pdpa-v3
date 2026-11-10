@@ -244,6 +244,42 @@ sobre eles. As três disparam o item 5 na próxima passada.
 - **Custo:** não medido. O custo da classificação de perspectiva não é gravado por ação.
 - **Quem vê:** interno (gasto e lixo de tabela); nenhum status preenchido por gente foi perdido.
 
+## 13. Anomalia de indicador lê o ratio mensal de loja com piso de 3, não de 30
+
+- **O quê:** a detecção compara o ratio **mensal** de cada subpilar no escopo de **loja**, e o
+  piso por célula é **3 verbatins de qualquer tipo** (herdado do v2), não o piso de confiança de
+  30 que passou a valer na exibição ontem. O conserto de 09/11 (pouca base) é de exibição e não
+  alcançou aqui. Uma célula de 3 comentários num mês pode decidir o z da loja e virar anomalia
+  crítica — e a crítica sai no Resumo e no Pontual.
+- **Correção de premissa (10/11):** não é "sem piso" — é piso 3. Célula com 2 comentários não
+  entra; com 3, entra.
+- **INFERIDO** (`camada1.py:43-66` e `:69-101`): mês só com conversíveis (0P, 0D, ≥ 3 no total)
+  entra com ratio 0,0 (`calcular_ratio` de 0/0) e dá o maior z possível.
+- **Pendente de medida:** `sonda_anomalia_mecanismo` — as células mensais por trás das anomalias
+  de indicador da Carbel de hoje.
+- **Quem vê:** cliente (aba Anomalias; PDF quando crítica).
+
+## 14. Corte de severidade e calibração vieram de casos à mão, não de medição
+
+- **O quê:** 70 / 40 são herdados do v2 sem origem registrada; a calibração (z − 0,9) / 1,5 foi
+  ajustada no v2 (commit `4ac0b56`, 12/05/2026) para manter 4 casos validados à mão (Pardini,
+  Subway, Foco…) e ~1,6% crítico — calibrada contra o parque da época (§4 do `CLAUDE.md`).
+- **MEDIDO:** o comentário e o commit no repositório do v2 (`anomalia.py:208-218`).
+- **INFERIDO:** nenhuma medição registrada sustenta os números.
+- Está na lista de parâmetros com essa origem.
+- **Quem vê:** cliente (o rótulo crítico/atenção decide o que vai ao PDF).
+
+## 15. O subpilar gravado na anomalia pode não ser o que gerou o score
+
+- **O quê:** o score final é por loja (máximo entre subpilares); o subpilar gravado é o de maior
+  z cross-sectional, e o temporal guarda só o máximo, sem dizer de qual subpilar veio. Quando o
+  score vem do temporal (ex.: 10962, cross 0,0 e final 100,0), o subpilar escrito no texto que vai
+  ao cliente pode ser outro. Rótulo errado em texto de cliente.
+- **INFERIDO** (`camada1.py:220-231`).
+- **Pendente de medida:** `sonda_anomalia_mecanismo` mostra, por anomalia, o z e o temporal de cada
+  subpilar.
+- **Quem vê:** cliente.
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
@@ -340,7 +376,7 @@ onde veio. Começa com os que esta frente tocou; cresce com o inventário.
 | Anomalia indicador — célula mensal mínima | ≥ 3 verbatins; baseline com ≥ 2 lojas | `camada1._baselines` | herdado do v2 |
 | Anomalia indicador — calibração cross | (z − 0,9) / 1,5; z com teto 5; 3 meses recentes; MAD ≥ 0,1 senão std ≥ 0,01 | `camada1._score_cross_sectional` | v2, commit `4ac0b56` (12/05/2026): calibrado para manter 4 casos validados à mão (Pardini, Subway, Foco…) e ~1,6% crítico — calibrado contra o parque da época |
 | Anomalia indicador — temporal | série ≥ 4 meses; IForest 64 árvores; conta só se o último mês é outlier; < 0,6 → 0; senão 40 + (x − 0,6) × 150 | `camada1._score_temporal/_normalizar_temporal` | v3 (troca do Merlion do v2); calibração no código, sem medição registrada |
-| Severidade | ≥ 70 crítico · ≥ 40 atenção; crítico só com temporal cai para atenção; volta a crítico com tema negativo no mesmo subpilar | `camada1`, `combinador._aplicar_corroboracao` | 70/40 herdado do v2; rebaixamento e corroboração = calibração v3 |
+| Severidade | ≥ 70 crítico · ≥ 40 atenção; crítico só com temporal cai para atenção; volta a crítico com tema negativo no mesmo subpilar | `camada1`, `combinador._aplicar_corroboracao` | 70/40 herdado do v2, origem não registrada; a calibração que os alimenta foi ajustada a 4 casos validados à mão em maio (item 14); rebaixamento e corroboração = calibração v3 |
 | Anomalia tema — trend | ≥ 3 meses; ≥ 3 menções no mês; dispara com variação ≥ 50% ou Δ ≥ 5; crítico com Δ ≥ 10 ou (variação ≥ 100% e Δ ≥ 5); score 9·√Δ (teto 80) + 10·variação (teto 20) | `camada2` (env `PDPA_TREND_MIN_VOL/DELTA`) | decisão v3 |
 | Anomalia tema novo / sumiu | cosine ≥ 0,85 contra re-rotulagem; sumiço com volume ≥ 5; score volume × 5; sempre atenção | `camada2._detectar_diff` | decisão v3 |
 | Anomalia cruzamento novo / agravou / aliviou | Δpeso ≥ 50% entre snapshots mensais; score peso × 3; sempre atenção | `camada2._detectar_diff_cruzamentos` | decisão v3 |
