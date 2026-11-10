@@ -12,7 +12,6 @@ porta a estrutura e LLM gera curto."""
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional
@@ -55,7 +54,6 @@ def montar_dados(
     )
     from src.diagnostico.leituras import agregar_subpilares
     from src.relatorios.gates import bloquear_se_stale as _bloquear_se_stale
-    from src.models.anomalia import AnomaliaDetectada
     from src.models.diagnostico import LeituraDiagnostico
     from src.models.empresa import Empresa
     from src.models.fonte import Fonte
@@ -165,34 +163,8 @@ def montar_dados(
                 )
                 verbatins_choque = [(t[:280], sub) for t, sub in rows if t]
 
-        # Anomalias críticas (top 5) — com leitura editorial cacheada
-        anomalias = []
-        for a in (
-            s.query(AnomaliaDetectada)
-            .filter(
-                AnomaliaDetectada.empresa_id == empresa_id,
-                AnomaliaDetectada.severidade == "critico",
-            )
-            .order_by(AnomaliaDetectada.score_final.desc().nullslast())
-            .limit(5)
-            .all()
-        ):
-            resumo_a = None
-            if a.leitura_editorial:
-                try:
-                    d = json.loads(a.leitura_editorial)
-                    if isinstance(d, dict):
-                        resumo_a = d.get("o_que") or d.get("por_que")
-                except (ValueError, TypeError):
-                    pass
-            anomalias.append(
-                SimpleNamespace(
-                    alvo=a.subpilar or a.chave or "—",
-                    tipo=a.tipo,
-                    direcao=a.direcao or a.tendencia or "",
-                    resumo=resumo_a,
-                )
-            )
+        # Anomalias fora do relatório do cliente (decisão de 10/11): a detecção está estacionada
+        # (docs/ANOMALIAS_ETAPA0.md) — sem seção de alertas e sem anomalia no texto das descobertas.
 
         # Sugestões estruturais — 2 por perspectiva, na ordem de painel.chave_sequencia (a mesma
         # da Sequência de ação, sobre os 12, sem filtro nem corte; antes era o alfabeto do código).
@@ -360,7 +332,6 @@ def montar_dados(
             for c in confronto
             if c.leitura
         ][:6],
-        "anomalias": [{"alvo": a.alvo, "resumo": a.resumo} for a in anomalias if a.resumo][:3],
     }
 
     # Para o paradoxo, ATIVO usa leitura do sub_MELHOR (o que sustenta o pilar) e
@@ -469,7 +440,6 @@ def montar_dados(
         "prio_fora": prio_fora,
         "regua_seq": regua_sequencia(),
         "sug_por_persp": sug_por_persp,
-        "anomalias": anomalias,
         # seções LLM (cacheadas)
         "capa": SimpleNamespace(
             manchete=capa["numero_manchete"],

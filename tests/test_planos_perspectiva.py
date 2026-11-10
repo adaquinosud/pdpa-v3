@@ -40,6 +40,16 @@ def _seed(db_session, empresa_id):
         )
     )
     db_session.add(
+        AcaoVenda(
+            empresa_id=empresa_id,
+            tema_label="demora retirada",
+            acao_texto="Mapear o fluxo de retirada",
+            impacto_qualitativo="medio",
+            hash_escopo="hb",
+        )
+    )
+    # anomalia com ações no texto: desde 10/11 NÃO entra no Plano (nem é classificada)
+    db_session.add(
         AnomaliaDetectada(
             empresa_id=empresa_id,
             tipo="indicador",
@@ -67,13 +77,14 @@ def test_classifica_e_persiste_no_overlay(client_loyall, db_session):
     e = _empresa(client_loyall, "cl")
     _seed(db_session, e["id"])
     m = classificar_perspectivas(e["id"], gerar_fn=_fake)
-    assert m["classificados"] == 3 and m["falhas"] == 0  # N5 + anomalia rel + venda
-    assert len(m["amostra"]) == 3 and m["custo_usd"] >= 0
+    assert m["classificados"] == 2 and m["falhas"] == 0  # as 2 N5; anomalia fora do Plano
+    assert len(m["amostra"]) == 2 and m["custo_usd"] >= 0
 
     overlay = {
         o.item_chave: o for o in db_session.query(AcaoStatus).filter_by(empresa_id=e["id"]).all()
     }
-    assert len(overlay) == 3
+    assert len(overlay) == 2
+    assert not any(k.startswith("anom:") for k in overlay)
     assert all(
         o.perspectiva == "processos" and o.perspectiva_confianca == "alta" for o in overlay.values()
     )

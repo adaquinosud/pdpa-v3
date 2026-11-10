@@ -212,7 +212,8 @@ def test_filtro_origem_rotulo_venda_preserva_value(client_loyall, db_session):
     # as outras 3 origens permanecem auto-explicativas (sem sufixo)
     assert '<option value="Estrutural" >Estrutural</option>' in h
     assert '<option value="Diagnóstico" >Diagnóstico</option>' in h
-    assert '<option value="Anomalia" >Anomalia</option>' in h
+    # Anomalia saiu do filtro: ações de anomalia fora do Plano desde 10/11
+    assert '<option value="Anomalia"' not in h
 
 
 def test_filtro_origem_tem_legenda_dos_5(client_loyall, db_session):

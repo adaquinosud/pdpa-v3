@@ -51,20 +51,23 @@ PERGUNTAS_CENTRAIS = {
 LASTRO_POSITION = {"P": "1º (entrada da jornada)", "D": "2º", "Pa": "3º", "A": "4º (fechamento)"}
 
 # Driver de negócio por subpilar (Mapa Financeiro Qualitativo, sem R$).
-# Hardcoded conforme decisão do mapa de porte; revisar quando Manual PDPA mudar.
+# O QUE ESTÁ EM JOGO por posição — leitura da Loyall (terceiro grupo do inventário: decisão nossa,
+# não medição), impressa ASSINADA (rodapé do Mapa Financeiro). Texto do Alexandre, 10/11/2026.
+# Substitui o DRIVER_NEGOCIO do commit 2d49243 (28/05/2026, "conforme decisão do mapa de porte" —
+# documento que não está no repositório), que trazia CSAT e NPS em D2/D3.
 DRIVER_NEGOCIO = {
-    "P1": "Pricing power · conversão de prospect em cliente",
-    "P2": "Retenção · LTV",
-    "P3": "Previsibilidade · churn rate",
-    "D1": "Tempo até primeira resposta · taxa de abertura",
-    "D2": "CSAT operacional · custo de retrabalho",
-    "D3": "NPS proativo · prevenção de detratores",
-    "Pa1": "Brand love · advocacy orgânico",
-    "Pa2": "Margem percebida · resistência a aumento de preço",
-    "Pa3": "Tenure · profundidade de relacionamento",
-    "A1": "Cross-sell · ticket médio",
-    "A2": "Conversão pós-orientação · upsell",
-    "A3": "Defesa em crise · resiliência reputacional",
+    "P1": "a palavra da empresa valer na próxima venda",
+    "P2": "não ter que refazer o que já foi feito",
+    "P3": "o cliente poder contar com o mesmo resultado",
+    "D1": "a reclamação chegar à empresa antes de ir para fora",
+    "D2": "um erro não virar um cliente a menos",
+    "D3": "o problema custar um telefonema em vez de uma venda",
+    "Pa1": "a relação não se reduzir a preço",
+    "Pa2": "o preço se sustentar sem desconto",
+    "Pa3": "a próxima venda não começar do zero",
+    "A1": "o cliente conseguir defender a escolha que fez",
+    "A2": "o cliente decidir certo e creditar isso à empresa",
+    "A3": "ser procurado antes da decisão, não depois",
 }
 
 # Horizonte por faixa (0-90 / 90-180 / 180-365 / 365+).
@@ -107,7 +110,6 @@ def montar_dados(
     from src.diagnostico.leituras import agregar_subpilares
     from src.utils.fmt import virg
     from src.relatorios.gates import bloquear_se_stale as _bloquear_se_stale
-    from src.models.anomalia import AnomaliaDetectada
     from src.models.diagnostico import LeituraDiagnostico
     from src.models.empresa import Empresa
     from src.models.fonte import Fonte
@@ -260,36 +262,8 @@ def montar_dados(
                     )
                 )
 
-        # Anomalias críticas (top 5) com leitura editorial
-        import json as _json
-
-        anomalias = []
-        for a in (
-            s.query(AnomaliaDetectada)
-            .filter(
-                AnomaliaDetectada.empresa_id == empresa_id,
-                AnomaliaDetectada.severidade == "critico",
-            )
-            .order_by(AnomaliaDetectada.score_final.desc().nullslast())
-            .limit(5)
-            .all()
-        ):
-            resumo_a = None
-            if a.leitura_editorial:
-                try:
-                    d_ = _json.loads(a.leitura_editorial)
-                    if isinstance(d_, dict):
-                        resumo_a = d_.get("o_que") or d_.get("por_que")
-                except (ValueError, TypeError):
-                    pass
-            anomalias.append(
-                SimpleNamespace(
-                    alvo=a.subpilar or a.chave or "—",
-                    tipo=a.tipo,
-                    direcao=a.direcao or a.tendencia or "",
-                    resumo=resumo_a,
-                )
-            )
+        # Anomalias fora do relatório do cliente (decisão de 10/11): a detecção está estacionada
+        # (docs/ANOMALIAS_ETAPA0.md) — sem seção de alertas e sem anomalia no texto das descobertas.
 
         # ── Temas Recorrentes (seção 07) — agrupados por tipo de verbatim ──
         # Para cada (tema, tipo) conta verbatins + pega exemplo + tipo dominante.
@@ -527,7 +501,6 @@ def montar_dados(
             for c in confronto
             if c.leitura
         ][:6],
-        "anomalias": [{"alvo": a.alvo, "resumo": a.resumo} for a in anomalias if a.resumo][:3],
     }
     payload_paradoxo = {
         "empresa": empresa_nome,
@@ -613,7 +586,7 @@ def montar_dados(
             )
             impacto_txt = (
                 f"Reduz {sd['det']} detratores e libera {sd['conv']} conversíveis. "
-                f"Driver: {DRIVER_NEGOCIO.get(sd['subpilar'], '—')}."
+                f"Em jogo: {DRIVER_NEGOCIO.get(sd['subpilar'], '—')}."
             )
             acoes.append(
                 SimpleNamespace(
@@ -765,7 +738,6 @@ def montar_dados(
         "prio_fora": prio_fora,
         "regua_seq": regua_sequencia(),
         "sug_por_persp": sug_por_persp,
-        "anomalias": anomalias,
         # seções LLM cacheadas (compartilhadas com B1' por escopo_h)
         "capa": SimpleNamespace(
             manchete=capa["numero_manchete"], soco=capa["frase_soco"], cached=capa["cached"]

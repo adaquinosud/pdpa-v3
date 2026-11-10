@@ -172,7 +172,7 @@ def test_resumo_executivo_doc_ouro(client_loyall, db_session):
     db_session.commit()
     _stamp_hashes(db_session, e["id"])  # leitura fresca p/ o render feliz (Fatia 4)
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/resumo_executivo").get_data(as_text=True)
-    # estrutura doc-ouro (porte fiel v2 — capa-choque + RE + 02 + EN + SE + AL + FZ + 10)
+    # estrutura doc-ouro (porte v2 — capa + RE + 02 + EN + SE + FZ + 10; AL saiu em 10/11)
     assert "Diagnóstico Pontual · PDPA" in h and "FAKE manchete" in h  # capa-eyebrow + manchete
     assert "Fontes cadastradas" in h  # B4: cadastrada-sem-dado é estado real, não "monitorada"
     assert "Três descobertas" in h and "d1" in h and "d2" in h and "d3" in h
@@ -238,7 +238,7 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
         as_text=True
     )
     # Doc-ouro completo: capa + 00 + 01 + TE + RE + 02 + MC + MF
-    #                  + 03..06 + 07 + EN + SE + AL + 09 + 10
+    #                  + 03..06 + 07 + EN + SE + 09 + 10 (AL saiu em 10/11)
     assert "Diagnóstico Pontual · PDPA" in h and "FAKE manchete" in h  # capa
     assert "Como Ler Este Relatório" in h  # 00 boilerplate
     assert "Os 4 Pilares PDPA" in h and "Os 5 Níveis de Saúde" in h
@@ -252,7 +252,15 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     assert "Disponibilidade travada" in h and "Revisar SLA" in h  # cache leitura
     assert "Mapa de Conversão" in h  # MC
     assert "Mapa Financeiro" in h and "conversíveis × LTV por loja" in h  # MF (CP-impacto-rs)
-    assert "Pricing power" in h or "CSAT operacional" in h  # DRIVER_NEGOCIO assembly
+    # O que está em jogo (antigo Driver de Negócio): frase única por posição, assinada como leitura
+    # da Loyall no rodapé do Mapa Financeiro; sem CSAT/NPS
+    assert "O que está em jogo" in h and "Driver de Negócio" not in h
+    assert "um erro não virar um cliente a menos" in h  # D2
+    assert "leitura da Loyall sobre o que cada posição sustenta no negócio" in h
+    assert "Em jogo: " in h and "Driver: " not in h
+    assert "CSAT" not in h and "NPS proativo" not in h
+    # anomalias fora do relatório do cliente (10/11)
+    assert "Alertas Críticos" not in h
     assert "Plano de Ação · Disponibilidade" in h and "FAKE descrição do pilar" in h  # 04
     assert "Plano de Ação · Parceria" in h  # 05
     assert "Insight Final — Disponibilidade" in h and "FAKE insight final" in h  # insight box
@@ -436,3 +444,41 @@ def test_gargalo_por_subpilar_no_impresso_e_nos_payloads(
         ctx = [p for p in vistos if isinstance(p.get("gargalo"), dict)]
         assert ctx and ctx[0]["gargalo"]["ratio_de"] == "subpilar"
         assert round(ctx[0]["gargalo"]["ratio"], 2) == 0.03
+
+
+def test_descobertas_nao_recebem_anomalias(client_loyall, db_session, monkeypatch):
+    """Anomalias fora do relatório do cliente (10/11): além da seção de alertas, o pacote das
+    3 descobertas (texto do modelo, Resumo e Pontual) não leva mais o resumo das anomalias."""
+    import json as _json
+
+    import src.relatorios.llm_secoes as mod
+    from src.relatorios import diagnostico_pontual, resumo_executivo
+
+    pacotes = []
+
+    def _fake(prompt, payload, max_tokens=500):
+        if "3 DESCOBERTAS-TEASER" in prompt:
+            pacotes.append(_json.loads(payload))
+            return ('["d1","d2","d3"]', 5, 5)
+        if "numero_manchete" in prompt:
+            return ('{"numero_manchete":"m","frase_soco":"s"}', 5, 5)
+        if "LONGITUDINAL" in prompt:
+            return ('{"narrativa_geral":"n"}', 5, 5)
+        return ("x", 5, 5)
+
+    monkeypatch.setattr(mod, "_chamar_sonnet", _fake)
+    e = _empresa(client_loyall, "semanom")
+    with client_loyall.application.test_request_context():
+        from flask import session
+
+        from src.models.usuario import Usuario
+
+        session["user_id"] = db_session.query(Usuario).filter_by(papel="admin_loyall").first().id
+        for mod_rel in (resumo_executivo, diagnostico_pontual):
+            mod._FORCAR = {(e["id"], "descobertas")}
+            try:
+                mod_rel.montar_dados(e["id"])
+            finally:
+                mod._FORCAR = set()
+    assert pacotes, "o gerador de descobertas não foi chamado"
+    assert all("anomalias" not in p for p in pacotes)

@@ -93,24 +93,23 @@ def _seed_3_fontes(db_session, empresa_id, client_loyall):
     db_session.commit()
 
 
-def test_consolida_3_fontes_e_anomalia_2_itens(client_loyall, db_session):
+def test_consolida_fontes_sem_anomalia(client_loyall, db_session):
+    """Desde 10/11 as ações vindas de anomalia ficam fora do Plano de Ação (aba Planos e PDF
+    Plano Executivo): a detecção está estacionada e elas punham no papel recomendação do modelo
+    sobre sinal sem base — na Carbel, bônus por NPS."""
     e = _empresa(client_loyall, "c3")
-    _seed_3_fontes(db_session, e["id"], client_loyall)
+    _seed_3_fontes(db_session, e["id"], client_loyall)  # o seed inclui 1 anomalia com rel+venda
     itens = consolidar_acoes(e["id"])
     por_chave = {it.chave: it for it in itens}
-    # N5 (1) + Diagnóstico (1) + Anomalia (2) = 4
-    assert len(itens) == 4
+    # N5 (1) + Diagnóstico (1); a anomalia não entra
+    assert len(itens) == 2
     assert any(c.startswith("n5:") for c in por_chave)
     assert any(c.startswith("diag:") for c in por_chave)
-    assert sum(1 for c in por_chave if c.startswith("anom:")) == 2  # rel + venda
+    assert not any(c.startswith("anom:") for c in por_chave)
+    assert all(it.origem != "Anomalia" for it in itens)
 
     n5 = next(it for it in itens if it.origem.startswith("N5"))
     assert n5.subpilar == "D2" and n5.pilar == "D" and n5.prioridade == "alto"
-
-    rel = next(it for it in itens if it.chave.endswith(":rel"))
-    venda = next(it for it in itens if it.chave.endswith(":venda"))
-    assert rel.dimensao == "relacionamento" and venda.dimensao == "venda"
-    assert rel.subpilar == "D1" and rel.prioridade == "alto"
 
     # status default e perspectiva vazia (sem overlay ainda)
     assert all(it.status == "pendente" and it.perspectiva is None for it in itens)
@@ -138,6 +137,6 @@ def test_overlay_status_e_perspectiva(client_loyall, db_session):
 def test_filtros(client_loyall, db_session):
     e = _empresa(client_loyall, "fl")
     _seed_3_fontes(db_session, e["id"], client_loyall)
-    assert all(it.origem == "Anomalia" for it in consolidar_acoes(e["id"], {"origem": "Anomalia"}))
+    assert consolidar_acoes(e["id"], {"origem": "Anomalia"}) == []  # anomalia fora do Plano
     assert all(it.dimensao == "venda" for it in consolidar_acoes(e["id"], {"dimensao": "venda"}))
     assert all(it.pilar == "D" for it in consolidar_acoes(e["id"], {"pilar": "D"}))

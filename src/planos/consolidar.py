@@ -202,6 +202,7 @@ def _itens_diagnostico(s, empresa_id, ag_id=None, local_id=None) -> List[SimpleN
 
 
 def _itens_anomalia(s, empresa_id) -> List[SimpleNamespace]:
+    """ESTACIONADA (10/11): não é chamada — ações de anomalia saíram do Plano de Ação."""
     from src.models.anomalia import AnomaliaDetectada
     from src.models.local import Local
 
@@ -307,11 +308,12 @@ def consolidar_acoes(
     local_id = _int(filtros.get("local_id"))
     with db_session() as s:
         # Diagnóstico/Estrutural resolvem o escopo pedido (herança por subpilar);
-        # N5 sempre empresa-wide; Anomalia por escopo (filtrado em _ok).
+        # N5 sempre empresa-wide. Ações vindas de ANOMALIA ficam fora (decisão de 10/11): a
+        # detecção está estacionada e essas ações punham no papel recomendação do modelo
+        # sobre sinal sem base (inclusive bônus por NPS). _itens_anomalia fica para a retomada.
         itens = (
             _itens_n5(s, empresa_id)
             + _itens_diagnostico(s, empresa_id, ag_id, local_id)
-            + _itens_anomalia(s, empresa_id)
             + _itens_estruturais(s, empresa_id, ag_id, local_id)
         )
         overlay = {

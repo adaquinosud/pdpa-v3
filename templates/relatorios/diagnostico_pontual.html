@@ -265,7 +265,7 @@ ordem desperdiça esforço.</p>
    MF · MAPA FINANCEIRO (R$ projetado = conversíveis × LTV por loja)
    ═════════════════════════════════════════════════════════════════════════ #}
 {{ M.titulo_secao('MF', 'Mapa Financeiro',
-                  'Driver de negócio por subpilar · horizonte de impacto · interpretação ·
+                  'O que está em jogo por subpilar · horizonte de impacto · interpretação ·
                    R$ projetado (conversíveis × LTV por loja).') }}
 <div class="card papel" style="border-color:var(--dourado); font-size:9pt">
   <strong>💰 R$ Projetado = conversíveis × LTV por loja</strong> · o LTV é derivado por
@@ -278,7 +278,7 @@ ordem desperdiça esforço.</p>
     <tr>
       <th>Subpilar</th><th>Nível</th>
       <th>Proximity</th>
-      <th>Driver de Negócio</th><th>Horizonte</th>
+      <th>O que está em jogo</th><th>Horizonte</th>
       <th>R$ Projetado</th>
       <th>Interpretação Qualitativa</th>
     </tr>
@@ -311,6 +311,8 @@ ordem desperdiça esforço.</p>
     {% endfor %}
   </tbody>
 </table>
+{# Terceiro grupo do inventário (decisão nossa, não medição): aparece, mas assinado. #}
+<p class="muted" style="font-size:8pt; margin:2pt 0 0">O que está em jogo é leitura da Loyall sobre o que cada posição sustenta no negócio. Não vem dos relatos dos seus clientes.</p>
 
 {# ═════════════════════════════════════════════════════════════════════════
    03..06 · PLANOS DE AÇÃO POR PILAR (desc + tabela 3 ações + insight)
@@ -442,21 +444,6 @@ ordem desperdiça esforço.</p>
 </div>
 {% endfor %}
 {% endif %}
-{% endfor %}
-{% endif %}
-
-{# ═════════════════════════════════════════════════════════════════════════
-   AL · ALERTAS CRÍTICOS · monitoramento ML
-   ═════════════════════════════════════════════════════════════════════════ #}
-{% if d.anomalias %}
-{{ M.titulo_secao('AL', 'Alertas Críticos · Monitoramento ML',
-                  'O que o sistema apontou agora.') }}
-{% for an in d.anomalias %}
-<div class="card gargalo">
-  <strong>{{ an.alvo }}</strong>
-  <span class="muted">· {{ an.tipo }}{% if an.direcao %} · {{ an.direcao }}{% endif %}</span>
-  {% if an.resumo %}<p style="margin:2pt 0 0">{{ an.resumo }}</p>{% endif %}
-</div>
 {% endfor %}
 {% endif %}
 

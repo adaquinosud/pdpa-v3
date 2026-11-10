@@ -218,21 +218,6 @@ seguintes — atacar fora de ordem desperdiça esforço.</p>
 {% endif %}
 
 {# ═════════════════════════════════════════════════════════════════════════
-   AL · ALERTAS CRÍTICOS · monitoramento ML
-   ═════════════════════════════════════════════════════════════════════════ #}
-{% if d.anomalias %}
-{{ M.titulo_secao('AL', 'Alertas Críticos · Monitoramento ML',
-                'O que o sistema apontou agora.') }}
-{% for an in d.anomalias %}
-<div class="card gargalo">
-  <strong>{{ an.alvo }}</strong>
-  <span class="muted">· {{ an.tipo }}{% if an.direcao %} · {{ an.direcao }}{% endif %}</span>
-  {% if an.resumo %}<p style="margin:2pt 0 0">{{ an.resumo }}</p>{% endif %}
-</div>
-{% endfor %}
-{% endif %}
-
-{# ═════════════════════════════════════════════════════════════════════════
    ENCERRAMENTO EXECUTIVO · cap-stone do B1' (header 5-col + strip 12 subs)
    Predict/Proxim/ConvCap pendentes da Lente de Governança — mostrados como
    "não calibrado" mantendo a ESTRUTURA do encerramento doc-ouro.
