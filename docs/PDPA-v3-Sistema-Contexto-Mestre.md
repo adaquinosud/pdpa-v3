@@ -3697,6 +3697,40 @@ consertos contra um risco, e o Word antigo da Localiza está salvo como reserva.
 
 ---
 
+### 4.74 Teto 9,99 e piso de confiança na exibição; bucket "None" dos temas (09/nov · `f525c47`, `1f4a76c`)
+
+**O que é.** Caminho A do teto (promotor sem detrator) sai "sem detrator" no lugar do 9,99; abaixo
+do piso de confiança (`VOLUME_CONFIANCA_ALTA`) a faixa, boa ou ruim, vira "pouca base" — tela e
+papel, inclusive radar de Governança (que imprimia "10,0"). Frase do topo do Painel, anomalias
+(nomes oficiais no pacote, regras de vocabulário e de métrica) e textos do relatório (regra de
+número no prompt) acompanham. Temas: o pipeline só lê verbatim classificado e o vínculo acompanha a
+classificação atual (`src/temas/vinculos.py`). Só exibição no teto/piso: nenhuma conta, índice ou
+hash muda. Detalhe e achados: `docs/ACHADOS_ORIGEM_IMPRESSO.md`.
+
+#### 4.74.1 A correção de dado — exceção declarada da §16 do `CLAUDE.md`
+Conserto de dado real em produção, **não fabricação**. Registro obrigatório:
+
+- **Objeto:** três vínculos verbatim→tema (`verbatim_temas.bucket_chave`) da Carbel (empresa 5),
+  agrupamento 32, criados em 08/11 18h46 com o verbatim ainda sem classificação.
+- **Comando:** `flask --app wsgi temas-sincronizar-vinculos --empresa-id 5` (lista) e o mesmo com
+  `--aplicar` (grava), Shell do Render, 09/11, depois do deploy de `f525c47`. Só os vínculos com
+  "None" no bucket; reescreve o bucket com a classificação atual do verbatim; atualiza a linha, não
+  apaga.
+- **Antes → depois** (idênticos na prévia rodada antes do merge, na listagem e no `--aplicar`):
+  ```
+  vínculo 355599 · verbatim 68487 · 32:None:None → 32:D2:conversivel
+  vínculo 355520 · verbatim 68511 · 32:None:None → 32:A2:detrator
+  vínculo 355541 · verbatim 68517 · 32:None:None → 32:D2:promotor
+  ```
+- **Motivo:** o pipeline de temas leu esses verbatins antes da classificação; o "None" do Python
+  virou texto no bucket e contava como subpilar e tipo no peso do cruzamento (o "atendimento" da
+  Carbel com peso 54,9 em vez de ~27,3). Os 141 vínculos iguais das outras empresas não foram
+  tocados — escopo de execução só na Carbel (decisão de 09/11).
+- **Arrasto esperado:** na próxima cauda da Carbel, os cruzamentos são recalculados ($0) e as 2
+  ações de venda com bucket alterado regeram sozinhas (pago, teto medido ~R$ 0,17).
+
+---
+
 ## 5. Os cases
 
 **Club Med (id 16, maduro — valida o método):** ferida Pa2 Mutualidade no RA
