@@ -70,7 +70,11 @@ def _chamar_sonnet(payload: Dict[str, Any], prompt_path: Optional[Path] = None) 
     """Chama o Sonnet com o payload do subpilar. Returns {sugestoes:[...], _in, _out}."""
     from src.classifier.classifier_v3 import _get_client
 
-    system_prompt = Path(prompt_path or PROMPT_PATH).read_text(encoding="utf-8")
+    from src.api.painel import regra_numero_para_prompt
+
+    system_prompt = (
+        Path(prompt_path or PROMPT_PATH).read_text(encoding="utf-8") + regra_numero_para_prompt()
+    )
     client = _get_client()
     # Prompt caching: sugestao_estrutural_v1.md (≥1024 tok) é o único prompt aqui. O
     # TEXTO do system é idêntico — só embrulhado num bloco com cache_control (prefixo

@@ -46,9 +46,20 @@ def _hash_payload(payload) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:32]
 
 
+# Regeração forçada de seções NOMEADAS (comando ``regerar-textos``): o hash cobre só o pacote,
+# então mudar o prompt não deixa a seção desatualizada — sem isto, o texto velho seria lido
+# para sempre. ``_FORCAR`` = {(empresa_id, secao)} tratados como miss; ``_SO_MEDIR`` = conta
+# tokens sem chamar o modelo e SEM gravar (o texto falso da medição nunca chega ao banco).
+_FORCAR: set = set()
+_SO_MEDIR = False
+
+
 def _carregar_cache(s, empresa_id: int, escopo_hash: str, secao: str, dados_hash: str):
     """Retorna o conteúdo cacheado (dict) se dados_hash bate, senão None."""
     from src.models.relatorio_cache import RelatorioCache
+
+    if (empresa_id, secao) in _FORCAR:
+        return None
 
     row = (
         s.query(RelatorioCache)
@@ -73,36 +84,41 @@ def _gravar_cache(
     tokens_in: int,
     tokens_out: int,
 ):
-    """DELETE+INSERT — uma entrada por (empresa, escopo, seção)."""
+    """Uma entrada por (empresa, escopo, seção): atualiza a linha que existe (sem apagar) ou
+    cria a primeira. Em modo de medição não grava nada."""
+    from datetime import datetime
+
     from src.models.relatorio_cache import RelatorioCache
 
-    s.query(RelatorioCache).filter_by(
-        empresa_id=empresa_id, escopo_hash=escopo_hash, secao=secao
-    ).delete(synchronize_session=False)
-    s.add(
-        RelatorioCache(
-            empresa_id=empresa_id,
-            escopo_hash=escopo_hash,
-            secao=secao,
-            conteudo_json=json.dumps(conteudo, ensure_ascii=False),
-            dados_hash=dados_hash,
-            tokens_in=tokens_in,
-            tokens_out=tokens_out,
-        )
+    if _SO_MEDIR:
+        return
+    row = (
+        s.query(RelatorioCache)
+        .filter_by(empresa_id=empresa_id, escopo_hash=escopo_hash, secao=secao)
+        .first()
     )
+    if row is None:
+        row = RelatorioCache(empresa_id=empresa_id, escopo_hash=escopo_hash, secao=secao)
+        s.add(row)
+    row.conteudo_json = json.dumps(conteudo, ensure_ascii=False)
+    row.dados_hash = dados_hash
+    row.tokens_in = tokens_in
+    row.tokens_out = tokens_out
+    row.gerado_em = datetime.utcnow()
     s.commit()
 
 
 def _chamar_sonnet(
     system_prompt: str, user_payload: str, max_tokens: int = 500
 ) -> Tuple[str, int, int]:
+    from src.api.painel import regra_numero_para_prompt
     from src.classifier.classifier_v3 import _get_client
 
     client = _get_client()
     resp = client.messages.create(
         model=SONNET_MODEL,
         max_tokens=max_tokens,
-        system=system_prompt,
+        system=system_prompt + regra_numero_para_prompt(),
         messages=[{"role": "user", "content": user_payload}],
     )
     txt = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()

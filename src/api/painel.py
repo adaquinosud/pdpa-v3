@@ -149,6 +149,24 @@ def pouca_base(total: Optional[int]) -> bool:
     return (total or 0) < VOLUME_CONFIANCA_ALTA
 
 
+def regra_numero_para_prompt() -> str:
+    """Regra de escrita do teto e do piso para texto gerado por modelo — com o piso lido da
+    constante (prompt que reescreve número é fóssil). Anexada ao system prompt pelos geradores
+    de texto do relatório; o prompt não entra no hash do pacote, então anexar não deixa nada
+    desatualizado (só vale para o que for gerado ou regerado depois)."""
+    return f"""
+
+REGRA DE NÚMERO (obrigatória):
+- "9.99" nos dados é o TETO do sistema, não uma medida. Nunca escreva 9,99, 9.99 nem "ratio
+  máximo". Se o dado mostrar zero detrator, escreva "sem detrator"; se não mostrar quantos
+  detratores há, escreva "no teto da régua".
+- Volume abaixo de {VOLUME_CONFIANCA_ALTA} manifestações é pouca base: não chame esse pilar ou
+  subpilar de forte, excelente, fraco ou crítico — diga que há pouca base para ler a faixa.
+- Pilares são quatro (Precisão, Disponibilidade, Parceria, Aconselhamento); os doze códigos
+  P1 a A3 são subpilares, com o nome que vier no dado.
+- Decimal com vírgula."""
+
+
 def ratio_em_palavras(
     ratio: float, promotor: Optional[int] = None, detrator: Optional[int] = None
 ) -> str:

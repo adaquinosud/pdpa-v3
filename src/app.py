@@ -1827,6 +1827,52 @@ def _register_cli_commands(app: Flask) -> None:
         )
 
     # ── Monitoramento ML CP-3: flask anomalias-gerar-leituras (gasta Sonnet) ──
+    @app.cli.command("regerar-textos")
+    @click.option("--empresa-id", type=int, required=True)
+    @click.option(
+        "--secoes", default="", help="seções do relatório, ex.: desc_pilar_A,narrativa_longitudinal"
+    )
+    @click.option(
+        "--sugestoes", default="", help="subpilares das sugestões estruturais, ex.: A1,Pa1"
+    )
+    @click.option("--anomalias", default="", help="ids de anomalia, ex.: 10961,10962")
+    @click.option(
+        "--medir", is_flag=True, help="só conta tokens (grátis): não chama o modelo, não grava"
+    )
+    def regerar_textos_cmd(empresa_id, secoes, sugestoes, anomalias, medir):
+        """Regera textos NOMEADOS de uma empresa depois de mudança de prompt (o hash cobre só o
+        pacote: sem forçar, o texto velho segue sendo lido). Rode primeiro com --medir: lista
+        tudo que chamaria o modelo, com o custo em R$ (câmbio 5,80), e não grava nada."""
+        from src.relatorios import regerar as R
+
+        sec, subs = R._lista(secoes), R._lista(sugestoes)
+        ids = [int(x) for x in R._lista(anomalias)]
+        if medir:
+            linhas = []
+            if sec:
+                linhas += R.medir_secoes(empresa_id, sec)
+            if subs:
+                linhas += R.medir_sugestoes(empresa_id, subs)
+            if ids:
+                linhas += R.medir_anomalias(empresa_id, ids)
+            for x in linhas:
+                click.echo(
+                    f"{x['item']:<28} entrada {x['entrada']:>6} tok"
+                    f" · teto de saída {x['teto_saida']}"
+                )
+            c = R.resumo_custo(linhas)
+            click.echo(
+                f"{len(linhas)} chamadas · só a entrada R$ {c['rs_entrada']} · "
+                f"com a saída no teto R$ {c['rs_teto']} (US$ {c['usd_teto']}; câmbio R$ 5,80; "
+                "sem desconto de cache). Nada foi gravado."
+            )
+            return
+        import json as _json
+
+        click.echo(
+            _json.dumps(R.regerar(empresa_id, sec, subs, ids), default=str, ensure_ascii=False)
+        )
+
     @app.cli.command("anomalias-gerar-leituras")
     @click.option("--empresa", "empresa_arg", required=True, help="ID ou nome da empresa.")
     @click.option(
