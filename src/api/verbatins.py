@@ -550,6 +550,11 @@ def reclassificar_verbatim(verbatim_id: int):
         v.subpilar = sub_novo
         v.tipo = tipo_novo
         v.reclassificado_em = datetime.utcnow()
+        # o vínculo de tema acompanha a classificação nova (senão fica no bucket antigo)
+        from src.temas.vinculos import sincronizar_bucket_vinculos
+
+        s.flush()
+        sincronizar_bucket_vinculos(s, [v.id])
         v.reclassificado_por = user.id if user else None
         if mudou:
             # Flag "suja": a noturna reprocessa temas/cache/anomalias (classificação

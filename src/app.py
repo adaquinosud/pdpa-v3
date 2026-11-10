@@ -1827,6 +1827,26 @@ def _register_cli_commands(app: Flask) -> None:
         )
 
     # ── Monitoramento ML CP-3: flask anomalias-gerar-leituras (gasta Sonnet) ──
+    @app.cli.command("temas-sincronizar-vinculos")
+    @click.option("--empresa-id", type=int, required=True)
+    @click.option("--aplicar", is_flag=True, help="grava; sem isto só lista antes → depois")
+    @click.option("--todos", is_flag=True, help="não só os com 'None' no bucket")
+    def temas_sincronizar_vinculos_cmd(empresa_id, aplicar, todos):
+        """Correção de histórico (UMA empresa): reescreve o bucket do vínculo verbatim→tema com a
+        classificação atual do verbatim. Padrão: só os vínculos com "None" no bucket (nasceram
+        antes da classificação). Sem --aplicar só lista — o antes/depois vai para o registro de
+        correção de dado real. Atualiza a linha; não apaga. $0."""
+        from src.temas.vinculos import sincronizar_empresa
+
+        r = sincronizar_empresa(empresa_id, so_none=not todos, aplicar=aplicar)
+        for x in r["vinculos"]:
+            click.echo(
+                f"vínculo {x['vinculo_id']} · verbatim {x['verbatim_id']} · "
+                f"{x['antes']} → {x['depois']}"
+            )
+        estado = "GRAVADO" if aplicar else "só listado, nada gravado"
+        click.echo(f"{len(r['vinculos'])} vínculos · {estado}")
+
     @app.cli.command("regerar-textos")
     @click.option("--empresa-id", type=int, required=True)
     @click.option(

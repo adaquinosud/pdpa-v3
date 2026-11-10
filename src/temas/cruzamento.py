@@ -43,9 +43,11 @@ CUSTO_USD_POR_CURADORIA = 0.0003  # estimativa: 1 chamada Haiku pequena
 
 
 def _subpilar_tipo(bucket_chave: str) -> Optional[str]:
-    """``"10:Pa1:promotor"`` → ``"Pa1:promotor"``. None se malformado."""
+    """``"10:Pa1:promotor"`` → ``"Pa1:promotor"``. None se malformado ou sem classificação
+    (``"…:None:None"``: vínculo gravado antes de o verbatim ser classificado — não é posição
+    e não conta como subpilar nem tipo atravessado)."""
     partes = bucket_chave.split(":")
-    if len(partes) != 3:
+    if len(partes) != 3 or "None" in partes[1:]:
         return None
     return f"{partes[1]}:{partes[2]}"
 

@@ -119,6 +119,11 @@ def _carregar_verbatins_empresa(
         )
         if so_com_texto:
             q = q.filter(Verbatim.tem_texto.is_(True))
+        # Só verbatim JÁ classificado: sem subpilar/tipo, o agrupador escrevia o bucket
+        # "…:None:None" (None do Python virando texto) e o tema e o cruzamento nasciam dele.
+        # O pulado entra na próxima cauda, já classificado (a cauda relê a janela inteira).
+        # ``sem_lastro``/``inativo`` é resposta do classificador e continua entrando.
+        q = q.filter(Verbatim.subpilar.isnot(None), Verbatim.tipo.isnot(None))
         clausula = filtro_janela(corte)
         if clausula is not None:
             q = q.filter(clausula)

@@ -2967,6 +2967,11 @@ def htmx_salvar_reclassificacao(verbatim_id: int):
         v_db.subpilar = sub_novo
         v_db.tipo = tipo_novo
         v_db.reclassificado_em = _dt.utcnow()
+        # o vínculo de tema acompanha a classificação nova (senão fica no bucket antigo)
+        from src.temas.vinculos import sincronizar_bucket_vinculos
+
+        s.flush()
+        sincronizar_bucket_vinculos(s, [v_db.id])
         v_db.reclassificado_por = user.id
         if mudou:
             # Marca a empresa como "suja": a noturna reprocessa temas/cache/anomalias

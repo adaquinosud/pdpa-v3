@@ -33,6 +33,9 @@ def _verb(db_session, empresa_id, fonte_id, local_id, texto, criacao, coleta):
         data_coleta=coleta,
         hash_dedup=f"h-{texto}-{datetime.utcnow().timestamp()}",
         tem_texto=True,
+        # classificado: o pipeline de temas só lê verbatim com subpilar e tipo (bucket "None")
+        subpilar="P1",
+        tipo="promotor",
     )
     db_session.add(v)
     db_session.commit()

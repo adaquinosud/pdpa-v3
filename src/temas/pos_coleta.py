@@ -1001,7 +1001,19 @@ def executar_pos_coleta(
     _marcar_pos_coleta_status(empresa_id, "rodando", pendencias_pos_coleta(empresa_id))
 
     # ── CABEÇA (SEMPRE) — processa o dado novo; barata, bounded pelo que entrou ──
+    # Vínculo de tema que nasceu antes da classificação guarda bucket "None"; os que estavam
+    # sem classificação agora são re-sincronizados depois dela (src/temas/vinculos.py).
+    from src.temas.vinculos import ids_sem_classificacao, sincronizar_bucket_vinculos
+    from src.utils.db import db_session
+
+    _sem_classif = ids_sem_classificacao(empresa_id)
     cs = classificar_pendentes(empresa_id, limite=limite)
+    with db_session() as _s:
+        _n_sync = sincronizar_bucket_vinculos(_s, _sem_classif)
+    if _n_sync:
+        logger.info(
+            f"[pos-coleta] empresa={empresa_id} vínculos de tema re-sincronizados: {_n_sync}"
+        )
     r.classificados = cs["classificados"]
     r.classif_falhas = cs["falhas"]
     # desfecho RA dos casos novos (era o passo 14) — sobe pra cabeça. Só ambíguo custa
