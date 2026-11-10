@@ -80,3 +80,82 @@ def test_regra_de_numero_vai_no_system_dos_textos_do_relatorio(monkeypatch):
     s = capt["system"]
     assert s.startswith("PROMPT BASE") and "sem detrator" in s
     assert f"abaixo de {VOLUME_CONFIANCA_ALTA} manifestações" in s  # piso lido da constante
+
+
+def test_comando_medir_roda_fora_de_requisicao(client_loyall, db_session, app, monkeypatch):
+    """O --medir quebrava em produção: montar_dados chama painel_nivel1 (rota autenticada) e a
+    linha de comando não tem requisição ('Working outside of request context'). Roda o comando
+    como a CLI roda — sem request context — e confere que mede e não grava nada."""
+    from itertools import count
+
+    from src.models.verbatim import Verbatim
+
+    seq = count()
+    e = client_loyall.post("/api/empresas/", json={"nome": "RegCLI"}).get_json()
+    a = client_loyall.post(f"/api/empresas/{e['id']}/agrupamentos", json={"nome": "G"}).get_json()
+    loc = client_loyall.post(
+        f"/api/empresas/{e['id']}/locais", json={"nome": "L", "agrupamento_id": a["id"]}
+    ).get_json()
+    f = client_loyall.post(
+        f"/api/locais/{loc['id']}/fontes", json={"conector_tipo": "google", "url": "ChIJRegCLI"}
+    ).get_json()
+    for sub, tipo in [("P1", "detrator"), ("P1", "promotor"), ("A1", "promotor")] * 3:
+        i = next(seq)
+        db_session.add(
+            Verbatim(
+                empresa_id=e["id"],
+                local_id=loc["id"],
+                fonte_id=f["id"],
+                texto=f"t{i}",
+                subpilar=sub,
+                tipo=tipo,
+                tem_texto=True,
+                hash_dedup=f"regcli{i}",
+            )
+        )
+    db_session.commit()
+
+    class _Contagem:
+        input_tokens = 123
+
+    class FakeClient:
+        class messages:
+            @staticmethod
+            def count_tokens(**kw):
+                return _Contagem()
+
+            @staticmethod
+            def create(**kw):  # nunca deve ser chamado no --medir
+                raise AssertionError("chamada paga no --medir")
+
+    monkeypatch.setattr("src.classifier.classifier_v3._get_client", lambda: FakeClient())
+    # o cliente de teste deixa uma requisição aberta nesta thread; a CLI não tem nenhuma —
+    # roda numa thread nova, sem request context, como em produção
+    import threading
+
+    from flask import has_request_context
+
+    saida = {}
+
+    def _rodar():
+        saida["sem_request"] = not has_request_context()
+        saida["r"] = app.test_cli_runner().invoke(
+            args=[
+                "regerar-textos",
+                "--empresa-id",
+                str(e["id"]),
+                "--secoes",
+                "desc_pilar_P",
+                "--medir",
+            ]
+        )
+
+    th = threading.Thread(target=_rodar)
+    th.start()
+    th.join()
+    assert saida["sem_request"]
+    r = saida["r"]
+    assert r.exit_code == 0, r.output + repr(r.exception)
+    assert "desc" in r.output.lower() or "_PROMPT_DESC_PILAR" in r.output
+    assert "Nada foi gravado" in r.output
+    assert db_session.query(RelatorioCache).filter_by(empresa_id=e["id"]).count() == 0

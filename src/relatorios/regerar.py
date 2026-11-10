@@ -56,7 +56,7 @@ def medir_secoes(empresa_id: int, secoes: List[str]) -> List[Dict[str, Any]]:
     """Seções do relatório que chamariam o modelo se a regeração rodasse agora: as pedidas e
     qualquer outra desatualizada no caminho. Entrada contada; saída = teto do código."""
     from src.api.painel import regra_numero_para_prompt
-    from src.relatorios import diagnostico_longitudinal, diagnostico_pontual, llm_secoes
+    from src.relatorios import llm_secoes
 
     nome_do_prompt = {getattr(llm_secoes, k): k for k in _FALSO}
     linhas: List[Dict[str, Any]] = []
@@ -74,23 +74,34 @@ def medir_secoes(empresa_id: int, secoes: List[str]) -> List[Dict[str, Any]]:
         )
         return {"raw": falso, "tokens_in": 0, "tokens_out": 0}
 
+    from src.utils.contexto_pipeline import contexto_admin
+
     llm_secoes._FORCAR = {(empresa_id, s) for s in secoes}
     llm_secoes._SO_MEDIR = True
     try:
-        diagnostico_pontual.montar_dados(
-            empresa_id,
-            gerar_capa_fn=contar,
-            gerar_descobertas_fn=contar,
-            gerar_paradoxo_fn=contar,
-            gerar_contexto_fn=contar,
-            gerar_desc_pilar_fn=contar,
-            gerar_insight_pilar_fn=contar,
-        )
-        diagnostico_longitudinal.montar_dados(empresa_id, gerar_narrativa_fn=contar)
+        # montar_dados chama painel_nivel1 (rota autenticada): precisa de request context,
+        # que a linha de comando não tem — o mesmo contexto que a pós-coleta usa.
+        with contexto_admin(empresa_id):
+            _medir_relatorios(empresa_id, contar)
     finally:
         llm_secoes._FORCAR = set()
         llm_secoes._SO_MEDIR = False
     return linhas
+
+
+def _medir_relatorios(empresa_id: int, contar) -> None:
+    from src.relatorios import diagnostico_longitudinal, diagnostico_pontual
+
+    diagnostico_pontual.montar_dados(
+        empresa_id,
+        gerar_capa_fn=contar,
+        gerar_descobertas_fn=contar,
+        gerar_paradoxo_fn=contar,
+        gerar_contexto_fn=contar,
+        gerar_desc_pilar_fn=contar,
+        gerar_insight_pilar_fn=contar,
+    )
+    diagnostico_longitudinal.montar_dados(empresa_id, gerar_narrativa_fn=contar)
 
 
 def medir_sugestoes(empresa_id: int, subpilares: List[str]) -> List[Dict[str, Any]]:
@@ -180,10 +191,13 @@ def regerar(
 
     out: Dict[str, Any] = {}
     if secoes:
+        from src.utils.contexto_pipeline import contexto_admin
+
         llm_secoes._FORCAR = {(empresa_id, s) for s in secoes}
         try:
-            diagnostico_pontual.montar_dados(empresa_id)
-            diagnostico_longitudinal.montar_dados(empresa_id)
+            with contexto_admin(empresa_id):
+                diagnostico_pontual.montar_dados(empresa_id)
+                diagnostico_longitudinal.montar_dados(empresa_id)
         finally:
             llm_secoes._FORCAR = set()
     if subpilares:

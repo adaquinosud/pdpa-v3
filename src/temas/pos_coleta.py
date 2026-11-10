@@ -1126,7 +1126,6 @@ def executar_pos_coleta(
     # Cada montar_dados já faz skip por dados_hash em relatorio_cache; aqui só
     # garantimos que o cache fique quente para a UI/download não esperar LLM.
     # Custo recorrente: $0 quando nada mudou.
-    from flask import current_app, has_request_context
 
     from src.relatorios.diagnostico_longitudinal import montar_dados as _b4
     from src.relatorios.diagnostico_pontual import montar_dados as _b2
@@ -1137,16 +1136,9 @@ def executar_pos_coleta(
     def _aquecer(fn):
         # painel_nivel1 (chamado dentro de cada montar_dados) precisa de request
         # context + sessão autenticada. No pipeline noturno, simulamos admin.
-        if has_request_context():
-            return fn(empresa_id)
-        with current_app.test_request_context(f"/empresas/{empresa_id}/_pipeline"):
-            from flask import session as _sess
-            from src.models.usuario import Usuario
+        from src.utils.contexto_pipeline import contexto_admin
 
-            with db_session() as s_:
-                u = s_.query(Usuario).filter_by(papel="admin_loyall").first()
-                if u is not None:
-                    _sess["user_id"] = u.id
+        with contexto_admin(empresa_id):
             return fn(empresa_id)
 
     for _fn in (_b1, _b2, _b3, _b4, _b5):  # B5 (Governança) = $0 LLM
