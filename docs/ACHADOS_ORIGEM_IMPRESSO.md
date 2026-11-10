@@ -315,6 +315,9 @@ sobre eles. As três disparam o item 5 na próxima passada.
 - **INFERIDO:** depois do `</html>`, o leitor de HTML do gerador de PDF põe as duas tags no corpo,
   sem texto; provavelmente nada aparecia na página. Não verificado em PDF.
 - **Mesma família dos outros achados:** coisa que ninguém olhou e que saía em todo PDF de cliente.
+- **Coincidência registrada (10/11):** as linhas soltas e o `DRIVER_NEGOCIO` (item 10) entraram no
+  mesmo commit, `2d49243` de 28/05/2026. A mesma sessão deixou as duas coisas, e as duas ficaram
+  cerca de seis meses em produção sem ninguém olhar.
 - **Removidas** em `3ebe15b` (10/11).
 
 ---
@@ -373,6 +376,14 @@ guarda é proposta antes do código.
   frase do Painel, chat; frase de posição por coerência). **Citar para contrastar é permitido;
   citar como medida, meta ou recomendação não.** Por isso o subtítulo fixo do Mapa de Conversão
   ("Onde o NPS vê ruído, o PDPA vê oportunidade") fica: é contraste e é o argumento da casa.
+  Feito em `d455e36` (10/11): fonte única `painel.regra_metrica_para_prompt`.
+- **Ressalva de verificação da regra 4 (verificação mais fraca, escrita para não se perder):** em
+  quatro geradores — leitura diagnóstica, síntese do Parecer, leitura de anomalia e frase de
+  posição — a regra foi conferida só por **leitura do código-fonte**, não por teste que captura o
+  que vai ao modelo (o caminho real exige o pacote inteiro do banco). Os outros (frase do Painel,
+  ações de venda, chat, função de chamada do editorial, textos do relatório e sugestões) têm teste
+  que captura o system. **Quando houver motivo para mexer em algum dos quatro, o teste de verdade
+  entra junto.**
 - A sugestão estrutural de loja da Carbel com "índice de satisfação" fica para depois (R$ 0,10 não
   justifica acrescentar escopo de loja ao `regerar-textos` agora).
 
