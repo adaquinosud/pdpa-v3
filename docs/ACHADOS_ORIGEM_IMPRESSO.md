@@ -26,9 +26,11 @@ sobre texto e número que chegam ao cliente. É a entrada do inventário por ori
 - **MEDIDO:** os trechos (sonda de nomes e métricas, 09/11). No parque inteiro: 18 linhas de texto
   guardado citam métrica de fora (15× NPS, 4× "índice de satisfação") — 11 em anomalias, 3 no
   chat, 4 em sugestões de loja; 7 empresas.
-- **INFERIDO:** se essas três saem no PDF. Resumo e Pontual imprimem as 5 anomalias **críticas**
-  de maior score; a sonda que lista as 5 da Carbel (`sonda_pre_entrega`) **ainda não rodou**.
-- **Quem vê:** cliente (aba Anomalias; PDF se estiverem no top 5 crítico).
+- **MEDIDO** (`sonda_pre_entrega`, 09/11): as três de bônus por NPS (10964, 10968, 10971) **não**
+  saem no PDF. A Carbel tem **uma** anomalia crítica — a 10961 —, e é ela que Resumo e Pontual
+  imprimem: diz "enquanto o NPS ainda é forte", traz o 9,99 com zero detratores (item 7), os nomes
+  inventados (item 6) e está com validação pendente (item 2).
+- **Quem vê:** cliente — as de bônus, na aba Anomalias; a 10961, também no papel.
 - **Por que é o primeiro:** é ação recomendada ao cliente usando a metodologia concorrente.
 
 ## 2. Anomalia sem validação sai no impresso
@@ -36,8 +38,8 @@ sobre texto e número que chegam ao cliente. É a entrada do inventário por ori
 - **O quê:** Resumo e Pontual selecionam anomalias por empresa + severidade `critico` + score;
   nenhum dos dois olha `estado_validacao`.
 - **INFERIDO:** `src/relatorios/resumo_executivo.py:171-176`, `src/relatorios/diagnostico_pontual.py:266-273`.
-- **MEDIDO:** a 10961 (validação `pendente`) está entre as 5 que o filtro devolve para a Carbel
-  (`sonda_textos_999`/`sonda_custo_painel`, 09/11).
+- **MEDIDO:** a 10961 (validação `pendente`) é a única anomalia crítica da Carbel — o filtro
+  devolve só ela (`sonda_pre_entrega`, 09/11).
 - **Quem vê:** cliente (PDF). Vale para toda empresa.
 
 ## 3. Cruzamento que não é cruzamento, no topo da aba Temas e com ação de venda
@@ -135,11 +137,14 @@ sobre eles. As três disparam o item 5 na próxima passada.
 
 ## 6. Modelo escreve nome de subpilar que não é o nosso, e chama subpilar de pilar
 
-- **MEDIDO:** 14 ocorrências em 8 textos, **todas** em leitura de anomalia de loja; nenhuma em
-  leituras diagnósticas, relatórios ou sugestões (`sonda_nomes_metricas`; 1 provável falso
-  positivo, "P1 → P3", não confirmado — `sonda_pre_entrega` não rodou). Carbel: 10961 ("Delivery
-  (D1)", "Pós-atendimento (Pa3)"), 10962 ("Atendimento Personalizado (A1)"). Nas 4 regerações de
-  teste (09/11), "Pa1 é o pilar", "o pilar A1".
+- **MEDIDO:** 13 ocorrências reais em 7 textos, **todas** em leitura de anomalia de loja;
+  nenhuma em leituras diagnósticas, relatórios ou sugestões (`sonda_nomes_metricas`). O "P1 → P3"
+  era falso positivo: o texto escreve o intervalo "P1-P3" (`sonda_pre_entrega`). Empresas 5, 6,
+  7 e 16. Carbel: 10961 ("Delivery (D1)", "Pós-atendimento (Pa3)"), 10962 ("Atendimento
+  Personalizado (A1)"). Nas 4 regerações de teste (09/11), "Pa1 é o pilar", "o pilar A1"; nos
+  trechos da empresa 6, "seis pilares" para subpilares.
+- **MEDIDO:** nos 13 trechos, o nome inventado aparece junto da menção a um cruzamento ("integra
+  um cruzamento ativo com", "cruzamento identificado", "pelo cruzamento 'fila atendimento'").
 - **INFERIDO e NÃO confirmado:** a causa ser o pacote do cruzamento mandar só códigos. O teste
   pago (R$ 0,35) não testou: o pacote de hoje leva `["A1", "None", "Pa1"]` e a troca exigia só
   códigos válidos; controle e teste saíram iguais e limpos.
@@ -163,8 +168,9 @@ sobre eles. As três disparam o item 5 na próxima passada.
   Radar de Governança imprime "10,0" (`virg(9.99, 1)`, execução local).
 - **INFERIDO:** "sem detratores" de `ratio_em_palavras` é falso no caminho B; a média do
   Longitudinal é calculada sobre valores no teto; o texto reserva das ações do Pontual sai
-  "ratio 9,99, 0 detratores" quando o subpilar não tem sugestão (`diagnostico_pontual.py:608-610`;
-  varredura em `sonda_pre_entrega`, não rodou).
+  "ratio 9,99, 0 detratores" quando o subpilar não tem sugestão (`diagnostico_pontual.py:608-610`).
+  **MEDIDO:** hoje esse texto não sai em empresa nenhuma — todo subpilar com dado tem sugestão
+  de escopo empresa (`sonda_pre_entrega`, 09/11). O caminho existe no código; não está ativo.
 - **Quem vê:** cliente.
 
 ## 9. Frase do topo do Painel aprende "saturam em 9.99"
@@ -218,7 +224,7 @@ sobre eles. As três disparam o item 5 na próxima passada.
 
 ## Sondas pendentes
 
-- `sonda_pre_entrega` — as 5 anomalias críticas da Carbel no PDF; "P1 → P3"; texto reserva.
+- Nenhuma. (Opcional: data e perspectiva dos 4.554 status órfãos do item 5.)
 
 ## Inventário (frente principal)
 
