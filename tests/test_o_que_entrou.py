@@ -181,3 +181,20 @@ def test_data_escolhida_e_coleta_noturna(client_loyall, db_session):
     assert r["coleta_noturna_ativa"] is False
     db_session.get(Empresa, eid).coleta_noturna_ativa = True
     assert _r(db_session, eid)["coleta_noturna_ativa"] is True
+
+
+def test_numero_da_barra_bate_com_a_aba_em_cada_recorte(client_loyall, db_session):
+    from src.diagnostico.o_que_entrou import contar_entrou
+
+    eid, ag, locs = _emp_2lojas(client_loyall)
+    (l1, l2) = locs
+    _v(db_session, eid, l1)
+    _v(db_session, eid, l1, texto=False)
+    _v(db_session, eid, l2, sub=None, tipo=None)
+    _v(db_session, eid, None, fonte=l1[1]["id"])
+    _v(db_session, eid, l1, entrou=datetime(2026, 10, 1))  # fora da janela
+    db_session.commit()
+    for kw in ({}, {"ag_id": ag}, {"local_id": l1[0]["id"]}):
+        n = contar_entrou(db_session, eid, agora=AGORA, **kw)
+        assert n == o_que_entrou(db_session, eid, agora=AGORA, **kw)["total"]
+    assert contar_entrou(db_session, eid, agora=AGORA) == 4

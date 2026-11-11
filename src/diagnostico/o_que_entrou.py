@@ -53,6 +53,40 @@ def desde_padrao(agora: Optional[datetime] = None) -> date:
     return hoje_brasilia(agora) - timedelta(days=JANELA_PADRAO_DIAS)
 
 
+def _filtro_entrou(s, q, empresa_id: int, corte: datetime, ag_id, local_id):
+    """O recorte comum à aba e ao número da barra — um lugar só, para os dois não divergirem."""
+    from src.models.local import Local
+    from src.models.verbatim import Verbatim
+
+    q = q.filter(Verbatim.empresa_id == empresa_id, Verbatim.data_coleta >= corte)
+    if local_id is not None:
+        return q.filter(Verbatim.local_id == local_id)
+    if ag_id is not None:
+        return q.filter(
+            Verbatim.local_id.in_(s.query(Local.id).filter(Local.agrupamento_id == ag_id))
+        )
+    return q
+
+
+def contar_entrou(
+    s,
+    empresa_id: int,
+    desde: Optional[date] = None,
+    *,
+    ag_id: Optional[int] = None,
+    local_id: Optional[int] = None,
+    agora: Optional[datetime] = None,
+) -> int:
+    """Só o total — o número do nome da aba. Mesmo recorte de ``o_que_entrou``."""
+    from sqlalchemy import func
+
+    from src.models.verbatim import Verbatim
+
+    corte = inicio_do_dia_utc(desde or desde_padrao(agora))
+    q = _filtro_entrou(s, s.query(func.count(Verbatim.id)), empresa_id, corte, ag_id, local_id)
+    return int(q.scalar() or 0)
+
+
 def o_que_entrou(
     s,
     empresa_id: int,
@@ -69,7 +103,6 @@ def o_que_entrou(
     """
     from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM
     from src.models.empresa import Empresa
-    from src.models.local import Local
     from src.models.verbatim import Verbatim
 
     desde_padrao_usado = desde is None
@@ -84,11 +117,8 @@ def o_que_entrou(
         Verbatim.data_coleta,
         Verbatim.import_lote_id,
         Verbatim.respondente_id,
-    ).filter(Verbatim.empresa_id == empresa_id, Verbatim.data_coleta >= corte)
-    if local_id is not None:
-        q = q.filter(Verbatim.local_id == local_id)
-    elif ag_id is not None:
-        q = q.filter(Verbatim.local_id.in_(s.query(Local.id).filter(Local.agrupamento_id == ag_id)))
+    )
+    q = _filtro_entrou(s, q, empresa_id, corte, ag_id, local_id)
 
     relogio = {"escritos_no_periodo": 0, "com_idade": 0, "escrita_igual_entrada": 0, "sem_data": 0}
     caminho = {"coleta": 0, "planilha": 0, "pesquisa": 0}
