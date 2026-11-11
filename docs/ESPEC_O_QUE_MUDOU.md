@@ -143,13 +143,15 @@ Estimativa do Code, não medição: cerca de três horas de código e, na versã
 
 ## 9. Onde a tela vive
 
-**Decidido em 11/11: um quadro no alto do Painel**, não aba nova.
+**Decidido em 11/11: aba própria, "O que entrou", não quadro no Painel.** (A primeira decisão, também de 11/11, era um quadro no alto do Painel; foi trocada.)
 
-O ponto desta tela é ser vista sem ninguém ir procurar. Aba nova depende de alguém lembrar de clicar, e quem não sabe que entrou coisa nova não tem motivo para clicar.
+**O motivo:** não mexer em tela que já funciona. Um quadro no Painel exigiria alterar o Painel.
 
-**O preço, e como pagar:** os filtros do Painel cortam pela data em que o cliente escreveu, e o quadro conta pela data de entrada. Ele declara que ignora os filtros, como o bloco do histórico já faz.
+**E o nome da aba leva o número:** "O que entrou (48)". O nome tem de ser escrito na barra de navegação de qualquer jeito, então o número sai de graça. **Se for zero, não aparece número nenhum.** Isso resolve o motivo de a tela existir, que é ser vista sem ninguém ir procurar, sem precisar entrar no Painel.
 
-Se um dia a tela crescer e não couber no alto do Painel, ela ganha aba e o quadro vira um resumo com link.
+**Exigência:** se a função nova falhar, nada quebra — nem a aba nem a barra. A barra mostra o nome sem número e a falha fica registrada no log; a aba diz que não conseguiu contar, em vez de mostrar zero.
+
+Como é aba própria, ela não herda os filtros de período e de fonte do Painel e não precisa declarar que os ignora: o período dela é a data de entrada escolhida na própria aba.
 
 ---
 
