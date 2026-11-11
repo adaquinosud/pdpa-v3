@@ -68,9 +68,11 @@ A data de entrada é gravada em UTC. Qualquer janela em dias é contada no horá
 
 Não existe registro de quando alguém olhou a tela, e não existe "a última coleta" como evento único: cada fonte tem a sua própria execução.
 
-**Mas existe a última passada da pós-coleta**, com hora de início e de fim guardadas na empresa. É um registro só, sobrescrito a cada passada, sem histórico.
+Existe a última passada da pós-coleta, com hora de início e de fim guardadas na empresa, mas ela não serve de padrão: a coleta grava os relatos **antes** de a pós-coleta começar, então "desde a última passada" é quase sempre zero. O que serviria, "desde a passada anterior", não é guardado — a empresa só tem a última, sobrescrita a cada passada.
 
-Proposta: **o padrão é a última passada da pós-coleta**, e a pessoa pode escolher outra data. Nenhuma das duas depende de rastrear ninguém.
+**Decidido em 11/11: o padrão é sete dias**, contados no horário de Brasília, e a pessoa pode escolher outra data. Não depende de rastrear ninguém nem de inventar um evento que o sistema não tem.
+
+**Evolução, se o quadro provar valor:** guardar o início da passada anterior (uma coluna na empresa, copiada antes de ser sobrescrita) para o padrão virar "o que a última passada trouxe". Não entra agora porque mexe na pós-coleta e exige migration.
 
 ---
 
@@ -94,7 +96,7 @@ Quatro blocos, nessa ordem.
 
 ## 5. A só-nota fica em linha própria
 
-Não é escolha, é consequência medida.
+Não é escolha, é consequência do código (lido, não medido): a pós-coleta redistribui todas as só-notas a cada passada.
 
 Se a só-nota entrar nas contagens por posição, **as contagens de um período passado mudam de uma visita para outra**, porque a redistribuição da madrugada move as só-notas antigas de posição. A tela mentiria sobre o próprio passado.
 
@@ -133,7 +135,7 @@ O "o que mudou de verdade", incluindo o que se mexeu sem nada entrar, exige guar
 
 **Não é necessário para esta tela** e está fora dela. Fica registrado porque responde uma pergunta que hoje ninguém consegue responder: quanto do que o cliente vê mudou porque entrou gente nova, e quanto mudou porque o sistema redistribuiu as só-notas na madrugada.
 
-Medido pelo Code: cerca de três horas de código e, na versão agregada, cerca de 220 KB por noite na Carbel. Só vale para frente, com uma possível exceção se o plano do Render tiver recuperação para um momento passado.
+Estimativa do Code, não medição: cerca de três horas de código e, na versão agregada, no máximo cerca de 220 KB por noite na Carbel — teto calculado (1.482 linhas no máximo × ~150 bytes), não tamanho medido. Só vale para frente, com uma possível exceção se o plano do Render tiver recuperação para um momento passado.
 
 **Decisão do Alexandre em 10/11: não agora.** Quando alguém perguntar por que um número mudou, essa opção existe.
 
