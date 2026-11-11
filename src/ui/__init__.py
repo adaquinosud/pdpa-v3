@@ -4062,13 +4062,12 @@ _EXPLORAR_TABS = [
     {"id": "painel", "label": "Painel", "grupo": "visao", "escopo_aceito": _ESCOPO_FULL},
     # O que entrou (docs/ESPEC_O_QUE_MUDOU.md): conta pela DATA DE ENTRADA, com data própria
     # na aba — o período do header (data de escrita) não se aplica. O nome leva o número
-    # (_tabs_visiveis → o_que_entrou.rotulo_aba). Só admin até a decisão de abrir ao cliente.
+    # (_tabs_visiveis → o_que_entrou.rotulo_aba). Aberta a todos os perfis do Explorar (11/11).
     {
         "id": "o-que-entrou",
         "label": "O que entrou",
         "grupo": "visao",
         "escopo_aceito": ["agrupamento", "local"],
-        "so_loyall": True,
     },
     {"id": "locais", "label": "Locais", "grupo": "visao", "escopo_aceito": []},
     {"id": "leaderboard", "label": "Leaderboard", "grupo": "visao", "escopo_aceito": _ESCOPO_FULL},

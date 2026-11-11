@@ -415,7 +415,7 @@ declara o alcance: "No que foi lido (N de M relatos):", com os números do códi
 
 ---
 
-## O QUE ENTROU (os relatos que entraram desde uma data, só admin)
+## O QUE ENTROU (os relatos que entraram desde uma data)
 
 **Propósito.** O que entrou na base desde uma data, e o que esses relatos dizem. Não é "o que mudou"
 (as posições mudam sem nada entrar, e não há registro do estado passado) nem "o que está anormal"

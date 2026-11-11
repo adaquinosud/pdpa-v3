@@ -113,8 +113,12 @@ def test_data_escolhida_e_data_invalida(client_loyall, db_session):
     assert "Nenhum relato entrou" in client_loyall.get(f"{base}?periodo=7d").get_data(as_text=True)
 
 
-def test_cliente_nao_ve_a_aba(client_loyall, client_cliente_factory, db_session):
-    eid, _ag, _locs = _emp_2lojas(client_loyall)
+def test_cliente_ve_a_aba_com_o_numero(client_loyall, client_cliente_factory, db_session):
+    eid, _ag, locs = _emp_2lojas(client_loyall)
+    _v(db_session, eid, locs[0])
+    db_session.commit()
     cli = client_cliente_factory(eid)
     h = cli.get(f"/empresas/{eid}/explorar?tab=painel").get_data(as_text=True)
-    assert "tab=o-que-entrou" not in h
+    assert _rotulo(h) == "O que entrou (1)"
+    r = cli.get(f"/empresas/{eid}/explorar/tab/o-que-entrou")
+    assert r.status_code == 200 and "1 relato entrou" in _txt(r.get_data(as_text=True))
