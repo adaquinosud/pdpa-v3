@@ -415,6 +415,33 @@ declara o alcance: "No que foi lido (N de M relatos):", com os números do códi
 
 ---
 
+## O QUE ENTROU (os relatos que entraram desde uma data, só admin)
+
+**Propósito.** O que entrou na base desde uma data, e o que esses relatos dizem. Não é "o que mudou"
+(as posições mudam sem nada entrar, e não há registro do estado passado) nem "o que está anormal"
+(exigiria um corte). Só contagens, sem modelo, sem ratio, sem faixa, sem comparação entre lojas e sem
+total acumulado. Especificação: `docs/ESPEC_O_QUE_MUDOU.md`. Fonte: `src/diagnostico/o_que_entrou.py`.
+
+**Relógio.** Conta pela **data de entrada** na base, no horário de Brasília. Padrão: últimos sete
+dias; a data se escolhe na própria aba. O filtro de período do header (data de escrita) não se aplica.
+O nome da aba na barra leva o número do mesmo recorte ("O que entrou (48)"); zero não mostra número;
+"(?)" quando a contagem falhou (a falha vai para o log).
+
+**O que mostra.** (1) Quanto entrou, separado por quando foi escrito: no período, já com idade, sem a
+data de escrita da fonte (a data gravada é a de entrada) e sem data; e por onde entrou: coleta,
+planilha, pesquisa. (2) Por posição, só relatos com texto: falam bem, neutros, romperam — só as
+posições que receberam relato, mais "nas outras N não entrou nada". (3) Em linhas próprias: sem
+lastro, ainda não lidos (sem classificação), só-nota (fora das posições, porque a posição dela é
+redistribuída toda noite) e fora da conta. As linhas somam o total.
+
+**Declara.** Coleta contínua desligada (o que aparece entrou por planilha, pesquisa ou coleta manual).
+Relato antigo que volta da fonte com identificador novo é gravado de novo e conta como entrada — isso
+não dá para distinguir no dado.
+
+**Filtros.** Escopo do header (empresa, agrupamento, loja). Empresa inclui a voz da marca.
+
+---
+
 ## 11. CONCENTRAÇÃO
 
 **Propósito.** Mostra **onde** os detratores se concentram entre as lojas — se o problema é de poucas

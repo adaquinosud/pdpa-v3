@@ -177,3 +177,63 @@ def o_que_entrou(
         "fora_da_conta": fora_da_conta,
         "coleta_noturna_ativa": bool(empresa.coleta_noturna_ativa) if empresa else False,
     }
+
+
+# ── Superfície da aba (explorar) ─────────────────────────────────────────────────────────
+# As duas abrem a PRÓPRIA sessão: uma falha aqui não pode deixar a sessão da tela abortada
+# (no Postgres, uma consulta que falha envenena o resto da transação) — nada mais quebra.
+
+ROTULO_ABA = "O que entrou"
+
+
+def rotulo_aba(empresa_id: int, ag_id: Optional[int] = None, local_id: Optional[int] = None) -> str:
+    """Nome da aba na barra: com o número (mesmo recorte do cabeçalho); zero → sem número;
+    falha → ``(?)``, para "não consegui contar" não se confundir com "não entrou nada"."""
+    import logging
+
+    from src.utils.db import db_session
+
+    try:
+        with db_session() as s:
+            n = contar_entrou(s, empresa_id, ag_id=ag_id, local_id=local_id)
+    except Exception:  # a barra não pode quebrar por causa da contagem
+        logging.getLogger(__name__).exception(
+            "o_que_entrou.rotulo_aba falhou empresa=%s ag=%s local=%s", empresa_id, ag_id, local_id
+        )
+        return f"{ROTULO_ABA} (?)"
+    return f"{ROTULO_ABA} ({n:,})".replace(",", ".") if n else ROTULO_ABA
+
+
+def aba_entrou(
+    empresa_id: int,
+    desde_raw: str = "",
+    ag_id: Optional[int] = None,
+    local_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Contexto da aba. ``desde_raw`` = AAAA-MM-DD do formulário; vazio, inválido ou no futuro
+    → padrão de sete dias (``data_ignorada`` diz que a escolha não valeu). Falha →
+    ``{"erro": True}``: a aba diz que não conseguiu contar, nunca mostra zero."""
+    import logging
+
+    from src.utils.db import db_session
+
+    desde: Optional[date] = None
+    data_ignorada = False
+    if desde_raw:
+        try:
+            desde = date.fromisoformat(desde_raw)
+        except ValueError:
+            data_ignorada = True
+        if desde is not None and desde > hoje_brasilia():
+            desde, data_ignorada = None, True
+    try:
+        with db_session() as s:
+            r = o_que_entrou(s, empresa_id, desde, ag_id=ag_id, local_id=local_id)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "o_que_entrou.aba falhou empresa=%s ag=%s local=%s", empresa_id, ag_id, local_id
+        )
+        return {"erro": True, "desde": desde or desde_padrao(), "data_ignorada": data_ignorada}
+    r["erro"] = False
+    r["data_ignorada"] = data_ignorada
+    return r

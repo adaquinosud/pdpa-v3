@@ -1,0 +1,119 @@
+{# Aba "O que entrou" (docs/ESPEC_O_QUE_MUDOU.md v3). Só contagens dos relatos que ENTRARAM
+   desde a data escolhida, pela data de entrada. Recusa por desenho (§7): ratio, faixa, cor de
+   severidade, veredito, texto do modelo, comparação entre lojas e total acumulado. Rótulos fixos. #}
+{% set e = entrou %}
+{%- macro n(x) -%}{{ '{:,}'.format(x)|replace(',', '.') }}{%- endmacro -%}
+{%- macro pl(x, um, varios) -%}{{ n(x) }} {{ um if x == 1 else varios }}{%- endmacro -%}
+{% set desde_txt = e.desde | hora_br('%d/%m/%Y') %}
+
+<div class="mb-4">
+  <h2 class="text-lg font-semibold text-loyall-800">O que entrou</h2>
+  <p class="text-sm text-loyall-500 mt-1">
+    Relatos que entraram na base desde {{ desde_txt }}, contados pela <strong>data de entrada</strong>
+    (horário de Brasília). Não é a data em que o cliente escreveu, e o filtro de período não se aplica aqui.
+  </p>
+</div>
+
+<form hx-get="{{ url_for('ui.explorar_tab', empresa_id=empresa.id, tab='o-que-entrou') }}"
+      hx-target="#explorar-conteudo" hx-swap="innerHTML"
+      class="flex flex-wrap items-end gap-3 mb-5 text-sm">
+  <input type="hidden" name="agrupamento_id" value="{{ filtros.agrupamento_id }}">
+  <input type="hidden" name="local_id" value="{{ filtros.local_id }}">
+  <input type="hidden" name="periodo" value="{{ filtros.periodo }}">
+  <label class="flex flex-col gap-1">
+    <span class="text-xs text-loyall-500">Entraram desde</span>
+    <input type="date" name="entrou_desde" value="{{ e.desde.isoformat() }}"
+           class="px-2 py-1.5 border border-loyall-200 rounded">
+  </label>
+  <button type="submit" class="px-4 py-1.5 rounded bg-loyall-700 hover:bg-loyall-600 text-loyall-50 font-medium">Aplicar</button>
+  <span class="text-xs text-loyall-400 pb-2">padrão: últimos {{ e.janela_padrao_dias or 7 }} dias</span>
+</form>
+
+{% if e.data_ignorada %}
+<p class="text-xs text-loyall-500 mb-4">A data informada não é válida (ou está no futuro); mostrando o padrão, desde {{ desde_txt }}.</p>
+{% endif %}
+
+{% if e.erro %}
+<div class="border border-loyall-300 bg-loyall-50 rounded-lg p-5 text-sm text-loyall-700">
+  <strong>Não foi possível contar o que entrou agora.</strong> Isto não quer dizer que nada entrou:
+  a contagem falhou e a falha foi registrada.
+</div>
+{% else %}
+
+{% if not e.coleta_noturna_ativa %}
+<p class="text-sm text-loyall-600 mb-4">
+  A coleta contínua está desligada nesta empresa. O que aparece aqui entrou por planilha, por pesquisa
+  ou pela coleta manual.
+</p>
+{% endif %}
+
+{# ── 1. Quanto entrou ── #}
+<section class="bg-white border border-loyall-200 rounded-lg p-5 mb-4">
+  {% if e.total == 0 %}
+  <div class="text-sm text-loyall-600">Nenhum relato entrou desde {{ desde_txt }}.</div>
+  {% else %}
+  <div class="text-2xl font-semibold text-loyall-800">{{ n(e.total) }} <span class="text-base font-normal text-loyall-500">{{ 'relato entrou' if e.total == 1 else 'relatos entraram' }}</span></div>
+  <ul class="mt-3 text-sm text-loyall-700 space-y-1">
+    {% if e.relogio.escritos_no_periodo %}<li>{{ pl(e.relogio.escritos_no_periodo, 'escrito', 'escritos') }} a partir de {{ desde_txt }}</li>{% endif %}
+    {% if e.relogio.com_idade %}<li>{{ pl(e.relogio.com_idade, 'chegou', 'chegaram') }} já com idade (escritos antes de {{ desde_txt }})</li>{% endif %}
+    {% if e.relogio.escrita_igual_entrada %}<li>{{ n(e.relogio.escrita_igual_entrada) }} sem a data de escrita da fonte: a data registrada é a de entrada, e {{ 'ele pode ser mais antigo' if e.relogio.escrita_igual_entrada == 1 else 'eles podem ser mais antigos' }}</li>{% endif %}
+    {% if e.relogio.sem_data %}<li>{{ n(e.relogio.sem_data) }} sem data de escrita</li>{% endif %}
+  </ul>
+  <div class="mt-3 text-xs text-loyall-500">
+    Por onde entraram:
+    {%- set partes = [] %}
+    {%- if e.caminho.coleta %}{% set _ = partes.append(n(e.caminho.coleta) ~ ' por coleta') %}{% endif %}
+    {%- if e.caminho.planilha %}{% set _ = partes.append(n(e.caminho.planilha) ~ ' por planilha') %}{% endif %}
+    {%- if e.caminho.pesquisa %}{% set _ = partes.append(n(e.caminho.pesquisa) ~ ' por pesquisa') %}{% endif %}
+    {{ partes | join(' · ') }}
+  </div>
+  {% endif %}
+</section>
+
+{% if e.total %}
+{# ── 2. O que eles dizem (só com texto, só dos que entraram) ── #}
+<section class="bg-white border border-loyall-200 rounded-lg p-5 mb-4">
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">O que eles dizem, por posição</div>
+  {% if e.posicoes %}
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs text-loyall-500 border-b border-loyall-100">
+        <th class="py-1.5 font-normal">Posição</th>
+        <th class="py-1.5 font-normal text-right">falam bem</th>
+        <th class="py-1.5 font-normal text-right">neutros</th>
+        <th class="py-1.5 font-normal text-right">romperam</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in e.posicoes %}
+      <tr class="border-b border-loyall-50">
+        <td class="py-1.5 text-loyall-800">{{ p.codigo }} · {{ p.nome }}</td>
+        <td class="py-1.5 text-right tabular-nums">{{ n(p.falam_bem) }}</td>
+        <td class="py-1.5 text-right tabular-nums">{{ n(p.neutros) }}</td>
+        <td class="py-1.5 text-right tabular-nums">{{ n(p.romperam) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-loyall-600">Nenhum relato com texto entrou numa das doze posições.</div>
+  {% endif %}
+  {% if e.posicoes and e.posicoes_sem_entrada %}
+  <div class="mt-2 text-xs text-loyall-500">Nas outras {{ e.posicoes_sem_entrada }} posições não entrou nada.</div>
+  {% endif %}
+
+  {# ── 3, 4 e as linhas próprias: sem elas a soma não bate ── #}
+  <ul class="mt-4 text-sm text-loyall-700 space-y-1">
+    {% if e.sem_lastro %}<li>{{ n(e.sem_lastro) }} fora das doze posições (sem lastro)</li>{% endif %}
+    {% if e.nao_lido %}<li>{{ pl(e.nao_lido, 'ainda não lido', 'ainda não lidos') }}: {{ 'entrou' if e.nao_lido == 1 else 'entraram' }} e a classificação ainda não rodou neles</li>{% endif %}
+    {% if e.so_nota %}<li>{{ n(e.so_nota) }} só com nota, sem texto: ficam fora das posições, porque a posição deles é redistribuída toda noite</li>{% endif %}
+    {% if e.fora_da_conta %}<li>{{ n(e.fora_da_conta) }} fora da conta: relatos com texto que não cabem em nenhuma linha acima</li>{% endif %}
+  </ul>
+</section>
+{% endif %}
+
+<p class="text-xs text-loyall-400">
+  Um relato antigo que volta da fonte com identificador novo é gravado de novo e conta como entrada.
+  Isso não dá para distinguir no dado.
+</p>
+{% endif %}

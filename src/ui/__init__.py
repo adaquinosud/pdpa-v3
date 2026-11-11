@@ -4060,6 +4060,16 @@ _EXPLORAR_TABS = [
     {"id": "perguntas", "label": "Perguntas", "grupo": "indice", "escopo_aceito": []},
     # VISÃO (panorama)
     {"id": "painel", "label": "Painel", "grupo": "visao", "escopo_aceito": _ESCOPO_FULL},
+    # O que entrou (docs/ESPEC_O_QUE_MUDOU.md): conta pela DATA DE ENTRADA, com data própria
+    # na aba — o período do header (data de escrita) não se aplica. O nome leva o número
+    # (_tabs_visiveis → o_que_entrou.rotulo_aba). Só admin até a decisão de abrir ao cliente.
+    {
+        "id": "o-que-entrou",
+        "label": "O que entrou",
+        "grupo": "visao",
+        "escopo_aceito": ["agrupamento", "local"],
+        "so_loyall": True,
+    },
     {"id": "locais", "label": "Locais", "grupo": "visao", "escopo_aceito": []},
     {"id": "leaderboard", "label": "Leaderboard", "grupo": "visao", "escopo_aceito": _ESCOPO_FULL},
     # EXPLORAR (dados)
@@ -4201,6 +4211,17 @@ def _tabs_visiveis(ctx):
         for t in _EXPLORAR_TABS
         if not t.get("so_loyall") or (user is not None and user.papel == PAPEL_LOYALL)
     ]
+    if any(t["id"] == "o-que-entrou" for t in tabs):
+        from src.diagnostico.o_que_entrou import rotulo_aba
+
+        f = ctx.get("filtros") or {}
+        ag, loc = f.get("agrupamento_id", ""), f.get("local_id", "")
+        rot = rotulo_aba(
+            ctx["empresa"].id,
+            ag_id=int(ag) if ag.isdigit() else None,
+            local_id=int(loc) if loc.isdigit() else None,
+        )
+        tabs = [dict(t, label=rot) if t["id"] == "o-que-entrou" else t for t in tabs]
     if ctx.get("jornada_configurada"):
         return tabs
     return [t for t in tabs if t["id"] != "jornada"]
@@ -6421,6 +6442,11 @@ def _explorar_contexto(empresa_id, tab):
                     else []
                 ),
             }
+        entrou = None
+        if tab == "o-que-entrou":
+            from src.diagnostico.o_que_entrou import aba_entrou
+
+            entrou = aba_entrou(empresa_id, request.args.get("entrou_desde", ""), ag_id, local_id)
         evolucao = None
         if tab == "evolucao":
             gran = request.args.get("granularidade", "mes")
@@ -6518,6 +6544,7 @@ def _explorar_contexto(empresa_id, tab):
         "heatmap": heatmap,
         "comparar": comparar,
         "evolucao": evolucao,
+        "entrou": entrou,
         "diagnostico": diagnostico,
         "quadro": quadro,
         "posicoes": posicoes,
