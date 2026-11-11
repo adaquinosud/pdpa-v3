@@ -16,7 +16,7 @@ Não existe registro de como a base estava num momento passado. O "antes" só po
 
 - toda noite a pós-coleta redistribui todas as só-notas da empresa pelas posições;
 - relatos são reclassificados à mão;
-- relato escrito entra sem posição e recebe uma na pós-coleta logo em seguida. Fica sem posição por mais tempo só quando a classificação falha ou quando o limite da empresa a corta, como aconteceu no freio da Carbel.
+- relato escrito entra sem posição e recebe uma na pós-coleta logo em seguida. Fica sem posição por mais tempo só quando a classificação falha (ou quando alguém roda a pós-coleta à mão com `--limite`). O limiar da empresa — o freio da Carbel — não segura a classificação: ele só segura a cauda (temas, embeddings, diagnóstico); a cabeça classifica sempre. (Corrigido em 11/11: a v3 dizia que o freio cortava a classificação, afirmação do Code sem conferir o código.)
 
 Com o "antes" reconstruído, "depois menos antes" é sempre igual a "entraram". A tabela viraria identidade: a mesma informação mostrada duas vezes.
 
