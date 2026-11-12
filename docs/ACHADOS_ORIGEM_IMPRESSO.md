@@ -399,6 +399,37 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   conversível, detrator, total — `ratios_mensais` guarda as quatro) e nunca em ratio, exatamente
   por isso: qualquer série de ratio herda o teto e desenha forma falsa onde a posição vai bem.
 
+## 19. A noturna pula fontes sem deixar registro no banco
+
+- **O quê:** a coleta noturna (`scripts/coleta_noturna.py`) deixa de rodar uma fonte ativa em dois
+  casos, e nenhum grava linha em `coletas_execucoes`: (a) a fonte teve coleta concluída nas 12 h
+  anteriores (`PDPA_NOTURNA_REDISPARAR_RECENTES_HORAS`, padrão 12); (b) o teto de custo ou de tempo
+  (US$ 30 / 8 h) estourou antes dela. O único rastro é a saída da rotina (log do Render, retenção
+  curta), que imprime as pendentes mas não lista as puladas; o `.jsonl` detalhado fica no disco do
+  contêiner da rotina, descartado ao fim.
+- **MEDIDO (Carbel, `sonda_noturna_cobertura`, 11/11):** na madrugada de 09/11 rodaram 6 execuções
+  em vez de 23. As 17 fontes do Google que faltaram tinham sido coletadas na recuperação de 08/11,
+  entre 15h43 e 16h24 (Brasília), de 10,6 a 11,3 h antes da noturna — todas dentro da regra (a).
+  Rodaram as 6 fora do Google (Instagram, Facebook, YouTube, LinkedIn ×2, Google News).
+- **INFERIDO:** nesse caso o pulo não perdeu relato (a coleta seguinte, 10/11, busca desde a última
+  passada de cada fonte — não conferido no código do coletor do Google). O "1 relato em 09/11" é
+  efeito da regra, não falta de movimento.
+- **Por que importa:** pelo banco não dá para saber quando a noturna deixou de cobrir parte das
+  fontes. Mesma classe do caso do `CLAUDE.md` §9 (fonte descartada sem log e sem linha em
+  `coletas_execucoes`). Hoje inofensivo; com o teto estourando no meio, a falta não apareceria.
+- **Estado:** registrado; não é frente (11/11).
+
+## 20. Notícia e redes entram como relato — a aba "O que entrou" não separa da voz do cliente
+
+- **O quê:** a coleta do Google News e das redes usa o mesmo caminho dos reviews
+  (`processar_verbatim_coletado`) e nenhuma tela filtra por conector (lido no código). A aba "O que
+  entrou" conta tudo junto em "por coleta".
+- **MEDIDO (`sonda_noturna_cobertura`, 11/11):** dos 16 relatos que entraram em 10/11, 11 vieram do
+  Google News; os 17 Google trouxeram 5. Em 11/11, 8 do Google e 1 do Google News.
+- **Aberto — e decide o tamanho:** se a notícia recebe posição nas doze, o achado não é da aba, é do
+  produto inteiro (Painel, Diagnóstico, PDF). Medição pedida em 11/11 (`sonda_fontes_e_lojas`).
+- **Estado:** registrado; vira frente antes do dia 20 se a notícia tiver posição (decisão de 11/11).
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
