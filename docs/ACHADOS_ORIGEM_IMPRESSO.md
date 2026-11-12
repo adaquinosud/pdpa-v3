@@ -458,6 +458,18 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
 - **Feito (11/11):** o rótulo virou "Última coleta da empresa" (`templates/partials/ultima_coleta.html`,
   commit `d3ac0b8`). Só texto; nenhuma conta mudou. A invisibilidade da loja sem coleta fica
   registrada, não é frente.
+- **As 5 fontes de rede com PLACEHOLDER (Carbel, 11/11).** Instagram, Facebook, LinkedIn, YouTube e
+  LinkedIn Empregador (fontes 172–176) tinham "PLACEHOLDER" no identificador e rodavam toda noite.
+  **Inativadas pelo Alexandre em 11/11** (relatado; conferência pelo `sonda_placeholder`, parte A).
+  **Lido no código:** os coletores de rede só param com o identificador VAZIO; "PLACEHOLDER" não é
+  vazio, então cada execução chamou o ator do Apify com um perfil inexistente e voltou com zero itens
+  e erro zero — a mesma classe de "roda, volta vazia e não registra erro". O custo real dessas
+  execuções provavelmente não está no banco (o custo do Apify só é gravado no caminho do RA; a
+  estimativa da noturna é US$ 0,001 × coletados = 0) — a medir pela `sonda_placeholder`, parte B, e,
+  se vazio, no console do Apify.
+- **Apurado pelo Alexandre (11/11):** os endereços reais no site da Carbel são da Volkswagen, não do
+  grupo. Não existe conta única da Carbel nas redes. **Se rede social entrar no método, tem de ser
+  por marca.**
 
 ---
 
