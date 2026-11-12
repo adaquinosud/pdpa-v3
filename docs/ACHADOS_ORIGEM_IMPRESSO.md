@@ -437,21 +437,27 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   cabeçalho do Painel, aba de relatos).
 - **Estado:** registrado; não é frente (11/11).
 
-## 21. Lojas ativas que nunca foram coletadas, e a data da empresa mostrada como se fosse da loja
+## 21. Loja ativa com a fonte desligada fica invisível — e a data da empresa aparece como se fosse da loja
 
-- **MEDIDO (`sonda_fontes_e_lojas`, 11/11):** dos 32 locais da Carbel, 9 não têm fonte ativa fora do
-  RA. Três são "locais" de imprensa e site (Estado de Minas, Hoje em Dia, Site Carbel), com fonte de
-  site desligada e zero relatos. Três são lojas desativadas (Omoda Jaecoo Uberlândia Center Shopping,
-  1 relato de junho; Carbig Seminovos e UseCar, zero). **Três são lojas com status ativo, fonte do
-  Google desligada e zero relatos: BYD Pampulha, Omoda Jaecoo Uberlândia Shopping Uberlândia e
-  Renault Caiçara.** Por que a fonte foi desligada, a sonda não diz. (Dos 23 locais "com fonte
-  ativa", 6 são as redes cadastradas como local; lojas com Google ativo são 17.)
-- **Lido no código, não aberto na tela:** o seletor de loja do cabeçalho lista todas as lojas, sem
-  filtrar status; as 8 sem relato mostram estado vazio; o "Última coleta" do cabeçalho é
+- **A classe:** uma loja cadastrada como ativa, com a fonte desligada, fica invisível. Nada na tela
+  diz que ela não está sendo coletada. Foi assim que uma loja aberta, com 227 avaliações no Google,
+  ficou fora da base.
+- **O caso (Carbel):** BYD Pampulha (local 154) — status ativo, fonte do Google desligada, zero
+  relatos (MEDIDO, `sonda_fontes_e_lojas`, 11/11). **Apurado pelo Alexandre no Google (11/11):** a
+  loja existe, está aberta, tem 227 avaliações, com o nome "Carbel BYD Carlos Luz" no mesmo endereço
+  do cadastro; o identificador gravado na fonte não bate com esse lugar. Correção do place_id e
+  reativação: ação do Alexandre (correção de dado real — registrar antes/depois no Contexto-Mestre
+  quando feita, `CLAUDE.md` §16).
+- **Saíram do item (apurado pelo Alexandre e no Google, 11/11):** Renault Caiçara e Omoda Jaecoo
+  Uberlândia Shopping Uberlândia não existem ou não estão abertas. Dos 9 locais sem fonte ativa, os
+  outros são imprensa/site (3) e lojas desativadas (3).
+- **A data da empresa como se fosse da loja (lido no código, não aberto na tela):** o seletor de
+  loja lista todas as lojas, sem filtrar status; o "Última coleta" do cabeçalho é
   `_ultima_coleta(empresa)` — sem a loja —, então a loja nunca coletada aparecia com a data da
-  noturna da madrugada, e nada dizia que a fonte dela está desligada.
+  noturna da madrugada.
 - **Feito (11/11):** o rótulo virou "Última coleta da empresa" (`templates/partials/ultima_coleta.html`,
-  branch `fix/rotulo-ultima-coleta`). Só texto; nenhuma conta mudou. O resto fica registrado.
+  commit `d3ac0b8`). Só texto; nenhuma conta mudou. A invisibilidade da loja sem coleta fica
+  registrada, não é frente.
 
 ---
 
