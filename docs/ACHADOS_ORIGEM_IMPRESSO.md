@@ -244,6 +244,15 @@ sobre eles. As três disparam o item 5 na próxima passada.
 - **INFERIDO:** o custo gravado das gerações de anomalia (`src/anomalias/editorial.py:631`) e de
   sugestão estrutural (`src/planos/sugestoes.py:260`) ignora os tokens de cache; o classificador
   faz certo (`classifier_v3.py:435-436`). O `custo_usd` das ações de venda é constante (item 5).
+- **Coleta: custo do Apify quase nunca gravado (11/11).** **MEDIDO (`sonda_placeholder`, parte B):**
+  as 306 execuções das 5 fontes de rede da Carbel têm `custo_apify_centavos` vazio — o campo nunca
+  foi escrito. **Lido no código:** o campo só é preenchido quando o coletor devolve o custo, e só o
+  do Reclame Aqui devolve (`src/coletor/reclame_aqui.py:418` e `:551`), e só pelo caminho do
+  orquestrador (`src/coletor/orquestrador.py:410`); a rota da API de coleta (`src/api/coleta.py`)
+  não grava custo nenhum. Google, Google News e redes: nunca. A noturna estima US$ 0,001 × coletados
+  só num `.jsonl` descartado com o contêiner. Campo de custo que fica vazio é pior que não existir:
+  quem olha assume que foi grátis (`CLAUDE.md` §13). O custo real dessas coletas só existe no
+  console do Apify.
 - **Quem vê:** interno.
 
 ## 12. A ferramenta ainda apaga ação de venda e paga de novo a perspectiva
@@ -470,6 +479,21 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
 - **Apurado pelo Alexandre (11/11):** os endereços reais no site da Carbel são da Volkswagen, não do
   grupo. Não existe conta única da Carbel nas redes. **Se rede social entrar no método, tem de ser
   por marca.**
+- **Atualização (11/11):** a fonte 176 (LinkedIn Empregador) também foi desligada — as cinco estão
+  inativas (relatado). **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
+  PLACEHOLDER em todo o app (empresa 4 excluída da busca), e era da Carbel. Não é problema espalhado.
+- **A distinção que importa (observação do Alexandre, 11/11):** quando o coletor falha de verdade, a
+  tela avisa (execução com status erro). **O caso silencioso é só o de rodar e voltar vazio**:
+  status concluído, zero itens, erro zero — foi o das redes com PLACEHOLDER, e é o que nada denuncia.
+- **A mensagem de erro aponta para o lugar errado (lido no código, 11/11; log não lido ainda).** Duas
+  tentativas de coletar a BYD Pampulha gravaram "Apify falhou (falhou_apify=true)", e o console do
+  Apify não tem nenhuma execução delas. O coletor do Google marca `falhou_apify` em dois casos: o
+  identificador vazio ("sem url/place_id — abortando", sem chamar o Apify) e qualquer `ApifyError` —
+  que inclui o Apify **recusar** a chamada antes de criar a execução (`run_actor_sync`: resposta não-OK
+  ao disparar, com o status e o corpo da resposta na mensagem). Nos dois, o banco grava o mesmo texto
+  fixo; o motivo real só vai para o log do serviço (`[google] ...`), de retenção curta. Então a
+  mensagem não distingue "não chamou o Apify" de "o Apify recusou" de "o Apify rodou e falhou", e
+  descarta o motivo. Causa da BYD Pampulha: pendente do log.
 
 ---
 
