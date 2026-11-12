@@ -375,6 +375,54 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
 - **Já conhecido, agora em prosa:** a narrativa traz o "índice médio" por trimestre (3,79 → 5,18 →
   3,01 → 3,71 → 2,85), que é a média de ratios com teto — a pendência de cálculo do item 8.
 
+### Conserto (12/11) — o que entra, o que a sonda achou, e as previsões
+
+**Sonda `sonda_contexto_ativo` (Carbel, 12/11, só leitura) — MEDIDO:**
+- Contexto Estratégico diz que o Aconselhamento está "no teto da régua, sem detrator relevante";
+  o ratio é 9,57 com 7 detratores. Não é teto e há detrator. O pacote levava só o ratio do ativo.
+- 4 das 13 quebras e 4 das 11 linhas da matriz longitudinal têm um lado no teto.
+- Os próximos passos impressos mandam investigar operação em cima de um relato (D3 1→1, A2 1→3,
+  P2 1→7).
+- **A leitura guardada do Pa3 já tem o volume no pacote e mesmo assim diz "desempenho máximo",
+  "consolidado" e "ativo de reputação".** Ela vai inteira no pacote da descrição.
+
+**Causa da leitura (MEDIDO por código):** o gerador da leitura de subpilar
+(`diagnostico/leituras.py`, `gerar_e_persistir_diagnostico`) anexa só a regra de métrica, não a
+regra de número — a de pouca base não chega a ele. E o prompt (`leitura_diagnostico_v1.md`) manda
+"bom / excelente → manter / replicar / escalar", sem exceção para pouca base. A regra de número só
+é anexada às seções do relatório (`llm_secoes`) e às sugestões; ficam sem ela a leitura de
+subpilar, a leitura de anomalia, o Parecer, a frase do topo do Painel, a ação de tema, a frase de
+posição, o chat e a perspectiva (não conferido se algum tem regra equivalente própria). A leitura
+é lida direto pela tela do Diagnóstico, Resumo Executivo, Plano Executivo, Governança, Perguntas e
+chat — consertar só a descrição não resolve. **Não entra nesta passada; decisão pendente** (escopo
+da regra, linha nova no prompt da leitura, opção de regerar leituras no `regerar-textos`).
+
+**O que entra (branch `fix/item17-pacotes`):** volume por subpilar na descrição do pilar; det e
+volume do ativo no Contexto Estratégico; contagens nas células e nas quebras do longitudinal;
+célula no teto vai sem ratio e com o fato; trend e delta nulos quando um lado está no teto (pacote
+e PDF, "sem variação a medir"); "índice médio" fora do pacote, da manchete e da lista da capa
+(frente própria para quem quiser o número de volta: ratio agregado do trimestre, com nome que não
+colida com o Índice PDPA); próximos passos com piso próprio.
+
+**Piso dos próximos passos = 10 (decisão do Alexandre, 12/11), MEDIDO na Carbel:** das 58 células
+com dado, só 6 chegam a 30, e as seis são do Pa1, que vive no teto. Com 30 o longitudinal só
+falaria do Pa1; com 10 sobram 25 células em seis subpilares e um passo verdadeiro (D1 2026-Q2: de
+17 relatos com 9 críticas para 27 com 22). Vale só para a eleição dos passos, que são células de
+trimestre; o 30 continua no selo, no "pouca base", no gargalo e na regra dos prompts. Constante
+própria (`PISO_PASSO_TRIMESTRE`), não a do engajamento. O PDF declara os dois pisos.
+
+**Previsões, registradas ANTES de olhar o resultado:**
+1. A descrição do pilar Parceria da Carbel para de chamar o Pa3 de "sólida" ou de "excelência
+   relacional". **Pode falhar, e a causa esperada é a leitura, não a descrição:** a leitura
+   guardada do Pa3 entra no mesmo pacote dizendo "desempenho máximo" e "consolidado".
+2. A tela e o PDF passam a dizer a mesma coisa sobre a base do Pa3.
+3. A narrativa longitudinal para de dizer "sem detrator registrado" onde o 9,99 é teto.
+4. A capa do PDF longitudinal não traz mais o índice médio.
+
+**Regeração:** o hash cobre o pacote, e o pacote muda — os textos se regeram sozinhos na próxima
+pós-coleta de cada empresa (descrição ×4, insight ×4, contexto, narrativa). Custo medido com
+`--medir` depois do deploy.
+
 ## 18. O conserto do 9,99 não chegou à aba Evolução nem à variação do detalhe do trimestre
 
 - **O quê:** a aba Evolução (cliente) plota a série de ratio por mês/trimestre/semestre com o teto:
