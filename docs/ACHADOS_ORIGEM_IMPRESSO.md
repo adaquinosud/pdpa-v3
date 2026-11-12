@@ -451,12 +451,14 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
 - **A classe:** uma loja cadastrada como ativa, com a fonte desligada, fica invisível. Nada na tela
   diz que ela não está sendo coletada. Foi assim que uma loja aberta, com 227 avaliações no Google,
   ficou fora da base.
-- **O caso (Carbel):** BYD Pampulha (local 154) — status ativo, fonte do Google desligada, zero
-  relatos (MEDIDO, `sonda_fontes_e_lojas`, 11/11). **Apurado pelo Alexandre no Google (11/11):** a
-  loja existe, está aberta, tem 227 avaliações, com o nome "Carbel BYD Carlos Luz" no mesmo endereço
-  do cadastro; o identificador gravado na fonte não bate com esse lugar. Correção do place_id e
-  reativação: ação do Alexandre (correção de dado real — registrar antes/depois no Contexto-Mestre
-  quando feita, `CLAUDE.md` §16).
+- **O caso (Carbel):** BYD Pampulha (local 154, fonte 170) — status ativo, fonte do Google desligada,
+  zero relatos (MEDIDO, `sonda_fontes_e_lojas`, 11/11). **Apurado pelo Alexandre no Google (11/11):**
+  a loja existe, está aberta, tem 227 avaliações, com o nome "Carbel BYD Carlos Luz" no mesmo
+  endereço do cadastro. **O identificador da fonte 170 sempre foi o place_id correto da loja** (12/11,
+  corrigindo a versão anterior deste item, que dizia que não batia). A fonte estava desligada pela
+  observação "Em inauguração — ativar quando abrir": a loja abriu e ninguém religou. Não houve
+  correção de dado. No teste de 11/11 o Alexandre trocou o formato — código solto pela URL completa
+  do Maps — e a falha continuou igual, porque a causa era o token.
 - **Saíram do item (apurado pelo Alexandre e no Google, 11/11):** Renault Caiçara e Omoda Jaecoo
   Uberlândia Shopping Uberlândia não existem ou não estão abertas. Dos 9 locais sem fonte ativa, os
   outros são imprensa/site (3) e lojas desativadas (3).
