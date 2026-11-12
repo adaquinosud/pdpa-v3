@@ -12,7 +12,8 @@ from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional
 
-from src.utils.fmt import virg  # decimal pt-BR (vírgula) — impresso não sai com ponto
+from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+from src.utils.fmt import acento
 
 
 def _hash(s: str) -> str:
@@ -44,6 +45,42 @@ def _ultimos_quarters(n: int = 6, ref: Optional[datetime] = None) -> List[str]:
 
 
 _NIVEL = {"critico": 1, "fraco": 2, "atencao": 2, "bom": 3, "excelente": 4}
+
+# Piso de volume para uma quebra virar PRÓXIMO PASSO impresso: o menor dos dois trimestres tem
+# de ter ao menos isto (decisão de 12/11). Célula de trimestre é fatia, não leitura acumulada:
+# com o piso 30 de pouca base (selo, tela, gargalo, regra dos prompts), o longitudinal da Carbel
+# só falaria do Pa1, que vive no teto. Constante própria de propósito — não é a do engajamento,
+# para ninguém mexer numa achando que mexe na outra. O PDF declara este piso ao lado do 30.
+PISO_PASSO_TRIMESTRE = 10
+
+
+def _no_teto(ratio: Optional[float]) -> bool:
+    """Ratio no teto da régua (caminho A, sem detrator, ou B, divisão cortada)."""
+    from src.api.painel import RATIO_CAP_SUPERIOR
+
+    return ratio is not None and ratio >= RATIO_CAP_SUPERIOR
+
+
+def _teto_do_lado(c) -> str:
+    return "sem detrator" if c.det == 0 else "acima do teto da régua"
+
+
+def _celula_payload(c) -> Dict[str, Any]:
+    """Célula como vai ao modelo: contagens junto do ratio; no teto, o ratio não vai (o modelo
+    não pode comparar 9,99 com um ratio real) e vai o fato no lugar."""
+    d = {
+        "q": c.quarter,
+        "ratio": c.ratio,
+        "faixa": c.faixa,
+        "prom": c.prom,
+        "conv": c.conv,
+        "det": c.det,
+        "total": c.total,
+    }
+    if _no_teto(c.ratio):
+        d["ratio"] = None
+        d["teto"] = _teto_do_lado(c)
+    return d
 
 
 def montar_dados(
@@ -156,14 +193,18 @@ def montar_dados(
                     )
                 )
                 ratios.append(r)
-        # Trend: último vs penúltimo válido
+        # Trend: último vs penúltimo válido. Com um dos dois no teto não há variação a medir
+        # (9,99 é corte, não medida): trend e delta ficam None, e o PDF e o pacote dizem isso.
         validos = [r for r in ratios if r is not None]
         trend = "→"
         delta_pct = None
         if len(validos) >= 2:
-            d_pct = (validos[-1] - validos[-2]) / max(validos[-2], 0.01) * 100
-            delta_pct = d_pct
-            trend = "↑" if d_pct > 5 else ("↓" if d_pct < -5 else "→")
+            if _no_teto(validos[-1]) or _no_teto(validos[-2]):
+                trend = None
+            else:
+                d_pct = (validos[-1] - validos[-2]) / max(validos[-2], 0.01) * 100
+                delta_pct = d_pct
+                trend = "↑" if d_pct > 5 else ("↓" if d_pct < -5 else "→")
         if not validos:
             continue
         matriz.append(
@@ -176,6 +217,7 @@ def montar_dados(
                 delta_pct=delta_pct,
                 ratio_atual=validos[-1],
                 faixa_atual=faixa_ratio(validos[-1]),
+                celula_atual=[c for c in celulas if not c.vazio][-1],
             )
         )
 
@@ -211,23 +253,21 @@ def montar_dados(
                 )
     quebras.sort(key=lambda x: (x.direcao, x.de), reverse=True)
 
-    # Índice geral por quarter (para CAPA + análise)
-    indice_por_quarter = []
+    # Volume por quarter (capa). Não há "índice médio": a média simples de ratios com teto saiu
+    # de circulação (item 17, 12/11) — da capa, da lista da capa e do pacote da narrativa.
+    volume_por_quarter = []
     for q in quarters:
-        rs = [c.ratio for linha in matriz for c in linha.celulas if c.quarter == q and not c.vazio]
-        media = round(sum(rs) / len(rs), 2) if rs else None
         n_verb = sum(
             (c.total for linha in matriz for c in linha.celulas if c.quarter == q and not c.vazio)
         )
-        indice_por_quarter.append(SimpleNamespace(quarter=q, ratio_medio=media, n_verbatins=n_verb))
+        volume_por_quarter.append(SimpleNamespace(quarter=q, n_verbatins=n_verb))
 
     # ── LLM: narrativa geral + por quarter (4 mais recentes) ───────────────
     payload = {
         "empresa": empresa_nome,
         "quarters": quarters,
-        "indice_por_quarter": [
-            {"quarter": x.quarter, "ratio_medio": x.ratio_medio, "n_verbatins": x.n_verbatins}
-            for x in indice_por_quarter
+        "volume_por_quarter": [
+            {"quarter": x.quarter, "n_verbatins": x.n_verbatins} for x in volume_por_quarter
         ],
         "matriz_evolucao": [
             {
@@ -235,13 +275,19 @@ def montar_dados(
                 "nome": linha.nome,
                 "trend": linha.trend,
                 "delta_pct": linha.delta_pct,
-                "ratio_atual": linha.ratio_atual,
+                **(
+                    {"variacao": "sem variação a medir: um dos dois trimestres está no teto"}
+                    if linha.trend is None
+                    else {}
+                ),
+                "ratio_atual": (None if _no_teto(linha.ratio_atual) else linha.ratio_atual),
+                **(
+                    {"teto_atual": _teto_do_lado(linha.celula_atual)}
+                    if _no_teto(linha.ratio_atual)
+                    else {}
+                ),
                 "faixa_atual": linha.faixa_atual,
-                "celulas": [
-                    {"q": c.quarter, "ratio": c.ratio, "faixa": c.faixa}
-                    for c in linha.celulas
-                    if not c.vazio
-                ],
+                "celulas": [_celula_payload(c) for c in linha.celulas if not c.vazio],
             }
             for linha in matriz
         ],
@@ -253,6 +299,17 @@ def montar_dados(
                 "de": q.nivel_anterior,
                 "para": q.nivel_novo,
                 "direcao": q.direcao,
+                "anterior": {
+                    "prom": q.prom_anterior,
+                    "det": q.det_anterior,
+                    "total": q.total_anterior,
+                },
+                "novo": {"prom": q.prom_novo, "det": q.det_novo, "total": q.total_novo},
+                **(
+                    {"lado_no_teto": True}
+                    if _no_teto(q.ratio_anterior) or _no_teto(q.ratio_novo)
+                    else {}
+                ),
             }
             for q in quebras[:10]
         ],
@@ -272,15 +329,24 @@ def montar_dados(
         }
 
     # ── Próximos Passos (assemblativos) ────────────────────────────────────
+    # Só vira passo a quebra com base nos DOIS trimestres (piso antes do corte de 5, senão o
+    # piso só esvazia a lista). O texto diz as contagens, não o ratio: um lado pode estar no teto.
     proximos_passos = []
-    for q in quebras[:5]:
+    elegiveis = [q for q in quebras if min(q.total_anterior, q.total_novo) >= PISO_PASSO_TRIMESTRE]
+    for q in elegiveis[:5]:
         if q.direcao == "piora":
             proximos_passos.append(
                 f"Investigar a piora de {q.subpilar} ({q.nome}) em {q.de}: "
-                f"caiu de {q.nivel_anterior} para {q.nivel_novo} "
-                f"(ratio {virg(q.ratio_anterior)} → {virg(q.ratio_novo)}). "
+                f"caiu de {acento(q.nivel_anterior).lower()} para {acento(q.nivel_novo).lower()} "
+                f"(de {q.total_anterior} relatos com {q.det_anterior} críticas "
+                f"para {q.total_novo} com {q.det_novo}). "
                 f"O que mudou na operação nesse quarter?"
             )
+    if not proximos_passos and any(q.direcao == "piora" for q in quebras):
+        proximos_passos.append(
+            f"Nenhuma piora com ao menos {PISO_PASSO_TRIMESTRE} relatos nos dois trimestres: "
+            "as quebras ficam na tabela acima, sem virar investigação."
+        )
     if gargalo_nome:
         proximos_passos.append(
             f"Sustentar plano para o pilar gargalo {gargalo} {gargalo_nome} — "
@@ -293,22 +359,9 @@ def montar_dados(
         )
 
     # ── CAPA · tese sobre evolução (assemblativa) ──────────────────────────
-    ind_validos = [x for x in indice_por_quarter if x.ratio_medio is not None]
-    if len(ind_validos) >= 2:
-        delta_geral = ind_validos[-1].ratio_medio - ind_validos[0].ratio_medio
-        direcao_geral = (
-            "avançou" if delta_geral > 0.2 else "retrocedeu" if delta_geral < -0.2 else "estagnou"
-        )
-        capa_manchete = (
-            f"Em {len(ind_validos)} quarters de observação, o índice médio "
-            f"{direcao_geral} de {virg(ind_validos[0].ratio_medio)} "
-            f"para {virg(ind_validos[-1].ratio_medio)}"
-        )
-    else:
-        capa_manchete = (
-            f"{len(matriz)} subpilares com histórico longitudinal sobre "
-            f"{len(quarters)} quarters"
-        )
+    capa_manchete = (
+        f"{len(matriz)} subpilares com histórico longitudinal sobre {len(quarters)} quarters"
+    )
     capa_soco = (
         f"{len(quebras)} quebras estruturais detectadas · "
         f"pilar gargalo persistente: {gargalo or '—'} "
@@ -321,7 +374,9 @@ def montar_dados(
         "quarters": quarters,
         "matriz": matriz,
         "quebras": quebras,
-        "indice_por_quarter": indice_por_quarter,
+        "volume_por_quarter": volume_por_quarter,
+        "piso_passo": PISO_PASSO_TRIMESTRE,
+        "piso_pouca_base": VOLUME_CONFIANCA_ALTA,
         "gargalo": gargalo,
         "gargalo_nome": gargalo_nome,
         "narrativa_geral": narrativa["narrativa_geral"],

@@ -19,11 +19,10 @@
   <div class="capa-fontes">
     <div class="titulo">Quarters observados</div>
     <ul>
-      {% for x in d.indice_por_quarter %}
+      {% for x in d.volume_por_quarter %}
       <li><span class="conector">{{ x.quarter }}</span> ·
           <span class="quant">
-            {%- if x.ratio_medio is not none -%}
-              ratio médio {{ x.ratio_medio | virg }} · {{ x.n_verbatins }} verbatins
+            {%- if x.n_verbatins -%}{{ x.n_verbatins }} verbatins
             {%- else -%}sem dado{%- endif -%}
           </span></li>
       {% endfor %}
@@ -40,7 +39,8 @@
   <tbody>
     <tr><td><strong>Trend ↑↓→</strong></td>
         <td>Comparação do ratio do último quarter vs o anterior.
-            ↑ acima de +5%; ↓ abaixo de −5%; → entre os dois.</td></tr>
+            ↑ acima de +5%; ↓ abaixo de −5%; → entre os dois.
+            "Sem variação a medir": um dos dois quarters está no teto da régua.</td></tr>
     <tr><td><strong>Quebra estrutural</strong></td>
         <td>Mudança de nível (N1↔N2, N2↔N3 etc) entre quarters consecutivos.
             Sinaliza ruptura de operação, não oscilação.</td></tr>
@@ -85,7 +85,9 @@
                  color:{% if linha.trend == '↑' %}var(--n3-tx)
                        {%- elif linha.trend == '↓' %}var(--n1-tx)
                        {%- else %}var(--cinza-2){% endif %}">
-        {{ linha.trend }}
+        {%- if linha.trend is none -%}
+        <div style="font-size:7pt; font-weight:400">sem variação a medir</div>
+        {%- else -%}{{ linha.trend }}{%- endif -%}
         {% if linha.delta_pct is not none %}
         <div style="font-size:7pt; font-weight:400">
           {{ '%+.0f'|format(linha.delta_pct) }}%
@@ -160,7 +162,10 @@
 
 {# ═════════════ PP · PRÓXIMOS PASSOS ═════════════ #}
 {{ M.titulo_secao('PP', 'Próximos Passos',
-                  'Investigações sugeridas pelas quebras detectadas + monitoramento do gargalo.') }}
+                  'Investigações sugeridas pelas quebras com ao menos ' ~ d.piso_passo ~
+                  ' relatos nos dois quarters + monitoramento do gargalo. Piso próprio desta seção,'
+                  ' porque cada quarter é uma fatia; no resto do relatório, pouca base é abaixo de '
+                  ~ d.piso_pouca_base ~ ' relatos.') }}
 <ul style="font-size:9.5pt; padding-left:14pt; margin:0">
   {% for pp in d.proximos_passos %}
   <li style="margin-bottom:5pt">{{ pp }}</li>

@@ -557,10 +557,25 @@ def montar_dados(
             "ratio_de": _rg["de"],
             "subpilar": _rg["subpilar"],
         },
+        # contagens junto do ratio (item 17): sem elas o modelo leu 9,57 com 7 detratores
+        # como "no teto da régua, sem detrator relevante"
         "ativo": {
             "codigo": ativo_code,
             "nome": ativo_nome,
-            "ratio": next((p.ratio for p in pilares if p.codigo == ativo_code), None),
+            **next(
+                (
+                    {
+                        "ratio": p.ratio,
+                        "prom": p.prom,
+                        "conv": p.conv,
+                        "det": p.det,
+                        "total": p.total,
+                    }
+                    for p in pilares
+                    if p.codigo == ativo_code
+                ),
+                {"ratio": None},
+            ),
         },
     }
     contexto = gerar_contexto_estrategico(
@@ -614,7 +629,11 @@ def montar_dados(
                     "nome": x["nome"],
                     "ratio": x["ratio"],
                     "faixa": x["faixa"],
+                    # volume do subpilar (item 17): a regra de pouca base do prompt precisa dele
+                    "prom": x["prom"],
+                    "conv": x["conv"],
                     "det": x["det"],
+                    "total": x["prom"] + x["conv"] + x["det"],
                     "leitura": x["leitura"],
                 }
                 for x in pilar_subs_data[p.codigo]
