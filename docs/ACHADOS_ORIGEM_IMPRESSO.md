@@ -435,6 +435,9 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
 - **Por que importa:** pelo banco não dá para saber quando a noturna deixou de cobrir parte das
   fontes. Mesma classe do caso do `CLAUDE.md` §9 (fonte descartada sem log e sem linha em
   `coletas_execucoes`). Hoje inofensivo; com o teto estourando no meio, a falta não apareceria.
+- **Confirmado de novo (MEDIDO, `sonda_noturna_cobertura`, 12/11):** a BYD Pampulha (fonte 170)
+  teve coleta concluída às 22h30 de 11/11 e foi pulada na noturna das 03h de 12/11 — 4,5 h antes,
+  dentro da regra. Sem linha no banco, como previsto: só se sabe pela ausência.
 - **Estado:** registrado; não é frente (11/11).
 
 ## 20. Notícia e redes entram como relato — a aba "O que entrou" não separa da voz do cliente
@@ -491,7 +494,11 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   grupo. Não existe conta única da Carbel nas redes. **Se rede social entrar no método, tem de ser
   por marca.**
 - **Atualização (11/11):** a fonte 176 (LinkedIn Empregador) também foi desligada — as cinco estão
-  inativas (relatado). **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
+  inativas (relatado). **Corrigido em 12/11: o relato não conferiu.** MEDIDO
+  (`sonda_noturna_cobertura`, 12/11): a 176 seguia ativa e rodou na noturna das 03h05 de 12/11, com
+  zero itens — foi a 19ª execução daquela noite. Desligada de novo pelo Alexandre pela tela em 12/11
+  (relatado; conferir na próxima sonda de cobertura, onde ela deve sumir das ativas). Caso do
+  `CLAUDE.md` §2: estado relatado registrado como fato antes do comando que comprova. **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
   PLACEHOLDER em todo o app (empresa 4 excluída da busca), e era da Carbel. Não é problema espalhado.
 - **A distinção que importa (observação do Alexandre, 11/11):** quando o coletor falha de verdade, a
   tela avisa (execução com status erro). **O caso silencioso é só o de rodar e voltar vazio**:
