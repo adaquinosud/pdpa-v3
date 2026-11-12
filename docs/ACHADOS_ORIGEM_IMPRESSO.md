@@ -426,9 +426,32 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   entrou" conta tudo junto em "por coleta".
 - **MEDIDO (`sonda_noturna_cobertura`, 11/11):** dos 16 relatos que entraram em 10/11, 11 vieram do
   Google News; os 17 Google trouxeram 5. Em 11/11, 8 do Google e 1 do Google News.
-- **Aberto — e decide o tamanho:** se a notícia recebe posição nas doze, o achado não é da aba, é do
-  produto inteiro (Painel, Diagnóstico, PDF). Medição pedida em 11/11 (`sonda_fontes_e_lojas`).
-- **Estado:** registrado; vira frente antes do dia 20 se a notícia tiver posição (decisão de 11/11).
+- **MEDIDO (Carbel, `sonda_fontes_e_lojas`, 11/11): a notícia não recebe posição.** Google News: 42
+  relatos, todos com texto, **todos sem lastro, zero nas doze posições**. Google: 2.074 (1.463 nas
+  doze, 20 sem lastro, 591 só-nota). Instagram, Facebook, LinkedIn e YouTube: **zero relatos na
+  base** — as 5 fontes rodam toda noite e nunca trouxeram nada (custo por execução não medido).
+- **Tamanho:** pela regra de 11/11 (vira frente se a notícia tiver posição), **não vira frente**. O
+  classificador já a põe fora das posições, então ela não entra em ratio, pilar nem Diagnóstico. O
+  achado fica na aba "O que entrou" (soma notícia no total e em "por coleta"; aparece em "sem
+  lastro"). A conferir, não afirmado: outros lugares onde sem lastro aparece como relato (total do
+  cabeçalho do Painel, aba de relatos).
+- **Estado:** registrado; não é frente (11/11).
+
+## 21. Lojas ativas que nunca foram coletadas, e a data da empresa mostrada como se fosse da loja
+
+- **MEDIDO (`sonda_fontes_e_lojas`, 11/11):** dos 32 locais da Carbel, 9 não têm fonte ativa fora do
+  RA. Três são "locais" de imprensa e site (Estado de Minas, Hoje em Dia, Site Carbel), com fonte de
+  site desligada e zero relatos. Três são lojas desativadas (Omoda Jaecoo Uberlândia Center Shopping,
+  1 relato de junho; Carbig Seminovos e UseCar, zero). **Três são lojas com status ativo, fonte do
+  Google desligada e zero relatos: BYD Pampulha, Omoda Jaecoo Uberlândia Shopping Uberlândia e
+  Renault Caiçara.** Por que a fonte foi desligada, a sonda não diz. (Dos 23 locais "com fonte
+  ativa", 6 são as redes cadastradas como local; lojas com Google ativo são 17.)
+- **Lido no código, não aberto na tela:** o seletor de loja do cabeçalho lista todas as lojas, sem
+  filtrar status; as 8 sem relato mostram estado vazio; o "Última coleta" do cabeçalho é
+  `_ultima_coleta(empresa)` — sem a loja —, então a loja nunca coletada aparecia com a data da
+  noturna da madrugada, e nada dizia que a fonte dela está desligada.
+- **Feito (11/11):** o rótulo virou "Última coleta da empresa" (`templates/partials/ultima_coleta.html`,
+  branch `fix/rotulo-ultima-coleta`). Só texto; nenhuma conta mudou. O resto fica registrado.
 
 ---
 
