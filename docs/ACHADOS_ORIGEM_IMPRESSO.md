@@ -493,7 +493,19 @@ narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18
   ao disparar, com o status e o corpo da resposta na mensagem). Nos dois, o banco grava o mesmo texto
   fixo; o motivo real só vai para o log do serviço (`[google] ...`), de retenção curta. Então a
   mensagem não distingue "não chamou o Apify" de "o Apify recusou" de "o Apify rodou e falhou", e
-  descarta o motivo. Causa da BYD Pampulha: pendente do log.
+  descarta o motivo.
+- **O caso completo (11/11).** A coleta da BYD Pampulha falhou quatro vezes com "Apify falhou
+  (falhou_apify=true)" na tela, e o console do Apify não tinha nenhuma execução — o que levou a
+  procurar a falha antes do Apify, depois no botão, depois nos deploys. **A causa real era um 401
+  do Apify (token inválido), que só aparecia no log do serviço web do Render** (relatado pelo
+  Alexandre, que leu o log). O Apify recusa a chamada antes de criar execução, por isso o console
+  ficava vazio. Trocado o `APIFY_TOKEN` no grupo `pdpa-config` (pelo Alexandre, direto no Render), a
+  coleta funcionou: 183 relatos, a partir de agosto de 2025 (janela padrão de 15 meses do coletor,
+  `COLETA_JANELA_MESES`), por isso não vieram as 227 avaliações do Google.
+- **INFERIDO, não verificado:** a noturna lê o mesmo grupo e teria falhado igual. Ela funcionou às 03h
+  de 11/11 com o token antigo, então o token deixou de valer depois disso — por quê, não se sabe.
+- **A regra que o caso deixa:** a mensagem de erro gravada tem de dizer o que o log diz. Hoje o
+  motivo (`ApifyError` com status e corpo da resposta) é descartado e o banco recebe um texto fixo.
 
 ---
 
