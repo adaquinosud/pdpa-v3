@@ -253,6 +253,15 @@ sobre eles. As três disparam o item 5 na próxima passada.
   só num `.jsonl` descartado com o contêiner. Campo de custo que fica vazio é pior que não existir:
   quem olha assume que foi grátis (`CLAUDE.md` §13). O custo real dessas coletas só existe no
   console do Apify.
+- **Pós-coleta: a estimativa de custo existe e é jogada fora no caminho do botão (lido no código,
+  12/11).** `executar_pos_coleta` soma o custo da passada inteira em `custo_estimado_usd`
+  (classificação, rótulos, diagnóstico, sugestões, relatórios, leituras — ignorando o cache, como
+  acima). O comando de linha imprime; a noturna leva para o log do Render; **o disparo pelo botão
+  (`_rodar_async`) descarta o retorno sem log**. Nada disso vai ao banco. O que sobra gravado é
+  parcial: `classifier_metrics` (sem empresa, só por janela de tempo), tokens das seções de
+  relatório e contagens do que foi regerado — sugestões e leituras não gravam tokens. Medir o custo
+  de uma passada disparada pelo botão exige o console da Anthropic (e da OpenAI, embeddings).
+  Caso: a coleta da BYD Pampulha (183 relatos, 11/11) disparou a passada sem custo declarado antes.
 - **Quem vê:** interno.
 
 ## 12. A ferramenta ainda apaga ação de venda e paga de novo a perspectiva
