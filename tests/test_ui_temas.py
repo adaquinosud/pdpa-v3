@@ -355,7 +355,7 @@ def test_painel_mostra_ultima_coleta(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "uc1")
     _criar_verbatim(db_session, e["id"], f["id"], loc["id"], "txt")  # data_coleta = agora
     html = client_loyall.get(f"/empresas/{e['id']}/painel").get_data(as_text=True)
-    assert "Última coleta:" in html
+    assert "Última coleta da empresa:" in html
 
 
 def test_detalhe_sem_coleta_mostra_placeholder(client_loyall):
