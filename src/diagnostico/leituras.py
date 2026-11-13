@@ -387,14 +387,15 @@ def gerar_e_persistir_diagnostico(
 
     # leitura_diagnostico_v1.md medido em 1362 tok (count_tokens, ≥1024) → prompt
     # caching. Vale empresa E por-loja (mesmo prompt, alto fan-out). Texto idêntico.
-    from src.api.painel import regra_metrica_para_prompt
+    # Regra de número junto da de métrica: o piso de pouca base chega ao prompt pela constante.
+    from src.api.painel import regra_metrica_para_prompt, regra_numero_para_prompt
 
     gerar = gerar_fn or (
         lambda payload: _chamar_sonnet(
             payload,
             prompt_path=PROMPT_PATH,
             cachear=True,
-            regra_extra=regra_metrica_para_prompt(),
+            regra_extra=regra_metrica_para_prompt() + regra_numero_para_prompt(),
         )
     )
     ag_ef = None if local_id is not None else agrupamento_id  # escopos exclusivos

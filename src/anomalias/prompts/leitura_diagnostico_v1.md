@@ -45,6 +45,10 @@ Campos podem vir `null`. Use só o que existe.
 - **bom / excelente** → ação de **manter / replicar / escalar**: reconhecer a equipe,
   transformar a prática em padrão, usar como caso de aprendizado para outros locais.
   **NÃO invente um problema** onde os dados mostram saúde.
+- **Pouca base (vale acima da faixa):** se `volume` está abaixo do piso de pouca base da
+  REGRA DE NÚMERO, a faixa não se lê. A ação é **acompanhar a base** — ouvir mais clientes
+  nesse ponto antes de concluir —, **nunca manter / replicar / escalar a prática**: o volume
+  não sustenta tratá-la como padrão.
 - Escolha UMA dimensão por ação:
   - **relacionamento**: recuperar/treinar/reconhecer/fechar loop com clientes.
   - **venda/retenção**: converter conversíveis, fidelizar, replicar prática que vende.
@@ -59,7 +63,8 @@ Campos podem vir `null`. Use só o que existe.
 
 ## OBRIGATÓRIO
 - As 2 chaves, sempre. Leitura com os números reais do input.
-- A ação coerente com a faixa (problema → corrige; saúde → mantém/replica).
+- A ação coerente com a faixa (problema → corrige; saúde → mantém/replica; pouca base →
+  acompanha a base).
 - Pelo menos uma frase que o gestor execute amanhã.
 
 Saída: JSON puro, exatamente as 2 chaves acima, nesta ordem. Sem texto fora do JSON.

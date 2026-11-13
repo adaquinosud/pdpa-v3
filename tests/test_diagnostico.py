@@ -179,3 +179,30 @@ def test_regenerar_subpilar_rota(client_loyall, db_session, monkeypatch):
         f"/empresas/{e['id']}/explorar/diagnostico/regenerar-subpilar?subpilar=ZZ"
     )
     assert r.status_code == 404
+
+
+def test_leitura_leva_regra_de_numero_e_linha_de_pouca_base(client_loyall, db_session, monkeypatch):
+    """O gerador da leitura de subpilar anexa a regra de número (piso de pouca base lido da
+    constante) além da de métrica, e o prompt manda acompanhar a base abaixo do piso."""
+    import src.anomalias.editorial as editorial
+    from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+    from src.diagnostico.leituras import PROMPT_PATH
+
+    extras = []
+
+    def _capt(payload, prompt_path=None, **kw):
+        extras.append(kw.get("regra_extra", ""))
+        return _fake(payload)
+
+    monkeypatch.setattr(editorial, "_chamar_sonnet", _capt)
+    e, a, loc, f = _ctx(client_loyall, "regnum")
+    _verb(db_session, e, loc, f, "Pa3", "promotor", 6)
+    db_session.commit()
+    gerar_e_persistir_diagnostico(e["id"], None)
+
+    assert extras and all("REGRA DE MÉTRICA" in x for x in extras)
+    assert all("REGRA DE NÚMERO" in x for x in extras)
+    assert all(f"Volume abaixo de {VOLUME_CONFIANCA_ALTA}" in x for x in extras)
+    prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    assert "**acompanhar a base**" in prompt
+    assert "nunca manter / replicar / escalar a prática" in prompt
