@@ -504,7 +504,7 @@ LONGITUDINAL do Diagnóstico PDPA (evolução temporal · 6 quarters).
 ESTRUTURA OBRIGATÓRIA (JSON):
 {
   "narrativa_geral": "2-3 parágrafos costurando o movimento geral dos 6 quarters
-   — tendência do índice, pilar gargalo persistente, ativo que sustenta.
+   — movimento dos subpilares, pilar gargalo persistente, ativo que sustenta.
    ≤250 palavras totais. Sem clichê.",
   "por_quarter": [
     {"quarter": "2025-Q4", "paragrafo": "1 parágrafo curto (3-4 frases) sobre o
