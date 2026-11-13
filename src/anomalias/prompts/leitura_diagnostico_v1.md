@@ -36,7 +36,9 @@ Campos podem vir `null`. Use só o que existe.
   dominante). Se não há tema nem exemplos, diga que a causa precisa de investigação —
   não fabrique.
 - **Impacto no Lastro**: P→D→Pa→A é sequencial. Subpilar fraco num pilar inicial
-  trava os seguintes; subpilar forte num pilar avançado é ativo a proteger.
+  trava os seguintes; subpilar forte num pilar avançado é ativo a proteger — **só com
+  `volume` no piso de pouca base da REGRA DE NÚMERO ou acima**. Abaixo do piso não é ativo a
+  proteger: é base a acompanhar.
   Se `eh_gargalo`, diga que é prioridade (resolver antes dos pilares seguintes).
 
 ## Regras da ação — depende da faixa (coerência com a saúde real)

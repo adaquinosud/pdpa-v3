@@ -206,3 +206,4 @@ def test_leitura_leva_regra_de_numero_e_linha_de_pouca_base(client_loyall, db_se
     prompt = PROMPT_PATH.read_text(encoding="utf-8")
     assert "**acompanhar a base**" in prompt
     assert "nunca manter / replicar / escalar a prática" in prompt
+    assert "Abaixo do piso não é ativo a\n  proteger: é base a acompanhar." in prompt
