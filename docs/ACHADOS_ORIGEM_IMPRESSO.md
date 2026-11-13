@@ -419,9 +419,26 @@ própria (`PISO_PASSO_TRIMESTRE`), não a do engajamento. O PDF declara os dois 
 3. A narrativa longitudinal para de dizer "sem detrator registrado" onde o 9,99 é teto.
 4. A capa do PDF longitudinal não traz mais o índice médio.
 
-**Regeração:** o hash cobre o pacote, e o pacote muda — os textos se regeram sozinhos na próxima
-pós-coleta de cada empresa (descrição ×4, insight ×4, contexto, narrativa). Custo medido com
-`--medir` depois do deploy.
+**Regeração:** o hash cobre o pacote, e o pacote muda — então qualquer montagem do relatório com o
+pacote novo regera os textos (descrição ×4, insight ×4, contexto, narrativa), sem precisar forçar.
+~~Os textos se regeram sozinhos na próxima pós-coleta de cada empresa.~~ **Errado (corrigido em
+13/11):** a pós-coleta só monta os relatórios se passar do gate da cauda (item 22). Quem regera, na
+prática: a pós-coleta que passa do gate (pendente ≥ limiar, acumulando entre coletas), o watchdog
+quando acha pendência de volume, ou **alguém abrir o relatório** (tela ou PDF), que regera na hora
+só aquela empresa, pago. Custo medido com `--medir` numa empresa (12/11): R$ 0,267 só de entrada,
+R$ 0,615 com a saída no teto; para as 11 empresas com Diagnóstico, R$ 2,94 a R$ 6,77 por
+extrapolação (não é teto: o pacote varia por empresa, e o `regerar-textos` regera também qualquer
+outra seção que esteja velha por dado novo, fora da medição).
+
+**A previsão que caiu (13/11).** A regeração das 3h de 13/11 não aconteceu. MEDIDO
+(`sonda_previsoes_item17`, 13/11): descrição do Parceria, Contexto Estratégico e narrativa
+longitudinal da Carbel são de 12/11 06:15 UTC, anteriores ao merge do item 17, e a narrativa
+guardada não bate com o pacote atual (STALE). As quatro previsões **não foram julgadas**: o texto
+lido ainda é o antigo. Causa (MEDIDO no código; na Carbel, INFERIDO até a `sonda_gate_cauda`): a
+pós-coleta de 13/11 parou no gate da cauda, antes do pré-aquecimento. **Decisão do Alexandre
+(13/11):** não forçar as 11. Ele abre o Diagnóstico da Carbel, que regera só ela, e as previsões
+são conferidas contra esse texto. As outras dez regeram quando alguém abrir ou quando acumularem
+pendência.
 
 ## 18. O conserto do 9,99 não chegou à aba Evolução nem à variação do detalhe do trimestre
 
@@ -546,7 +563,11 @@ pós-coleta de cada empresa (descrição ×4, insight ×4, contexto, narrativa).
   (`sonda_noturna_cobertura`, 12/11): a 176 seguia ativa e rodou na noturna das 03h05 de 12/11, com
   zero itens — foi a 19ª execução daquela noite. Desligada de novo pelo Alexandre pela tela em 12/11
   (relatado; conferir na próxima sonda de cobertura, onde ela deve sumir das ativas). Caso do
-  `CLAUDE.md` §2: estado relatado registrado como fato antes do comando que comprova. **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
+  `CLAUDE.md` §2: estado relatado registrado como fato antes do comando que comprova. **13/11: o
+  segundo desligamento também não pegou.** MEDIDO (`sonda_previsoes_item17`, 13/11): a 176 rodou na
+  noturna às 06h07 UTC, então estava `ativo` e `ativa` nessa hora. O Alexandre vai conferir o que
+  clicou (12/11) e em que tela; até lá ela segue chamando o Apify toda noite com um perfil que não
+  existe. **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
   PLACEHOLDER em todo o app (empresa 4 excluída da busca), e era da Carbel. Não é problema espalhado.
 - **A distinção que importa (observação do Alexandre, 11/11):** quando o coletor falha de verdade, a
   tela avisa (execução com status erro). **O caso silencioso é só o de rodar e voltar vazio**:
@@ -572,6 +593,41 @@ pós-coleta de cada empresa (descrição ×4, insight ×4, contexto, narrativa).
   de 11/11 com o token antigo, então o token deixou de valer depois disso — por quê, não se sabe.
 - **A regra que o caso deixa:** a mensagem de erro gravada tem de dizer o que o log diz. Hoje o
   motivo (`ApifyError` com status e corpo da resposta) é descartado e o banco recebe um texto fixo.
+
+## 22. O pré-aquecimento dos relatórios fica atrás do gate da cauda
+
+- **O quê:** a pós-coleta (`executar_pos_coleta`, `src/temas/pos_coleta.py`) tem a cabeça, que
+  roda sempre e classifica o que entrou, e a cauda, que só roda se os relatos com texto sem embedding
+  chegarem ao limiar da empresa (padrão 10, acumula entre coletas). Abaixo do limiar a função
+  retorna no gate (`motivo_skip = "cauda pulada (pendente X < limiar)"`, status `completo`). O
+  pré-aquecimento dos cinco relatórios está no fim da cauda, depois do gate.
+- **Consequência:** mudança de pacote (conserto de código) não chega ao texto guardado na noite
+  seguinte se a empresa teve pouco movimento. O texto velho segue sendo lido até a cauda passar ou
+  alguém abrir o relatório. Foi o que derrubou a previsão de regeração do item 17 (13/11).
+- **Silêncio junto:** quando um relatório falha no pré-aquecimento, sai só um `logger.warning`
+  (`[pos-coleta] relatorio …`) e `relatorios_falhas` sobe no resumo — que o comando
+  `pipeline-pos-coleta` não imprime. (CLAUDE.md §9.)
+- **Estado:** registrado, sem conserto (decisão do Alexandre, 13/11).
+
+## 23. O "fim" da pós-coleta é regravado pelo watchdog
+
+- **O quê (MEDIDO no código):** o watchdog (`pdpa-watchdog`, a cada 6 h no minuto 30: 00h30, 06h30,
+  12h30, 18h30 UTC), para toda empresa sem pendência, chama `_marcar_pos_coleta_status(eid,
+  "completo", agora=…)` (`src/temas/watchdog.py`), que regrava `pos_coleta_concluido_em` sem mexer
+  no `pos_coleta_iniciado_em`.
+- **Consequência:** o par início/fim não mede a duração da pós-coleta. A Carbel apareceu com início
+  06h07 e fim 18h30 UTC em 13/11, "doze horas contra doze minutos ontem" — e 18h30 é a hora de uma
+  varredura do watchdog. INFERIDO: não houve passada presa; a pós-coleta deve ter terminado em
+  minutos (cauda pulada). Conferível no log da noturna (`[pipeline] pós-coleta saiu com código …`).
+- **Estado:** registrado, sem conserto (13/11).
+
+## 24. O `regerar-textos` não imprime o custo das seções
+
+- **O quê (MEDIDO no código):** no run real (sem `--medir`), `regerar` (`src/relatorios/regerar.py`)
+  monta os relatórios com as seções forçadas e devolve só `sugestoes` e `anomalias`; o comando
+  imprime esse dicionário. Para seções o resultado é `{}`: nenhum token, nenhum valor. Quem olha
+  assume que foi grátis (CLAUDE.md §13: campo de custo nulo é pior que não existir).
+- **Estado:** registrado, sem conserto (13/11).
 
 ---
 
