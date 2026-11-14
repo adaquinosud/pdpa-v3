@@ -394,8 +394,15 @@ regra de número — a de pouca base não chega a ele. E o prompt (`leitura_diag
 subpilar, a leitura de anomalia, o Parecer, a frase do topo do Painel, a ação de tema, a frase de
 posição, o chat e a perspectiva (não conferido se algum tem regra equivalente própria). A leitura
 é lida direto pela tela do Diagnóstico, Resumo Executivo, Plano Executivo, Governança, Perguntas e
-chat — consertar só a descrição não resolve. **Não entra nesta passada; decisão pendente** (escopo
-da regra, linha nova no prompt da leitura, opção de regerar leituras no `regerar-textos`).
+chat — consertar só a descrição não resolve. ~~Não entra nesta passada; decisão pendente.~~
+**Entrou em 13/11 (decisão do Alexandre), commits `e8ed9ab` e `3c16649` no main:** o gerador da
+leitura de subpilar anexa a regra de número; o prompt ganhou a linha de pouca base (abaixo do piso
+a ação é acompanhar a base, nunca manter / replicar / escalar) e o "ativo a proteger" passou a
+valer só com volume no piso ou acima. Escopo: só a leitura de subpilar — os outros geradores
+seguem sem a regra (decisão pendente), e o `regerar-textos` segue sem opção para leituras. Prompt
+fora do hash: vale para leitura gerada depois. Regeração escolhida: `diagnostico-gerar --empresa 5`,
+as 12 do escopo empresa (não as 3 velhas pela tela, para não misturar prompt velho e novo); as
+leituras de loja e agrupamento não são tocadas pelo comando.
 
 **O que entra (branch `fix/item17-pacotes`):** volume por subpilar na descrição do pilar; det e
 volume do ativo no Contexto Estratégico; contagens nas células e nas quebras do longitudinal;
