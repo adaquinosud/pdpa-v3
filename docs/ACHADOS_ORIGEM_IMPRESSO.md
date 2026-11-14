@@ -608,7 +608,13 @@ mudar o pacote delas.
   segundo desligamento também não pegou.** MEDIDO (`sonda_previsoes_item17`, 13/11): a 176 rodou na
   noturna às 06h07 UTC, então estava `ativo` e `ativa` nessa hora. O Alexandre vai conferir o que
   clicou (12/11) e em que tela; até lá ela segue chamando o Apify toda noite com um perfil que não
-  existe. **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
+  existe. **Desligada de fato em 13/11, 21h23 (horário de Brasília). MEDIDO (`sonda_176`, 13/11, saída
+  lida pelo Alexandre):** `ativo False`, "a noturna PULA esta fonte". **Por que as duas tentativas
+  anteriores não pegaram (apurado pelo Alexandre):** foram no controle do **local**; a terceira foi
+  no controle da **fonte**, dentro do bloco Colaboradores. É a mesma confusão de 26/ago (`CLAUDE.md`
+  §1): dois controles parecidos na mesma tela, e o clique no do local não muda a fonte. Na
+  noturna, a conferência é a 176 não aparecer entre as execuções, e não o total da noite, que varia
+  pela regra das 12 h (item 19). **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
   PLACEHOLDER em todo o app (empresa 4 excluída da busca), e era da Carbel. Não é problema espalhado.
 - **A distinção que importa (observação do Alexandre, 11/11):** quando o coletor falha de verdade, a
   tela avisa (execução com status erro). **O caso silencioso é só o de rodar e voltar vazio**:
