@@ -262,6 +262,20 @@ sobre eles. As três disparam o item 5 na próxima passada.
   relatório e contagens do que foi regerado — sugestões e leituras não gravam tokens. Medir o custo
   de uma passada disparada pelo botão exige o console da Anthropic (e da OpenAI, embeddings).
   Caso: a coleta da BYD Pampulha (183 relatos, 11/11) disparou a passada sem custo declarado antes.
+- **Leitura de subpilar: o comando imprime o custo sem o cache (MEDIDO, 13/11).** O
+  `diagnostico-gerar --empresa 5` (12 leituras) reportou 3.473 tokens de entrada; a contagem prévia
+  pela API (`sonda_medir_leituras_carbel`) tinha dado 24.758 — sete vezes mais. A diferença
+  (21.285, ~1.774 por chamada) é o system prompt em cache: `_chamar_sonnet`
+  (`src/anomalias/editorial.py`) grava só `usage.input_tokens`, que não inclui
+  `cache_creation_input_tokens` nem `cache_read_input_tokens`, e o custo é feito sobre esse número
+  a US$ 3/M. Mesma classe do primeiro ponto deste item, agora num comando que imprime custo ao
+  operador. O comando imprimiu cerca de R$ 0,40.
+  **O "real" de R$ 0,77 (relatado) é o teto, não o real:** é a entrada inteira (24.758) a preço
+  cheio mais a saída. Com o cache, a escrita custa 1,25× e as leituras 0,1× do preço de entrada.
+  INFERIDO (uma escrita e onze leituras do prefixo, dentro da janela de 5 min; saída derivada do
+  valor impresso, ~3.900 tokens): perto de R$ 0,47. Não conferido no console da Anthropic. Vale
+  para todo caminho que passa `cachear=True` a `_chamar_sonnet` (leitura de subpilar, de anomalia,
+  Parecer).
 - **Quem vê:** interno.
 
 ## 12. A ferramenta ainda apaga ação de venda e paga de novo a perspectiva
@@ -338,7 +352,7 @@ sobre eles. As três disparam o item 5 na próxima passada.
   cerca de seis meses em produção sem ninguém olhar.
 - **Removidas** em `3ebe15b` (10/11).
 
-## 17. Primeiros textos com os prompts novos (Carbel, 10/11) — o que pegou e o que não pegou
+## 17. Primeiros textos com os prompts novos (Carbel, 10/11) — o que pegou e o que não pegou · FECHADO 13/11
 
 Regeração de 10/11 (`regerar-textos`, 9 chamadas: descobertas, desc_pilar A e Pa, insight A e Pa,
 narrativa longitudinal, sugestões A1/Pa1/Pa3 — 12 sugestões). Leitura dos 18 textos
@@ -446,6 +460,26 @@ pós-coleta de 13/11 parou no gate da cauda, antes do pré-aquecimento. **Decis�
 (13/11):** não forçar as 11. Ele abre o Diagnóstico da Carbel, que regera só ela, e as previsões
 são conferidas contra esse texto. As outras dez regeram quando alguém abrir ou quando acumularem
 pendência.
+
+**Resultado (13/11) — as quatro previsões passaram. Item fechado.** Ordem do que rodou: deploy de
+`e8ed9ab`/`3c16649` (regra de número na leitura); `flask diagnostico-gerar --empresa 5` (as 12
+leituras do escopo empresa, com o prompt novo); abertura do Diagnóstico da Carbel (descrição,
+insight e contexto regerados pelo hash); `sonda_previsoes_item17` de novo. Evidência lida pelo
+Alexandre na saída da sonda, na tela e no PDF (a saída não foi colada nesta sessão):
+1. **Passou.** A descrição do Parceria diz "apenas 10 registros, pouca base para leituras
+   definitivas" — sem "sólida" nem "excelência relacional". O risco registrado (a leitura do Pa3
+   no pacote) foi desarmado antes, regerando a leitura com a regra de número e com o "ativo a
+   proteger" condicionado ao piso.
+2. **Passou.** Tela e PDF dizem a mesma coisa sobre a base do Pa3.
+3. **Passou.** A narrativa longitudinal declara base mínima no D3 e escreve "mensurável" onde o
+   ratio bate no teto — não "sem detrator registrado".
+4. **Passou.** A capa do PDF longitudinal saiu sem índice médio, e os próximos passos têm uma piora
+   só (a única com ao menos 10 relatos nos dois trimestres).
+
+**Fica fora do item (já registrado):** a regra de número segue ausente nos outros geradores
+(decisão pendente); as outras dez empresas com Diagnóstico regeram quando alguém abrir ou quando a
+cauda passar do gate (item 22); as leituras de loja e agrupamento seguem com o prompt antigo até
+mudar o pacote delas.
 
 ## 18. O conserto do 9,99 não chegou à aba Evolução nem à variação do detalhe do trimestre
 
