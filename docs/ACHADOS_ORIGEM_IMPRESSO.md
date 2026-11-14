@@ -614,7 +614,9 @@ mudar o pacote delas.
   no controle da **fonte**, dentro do bloco Colaboradores. É a mesma confusão de 26/ago (`CLAUDE.md`
   §1): dois controles parecidos na mesma tela, e o clique no do local não muda a fonte. Na
   noturna, a conferência é a 176 não aparecer entre as execuções, e não o total da noite, que varia
-  pela regra das 12 h (item 19). **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
+  pela regra das 12 h (item 19). **Conferido na noturna de 14/11 — fechado. MEDIDO (`sonda_176`, 14/11, saída
+  lida pelo Alexandre):** a execução mais recente da 176 segue sendo a de 13/11 às 06:07 UTC; a
+  noturna de 14/11 (03h de Brasília) pulou a fonte. **MEDIDO (`sonda_placeholder`, parte C):** só havia uma fonte ativa com
   PLACEHOLDER em todo o app (empresa 4 excluída da busca), e era da Carbel. Não é problema espalhado.
 - **A distinção que importa (observação do Alexandre, 11/11):** quando o coletor falha de verdade, a
   tela avisa (execução com status erro). **O caso silencioso é só o de rodar e voltar vazio**:
