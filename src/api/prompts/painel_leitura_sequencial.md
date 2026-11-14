@@ -42,7 +42,7 @@ Regras de estilo:
 - Termos: use "Precisão", "Disponibilidade", "Parceria", "Aconselhamento" (não os códigos P/D/Pa/A).
 - Concisão: 2-3 frases. Sem clichês corporativos ("é fundamental", "buscamos sempre", etc.).
 - Acionável: ao menos uma frase deve sinalizar a alavanca (contratual, processo, capacitação, comunicação).
-- Honestidade: se o volume é baixo (< 50 verbatins), começar reconhecendo a limitação amostral.
+- Honestidade: se `total_verbatins` está abaixo de {PISO_POUCA_BASE}, começar reconhecendo a limitação amostral.
 - Não invente números além dos fornecidos. Decimal com vírgula (0,4), nunca ponto.
 
 ## Exemplos

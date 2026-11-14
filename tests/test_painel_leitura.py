@@ -212,3 +212,17 @@ def test_ui_painel_mostra_card_leitura(client_loyall, db_session):
     assert "Leitura editorial" in html
     # Fetch async chama o endpoint correto
     assert f"/api/empresas/{e['id']}/painel/leitura" in html
+
+
+def test_prompt_le_o_piso_de_pouca_base_da_constante(monkeypatch):
+    """O limiar de "reconhecer a limitação amostral" é o piso de pouca base (constante), não um
+    número escrito no prompt."""
+    import src.api.engajamento as ENG
+    import src.api.painel_leitura as PL
+
+    monkeypatch.setattr(PL, "_prompt_cache", None)
+    monkeypatch.setattr(ENG, "VOLUME_CONFIANCA_ALTA", 31)
+    texto = PL._carregar_prompt()
+    assert "abaixo de 31, começar reconhecendo a limitação amostral" in texto
+    assert "{PISO_POUCA_BASE}" not in texto and "< 50" not in texto
+    monkeypatch.setattr(PL, "_prompt_cache", None)

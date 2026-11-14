@@ -31,9 +31,15 @@ _prompt_cache: Optional[str] = None
 
 
 def _carregar_prompt() -> str:
+    # O piso de pouca base vem da constante, não do texto do prompt (prompt que reescreve
+    # número é fóssil). ``replace`` e não ``format``: o prompt tem JSON com chaves.
     global _prompt_cache
     if _prompt_cache is None:
-        _prompt_cache = PROMPT_PATH.read_text(encoding="utf-8")
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
+        _prompt_cache = PROMPT_PATH.read_text(encoding="utf-8").replace(
+            "{PISO_POUCA_BASE}", str(VOLUME_CONFIANCA_ALTA)
+        )
     return _prompt_cache
 
 
