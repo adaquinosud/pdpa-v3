@@ -305,3 +305,81 @@ def test_fim_de_rodada_desativa_tema_orfao(client_loyall, db_session, monkeypatc
     assert db_session.get(Tema, orfao.id).ativo is False
     assert db_session.get(Tema, manual.id).ativo is True
     assert db_session.get(Tema, declarado.id).ativo is True
+
+
+def _pedaco_dois_grupos(db_session, eid, lid, fid, sfx):
+    """Um pedaço P1:detrator com 40 relatos em dois aglomerados nítidos (o HDBSCAN acha 2)."""
+    from datetime import datetime, timedelta
+
+    import numpy as np
+
+    from src.models.temas import VerbatimEmbedding
+    from src.models.verbatim import Verbatim
+
+    rng = np.random.default_rng(0)
+    for i in range(40):
+        v = Verbatim(
+            empresa_id=eid,
+            local_id=lid,
+            fonte_id=fid,
+            texto=f"P1 {i}",
+            subpilar="P1",
+            tipo="detrator",
+            tem_texto=True,
+            hash_dedup=f"{sfx}{i}",
+            data_criacao_original=datetime(2026, 11, 1) - timedelta(days=i),
+        )
+        db_session.add(v)
+        db_session.flush()
+        c = np.zeros(1536, dtype=np.float32)
+        c[i % 2] = 1
+        db_session.add(
+            VerbatimEmbedding(
+                verbatim_id=v.id,
+                modelo="text-embedding-3-small",
+                vetor=(c + rng.normal(0, 0.01, 1536)).astype(np.float32).tobytes(),
+            )
+        )
+
+
+def test_nome_que_cai_em_tema_desativado_religa_ou_segue_a_fusao(
+    client_loyall, db_session, monkeypatch
+):
+    """Slug do modelo que cai num tema desativado: sem fusão, o tema volta a ficar ativo e recebe
+    os vínculos; com fusão, os vínculos vão ao destino e a origem segue desativada. Antes, os
+    relatos iam para o tema inativo e sumiam de todas as telas (rodada de 15/11 na Carbel)."""
+    import src.temas.pipeline as P
+    from src.models.temas import Tema, TemaCache, TemaMerge, VerbatimTema
+    from tests.test_frase_posicao import _empresa
+
+    eid, lid, fid, _ag = _empresa(client_loyall, "Religa")
+    _pedaco_dois_grupos(db_session, eid, lid, fid, "rl")
+    parado = Tema(empresa_id=eid, nome="Fila Oficina", slug="fila-oficina", ativo=False)
+    fundido = Tema(empresa_id=eid, nome="prazo entrega", slug="prazo-entrega", ativo=False)
+    destino = Tema(empresa_id=eid, nome="atraso na entrega", slug="atraso-na-entrega")
+    db_session.add_all([parado, fundido, destino])
+    db_session.flush()
+    db_session.add(
+        TemaMerge(tema_origem_id=fundido.id, tema_destino_id=destino.id, motivo="curadoria")
+    )
+    db_session.commit()
+
+    nomes = iter(["fila oficina", "prazo entrega"])
+    monkeypatch.setattr(P, "rotular_cluster", lambda ctx, reps, **kw: next(nomes))
+    r = P.processar_empresa(eid)
+
+    assert r.temas_reativados == 1 and r.temas_unicos_criados == 0
+    db_session.expire_all()
+    assert db_session.get(Tema, parado.id).ativo is True
+    assert db_session.get(Tema, fundido.id).ativo is False
+    por_tema = {
+        t: n
+        for t, n in db_session.query(VerbatimTema.tema_id, VerbatimTema.id)
+        .filter(VerbatimTema.tema_id.in_([parado.id, fundido.id, destino.id]))
+        .all()
+    }
+    assert parado.id in por_tema and destino.id in por_tema and fundido.id not in por_tema
+    rotulos = {
+        x for (x,) in db_session.query(TemaCache.tema_label).filter(TemaCache.empresa_id == eid)
+    }
+    assert rotulos == {"Fila Oficina", "atraso na entrega"}  # o nome do tema, não o rótulo cru

@@ -67,6 +67,7 @@ class ResumoPipeline:
     falha_sistemica_motivo: Optional[str] = None
     temas_unicos_criados: int = 0  # novos rows em temas
     temas_reusados: int = 0  # slug já existia
+    temas_reativados: int = 0  # slug caiu em tema desativado (não fundido) e ele voltou
     vinculos_criados: int = 0
     cache_rows_criadas: int = 0
     erros: int = 0
@@ -241,10 +242,16 @@ def _upsert_tema_e_link(
 ) -> Dict[str, int]:
     """Upsert do tema (por slug) + cria vínculos verbatim_temas idempotente.
 
+    Slug que cai num tema DESATIVADO não liga a ele (vínculo em tema inativo some de todas as
+    telas, que só leem tema ativo): se o tema foi fundido, liga ao destino da fusão (seguindo a
+    cadeia); se não, reativa o tema. ``nome`` = o nome do tema que recebeu os vínculos — é ele
+    que vai ao cache, não o rótulo cru do modelo.
+
     Returns:
-        dict ``{"tema_id": int, "novo_tema": int(0|1), "vinculos_novos": int}``.
+        dict ``{"tema_id": int, "nome": str, "novo_tema": int(0|1), "reativado": int(0|1),
+        "vinculos_novos": int}``.
     """
-    from src.models.temas import Tema, VerbatimTema
+    from src.models.temas import Tema, TemaMerge, VerbatimTema
     from src.utils.db import db_session
 
     slug = slugify(label)
@@ -252,15 +259,31 @@ def _upsert_tema_e_link(
 
     with db_session() as s:
         existente = s.query(Tema).filter_by(empresa_id=empresa_id, slug=slug).first()
+        reativado = 0
+        vistos = set()
+        while existente is not None and not existente.ativo and existente.id not in vistos:
+            vistos.add(existente.id)
+            fusao = (
+                s.query(TemaMerge)
+                .filter(TemaMerge.tema_origem_id == existente.id)
+                .order_by(TemaMerge.id.desc())
+                .first()
+            )
+            if fusao is None:
+                existente.ativo = True
+                reativado = 1
+                break
+            existente = s.get(Tema, fusao.tema_destino_id)
         if existente:
             tema_id = existente.id
+            nome = existente.nome
             novo_tema = 0
-            # Se estava inativo (merged antigo), reativar? Não — preserva auditoria.
         else:
             t = Tema(empresa_id=empresa_id, nome=label, slug=slug, ativo=True)
             s.add(t)
             s.flush()
             tema_id = t.id
+            nome = label
             novo_tema = 1
 
         # Vínculos: idempotente via UNIQUE(verbatim_id, tema_id). Verificamos
@@ -285,7 +308,13 @@ def _upsert_tema_e_link(
                     bucket_chave=bucket_chave,
                 )
             )
-    return {"tema_id": tema_id, "novo_tema": novo_tema, "vinculos_novos": len(novos)}
+    return {
+        "tema_id": tema_id,
+        "nome": nome,
+        "novo_tema": novo_tema,
+        "reativado": reativado,
+        "vinculos_novos": len(novos),
+    }
 
 
 def _agregar_cache_por_label(
@@ -388,6 +417,7 @@ def _processar_bucket(
         "vinculos_criados": 0,
         "temas_novos": 0,
         "temas_reusados": 0,
+        "temas_reativados": 0,
         "cache_rows": 0,
         "custo_usd": 0.0,
         "skip_motivo": None,
@@ -472,7 +502,9 @@ def _processar_bucket(
         stats["clusters_rotulados"] += 1
         stats["temas_novos"] += upsert["novo_tema"]
         stats["temas_reusados"] += 1 - upsert["novo_tema"]
+        stats["temas_reativados"] += upsert["reativado"]
         stats["vinculos_criados"] += upsert["vinculos_novos"]
+        label = upsert["nome"]
         rotulados.append({"label": label, "volume": len(membros_ids), "exemplos_ids": rep_ids})
 
         if callback_progresso:
@@ -596,6 +628,7 @@ def processar_empresa(
             resumo.falhas_chamada += stats["falhas_chamada"]
             resumo.temas_unicos_criados += stats["temas_novos"]
             resumo.temas_reusados += stats["temas_reusados"]
+            resumo.temas_reativados += stats["temas_reativados"]
             resumo.vinculos_criados += stats["vinculos_criados"]
             resumo.cache_rows_criadas += stats["cache_rows"]
             resumo.custo_usd_acumulado = round(resumo.custo_usd_acumulado + stats["custo_usd"], 6)
