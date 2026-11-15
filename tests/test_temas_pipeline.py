@@ -264,3 +264,44 @@ def test_pedaco_sem_aglomerado_fica_sem_assunto(client_loyall, db_session, monke
     db_session.expire_all()
     assert db_session.get(Tema, antigo.id).ativo is False
     assert db_session.query(VerbatimTema).filter_by(tema_id=antigo.id).count() == 0
+
+
+def test_fim_de_rodada_desativa_tema_orfao(client_loyall, db_session, monkeypatch):
+    """Tema ativo sem vínculo nenhum (renomeado numa rodada antiga) é desativado no fim de toda
+    rodada, mesmo fora dos pedaços desagrupados (decisão de 14/11, os 78 da Carbel)."""
+    import src.temas.pipeline as P
+    from src.models.temas import Tema
+    from tests.test_frase_posicao import _empresa
+
+    from src.models.pesquisa import Pesquisa, PesquisaPergunta
+    from src.models.usuario import Usuario
+
+    eid, *_ = _empresa(client_loyall, "Orfao")
+    orfao = Tema(empresa_id=eid, nome="renomeado", slug="renomeado")
+    # nascem sem vínculo por desenho e ficam: criado à mão e declarado numa pesquisa
+    autor = db_session.query(Usuario).first()
+    manual = Tema(empresa_id=eid, nome="curado", slug="curado", criado_por=autor.id)
+    declarado = Tema(empresa_id=eid, nome="Atendimento telefônico", slug="atendimento-telefonico")
+    db_session.add_all([orfao, manual, declarado])
+    pq = Pesquisa(
+        empresa_id=eid, natureza="externa", proposito="coleta", titulo="P", status="rascunho"
+    )
+    db_session.add(pq)
+    db_session.flush()
+    db_session.add(
+        PesquisaPergunta(
+            pesquisa_id=pq.id,
+            ordem=1,
+            enunciado="?",
+            formato="aberta",
+            tema_declarado="Atendimento telefônico",
+        )
+    )
+    db_session.commit()
+    monkeypatch.setattr(P, "rotular_cluster", lambda *a, **k: "x")
+
+    assert P.processar_empresa(eid).temas_desativados == 1
+    db_session.expire_all()
+    assert db_session.get(Tema, orfao.id).ativo is False
+    assert db_session.get(Tema, manual.id).ativo is True
+    assert db_session.get(Tema, declarado.id).ativo is True

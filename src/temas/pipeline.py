@@ -57,7 +57,7 @@ class ResumoPipeline:
     empresa_nome: str
     buckets_processados: int = 0
     buckets_pulados: int = 0  # pedaço abaixo do PISO_TEMA_VOLUME: não é agrupado
-    temas_desativados: int = 0  # tema que ficou sem vínculo nenhum depois disso
+    temas_desativados: int = 0  # tema ativo sem vínculo nenhum no fim da rodada
     buckets_sem_embeddings: int = 0  # esquecimento de rodar temas-embed
     clusters_rotulados: int = 0
     clusters_descartados: int = 0  # rotulador devolveu None (descarte LIMPO)
@@ -186,47 +186,46 @@ def _zerar_vinculos_llm(membro_ids: List[int]) -> None:
             ).delete(synchronize_session=False)
 
 
-def _desagrupar(empresa_id: int, chave_bucket: str, membro_ids: List[int]) -> set:
-    """Pedaço abaixo do piso não é agrupado: tira os vínculos do modelo dos seus relatos e o cache
-    do pedaço (senão o tema da rodada anterior segue vivo). Devolve os temas que perderam vínculo,
-    para ``_desativar_sem_vinculo`` decidir no fim da rodada. Manual e fusão ficam."""
-    from src.models.temas import VerbatimTema
-    from src.utils.db import db_session
-
+def _desagrupar(empresa_id: int, chave_bucket: str, membro_ids: List[int]) -> None:
+    """Pedaço que não é agrupado (abaixo do piso ou sem aglomerado): tira os vínculos do modelo
+    dos seus relatos e o cache do pedaço, senão o tema da rodada anterior segue vivo. Manual e
+    fusão ficam. O tema que ficar sem vínculo sai em ``_desativar_sem_vinculo``."""
     ag_raw, sub, tipo = chave_bucket.split(":")
     _zerar_cache_bucket(empresa_id, None if ag_raw == "NULL" else int(ag_raw), sub, tipo)
-    tocados: set = set()
-    with db_session() as s:
-        for i in range(0, len(membro_ids), 500):
-            fim = i + 500
-            tocados |= {
-                tid
-                for (tid,) in s.query(VerbatimTema.tema_id).filter(
-                    VerbatimTema.verbatim_id.in_(membro_ids[i:fim]),
-                    VerbatimTema.origem == "llm",
-                )
-            }
     _zerar_vinculos_llm(membro_ids)
-    return tocados
 
 
-def _desativar_sem_vinculo(tema_ids: set) -> int:
-    """Desativa (``ativo=False``, não apaga) o tema que ficou sem vínculo nenhum."""
+def _desativar_sem_vinculo(empresa_id: int) -> int:
+    """Fim de rodada: desativa (``ativo=False``, não apaga) o tema ativo da empresa sem vínculo
+    nenhum. Sem isso o tema renomeado pelo modelo numa rodada nova fica ativo e vazio para sempre
+    (decisão de 14/11: eram 78 de 151 na Carbel).
+
+    Ficam de fora os dois temas que nascem sem vínculo por desenho: o criado à mão
+    (``criado_por``) e o declarado numa pergunta de pesquisa, que existe antes da 1ª resposta."""
+    from src.models.pesquisa import Pesquisa, PesquisaPergunta
     from src.models.temas import Tema, VerbatimTema
     from src.utils.db import db_session
 
-    if not tema_ids:
-        return 0
     with db_session() as s:
-        com_vinculo = {
-            tid
-            for (tid,) in s.query(VerbatimTema.tema_id)
-            .filter(VerbatimTema.tema_id.in_(list(tema_ids)))
-            .distinct()
+        declarados = {
+            slugify(nome)
+            for (nome,) in s.query(PesquisaPergunta.tema_declarado)
+            .join(Pesquisa, Pesquisa.id == PesquisaPergunta.pesquisa_id)
+            .filter(Pesquisa.empresa_id == empresa_id, PesquisaPergunta.tema_declarado.isnot(None))
         }
-        orfaos = [tid for tid in tema_ids if tid not in com_vinculo]
+        com_vinculo = s.query(VerbatimTema.tema_id).distinct()
+        orfaos = [
+            t.id
+            for t in s.query(Tema).filter(
+                Tema.empresa_id == empresa_id,
+                Tema.ativo.is_(True),
+                Tema.criado_por.is_(None),
+                ~Tema.id.in_(com_vinculo),
+            )
+            if t.slug not in declarados
+        ]
         if orfaos:
-            s.query(Tema).filter(Tema.id.in_(orfaos), Tema.ativo.is_(True)).update(
+            s.query(Tema).filter(Tema.id.in_(orfaos)).update(
                 {Tema.ativo: False}, synchronize_session=False
             )
     return len(orfaos)
@@ -399,7 +398,7 @@ def _processar_bucket(
     stats["membros_com_embedding"] = len(membros_com_emb)
     if len(membros_com_emb) < PISO_TEMA_VOLUME:
         stats["skip_motivo"] = f"bucket_pequeno_membros_com_embedding={len(membros_com_emb)}"
-        stats["temas_tocados"] = _desagrupar(empresa_id, chave_bucket, [m["id"] for m in membros])
+        _desagrupar(empresa_id, chave_bucket, [m["id"] for m in membros])
         return stats
 
     # Monta matriz vetores na ordem de membros_com_emb
@@ -414,7 +413,7 @@ def _processar_bucket(
         # O HDBSCAN não achou aglomerado: o pedaço fica sem assunto (decisão de 14/11). Mesma
         # limpeza do pedaço abaixo do piso — os relatos seguem contando no volume e na faixa.
         stats["skip_motivo"] = "sem_aglomerado"
-        stats["temas_tocados"] = _desagrupar(empresa_id, chave_bucket, [m["id"] for m in membros])
+        _desagrupar(empresa_id, chave_bucket, [m["id"] for m in membros])
         return stats
 
     # Período (mín/máx das datas) — fallback today se vazio
@@ -562,10 +561,8 @@ def processar_empresa(
         ]
         return resumo
 
-    temas_tocados: set = set()
     for chave, membros in pequenos.items():
-        ids = [m["id"] for m in membros]
-        temas_tocados |= _desagrupar(empresa_id, chave, ids)
+        _desagrupar(empresa_id, chave, [m["id"] for m in membros])
 
     # CP-oom: carrega embeddings POR BUCKET (não todos de uma vez). Buckets em
     # ordem decrescente de tamanho → o maior é processado e liberado primeiro,
@@ -592,7 +589,6 @@ def processar_empresa(
                 embeddings=embeddings,
                 callback_progresso=callback_progresso,
             )
-            temas_tocados |= stats.pop("temas_tocados", set())
             resumo.detalhes_buckets.append(stats)
             resumo.clusters_rotulados += stats["clusters_rotulados"]
             resumo.clusters_descartados += stats["clusters_descartados"]
@@ -611,7 +607,7 @@ def processar_empresa(
             # Libera o pico do bucket antes do próximo (não acumula entre buckets).
             del embeddings
 
-    resumo.temas_desativados = _desativar_sem_vinculo(temas_tocados)
+    resumo.temas_desativados = _desativar_sem_vinculo(empresa_id)
 
     # Guard de falha sistêmica: a rotulagem caiu na rodada (LLM infra). Nível de RODADA.
     resumo.falha_sistemica, resumo.falha_sistemica_motivo = _avaliar_falha_sistemica(
