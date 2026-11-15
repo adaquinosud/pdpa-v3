@@ -678,6 +678,34 @@ mudar o pacote delas.
   assume que foi grátis (CLAUDE.md §13: campo de custo nulo é pior que não existir).
 - **Estado:** registrado, sem conserto (13/11).
 
+## 25. O cache de temas só respeita os 6 meses até o próximo :30 (achado próprio, 15/11)
+
+- **O quê (MEDIDO no código):** a rodada de temas grava `temas_cache` com a janela de 6 meses. O
+  watchdog (`pdpa-watchdog`, :30 a cada 6 h), quando a soma do cache difere dos vínculos vivos,
+  chama `_regenerar_cache_por_vinculos` (`src/temas/limpeza.py:111`), que reescreve o cache inteiro
+  a partir de **todos** os vínculos a tema ativo, **sem filtro de data**. Depois de uma rodada a soma
+  quase sempre difere (vínculo de relato que já saiu da janela continua vivo), então a regravação
+  vem no :30 seguinte. Na Carbel, em 15/11, a soma do cache batia com os vínculos (1238 = 1238): o
+  retrato de depois da regravação.
+- **Consequência:** os quatro lugares que o mapa dos 18 (especificação do período, §1) listou como
+  "contam só os últimos 6 meses, pelo cache" só fazem isso entre o fim de uma rodada e o próximo
+  :30. No resto do tempo contam vínculos de qualquer data, como a régua viva — entre eles os
+  assuntos do Parecer (`_temas_voz`, `src/relatorios/parecer.py:310-342`). O mapa passa a ser:
+  **quinze** contam sem período, **dois** calculam na hora, **um** usa o trimestre.
+- **Erro meu, registrado:** o mapa e a afirmação de 14/11 foram feitos lendo a rodada, sem olhar o
+  watchdog que reescreve o cache depois dela.
+- **Estado:** registrado, sem conserto (decisão do Alexandre, 15/11).
+
+## 26. Tema desativado reaproveitado pelo slug (rodada de 15/11 na Carbel)
+
+- **O quê (MEDIDO no código e demonstrado na base de teste):** `_upsert_tema_e_link`
+  (`src/temas/pipeline.py`) achava o tema pelo slug e ligava os relatos a ele mesmo desativado. As
+  telas só leem tema ativo: os relatos sumiam. O fim de rodada de 960a141 aumenta a exposição
+  (desativa os órfãos, e uma rodada seguinte pode repetir o nome de um deles).
+- **Estado:** conserto na branch `fix/tema-desativado-reaproveitado` (2a422e1), esperando prévia e
+  merge. Correção pontual do 'atendimento oficina' da Carbel: pendente da saída do script
+  `religar_tema` (§16 — antes, depois e motivo entram aqui quando vierem).
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
