@@ -29,7 +29,7 @@ import numpy as np
 from src.temas.clusterer import bucketizar_verbatins, clusterizar_bucket, pick_representativos
 from src.temas.cobertura import PISO_TEMA_VOLUME
 from src.temas.embeddings import MODELO_PADRAO, carregar_embeddings
-from src.temas.rotulador import REPS_PARA_ROTULAGEM, RotulagemInfraError, rotular_cluster
+from src.temas.rotulador import REPS_PARA_ROTULAGEM, RotulagemInfraError, rotular_pedaco
 from src.temas.slug import slugify
 import logging
 
@@ -461,34 +461,44 @@ def _processar_bucket(
     # manual/merge.
     _zerar_vinculos_llm([m["id"] for m in membros_com_emb])
 
+    # O pedaço inteiro numa chamada (decisão de 15/11): o modelo vê todos os grupos e o nome tem de
+    # separar um do outro. Falha de chamada perde o pedaço inteiro — conta cada grupo dele na
+    # trava de falha sistêmica, que segue medindo grupos.
     rotulados: List[Dict[str, Any]] = []
+    grupos = []
     for cluster_id in sorted(set(res.labels) - {-1}):
         rep_pos = pick_representativos(vetores, res.labels, cluster_id, k=REPS_PARA_ROTULAGEM)
         membros_pos = np.where(res.labels == cluster_id)[0]
-        membros_ids = [membros_com_emb[i]["id"] for i in membros_pos]
-        rep_ids = [membros_com_emb[i]["id"] for i in rep_pos]
-        reps_dados = [
-            {"texto": membros_com_emb[i]["texto"], "verbatim_id": membros_com_emb[i]["id"]}
-            for i in rep_pos
-        ]
-
-        stats["clusters_tentados"] += 1
-        try:
-            label = rotular_cluster(
-                {
-                    "subpilar": sub,
-                    "tipo": tipo,
-                    "setor": setor,
-                    "agrupamento": ag_nome,
-                },
-                reps_dados,
-            )
-        except RotulagemInfraError:
-            # A CHAMADA falhou (infra) — NÃO grava nada (o bucket volta na próxima
-            # coleta, pois temas re-clusteriza a janela) e conta pro guard sistêmico.
-            stats["falhas_chamada"] += 1
-            continue
-        stats["custo_usd"] = round(stats["custo_usd"] + CUSTO_USD_POR_ROTULAGEM, 6)
+        grupos.append(
+            {
+                "grupo": int(cluster_id),
+                "tamanho": len(membros_pos),
+                "membros_ids": [membros_com_emb[i]["id"] for i in membros_pos],
+                "rep_ids": [membros_com_emb[i]["id"] for i in rep_pos],
+                "representativos": [
+                    {"texto": membros_com_emb[i]["texto"], "verbatim_id": membros_com_emb[i]["id"]}
+                    for i in rep_pos
+                ],
+            }
+        )
+    stats["clusters_tentados"] += len(grupos)
+    try:
+        nomeacao = rotular_pedaco(
+            {"subpilar": sub, "tipo": tipo, "setor": setor, "agrupamento": ag_nome}, grupos
+        )
+    except RotulagemInfraError:
+        # A CHAMADA falhou (infra) — NÃO grava nada (o pedaço volta na próxima rodada, que
+        # re-agrupa a janela) e conta pro guard sistêmico.
+        stats["falhas_chamada"] += len(grupos)
+        nomeacao = {"nomes": {}}
+        grupos = []
+    stats["custo_usd"] = round(stats["custo_usd"] + CUSTO_USD_POR_ROTULAGEM * len(grupos), 6)
+    for chave_nome in ("juntados", "segunda_tentativa", "sem_detalhe_por_reprova", "faltantes"):
+        if nomeacao.get(chave_nome):
+            stats.setdefault("nomeacao", {})[chave_nome] = nomeacao[chave_nome]
+    for g in grupos:
+        label = nomeacao["nomes"].get(g["grupo"])
+        membros_ids, rep_ids = g["membros_ids"], g["rep_ids"]
         if not label:
             stats["clusters_descartados"] += 1
             continue

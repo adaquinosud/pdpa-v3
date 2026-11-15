@@ -11,6 +11,18 @@ from src.temas.pipeline import (
 
 
 # ── Guard de falha sistêmica de rotulagem (frente falha-sistemica-bucket) ──────
+
+
+def por_grupo(fn):
+    """Falso ``rotular_pedaco`` que nomeia cada grupo com ``fn(ctx, representativos)`` — os testes
+    do pipeline falam de agrupamento e vínculo, não da chamada ao modelo."""
+
+    def _pedaco(bucket, grupos, **kw):
+        return {"nomes": {g["grupo"]: fn(bucket, g["representativos"]) for g in grupos}}
+
+    return _pedaco
+
+
 def test_falha_sistemica_dispara_com_volume_e_taxa_alta():
     """LLM caído na rodada: muitas chamadas falharam (>50%) E acima do piso → acusa."""
     ok, motivo = _avaliar_falha_sistemica(falhas_chamada=180, clusters_tentados=200)
@@ -185,7 +197,7 @@ def test_pedaco_abaixo_do_piso_nao_e_agrupado_e_o_tema_inventado_sai(
         rotulados.append(ctx["subpilar"])
         return f"tema {ctx['subpilar']} {len(rotulados)}"
 
-    monkeypatch.setattr(P, "rotular_cluster", _rotular)
+    monkeypatch.setattr(P, "rotular_pedaco", por_grupo(_rotular))
     r = P.processar_empresa(eid)
 
     assert "D2" not in rotulados and "P1" in rotulados
@@ -256,7 +268,7 @@ def test_pedaco_sem_aglomerado_fica_sem_assunto(client_loyall, db_session, monke
 
     monkeypatch.setattr(C, "_hdbscan_labels", lambda X, n: np.full(n, -1))
     chamadas = []
-    monkeypatch.setattr(P, "rotular_cluster", lambda *a, **k: chamadas.append(1) or "x")
+    monkeypatch.setattr(P, "rotular_pedaco", por_grupo(lambda *a, **k: chamadas.append(1) or "x"))
     r = P.processar_empresa(eid)
 
     assert chamadas == [] and r.temas_desativados == 1
@@ -298,7 +310,7 @@ def test_fim_de_rodada_desativa_tema_orfao(client_loyall, db_session, monkeypatc
         )
     )
     db_session.commit()
-    monkeypatch.setattr(P, "rotular_cluster", lambda *a, **k: "x")
+    monkeypatch.setattr(P, "rotular_pedaco", por_grupo(lambda *a, **k: "x"))
 
     assert P.processar_empresa(eid).temas_desativados == 1
     db_session.expire_all()
@@ -365,7 +377,7 @@ def test_nome_que_cai_em_tema_desativado_religa_ou_segue_a_fusao(
     db_session.commit()
 
     nomes = iter(["fila oficina", "prazo entrega"])
-    monkeypatch.setattr(P, "rotular_cluster", lambda ctx, reps, **kw: next(nomes))
+    monkeypatch.setattr(P, "rotular_pedaco", por_grupo(lambda ctx, reps, **kw: next(nomes)))
     r = P.processar_empresa(eid)
 
     assert r.temas_reativados == 1 and r.temas_unicos_criados == 0

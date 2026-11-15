@@ -88,7 +88,9 @@ def test_pipeline_nao_acumula_entre_rodadas(client_loyall, db_session, monkeypat
     membros = [{"id": v.id, "texto": v.texto, "data": None, "agrupamento_nome": None} for v in vs]
 
     rotulo = {"v": "tema-rodada-a"}
-    monkeypatch.setattr("src.temas.pipeline.rotular_cluster", lambda *a, **k: rotulo["v"])
+    from tests.test_temas_pipeline import por_grupo
+
+    monkeypatch.setattr("src.temas.pipeline.rotular_pedaco", por_grupo(lambda *a, **k: rotulo["v"]))
 
     # Rodada 1 → "tema-rodada-a"
     _processar_bucket(
