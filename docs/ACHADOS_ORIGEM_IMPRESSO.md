@@ -759,9 +759,12 @@ mudar o pacote delas.
   180.784 tokens ÷ 51 chamadas medidos na rodada da Carbel ≈ 3.500 por chamada), abaixo do mínimo
   cacheável do Haiku 4.5 pela documentação da Anthropic (4.096). INFERIDO até uma chamada real
   mostrar `cache_creation_input_tokens` = 0; a prévia paga do conserto do nome lê esse campo.
+  **MEDIDO em 15/11:** o prompt de sistema v1 tem 3.161 tokens (contagem da API, `sonda_previa_nome_pedaco`),
+  abaixo do mínimo cacheável — o `cache_control` não desconta nada hoje.
 - **Consequência:** o custo da nomeação nunca teve o desconto que o comentário prometia. A economia
   do desenho por pedaço vem de pagar o prompt de sistema uma vez por pedaço em vez de uma por grupo.
-- **Estado:** comentário corrigido na `fix/rotulagem-por-pedaco` (§14).
+- **Estado:** FECHADO (15/11). Comentário corrigido na `fix/rotulagem-por-pedaco` (§14). Custo medido
+  da nomeação na Carbel: R$ 1,196 hoje (51 chamadas) × R$ 0,330 por pedaço (8 chamadas), saída no teto.
 
 ---
 
@@ -875,6 +878,12 @@ guarda é proposta antes do código.
 - **Identidade do tema = fatia 1 do assunto permanente (decisão de 15/11).** O tema é guardado por
   empresa e slug: o mesmo nome em elogio e crítica, ou em duas posições, vira um tema só. Não entra
   agora; o que entra é o piso.
+  **Junto, o defeito espelho do nome (medido em 15/11, `sonda_previa_nome_pedaco`):** nos pedaços
+  pequenos da Carbel há mais nomes que grupos — D1 com 5 grupos e 15 nomes, D2 com 3 e 15, Pa2 com
+  3 e 12. Cada rodada zera e recria os vínculos dos relatos da janela; os relatos que saíram dela
+  guardam o nome da última rodada em que estavam dentro (inclusive a de 22/06, item 28). Mesma raiz
+  nos dois sentidos: nos pedaços grandes o nome junta demais, nos pequenos espalha. O conserto do
+  nome (por pedaço) ataca o primeiro; o segundo só acaba com a herança do nome — o assunto permanente.
 - **Piso da aba Temas contado sobre o total do tema (decisão de 15/11: consertar).**
   `_top_temas_por_subpilar` soma promotor, conversível e detrator de todas as posições para decidir
   se o tema aparece (`src/ui/__init__.py`, `vol_tema`) — uma crítica de 3 relatos aparece porque o
