@@ -319,9 +319,16 @@ def rotular_pedaco(
     nomes: Dict[int, Optional[str]] = {}
     juntados: List[Dict[str, Any]] = []
     refazer: List[Dict[str, Any]] = []
+
+    def _nome(item):
+        # O nome "sem detalhe" é do TIPO do pedaço: "elogio sem detalhe" num pedaço de críticas
+        # vira "crítica sem detalhe" (o modelo não escolhe a valência).
+        n = _normalizar_label(str(item.get("nome") or "")) if item else ""
+        return sem_det if n.lower().endswith("sem detalhe") else n
+
     for gid in ids:
         item = r1.get(gid)
-        nome = _normalizar_label(str(item.get("nome") or "")) if item else ""
+        nome = _nome(item)
         if item and nome_valido(nome):
             nomes[gid] = nome
             if item.get("junta_com") is not None:
@@ -364,7 +371,7 @@ def rotular_pedaco(
     res["chamadas"] = 2
     for gid in sorted(alvo):
         item = r2.get(gid)
-        nome = _normalizar_label(str(item.get("nome") or "")) if item else ""
+        nome = _nome(item)
         if item and nome_valido(nome):
             nomes[gid] = nome
             if item.get("junta_com") is not None:

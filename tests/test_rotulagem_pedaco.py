@@ -143,3 +143,10 @@ def test_pipeline_falha_do_pedaco_conta_cada_grupo_e_nao_grava(
     r = P.processar_empresa(eid)
     assert r.falhas_chamada == 2 and r.clusters_tentados == 2 and r.clusters_rotulados == 0
     assert db_session.query(VerbatimTema).count() == 0
+
+
+def test_sem_detalhe_segue_o_tipo_do_pedaco():
+    cli = _cliente({"grupos": [{"grupo": 0, "nome": "elogio sem detalhe"}]})
+    with patch("src.classifier.classifier_v3._get_client", return_value=cli):
+        r = R.rotular_pedaco({"subpilar": "D2", "tipo": "detrator"}, _grupos(1))
+    assert r["nomes"] == {0: "crítica sem detalhe"} and r["chamadas"] == 1
