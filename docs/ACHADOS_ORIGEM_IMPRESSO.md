@@ -706,6 +706,23 @@ mudar o pacote delas.
   merge. Correção pontual do 'atendimento oficina' da Carbel: pendente da saída do script
   `religar_tema` (§16 — antes, depois e motivo entram aqui quando vierem).
 
+## 27. Mil relatos invisíveis em 110 temas desativados (estado da base, 15/11)
+
+- **O quê:** a prévia `previa_tema_desativado` (só leitura) achou, na base inteira sem a empresa 4,
+  cerca de mil relatos ligados pelo modelo a 110 temas desativados, nenhum deles origem de fusão:
+  Club Med Brasil 483 em 28 temas (338 num só, 'qualidade acomodação'), Hermes Pardini 366 em 41,
+  Localiza 134 em 34, Carbel 17 em 7. Números da saída relatada pelo Alexandre; a saída não passou
+  por aqui.
+- **Causa (MEDIDO no código):** a mesma do item 26 — o pipeline ligava relato a tema desativado
+  quando o nome do modelo caía no slug dele. Nenhum outro caminho desativa tema com vínculo (fusão
+  tem registro; a limpeza e o fim de rodada só desativam tema sem vínculo nenhum). É o estado
+  acumulado da base, **não** consequência do conserto de 15/11: o conserto (237313a) só religa
+  quando o nome volta numa rodada, e não alcança estes mil.
+- **Achado próprio:** o reaproveitamento sem reativar estava no código desde a rodagem por slug; a
+  exposição só apareceu com a sonda de 15/11.
+- **Estado:** correção de dado preparada (`religar_todos`, leitura e aplicação, §16). Antes, depois e
+  motivo entram aqui quando a aplicação rodar.
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
