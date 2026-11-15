@@ -3,12 +3,13 @@
 Pipeline:
 1. ``reduzir_dimensao(X, n_components=15)`` via UMAP (cosine metric) — só se
    ``len(X) >= UMAP_MIN`` (default 10), senão skip e usa o vetor original.
-2. ``clusterizar(X_red)`` via HDBSCAN; se devolve <2 clusters, fallback K-means
-   com ``k = min(max(2, int(sqrt(n))), 10)``.
+2. ``clusterizar(X_red)`` via HDBSCAN. Um grupo só é resposta válida (assunto coerente
+   não é partido). Só quando o HDBSCAN não acha grupo nenhum entra o K-means, com
+   ``k = min(max(2, int(sqrt(n))), 10)``.
 3. Retorna ``labels`` (ndarray int) e estatísticas.
 
-Para buckets pequenos (< MIN_BUCKET_HDBSCAN), HDBSCAN tipicamente devolve tudo
-como noise — o fallback K-means garante que sempre tem clusters utilizáveis.
+O piso de tamanho do pedaço não mora aqui: o pipeline não manda pedaço abaixo do
+``PISO_TEMA_VOLUME`` (agrupar poucos relatos só fabrica assunto).
 
 Função pública principal:
 - ``clusterizar_bucket(vetores: np.ndarray) -> ResultadoCluster``
@@ -142,7 +143,8 @@ def clusterizar_bucket(
     umap_min: int = UMAP_MIN_BUCKET,
     random_state: int = 42,
 ) -> ResultadoCluster:
-    """Clusteriza vetores de um bucket. HDBSCAN principal + K-means fallback.
+    """Clusteriza vetores de um bucket. HDBSCAN principal (um grupo vale); K-means só se o
+    HDBSCAN não achar grupo nenhum.
 
     Args:
         vetores: ndarray shape (n, dim) float32.
@@ -184,7 +186,7 @@ def clusterizar_bucket(
     if not forcar_kmeans:
         labels = _hdbscan_labels(X, n)
         n_clusters = len({lb for lb in labels if lb != -1})
-        if n_clusters >= 2:
+        if n_clusters >= 1:
             return ResultadoCluster(
                 labels=labels,
                 n_clusters=n_clusters,
@@ -193,7 +195,7 @@ def clusterizar_bucket(
                 reduzido_dim=reduzido_dim,
             )
 
-    # Fallback K-means
+    # Fallback K-means: só quando o HDBSCAN deixou tudo como ruído.
     labels = _kmeans_fallback(X, n, random_state=random_state)
     n_clusters = int(len(set(labels)))
     return ResultadoCluster(

@@ -5,7 +5,8 @@ Genuinamente nova no v3 (o v2 não tinha temas). Três sinais:
 1. **Trend de tema** (≥3 meses): volume do mês N vs média(N-1, N-2). Dispara
    se |variação| > 50% OU |Δ absoluto| > 5 menções. Trend desligada se < 3 meses.
 2. **Emergência / sumiço** (diff de snapshots): tema com slug novo vs o snapshot
-   anterior → emergência; slug que sumiu (tinha volume) → resolução provável.
+   anterior, com ao menos o piso do trend em menções no mês → emergência; slug que
+   sumiu (tinha volume) → resolução provável.
 3. **Cruzamento** novo ou com Δpeso relevante (diff de snapshots de cruzamento).
 
 Anti-relabeling (o maior risco): a identidade é o **slug**; quando o slug é novo,
@@ -321,8 +322,36 @@ def _detectar_trend(empresa_id: int, s) -> List[Dict[str, Any]]:
     return anomalias
 
 
+def _mencoes_no_mes(empresa_id: int, mes: str, s) -> Dict[str, int]:
+    """Menções de cada tema ativo (por slug) no mês ``mes``, pela data em que o cliente escreveu
+    — a mesma régua do trend (vínculo com bucket, data de escrita)."""
+    from sqlalchemy import func
+
+    from src.models.temas import Tema, VerbatimTema
+    from src.models.verbatim import Verbatim
+    from src.temas.slug import slugify
+    from src.utils.sql import fmt_ano_mes
+
+    out: Dict[str, int] = {}
+    for nome, n in (
+        s.query(Tema.nome, func.count(func.distinct(Verbatim.id)))
+        .join(VerbatimTema, VerbatimTema.tema_id == Tema.id)
+        .join(Verbatim, Verbatim.id == VerbatimTema.verbatim_id)
+        .filter(
+            Tema.empresa_id == empresa_id,
+            Tema.ativo.is_(True),
+            VerbatimTema.bucket_chave.isnot(None),
+            fmt_ano_mes(Verbatim.data_criacao_original) == mes,
+        )
+        .group_by(Tema.nome)
+    ):
+        out[slugify(nome)] = out.get(slugify(nome), 0) + int(n)
+    return out
+
+
 def _detectar_diff(empresa_id: int, atual: str, anterior: str, s) -> List[Dict[str, Any]]:
-    """Emergência/sumiço de tema (slug + anti-relabel cosine) entre 2 snapshots."""
+    """Emergência/sumiço de tema (slug + anti-relabel cosine) entre 2 snapshots. Emergência só
+    com o piso do trend em menções NO MÊS: nome novo sem menção no mês é rótulo, não nascimento."""
     from src.models.anomalia import TemaSnapshot
 
     def _company(per):
@@ -344,9 +373,12 @@ def _detectar_diff(empresa_id: int, atual: str, anterior: str, s) -> List[Dict[s
     prev_centroides = [r.centroide for r in prev.values() if r.centroide]
 
     anomalias: List[Dict[str, Any]] = []
-    # emergência: slug novo + não é re-rotulagem (cosine < 0.85)
+    # emergência: slug novo + não é re-rotulagem (cosine < 0.85) + piso de menções no mês
+    mencoes = _mencoes_no_mes(empresa_id, atual, s)
     for slug, r in cur.items():
         if slug in prev:
+            continue
+        if mencoes.get(slug, 0) < _min_vol():
             continue
         if _fuzzy_relabel(r.centroide, prev_centroides):
             continue  # re-rotulagem, não é tema novo

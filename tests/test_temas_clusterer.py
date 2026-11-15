@@ -135,3 +135,18 @@ def test_bucketizar_chave_func_custom():
     buckets = bucketizar_verbatins(verbs, chave_func=lambda v: v["x"])
     assert set(buckets.keys()) == {"a", "b"}
     assert len(buckets["a"]) == 2
+
+
+def test_hdbscan_com_um_grupo_nao_cai_no_kmeans(monkeypatch):
+    """Assunto coerente (HDBSCAN acha UM grupo) fica um grupo: o K-means não o parte em dois.
+    Só quando o HDBSCAN não acha grupo nenhum o K-means entra (decisão de 14/11)."""
+    import src.temas.clusterer as C
+
+    X = _3_clusters_sinteticos(n_por=10)
+    um = np.array([0] * 25 + [-1] * 5)
+    monkeypatch.setattr(C, "_hdbscan_labels", lambda X, n: um)
+    r = C.clusterizar_bucket(X)
+    assert r.algoritmo == "hdbscan" and r.n_clusters == 1 and r.n_noise == 5
+
+    monkeypatch.setattr(C, "_hdbscan_labels", lambda X, n: np.full(len(X), -1))
+    assert C.clusterizar_bucket(X).algoritmo == "kmeans_fallback"

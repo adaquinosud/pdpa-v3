@@ -26,12 +26,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
-from src.temas.clusterer import (
-    HDBSCAN_MIN_CLUSTER_SIZE_MIN,
-    bucketizar_verbatins,
-    clusterizar_bucket,
-    pick_representativos,
-)
+from src.temas.clusterer import bucketizar_verbatins, clusterizar_bucket, pick_representativos
+from src.temas.cobertura import PISO_TEMA_VOLUME
 from src.temas.embeddings import MODELO_PADRAO, carregar_embeddings
 from src.temas.rotulador import REPS_PARA_ROTULAGEM, RotulagemInfraError, rotular_cluster
 from src.temas.slug import slugify
@@ -60,7 +56,8 @@ class ResumoPipeline:
     empresa_id: int
     empresa_nome: str
     buckets_processados: int = 0
-    buckets_pulados: int = 0  # bucket pequeno < MIN
+    buckets_pulados: int = 0  # pedaço abaixo do PISO_TEMA_VOLUME: não é agrupado
+    temas_desativados: int = 0  # tema que ficou sem vínculo nenhum depois disso
     buckets_sem_embeddings: int = 0  # esquecimento de rodar temas-embed
     clusters_rotulados: int = 0
     clusters_descartados: int = 0  # rotulador devolveu None (descarte LIMPO)
@@ -187,6 +184,52 @@ def _zerar_vinculos_llm(membro_ids: List[int]) -> None:
                 VerbatimTema.verbatim_id.in_(membro_ids[i:fim]),
                 VerbatimTema.origem == "llm",
             ).delete(synchronize_session=False)
+
+
+def _desagrupar(empresa_id: int, chave_bucket: str, membro_ids: List[int]) -> set:
+    """Pedaço abaixo do piso não é agrupado: tira os vínculos do modelo dos seus relatos e o cache
+    do pedaço (senão o tema da rodada anterior segue vivo). Devolve os temas que perderam vínculo,
+    para ``_desativar_sem_vinculo`` decidir no fim da rodada. Manual e fusão ficam."""
+    from src.models.temas import VerbatimTema
+    from src.utils.db import db_session
+
+    ag_raw, sub, tipo = chave_bucket.split(":")
+    _zerar_cache_bucket(empresa_id, None if ag_raw == "NULL" else int(ag_raw), sub, tipo)
+    tocados: set = set()
+    with db_session() as s:
+        for i in range(0, len(membro_ids), 500):
+            fim = i + 500
+            tocados |= {
+                tid
+                for (tid,) in s.query(VerbatimTema.tema_id).filter(
+                    VerbatimTema.verbatim_id.in_(membro_ids[i:fim]),
+                    VerbatimTema.origem == "llm",
+                )
+            }
+    _zerar_vinculos_llm(membro_ids)
+    return tocados
+
+
+def _desativar_sem_vinculo(tema_ids: set) -> int:
+    """Desativa (``ativo=False``, não apaga) o tema que ficou sem vínculo nenhum."""
+    from src.models.temas import Tema, VerbatimTema
+    from src.utils.db import db_session
+
+    if not tema_ids:
+        return 0
+    with db_session() as s:
+        com_vinculo = {
+            tid
+            for (tid,) in s.query(VerbatimTema.tema_id)
+            .filter(VerbatimTema.tema_id.in_(list(tema_ids)))
+            .distinct()
+        }
+        orfaos = [tid for tid in tema_ids if tid not in com_vinculo]
+        if orfaos:
+            s.query(Tema).filter(Tema.id.in_(orfaos), Tema.ativo.is_(True)).update(
+                {Tema.ativo: False}, synchronize_session=False
+            )
+    return len(orfaos)
 
 
 def _upsert_tema_e_link(
@@ -354,8 +397,9 @@ def _processar_bucket(
     # Filtra só membros que têm embedding (consistência embedding × cluster)
     membros_com_emb = [m for m in membros if m["id"] in embeddings]
     stats["membros_com_embedding"] = len(membros_com_emb)
-    if len(membros_com_emb) < HDBSCAN_MIN_CLUSTER_SIZE_MIN:
+    if len(membros_com_emb) < PISO_TEMA_VOLUME:
         stats["skip_motivo"] = f"bucket_pequeno_membros_com_embedding={len(membros_com_emb)}"
+        stats["temas_tocados"] = _desagrupar(empresa_id, chave_bucket, [m["id"] for m in membros])
         return stats
 
     # Monta matriz vetores na ordem de membros_com_emb
@@ -496,8 +540,10 @@ def processar_empresa(
     if so_buckets:
         buckets = {k: v for k, v in buckets.items() if k in set(so_buckets)}
 
-    buckets_elegiveis = {k: v for k, v in buckets.items() if len(v) >= HDBSCAN_MIN_CLUSTER_SIZE_MIN}
-    resumo.buckets_pulados = len(buckets) - len(buckets_elegiveis)
+    # Pedaço abaixo do piso não é agrupado: com poucos relatos o agrupamento só fabrica assunto.
+    buckets_elegiveis = {k: v for k, v in buckets.items() if len(v) >= PISO_TEMA_VOLUME}
+    pequenos = {k: v for k, v in buckets.items() if len(v) < PISO_TEMA_VOLUME}
+    resumo.buckets_pulados = len(pequenos)
 
     if dry_run:
         # Estima custo: ~3 clusters por bucket × CUSTO_USD_POR_ROTULAGEM (conservador).
@@ -508,6 +554,11 @@ def processar_empresa(
             {"chave": k, "membros": len(v)} for k, v in sorted(buckets_elegiveis.items())
         ]
         return resumo
+
+    temas_tocados: set = set()
+    for chave, membros in pequenos.items():
+        ids = [m["id"] for m in membros]
+        temas_tocados |= _desagrupar(empresa_id, chave, ids)
 
     # CP-oom: carrega embeddings POR BUCKET (não todos de uma vez). Buckets em
     # ordem decrescente de tamanho → o maior é processado e liberado primeiro,
@@ -534,6 +585,7 @@ def processar_empresa(
                 embeddings=embeddings,
                 callback_progresso=callback_progresso,
             )
+            temas_tocados |= stats.pop("temas_tocados", set())
             resumo.detalhes_buckets.append(stats)
             resumo.clusters_rotulados += stats["clusters_rotulados"]
             resumo.clusters_descartados += stats["clusters_descartados"]
@@ -551,6 +603,8 @@ def processar_empresa(
         finally:
             # Libera o pico do bucket antes do próximo (não acumula entre buckets).
             del embeddings
+
+    resumo.temas_desativados = _desativar_sem_vinculo(temas_tocados)
 
     # Guard de falha sistêmica: a rotulagem caiu na rodada (LLM infra). Nível de RODADA.
     resumo.falha_sistemica, resumo.falha_sistemica_motivo = _avaliar_falha_sistemica(

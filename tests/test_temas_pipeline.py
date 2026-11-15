@@ -92,3 +92,112 @@ def test_agregar_labels_distintos_uma_entrada_cada():
     agg = _agregar_cache_por_label(rotulados)
     assert len(agg) == 2
     assert agg["fila check-in"]["exemplos_ids"] == [1]
+
+
+def test_pedaco_abaixo_do_piso_nao_e_agrupado_e_o_tema_inventado_sai(
+    client_loyall, db_session, monkeypatch
+):
+    """Pedaço com menos de PISO_TEMA_VOLUME relatos não é agrupado: perde os vínculos do modelo
+    e o cache da rodada anterior, e o tema que ficou sem vínculo é desativado. Vínculo manual
+    fica, e o tema dele segue ativo."""
+    from datetime import datetime, timedelta
+
+    import numpy as np
+
+    import src.temas.pipeline as P
+    from src.models.temas import Tema, TemaCache, VerbatimEmbedding, VerbatimTema
+    from src.models.verbatim import Verbatim
+    from src.temas.cobertura import PISO_TEMA_VOLUME
+    from tests.test_frase_posicao import _empresa
+
+    eid, lid, fid, ag = _empresa(client_loyall, "PisoPedaco")
+    rng = np.random.default_rng(0)
+    ids = {"P1": [], "D2": []}
+    for sub, n in (("P1", 40), ("D2", PISO_TEMA_VOLUME - 1)):
+        for i in range(n):
+            v = Verbatim(
+                empresa_id=eid,
+                local_id=lid,
+                fonte_id=fid,
+                texto=f"{sub} {i}",
+                subpilar=sub,
+                tipo="detrator",
+                tem_texto=True,
+                hash_dedup=f"pp{sub}{i}",
+                data_criacao_original=datetime(2026, 11, 1) - timedelta(days=i),
+            )
+            db_session.add(v)
+            db_session.flush()
+            ids[sub].append(v.id)
+            c = np.zeros(1536, dtype=np.float32)
+            c[(i % 2) + (0 if sub == "P1" else 5)] = 1
+            db_session.add(
+                VerbatimEmbedding(
+                    verbatim_id=v.id,
+                    modelo="text-embedding-3-small",
+                    vetor=(c + rng.normal(0, 0.01, 1536)).astype(np.float32).tobytes(),
+                )
+            )
+    # estado da rodada anterior no pedaço pequeno: tema inventado (llm) + tema curado (manual)
+    inventado = Tema(empresa_id=eid, nome="inventado", slug="inventado")
+    curado = Tema(empresa_id=eid, nome="curado", slug="curado")
+    db_session.add_all([inventado, curado])
+    db_session.flush()
+    chave_d2 = f"{ag}:D2:detrator"
+    for vid in ids["D2"][:4]:
+        db_session.add(
+            VerbatimTema(
+                verbatim_id=vid,
+                tema_id=inventado.id,
+                confianca=0.9,
+                origem="llm",
+                bucket_chave=chave_d2,
+            )
+        )
+    db_session.add(
+        VerbatimTema(
+            verbatim_id=ids["D2"][5],
+            tema_id=curado.id,
+            confianca=1.0,
+            origem="manual",
+            bucket_chave=chave_d2,
+        )
+    )
+    db_session.add(
+        TemaCache(
+            empresa_id=eid,
+            agrupamento_id=ag,
+            subpilar="D2",
+            tipo="detrator",
+            tema_label="inventado",
+            volume=4,
+            percentual=44.0,
+            periodo_inicio=datetime(2026, 10, 1).date(),
+            periodo_fim=datetime(2026, 11, 1).date(),
+            hash_escopo="x",
+        )
+    )
+    db_session.commit()
+
+    rotulados = []
+
+    def _rotular(ctx, reps, **kw):
+        rotulados.append(ctx["subpilar"])
+        return f"tema {ctx['subpilar']} {len(rotulados)}"
+
+    monkeypatch.setattr(P, "rotular_cluster", _rotular)
+    r = P.processar_empresa(eid)
+
+    assert "D2" not in rotulados and "P1" in rotulados
+    assert r.buckets_pulados == 1 and r.temas_desativados == 1
+    db_session.expire_all()
+    assert db_session.get(Tema, inventado.id).ativo is False
+    assert db_session.get(Tema, curado.id).ativo is True
+    vinc_d2 = db_session.query(VerbatimTema).filter(VerbatimTema.verbatim_id.in_(ids["D2"])).all()
+    assert [v.origem for v in vinc_d2] == ["manual"]
+    assert (
+        db_session.query(TemaCache)
+        .filter(TemaCache.empresa_id == eid, TemaCache.subpilar == "D2")
+        .count()
+        == 0
+    )

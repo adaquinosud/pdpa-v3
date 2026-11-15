@@ -72,8 +72,11 @@ def test_zerar_vinculos_llm_preserva_manual_e_merge(client_loyall, db_session):
 
 
 def test_pipeline_nao_acumula_entre_rodadas(client_loyall, db_session, monkeypatch):
+    from src.temas.cobertura import PISO_TEMA_VOLUME
+
     eid, lid, fid = _ctx(client_loyall, "acc")
-    vs = [_verb(db_session, eid, fid, lid, f"q{i}") for i in range(6)]
+    # pedaço acima do piso de agrupamento (PISO_TEMA_VOLUME): abaixo dele não há rodada
+    vs = [_verb(db_session, eid, fid, lid, f"q{i}") for i in range(PISO_TEMA_VOLUME + 2)]
     # vínculo manual pré-existente num membro → deve sobreviver às duas rodadas
     t_man = _tema(db_session, eid, "curado-manual")
     db_session.add(

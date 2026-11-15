@@ -136,6 +136,41 @@ def test_diff_emergencia_com_anti_relabel(client_loyall, db_session):
             )
         )
 
+    def _mencoes(nome, slug, n):
+        """Tema ativo com ``n`` menções escritas no mês atual (2026-02), vínculo com bucket."""
+        tm = Tema(empresa_id=e["id"], nome=nome, slug=slug)
+        db_session.add(tm)
+        db_session.flush()
+        for i in range(n):
+            v = Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f["id"],
+                local_id=loc["id"],
+                texto=f"{slug}-{i}",
+                data_criacao_original=datetime(2026, 2, 10),
+                hash_dedup=f"hm{slug}{i}-{datetime.utcnow().timestamp()}",
+                subpilar="D1",
+                tipo="detrator",
+                tem_texto=True,
+            )
+            db_session.add(v)
+            db_session.flush()
+            db_session.add(
+                VerbatimTema(
+                    verbatim_id=v.id,
+                    tema_id=tm.id,
+                    confianca=0.9,
+                    origem="llm",
+                    bucket_chave=f"{a['id']}:D1:detrator",
+                )
+            )
+
+    # "fila nova" tem 3 menções no mês (= piso do trend); "pinga" é nome novo com 1 só.
+    _mencoes("fila nova", "fila-nova", 3)
+    _mencoes("pinga", "pinga", 1)
+    # a re-rotulagem também tem menções: o que a barra é o cosseno, não o piso
+    _mencoes("demora no atendimento", "demora-no-atendimento", 3)
+    _snap("2026-02", "pinga", "pinga", 1, _vec([0, 0, 1, 0]))
     # anterior: tema "demora" (centróide vA)
     _snap("2026-01", "demora", "demora", 10, vA)
     # atual: "fila-nova" (genuinamente novo, ortogonal) + "demora-no-atendimento"
@@ -149,5 +184,7 @@ def test_diff_emergencia_com_anti_relabel(client_loyall, db_session):
     # "fila nova" emerge; "demora no atendimento" é re-rotulagem → NÃO emerge;
     # "demora" sumiu (vol 10 >= 5) → resolução
     assert any("tema novo: fila nova" in c for c in chaves)
+    # nome novo com 1 menção no mês é rótulo, não nascimento (piso do trend, 14/11)
+    assert not any("tema novo: pinga" in c for c in chaves)
     assert not any("demora no atendimento" in c for c in chaves)
     assert any("tema sumiu: demora" in c for c in chaves)
