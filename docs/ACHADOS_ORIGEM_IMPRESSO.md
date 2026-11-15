@@ -769,6 +769,16 @@ guarda é proposta antes do código.
 - Regerar a descrição de um pilar regera também o insight final dele (o pacote do insight leva o
   texto da descrição): dois textos a mais por pilar pedido, que aparecem na medição.
 
+## Fila (registrado, sem mexer)
+
+- **Pedaços `sem_lastro:inativo` agrupados e nomeados (14/11).** Na Carbel, dois pedaços (51 e 12
+  comentários) de relato sem posição viram assunto com nome. MEDIDO na prévia da branch de temas.
+- **Rodada de temas parada há meses em quatro empresas (INFERIDO, 15/11).** Na medição 6.5
+  (`sonda_medicoes_6`), a linha de cache de temas mais velha de Hermes Pardini (08/07), AmBev Service
+  Desk (23/06), Club Med (10/07) e Club Med Brasil (05/08) sugere que a cauda delas não passa do gate
+  desde então. Se for isso, a aba de temas dessas empresas está congelada. Conferir pela data da
+  última rodada de cada uma (vínculo mais novo, `pos_coleta_*`) antes de concluir.
+
 ## Sondas pendentes
 
 - Nenhuma. (Opcional: data e perspectiva dos 4.554 status órfãos do item 5.)
