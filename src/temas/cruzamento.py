@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
+
+from src.temas.rotulador import eh_sem_detalhe
 import logging
 
 logger = logging.getLogger(__name__)
@@ -108,6 +110,8 @@ def _carregar_label_buckets(empresa_id: int) -> Dict[str, Dict[str, Any]]:
         if clausula is not None:
             rows = rows.filter(clausula)
         for nome, bucket_chave, data in rows.all():
+            if eh_sem_detalhe(nome):  # volume sem causa: não é assunto sistêmico
+                continue
             st = _subpilar_tipo(bucket_chave or "")
             if st is None:
                 continue
@@ -247,6 +251,8 @@ def _carregar_temas_centroides(empresa_id: int) -> Dict[int, Dict[str, Any]]:
             q = q.filter(clausula)
         rows = q.all()
     for tid, nome, vid, bc, texto, data in rows:
+        if eh_sem_detalhe(nome):
+            continue
         st = _subpilar_tipo(bc or "")
         if st is None:
             continue

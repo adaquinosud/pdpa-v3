@@ -22,6 +22,8 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional
 
+from src.temas.rotulador import eh_sem_detalhe
+
 # ── Config de calibração (padrão MATURIDADE_CONFIG/VITRINE_CONFIG) ─────────────
 PROPAGACAO_CONFIG: Dict[str, Any] = {
     "pesos": {"diag": 1, "ra": 2, "ia": 3},  # raio máx 6
@@ -161,6 +163,8 @@ def analisar_propagacao(empresa_id: int, *, config: Optional[dict] = None) -> Li
         )
         temas: dict = {}
         for tid, nome, sub, tipo, eh_ra, n in rows:
+            if eh_sem_detalhe(nome):  # volume sem causa: não propaga
+                continue
             n = int(n or 0)
             t = temas.setdefault(
                 tid,

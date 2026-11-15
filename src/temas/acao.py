@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.temas.cruzamento import _subpilar_tipo
+from src.temas.rotulador import eh_sem_detalhe
 import logging
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ def _carregar_alvos(empresa_id: int, top_pontuais: int = 23) -> List[Dict[str, A
         vols = vq.group_by(Tema.id).order_by(func.count(VerbatimTema.id).desc()).all()
     n = 0
     for nome, _vol in vols:
-        if nome in excluir:
+        if nome in excluir or eh_sem_detalhe(nome):  # volume sem causa: não vira ação
             continue
         alvos.append(
             {"tipo_alvo": "pontual", "cruzamento_id": None, "tema_label": nome, "labels": [nome]}

@@ -220,6 +220,14 @@ def nome_sem_detalhe(tipo: Optional[str]) -> str:
     return NOME_SEM_DETALHE.get(tipo or "", NOME_SEM_DETALHE_PADRAO)
 
 
+def eh_sem_detalhe(nome: Optional[str]) -> bool:
+    """Tema "sem detalhe": volume sem causa a investigar. Fica visível na aba Temas, mas fora de
+    cruzamentos, ações, anomalia de assunto e propagação (decisão de 15/11) — o mesmo nome em vários
+    pedaços não é assunto sistêmico."""
+    nomes = {*NOME_SEM_DETALHE.values(), NOME_SEM_DETALHE_PADRAO}
+    return _normalizar_label(nome or "").lower() in nomes
+
+
 def _sem_acento(s: str) -> str:
     import unicodedata
 

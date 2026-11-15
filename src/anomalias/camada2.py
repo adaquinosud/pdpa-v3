@@ -26,6 +26,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from src.temas.rotulador import eh_sem_detalhe
+
 FUZZY_COSINE = 0.85
 TREND_MIN_MESES = 3
 TREND_VAR_PCT = 0.5  # 50%
@@ -98,6 +100,8 @@ def _slug_agregado(empresa_id: int, s) -> Dict[str, Dict[str, Any]]:
     )
     out: Dict[str, Dict[str, Any]] = {}
     for nome, ag_id, tipo, vol in rows:
+        if eh_sem_detalhe(nome):  # fora do retrato → não emerge nem some como assunto
+            continue
         slug = slugify(nome)
         e = out.setdefault(
             slug,
@@ -268,6 +272,8 @@ def _detectar_trend(empresa_id: int, s) -> List[Dict[str, Any]]:
     )
     por_tema: Dict[int, Dict[str, Any]] = {}
     for tid, nome, mes, tipo, n in rows:
+        if eh_sem_detalhe(nome):  # volume sem causa: não é assunto crescendo
+            continue
         e = por_tema.setdefault(tid, {"nome": nome, "meses": {}, "detr": 0, "prom": 0})
         e["meses"][mes] = e["meses"].get(mes, 0) + int(n)
         if tipo == "detrator":
