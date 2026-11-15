@@ -861,6 +861,11 @@ guarda é proposta antes do código.
 
 - **Pedaços `sem_lastro:inativo` agrupados e nomeados (14/11).** Na Carbel, dois pedaços (51 e 12
   comentários) de relato sem posição viram assunto com nome. MEDIDO na prévia da branch de temas.
+  Correção de 15/11: na rodada com o nome por pedaço eles continuam virando assunto — muda só o
+  nome, agora "comentário sem detalhe" (54 e 8 relatos na prévia paga). Não eram descartados
+  antes, como chegou a ser dito na conversa. O "sem detalhe" fica fora de cruzamentos, ações,
+  anomalia de assunto e propagação (2fd5511); a aba Temas por posição, as leituras de posição e o
+  Quadro não mostram `sem_lastro` (percorrem só as 12 posições).
 - **Rodada de temas parada há meses em quatro empresas (INFERIDO, 15/11).** Na medição 6.5
   (`sonda_medicoes_6`), a linha de cache de temas mais velha de Hermes Pardini (08/07), AmBev Service
   Desk (23/06), Club Med (10/07) e Club Med Brasil (05/08) sugere que a cauda delas não passa do gate
