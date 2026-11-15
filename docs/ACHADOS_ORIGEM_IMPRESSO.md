@@ -752,6 +752,17 @@ mudar o pacote delas.
   rodada sobre o histórico inteiro (é o "nome de outra época" da §3 da especificação).
 
 
+## 29. O cache do prompt de rotulagem nunca descontou (achado próprio, 15/11)
+
+- **O quê:** o rotulador manda `cache_control` no prompt de sistema, e o comentário do código dizia
+  "~1,3K tokens … corta ~90% do custo de input". O prompt v1 tem ~9 mil caracteres (~3 mil tokens;
+  180.784 tokens ÷ 51 chamadas medidos na rodada da Carbel ≈ 3.500 por chamada), abaixo do mínimo
+  cacheável do Haiku 4.5 pela documentação da Anthropic (4.096). INFERIDO até uma chamada real
+  mostrar `cache_creation_input_tokens` = 0; a prévia paga do conserto do nome lê esse campo.
+- **Consequência:** o custo da nomeação nunca teve o desconto que o comentário prometia. A economia
+  do desenho por pedaço vem de pagar o prompt de sistema uma vez por pedaço em vez de uma por grupo.
+- **Estado:** comentário corrigido na `fix/rotulagem-por-pedaco` (§14).
+
 ---
 
 ## Causa viva × causa morta (09/11, escopo do Alexandre)
@@ -860,7 +871,14 @@ guarda é proposta antes do código.
   a regra 4 manda "atendimento personalizado" quando o grupo gira em torno de um colaborador, as
   regras 5 e 6 e o exemplo 5 ensinam a palavra mais genérica, e cada grupo é nomeado sem ver os
   vizinhos. Grupos de mesmo nome se fundem no cache e no tema (por slug, misturando elogio e
-  crítica). Direção do conserto: o Alexandre manda em separado. Prompt muda só com OK.
+  crítica). Conserto em construção: `fix/rotulagem-por-pedaco` (decisões de 15/11).
+- **Identidade do tema = fatia 1 do assunto permanente (decisão de 15/11).** O tema é guardado por
+  empresa e slug: o mesmo nome em elogio e crítica, ou em duas posições, vira um tema só. Não entra
+  agora; o que entra é o piso.
+- **Piso da aba Temas contado sobre o total do tema (decisão de 15/11: consertar).**
+  `_top_temas_por_subpilar` soma promotor, conversível e detrator de todas as posições para decidir
+  se o tema aparece (`src/ui/__init__.py`, `vol_tema`) — uma crítica de 3 relatos aparece porque o
+  elogio a carrega.
 
 ## Sondas pendentes
 
