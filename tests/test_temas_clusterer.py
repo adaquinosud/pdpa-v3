@@ -30,7 +30,7 @@ def test_clusterizar_separa_3_clusters_bem_definidos():
     assert isinstance(res, ResultadoCluster)
     # HDBSCAN deve identificar 3 clusters principais (com possível noise marginal)
     assert res.n_clusters >= 2, f"esperava ≥2 clusters, recebeu {res.n_clusters}"
-    assert res.algoritmo in ("hdbscan", "kmeans_fallback")
+    assert res.algoritmo == "hdbscan"
     # Cobertura: pelo menos 80% dos pontos em cluster (não noise)
     cobertura = (res.labels != -1).sum() / len(res.labels)
     assert cobertura >= 0.8, f"cobertura {cobertura:.2f} < 0.8"
@@ -51,13 +51,6 @@ def test_clusterizar_bucket_medio_skip_umap():
     res = clusterizar_bucket(X)
     # Não usa UMAP (n=6 < UMAP_MIN=10), reduzido_dim = dim original
     assert res.reduzido_dim == 16
-
-
-def test_clusterizar_forca_kmeans():
-    X = _3_clusters_sinteticos(n_por=30, dim=64)
-    res = clusterizar_bucket(X, forcar_kmeans=True)
-    assert res.algoritmo == "kmeans_fallback"
-    assert res.n_clusters >= 2
 
 
 def test_clusterizar_vazio_levanta():
@@ -137,9 +130,9 @@ def test_bucketizar_chave_func_custom():
     assert len(buckets["a"]) == 2
 
 
-def test_hdbscan_com_um_grupo_nao_cai_no_kmeans(monkeypatch):
-    """Assunto coerente (HDBSCAN acha UM grupo) fica um grupo: o K-means não o parte em dois.
-    Só quando o HDBSCAN não acha grupo nenhum o K-means entra (decisão de 14/11)."""
+def test_sem_plano_b_um_grupo_fica_um_e_nenhum_fica_nenhum(monkeypatch):
+    """Só HDBSCAN (decisão de 14/11): um grupo é resposta (o assunto não é partido) e nenhum
+    grupo também (tudo ruído, n_clusters=0) — não há K-means forçando grupos."""
     import src.temas.clusterer as C
 
     X = _3_clusters_sinteticos(n_por=10)
@@ -149,4 +142,6 @@ def test_hdbscan_com_um_grupo_nao_cai_no_kmeans(monkeypatch):
     assert r.algoritmo == "hdbscan" and r.n_clusters == 1 and r.n_noise == 5
 
     monkeypatch.setattr(C, "_hdbscan_labels", lambda X, n: np.full(len(X), -1))
-    assert C.clusterizar_bucket(X).algoritmo == "kmeans_fallback"
+    r = C.clusterizar_bucket(X)
+    assert r.algoritmo == "hdbscan_sem_grupo" and r.n_clusters == 0 and r.n_noise == len(X)
+    assert not hasattr(C, "_kmeans_fallback")

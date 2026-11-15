@@ -410,6 +410,12 @@ def _processar_bucket(
     stats["clusters_total"] = res.n_clusters
     stats["noise"] = res.n_noise
     stats["algoritmo"] = res.algoritmo
+    if res.n_clusters == 0:
+        # O HDBSCAN não achou aglomerado: o pedaço fica sem assunto (decisão de 14/11). Mesma
+        # limpeza do pedaço abaixo do piso — os relatos seguem contando no volume e na faixa.
+        stats["skip_motivo"] = "sem_aglomerado"
+        stats["temas_tocados"] = _desagrupar(empresa_id, chave_bucket, [m["id"] for m in membros])
+        return stats
 
     # Período (mín/máx das datas) — fallback today se vazio
     datas = [m["data"] for m in membros_com_emb if m.get("data")]
@@ -504,7 +510,8 @@ def processar_empresa(
     dry_run: bool = False,
     aplicar_janela: bool = True,
 ) -> ResumoPipeline:
-    """Pipeline ponta-a-ponta — apenas buckets com ≥ MIN_BUCKET_HDBSCAN membros.
+    """Pipeline ponta-a-ponta — só agrupa pedaço com ≥ PISO_TEMA_VOLUME relatos; o menor é
+    desagrupado (perde os vínculos do modelo e o cache).
 
     Args:
         empresa_id: pk.

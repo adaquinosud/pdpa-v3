@@ -3,9 +3,10 @@
 Pipeline:
 1. ``reduzir_dimensao(X, n_components=15)`` via UMAP (cosine metric) — só se
    ``len(X) >= UMAP_MIN`` (default 10), senão skip e usa o vetor original.
-2. ``clusterizar(X_red)`` via HDBSCAN. Um grupo só é resposta válida (assunto coerente
-   não é partido). Só quando o HDBSCAN não acha grupo nenhum entra o K-means, com
-   ``k = min(max(2, int(sqrt(n))), 10)``.
+2. ``clusterizar(X_red)`` via HDBSCAN, e só ele. Um grupo é resposta (assunto coerente não
+   é partido); nenhum grupo também é (o método disse "não achei aglomerado" — nomear o
+   pedaço depois disso seria desdizer a medição). Não há plano B (decisão de 14/11; o
+   K-means que forçava >= 2 grupos saiu).
 3. Retorna ``labels`` (ndarray int) e estatísticas.
 
 O piso de tamanho do pedaço não mora aqui: o pipeline não manda pedaço abaixo do
@@ -45,9 +46,6 @@ HDBSCAN_MIN_CLUSTER_SIZE_FRAC = 0.02
 HDBSCAN_MIN_CLUSTER_SIZE_CAP = 30
 """Cap absoluto do min_cluster_size."""
 
-KMEANS_MIN_K = 2
-KMEANS_MAX_K = 10
-
 
 @dataclass
 class ResultadoCluster:
@@ -57,7 +55,7 @@ class ResultadoCluster:
         labels: ndarray shape (n,) com -1 para noise, 0..K-1 para clusters.
         n_clusters: número de clusters distintos (exclui -1).
         n_noise: quantos pontos viraram -1.
-        algoritmo: 'hdbscan' ou 'kmeans_fallback'.
+        algoritmo: 'hdbscan', 'hdbscan_sem_grupo' (tudo ruído) ou 'trivial_single_cluster'.
         reduzido_dim: dimensão usada no clustering (UMAP_DIM ou dim original).
     """
 
@@ -124,31 +122,17 @@ def _hdbscan_labels(X: np.ndarray, n: int) -> np.ndarray:
     return clusterer.fit_predict(X)
 
 
-def _kmeans_fallback(X: np.ndarray, n: int, random_state: int = 42) -> np.ndarray:
-    """K-means com k = sqrt(n) capado entre 2 e 10."""
-    from sklearn.cluster import KMeans
-
-    k = max(KMEANS_MIN_K, min(int(np.sqrt(n)), KMEANS_MAX_K))
-    k = min(k, n)  # nunca mais clusters que pontos
-    if k < 2:
-        return np.zeros(n, dtype=int)
-    km = KMeans(n_clusters=k, n_init=10, random_state=random_state)
-    return km.fit_predict(X)
-
-
 def clusterizar_bucket(
     vetores: np.ndarray,
     *,
-    forcar_kmeans: bool = False,
     umap_min: int = UMAP_MIN_BUCKET,
     random_state: int = 42,
 ) -> ResultadoCluster:
-    """Clusteriza vetores de um bucket. HDBSCAN principal (um grupo vale); K-means só se o
-    HDBSCAN não achar grupo nenhum.
+    """Clusteriza vetores de um bucket só com HDBSCAN. Um grupo vale; nenhum grupo também
+    (``n_clusters=0``, tudo ruído) — o caller deixa o pedaço sem assunto.
 
     Args:
         vetores: ndarray shape (n, dim) float32.
-        forcar_kmeans: skip HDBSCAN (útil pra testes).
         umap_min: abaixo disso, skip UMAP.
         random_state: reproduzibilidade.
 
@@ -182,27 +166,13 @@ def clusterizar_bucket(
         X = vetores.astype(np.float32, copy=False)
         reduzido_dim = X.shape[1]
 
-    # HDBSCAN
-    if not forcar_kmeans:
-        labels = _hdbscan_labels(X, n)
-        n_clusters = len({lb for lb in labels if lb != -1})
-        if n_clusters >= 1:
-            return ResultadoCluster(
-                labels=labels,
-                n_clusters=n_clusters,
-                n_noise=int((labels == -1).sum()),
-                algoritmo="hdbscan",
-                reduzido_dim=reduzido_dim,
-            )
-
-    # Fallback K-means: só quando o HDBSCAN deixou tudo como ruído.
-    labels = _kmeans_fallback(X, n, random_state=random_state)
-    n_clusters = int(len(set(labels)))
+    labels = _hdbscan_labels(X, n)
+    n_clusters = len({lb for lb in labels if lb != -1})
     return ResultadoCluster(
         labels=labels,
         n_clusters=n_clusters,
-        n_noise=0,
-        algoritmo="kmeans_fallback",
+        n_noise=int((labels == -1).sum()),
+        algoritmo="hdbscan" if n_clusters else "hdbscan_sem_grupo",
         reduzido_dim=reduzido_dim,
     )
 

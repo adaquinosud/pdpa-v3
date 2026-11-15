@@ -201,3 +201,66 @@ def test_pedaco_abaixo_do_piso_nao_e_agrupado_e_o_tema_inventado_sai(
         .count()
         == 0
     )
+
+
+def test_pedaco_sem_aglomerado_fica_sem_assunto(client_loyall, db_session, monkeypatch):
+    """Pedaço acima do piso em que o HDBSCAN não acha aglomerado (tudo ruído): nenhum assunto,
+    nenhuma chamada de rótulo; os vínculos do modelo da rodada anterior saem e o tema que ficou
+    sem vínculo é desativado (decisão de 14/11: "não achei aglomerado" é resultado)."""
+    from datetime import datetime
+
+    import numpy as np
+
+    import src.temas.clusterer as C
+    import src.temas.pipeline as P
+    from src.models.temas import Tema, VerbatimEmbedding, VerbatimTema
+    from src.models.verbatim import Verbatim
+    from src.temas.cobertura import PISO_TEMA_VOLUME
+    from tests.test_frase_posicao import _empresa
+
+    eid, lid, fid, ag = _empresa(client_loyall, "SemAglo")
+    antigo = Tema(empresa_id=eid, nome="nomeado antes", slug="nomeado-antes")
+    db_session.add(antigo)
+    db_session.flush()
+    for i in range(PISO_TEMA_VOLUME + 5):
+        v = Verbatim(
+            empresa_id=eid,
+            local_id=lid,
+            fonte_id=fid,
+            texto=f"t {i}",
+            subpilar="A1",
+            tipo="detrator",
+            tem_texto=True,
+            hash_dedup=f"sa{i}",
+            data_criacao_original=datetime(2026, 11, 1),
+        )
+        db_session.add(v)
+        db_session.flush()
+        db_session.add(
+            VerbatimEmbedding(
+                verbatim_id=v.id,
+                modelo="text-embedding-3-small",
+                vetor=np.random.RandomState(i).rand(1536).astype(np.float32).tobytes(),
+            )
+        )
+        db_session.add(
+            VerbatimTema(
+                verbatim_id=v.id,
+                tema_id=antigo.id,
+                confianca=0.9,
+                origem="llm",
+                bucket_chave=f"{ag}:A1:detrator",
+            )
+        )
+    db_session.commit()
+
+    monkeypatch.setattr(C, "_hdbscan_labels", lambda X, n: np.full(n, -1))
+    chamadas = []
+    monkeypatch.setattr(P, "rotular_cluster", lambda *a, **k: chamadas.append(1) or "x")
+    r = P.processar_empresa(eid)
+
+    assert chamadas == [] and r.temas_desativados == 1
+    assert r.detalhes_buckets[0]["skip_motivo"] == "sem_aglomerado"
+    db_session.expire_all()
+    assert db_session.get(Tema, antigo.id).ativo is False
+    assert db_session.query(VerbatimTema).filter_by(tema_id=antigo.id).count() == 0
