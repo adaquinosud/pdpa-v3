@@ -2505,25 +2505,6 @@ _ABA_BUILDERS = {
 }
 
 
-def _janela_label(empresa_id: int):
-    """Janela REAL da coleta (min–max de data do verbatim), derivada do DADO — nunca
-    hardcoded. Vale p/ qualquer fonte (não só RA). Usa ``data_criacao_original`` (data
-    do fato) e cai p/ ``data_coleta`` quando ausente. ``None`` se não houver verbatim
-    com data. Formato ``MM/AAAA – MM/AAAA`` (mês único quando min e max coincidem)."""
-    from sqlalchemy import func
-
-    from src.models.verbatim import Verbatim
-    from src.utils.db import db_session
-
-    dt = func.coalesce(Verbatim.data_criacao_original, Verbatim.data_coleta)
-    with db_session() as s:
-        mn, mx = s.query(func.min(dt), func.max(dt)).filter(Verbatim.empresa_id == empresa_id).one()
-    if mn is None or mx is None:
-        return None
-    a, b = mn.strftime("%m/%Y"), mx.strftime("%m/%Y")
-    return f"janela {a}" if a == b else f"janela {a} – {b}"
-
-
 def _relatorio_html(empresa_w, tipo: str) -> str:
     """Dispatch do HTML por tipo de relatório. Cada CP B1-B4 preenche o seu."""
     from datetime import datetime
@@ -2532,7 +2513,8 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
     if meta is None:
         return None
     _, titulo, _, cp, _ = meta
-    _jl = _janela_label(empresa_w.id)
+    from src.relatorios.rodape import rodape_periodo
+
     if tipo == "resumo_executivo":
         from src.relatorios.resumo_executivo import montar_dados
 
@@ -2542,7 +2524,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
-            janela_label=_jl,
+            periodo_label=rodape_periodo(empresa_w.id, tipo, quarters=d.get("quarters")),
             d=d,
         )
     if tipo == "diagnostico_pontual":
@@ -2554,7 +2536,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
-            janela_label=_jl,
+            periodo_label=rodape_periodo(empresa_w.id, tipo, quarters=d.get("quarters")),
             d=d,
         )
     if tipo == "plano_executivo":
@@ -2566,7 +2548,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
-            janela_label=_jl,
+            periodo_label=rodape_periodo(empresa_w.id, tipo, quarters=d.get("quarters")),
             d=d,
         )
     if tipo == "diagnostico_longitudinal":
@@ -2578,7 +2560,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
-            janela_label=_jl,
+            periodo_label=rodape_periodo(empresa_w.id, tipo, quarters=d.get("quarters")),
             d=d,
         )
     if tipo == "painel_governanca":
@@ -2590,7 +2572,7 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
             empresa=empresa_w,
             gerado_em=d.get("gerado_em") or datetime.utcnow(),
             escopo_label=None,
-            janela_label=_jl,
+            periodo_label=rodape_periodo(empresa_w.id, tipo, quarters=d.get("quarters")),
             d=d,
         )
     if tipo == "parecer":
@@ -2621,13 +2603,19 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
                     )
             else:  # esgotou o retry sem break → falha residual VISÍVEL
                 d["sintese_falhou"] = True
-        return render_template("relatorios/parecer.html", empresa=empresa_w, d=d)
+        _voz = d["tese"].get("voz") or {}
+        _ra = tuple((x or "")[3:] or None for x in (_voz.get("janela_ini"), _voz.get("janela_fim")))
+        return render_template(
+            "relatorios/parecer.html",
+            empresa=empresa_w,
+            d=d,
+            periodo_label=rodape_periodo(empresa_w.id, tipo, ra=_ra),
+        )
     return render_template(
         "relatorios/em_construcao.html",
         empresa=empresa_w,
         gerado_em=datetime.utcnow(),
         escopo_label=None,
-        janela_label=_jl,
         titulo=titulo,
         cp=cp,
     )

@@ -185,7 +185,9 @@ def test_resumo_executivo_doc_ouro(client_loyall, db_session):
     assert "Encerramento Executivo" in h and "Onde investir primeiro" in h  # cap-stone B1'
     assert "Convite ao Diagnóstico Interno" in h and "Fase 2" in h
     assert "Loyall Company" in h  # assinatura editorial
-    assert "janela" in h and "180 dias" not in h  # B3: janela REAL, não hardcoded 180d
+    assert (
+        "desde o primeiro registro coletado" in h and "180 dias" not in h
+    )  # período declarado (15/11)
 
 
 def test_diagnostico_pontual_assembly(client_loyall, db_session):
@@ -267,7 +269,9 @@ def test_diagnostico_pontual_assembly(client_loyall, db_session):
     assert "Nota Metodológica" in h and "Lacunas para a Fase 2" in h  # 09
     assert "Convite ao Diagnóstico Interno" in h and "Fase 2" in h  # 10
     assert "Loyall Company" in h  # assinatura
-    assert "janela" in h and "180 dias" not in h  # B3: janela REAL, não hardcoded 180d
+    assert (
+        "desde o primeiro registro coletado" in h and "180 dias" not in h
+    )  # período declarado (15/11)
 
 
 def test_plano_executivo_assembly(client_loyall, db_session):
@@ -341,7 +345,9 @@ def test_plano_executivo_assembly(client_loyall, db_session):
     assert "📢 Marketing" in h and "👥 Pessoas" in h
     assert "Sugestões estruturais" in h and "Recalibre a promessa" in h
     assert "Ações reativas" in h or "Reaborde detratores hoje" in h
-    assert "janela" in h and "180 dias" not in h  # B3: janela REAL, não hardcoded 180d
+    assert (
+        "desde o primeiro registro coletado" in h and "180 dias" not in h
+    )  # período declarado (15/11)
 
 
 def test_relatorio_tipo_invalido_404(client_loyall, db_session):
