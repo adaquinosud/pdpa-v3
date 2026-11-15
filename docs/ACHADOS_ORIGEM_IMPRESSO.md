@@ -720,8 +720,37 @@ mudar o pacote delas.
   quando o nome volta numa rodada, e não alcança estes mil.
 - **Achado próprio:** o reaproveitamento sem reativar estava no código desde a rodagem por slug; a
   exposição só apareceu com a sonda de 15/11.
-- **Estado:** correção de dado preparada (`religar_todos`, leitura e aplicação, §16). Antes, depois e
-  motivo entram aqui quando a aplicação rodar.
+- **Composição por janela (saída da leitura, relatada):** dentro da janela de temas de hoje —
+  Hermes Pardini 356 de 366, Localiza 115 de 134, Club Med Brasil só 91 de 483, Carbel 0 de 17. O
+  'qualidade acomodação' do Club Med Brasil (338) é majoritariamente de fora da janela. Ou seja: em
+  Hermes e Localiza o defeito escondia assunto de agora; no Club Med Brasil, sobretudo assunto velho.
+- **Correção de dado aplicada (§16, 15/11, saída relatada pelo Alexandre):**
+  - *Antes:* 110 temas desativados, sem fusão, com vínculo do modelo; ~mil relatos invisíveis.
+  - *Depois:* 110 temas religados (`ativo=True`) — Carbel 7, Hermes Pardini 41, Club Med Brasil 28,
+    Localiza 34. Temas ativos depois: Club Med Brasil 683, Localiza 612, Hermes Pardini 438,
+    Carbel 77. Nada apagado.
+  - *Motivo:* os relatos estavam ligados a tema desativado pelo defeito do item 26 e sumiam de todas
+    as telas. Script `religar_todos` (só religa inativo + sem fusão + com vínculo do modelo).
+  - Quatro posições trocaram de tema dominante das críticas na leitura (regeram pagas na próxima
+    leitura). Quantas trocaram só por relato de fora da janela: medição pendente
+    (`sonda_temas_base`, seção A).
+
+## 28. O agrupamento do histórico inteiro existe: `reconciliar-reclassificados` (15/11)
+
+- **O quê (MEDIDO no código):** o único caminho que roda a rodada de temas sem janela é o comando
+  `flask reconciliar-reclassificados` (`src/app.py:1639`), que chama
+  `executar_pos_coleta(force=True, aplicar_janela=False)`. Nasceu em 22/06/2026 às 08h31 (0557fea),
+  para reconciliar o painel depois de reclassificação manual. A noturna, o watchdog, o botão de
+  reprocessar e o `pipeline-pos-coleta` passam todos pela janela.
+- **A 6.2 derrubada:** dos 521 relatos da Carbel que a 6.2 (critério derivado de datas, sem olhar
+  vínculo) deu como nunca agrupados, 409 têm vínculo a tema ativo, todos nascidos em 22/06/2026
+  (`sonda_reconcilia_62`, saída relatada). INFERIDO pela coincidência de data: o comando foi rodado
+  na Carbel nesse dia, de propósito, para o ciclo de reclassificação — não houve registro da
+  execução no banco. A afirmação de que metade do coletado nunca entrou em agrupamento não se
+  sustenta; a 6.2 é refeita por contagem direta de vínculo (`sonda_temas_base`, seção C).
+- **Consequência para o período:** relato de fora da janela pode carregar nome de 22/06, de uma
+  rodada sobre o histórico inteiro (é o "nome de outra época" da §3 da especificação).
+
 
 ---
 
@@ -823,6 +852,15 @@ guarda é proposta antes do código.
   Desk (23/06), Club Med (10/07) e Club Med Brasil (05/08) sugere que a cauda delas não passa do gate
   desde então. Se for isso, a aba de temas dessas empresas está congelada. Conferir pela data da
   última rodada de cada uma (vínculo mais novo, `pos_coleta_*`) antes de concluir.
+  Reforçado em 15/11: depois do religar, Club Med Brasil tem 683 temas ativos, Localiza 612,
+  Hermes Pardini 438 — a Carbel caiu de 155 para 69 na limpeza de fim de rodada. Medição de temas
+  sem vínculo e da última rodada real em `sonda_temas_base` (seção B).
+- **Nome genérico do prompt de rotulagem (15/11).** Na Carbel, 'atendimento personalizado' com 428
+  relatos e 'atendimento' com 318 (números relatados). Causa no prompt `rotulagem_cluster_v1.md`:
+  a regra 4 manda "atendimento personalizado" quando o grupo gira em torno de um colaborador, as
+  regras 5 e 6 e o exemplo 5 ensinam a palavra mais genérica, e cada grupo é nomeado sem ver os
+  vizinhos. Grupos de mesmo nome se fundem no cache e no tema (por slug, misturando elogio e
+  crítica). Direção do conserto: o Alexandre manda em separado. Prompt muda só com OK.
 
 ## Sondas pendentes
 
