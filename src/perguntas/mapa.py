@@ -737,6 +737,14 @@ def _resumo(n: int, sig: dict) -> str:
         anc = fer or fina
         if lt and anc:
             return f"Sobre {anc['nome']}, a leitura: “{_corte(lt, 150)}”."
+        neg = sig.get("negativas") or []
+        if neg:  # estado 2: não elege posição; o que se aprende é sobre a escuta
+            return (
+                f"Que a escuta ainda não alcança o bastante em nenhuma posição. O cliente já "
+                f"aponta dano em {len(neg)} delas, e em nenhuma há volume para dizer o tamanho. "
+                "O que a informação nova ensina aqui é sobre a escuta, não sobre qual posição "
+                "tratar."
+            )
         return "As leituras diagnósticas interpretam o número em significado."
     if n == 17:
         # Fatia 10: "o que ela muda no que fazemos" = o consequente de PLANO. Leitor puro —

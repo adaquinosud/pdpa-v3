@@ -348,6 +348,10 @@ def test_perguntas_dano_repartido_ancora_nas_negativas_e25(db_session):
     assert "em 5 posições" in cel[2] and topo.startswith("O dano existe e está repartido.")
     assert topo.endswith("porque é nelas que falta escuta.")
     assert cel[22].startswith("A preocupação está repartida em 5 posições")
+    # Q16: o que se aprende é sobre a escuta; não elege posição nem cai na frase genérica
+    assert cel[16].startswith("Que a escuta ainda não alcança o bastante em nenhuma posição.")
+    assert "dano em 5 delas" in cel[16] and "Acessibilidade" not in cel[16]
+    assert "As leituras diagnósticas" not in cel[16]
 
 
 def test_perguntas_sem_base_nenhuma_declara_e_segue_o_lastro(db_session):
