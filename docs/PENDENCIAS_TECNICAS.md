@@ -250,6 +250,20 @@ cujo hash muda dispara sozinha na pós-coleta (`pos_coleta.py`, `skip_unchanged=
 do Diagnóstico: é custo sem decisão e precisa de número antes do merge.
 Reprocessamento pago de temas: só Carbel e Unimed (E29). O código sobe para todas.
 
+### Mudança em tema dispara gasto noturno sem decisão — precisa de trava geral
+**Status:** aberto (registrado em 25/11/2026). Toda pós-coleta termina regenerando, sem perguntar,
+as leituras diagnósticas (empresa e lojas) e as sugestões estruturais cujo hash mudou
+(`pos_coleta.py`, `skip_unchanged=True`), além de seções de relatório e leituras de anomalia. O
+assunto dominante entra no payload da leitura, e ele muda toda vez que se mexe em nomeação ou
+ranqueamento de tema — duas vezes em novembro. Cada mudança assim vira gasto pago na noite
+seguinte, em todas as empresas afetadas, sem número na mesa (§13). A trava tem de ser geral (não
+uma por conserto).
+**Agravante, erro do agente registrado:** em 25/11 o agente afirmou que esse custo "é somado no
+registro da pós-coleta". É somado só no objeto de retorno (`r.custo_estimado_usd`), que o CLI
+imprime e os caminhos automáticos (noturna, watchdog, orquestrador) descartam. Não é gravado em
+lugar nenhum. O gasto de uma noite só se reconstrói pelo que ficou no banco: tokens exatos em
+`relatorio_cache` e `custo_usd` em `frases_posicao`; leituras e sugestões sem tokens, só teto.
+
 ### Dobrar as quatro consultas de assunto nas funções compartilhadas
 **Status:** aberto, fora do passe do "sem detalhe". Parecer `_temas_voz`, `painel_temas`
 (`api/temas.py`), `_tema_dominante_periodo` (`api/painel.py`) e a seção 07 do Pontual consultam
@@ -257,7 +271,7 @@ o banco por conta própria. No passe elas só chamam a função de elegibilidade
 lugar, mas as consultas seguem quatro.
 
 ### Extrator antigo de temas ainda vivo com a regra "atendimento personalizado"
-**Status:** aberto, só registro. A regra 4 do `rotulagem_cluster_v1.md` (mandava usar
+**Status:** regra tirada do prompt na branch `fix/ferida-regua` (37326bb, sem merge); a rota e o CLI seguem como estão. A regra 4 do `rotulagem_cluster_v1.md` (mandava usar
 "atendimento personalizado" quando o grupo girava em torno de uma pessoa; gerou o bloco de 428)
 saiu com o `rotulagem_pedaco_v2.md`, e `rotular_cluster` não é mais chamado. Mas a mesma regra
 está no `extracao_temas_v2.md`, e `extrair_temas` segue chamável pelo CLI (`app.py:521`) e pela
