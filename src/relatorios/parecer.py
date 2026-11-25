@@ -782,6 +782,7 @@ def sintetizar_parecer(
         row.dados_hash = fhash
         row.tokens_in = int(data.get("_in", 0) or 0)
         row.tokens_out = int(data.get("_out", 0) or 0)
+        row.gerado_em = datetime.utcnow()  # data do texto atual, não da 1ª síntese
     return out
 
 

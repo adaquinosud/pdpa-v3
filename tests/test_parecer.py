@@ -227,6 +227,66 @@ def test_sintetizar_parecer_cacheia(db_session):
     assert r2 == r1 and chamadas["n"] == 1
 
 
+def test_sintese_refeita_atualiza_gerado_em(db_session):
+    """Texto refeito (fatos mudaram) grava a data da regravação, não fica com a da 1ª síntese.
+    Cache acertado (mesmos fatos) não mexe na data."""
+    from datetime import datetime
+
+    from src.models.relatorio_cache import RelatorioCache
+    from src.relatorios.parecer import montar_dados as _md
+    from src.relatorios.parecer import sintetizar_parecer
+
+    e = _empresa(db_session, "sintdata", missao="M")
+    f = _fonte(db_session, e)
+    for i in range(3):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="reclamação real de atendimento",
+                tem_texto=True,
+                subpilar="Pa1",
+                tipo="detrator",
+                hash_dedup=f"hd{i}",
+            )
+        )
+    db_session.commit()
+
+    def _fake(facts):
+        return {"abertura": "a", "fecho": "f", "_in": 1, "_out": 1}
+
+    def _linha():
+        db_session.expire_all()
+        return (
+            db_session.query(RelatorioCache)
+            .filter_by(empresa_id=e.id, escopo_hash="empresa", secao="parecer_sintese")
+            .one()
+        )
+
+    sintetizar_parecer(e.id, _md(e.id), gerar_fn=_fake)
+    antiga = datetime(2026, 1, 1)
+    _linha().gerado_em = antiga
+    db_session.commit()
+
+    sintetizar_parecer(e.id, _md(e.id), gerar_fn=_fake)  # mesmos fatos → cache
+    assert _linha().gerado_em == antiga
+
+    db_session.add(
+        Verbatim(
+            empresa_id=e.id,
+            fonte_id=f.id,
+            texto="mais uma reclamação real",
+            tem_texto=True,
+            subpilar="Pa1",
+            tipo="detrator",
+            hash_dedup="hd-novo",
+        )
+    )
+    db_session.commit()
+    sintetizar_parecer(e.id, _md(e.id), gerar_fn=_fake)  # fatos mudaram → regrava
+    assert _linha().gerado_em > antiga
+
+
 def test_seletor_pesquisa_prefere_a_com_origem(db_session):
     """BUG crítico: uma pesquisa NOVA vazia (id maior) escondia a que TEM ORIGEM.
     O seletor deve pegar a que tem OrigemAnalise, não a de maior id."""
