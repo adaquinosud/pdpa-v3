@@ -273,21 +273,25 @@ comum. Provado na E25: Pa1 com 194 promotores × 16 detratores (12,1) imprime 9,
 é impressa, o teto precisa ser dito — no Parecer ela aparece logo abaixo da manchete.
 Inventário das superfícies a fazer.
 
-### Piso de 30 conta conversível — TRAVA, não conserto
-**Status:** fechado como trava (25/11/2026, sonda `sonda_piso_conversivel`). O volume do piso é
-promotor + conversível + detrator (`agregar_subpilares`); a razão é promotor / detrator. No
-parque, 5 de 54 posições com volume ≥ 30 só alcançam o piso pelo conversível, e nenhuma é hoje
-gargalo, ferida ou 1º da Sequência: o furo nunca mordeu.
-**Por que fica:** o piso conta manifestação de propósito. Contar só quem tomou partido
-esconderia posição em que quase todos tomaram partido — a Pa2 da E15, 30 manifestações, 28
-detratores, 0 promotores, 2 conversíveis, cairia para 28 e sairia da eleição (a E15 é empresa
-de teste no parque, mas o caso é o que a regra precisa cobrir). O filtro de 1,0 da ferida já
-fecha o pior caso sozinho: a D1 da E15, razão 4,00 sustentada em 15 opiniões, não é elegível.
-**Gatilho para reabrir:** aparecer posição abaixo de 1,0 que só alcance o piso por conversível.
+### Piso de 30 conta conversível — reaberto
+**Status:** reaberto (25/11/2026), fora do passe da ferida. O volume do piso é promotor +
+conversível + detrator (`agregar_subpilares`); a razão é promotor / detrator. Princípio: o piso
+que autoriza eleger por razão deveria contar o que forma a razão, e o conversível não forma.
+**Histórico da decisão:** a 1ª leitura da sonda (`sonda_piso_conversivel`, parque todo) deu 5 de
+54 posições que só alcançam o piso pelo conversível, nenhuma gargalo, ferida ou 1º da Sequência,
+e a trava foi registrada com a Pa2 da E15 (30 manifestações, 28 detratores, 0 promotores, 2
+conversíveis) como o caso que contar só opinião esconderia. A E15 é empresa de TESTE (Club Med
+teste, tabela do Contexto-Mestre): regra validada na base, que é o que não se faz (§4 do
+CLAUDE.md). O argumento caiu com ela.
+**Próximo passo:** a sonda roda de novo sem as empresas de teste (15, 18, 20 e qualquer nome com
+"teste"/"test") e lista as posições reais que ficariam invisíveis com o conserto. O filtro de 1,0
+da ferida segue fechando o pior caso (posição com razão alta sustentada em poucas opiniões não é
+elegível); o gatilho continua sendo posição abaixo de 1,0 que só alcance o piso por conversível.
 
 ### O produto não tem odômetro — custo de execução paga calculado e descartado
-**Status:** aberto (25/11/2026; antes "mudança em tema dispara gasto noturno"). Onde entra
-(nesta branch ou item próprio) é decisão do Alexandre. Toda pós-coleta regenera, sem perguntar,
+**Status:** aberto (25/11/2026; antes "mudança em tema dispara gasto noturno"). Branch própria, não
+na `fix/ferida-regua` (migração não pega carona em branch de impresso; confirmação do
+Alexandre pendente). Toda pós-coleta regenera, sem perguntar,
 as leituras diagnósticas e as sugestões estruturais cujo hash mudou (`pos_coleta.py`,
 `skip_unchanged=True`), além de seções de relatório e leituras de anomalia. O custo é somado só
 no objeto de retorno (`r.custo_estimado_usd`), que o CLI imprime e os caminhos automáticos
@@ -300,6 +304,12 @@ diagnósticas (teto R$ 1,68) e R$ 0,08 exatos de seções; pipeline às 06h09, l
 só na Carbel, mais 12 leituras e 49 linhas de sugestão: não é evento, é o ritmo, em toda empresa
 com pipeline ativo. Leitura e sugestão não guardam tokens; só `relatorio_cache` e
 `frases_posicao` guardam.
+**Exigência de desenho:** a tabela marca, obrigatoriamente, o que é MEDIDO (tokens da resposta da
+API) e o que é ESTIMADO (o custo do pipeline de temas sai de conta fixa por item). O número vai
+ser citado em submissão; misturar os dois sem etiqueta é pior que não ter a tabela. Primeiro
+corte: gravar no fim da pós-coleta (cobre noturna, watchdog, orquestrador); síntese do Parecer,
+sonda de IA e classificador num segundo passo. A "noite que custou quatro vezes" foi leitura
+errada: 45 eram linhas de sugestão, não chamadas (uma chamada grava várias).
 
 ### E25 — a âncora da aba Perguntas é a antiga ferida
 **Registro (25/11/2026):** na E25 (D1: 80 promotores, 9 conversíveis, 47 detratores, 136
