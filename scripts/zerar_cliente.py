@@ -158,6 +158,9 @@ MANTIDAS = [
     "fontes",
     "usuarios",
     "empresa_jornada_etapas",
+    # Odômetro: o gasto é da Loyall e não tem texto do cliente (mesma decisão de 08/11 das
+    # frases da aba Posições: medidor que esquece gasto é o defeito). Zerar não apaga.
+    "custos_execucao",
 ]
 
 # Globais sem empresa_id — intencionalmente NÃO tocadas (não derivam de uma empresa).

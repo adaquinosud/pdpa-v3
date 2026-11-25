@@ -1019,23 +1019,37 @@ def executar_pos_coleta(
     # desfecho RA dos casos novos (era o passo 14) — sobe pra cabeça. Só ambíguo custa
     # Sonnet; determinístico = $0. Rodando sempre, ``desfecho_null`` nunca acumula.
     _casos_ra = _classificar_casos_ra(empresa_id)
-    custo_cabeca = (
-        r.classificados * CUSTO_USD_POR_CLASSIFICACAO
-        + _casos_ra["in"] / 1e6 * 3.0
-        + _casos_ra["out"] / 1e6 * 15.0
+    # Odômetro: cada parte do custo com a sua natureza (medido pela API × estimado por item),
+    # gravado em ``custos_execucao`` ao fim — antes era somado aqui e descartado pelos
+    # caminhos automáticos.
+    from src.custos.odometro import Odometro
+
+    od = Odometro()
+    od.estimado(
+        "classificacao",
+        r.classificados * CUSTO_USD_POR_CLASSIFICACAO,
+        f"{r.classificados} classificados × US$ {CUSTO_USD_POR_CLASSIFICACAO} (conta fixa)",
     )
+    od.medido("desfecho_ra", _casos_ra["in"], _casos_ra["out"])
 
     # ── GATE DA CAUDA — só o caro. Não olha subpilar_null/desfecho_null (na cabeça) ──
     pendente = contar_pendente_cauda(empresa_id)
     if not force and pendente < lim:
         r.motivo_skip = f"cauda pulada (pendente {pendente} < {lim}) — cabeça processou o novo"
-        r.custo_estimado_usd = round(custo_cabeca, 4)
+        r.custo_estimado_usd = round(od.total, 4)
+        od.gravar(empresa_id, "pos_coleta", cauda_executou=False)
         _marcar_pos_coleta_status(empresa_id, "completo", pendencias_pos_coleta(empresa_id))
         return r
 
     r.executou = True  # a cauda rodou
     emb = embed_verbatins_pendentes(empresa_id)
     r.embeddings_gerados = int(emb.get("gerados", 0))
+    # Mesma estimativa do callback de embeddings.py: ~50 tokens/verbatim × US$ 0,02/1M.
+    od.estimado(
+        "embeddings",
+        r.embeddings_gerados * 50 / 1e6 * 0.02,
+        f"{r.embeddings_gerados} verbatins × ~50 tokens × US$ 0,02/1M (estimativa)",
+    )
 
     rp = processar_empresa(
         empresa_id, callback_progresso=callback_progresso, aplicar_janela=aplicar_janela
@@ -1097,14 +1111,19 @@ def executar_pos_coleta(
     r.sugestoes_geradas = ms["sugestoes"]
     r.sugestoes_pulados = ms["pulados"]
 
-    # desfecho RA já foi classificado na CABEÇA (custo em custo_cabeca).
-    custo = custo_cabeca  # classificação + desfecho (cabeça)
-    custo += rp.custo_usd_acumulado
-    custo += rsem.input_tokens / 1e6 * 1.0 + rsem.output_tokens / 1e6 * 5.0
-    custo += ra.input_tokens / 1e6 * 3.0 + ra.output_tokens / 1e6 * 15.0
-    custo += md["in"] / 1e6 * 3.0 + md["out"] / 1e6 * 15.0
-    custo += mp["in"] / 1e6 * 3.0 + mp["out"] / 1e6 * 15.0
-    custo += ms["in"] / 1e6 * 3.0 + ms["out"] / 1e6 * 15.0
+    # desfecho RA já foi classificado na CABEÇA (custo já no odômetro).
+    od.estimado(
+        "rotulagem_temas",
+        rp.custo_usd_acumulado,
+        "clusters estimados × CUSTO_USD_POR_ROTULAGEM (conta fixa do pipeline de temas)",
+    )
+    from src.custos.odometro import PRECO_HAIKU
+
+    od.medido("cruzamentos_semanticos", rsem.input_tokens, rsem.output_tokens, PRECO_HAIKU)
+    od.medido("acoes", ra.input_tokens, ra.output_tokens)
+    od.medido("leituras_diagnosticas", md["in"], md["out"])
+    od.medido("perspectivas", mp["in"], mp["out"])
+    od.medido("sugestoes_estruturais", ms["in"], ms["out"])
 
     # ── Escopo loja (Bloco 9 / CP-A5): diagnóstico + sugestões por loja ≥30 ──
     from src.diagnostico.leituras import lojas_qualificadas
@@ -1120,7 +1139,8 @@ def executar_pos_coleta(
         r.loja_diag_pulados += mdl["pulados"]
         r.loja_sug_geradas += msl["sugestoes"]
         r.loja_sug_pulados += msl["pulados"]
-        custo += (mdl["in"] + msl["in"]) / 1e6 * 3.0 + (mdl["out"] + msl["out"]) / 1e6 * 15.0
+        od.medido("leituras_diagnosticas_loja", mdl["in"], mdl["out"])
+        od.medido("sugestoes_estruturais_loja", msl["in"], msl["out"])
 
     # ── Relatórios (B1'..B4 + B5 Governança) — pré-aquece cache dos 5 PDFs.
     # Cada montar_dados já faz skip por dados_hash em relatorio_cache; aqui só
@@ -1149,7 +1169,7 @@ def executar_pos_coleta(
             r.relatorios_aquecidos += 1
             r.relatorios_tokens_in += ti_
             r.relatorios_tokens_out += to_
-            custo += ti_ / 1e6 * 3.0 + to_ / 1e6 * 15.0
+            od.medido(f"relatorio_{_fn.__module__.rsplit('.', 1)[-1]}", ti_, to_)
         except Exception as exc:  # noqa: BLE001
             r.relatorios_falhas += 1
             logger.warning(f"[pos-coleta] relatorio {_fn.__module__}: {type(exc).__name__}: {exc}")
@@ -1167,11 +1187,12 @@ def executar_pos_coleta(
         ml = gerar_e_persistir_leituras(empresa_id, limite=50, apenas_sem_leitura=True)
         r.anomalias_leituras_geradas = ml["gerados"]
         r.anomalias_leituras_falhas = ml["falhas"]
-        custo += ml["in"] / 1e6 * 3.0 + ml["out"] / 1e6 * 15.0
+        od.medido("leituras_anomalias", ml["in"], ml["out"])
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"[pos-coleta] leituras anomalias: {type(exc).__name__}: {exc}")
 
-    r.custo_estimado_usd = round(custo, 4)
+    r.custo_estimado_usd = round(od.total, 4)
+    od.gravar(empresa_id, "pos_coleta", cauda_executou=True)
     # Chegou ao fim = 'completo' — SALVO falha sistêmica da rotulagem (LLM caiu na
     # rodada): aí o status é 'falha_sistemica' (o dado se auto-corrige na próxima coleta,
     # mas o operador precisa saber que o "0 temas" de hoje é infra, não realidade). Se o

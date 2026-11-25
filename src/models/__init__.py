@@ -21,6 +21,7 @@ from src.models.classifier_metric import ClassifierMetric
 from src.models.coleta_execucao import ColetaExecucao
 from src.models.contato import ContatoAtributo, ContatoEmpresa, PesquisaConvite
 from src.models.diagnostico import LeituraDiagnostico
+from src.models.custo_execucao import CustoExecucao
 from src.models.frase_posicao import FrasePosicao
 from src.models.empresa import Empresa
 from src.models.empresa_jornada_etapa import EmpresaJornadaEtapa
@@ -93,6 +94,7 @@ __all__ = [
     "ImportacaoLote",
     "GiniConcentracao",
     "LeituraDiagnostico",
+    "CustoExecucao",
     "FrasePosicao",
     "PrevisibilidadeCalculation",
     "ProximityCalculation",

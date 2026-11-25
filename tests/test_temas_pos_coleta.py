@@ -150,6 +150,11 @@ def test_executar_pula_abaixo_do_limiar(client_loyall, db_session, monkeypatch):
     assert r.executou is False and "cauda pulada" in r.motivo_skip
     # o gate governa cauda E warm: gateado → nenhum relatório aquecido (frente gate-cauda-warm)
     assert r.relatorios_aquecidos == 0
+    # Odômetro: a execução que pulou a cauda também vira linha (a cabeça custou).
+    from src.models.custo_execucao import CustoExecucao
+
+    (linha,) = db_session.query(CustoExecucao).filter_by(empresa_id=e["id"]).all()
+    assert linha.cauda_executou is False and linha.usd_estimado > 0 and linha.usd_medido == 0
 
 
 def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypatch):
@@ -198,6 +203,21 @@ def test_executar_roda_com_force_e_encadeia(client_loyall, db_session, monkeypat
     assert r.cruz_literais == 2 and r.cruz_semanticos == 1
     assert r.acoes == 3
     assert r.custo_estimado_usd > 0
+
+    # Odômetro: a execução vira UMA linha, medido e estimado separados, cada parte etiquetada.
+    import json
+
+    from src.models.custo_execucao import CustoExecucao
+
+    linhas = db_session.query(CustoExecucao).filter_by(empresa_id=e["id"]).all()
+    assert len(linhas) == 1 and linhas[0].origem == "pos_coleta" and linhas[0].cauda_executou
+    partes = {p["componente"]: p for p in json.loads(linhas[0].partes_json)}
+    assert partes["rotulagem_temas"]["natureza"] == "estimado"
+    assert partes["classificacao"]["natureza"] == "estimado"
+    assert partes["embeddings"]["natureza"] == "estimado"
+    assert partes["acoes"]["natureza"] == "medido" and partes["acoes"]["tokens_in"] == 200
+    assert partes["cruzamentos_semanticos"]["usd"] == round((100 * 1 + 10 * 5) / 1e6, 6)  # Haiku
+    assert abs(linhas[0].usd_medido + linhas[0].usd_estimado - r.custo_estimado_usd) < 1e-4
 
 
 def test_executar_passa_limite_para_classificar(client_loyall, db_session, monkeypatch):
