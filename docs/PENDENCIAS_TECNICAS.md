@@ -230,7 +230,7 @@ ferida não se compara entre empresas, nem dentro da mesma empresa se o conjunto
 no meio. Proposta em aberto: declarar as fontes no mesmo pacote do rodapé de período.
 
 ### "Sem detalhe" eleito como assunto — conta, nunca elege
-**Status:** caminho aprovado (25/11/2026); a forma da contagem espera o Alexandre. Achado: na
+**Status:** caminho aprovado (25/11/2026); forma aprovada pelo Alexandre: o "sem detalhe" nunca é linha da lista, vira linha no pé com número e percentual (mesma família do crítico abaixo do piso). Achado: na
 Carbel (rodada de 18/11), 134 relatos (25%) em "sem detalhe", e o maior assunto da empresa era
 "comentário sem detalhe" (94). Os três nomes são do código, por tipo do pedaço
 (`rotulador.py:213-214`, coerção em `:331-335`), não invenção do modelo; "comentário" é o de
@@ -249,6 +249,14 @@ pode estar ancorada em "sem detalhe" e é limpa à parte, só Carbel. A regenera
 cujo hash muda dispara sozinha na pós-coleta (`pos_coleta.py`, `skip_unchanged=True`) e no botão
 do Diagnóstico: é custo sem decisão e precisa de número antes do merge.
 Reprocessamento pago de temas: só Carbel e Unimed (E29). O código sobe para todas.
+
+### Parecer sem ferida e sem base
+**Status:** decidido (25/11/2026). Sem base (nenhuma posição com 30+): sem Parecer, bloqueio
+permanente — leitura exige dado, a empresa recebe as perguntas. Sem ferida (há base, nada abaixo
+do empate com base): bloqueio temporário na `fix/ferida-regua` (47ba532) até a versão sem ferida,
+que é outro achado e não um Parecer enfraquecido (na E25: dano real disperso em várias posições,
+nenhuma com volume para eleger). Calendário: texto 25/11, leitura do Alexandre 26/11, prévia paga
+27/11, merge 28/11. Está no caminho da refeita do Parecer da E25 (aprovada; um só, não a frota).
 
 ### Mudança em tema dispara gasto noturno sem decisão — precisa de trava geral
 **Status:** aberto (registrado em 25/11/2026). Toda pós-coleta termina regenerando, sem perguntar,
