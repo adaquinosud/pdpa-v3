@@ -345,7 +345,9 @@ def test_perguntas_dano_repartido_ancora_nas_negativas_e25(db_session):
     for txt in (cel[2], cel[22], topo):
         assert "repartid" in txt and "Acessibilidade" not in txt
         assert "Calibração da Promessa (0,00)" in txt and "Orientação (0,20)" in txt
-    assert "em 5 posições" in cel[2] and "As perguntas vão para elas" in topo
+    assert "em 5 posições" in cel[2] and topo.startswith("O dano existe e está repartido.")
+    assert topo.endswith("porque é nelas que falta escuta.")
+    assert cel[22].startswith("A preocupação está repartida em 5 posições")
 
 
 def test_perguntas_sem_base_nenhuma_declara_e_segue_o_lastro(db_session):

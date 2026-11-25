@@ -158,9 +158,9 @@ def montar_leitura_topo(s, empresa_id: int) -> SimpleNamespace:
         if neg:  # estado 2: o dano está repartido, e as perguntas vão para ele
             lista = ", ".join(f"{p['nome']} ({virg(p['ratio'])})" for p in neg)
             nucleo = (
-                "Nenhuma posição reúne mais crítica que elogio com volume para ser apontada, mas "
-                f"o dano existe e está repartido: em {len(neg)} posições o cliente critica mais "
-                f"do que elogia ({lista}). As perguntas vão para elas — é onde falta a base."
+                f"O dano existe e está repartido. Em {len(neg)} posições o cliente critica mais "
+                f"do que elogia ({lista}), e nenhuma delas reúne volume para ser apontada. As "
+                "perguntas vão para essas posições, porque é nelas que falta escuta."
             )
         else:  # estado 3: nada no negativo; a pergunta é onde subir
             nucleo = (

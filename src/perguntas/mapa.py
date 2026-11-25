@@ -787,8 +787,8 @@ def _resumo(n: int, sig: dict) -> str:
         neg = sig.get("negativas") or []
         if not fer and neg:
             return (
-                f"O que deveria preocupar está repartido em {len(neg)} posições, nenhuma com "
-                f"volume para ser apontada: {_lista_neg(neg)}."
+                f"A preocupação está repartida em {len(neg)} posições, nenhuma com volume para "
+                f"ser apontada: {_lista_neg(neg)}."
             )
         if not fer and fina:
             return (
