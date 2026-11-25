@@ -185,6 +185,28 @@ pipeline conta por rodada e marca `pos_coleta_status='falha_sistemica'` se >50% 
 (piso). Aparece no painel de falhas do Monitoramento com selo "pós-coleta" (2º source, sem migração).
 Sinaliza, não aborta. Ver §12 do DESCRITIVO.
 
+### Ferida eleita por contagem absoluta de detratores — pode cair na posição de melhor razão
+**Status:** aberto (registrado em 25/11/2026, achado do Alexandre ao ler o material dos casos do
+livro). Fora da frente do livro. Nada alterado.
+`ferida_de_agg` (`src/api/painel.py:762`) elege `max(agg, key=det)`: o subpilar com mais
+detratores em número absoluto, sem olhar razão nem faixa. Numa empresa do inventário isso elegeu
+a posição de melhor razão da empresa (1.406 promotores × 106 detratores, faixa excelente),
+enquanto a posição crítica vizinha tem razão 0,03. Volume alto gera detrator alto mesmo com
+razão boa.
+A regra foi escolhida de propósito ("valência do PESO, onde mais dói", Parecer dois eixos; §7 do
+CLAUDE.md usa o caso como exemplo de comparação pela propriedade eleitora). O defeito é a regra
+não ter filtro de faixa, não uma cópia divergente: há uma fonte só.
+Consumidores (todos delegam a esta função):
+- **Parecer** (`src/relatorios/parecer.py:812`): é a espinha da peça; entra nos fatos da síntese
+  do modelo (texto cacheado em `relatorio_cache`, que guarda a ferida antiga até os fatos mudarem).
+- **Aba Perguntas do Explorar**, visível ao cliente (sem `so_loyall`):
+  `src/perguntas/mapa.py:319` (âncora de "o subpilar em questão" nas células) e
+  `src/diagnostico/leitura_topo.py:137` (leitura no topo da aba).
+- Não é a "ferida interna" de `pilares_com_ferida_interna` (régua por razão, piso 30), que é
+  outro conceito com nome parecido.
+Conserto pede decisão (o que é ferida quando a posição de mais detratores está saudável) e o
+mesmo passo varre os três consumidores e o texto cacheado do Parecer.
+
 ### Parecer — data da síntese não muda quando o texto é refeito
 **Status:** aberto (registrado em 25/11/2026, durante o inventário de leituras para o livro). Fora
 dessa frente.
