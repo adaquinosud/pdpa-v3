@@ -102,3 +102,71 @@ class Odometro:
                 exc,
             )
             return None
+
+
+# ── Cobertura declarada ──────────────────────────────────────────────────────────────────────
+# O odômetro é incompleto e DIZ isso: todo número que ele devolve sai com o que entra e o que fica
+# fora. Odômetro com buraco conhecido citado como se fosse o total é o mesmo erro de somar medido
+# com estimado sem etiqueta. Ao cobrir um caminho novo, ele sai de FORA e entra em COBRE no mesmo
+# commit.
+COBERTURA = {
+    "cobre": [
+        "pós-coleta (noturna, watchdog, orquestrador e o comando flask pipeline-pos-coleta)",
+        "botões de regenerar diagnóstico e sugestões (aba Diagnóstico/Planos)",
+        "botão de regenerar um subpilar",
+        "síntese do Parecer (quando o texto é gerado ao abrir)",
+        "comandos flask diagnostico-gerar, sugestoes-gerar e leituras de anomalia",
+        "regeneração em lote (relatorios/regerar.py): sugestões e leituras de anomalia",
+    ],
+    "fora": [
+        "pipeline de temas pela linha de comando",
+        "sonda de IA",
+        "chat da aba IA",
+        "avaliador de documentos",
+        "estimativa de LTV (Visão Financeira)",
+        "seções de relatório geradas ao abrir um impresso fora da pós-coleta",
+        "seções de relatório na regeneração em lote (regerar.py)",
+        "frase da aba Posições (custo gravado à parte, em frases_posicao.custo_usd)",
+        "coleta (Apify, gravada à parte em coletas_execucoes.custo_apify_centavos)",
+    ],
+}
+
+
+def registrar(empresa_id: Optional[int], origem: str, partes) -> Optional[int]:
+    """Atalho para os caminhos fora da pós-coleta: ``partes`` = [(componente, tokens_in,
+    tokens_out[, preco])], todas MEDIDAS (tokens da API). Sem token nenhum (tudo pulado), não
+    grava: não houve execução paga."""
+    od = Odometro()
+    for p in partes:
+        od.medido(*p)
+    return od.gravar(empresa_id, origem) if od.partes else None
+
+
+def resumo(empresa_id: Optional[int] = None, desde=None) -> Dict[str, Any]:
+    """O que o odômetro devolve: medido e estimado SEPARADOS, por origem, e a COBERTURA junto —
+    nunca um total solto."""
+    from collections import defaultdict
+
+    from src.models.custo_execucao import CustoExecucao
+    from src.utils.db import db_session
+
+    por_origem: Dict[str, Dict[str, float]] = defaultdict(
+        lambda: {"medido": 0.0, "estimado": 0.0, "n": 0}
+    )
+    with db_session() as s:
+        q = s.query(CustoExecucao)
+        if empresa_id is not None:
+            q = q.filter(CustoExecucao.empresa_id == empresa_id)
+        if desde is not None:
+            q = q.filter(CustoExecucao.executado_em >= desde)
+        for r in q:
+            o = por_origem[r.origem]
+            o["medido"] += r.usd_medido
+            o["estimado"] += r.usd_estimado
+            o["n"] += 1
+    return {
+        "usd_medido": round(sum(o["medido"] for o in por_origem.values()), 6),
+        "usd_estimado": round(sum(o["estimado"] for o in por_origem.values()), 6),
+        "por_origem": dict(por_origem),
+        "cobertura": COBERTURA,
+    }

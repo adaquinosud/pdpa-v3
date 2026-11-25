@@ -1965,6 +1965,9 @@ def _register_cli_commands(app: Flask) -> None:
             return
 
         m = gerar_e_persistir_leituras(empresa_id, ids=alvos)
+        from src.custos.odometro import registrar
+
+        registrar(empresa_id, "cli_leituras_anomalias", [("leituras_anomalias", m["in"], m["out"])])
         click.echo(
             f"[leituras] gerados={m['gerados']} falhas={m['falhas']} "
             f"por_tipo={m['por_tipo']} tokens(in={m['in']} out={m['out']}) "
@@ -1972,6 +1975,32 @@ def _register_cli_commands(app: Flask) -> None:
         )
         for e in m["erros"]:
             click.echo(f"  ERRO {e['chave']}: {e['erro']}", err=True)
+
+    # ── Odômetro: o custo gravado, medido × estimado e a cobertura declarada (25/11) ──
+    @app.cli.command("odometro")
+    @click.option("--empresa", "empresa_id", type=int, default=None, help="Omitido = todas.")
+    @click.option("--desde", "desde", default=None, help="AAAA-MM-DD (UTC). Omitido = tudo.")
+    def odometro_cmd(empresa_id, desde):
+        """Custo gravado no odômetro: medido e estimado SEPARADOS, por origem, e sempre o que
+        a conta cobre e o que fica fora — nunca um total solto. Só leitura."""
+        from datetime import datetime as _dt
+
+        from src.custos.odometro import resumo
+
+        r = resumo(empresa_id, _dt.fromisoformat(desde) if desde else None)
+        cambio = 5.80
+        click.echo(
+            f"[odometro] empresa={empresa_id or 'todas'} desde={desde or 'o início'} · "
+            f"MEDIDO US$ {r['usd_medido']:.4f} (R$ {r['usd_medido'] * cambio:.2f}) · "
+            f"ESTIMADO US$ {r['usd_estimado']:.4f} (R$ {r['usd_estimado'] * cambio:.2f})"
+        )
+        for o, v in sorted(r["por_origem"].items()):
+            click.echo(
+                f"  {o}: {v['n']} execuções · medido US$ {v['medido']:.4f} · "
+                f"estimado US$ {v['estimado']:.4f}"
+            )
+        click.echo("COBRE: " + "; ".join(r["cobertura"]["cobre"]))
+        click.echo("FICA FORA (não está no número acima): " + "; ".join(r["cobertura"]["fora"]))
 
     # ── Bloco 8 / Diagnóstico CP-B1: flask diagnostico-gerar (gasta Sonnet) ──
     @app.cli.command("diagnostico-gerar")
@@ -2005,6 +2034,11 @@ def _register_cli_commands(app: Flask) -> None:
             f"agrupamento={agrupamento_id or '(empresa toda)'}"
         )
         m = gerar_e_persistir_diagnostico(empresa_id, agrupamento_id)
+        from src.custos.odometro import registrar
+
+        registrar(
+            empresa_id, "cli_diagnostico_gerar", [("leituras_diagnosticas", m["in"], m["out"])]
+        )
         click.echo(
             f"[diagnostico] gerados={m['gerados']} falhas={m['falhas']} "
             f"tokens(in={m['in']} out={m['out']}) custo~${m['custo_usd']}"
@@ -2072,6 +2106,9 @@ def _register_cli_commands(app: Flask) -> None:
             f"agrupamento={agrupamento_id or '(empresa toda)'}"
         )
         m = gerar_e_persistir_sugestoes(empresa_id, agrupamento_id)
+        from src.custos.odometro import registrar
+
+        registrar(empresa_id, "cli_sugestoes_gerar", [("sugestoes_estruturais", m["in"], m["out"])])
         click.echo(
             f"[sugestoes] subpilares={m['subpilares']} sugestoes={m['sugestoes']} "
             f"por_perspectiva={m['por_perspectiva']} tokens(in={m['in']} out={m['out']}) "

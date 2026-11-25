@@ -217,10 +217,16 @@ def regerar(
                 diagnostico_longitudinal.montar_dados(empresa_id)
         finally:
             llm_secoes._FORCAR = set()
+    from src.custos.odometro import registrar
+
     if subpilares:
         out["sugestoes"] = gerar_e_persistir_sugestoes(empresa_id, None, subpilares=subpilares)
+        m = out["sugestoes"]
+        registrar(empresa_id, "regerar_lote", [("sugestoes_estruturais", m["in"], m["out"])])
     if anomalias:
         out["anomalias"] = gerar_e_persistir_leituras(empresa_id, ids=anomalias)
+        m = out["anomalias"]
+        registrar(empresa_id, "regerar_lote", [("leituras_anomalias", m["in"], m["out"])])
     return out
 
 

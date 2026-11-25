@@ -6778,6 +6778,11 @@ def explorar_regenerar(empresa_id: int, tipo: str):
         from src.planos.sugestoes import gerar_e_persistir_sugestoes
 
         m = gerar_e_persistir_sugestoes(empresa_id, ag_id, skip_unchanged=True)
+        from src.custos.odometro import registrar
+
+        registrar(
+            empresa_id, "botao_regenerar_sugestoes", [("sugestoes_estruturais", m["in"], m["out"])]
+        )
         msg = (
             f"✓ {m['sugestoes']} sugestões em {m['subpilares']} subpilares regeneradas "
             f"({m['pulados']} sem mudança)."
@@ -6786,6 +6791,13 @@ def explorar_regenerar(empresa_id: int, tipo: str):
         from src.diagnostico.leituras import gerar_e_persistir_diagnostico
 
         m = gerar_e_persistir_diagnostico(empresa_id, ag_id, skip_unchanged=True)
+        from src.custos.odometro import registrar
+
+        registrar(
+            empresa_id,
+            "botao_regenerar_diagnostico",
+            [("leituras_diagnosticas", m["in"], m["out"])],
+        )
         msg = f"✓ {m['gerados']} leituras regeneradas ({m['pulados']} sem mudança)."
 
     ctx = _explorar_contexto(empresa_id, tab)
@@ -6829,6 +6841,11 @@ def explorar_regenerar_subpilar(empresa_id: int):
         skip_unchanged=False,
         local_id=local_id,
         subpilares={subpilar},
+    )
+    from src.custos.odometro import registrar
+
+    registrar(
+        empresa_id, "botao_regenerar_subpilar", [("leituras_diagnosticas", m["in"], m["out"])]
     )
     if m["gerados"]:
         msg = f"✓ Leitura de {subpilar} regenerada."

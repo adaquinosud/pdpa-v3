@@ -729,6 +729,11 @@ def sintetizar_parecer(
             )
 
     data = gerar_fn(facts)
+    from src.custos.odometro import registrar
+
+    registrar(
+        empresa_id, "parecer_sintese", [("parecer_sintese", data.get("_in"), data.get("_out"))]
+    )
     # 6b: guard das frases ANCORADAS — (a) núcleo (nucleo_kw) + (b) âncora (ferida).
     # Falha em qualquer → dropa o nível (template cai na canônica 6a); loga o motivo.
     import logging
