@@ -206,6 +206,33 @@ Consumidores (todos delegam a esta função):
   outro conceito com nome parecido.
 Conserto pede decisão (o que é ferida quando a posição de mais detratores está saudável) e o
 mesmo passo varre os três consumidores e o texto cacheado do Parecer.
+**Defeito irmão — empate sem ordem definida.** No empate de detratores, `max()` devolve o primeiro
+que encontra, e a ordem vem da consulta de `agregar_subpilares` (`GROUP BY` sem `ORDER BY`), que o
+banco não garante. O mesmo dado pode eleger posições diferentes de uma geração para outra. Lido no
+código, não observado em produção.
+**Desenho decidido (25/11, pacote do conserto):** ferida = mais detratores entre as posições com
+razão < 1,0 e volume ≥ 30; empate: menor razão, depois a ordem do Lastro; nenhuma qualifica → sem
+ferida, declarado. Aba Perguntas sem ferida: âncora na menor razão com volume ≥ 30, empate pela
+ordem do Lastro. Crítico abaixo do piso: marcar, não cortar (linha no Parecer). A frase da
+divergência (`_eixos_leitura`, supõe a ferida depois do gargalo na ordem) entra no mesmo passe.
+Gargalo e Sequência não mudam de corte.
+
+### Parecer — não declara quais fontes alimentaram a leitura
+**Status:** aberto, decisão do Alexandre (registrado em 25/11/2026). O Parecer diz "todas as
+fontes" sem listar quais; cada citação traz a sua fonte; o rodapé só declara o período do Reclame
+Aqui; a quebra da ferida por fonte (`_ferida_por_fonte`) vai só para os fatos do modelo. Como a
+ferida é contagem, ela se move com a cobertura de fontes: ligar uma fonte nova (o Reclame Aqui
+sobretudo, com taxa de crítica muito maior) muda a ferida e piora a razão em tudo. Por isso a
+ferida não se compara entre empresas, nem dentro da mesma empresa se o conjunto de fontes mudou
+no meio. Proposta em aberto: declarar as fontes no mesmo pacote do rodapé de período.
+
+### Sequência de ação × gargalo — dois "por onde começar" no mesmo impresso
+**Status:** aberto desde 29/10, decisão do Alexandre (texto de impresso de cliente). Não é
+contradição de conta: a Sequência corta em 1,0 e segue a ordem do Lastro, o gargalo corta em 0,5
+(Carbel: gargalo D, 1º da Sequência P2, porque P vem antes de D). A contradição é de apresentação:
+os dois aparecem como "por onde começar". Proposta (25/11): gargalo é diagnóstico (onde a corrente
+arrebenta), Sequência é prescrição (o que fazer em que ordem), e o texto do impresso diz isso. Sem
+mudar corte nenhum.
 
 ### Parecer — data da síntese não muda quando o texto é refeito
 **Status:** aberto (registrado em 25/11/2026, durante o inventário de leituras para o livro). Fora
