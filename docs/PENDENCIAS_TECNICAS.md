@@ -322,6 +322,20 @@ manifestações, razão 1,70) a regra nova tira a ferida, e a âncora da aba Per
 com 30+) cai na mesma D1. A posição não sai da leitura; muda de papel. Ajuda a conversa com o
 cliente que recebeu o Parecer antigo.
 
+### Odômetro — caminhos pagos que ficam fora da conta
+**Status:** aberto (25/11/2026). O odômetro (`feat/odometro`) cobre a pós-coleta e os 9 pontos
+de regeneração da família leituras/sugestões/anomalias/Parecer, e DECLARA a cobertura em todo
+número que devolve (`COBERTURA` em `src/custos/odometro.py`, impressa pelo `flask odometro`).
+Ficam fora, nomeados: (1) pipeline de temas pela linha de comando; (2) sonda de IA; (3) chat da
+aba IA; (4) avaliador de documentos; (5) estimativa de LTV da Visão Financeira. Achados no
+caminho, também fora: seções de relatório geradas ao abrir um impresso fora da pós-coleta;
+seções na regeneração em lote (`regerar.py`); frase da aba Posições e coleta Apify (gravadas à
+parte). Ao cobrir um, ele sai de "fora" e entra em "cobre" no mesmo commit.
+**Padrão registrado (§5, os dois lados do relé):** três vezes em 25/11 a lista de consumidores
+saiu incompleta — o agente listou os botões e não o comando; o claude.ai trocou uma das três
+aparições do gargalo no Parecer; antes, a nomeação foi consertada sem perguntar quem consumia o
+nome. E a contagem que o agente mandou dos pontos de regeneração dizia 8, eram 9.
+
 ### Dobrar as quatro consultas de assunto nas funções compartilhadas
 **Status:** aberto, fora do passe do "sem detalhe". Parecer `_temas_voz`, `painel_temas`
 (`api/temas.py`), `_tema_dominante_periodo` (`api/painel.py`) e a seção 07 do Pontual consultam
