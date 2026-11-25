@@ -143,3 +143,48 @@ def test_gargalo_none_implica_sem_ferida_interna(seed):
             assert pilares_com_ferida_interna(agg) == {}
     conhecido = _agg({"Pa1": (1493, 0, 95), "Pa2": (12, 2, 286)})
     assert pilares_com_ferida_interna(conhecido) and gargalo_sequencial(conhecido) == "Pa"
+
+
+def _agg_de(contagens):
+    from src.api.painel import calcular_ratio, faixa_ratio
+
+    out = {}
+    for sub, (p, d) in contagens.items():
+        r = calcular_ratio(p, d)
+        out[sub] = {
+            "prom": p,
+            "conv": 0,
+            "det": d,
+            "total": p + d,
+            "ratio": r,
+            "faixa": faixa_ratio(r),
+        }
+    return out
+
+
+def test_soma_sem_base_nao_elege_forma_e27():
+    """(b), 25/11: a E27 tinha gargalo em Precisão eleito pela soma de 15 manifestações, com
+    Parceria em 906. A soma passa a exigir 30 no pilar; Parceria elege pelo subpilar crítico."""
+    from src.api.painel import gargalo_detalhe
+
+    agg = _agg_de({"P1": (2, 13), "Pa1": (600, 20), "Pa2": (6, 280)})
+    g = gargalo_detalhe(agg)
+    assert g["pilar"] == "Pa" and g["motivo"] == "subpilar_critico"
+    assert g["eleitor"]["subpilar"] == "Pa2"
+
+
+def test_soma_sem_base_nenhum_gargalo_forma_e25():
+    """A E25: pilar crítico pela soma com 18 manifestações e nada mais quebrado → sem gargalo."""
+    from src.api.painel import gargalo_detalhe
+
+    agg = _agg_de({"P1": (0, 4), "P3": (1, 3), "P2": (2, 8), "D1": (80, 47), "D2": (0, 23)})
+    assert gargalo_detalhe(agg) is None
+
+
+def test_piso_do_pilar_29_nao_elege_30_elege():
+    from src.api.painel import gargalo_detalhe
+
+    assert gargalo_detalhe(_agg_de({"P1": (4, 25)})) is None  # crítico pela soma, 29
+    assert gargalo_detalhe(_agg_de({"P1": (4, 26)}))["motivo"] == "soma_critica"  # 30
+    assert gargalo_detalhe(_agg_de({"D1": (12, 17)})) is None  # fraca pela soma, 29
+    assert gargalo_detalhe(_agg_de({"D1": (12, 18)}))["motivo"] == "soma_fraca"  # 30

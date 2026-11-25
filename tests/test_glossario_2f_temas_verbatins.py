@@ -108,7 +108,7 @@ def test_diagnostico_plugado(client_loyall: FlaskClient, db_session: Session) ->
     e = _empresa(client_loyall, "diag")
     loc, f = _estrutura(client_loyall, e)
     _verb(db_session, e, f, loc, "Pa1", "promotor", n=3)
-    _verb(db_session, e, f, loc, "P1", "detrator", n=2)
+    _verb(db_session, e, f, loc, "P1", "detrator", n=30)  # P com base: há gargalo a explicar
     h = client_loyall.get(f"/empresas/{e['id']}/explorar/tab/diagnostico").get_data(as_text=True)
     assert "Um dos 4 alicerces do método" in h  # pilar
     assert "Pilar com menor ratio no agregado" in h  # gargalo

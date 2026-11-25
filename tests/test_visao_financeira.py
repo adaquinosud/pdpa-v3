@@ -150,8 +150,8 @@ def test_trajetoria_recompoe_prom_det_nunca_soma_ratios(client_loyall, db_sessio
 def test_termo_mais_exposto_mapeia_gargalo(client_loyall, db_session):
     eid, lid, agid, fid = _empresa(client_loyall)
     # P crítico (1 prom / 9 det); D e Pa e A saudáveis → gargalo=P → termo Retenção.
-    _vb(db_session, eid, fid, "P1", "promotor", 1)
-    _vb(db_session, eid, fid, "P1", "detrator", 9)
+    _vb(db_session, eid, fid, "P1", "promotor", 3)  # P com 30: a soma elege
+    _vb(db_session, eid, fid, "P1", "detrator", 27)
     for sp in ("D1", "Pa1", "A1"):
         _vb(db_session, eid, fid, sp, "promotor", 9)
         _vb(db_session, eid, fid, sp, "detrator", 1)
@@ -398,8 +398,8 @@ def test_leitura_reputacao_direcao_do_split():
 def test_elo_travado_por_termo_mapeia_pilar(client_loyall, db_session):
     eid, lid, agid, fid = _empresa(client_loyall)
     # P crítico → elo travado da Retenção = P (Precisão); Expansão sem travado
-    _vb(db_session, eid, fid, "P1", "promotor", 1)
-    _vb(db_session, eid, fid, "P1", "detrator", 9)
+    _vb(db_session, eid, fid, "P1", "promotor", 3)  # P com 30: a soma elege
+    _vb(db_session, eid, fid, "P1", "detrator", 27)
     for sp in ("D1", "Pa1", "A1"):
         _vb(db_session, eid, fid, sp, "promotor", 9)
         _vb(db_session, eid, fid, sp, "detrator", 1)

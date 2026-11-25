@@ -414,8 +414,8 @@ def test_regua_mapa_lastro_agrega_por_pilar_e_gargalo(db_session):
     from src.pesquisa.retorno import regua_pesquisa
 
     p, qs = _pesquisa_coleta_subs(db_session, "EMapa", ["P1", "D1"])
-    # P1: 1 promotor (5) + 3 detratores (1) → ratio 0.33 (crítico)
-    for nota in [5, 1, 1, 1]:
+    # P1: 10 promotores (5) + 30 detratores (1) → ratio 0.33 (crítico), pilar com base (40)
+    for nota in [5] * 10 + [1] * 30:
         registrar_respostas(
             db_session,
             p,
@@ -438,7 +438,7 @@ def test_regua_mapa_lastro_agrega_por_pilar_e_gargalo(db_session):
     assert mapa["P"]["ratio"] == 0.33 and mapa["P"]["faixa"] == "critico"
     assert mapa["P"]["gargalo"] is True  # primeiro crítico
     assert mapa["D"]["ratio"] == 9.99 and mapa["D"]["gargalo"] is False
-    assert mapa["P"]["total"] == 4 and mapa["P"]["subpilares"][0]["subpilar"] == "P1"
+    assert mapa["P"]["total"] == 40 and mapa["P"]["subpilares"][0]["subpilar"] == "P1"
 
 
 # ── Fatia 2: diagnóstico por PESSOA (recorte cross-fonte, sem temas) ──────────

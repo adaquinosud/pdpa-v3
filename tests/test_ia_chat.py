@@ -46,13 +46,13 @@ def test_normalizar_pergunta():
 
 def test_montar_e_formatar_contexto(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "ctx")
-    _verb(db_session, e, loc, f, "D2", "detrator", 5, texto="fila enorme")
+    _verb(db_session, e, loc, f, "D2", "detrator", 30, texto="fila enorme")  # D com base
     _verb(db_session, e, loc, f, "P1", "promotor", 3)
     db_session.commit()
     dados = montar_contexto(db_session, e["id"])
-    assert dados["resumo"]["volume_classificado"] == 8
+    assert dados["resumo"]["volume_classificado"] == 33
     assert dados["resumo"]["pilar_gargalo"]  # algum pilar
-    assert len(dados["verbatins_detratores"]) == 5
+    assert len(dados["verbatins_detratores"]) == 10  # o contexto corta nos 10 mais recentes
     texto = formatar_contexto(dados)
     assert "## RESUMO" in texto and "FALAS RECENTES" in texto
     assert "fila enorme" in texto

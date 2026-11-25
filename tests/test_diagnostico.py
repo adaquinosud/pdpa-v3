@@ -55,7 +55,7 @@ def _fake(payload):
 
 def test_payload_e_gargalo(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "pl")
-    _verb(db_session, e, loc, f, "D2", "detrator", 8)
+    _verb(db_session, e, loc, f, "D2", "detrator", 30)  # pilar D com 31: base
     _verb(db_session, e, loc, f, "D2", "promotor", 1)
     _verb(db_session, e, loc, f, "P1", "promotor", 6)
     _verb(db_session, e, loc, f, "P1", "detrator", 1)
@@ -63,19 +63,19 @@ def test_payload_e_gargalo(client_loyall, db_session):
 
     agg = agregar_subpilares(db_session, e["id"], None)
     assert agg["D2"]["faixa"] == "critico" and agg["P1"]["faixa"] == "excelente"
-    # pilar D (ratio 0.125) é o gargalo vs P (ratio 6.0)
+    # pilar D (ratio 0,03) é o gargalo vs P (ratio 6.0)
     assert _gargalo(agg) == "D"
 
     p = montar_payload_subpilar(db_session, e["id"], None, "D2", agg["D2"], _gargalo(agg))
     assert p["pilar"] == "D" and p["eh_gargalo"] is True and p["gargalo_pilar"] == "D"
     assert p["gargalo_pilar_nome"] == "Disponibilidade"  # nome canônico, não inventado
-    assert p["det"] == 8 and p["prom"] == 1 and p["faixa"] == "critico"
+    assert p["det"] == 30 and p["prom"] == 1 and p["faixa"] == "critico"
     assert len(p["exemplos"]) == 3  # verbatins detrator de exemplo
 
 
 def test_gerar_e_persistir_e_upsert(client_loyall, db_session):
     e, a, loc, f = _ctx(client_loyall, "gp")
-    _verb(db_session, e, loc, f, "D2", "detrator", 8)
+    _verb(db_session, e, loc, f, "D2", "detrator", 30)  # pilar D com 31: base
     _verb(db_session, e, loc, f, "D2", "promotor", 1)
     _verb(db_session, e, loc, f, "P1", "promotor", 6)
     _verb(db_session, e, loc, f, "P1", "detrator", 1)

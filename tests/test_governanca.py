@@ -1382,8 +1382,9 @@ def test_gargalo_pilar_sem_pd_nao_conta():
     from src.api.painel import gargalo_sequencial
 
     agg = {
-        "P1": {"prom": 0, "det": 0, "conv": 20, "total": 20, "ratio": 0.0},  # só conv
-        "D1": {"prom": 2, "det": 5, "conv": 0, "total": 7, "ratio": 0.4},  # crítico real
+        # P1 com base (40) e só conversível: fica fora por não ter sinal P/D, não por volume.
+        "P1": {"prom": 0, "det": 0, "conv": 40, "total": 40, "ratio": 0.0},  # só conv
+        "D1": {"prom": 8, "det": 22, "conv": 0, "total": 30, "ratio": 0.36},  # crítico real
     }
     assert gargalo_sequencial(agg) == "D"  # P não conta (sem P/D)
 

@@ -49,7 +49,8 @@ def _verb(db_session, emp, sub, tipo, n):
 def _cenario(client_loyall, db_session, nome):
     """A1: promotores acima do piso, zero detrator (sem detrator, excelente).
     Pa1: 1 promotor, zero detrator (sem detrator, pouca base).
-    P1: 1 promotor e 2 detratores (crítico pela régua, gargalo pela soma, pouca base)."""
+    P1: 1 promotor e 2 detratores (crítico pela régua, pouca base). Desde 25/11 a soma do
+    pilar só elege gargalo com 30 ou mais no pilar: P1 NÃO é gargalo."""
     emp = _empresa(client_loyall, nome)
     _verb(db_session, emp, "A1", "promotor", PISO + 1)
     _verb(db_session, emp, "Pa1", "promotor", 1)
@@ -68,9 +69,9 @@ def test_diagnostico_sem_detrator_no_lugar_do_teto_e_pouca_base(client_loyall, d
     assert "excelente" in h
     # Pa1 e P1 abaixo do piso: a faixa dá lugar a "pouca base", boa ou ruim
     assert "pouca base" in h
-    # o gargalo continua eleito pela régua e diz que foi com pouca base
-    assert "🚩 gargalo" in h
-    assert "eleito com pouca base: 3 verbatins" in h
+    # (b), 25/11: soma sem base não elege — antes o gargalo saía "eleito com pouca base"
+    assert "🚩 gargalo" not in h
+    assert "eleito com pouca base" not in h
 
 
 def test_painel_sem_detrator_e_pouca_base(client_loyall, db_session):

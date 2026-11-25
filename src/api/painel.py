@@ -595,11 +595,13 @@ def gargalo_detalhe(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[
 
     A jornada P→D→Pa→A trava no primeiro elo QUEBRADO. Duas camadas:
 
-    1. QUEBRA CRÍTICA — soma do pilar crítica (``ratio < 0,5``) OU subpilar crítico com
-       volume ≥ ``piso`` (``subpilares_criticos``). Ganha o primeiro na ordem canônica: um
-       pilar anterior quebrado pela soma vence um posterior quebrado por subpilar, porque o
-       pilar inicial travado puxa os seguintes;
-    2. senão, primeiro pilar FRACO pela soma — ``0,5 ≤ ratio < 1,0``;
+    1. QUEBRA CRÍTICA — soma do pilar crítica (``ratio < 0,5``) com volume do PILAR ≥ ``piso``,
+       OU subpilar crítico com volume ≥ ``piso`` (``subpilares_criticos``). Ganha o primeiro
+       na ordem canônica: um pilar anterior quebrado pela soma vence um posterior quebrado por
+       subpilar, porque o pilar inicial travado puxa os seguintes;
+    2. senão, primeiro pilar FRACO pela soma — ``0,5 ≤ ratio < 1,0`` — com volume do pilar ≥
+       ``piso``. Soma sem base não elege (25/11): o pilar de 15 manifestações não aponta por
+       onde começar;
     3. senão, ``None`` — nada quebrado, não há gargalo.
 
     Retorna ``{pilar, motivo, subpilares, eleitor}``. ``motivo``: ``"soma_critica"`` (a
@@ -614,9 +616,19 @@ def gargalo_detalhe(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[
     em 0,02) e não explica a eleição (opção 1, decisão de 29/out)."""
     ratios = ratios_por_pilar(agg)
     criticos_sub = subpilares_criticos(agg, piso)
+    if piso is None:
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
+        piso = VOLUME_CONFIANCA_ALTA
+    # A SOMA do pilar só elege com base: volume do pilar ≥ piso (25/11/2026). Antes não tinha
+    # piso — a E27 tinha gargalo em Precisão eleito sobre 15 manifestações com Parceria em 906.
+    vol: Dict[str, int] = {}
+    for sub, a in agg.items():
+        p_ = PILAR_DE_SUBPILAR.get(sub)
+        vol[p_] = vol.get(p_, 0) + (a.get("total") or 0)
     for p in PILARES_ORDEM:
         subs = [s for s in criticos_sub if PILAR_DE_SUBPILAR.get(s) == p]
-        if p in ratios and ratios[p] < RATIO_CRITICO:
+        if p in ratios and ratios[p] < RATIO_CRITICO and vol.get(p, 0) >= piso:
             return {"pilar": p, "motivo": "soma_critica", "subpilares": subs, "eleitor": None}
         if subs:
             e = min(subs, key=lambda s: (agg[s]["ratio"], -agg[s]["det"]))
@@ -635,7 +647,7 @@ def gargalo_detalhe(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[
                 "eleitor": eleitor,
             }
     for p in PILARES_ORDEM:
-        if p in ratios and ratios[p] < RATIO_EMPATE:
+        if p in ratios and ratios[p] < RATIO_EMPATE and vol.get(p, 0) >= piso:
             return {"pilar": p, "motivo": "soma_fraca", "subpilares": [], "eleitor": None}
     return None
 
