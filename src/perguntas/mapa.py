@@ -309,14 +309,17 @@ def _sinais(s, empresa_id: int) -> dict:
     from src.models.fonte import Fonte
     from src.models.verbatim import Verbatim
 
-    from src.api.painel import ferida_de_agg
+    from src.api.painel import ferida_de_agg, posicao_mais_fina
 
     eng = engajamento_escopo(empresa_id, s, {})
     agg = agregar_subpilares(s, empresa_id)
-    # A FERIDA (subpilar de mais detratores) é a âncora ÚNICA da página para "o subpilar em
-    # questão" — a MESMA do topo. Um critério só: o menor-ratio nomearia OUTRO objeto e a
-    # página usaria dois critérios para o mesmo papel (o defeito que a Fatia 9 corrigiu).
+    # A FERIDA (mais detratores entre as posições abaixo do empate com base) é a âncora ÚNICA
+    # da página para "o subpilar em questão" — a MESMA do topo. Sem ferida, a âncora é a
+    # posição mais FINA com base (menor razão, ``posicao_mais_fina``): a pergunta deixa de ser
+    # o que quebrou e passa a ser onde a relação pode subir. Sem base nenhuma, não há âncora:
+    # as células declaram. Um critério por estado, o mesmo no topo e nas células.
     ferida = ferida_de_agg(agg)
+    mais_fina = posicao_mais_fina(agg) if ferida is None else None
     fonte_top = None
     linha = (
         s.query(Fonte.conector_tipo, func.count(Verbatim.id))
@@ -342,6 +345,7 @@ def _sinais(s, empresa_id: int) -> dict:
         "eng": eng,
         "agg": agg,  # p/ ler prom/det da ferida sem 2ª query
         "ferida": ferida,
+        "mais_fina": mais_fina,  # só quando não há ferida
         "gargalo": gargalo,
         "fonte_top": fonte_top,
         "tem_origem": bool(emp and (emp.missao or emp.visao or emp.valores)),
@@ -363,9 +367,10 @@ def _sinais(s, empresa_id: int) -> dict:
     sig["eixo_fraco"] = _guard(lambda: _eixo_fraco(eng))
     # #6 — Teto projetado: endereçar os subpilares em PIOR estado (critico/fraco) leva o Teto.
     sig["cenario6"] = _guard(lambda: _cenario_pior(agg))
-    # #16 — a leitura diagnóstica (cache) da FERIDA (a âncora da página).
+    # #16 — a leitura diagnóstica (cache) da âncora da página (ferida, ou a mais fina).
+    ancora = ferida or mais_fina
     sig["leitura16"] = (
-        _guard(lambda: _leitura_sub(s, empresa_id, ferida["subpilar"])) if ferida else None
+        _guard(lambda: _leitura_sub(s, empresa_id, ancora["subpilar"])) if ancora else None
     )
     # #19 — o gap do Confronto (OrigemSintese, via pesquisa da empresa).
     sig["confronto19"] = _guard(lambda: _confronto(s, empresa_id))
@@ -561,6 +566,7 @@ def _resumo(n: int, sig: dict) -> str:
     """Resposta NO LUGAR (não ponteiro): lê mais campos do mesmo artefato. Degrada se falta."""
     eng, ft = sig["eng"], sig["fonte_top"]
     fer, acoes = sig.get("ferida"), sig.get("acoes") or []
+    fina = sig.get("mais_fina")
 
     if n == 1:
         d = sig.get("delta")
@@ -582,28 +588,27 @@ def _resumo(n: int, sig: dict) -> str:
             )
         return f"{eng['volume']} manifestações classificadas até aqui."
     if n == 2:
-        if not fer:
-            return "Ainda sem base para dizer o que funciona."
         # Onde há jornada, o RATIO da etapa que trava distingue "onde tem gente" de "onde
         # trava" (volume não distingue). Prioriza a etapa: se a frase cresce, corta o subpilar,
-        # não a etapa. Sem jornada, ancora na FERIDA (um critério na página, o mesmo do topo).
+        # não a etapa. A etapa tem piso próprio (o da jornada), então vem ANTES da guarda da
+        # ferida: com a ferida exigindo base (25/11), empresa pequena sem ferida não perde o
+        # dado da etapa. Sem jornada, ancora na FERIDA (um critério na página, o do topo).
         et = sig.get("etapa_trava")
         if et:
             return f"Na jornada, “{et.rotulo}” é a etapa que mais trava — ratio {virg(et.ratio)}."
-        # A ferida é o maior volume de detratores ABSOLUTO — pode ter saldo POSITIVO em taxa
-        # (max-det ≠ pior-ratio). "O que funciona/não" exige declarar o que o número significa,
-        # não apresentar saldo positivo como problema. abaixo_do_empate = a régua, não um corte.
-        from src.api.painel import abaixo_do_empate
-
-        r = sig["agg"][fer["subpilar"]]["ratio"]
-        if abaixo_do_empate(r):
+        if not fer and fina:
             return (
-                f"{fer['nome']} concentra o maior volume de detratores ({fer['det']}) e o "
-                f"ratio {virg(r)} confirma o ponto fraco."
+                "Nenhuma posição tem mais críticas que elogios com base para leitura; a relação "
+                f"está mais fina em {fina['nome']} (ratio {virg(fina['ratio'])})."
             )
+        if not fer:
+            return "Ainda sem base para dizer o que funciona."
+        # A ferida só é eleita abaixo do empate (``ferida_de_agg``), então o ratio dela sempre
+        # confirma o ponto fraco — o ramo "volume dói, a taxa não" morreu com a regra de 25/11.
+        r = sig["agg"][fer["subpilar"]]["ratio"]
         return (
-            f"{fer['nome']} concentra o maior volume de detratores ({fer['det']}), mas o "
-            f"ratio {virg(r)} ainda é positivo — o volume dói, a taxa não."
+            f"{fer['nome']} concentra o maior volume de detratores ({fer['det']}) e o "
+            f"ratio {virg(r)} confirma o ponto fraco."
         )
     if n == 3:
         ts = sig.get("temas_sub") or []
@@ -713,8 +718,9 @@ def _resumo(n: int, sig: dict) -> str:
         # PARA. O topo já identifica ferida×gargalo; o parêntese que reexplicava saiu (as
         # células apontam, não reexplicam).
         lt = sig.get("leitura16")
-        if lt and fer:
-            return f"Sobre {fer['nome']}, a leitura: “{_corte(lt, 150)}”."
+        anc = fer or fina
+        if lt and anc:
+            return f"Sobre {anc['nome']}, a leitura: “{_corte(lt, 150)}”."
         return "As leituras diagnósticas interpretam o número em significado."
     if n == 17:
         # Fatia 10: "o que ela muda no que fazemos" = o consequente de PLANO. Leitor puro —
@@ -757,10 +763,16 @@ def _resumo(n: int, sig: dict) -> str:
         )
     if n == 22:
         # Fatia 10: ÂNCORA — põe UM fato e devolve a pergunta, sem reensinar os dois eixos. E
-        # ancora na FERIDA (maior volume de detratores), o MESMO critério do topo: ancorar no
-        # menor ratio faria a página usar dois critérios para "o que deveria preocupar" (o
-        # defeito que a Fatia 9 corrigiu — dois critérios sobre o mesmo objeto no mesmo bloco).
+        # ancora na FERIDA, o MESMO critério do topo: ancorar no menor ratio com ferida
+        # presente faria a página usar dois critérios para "o que deveria preocupar" (o defeito
+        # que a Fatia 9 corrigiu). Só SEM ferida a âncora é a mais fina (um estado, um critério).
         fer = sig.get("ferida")
+        fina = sig.get("mais_fina")
+        if not fer and fina:
+            return (
+                "Nenhuma posição tem mais críticas que elogios com base para leitura; a relação "
+                f"está mais fina em {fina['nome']} (ratio {virg(fina['ratio'])})."
+            )
         if not fer:
             return "Ainda sem base para apontar o que deveria preocupar."
         return f"O maior foco de detratores está em {fer['nome']} ({fer['det']})."

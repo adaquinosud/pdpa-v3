@@ -247,6 +247,21 @@ def test_q2_etapa_abaixo_do_piso_volta_ao_subpilar(db_session):
     e = _seed_jornada_q2(
         db_session, "CruzPiso", {"reservar": (0, 3), "retirar": (0, 4), "pós-serviço": (0, 9)}
     )
+    # +14 detratores de Pa2 sem etapa: o subpilar passa do piso da ferida (30), as etapas não.
+    f = db_session.query(Fonte).filter_by(empresa_id=e.id).one()
+    for _ in range(14):
+        db_session.add(
+            Verbatim(
+                empresa_id=e.id,
+                fonte_id=f.id,
+                texto="c",
+                tem_texto=True,
+                subpilar="Pa2",
+                tipo="detrator",
+                confianca=0.9,
+            )
+        )
+    db_session.commit()
     d = resolver_perguntas(db_session, e.id)
     q2 = next(c for g in d.grupos for c in g.perguntas if c.n == 2)
     # piso segurou: NENHUMA etapa ganhou ratio → a Q2 volta ao fallback da ferida (não à etapa).
@@ -288,25 +303,44 @@ def _seed_sem_jornada(db_session, nome, por_sub):
 
 
 def test_q2_fallback_declara_o_ratio_da_ferida(db_session):
-    """Fatia 10: sem jornada, a Q2 declara o que o número da ferida SIGNIFICA — OS DOIS ramos.
-    A ferida é max-det ABSOLUTO e pode ter saldo POSITIVO em taxa (max-det ≠ pior-ratio):
-    apresentar saldo positivo como "o que não funciona" seria mentir. Sem o 2º caso, ele some
-    numa refatoração e ninguém percebe."""
-    # ramo FRACO: ferida com ratio < 1 → confirma o ponto fraco.
-    ef = _seed_sem_jornada(db_session, "Q2fraca", {"Pa2": (2, 20)})
+    """Sem jornada, a Q2 declara o ratio da ferida, que sempre confirma o ponto fraco: desde
+    25/11 a ferida só é eleita abaixo do empate com base. A posição de MAIS detratores com saldo
+    positivo (Pa2, 300 × 40) não é mais a ferida — antes a Q2 a apresentava como "o volume dói,
+    a taxa não"; agora a âncora é a posição abaixo do empate (P1)."""
+    ef = _seed_sem_jornada(db_session, "Q2fraca", {"Pa2": (2, 30)})
     q2f = next(
         c for g in resolver_perguntas(db_session, ef.id).grupos for c in g.perguntas if c.n == 2
     )
-    assert "confirma o ponto fraco" in q2f.resumo and "(20)" in q2f.resumo
-    # ramo POSITIVO: ferida (max det=20) com ratio >= 1, com P1 de menor ratio mas menos det.
-    ep = _seed_sem_jornada(db_session, "Q2pos", {"Pa2": (30, 20), "P1": (0, 5)})
+    assert "confirma o ponto fraco" in q2f.resumo and "(30)" in q2f.resumo
+    ep = _seed_sem_jornada(db_session, "Q2pos", {"Pa2": (300, 40), "P1": (2, 31)})
     q2p = next(
         c for g in resolver_perguntas(db_session, ep.id).grupos for c in g.perguntas if c.n == 2
     )
-    assert "o volume dói, a taxa não" in q2p.resumo
+    assert "Calibração" in q2p.resumo and "Mutualidade" not in q2p.resumo
+    assert "o volume dói, a taxa não" not in q2p.resumo
+
+
+def test_q2_q22_sem_ferida_ancoram_na_mais_fina(db_session):
+    """Sem ferida (nada abaixo do empate com base), Q2 e Q22 dizem que nenhuma posição tem mais
+    críticas que elogios e ancoram na MENOR razão com base — não na de mais detratores."""
+    e = _seed_sem_jornada(db_session, "SemFer", {"Pa2": (300, 40), "P1": (40, 35), "D1": (5, 1)})
+    cel = {c.n: c.resumo for g in resolver_perguntas(db_session, e.id).grupos for c in g.perguntas}
+    for n in (2, 22):
+        assert "Nenhuma posição tem mais críticas que elogios" in cel[n]
+        assert "Calibração" in cel[n] and "1,14" in cel[n]  # P1 40/35; D1 tem 6 (< 30), fora
+
+
+def test_perguntas_sem_base_nenhuma_declara_e_segue_o_lastro(db_session):
+    """Nenhuma posição com 30 ou mais: sem âncora. O topo não renderiza e diz que as perguntas
+    seguem a ordem do Lastro; Q2 e Q22 declaram que não há base (não elegem a menor razão)."""
+    e = _seed_sem_jornada(db_session, "SemBase", {"P1": (2, 12), "D1": (3, 3)})
+    d = resolver_perguntas(db_session, e.id)
+    cel = {c.n: c.resumo for g in d.grupos for c in g.perguntas}
     assert (
-        "Mutualidade" in q2p.resumo and "Calibração" not in q2p.resumo
-    )  # a ferida, não o menor-ratio
+        d.leitura.renderiza is False and "ordem do Lastro, a partir de Precisão" in d.leitura.motivo
+    )
+    assert cel[2] == "Ainda sem base para dizer o que funciona."
+    assert cel[22] == "Ainda sem base para apontar o que deveria preocupar."
 
 
 def test_pagina_usa_um_criterio_a_ferida(db_session):

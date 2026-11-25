@@ -26,8 +26,10 @@ from src.api.painel import (
     eh_elo_travado,
     ferida_de_agg,
     gargalo_sequencial,
+    posicao_mais_fina,
 )
 from src.diagnostico.leituras import agregar_subpilares
+from src.utils.fmt import virg
 
 # Valência crua → rótulo de exibição (a sonda e o agregado falam o mesmo vocabulário).
 _VAL_ROTULO = {"promotor": "positiva", "conversivel": "neutra", "detrator": "negativa"}
@@ -130,18 +132,44 @@ def montar_leitura_topo(s, empresa_id: int) -> SimpleNamespace:
     ``SimpleNamespace(texto, degradado)``).
 
     Piso = o NÚCLEO (ferida × elo travado), não a contagem de eixos (que os trataria como
-    intercambiáveis, e não são). A ferida ancora: sem ela (nenhum detrator) não renderiza. Com
-    ferida e sem elo travado, renderiza no caso (c). Jornada e reputação entram quando houver e
+    intercambiáveis, e não são). A ferida ancora. Com ferida e sem elo travado, renderiza no
+    caso (c). Sem ferida (nada abaixo do empate com base), a âncora é a posição mais FINA com
+    base e a leitura diz que nada está no negativo. Sem base em posição nenhuma, não renderiza e
+    diz que as perguntas seguem a ordem do Lastro. Jornada e reputação entram quando houver e
     DECLARAM quando não — nunca decidem se a peça sai."""
     agg: Dict[str, Dict[str, Any]] = agregar_subpilares(s, empresa_id)
     ferida = ferida_de_agg(agg)
     if ferida is None:
+        fina = posicao_mais_fina(agg)
+        if fina is None:
+            return SimpleNamespace(
+                renderiza=False,
+                motivo=(
+                    "nenhuma posição tem base para leitura ainda. As perguntas seguem a ordem "
+                    "do Lastro, a partir de Precisão."
+                ),
+                ferida=None,
+                elo_travado=None,
+                frases=[],
+            )
         return SimpleNamespace(
-            renderiza=False,
-            motivo="Sem detrator no agregado — não há ferida para ancorar a leitura.",
+            renderiza=True,
+            motivo=None,
             ferida=None,
             elo_travado=None,
-            frases=[],
+            frases=[
+                _frase(
+                    "Nenhuma posição tem mais críticas que elogios com base para leitura. A "
+                    f"relação está mais fina em {fina['nome']} (ratio {virg(fina['ratio'])}) — "
+                    "é onde ela pode subir."
+                ),
+                _frase_jornada(s, empresa_id),
+                _frase(
+                    "A reputação em IA não entrou — sem ferida, não há dor a comparar com o "
+                    "que as IAs dizem.",
+                    True,
+                ),
+            ],
         )
 
     gargalo_cod = gargalo_sequencial(agg)

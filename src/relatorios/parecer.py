@@ -480,20 +480,38 @@ def _rung(faixa, gargalo_cod=None) -> Dict[str, Any]:
 def _eixos_leitura(fer_sub, fer_nome, gargalo_cod, gargalo_nome) -> Optional[str]:
     """Leitura ASSEMBLATIVA ($0, sem LLM) dos dois eixos: onde DÓI (ferida-RA) × o que
     TRAVA primeiro na sequência (gargalo). Coincidem → diz isso; divergem → a divergência é a
-    leitura. None → sem gargalo (nada travado)."""
-    from src.api.painel import PILAR_DE_SUBPILAR
+    leitura. None → sem gargalo (nada travado) ou sem ferida (nada abaixo do empate com base).
 
-    if not gargalo_cod:
+    A divergência depende de ONDE cada um está na ordem do Lastro: o gargalo antes da ferida
+    é causa a montante ("calibrar evita que cheguem assim"); a ferida antes do gargalo NÃO é
+    consequência dele, e a frase não pode dizer que é. Topo = Pa/A, base = P/D."""
+    from src.api.painel import PILAR_DE_SUBPILAR, PILARES_ORDEM
+
+    if not gargalo_cod or not fer_sub:
         return None
-    if fer_sub and PILAR_DE_SUBPILAR.get(fer_sub) == gargalo_cod:
+    fer_pilar = PILAR_DE_SUBPILAR.get(fer_sub)
+    if fer_pilar == gargalo_cod:
         return (
             f"A ferida ({fer_nome}) e o elo que trava a sequência são o mesmo pilar "
             f"({gargalo_nome}) — atacar aqui sustenta o resto."
         )
+    base = ("P", "D")
+    if gargalo_cod in base and fer_pilar not in base:
+        return (
+            f"A ferida está no topo ({fer_nome}); o elo que trava a sequência vem da base "
+            f"({gargalo_nome}). Consertar a ferida atende quem já chegou irritado; calibrar o elo "
+            f"travado evita que cheguem assim."
+        )
+    if PILARES_ORDEM.index(gargalo_cod) < PILARES_ORDEM.index(fer_pilar):
+        return (
+            f"A ferida está em {fer_nome}; o elo que trava a sequência vem antes dela "
+            f"({gargalo_nome}). Consertar a ferida atende quem já chegou irritado; calibrar o elo "
+            f"travado evita que cheguem assim."
+        )
     return (
-        f"A ferida está no topo ({fer_nome}); o elo que trava a sequência vem da base "
-        f"({gargalo_nome}). Consertar a ferida atende quem já chegou irritado; calibrar o elo "
-        f"travado evita que cheguem assim."
+        f"A ferida ({fer_nome}) vem antes do elo que trava a sequência ({gargalo_nome}): não é "
+        f"consequência dele. São duas frentes — a ferida concentra as críticas, o elo travado é "
+        f"onde a sequência quebra."
     )
 
 
@@ -790,7 +808,7 @@ def montar_dados(
     empresa_id: int, *, ag_id: Optional[int] = None, local_id: Optional[int] = None
 ) -> Optional[Dict[str, Any]]:
     """Agrega o Parecer (P1-P7 + P9). ``None`` se a empresa não existe."""
-    from src.api.painel import NOME_SUBPILAR, ferida_de_agg
+    from src.api.painel import NOME_SUBPILAR, criticos_sob_piso, ferida_de_agg
     from src.diagnostico.leituras import agregar_subpilares
     from src.models.empresa import Empresa
     from src.models.origem import OrigemAnalise
@@ -1019,6 +1037,9 @@ def montar_dados(
         f"{_MESES[para_brasilia(now).month]} {para_brasilia(now).year}",
         "tese": {
             "subpilar_nome": ferida["nome"] if ferida else "Relação",
+            # Marcar, não cortar (29/out): crítico que a base fina impede de eleger. Só exibição
+            # — fora dos facts do modelo, para não mudar o hash da síntese de quem não muda.
+            "criticos_sob_piso": criticos_sob_piso(agg) if agg else [],
             # Quebra por fonte da FERIDA — alimenta os facts e a regra do prompt.
             "ferida_fontes": ferida_fontes,
             "voz": {

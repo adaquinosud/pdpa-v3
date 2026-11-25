@@ -759,20 +759,48 @@ def eh_elo_travado(subpilar: str, gargalo_pilar, ratio) -> bool:
     )
 
 
-def ferida_de_agg(agg: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """A FERIDA: subpilar de MAIS detratores no agregado (todas as fontes). Régua canônica
-    (grão subpilar) — o Parecer e a leitura no topo delegam a ESTA função, sem 2ª cópia da
-    seleção. É a valência do PESO (onde mais dói), DISTINTA do elo travado (o que trava
-    primeiro na sequência) — os dois eixos nascem do mesmo ``agg`` mas são seleções
-    diferentes (argmax-det × gargalo-sequencial), reconciliadas pela leitura.
+def ferida_de_agg(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[str, Any]]:
+    """A FERIDA: entre os subpilares abaixo do empate (``abaixo_do_empate``, razão < 1,0 —
+    mais gente criticando que elogiando) com volume ≥ ``piso``, o de MAIS detratores. Régua
+    canônica (grão subpilar) — o Parecer, a leitura no topo e a aba Perguntas delegam a ESTA
+    função, sem 2ª cópia. É a valência do PESO (onde mais dói), DISTINTA do elo travado (o que
+    trava primeiro na sequência): os dois eixos nascem do mesmo ``agg`` e são seleções
+    diferentes (contagem × gargalo sequencial em 0,5), reconciliadas pela leitura.
 
-    Sem detrator em lugar nenhum → None (degrada declarando, nunca inventa ferida). Retorna
-    ``{subpilar, nome, det, total, det_pct}``."""
+    Antes (até 25/11/2026) era o subpilar de mais detratores SEM filtro: volume alto elegia
+    posição de faixa excelente (1.406 promotores × 106 detratores) como ferida.
+
+    Empate, determinístico: mais detratores, depois menor razão, depois a ordem do Lastro — o
+    ``agg`` vem de um GROUP BY sem ORDER BY, e ``max()`` devolvia o primeiro que achasse.
+
+    Nenhum subpilar qualifica → None: a empresa NÃO tem ferida, e quem consome declara isso em
+    vez de eleger a menos ruim. ``piso`` default = ``VOLUME_CONFIANCA_ALTA`` (30), o do gargalo.
+
+    ⚠️ A ferida é CONTAGEM, então se move com a cobertura de fontes (ligar o Reclame Aqui traz
+    volume e razão pior em tudo). Não se compara entre empresas, nem na mesma empresa se o
+    conjunto de fontes mudou no meio.
+
+    Retorna ``{subpilar, nome, det, total, det_pct}``."""
     if not agg:
         return None
-    fer_sub = max(agg, key=lambda k: agg[k].get("det", 0))
-    if not agg[fer_sub].get("det"):
+    if piso is None:
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
+        piso = VOLUME_CONFIANCA_ALTA
+    elegiveis = [
+        sub
+        for sub, a in agg.items()
+        if tem_sinal_pd(a.get("prom", 0), a.get("det", 0))
+        and abaixo_do_empate(a.get("ratio"))
+        and (a.get("total") or 0) >= piso
+        and a.get("det")
+    ]
+    if not elegiveis:
         return None
+    ordem = {sub: i for i, sub in enumerate(SUBPILARES_ORDEM)}
+    fer_sub = min(
+        elegiveis, key=lambda k: (-agg[k]["det"], agg[k]["ratio"], ordem.get(k, len(ordem)))
+    )
     fa = agg[fer_sub]
     return {
         "subpilar": fer_sub,
@@ -781,6 +809,60 @@ def ferida_de_agg(agg: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         "total": fa["total"],
         "det_pct": round(100 * fa["det"] / fa["total"]) if fa["total"] else 0,
     }
+
+
+def posicao_mais_fina(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[str, Any]]:
+    """Âncora da aba Perguntas quando a empresa NÃO tem ferida (nada abaixo do empate com
+    base): a posição de MENOR razão com volume ≥ ``piso`` — onde a relação está mais fina, não
+    o que quebrou. Empate pela ordem do Lastro. Nenhuma posição com base → None (a aba declara
+    que não há base e segue a ordem do Lastro). Não cai para posição abaixo do piso: entre 3 e
+    5 manifestações a menor razão é sorteio. Retorna ``{subpilar, nome, ratio, total}``."""
+    if piso is None:
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
+        piso = VOLUME_CONFIANCA_ALTA
+    com_base = [
+        sub
+        for sub, a in (agg or {}).items()
+        if tem_sinal_pd(a.get("prom", 0), a.get("det", 0))
+        and a.get("ratio") is not None
+        and (a.get("total") or 0) >= piso
+    ]
+    if not com_base:
+        return None
+    ordem = {sub: i for i, sub in enumerate(SUBPILARES_ORDEM)}
+    sub = min(com_base, key=lambda k: (agg[k]["ratio"], ordem.get(k, len(ordem))))
+    return {
+        "subpilar": sub,
+        "nome": NOME_SUBPILAR.get(sub, sub),
+        "ratio": agg[sub]["ratio"],
+        "total": agg[sub]["total"],
+    }
+
+
+def criticos_sob_piso(agg: Dict[str, Dict[str, Any]], piso=None) -> List[Dict[str, Any]]:
+    """Sinal crítico que a base fina impede de eleger: subpilar em CRÍTICO (razão abaixo do
+    teto da faixa crítica, a régua de ``subpilares_criticos``) com volume ABAIXO de ``piso``.
+    Marcar, não cortar (decisão de 29/out): quem imprime nomeia a posição com razão e volume e
+    diz que não é eleita porque a base é fina. Ordem: menor razão, depois a do Lastro."""
+    if piso is None:
+        from src.api.engajamento import VOLUME_CONFIANCA_ALTA
+
+        piso = VOLUME_CONFIANCA_ALTA
+    out = [
+        {
+            "subpilar": sub,
+            "nome": NOME_SUBPILAR.get(sub, sub),
+            "ratio": agg[sub]["ratio"],
+            "total": agg[sub]["total"],
+        }
+        for sub in SUBPILARES_ORDEM
+        if sub in (agg or {})
+        and tem_sinal_pd(agg[sub]["prom"], agg[sub]["det"])
+        and agg[sub]["ratio"] < RATIO_CRITICO
+        and agg[sub]["total"] < piso
+    ]
+    return sorted(out, key=lambda c: c["ratio"])  # sorted é estável: empate fica na do Lastro
 
 
 def pilares_com_ferida_interna(agg: Dict[str, Dict[str, Any]], piso=None) -> Dict[str, Any]:

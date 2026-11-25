@@ -84,7 +84,7 @@ def test_montar_dados_completo(db_session):
             hash_dedup="hcit",
         )
     )
-    for i in range(3):  # 3 detratores RA em Pa1 → é a "ferida"
+    for i in range(29):  # +29 detratores RA em Pa1 (30 com o espesso) → é a "ferida"
         db_session.add(
             Verbatim(
                 empresa_id=e.id,
@@ -102,14 +102,14 @@ def test_montar_dados_completo(db_session):
     assert d["empresa_nome"] == e.nome and "Capital Relacional" in d["subtitulo"]
     # tese: a ferida é um subpilar real (não o fallback), com voz RA
     assert d["tese"]["subpilar_nome"] != "Relação"
-    assert d["tese"]["voz"]["total"] == 4 and d["tese"]["voz"]["pct"] == 100
-    assert d["tese"]["voz"]["detratores"] == 4
+    assert d["tese"]["voz"]["total"] == 30 and d["tese"]["voz"]["pct"] == 100
+    assert d["tese"]["voz"]["detratores"] == 30
     assert isinstance(d["tese"]["conduta"]["resolve"], int)
     # caminho feliz do gate "sem base": COM casos RA, o impresso mede e não declara ausência
     assert d["ato2a"]["sem_base"] is False
     _html = _render(d)
     assert "Sem base no ReclameAqui" not in _html
-    assert "(4 de 4" in _html
+    assert "(30 de 30" in _html
     # ato2a: funil + desfechos + citação curada (espessa, causa não resolvida)
     assert d["ato2a"]["funil"]["responde"] == 100
     # item 5: cada degrau declara sua base (denominadores distintos)
@@ -118,8 +118,8 @@ def test_montar_dados_completo(db_session):
     assert d["ato2a"]["funil"]["base_causa"] == 1  # classificados (C1 tem desfecho)
     assert len(d["ato2a"]["citacoes"]) == 1 and "reserva" in d["ato2a"]["citacoes"][0]["texto"]
     # ato2b: concentração com referente exato (det_pct = detratores DENTRO do subpilar)
-    assert d["ato2b"]["concentracao"]["det_pct"] == 100  # 4 de 4 em Pa1 são detratores
-    assert d["ato2b"]["concentracao"]["det"] == 4
+    assert d["ato2b"]["concentracao"]["det_pct"] == 100  # 30 de 30 em Pa1 são detratores
+    assert d["ato2b"]["concentracao"]["det"] == 30
     # ato3: quadro com sinal
     assert d["ato3"]["topo"]["subpilares"] or d["ato3"]["base"]["subpilares"]
     # ato4: estrutura das práticas + R$ omitido sem LTV
@@ -650,7 +650,7 @@ def test_corrente_ancorada_guard(db_session):
 
     e = _empresa(db_session, "anc")
     f = _fonte(db_session, e)
-    for i in range(3):  # ferida = Pa2 (Mutualidade)
+    for i in range(30):  # ferida = Pa2 (Mutualidade)
         db_session.add(
             Verbatim(
                 empresa_id=e.id,
@@ -739,8 +739,8 @@ def test_ferida_vem_do_agregado_e_facts_tem_dois_eixos(db_session):
     from src.relatorios.parecer import _facts_sintese
 
     e = _empresa(db_session, "feragg")
-    f_ra = _fonte(db_session, e)  # reclame_aqui: 2 detratores em Pa1
-    for i in range(2):
+    f_ra = _fonte(db_session, e)  # reclame_aqui: 30 detratores em Pa1
+    for i in range(30):
         db_session.add(
             Verbatim(
                 empresa_id=e.id,
@@ -762,7 +762,7 @@ def test_ferida_vem_do_agregado_e_facts_tem_dois_eixos(db_session):
     )
     db_session.add(f_g)
     db_session.flush()
-    for i in range(5):  # outra fonte: 5 detratores em D2 → mais no agregado
+    for i in range(35):  # outra fonte: 35 detratores em D2 → mais no agregado
         db_session.add(
             Verbatim(
                 empresa_id=e.id,
@@ -777,7 +777,7 @@ def test_ferida_vem_do_agregado_e_facts_tem_dois_eixos(db_session):
     db_session.commit()
 
     d = montar_dados(e.id)
-    # D2 (5 det) > Pa1 (2 det, top do RA) → ferida segue o AGREGADO
+    # D2 (35 det) > Pa1 (30 det, top do RA) → ferida segue o AGREGADO
     assert d["tese"]["subpilar_nome"] == "Eficácia Operacional"  # D2, não Pa1
     facts = _facts_sintese(d)
     assert facts["ferida"] == "Eficácia Operacional"
@@ -943,3 +943,37 @@ def test_reconciliacao_bases_do_funil(db_session):
     assert d["ato2a"]["funil"]["base_responde"] == rc["maduros"] != rc["total"]
     html = _render(d)
     assert "casos maduros" in html and "recentes" in html
+
+
+def test_parecer_marca_critico_abaixo_do_piso(db_session):
+    """Marcar, não cortar: crítico com base fina (P1 0,14 com 24, o caso da concessionária)
+    não é eleito ferida, mas o Parecer nomeia a posição com ratio e volume. E fica FORA dos
+    facts do modelo (não muda o hash da síntese de quem não muda)."""
+    from src.relatorios.parecer import _facts_sintese
+
+    e = _empresa(db_session, "sobpiso")
+    f = _fonte(db_session, e)
+    k = 0
+    for sub, tipo, n in (("P1", "promotor", 3), ("P1", "detrator", 21), ("D1", "detrator", 30)):
+        for _ in range(n):
+            k += 1
+            db_session.add(
+                Verbatim(
+                    empresa_id=e.id,
+                    fonte_id=f.id,
+                    texto="t",
+                    tem_texto=True,
+                    subpilar=sub,
+                    tipo=tipo,
+                    hash_dedup=f"sp{k}",
+                )
+            )
+    db_session.commit()
+
+    d = montar_dados(e.id)
+    assert d["tese"]["subpilar_nome"] == "Acessibilidade"  # D1, não P1 (24 < 30)
+    assert [c["subpilar"] for c in d["tese"]["criticos_sob_piso"]] == ["P1"]
+    html = _render(d)
+    assert "Fora da conta" in html and "ratio 0,14 em 24 manifestações" in html
+    assert "não é eleito porque a base é fina" in html
+    assert "criticos_sob_piso" not in str(_facts_sintese(d))
