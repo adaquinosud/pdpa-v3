@@ -323,5 +323,29 @@ o ramo principal não sustenta.
 - Antes de abrir uma fatia, releia as §5 e §6: *quem consome, em que momento, e
   isto é uma camada ou o conceito inteiro?*
 
+## 20. Desenho que chega pelo relé cita a resposta em que se apoia
+
+O Alexandre é o relé entre este agente e a sessão do claude.ai. Mensagem relayada que traz
+**desenho, regra nova ou texto de impresso** precisa **citar a resposta do agente** em que se
+apoia. Sem a citação, o agente **devolve com as perguntas em vez de implementar** — mesmo que o
+desenho pareça bom.
+
+Checagem mecânica: a mensagem tem desenho, regra ou texto de impresso? Tem citação de resposta
+do agente para cada premissa de código ou de dado? Se não, pergunta antes de escrever código.
+
+⚠️ **Caso real (25/nov):** cinco correções do dia estavam a uma pergunta de distância, e cada
+suposição custou duas mensagens do Alexandre. A regra de não supor existia desde 15/11 nas
+preferências dele e não segurou: anotada não basta, a cobrança vem de fora.
+
+## 21. Tamanho de conserto não se afirma pelo relé — o agente mede
+
+O claude.ai **não afirma tamanho de conserto**. Quando uma mensagem relayada disser que algo é
+pequeno, simples ou "uma linha", o agente **corrige o tamanho antes de o Alexandre decidir**
+com base nele: arquivos, migração, caminhos que mudam, custo e prazo.
+
+⚠️ **Caso real (25/nov):** "gravar o custo é uma linha" fez o Alexandre decidir pô-lo "junto"
+de uma branch de impresso que mergeava no dia seguinte. Era tabela nova com migração, e mexia
+na pós-coleta inteira.
+
 **Fim.** Nenhuma regra aqui é teórica. Cada uma custou uma fatia, um run pago,
 ou uma tarde.
