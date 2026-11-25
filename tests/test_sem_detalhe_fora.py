@@ -190,7 +190,10 @@ def test_aba_temas_tira_da_lista_e_conta_no_pe(maior, db_session):
 def test_aba_temas_renderiza_a_linha_do_pe(maior, client_loyall):
     eid, _ = maior
     html = client_loyall.get(f"/empresas/{eid}/explorar/tab/temas").get_data(as_text=True)
-    assert "Sem detalhe: <strong>42</strong> relatos (57% dos 74 ligados a tema)" in html
+    assert (
+        "<strong>42</strong> de 74 comentários (57%) não apontam um assunto. Contam na base e não "
+        "entram na lista de temas." in html
+    )
     assert ">elogio sem detalhe<" not in html
 
 
