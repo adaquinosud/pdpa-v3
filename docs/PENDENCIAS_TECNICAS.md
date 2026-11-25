@@ -269,28 +269,43 @@ prévia paga e merge em 26/11; o bloqueio "sem ferida" valia só até lá e já 
 `RATIO_CAP_SUPERIOR` = 9,99 também quando há detrator (1.406/106 = 13,26 sai 9,99). Duas empresas
 no mesmo 9,99 até o centésimo (Club Med Pa, §214 do Contexto-Mestre; a P2 da E05). O tratamento
 existente cobre só o caso sem detrator ("sem detrator"); com detrator, o teto sai como número
-comum. Onde a razão é impressa, o teto precisa ser dito. Inventário das superfícies a fazer.
+comum. Provado na E25: Pa1 com 194 promotores × 16 detratores (12,1) imprime 9,99. Onde a razão
+é impressa, o teto precisa ser dito — no Parecer ela aparece logo abaixo da manchete.
+Inventário das superfícies a fazer.
 
-### Piso de 30 conta conversível — posição passa o piso com poucas opiniões
-**Status:** sonda escrita (25/11/2026), resultado pendente. O volume do piso é promotor +
-conversível + detrator (`agregar_subpilares`); a razão é promotor / detrator. Uma posição com 35
-manifestações, 30 conversíveis, passa o piso e pode ser eleita com cinco opiniões. Se a sonda
-der zero no parque, fica como está com o motivo registrado; se não, é conserto próprio na fila
-(o piso decide ferida, gargalo, grupo da Sequência e "sem base").
+### Piso de 30 conta conversível — TRAVA, não conserto
+**Status:** fechado como trava (25/11/2026, sonda `sonda_piso_conversivel`). O volume do piso é
+promotor + conversível + detrator (`agregar_subpilares`); a razão é promotor / detrator. No
+parque, 5 de 54 posições com volume ≥ 30 só alcançam o piso pelo conversível, e nenhuma é hoje
+gargalo, ferida ou 1º da Sequência: o furo nunca mordeu.
+**Por que fica:** o piso conta manifestação de propósito. Contar só quem tomou partido
+esconderia posição em que quase todos tomaram partido — a Pa2 da E15, 30 manifestações, 28
+detratores, 0 promotores, 2 conversíveis, cairia para 28 e sairia da eleição (a E15 é empresa
+de teste no parque, mas o caso é o que a regra precisa cobrir). O filtro de 1,0 da ferida já
+fecha o pior caso sozinho: a D1 da E15, razão 4,00 sustentada em 15 opiniões, não é elegível.
+**Gatilho para reabrir:** aparecer posição abaixo de 1,0 que só alcance o piso por conversível.
 
-### Mudança em tema dispara gasto noturno sem decisão — precisa de trava geral
-**Status:** aberto (registrado em 25/11/2026). Toda pós-coleta termina regenerando, sem perguntar,
-as leituras diagnósticas (empresa e lojas) e as sugestões estruturais cujo hash mudou
-(`pos_coleta.py`, `skip_unchanged=True`), além de seções de relatório e leituras de anomalia. O
-assunto dominante entra no payload da leitura, e ele muda toda vez que se mexe em nomeação ou
-ranqueamento de tema — duas vezes em novembro. Cada mudança assim vira gasto pago na noite
-seguinte, em todas as empresas afetadas, sem número na mesa (§13). A trava tem de ser geral (não
-uma por conserto).
-**Agravante, erro do agente registrado:** em 25/11 o agente afirmou que esse custo "é somado no
-registro da pós-coleta". É somado só no objeto de retorno (`r.custo_estimado_usd`), que o CLI
-imprime e os caminhos automáticos (noturna, watchdog, orquestrador) descartam. Não é gravado em
-lugar nenhum. O gasto de uma noite só se reconstrói pelo que ficou no banco: tokens exatos em
-`relatorio_cache` e `custo_usd` em `frases_posicao`; leituras e sugestões sem tokens, só teto.
+### O produto não tem odômetro — custo de execução paga calculado e descartado
+**Status:** aberto (25/11/2026; antes "mudança em tema dispara gasto noturno"). Onde entra
+(nesta branch ou item próprio) é decisão do Alexandre. Toda pós-coleta regenera, sem perguntar,
+as leituras diagnósticas e as sugestões estruturais cujo hash mudou (`pos_coleta.py`,
+`skip_unchanged=True`), além de seções de relatório e leituras de anomalia. O custo é somado só
+no objeto de retorno (`r.custo_estimado_usd`), que o CLI imprime e os caminhos automáticos
+(noturna, watchdog, orquestrador) descartam: não existe custo de operação nem para trás nem para
+frente, por empresa ou no total. Erro do agente registrado: em 25/11 afirmou que o custo era
+"somado no registro da pós-coleta".
+**Medido na Carbel (`sonda_gasto_carbel_1819`):** a noite de 18/11 deixou 11 leituras
+diagnósticas (teto R$ 1,68) e R$ 0,08 exatos de seções; pipeline às 06h09, leituras às 06h. As
+45 linhas de sugestão da janela ficaram sem preço (teto em `sonda_custo_sugestoes`). Desde 20/11,
+só na Carbel, mais 12 leituras e 49 linhas de sugestão: não é evento, é o ritmo, em toda empresa
+com pipeline ativo. Leitura e sugestão não guardam tokens; só `relatorio_cache` e
+`frases_posicao` guardam.
+
+### E25 — a âncora da aba Perguntas é a antiga ferida
+**Registro (25/11/2026):** na E25 (D1: 80 promotores, 9 conversíveis, 47 detratores, 136
+manifestações, razão 1,70) a regra nova tira a ferida, e a âncora da aba Perguntas (menor razão
+com 30+) cai na mesma D1. A posição não sai da leitura; muda de papel. Ajuda a conversa com o
+cliente que recebeu o Parecer antigo.
 
 ### Dobrar as quatro consultas de assunto nas funções compartilhadas
 **Status:** aberto, fora do passe do "sem detalhe". Parecer `_temas_voz`, `painel_temas`
