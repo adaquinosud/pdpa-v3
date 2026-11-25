@@ -308,7 +308,12 @@ com pipeline ativo. Leitura e sugestão não guardam tokens; só `relatorio_cach
 API) e o que é ESTIMADO (o custo do pipeline de temas sai de conta fixa por item). O número vai
 ser citado em submissão; misturar os dois sem etiqueta é pior que não ter a tabela. Primeiro
 corte: gravar no fim da pós-coleta (cobre noturna, watchdog, orquestrador); síntese do Parecer,
-sonda de IA e classificador num segundo passo. A "noite que custou quatro vezes" foi leitura
+sonda de IA e classificador num segundo passo.
+**Decisões (25/11, marcadas como decisão, não detalhe):** (1) os embeddings NÃO entravam na
+soma da pós-coleta: o custo histórico estava subestimado por omissão, não só por falta de
+registro — o odômetro passa a somá-los, como estimativa; (2) cada estimativa grava a sua base
+por escrito ao lado do número (`partes_json`), e é isso que permite citar o custo numa
+submissão sem mentir. Implementado em `feat/odometro` (bd579df, sem merge). A "noite que custou quatro vezes" foi leitura
 errada: 45 eram linhas de sugestão, não chamadas (uma chamada grava várias).
 
 ### E25 — a âncora da aba Perguntas é a antiga ferida
