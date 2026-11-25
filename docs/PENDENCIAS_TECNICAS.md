@@ -279,6 +279,18 @@ gargalo. Por isso o texto não entra agora. Quando uma pesquisa real cair nesse 
 declarar "não há base para leitura" (§9: ausência de base é estado, e se declara); o texto vem do
 claude.ai depois do número.
 
+### Quadro dos Pilares sem temas no nível empresa — o conserto de `_temas_voz` não foi levado
+**Status:** medido (25/11/2026) pela sonda da Carbel (item C07), **fora da fila de trabalho** (decisão
+do Alexandre: o trabalho é só o C02). No nível empresa, o Quadro chama `_temas_subpilar` com
+`ag_ids=None`, que lê só `TemaCache.agrupamento_id IS NULL` (`ui/__init__.py:5250`,
+`pesquisa/confronto.py:177`). Os grãos do cache são disjuntos: o `IS NULL` é o dos relatos sem
+agrupamento (RA, nível empresa), não o consolidado. Na Carbel, todos os temas vivem em agrupamentos,
+e o Quadro no nível empresa sai sem tema nenhum. **É o mesmo defeito** que o Parecer teve e corrigiu
+em `_temas_voz` ("NÃO filtrar por agrupamento_id era o bug", docstring de `parecer.py:312`).
+**Classe (§5 do CLAUDE.md):** não é conserto pela metade de um caminho; é um conserto feito num
+caminho e não levado aos outros que tinham o mesmo defeito quando foi feito. Confronto e ORIGEM usam
+a mesma `_temas_subpilar` no nível empresa e precisam ser conferidos no mesmo passe.
+
 ### Razão 9,99 é teto e sai impressa como se fosse medida
 **Status:** aberto (registrado em 25/11/2026). `calcular_ratio` (`painel.py:107-120`) corta em
 `RATIO_CAP_SUPERIOR` = 9,99 também quando há detrator (1.406/106 = 13,26 sai 9,99). Duas empresas
