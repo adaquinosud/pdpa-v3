@@ -322,6 +322,18 @@ manifestações, razão 1,70) a regra nova tira a ferida, e a âncora da aba Per
 com 30+) cai na mesma D1. A posição não sai da leitura; muda de papel. Ajuda a conversa com o
 cliente que recebeu o Parecer antigo.
 
+### Decisão aposentada — "eleito com pouca base" no gargalo (25/11/2026)
+A marca "eleito com pouca base: N verbatins" no Mapa de Lastro (tela `_mapa_lastro.html`,
+impresso `relatorios/_macros.html`) vinha da família do "marcar, não cortar" do Alexandre: o
+gargalo eleito sobre base fina saía eleito e marcado. Foi SUBSTITUÍDA por prevenir em vez de
+marcar: desde a `fix/ferida-regua` (204a4f7), a soma do pilar só elege gargalo com 30 ou mais no
+pilar (o mesmo piso da marca), então a eleição que a marca enfeitava não acontece mais. Motivo:
+o gargalo é a conclusão mais acionável do documento, e nota ao lado não desfaz a âncora (caso
+E27: Precisão eleita sobre 15 manifestações com Parceria em 906). O código da marca fica nos
+dois templates sem caso até sair.
+**O "marcar, não cortar" CONTINUA valendo no resto:** na linha do crítico abaixo do piso
+(Parecer) e na célula da aba Temas. Sai só no gargalo.
+
 ### Odômetro — caminhos pagos que ficam fora da conta
 **Status:** aberto (25/11/2026). O odômetro (`feat/odometro`) cobre a pós-coleta e os 9 pontos
 de regeneração da família leituras/sugestões/anomalias/Parecer, e DECLARA a cobertura em todo
