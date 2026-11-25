@@ -977,3 +977,49 @@ def test_parecer_marca_critico_abaixo_do_piso(db_session):
     assert "Fora da conta" in html and "ratio 0,14 em 24 manifestações" in html
     assert "não é eleito porque a base é fina" in html
     assert "criticos_sob_piso" not in str(_facts_sintese(d))
+
+
+def _emp_com(db_session, sfx, por_sub):
+    e = _empresa(db_session, sfx)
+    f = _fonte(db_session, e)
+    k = 0
+    for sub, (prom, det) in por_sub.items():
+        for tipo, n in (("promotor", prom), ("detrator", det)):
+            for _ in range(n):
+                k += 1
+                db_session.add(
+                    Verbatim(
+                        empresa_id=e.id,
+                        fonte_id=f.id,
+                        texto="t",
+                        tem_texto=True,
+                        subpilar=sub,
+                        tipo=tipo,
+                        hash_dedup=f"{sfx}{k}",
+                    )
+                )
+    db_session.commit()
+    return e
+
+
+def test_parecer_bloqueia_sem_ferida_e_sem_base(client_loyall, db_session, monkeypatch):
+    """Opção (a), 25/11: sem ferida, o Parecer não é gerado (a peça é construída sobre a
+    ferida e sairia "a ferida tem endereço: a Relação"). Dois motivos distintos; com ferida,
+    o caminho feliz segue renderizando."""
+    sem_base = _emp_com(db_session, "gsb", {"D1": (17, 10), "P1": (1, 3)})  # o caso da E25
+    sem_ferida = _emp_com(db_session, "gsf", {"Pa1": (40, 5), "D1": (31, 29)})
+    com = _emp_com(db_session, "gcf", {"D1": (1, 40)})
+    import src.relatorios.parecer as P
+
+    chamadas = []
+    monkeypatch.setattr(P, "sintetizar_parecer", lambda eid, d: chamadas.append(eid) or {})
+
+    r = client_loyall.get(f"/empresas/{sem_base.id}/relatorios/parecer")
+    assert r.status_code == 409 and "não há base para leitura" in r.get_data(as_text=True)
+    r = client_loyall.get(f"/empresas/{sem_ferida.id}/relatorios/parecer")
+    txt = r.get_data(as_text=True)
+    assert r.status_code == 409 and "não tem ferida" in txt and "versão sem ferida" in txt
+    r = client_loyall.get(f"/empresas/{com.id}/relatorios/parecer")
+    assert r.status_code == 200 and "A ferida tem endereço" in r.get_data(as_text=True)
+    assert montar_dados(com.id)["ferida_estado"] == "ferida"
+    assert chamadas == [com.id]  # o gate levanta ANTES do passo pago nas bloqueadas

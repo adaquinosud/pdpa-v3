@@ -82,18 +82,19 @@ def test_parecer_rodape_declara_reclame_aqui(client_loyall, db_session, monkeypa
         db_session.add(
             Caso(empresa_id=e["id"], fonte_id=f.id, origem_id=f"R{i}", criado_em_origem=dt)
         )
-    db_session.add(
-        Verbatim(
-            empresa_id=e["id"],
-            fonte_id=f.id,
-            texto="cobrança errada e ninguém resolveu",
-            tem_texto=True,
-            subpilar="Pa2",
-            tipo="detrator",
-            hash_dedup="rodpar",
-            data_criacao_original=datetime(2026, 7, 1),
+    for i in range(30):  # 30: a ferida exige base (sem ela o Parecer é bloqueado)
+        db_session.add(
+            Verbatim(
+                empresa_id=e["id"],
+                fonte_id=f.id,
+                texto="cobrança errada e ninguém resolveu",
+                tem_texto=True,
+                subpilar="Pa2",
+                tipo="detrator",
+                hash_dedup=f"rodpar{i}",
+                data_criacao_original=datetime(2026, 7, 1),
+            )
         )
-    )
     db_session.commit()
     h = client_loyall.get(f"/empresas/{e['id']}/relatorios/parecer").get_data(as_text=True)
     assert f"Razão e assuntos: {DESDE_PRIMEIRO} (07/2026) · Reclame Aqui: 06/2026–07/2026" in h

@@ -1030,8 +1030,15 @@ def montar_dados(
         )
         _manchete = {"l1": _l1, "l2": _l2}
 
+    from src.api.painel import posicao_mais_fina
+
     d_out = {
         "gerado_em": now,
+        # Estado da ferida: o gate do Parecer (``bloquear_parecer_sem_ferida``) bloqueia os
+        # dois últimos — a peça é construída sobre a ferida.
+        "ferida_estado": (
+            "ferida" if ferida else ("sem_ferida" if posicao_mais_fina(agg) else "sem_base")
+        ),
         "empresa_nome": empresa_nome,
         "subtitulo": f"Diagnóstico do Capital Relacional · {empresa_nome} · "
         f"{_MESES[para_brasilia(now).month]} {para_brasilia(now).year}",

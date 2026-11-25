@@ -2582,6 +2582,9 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         d = _mpar(empresa_w.id)
         if d is None:
             return None
+        from src.relatorios.gates import bloquear_parecer_sem_ferida
+
+        bloquear_parecer_sem_ferida(d, empresa_w.id, empresa_w.nome)  # antes do passo pago
         # Síntese executiva (Sonnet) SOB DEMANDA + cacheada — só quando há
         # diagnóstico real (ferida ≠ fallback). Falha transitória → retry; se
         # esgotar, NÃO renderiza parecer mudo (banner visível), e loga estruturado.
