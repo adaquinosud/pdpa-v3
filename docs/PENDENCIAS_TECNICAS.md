@@ -185,6 +185,18 @@ pipeline conta por rodada e marca `pos_coleta_status='falha_sistemica'` se >50% 
 (piso). Aparece no painel de falhas do Monitoramento com selo "pós-coleta" (2º source, sem migração).
 Sinaliza, não aborta. Ver §12 do DESCRITIVO.
 
+### Parecer — data da síntese não muda quando o texto é refeito
+**Status:** aberto (registrado em 25/11/2026, durante o inventário de leituras para o livro). Fora
+dessa frente.
+`sintetizar_parecer` (`src/relatorios/parecer.py`) regrava `conteudo_json`, `dados_hash` e tokens na
+linha `relatorio_cache` (secao='parecer_sintese') e não toca em `gerado_em`. A coluna só tem
+`default=datetime.utcnow`, sem `onupdate`, então guarda a data do primeiro Parecer daquela empresa,
+mesmo depois de o texto ter sido refeito. As outras seções (`src/relatorios/llm_secoes.py`) gravam
+`row.gerado_em = datetime.utcnow()` a cada regravação; o Parecer é o único caminho com o defeito.
+Efeito: quem lê `gerado_em` acha que o texto atual é mais velho do que é. Conserto: gravar
+`gerado_em` na regravação, como em `llm_secoes`. A data antiga não se recupera (não há histórico).
+Achado por leitura de código; ainda não medido em produção.
+
 ### Distribuição de símbolos — v2 (a CP da v1 `1609f29` está no ar)
 A v1 (distribuir os só-símbolo pelos pilares por proporção de texto + valência)
 está concluída e em produção. Ficaram p/ a v2:
