@@ -32,7 +32,7 @@ Verbatim que só contém elogio ou queixa sem ação inferível deve devolver `{
 
 ### Exceções e nuances
 
-- **Nome próprio de funcionário**: só vira tema se o verbatim caracteriza uma técnica/comportamento replicável ou um problema recorrente concreto. Caso contrário, use **"atendimento personalizado"** como nome e cite o nome do funcionário em `evidencia_curta`. Isso evita 200+ temas únicos por colaborador.
+- **Pessoa citada pelo nome**: o tema é o que a pessoa fez, nunca quem fez — "acompanhamento ao portão", "explicação do contrato". O nome próprio fica só em `evidencia_curta`. Sem técnica replicável nem problema concreto, não há tema: devolva a lista vazia.
 - **Comida ruim** é acionável (revisar fornecedor/cardápio). **Comida boa** sozinha não é. Só vira tema acionável se identifica item específico recorrente: "ovos mexidos café da manhã" → operação de cozinha; "sabor ressecado pão" → fornecedor.
 - **Limpeza** sozinha é acionável se identifica área/turno específico: "banheiro suite Confins" sim; "ambiente limpo" não.
 
@@ -66,7 +66,7 @@ Verbatim que só contém elogio ou queixa sem ação inferível deve devolver `{
   - 0.5–0.8 — inferido com contexto.
   - 0.4–0.5 — fronteira (acionabilidade fraca).
   - < 0.4 — não devolva.
-- `evidencia_curta`: trecho do texto original (até 80 chars). Preserve grafia. Se citar nome próprio (atendimento personalizado), inclua o nome aqui.
+- `evidencia_curta`: trecho do texto original (até 80 chars). Preserve grafia. Se o texto cita alguém pelo nome, o nome fica aqui, não no `nome` do tema.
 
 ## Output
 
@@ -110,7 +110,7 @@ Output:
 
 Input:
 ```json
-{"texto": "Atendimento da Carla foi excelente, super atenciosa.", "subpilar": "Pa1", "tipo": "promotor", "setor": "aeroporto", "agrupamento": "Aeroporto", "catalogo_recente": [{"nome": "atendimento personalizado", "slug": "atendimento-personalizado"}]}
+{"texto": "Atendimento da Carla foi excelente, super atenciosa.", "subpilar": "Pa1", "tipo": "promotor", "setor": "aeroporto", "agrupamento": "Aeroporto", "catalogo_recente": [{"nome": "sinalização do embarque", "slug": "sinalizacao-do-embarque"}]}
 ```
 
 Output:
@@ -124,14 +124,14 @@ Output:
 
 Input:
 ```json
-{"texto": "Sócrates chamou pelo nome, lembrou que eu viajo todo mês e ofereceu acompanhar até o portão. Levou na cadeira de rodas porque minha mãe estava cansada.", "subpilar": "Pa1", "tipo": "promotor", "setor": "aeroporto", "agrupamento": "Aeroporto", "catalogo_recente": [{"nome": "atendimento personalizado", "slug": "atendimento-personalizado"}]}
+{"texto": "Sócrates chamou pelo nome, lembrou que eu viajo todo mês e ofereceu acompanhar até o portão. Levou na cadeira de rodas porque minha mãe estava cansada.", "subpilar": "Pa1", "tipo": "promotor", "setor": "aeroporto", "agrupamento": "Aeroporto", "catalogo_recente": [{"nome": "sinalização do embarque", "slug": "sinalizacao-do-embarque"}]}
 ```
 
 Output:
 ```json
 {
   "temas": [
-    {"nome": "atendimento personalizado", "confianca": 0.9, "evidencia_curta": "Sócrates chamou pelo nome, lembrou que eu viajo todo mês"},
+    {"nome": "tratamento pelo nome do cliente", "confianca": 0.9, "evidencia_curta": "Sócrates chamou pelo nome, lembrou que eu viajo todo mês"},
     {"nome": "acompanhamento ao portão", "confianca": 0.8, "evidencia_curta": "ofereceu acompanhar até o portão"}
   ]
 }
