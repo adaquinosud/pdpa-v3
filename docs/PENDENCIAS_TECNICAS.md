@@ -229,6 +229,40 @@ sobretudo, com taxa de crítica muito maior) muda a ferida e piora a razão em t
 ferida não se compara entre empresas, nem dentro da mesma empresa se o conjunto de fontes mudou
 no meio. Proposta em aberto: declarar as fontes no mesmo pacote do rodapé de período.
 
+### "Sem detalhe" eleito como assunto — conta, nunca elege
+**Status:** caminho aprovado (25/11/2026); a forma da contagem espera o Alexandre. Achado: na
+Carbel (rodada de 18/11), 134 relatos (25%) em "sem detalhe", e o maior assunto da empresa era
+"comentário sem detalhe" (94). Os três nomes são do código, por tipo do pedaço
+(`rotulador.py:213-214`, coerção em `:331-335`), não invenção do modelo; "comentário" é o de
+conversível/inativo. `eh_sem_detalhe` já é a família dos três.
+Consumidores que ainda elegem ou ranqueiam (inventário de 25/11): aba Temas (top 5), janela de
+assuntos (top 10), Quadro dos Pilares (top 3), "Tema dominante" do trimestre, frase da aba
+Perguntas, Parecer "A voz, em detalhe", Pontual seção 07, payload da leitura diagnóstica e da
+sugestão estrutural (`tema_detrator_dominante`), anomalia de indicador (`tema_relacionado`),
+geração de pesquisa e ORIGEM, catálogo do extrator antigo, contexto do chat (top 15).
+Caminho: (1) filtro nas três compartilhadas (`temas_volume_live_subq`, `_temas_subpilar`,
+`_top_temas_por_subpilar`); as quatro consultas próprias (Parecer, janela, tema dominante,
+Pontual) chamam UMA função de elegibilidade, sem filtro colado; (2) o "sem detalhe" nunca é linha
+da lista: vira linha no pé com número e percentual (pendente do Alexandre); (3) parar de eleger
+não limpa o que já foi escrito: a prosa da Carbel desde 18/11 (leituras diagnósticas, anomalias)
+pode estar ancorada em "sem detalhe" e é limpa à parte, só Carbel. A regeneração das leituras
+cujo hash muda dispara sozinha na pós-coleta (`pos_coleta.py`, `skip_unchanged=True`) e no botão
+do Diagnóstico: é custo sem decisão e precisa de número antes do merge.
+Reprocessamento pago de temas: só Carbel e Unimed (E29). O código sobe para todas.
+
+### Dobrar as quatro consultas de assunto nas funções compartilhadas
+**Status:** aberto, fora do passe do "sem detalhe". Parecer `_temas_voz`, `painel_temas`
+(`api/temas.py`), `_tema_dominante_periodo` (`api/painel.py`) e a seção 07 do Pontual consultam
+o banco por conta própria. No passe elas só chamam a função de elegibilidade; a regra fica num
+lugar, mas as consultas seguem quatro.
+
+### Extrator antigo de temas ainda vivo com a regra "atendimento personalizado"
+**Status:** aberto, só registro. A regra 4 do `rotulagem_cluster_v1.md` (mandava usar
+"atendimento personalizado" quando o grupo girava em torno de uma pessoa; gerou o bloco de 428)
+saiu com o `rotulagem_pedaco_v2.md`, e `rotular_cluster` não é mais chamado. Mas a mesma regra
+está no `extracao_temas_v2.md`, e `extrair_temas` segue chamável pelo CLI (`app.py:521`) e pela
+rota `reprocessar_temas_empresa` (`api/temas.py:490`), com o default no `extracao_temas_v1.md`.
+
 ### Sequência de ação × gargalo — dois "por onde começar" no mesmo impresso
 **Status:** aberto desde 29/10, decisão do Alexandre (texto de impresso de cliente). Não é
 contradição de conta: a Sequência corta em 1,0 e segue a ordem do Lastro, o gargalo corta em 0,5
