@@ -206,6 +206,11 @@ Consumidores (todos delegam a esta função):
   outro conceito com nome parecido.
 Conserto pede decisão (o que é ferida quando a posição de mais detratores está saudável) e o
 mesmo passo varre os três consumidores e o texto cacheado do Parecer.
+**Fecha um achado de agosto, não inverte uma decisão:** o §4.55.3 do Contexto-Mestre já dizia
+que a troca RA→agregado "dá espinha a quem não tinha". E a dependência da ferida da cobertura de
+fontes é a trava do §7 ("não tirar método do peso de UMA fonte"), não item novo.
+**Doc a atualizar no merge:** o §4.58.1 diz "Sem ferida, não renderiza" para a leitura no topo;
+com a branch, sem ferida renderiza ancorada na posição mais fina, e só "sem base" não renderiza.
 **Defeito irmão — empate sem ordem definida.** No empate de detratores, `max()` devolve o primeiro
 que encontra, e a ordem vem da consulta de `agregar_subpilares` (`GROUP BY` sem `ORDER BY`), que o
 banco não garante. O mesmo dado pode eleger posições diferentes de uma geração para outra. Lido no
@@ -255,8 +260,23 @@ Reprocessamento pago de temas: só Carbel e Unimed (E29). O código sobe para to
 permanente — leitura exige dado, a empresa recebe as perguntas. Sem ferida (há base, nada abaixo
 do empate com base): bloqueio temporário na `fix/ferida-regua` (47ba532) até a versão sem ferida,
 que é outro achado e não um Parecer enfraquecido (na E25: dano real disperso em várias posições,
-nenhuma com volume para eleger). Calendário: texto 25/11, leitura do Alexandre 26/11, prévia paga
-27/11, merge 28/11. Está no caminho da refeita do Parecer da E25 (aprovada; um só, não a frota).
+nenhuma com volume para eleger). Calendário (comprimido pelo Alexandre em 25/11): texto 25/11, leitura dele,
+prévia paga e merge em 26/11; o bloqueio "sem ferida" valia só até lá e já saiu da branch
+(0707db0: sem ferida imprime o dano espalhado). Está no caminho da refeita do Parecer da E25 (aprovada; um só, não a frota).
+
+### Razão 9,99 é teto e sai impressa como se fosse medida
+**Status:** aberto (registrado em 25/11/2026). `calcular_ratio` (`painel.py:107-120`) corta em
+`RATIO_CAP_SUPERIOR` = 9,99 também quando há detrator (1.406/106 = 13,26 sai 9,99). Duas empresas
+no mesmo 9,99 até o centésimo (Club Med Pa, §214 do Contexto-Mestre; a P2 da E05). O tratamento
+existente cobre só o caso sem detrator ("sem detrator"); com detrator, o teto sai como número
+comum. Onde a razão é impressa, o teto precisa ser dito. Inventário das superfícies a fazer.
+
+### Piso de 30 conta conversível — posição passa o piso com poucas opiniões
+**Status:** sonda escrita (25/11/2026), resultado pendente. O volume do piso é promotor +
+conversível + detrator (`agregar_subpilares`); a razão é promotor / detrator. Uma posição com 35
+manifestações, 30 conversíveis, passa o piso e pode ser eleita com cinco opiniões. Se a sonda
+der zero no parque, fica como está com o motivo registrado; se não, é conserto próprio na fila
+(o piso decide ferida, gargalo, grupo da Sequência e "sem base").
 
 ### Mudança em tema dispara gasto noturno sem decisão — precisa de trava geral
 **Status:** aberto (registrado em 25/11/2026). Toda pós-coleta termina regenerando, sem perguntar,
