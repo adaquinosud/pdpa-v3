@@ -64,10 +64,12 @@ def bloquear_parecer_sem_ferida(d, empresa_id: int, empresa_nome: str) -> None:
     ferida, ele imprimiria "a ferida tem endereço" sobre posição nenhuma — bloqueia antes do
     arquivo existir (§10). Dois estados, cada um com seu motivo:
     - ``sem_base``: nenhuma posição com volume ≥ piso. Leitura exige dado; a empresa recebe as
-      perguntas. Bloqueio pensado como permanente para esse estado (decisão pendente do
-      Alexandre).
-    - ``sem_ferida``: há base, mas nada abaixo do empate. Bloqueio TEMPORÁRIO, até existir a
-      versão do Parecer sem ferida (pendência registrada)."""
+      perguntas. Bloqueio PERMANENTE para esse estado (decisão do Alexandre, 25/11/2026).
+    - ``sem_ferida``: há base, mas nada abaixo do empate com base. Bloqueio TEMPORÁRIO, até
+      existir a versão do Parecer sem ferida (prevista para o merge de sexta).
+
+    O estado vem do dado (``ferida_estado`` de ``montar_dados``): basta UMA posição com volume
+    ≥ piso, em qualquer razão, para a empresa sair de ``sem_base``."""
     estado = (d or {}).get("ferida_estado")
     if estado == "sem_base":
         from src.api.engajamento import VOLUME_CONFIANCA_ALTA

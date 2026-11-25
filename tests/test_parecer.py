@@ -1006,9 +1006,18 @@ def test_parecer_bloqueia_sem_ferida_e_sem_base(client_loyall, db_session, monke
     """Opção (a), 25/11: sem ferida, o Parecer não é gerado (a peça é construída sobre a
     ferida e sairia "a ferida tem endereço: a Relação"). Dois motivos distintos; com ferida,
     o caminho feliz segue renderizando."""
-    sem_base = _emp_com(db_session, "gsb", {"D1": (17, 10), "P1": (1, 3)})  # o caso da E25
+    # Cenário inventado para o teste, NÃO a E25: nenhuma posição chega a 30.
+    sem_base = _emp_com(db_session, "gsb", {"D1": (17, 10), "P1": (1, 3)})
     sem_ferida = _emp_com(db_session, "gsf", {"Pa1": (40, 5), "D1": (31, 29)})
     com = _emp_com(db_session, "gcf", {"D1": (1, 40)})
+    # Forma da E25 medida em produção (D1 a 1,70 com 136; cinco posições no negativo, todas
+    # abaixo de 30): UMA posição com base, em qualquer razão, tira a empresa do bloqueio
+    # permanente. Ela cai no temporário (sem ferida), nunca no "sem base".
+    e25 = _emp_com(
+        db_session,
+        "ge25",
+        {"D1": (80, 47), "P1": (0, 4), "P3": (1, 3), "D2": (0, 23), "Pa2": (0, 6), "A2": (1, 5)},
+    )
     import src.relatorios.parecer as P
 
     chamadas = []
@@ -1022,4 +1031,5 @@ def test_parecer_bloqueia_sem_ferida_e_sem_base(client_loyall, db_session, monke
     r = client_loyall.get(f"/empresas/{com.id}/relatorios/parecer")
     assert r.status_code == 200 and "A ferida tem endereço" in r.get_data(as_text=True)
     assert montar_dados(com.id)["ferida_estado"] == "ferida"
+    assert montar_dados(e25.id)["ferida_estado"] == "sem_ferida"
     assert chamadas == [com.id]  # o gate levanta ANTES do passo pago nas bloqueadas
