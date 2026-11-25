@@ -1002,17 +1002,19 @@ def _emp_com(db_session, sfx, por_sub):
     return e
 
 
-def test_parecer_bloqueia_sem_ferida_e_sem_base(client_loyall, db_session, monkeypatch):
-    """Opção (a), 25/11: sem ferida, o Parecer não é gerado (a peça é construída sobre a
-    ferida e sairia "a ferida tem endereço: a Relação"). Dois motivos distintos; com ferida,
-    o caminho feliz segue renderizando."""
+def test_parecer_bloqueia_sem_base_e_imprime_o_dano_espalhado(
+    client_loyall, db_session, monkeypatch
+):
+    """Sem base (nenhuma posição com 30+): sem Parecer, bloqueio permanente (25/11). Sem ferida
+    com base: outro achado — manchete e leitura do dano espalhado, sem "a ferida tem endereço"
+    e sem o fallback "Relação"; o modelo recebe a dispersão, não um eixo de ferida."""
+    from src.relatorios.parecer import _facts_sintese
+
     # Cenário inventado para o teste, NÃO a E25: nenhuma posição chega a 30.
     sem_base = _emp_com(db_session, "gsb", {"D1": (17, 10), "P1": (1, 3)})
-    sem_ferida = _emp_com(db_session, "gsf", {"Pa1": (40, 5), "D1": (31, 29)})
     com = _emp_com(db_session, "gcf", {"D1": (1, 40)})
-    # Forma da E25 medida em produção (D1 a 1,70 com 136; cinco posições no negativo, todas
-    # abaixo de 30): UMA posição com base, em qualquer razão, tira a empresa do bloqueio
-    # permanente. Ela cai no temporário (sem ferida), nunca no "sem base".
+    # Forma da E25 medida em produção (D1 a 1,70; cinco posições no negativo, todas abaixo de
+    # 30): UMA posição com base, em qualquer razão, tira a empresa do bloqueio permanente.
     e25 = _emp_com(
         db_session,
         "ge25",
@@ -1025,11 +1027,38 @@ def test_parecer_bloqueia_sem_ferida_e_sem_base(client_loyall, db_session, monke
 
     r = client_loyall.get(f"/empresas/{sem_base.id}/relatorios/parecer")
     assert r.status_code == 409 and "não há base para leitura" in r.get_data(as_text=True)
-    r = client_loyall.get(f"/empresas/{sem_ferida.id}/relatorios/parecer")
-    txt = r.get_data(as_text=True)
-    assert r.status_code == 409 and "não tem ferida" in txt and "versão sem ferida" in txt
     r = client_loyall.get(f"/empresas/{com.id}/relatorios/parecer")
     assert r.status_code == 200 and "A ferida tem endereço" in r.get_data(as_text=True)
-    assert montar_dados(com.id)["ferida_estado"] == "ferida"
-    assert montar_dados(e25.id)["ferida_estado"] == "sem_ferida"
-    assert chamadas == [com.id]  # o gate levanta ANTES do passo pago nas bloqueadas
+
+    d = montar_dados(e25.id)
+    assert d["ferida_estado"] == "sem_ferida"
+    assert d["dispersao"]["n"] == 5 and d["dispersao"]["manifestacoes"] == 43
+    assert d["dispersao"]["total"] == 170
+    r = client_loyall.get(f"/empresas/{e25.id}/relatorios/parecer")
+    h = r.get_data(as_text=True)
+    assert r.status_code == 200
+    assert "O dano não tem endereço" in h and "A ferida tem endereço" not in h
+    assert "Em 5 posições o cliente critica mais do que elogia" in h
+    assert "reúnem 43 manifestações, de 170 no total" in h
+    assert "Relação" not in h and "A intensidade da dor" not in h
+    assert "A primeira obra aqui não é consertar, é perguntar." in h
+    assert chamadas == [com.id, e25.id]  # sem base não chega ao passo pago
+
+    f = _facts_sintese(d)
+    assert f["sem_ferida"] is True and "ferida" not in f and "intensidade_voz_total" not in f
+    assert f["dispersao"]["posicoes_no_negativo"] == 5 and f["dispersao"]["total_da_base"] == 170
+    assert "coincide_com_ferida" not in f["elo_travado"]
+
+
+def test_dano_espalhado_sem_elo_travado_tira_o_paragrafo(client_loyall, db_session, monkeypatch):
+    """Quando não há elo travado, o terceiro parágrafo sai inteiro e não é substituído."""
+    import src.relatorios.parecer as P
+
+    monkeypatch.setattr(P, "sintetizar_parecer", lambda eid, d: {})
+    # P1 1,14 com 75 (base); Pa2 0,50 com 6 no negativo; Pa1 segura a soma de Parceria;
+    # nenhum pilar abaixo do empate pela soma, nenhum crítico com 30+ → sem elo travado.
+    e = _emp_com(db_session, "gsel", {"P1": (40, 35), "Pa1": (20, 0), "Pa2": (2, 4), "D1": (60, 2)})
+    d = montar_dados(e.id)
+    assert d["ferida_estado"] == "sem_ferida" and d["dispersao"]["elo_travado"] is None
+    h = client_loyall.get(f"/empresas/{e.id}/relatorios/parecer").get_data(as_text=True)
+    assert "O dano não tem endereço" in h and "O que trava a sequência continua" not in h

@@ -60,28 +60,18 @@ def bloquear_se_acao_stale(itens, empresa_id: int, empresa_nome: str) -> None:
 
 
 def bloquear_parecer_sem_ferida(d, empresa_id: int, empresa_nome: str) -> None:
-    """O Parecer é construído sobre a ferida (manchete, tese, Ato 2, prompt da síntese). Sem
-    ferida, ele imprimiria "a ferida tem endereço" sobre posição nenhuma — bloqueia antes do
-    arquivo existir (§10). Dois estados, cada um com seu motivo:
-    - ``sem_base``: nenhuma posição com volume ≥ piso. Leitura exige dado; a empresa recebe as
-      perguntas. Bloqueio PERMANENTE para esse estado (decisão do Alexandre, 25/11/2026).
-    - ``sem_ferida``: há base, mas nada abaixo do empate com base. Bloqueio TEMPORÁRIO, até
-      existir a versão do Parecer sem ferida (prevista para o merge de sexta).
+    """Empresa SEM BASE (nenhuma posição com volume ≥ piso) não recebe Parecer: leitura exige
+    dado, e a empresa recebe as perguntas. Bloqueio PERMANENTE para esse estado (decisão do
+    Alexandre, 25/11/2026), antes do arquivo existir e do passo pago (§10).
 
     O estado vem do dado (``ferida_estado`` de ``montar_dados``): basta UMA posição com volume
-    ≥ piso, em qualquer razão, para a empresa sair de ``sem_base``."""
-    estado = (d or {}).get("ferida_estado")
-    if estado == "sem_base":
+    ≥ piso, em qualquer razão, para sair daqui. Empresa com base e sem ferida NÃO é bloqueada:
+    o Parecer dela imprime o dano espalhado (``dispersao``)."""
+    if (d or {}).get("ferida_estado") == "sem_base":
         from src.api.engajamento import VOLUME_CONFIANCA_ALTA
 
         raise RelatorioBloqueado(
             f"Parecer bloqueado: nenhuma posição de '{empresa_nome}' tem {VOLUME_CONFIANCA_ALTA} "
             "manifestações ou mais — não há base para leitura. A empresa recebe as perguntas "
-            "(aba Perguntas) até a base existir."
-        )
-    if estado == "sem_ferida":
-        raise RelatorioBloqueado(
-            f"Parecer bloqueado: nenhuma posição de '{empresa_nome}' tem mais críticas que "
-            "elogios com base para leitura — a empresa não tem ferida, e o Parecer ainda não "
-            f"tem a versão sem ferida (pendência registrada; empresa {empresa_id})."
+            f"(aba Perguntas) até a base existir (empresa {empresa_id})."
         )

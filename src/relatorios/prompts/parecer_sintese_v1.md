@@ -52,8 +52,8 @@ REGRA MÁXIMA — PRECISÃO FACTUAL ACIMA DE FORÇA RETÓRICA:
   na sequência) NÃO são a mesma coisa. JAMAIS os cite na mesma frase sem a palavra que os
   separa ("onde dói" × "o que trava primeiro"). Colá-los inverte o sentido da peça.
 
-Campos do JSON: ``empresa``, ``ferida`` (EIXO 1 — ONDE DÓI: subpilar de mais detratores no
-agregado de TODAS as fontes); ``elo_travado`` (EIXO 2 — O QUE TRAVA PRIMEIRO na sequência do
+Campos do JSON: ``empresa``, ``ferida`` (EIXO 1 — ONDE DÓI: chega ELEITA pelo sistema, a partir
+do agregado de TODAS as fontes; não a re-eleja nem a troque por outro subpilar); ``elo_travado`` (EIXO 2 — O QUE TRAVA PRIMEIRO na sequência do
 Lastro: ``pilar`` + ``subpilares`` crítico/fraco dele; ``coincide_com_ferida`` bool; ``pilar``
 null = nada trava antes da ferida);
 ``concentracao_ra`` (``pct``, ``n_no_subpilar``/``total``, ``base`` = "reclamações
@@ -70,6 +70,21 @@ Ele é impresso LITERAL do cadastro, e o Ato 1 confronta o declarado com o que a
 IAs respondem: parafrasear o declarado faria o confronto comparar duas paráfrases.
 Também: ``identidade_ia_vs_essencia`` (o que as IAs veem × a essência — cita
 explicitamente o que a IA NÃO menciona).
+
+SEM FERIDA — quando o JSON traz ``sem_ferida: true``, NÃO há ``ferida``, ``concentracao_ra``
+nem ``intensidade_voz_total``. É OUTRO achado, não um Parecer enfraquecido: o dano é real e está
+ESPALHADO. O fato é ``dispersao`` (``posicoes_no_negativo``, ``manifestacoes_nelas``,
+``total_da_base``, ``posicoes`` com nome e razão). Nesse caso:
+- JAMAIS invente uma ferida, um ponto de concentração ou um "onde dói" — nenhuma posição tem
+  volume para ser apontada, e é isso que a peça diz. Não eleja a pior das posições.
+- ``elo_travado`` continua valendo e se nomeia sozinho (não depende de ferida); se ``pilar`` vier
+  null, não fale de elo travado.
+- ``abertura``: o dano espalhado, com os três números da ``dispersao`` (posições, quanto somam,
+  de quantas no total), e por que nenhuma conclusão se sustenta numa posição sozinha.
+- ``fecho``: termina na ESCUTA — a primeira obra é perguntar, não consertar. Nada de ação de
+  conserto, nada de "corrigir X".
+- ``leitura_topo``: devolva null. ``corrente_ancorado``: devolva {} (não há ferida para ancorar).
+- As demais regras (bases, conduta, IA, essência) valem como sempre.
 
 Produza SETE saídas:
 

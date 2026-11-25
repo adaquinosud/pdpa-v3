@@ -2585,10 +2585,10 @@ def _relatorio_html(empresa_w, tipo: str) -> str:
         from src.relatorios.gates import bloquear_parecer_sem_ferida
 
         bloquear_parecer_sem_ferida(d, empresa_w.id, empresa_w.nome)  # antes do passo pago
-        # Síntese executiva (Sonnet) SOB DEMANDA + cacheada — só quando há
-        # diagnóstico real (ferida ≠ fallback). Falha transitória → retry; se
-        # esgotar, NÃO renderiza parecer mudo (banner visível), e loga estruturado.
-        if d["tese"]["subpilar_nome"] != "Relação":
+        # Síntese executiva (Sonnet) SOB DEMANDA + cacheada — com ferida ou com o dano
+        # espalhado (sem ferida); "sem base" já foi bloqueado acima. Falha transitória → retry;
+        # se esgotar, NÃO renderiza parecer mudo (banner visível), e loga estruturado.
+        if d.get("ferida_estado") in ("ferida", "sem_ferida"):
             import logging
 
             _log = logging.getLogger(__name__)

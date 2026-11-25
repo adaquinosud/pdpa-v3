@@ -151,6 +151,17 @@
 {# ═══════════ P2 · A TESE ═══════════ #}
 <div class="page">
   <div class="eyebrow">A tese</div>
+  {% set _disp = d.dispersao if d.ferida_estado == 'sem_ferida' else None %}
+  {% if _disp %}
+  {# Sem ferida é OUTRO achado, não um Parecer enfraquecido: o dano é real e está picado.
+     Texto do Alexandre/claude.ai (25/11). "Onde dói" é reservado à ferida e não aparece aqui. #}
+  <h2 class="manchete">O dano não tem endereço:<br>está espalhado.</h2>
+  <div class="rule"></div>
+  <p class="lead">Nenhuma posição da relação reúne mais crítica que elogio com volume suficiente para ser apontada. Isso não quer dizer que não há dano.</p>
+  <p class="lead">Em {{ _disp.n }} posições o cliente critica mais do que elogia. As {{ _disp.n }} somadas reúnem {{ _disp.manifestacoes }} manifestações, de {{ _disp.total }} no total. O estrago é real e está picado: nenhum pedaço carrega volume para sustentar uma conclusão sozinho.</p>
+  {% if _disp.elo_travado %}<p class="lead">O que trava a sequência continua nomeado, e é {{ _disp.elo_travado }}. Essa parte não depende de haver uma ferida.</p>{% endif %}
+  <p class="lead">A leitura prática é outra, portanto. Não existe um ponto para consertar. Existe uma escuta que não alcança o bastante em nenhuma posição para dizer onde o cliente está sendo machucado. A primeira obra aqui não é consertar, é perguntar.</p>
+  {% else %}
   <h2 class="manchete">A ferida tem endereço:<br>a {{ d.tese.subpilar_nome }}.</h2>
   {# ⚠️ A dek contava LINHAS da tabela ("quatro leituras independentes") como literal
      fixo. Na BEXP são três linhas, e DUAS delas (voz pública e conduta) saem do MESMO
@@ -159,16 +170,19 @@
   {% set _lt = d.tese.leituras or [] %}
   <div class="dek">{% if _lt|length > 1 %}{{ _lt|length }} leituras independentes ({{ _lt|join(', ') }}) apontam o mesmo lugar{% elif _lt|length == 1 %}A leitura disponível ({{ _lt[0] }}) aponta para um lugar{% else %}A leitura aponta para um lugar{% endif %}: quando algo dá errado, o cliente não sente a empresa do seu lado.</div>
   <div class="rule"></div>
+  {% endif %}
   {% if d.sintese and d.sintese.abertura %}
     {% for par in d.sintese.abertura.split('\n\n') %}<p class="lead">{{ par }}</p>{% endfor %}
   {% elif d.sintese_falhou %}
     <p class="lead" style="color:var(--crit);border-left:3px solid var(--crit);padding-left:4mm">⚠ A síntese executiva não pôde ser gerada agora. O diagnóstico abaixo está completo; <strong>regenere o parecer</strong> para incluir a leitura executiva.</p>
   {% endif %}
   <table class="tese-grid">
+    {% if not _disp %}
     <tr>
       <td class="k"><div class="kl">A voz pública</div><div class="kn">{% if d.tese.voz.total %}{{ d.tese.voz.pct }}%{% else %}—{% endif %}</div></td>
       <td class="v">{% if d.tese.voz.total %}das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}).{% else %}<strong>Sem base no ReclameAqui:</strong> nenhuma reclamação foi coletada para esta análise, então a concentração não é medida.{% endif %} Somando todas as fontes, só em {{ d.tese.subpilar_nome }}, o ratio é <strong>{{ d.tese.voz.ratio | virg }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
     </tr>
+    {% endif %}
     {% for c in d.tese.criticos_sob_piso %}
     <tr>
       <td class="k"><div class="kl">Fora da conta</div><div class="kn">{{ c.ratio | virg }}</div></td>
@@ -328,15 +342,19 @@
   </div>
   {% else %}
   <div class="eyebrow">Ato 2 · a intensidade</div>
-  <h2 class="manchete">A dor tem<br>concentração.</h2>
+  {# ⚠️ PROPOSTA DO AGENTE, pendente de aprovação: o texto do (b) não cobre o Ato 2, e
+     "A dor tem concentração" contradiz o dano espalhado da tese. #}
+  <h2 class="manchete">{% if _disp %}A dor não se<br>concentra.{% else %}A dor tem<br>concentração.{% endif %}</h2>
   <div class="rule"></div>
   {% endif %}
   <table class="cols" style="margin-top:5mm"><tr>
+    {% if not _disp %}{# a intensidade é DA ferida; sem ferida não há de quem medir #}
     <td>
       <div class="col-h">A intensidade da dor</div>
       <div><span class="heroi-sm" style="color:var(--crit)">{{ d.ato2b.concentracao.det_pct }}%</span></div>
       <div class="muted" style="margin-top:1mm">das manifestações públicas sobre <strong>{{ d.ato2b.concentracao.subpilar_nome }}</strong> são detratoras ({{ d.ato2b.concentracao.det }} de {{ d.ato2b.concentracao.total }}, todas as fontes) · ratio {{ d.ato2b.concentracao.ratio | virg }}</div>
     </td>
+    {% endif %}
     <td>
       <div class="col-h">{% if d.ato2b.gap and d.ato2b.gap.tipo == 'consciencia' %}A consciência do time{% else %}O ponto cego do time{% endif %}</div>
       {% if d.ato2b.gap %}
