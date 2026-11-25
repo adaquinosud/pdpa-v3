@@ -811,12 +811,32 @@ def ferida_de_agg(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[st
     }
 
 
+def posicoes_no_negativo(agg: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Posições abaixo do empate (``abaixo_do_empate``), em QUALQUER volume, na ordem do Lastro.
+    Sem ferida, é aqui que o dano está — repartido, nenhuma com volume para ser apontada. Fonte
+    única do Parecer (dano espalhado) e da aba Perguntas (âncora do estado 2)."""
+    return [
+        {
+            "subpilar": sub,
+            "nome": NOME_SUBPILAR.get(sub, sub),
+            "ratio": agg[sub]["ratio"],
+            "total": agg[sub]["total"],
+        }
+        for sub in SUBPILARES_ORDEM
+        if sub in (agg or {})
+        and tem_sinal_pd(agg[sub]["prom"], agg[sub]["det"])
+        and abaixo_do_empate(agg[sub]["ratio"])
+    ]
+
+
 def posicao_mais_fina(agg: Dict[str, Dict[str, Any]], piso=None) -> Optional[Dict[str, Any]]:
-    """Âncora da aba Perguntas quando a empresa NÃO tem ferida (nada abaixo do empate com
-    base): a posição de MENOR razão com volume ≥ ``piso`` — onde a relação está mais fina, não
-    o que quebrou. Empate pela ordem do Lastro. Nenhuma posição com base → None (a aba declara
-    que não há base e segue a ordem do Lastro). Não cai para posição abaixo do piso: entre 3 e
-    5 manifestações a menor razão é sorteio. Retorna ``{subpilar, nome, ratio, total}``."""
+    """Âncora da aba Perguntas quando a empresa NÃO tem ferida e NENHUMA posição está abaixo do
+    empate (com dano repartido, a âncora são as posições no negativo — ``posicoes_no_negativo``):
+    a posição de MENOR razão com volume ≥ ``piso`` — onde a relação pode subir, não o que quebrou.
+    Empate pela ordem do Lastro. Nenhuma posição com base → None: é também o teste de "a
+    empresa tem base" (a aba declara que não há e segue a ordem do Lastro). Não cai para
+    posição abaixo do piso: entre 3 e 5 manifestações a menor razão é sorteio. Retorna
+    ``{subpilar, nome, ratio, total}``."""
     if piso is None:
         from src.api.engajamento import VOLUME_CONFIANCA_ALTA
 

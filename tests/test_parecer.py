@@ -1041,6 +1041,8 @@ def test_parecer_bloqueia_sem_base_e_imprime_o_dano_espalhado(
     assert "Em 5 posições o cliente critica mais do que elogia" in h
     assert "reúnem 43 manifestações, de 170 no total" in h
     assert "Relação" not in h and "A intensidade da dor" not in h
+    assert "A dor está" in h and "repartida." in h and "concentração." not in h
+    assert "Sem ferida para medir" in h and "repartido entre 5 posições" in h  # declara, não some
     assert "A primeira obra aqui não é consertar, é perguntar." in h
     assert chamadas == [com.id, e25.id]  # sem base não chega ao passo pago
 

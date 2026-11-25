@@ -27,6 +27,7 @@ from src.api.painel import (
     ferida_de_agg,
     gargalo_sequencial,
     posicao_mais_fina,
+    posicoes_no_negativo,
 )
 from src.diagnostico.leituras import agregar_subpilares
 from src.utils.fmt import virg
@@ -133,8 +134,9 @@ def montar_leitura_topo(s, empresa_id: int) -> SimpleNamespace:
 
     Piso = o NÚCLEO (ferida × elo travado), não a contagem de eixos (que os trataria como
     intercambiáveis, e não são). A ferida ancora. Com ferida e sem elo travado, renderiza no
-    caso (c). Sem ferida (nada abaixo do empate com base), a âncora é a posição mais FINA com
-    base e a leitura diz que nada está no negativo. Sem base em posição nenhuma, não renderiza e
+    caso (c). Sem ferida e com posições abaixo do empate (todas sem base), a leitura diz que o
+    dano está repartido e nomeia essas posições; sem nada abaixo do empate, a âncora é a posição
+    mais FINA com base. Sem base em posição nenhuma, não renderiza e
     diz que as perguntas seguem a ordem do Lastro. Jornada e reputação entram quando houver e
     DECLARAM quando não — nunca decidem se a peça sai."""
     agg: Dict[str, Dict[str, Any]] = agregar_subpilares(s, empresa_id)
@@ -152,17 +154,27 @@ def montar_leitura_topo(s, empresa_id: int) -> SimpleNamespace:
                 elo_travado=None,
                 frases=[],
             )
+        neg = posicoes_no_negativo(agg)
+        if neg:  # estado 2: o dano está repartido, e as perguntas vão para ele
+            lista = ", ".join(f"{p['nome']} ({virg(p['ratio'])})" for p in neg)
+            nucleo = (
+                "Nenhuma posição reúne mais crítica que elogio com volume para ser apontada, mas "
+                f"o dano existe e está repartido: em {len(neg)} posições o cliente critica mais "
+                f"do que elogia ({lista}). As perguntas vão para elas — é onde falta a base."
+            )
+        else:  # estado 3: nada no negativo; a pergunta é onde subir
+            nucleo = (
+                "Nenhuma posição tem mais críticas que elogios com base para leitura. A "
+                f"relação está mais fina em {fina['nome']} (ratio {virg(fina['ratio'])}) — "
+                "é onde ela pode subir."
+            )
         return SimpleNamespace(
             renderiza=True,
             motivo=None,
             ferida=None,
             elo_travado=None,
             frases=[
-                _frase(
-                    "Nenhuma posição tem mais críticas que elogios com base para leitura. A "
-                    f"relação está mais fina em {fina['nome']} (ratio {virg(fina['ratio'])}) — "
-                    "é onde ela pode subir."
-                ),
+                _frase(nucleo),
                 _frase_jornada(s, empresa_id),
                 _frase(
                     "A reputação em IA não entrou — sem ferida, não há dor a comparar com o "

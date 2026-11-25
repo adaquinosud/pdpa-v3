@@ -177,7 +177,13 @@
     <p class="lead" style="color:var(--crit);border-left:3px solid var(--crit);padding-left:4mm">⚠ A síntese executiva não pôde ser gerada agora. O diagnóstico abaixo está completo; <strong>regenere o parecer</strong> para incluir a leitura executiva.</p>
   {% endif %}
   <table class="tese-grid">
-    {% if not _disp %}
+    {% if _disp %}
+    {# "Reputação declara ausência, nunca barra" (§4.58.1): sem ferida, a linha fica e diz por quê. #}
+    <tr>
+      <td class="k"><div class="kl">A voz pública</div><div class="kn">—</div></td>
+      <td class="v"><strong>Sem ferida para medir:</strong> nenhuma posição reúne crítica com volume para ser apontada, então não há onde medir a concentração das reclamações. O dano está repartido entre {{ _disp.n }} posições.</td>
+    </tr>
+    {% else %}
     <tr>
       <td class="k"><div class="kl">A voz pública</div><div class="kn">{% if d.tese.voz.total %}{{ d.tese.voz.pct }}%{% else %}—{% endif %}</div></td>
       <td class="v">{% if d.tese.voz.total %}das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}).{% else %}<strong>Sem base no ReclameAqui:</strong> nenhuma reclamação foi coletada para esta análise, então a concentração não é medida.{% endif %} Somando todas as fontes, só em {{ d.tese.subpilar_nome }}, o ratio é <strong>{{ d.tese.voz.ratio | virg }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
@@ -342,9 +348,8 @@
   </div>
   {% else %}
   <div class="eyebrow">Ato 2 · a intensidade</div>
-  {# ⚠️ PROPOSTA DO AGENTE, pendente de aprovação: o texto do (b) não cobre o Ato 2, e
-     "A dor tem concentração" contradiz o dano espalhado da tese. #}
-  <h2 class="manchete">{% if _disp %}A dor não se<br>concentra.{% else %}A dor tem<br>concentração.{% endif %}</h2>
+  {# Sem ferida, "A dor tem concentração" contradiria o dano espalhado da tese (25/11). #}
+  <h2 class="manchete">{% if _disp %}A dor está<br>repartida.{% else %}A dor tem<br>concentração.{% endif %}</h2>
   <div class="rule"></div>
   {% endif %}
   <table class="cols" style="margin-top:5mm"><tr>

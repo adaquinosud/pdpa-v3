@@ -309,17 +309,21 @@ def _sinais(s, empresa_id: int) -> dict:
     from src.models.fonte import Fonte
     from src.models.verbatim import Verbatim
 
-    from src.api.painel import ferida_de_agg, posicao_mais_fina
+    from src.api.painel import ferida_de_agg, posicao_mais_fina, posicoes_no_negativo
 
     eng = engajamento_escopo(empresa_id, s, {})
     agg = agregar_subpilares(s, empresa_id)
-    # A FERIDA (mais detratores entre as posições abaixo do empate com base) é a âncora ÚNICA
-    # da página para "o subpilar em questão" — a MESMA do topo. Sem ferida, a âncora é a
-    # posição mais FINA com base (menor razão, ``posicao_mais_fina``): a pergunta deixa de ser
-    # o que quebrou e passa a ser onde a relação pode subir. Sem base nenhuma, não há âncora:
-    # as células declaram. Um critério por estado, o mesmo no topo e nas células.
+    # Âncora da página para "o subpilar em questão" — a MESMA do topo, um critério por estado:
+    # 1. ferida (mais detratores entre as posições abaixo do empate com base);
+    # 2. sem ferida, com posições abaixo do empate (todas sem base): a âncora são ELAS — a aba
+    #    existe para gerar a base que falta, e o que falta base é onde tem dano. Não a posição
+    #    saudável com base (o defeito da 1ª versão: dano em cinco lugares, pergunta num sexto);
+    # 3. nada abaixo do empate: a posição mais FINA com base (onde a relação pode subir);
+    # sem nenhuma posição com base: sem âncora, as células declaram.
     ferida = ferida_de_agg(agg)
-    mais_fina = posicao_mais_fina(agg) if ferida is None else None
+    tem_base = posicao_mais_fina(agg) is not None
+    negativas = posicoes_no_negativo(agg) if (ferida is None and tem_base) else []
+    mais_fina = posicao_mais_fina(agg) if (ferida is None and not negativas) else None
     fonte_top = None
     linha = (
         s.query(Fonte.conector_tipo, func.count(Verbatim.id))
@@ -345,7 +349,8 @@ def _sinais(s, empresa_id: int) -> dict:
         "eng": eng,
         "agg": agg,  # p/ ler prom/det da ferida sem 2ª query
         "ferida": ferida,
-        "mais_fina": mais_fina,  # só quando não há ferida
+        "negativas": negativas,  # estado 2: sem ferida, dano repartido
+        "mais_fina": mais_fina,  # estado 3: sem ferida e nada abaixo do empate
         "gargalo": gargalo,
         "fonte_top": fonte_top,
         "tem_origem": bool(emp and (emp.missao or emp.visao or emp.valores)),
@@ -562,11 +567,17 @@ def _etapa_trava(s, empresa_id: int):
     return SimpleNamespace(rotulo=g.rotulo, ratio=g.ratio)
 
 
+def _lista_neg(neg) -> str:
+    """Posições no negativo com a razão, na ordem do Lastro (de ``posicoes_no_negativo``)."""
+    return ", ".join(f"{p['nome']} ({virg(p['ratio'])})" for p in neg)
+
+
 def _resumo(n: int, sig: dict) -> str:
     """Resposta NO LUGAR (não ponteiro): lê mais campos do mesmo artefato. Degrada se falta."""
     eng, ft = sig["eng"], sig["fonte_top"]
     fer, acoes = sig.get("ferida"), sig.get("acoes") or []
     fina = sig.get("mais_fina")
+    neg = sig.get("negativas") or []
 
     if n == 1:
         d = sig.get("delta")
@@ -596,6 +607,11 @@ def _resumo(n: int, sig: dict) -> str:
         et = sig.get("etapa_trava")
         if et:
             return f"Na jornada, “{et.rotulo}” é a etapa que mais trava — ratio {virg(et.ratio)}."
+        if not fer and neg:
+            return (
+                f"O dano está repartido: em {len(neg)} posições o cliente critica mais do que "
+                f"elogia ({_lista_neg(neg)}), nenhuma com volume para ser apontada."
+            )
         if not fer and fina:
             return (
                 "Nenhuma posição tem mais críticas que elogios com base para leitura; a relação "
@@ -768,6 +784,12 @@ def _resumo(n: int, sig: dict) -> str:
         # que a Fatia 9 corrigiu). Só SEM ferida a âncora é a mais fina (um estado, um critério).
         fer = sig.get("ferida")
         fina = sig.get("mais_fina")
+        neg = sig.get("negativas") or []
+        if not fer and neg:
+            return (
+                f"O que deveria preocupar está repartido em {len(neg)} posições, nenhuma com "
+                f"volume para ser apontada: {_lista_neg(neg)}."
+            )
         if not fer and fina:
             return (
                 "Nenhuma posição tem mais críticas que elogios com base para leitura; a relação "

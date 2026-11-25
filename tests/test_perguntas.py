@@ -330,6 +330,24 @@ def test_q2_q22_sem_ferida_ancoram_na_mais_fina(db_session):
         assert "Calibração" in cel[n] and "1,14" in cel[n]  # P1 40/35; D1 tem 6 (< 30), fora
 
 
+def test_perguntas_dano_repartido_ancora_nas_negativas_e25(db_session):
+    """Estado 2, forma da E25: sem ferida, cinco posições no negativo (todas sem base) e uma
+    saudável com base (D1 1,70 com 136). A âncora são as cinco negativas, NÃO a D1 saudável —
+    o dano está em cinco lugares e a pergunta não pode ir para um sexto que está bem."""
+    e = _seed_sem_jornada(
+        db_session,
+        "E25forma",
+        {"D1": (80, 47), "P1": (0, 4), "P3": (1, 3), "D2": (0, 23), "Pa2": (0, 6), "A2": (1, 5)},
+    )
+    d = resolver_perguntas(db_session, e.id)
+    cel = {c.n: c.resumo for g in d.grupos for c in g.perguntas}
+    topo = d.leitura.frases[0].texto
+    for txt in (cel[2], cel[22], topo):
+        assert "repartid" in txt and "Acessibilidade" not in txt
+        assert "Calibração da Promessa (0,00)" in txt and "Orientação (0,20)" in txt
+    assert "em 5 posições" in cel[2] and "As perguntas vão para elas" in topo
+
+
 def test_perguntas_sem_base_nenhuma_declara_e_segue_o_lastro(db_session):
     """Nenhuma posição com 30 ou mais: sem âncora. O topo não renderiza e diz que as perguntas
     seguem a ordem do Lastro; Q2 e Q22 declaram que não há base (não elegem a menor razão)."""

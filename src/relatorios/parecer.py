@@ -823,31 +823,17 @@ def sintetizar_parecer(
 
 
 def _dispersao(agg: Dict[str, Dict[str, Any]], gargalo_nome: Optional[str]) -> Dict[str, Any]:
-    """O achado da empresa SEM ferida: o dano espalhado. As posições abaixo do empate
-    (``abaixo_do_empate``, em QUALQUER volume — é o que a soma mostra picado), quanto somam e
-    o total da base. Nenhuma tem volume para eleger ferida, mas o dano existe. ``elo_travado``
-    segue nomeado: não depende de haver ferida."""
-    from src.api.painel import NOME_SUBPILAR, SUBPILARES_ORDEM, abaixo_do_empate, tem_sinal_pd
+    """O achado da empresa SEM ferida: o dano espalhado. As posições abaixo do empate em
+    QUALQUER volume (``posicoes_no_negativo``, a mesma lista que ancora a aba Perguntas), quanto
+    somam e o total da base. ``elo_travado`` segue nomeado: não depende de haver ferida."""
+    from src.api.painel import posicoes_no_negativo
 
-    neg = [
-        sub
-        for sub in SUBPILARES_ORDEM
-        if sub in agg
-        and tem_sinal_pd(agg[sub]["prom"], agg[sub]["det"])
-        and abaixo_do_empate(agg[sub]["ratio"])
-    ]
+    neg = posicoes_no_negativo(agg)
     return {
         "n": len(neg),
-        "manifestacoes": sum(agg[s_]["total"] for s_ in neg),
+        "manifestacoes": sum(p["total"] for p in neg),
         "total": sum(a["total"] for a in agg.values()),
-        "posicoes": [
-            {
-                "nome": NOME_SUBPILAR.get(s_, s_),
-                "ratio": agg[s_]["ratio"],
-                "total": agg[s_]["total"],
-            }
-            for s_ in neg
-        ],
+        "posicoes": [{"nome": p["nome"], "ratio": p["ratio"], "total": p["total"]} for p in neg],
         "elo_travado": gargalo_nome,
     }
 
