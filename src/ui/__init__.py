@@ -2027,6 +2027,21 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5, piso=None
         )
     rows = ql.group_by(Verbatim.subpilar, Tema.id, Tema.nome, Verbatim.tipo).all()
 
+    # "Sem detalhe" CONTA, NUNCA ELEGE (25/11): sai da lista e vira a linha do pé, com número
+    # e percentual sobre os relatos ligados a tema no mesmo escopo (mesma query, distinct).
+    from src.temas.rotulador import eh_sem_detalhe, tema_elegivel
+
+    sd_ids = ql.with_entities(Verbatim.id).filter(~tema_elegivel(Tema.nome))
+    base_ids = ql.with_entities(Verbatim.id)
+    n_sd = sd_ids.distinct().count()
+    n_base = base_ids.distinct().count()
+    sem_detalhe = (
+        {"n": n_sd, "base": n_base, "pct": round(100 * n_sd / n_base) if n_base else 0}
+        if n_sd
+        else None
+    )
+    rows = [r for r in rows if not eh_sem_detalhe(r[2])]
+
     agg = {}
     for sub, tema_id, label, tipo, n in rows:
         e = agg.setdefault(
@@ -2090,6 +2105,7 @@ def _top_temas_por_subpilar(s, empresa_id, agrupamento_id=None, top=5, piso=None
         "mostrados": len(visiveis),
         "recolhidos": len(vol_tema) - len(visiveis),
         "piso": piso,
+        "sem_detalhe": sem_detalhe,
     }
 
     por_sub = {}

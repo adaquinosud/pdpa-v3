@@ -220,12 +220,25 @@ def nome_sem_detalhe(tipo: Optional[str]) -> str:
     return NOME_SEM_DETALHE.get(tipo or "", NOME_SEM_DETALHE_PADRAO)
 
 
+NOMES_SEM_DETALHE = frozenset({*NOME_SEM_DETALHE.values(), NOME_SEM_DETALHE_PADRAO})
+
+
 def eh_sem_detalhe(nome: Optional[str]) -> bool:
-    """Tema "sem detalhe": volume sem causa a investigar. Fica visível na aba Temas, mas fora de
-    cruzamentos, ações, anomalia de assunto e propagação (decisão de 15/11) — o mesmo nome em vários
-    pedaços não é assunto sistêmico."""
-    nomes = {*NOME_SEM_DETALHE.values(), NOME_SEM_DETALHE_PADRAO}
-    return _normalizar_label(nome or "").lower() in nomes
+    """Tema "sem detalhe": volume sem causa a investigar. CONTA, NUNCA ELEGE (25/11): o rótulo é
+    correto para relato sem assunto e o vínculo fica, mas ele nunca é linha de lista nem tema
+    dominante em lugar nenhum; a aba Temas o declara numa linha no pé, com número e percentual.
+    O filtro SQL de quem elege é ``tema_elegivel`` (a mesma lista de nomes)."""
+    return _normalizar_label(nome or "").lower() in NOMES_SEM_DETALHE
+
+
+def tema_elegivel(coluna):
+    """Cláusula SQL: o tema pode ser ELEITO ou RANQUEADO como assunto (não é "sem detalhe").
+    Toda consulta que monta lista, top-N ou tema dominante filtra por aqui; a regra mora só
+    nesta função e em ``eh_sem_detalhe``. Os nomes são gravados pelo código, por isso a
+    comparação é só de caixa."""
+    from sqlalchemy import func
+
+    return func.lower(coluna).notin_(sorted(NOMES_SEM_DETALHE))
 
 
 def _sem_acento(s: str) -> str:

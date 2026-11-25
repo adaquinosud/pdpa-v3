@@ -404,6 +404,7 @@ def _tema_dominante_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id)
     from src.models.local import Local
     from src.models.temas import Tema, VerbatimTema
     from src.models.verbatim import Verbatim
+    from src.temas.rotulador import tema_elegivel
 
     subs = _subpilares_do_pilar(pilar)
     ini, fim = _intervalo_quarter(ano, quarter)
@@ -417,6 +418,7 @@ def _tema_dominante_periodo(s, empresa_id, pilar, ano, quarter, ag_id, local_id)
             Verbatim.tipo == "detrator",
             Verbatim.data_criacao_original >= ini,
             Verbatim.data_criacao_original < fim,
+            tema_elegivel(Tema.nome),  # "sem detalhe" não é tema dominante
         )
     )
     if local_id is not None:

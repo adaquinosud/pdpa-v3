@@ -56,7 +56,13 @@ def _focos_tema(s, empresa_id: int, ag_ids) -> List[Dict[str, Any]]:
     """Temas principais com subpilar dominante por concentração de detratores.
     ``ag_ids`` (modo agrupamento): TemaCache dos N agrupamentos (mesmo tema_label
     soma volume). None: nível empresa (agrupamento_id NULL)."""
-    q = s.query(TemaCache).filter(TemaCache.empresa_id == empresa_id, TemaCache.tipo == "detrator")
+    from src.temas.rotulador import tema_elegivel
+
+    q = s.query(TemaCache).filter(
+        TemaCache.empresa_id == empresa_id,
+        TemaCache.tipo == "detrator",
+        tema_elegivel(TemaCache.tema_label),  # "sem detalhe" não é foco de pesquisa
+    )
     q = (
         q.filter(TemaCache.agrupamento_id.in_(ag_ids))
         if ag_ids

@@ -157,6 +157,8 @@ def regua_recorte(
     temas_por_sub: Dict[str, Dict[str, Dict[str, Any]]] = {}
     verbatins_com_tema: set = set()
     if ativo and com_temas:
+        from src.temas.rotulador import eh_sem_detalhe
+
         rows = (
             s.query(Verbatim.subpilar, Tema.nome, Verbatim.id)
             .join(VerbatimTema, VerbatimTema.verbatim_id == Verbatim.id)
@@ -165,10 +167,12 @@ def regua_recorte(
             .all()
         )
         for sub, nome, vid in rows:
+            verbatins_com_tema.add(vid)  # "sem detalhe" conta na base de comentários
+            if eh_sem_detalhe(nome):
+                continue  # ... mas nunca é tema da posição
             sub_map = temas_por_sub.setdefault(sub, {})
             t = sub_map.setdefault(nome, {"nome": nome, "_vids": set()})
             t["_vids"].add(vid)
-            verbatins_com_tema.add(vid)
 
     # Verbatins CRUS por subpilar (só quando com_verbatins — a pessoa). Texto mascarado
     # (identificador estruturado de terceiro; NOME preservado — regra travada 09/jul).

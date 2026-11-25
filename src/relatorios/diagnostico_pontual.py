@@ -266,6 +266,8 @@ def montar_dados(
         # (docs/ANOMALIAS_ETAPA0.md) — sem seção de alertas e sem anomalia no texto das descobertas.
 
         # ── Temas Recorrentes (seção 07) — agrupados por tipo de verbatim ──
+        from src.temas.rotulador import tema_elegivel
+
         # Para cada (tema, tipo) conta verbatins + pega exemplo + tipo dominante.
         temas_query = (
             s.query(
@@ -282,6 +284,7 @@ def montar_dados(
                 Tema.empresa_id == empresa_id,
                 Tema.ativo.is_(True),
                 Verbatim.tipo.in_(("detrator", "conversivel", "promotor")),
+                tema_elegivel(Tema.nome),  # "sem detalhe" conta, nunca é tema recorrente
             )
             .group_by(Tema.id, Verbatim.tipo)
             .order_by(func.count(func.distinct(Verbatim.id)).desc())

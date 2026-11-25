@@ -112,7 +112,12 @@ def temas_volume_live_subq(s):
     anomalias, ia-chat): alinha-os à régua live das telas, sem depender da
     frescura do snapshot. NÃO traz ``percentual``/``exemplos``/``periodo`` (quem
     precisa desses fica no ``TemaCache``).
+
+    Só tema ELEGÍVEL (``tema_elegivel``): o "sem detalhe" não entra, porque todo consumidor
+    daqui elege ou ranqueia assunto (tema dominante, top do chat, anomalia, plano).
     """
+    from src.temas.rotulador import tema_elegivel
+
     return (
         s.query(
             Verbatim.empresa_id.label("empresa_id"),
@@ -130,6 +135,7 @@ def temas_volume_live_subq(s):
             Verbatim.tem_texto.is_(True),
             Verbatim.subpilar.isnot(None),
             Verbatim.tipo.isnot(None),
+            tema_elegivel(Tema.nome),
         )
         .group_by(
             Verbatim.empresa_id,

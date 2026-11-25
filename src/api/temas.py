@@ -32,6 +32,7 @@ from src.models.verbatim import Verbatim
 from src.temas.cobertura import tripleto_bucket
 from src.temas.extrator import extrair_temas
 from src.temas.persistencia import merge_temas, persistir_temas_de_verbatim
+from src.temas.rotulador import tema_elegivel
 from src.temas.slug import slugify
 from src.utils.db import db_session
 import logging
@@ -255,6 +256,7 @@ def painel_temas(empresa_id: int):
                 Verbatim.empresa_id == empresa_id,
                 Verbatim.tem_texto.is_(True),
                 Verbatim.subpilar == subpilar,
+                tema_elegivel(Tema.nome),  # "sem detalhe" conta, nunca é linha da janela
             )
         )
         if tipo:
@@ -473,9 +475,10 @@ def reprocessar_temas_empresa(empresa_id: int):
         ]
         empresa_setor = verbatins[0].empresa.setor if (verbatins and verbatins[0].empresa) else None
 
+        # "sem detalhe" fora do catálogo: oferecido ao extrator, ele vira nome a reaproveitar
         catalogo = (
             s.query(Tema.nome, Tema.slug)
-            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True))
+            .filter(Tema.empresa_id == empresa_id, Tema.ativo.is_(True), tema_elegivel(Tema.nome))
             .order_by(Tema.criado_em.desc())
             .limit(80)
             .all()

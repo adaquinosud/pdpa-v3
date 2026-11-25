@@ -182,11 +182,14 @@ def _temas_subpilar(s, empresa_id, sub, tipo, ag_ids, n=3):
 
     from src.models.temas import TemaCache
 
+    from src.temas.rotulador import tema_elegivel
+
     vol = func.sum(TemaCache.volume)
     q = s.query(TemaCache.tema_label, vol.label("v")).filter(
         TemaCache.empresa_id == empresa_id,
         TemaCache.subpilar == sub,
         TemaCache.tipo == tipo,
+        tema_elegivel(TemaCache.tema_label),  # "sem detalhe" conta, nunca é top
     )
     q = (
         q.filter(TemaCache.agrupamento_id.in_(ag_ids))

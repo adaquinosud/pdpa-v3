@@ -228,3 +228,11 @@
   {% endfor %}
 </div>
 {% endif %}
+{% set _sd = temas_banner.sem_detalhe if temas_banner else none %}
+{% if _sd %}
+{# "Sem detalhe" CONTA, NUNCA ELEGE (25/11): nunca é linha da lista; o número vem aqui no pé,
+   mesma família da linha do crítico abaixo do piso. Números vivos, mesma query da lista. #}
+<p class="text-xs text-loyall-500 -mt-4 mb-6">
+  Sem detalhe: <strong>{{ _sd.n }}</strong> relatos ({{ _sd.pct }}% dos {{ _sd.base }} ligados a tema) dizem algo sem apontar um assunto. Contam na base; não entram como tema.
+</p>
+{% endif %}

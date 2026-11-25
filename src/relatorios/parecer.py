@@ -333,6 +333,7 @@ def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]
 
     from src.models.temas import TemaCache
     from src.models.verbatim import Verbatim
+    from src.temas.rotulador import tema_elegivel
 
     rows = (
         s.query(
@@ -341,8 +342,8 @@ def _temas_voz(s, empresa_id: int, k: int = 5) -> Dict[str, List[Dict[str, Any]]
             TemaCache.volume,
             TemaCache.exemplos_verbatim_ids,
         )
-        .filter(TemaCache.empresa_id == empresa_id)
-        .all()
+        # "sem detalhe" conta, nunca é tema da voz (não é onde dói nem onde encanta)
+        .filter(TemaCache.empresa_id == empresa_id, tema_elegivel(TemaCache.tema_label)).all()
     )
     # (tipo, label) → volume somado + exemplos do maior contribuinte
     agg: Dict[tuple, Dict[str, Any]] = {}
