@@ -263,6 +263,21 @@ que é outro achado e não um Parecer enfraquecido (na E25: dano real disperso e
 nenhuma com volume para eleger). Calendário (comprimido pelo Alexandre em 25/11): texto 25/11, leitura dele,
 prévia paga e merge em 26/11; o bloqueio "sem ferida" valia só até lá e já saiu da branch
 (0707db0: sem ferida imprime o dano espalhado). Está no caminho da refeita do Parecer da E25 (aprovada; um só, não a frota).
+**Alcance da validação (25/11/2026):** o caminho "sem ferida" está validado em UMA empresa real (E25)
+mais duas formas de TESTE. Das três empresas sem ferida da `sonda_ferida_gargalo`, só a E25 é real; a
+E20 é de teste, e isso foi passado ao Alexandre como "três". As prévias nas duas de teste conferem
+forma, não comportamento (§4 do CLAUDE.md): o desenho saiu de uma empresa só e hoje não há outra real
+nesse estado. **Trava:** a próxima empresa real que entrar em "sem ferida" é conferida (prévia grátis
+do Parecer e da aba Perguntas) ANTES de gerar Parecer.
+
+### Aba Pesquisas sem gargalo depois do (b): texto de "não há base"
+**Status:** na fila (25/11/2026), fora do deploy da `fix/ferida-regua`. Com o (b), a soma do pilar só
+elege gargalo com 30 ou mais no pilar, e o Mapa de Lastro da pesquisa (`regua_pesquisa` →
+`gargalo_detalhe`) pode ficar sem gargalo. Medido pela `sonda_pesquisas_gargalo` em produção (25/11):
+14 pesquisas de coleta, 1 com gargalo hoje, e essa uma é da E18 (TESTE) — nenhuma pesquisa real perde
+gargalo. Por isso o texto não entra agora. Quando uma pesquisa real cair nesse estado, a aba precisa
+declarar "não há base para leitura" (§9: ausência de base é estado, e se declara); o texto vem do
+claude.ai depois do número.
 
 ### Razão 9,99 é teto e sai impressa como se fosse medida
 **Status:** aberto (registrado em 25/11/2026). `calcular_ratio` (`painel.py:107-120`) corta em
