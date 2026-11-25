@@ -213,7 +213,10 @@ código, não observado em produção.
 **Desenho decidido (25/11, pacote do conserto):** ferida = mais detratores entre as posições com
 razão < 1,0 e volume ≥ 30; empate: menor razão, depois a ordem do Lastro; nenhuma qualifica → sem
 ferida, declarado. Aba Perguntas sem ferida: âncora na menor razão com volume ≥ 30, empate pela
-ordem do Lastro. Crítico abaixo do piso: marcar, não cortar (linha no Parecer). A frase da
+ordem do Lastro; nenhuma posição com volume ≥ 30 → a aba declara que não há base para leitura e
+serve as perguntas pela ordem do Lastro, a partir de Precisão (não cai para a menor razão sem piso:
+entre posições de 3 a 5 manifestações isso é sorteio). Crítico abaixo do piso: marcar, não cortar
+(linha no Parecer; vale porque ali a empresa tem base e o item é sinal ao lado de uma leitura). A frase da
 divergência (`_eixos_leitura`, supõe a ferida depois do gargalo na ordem) entra no mesmo passe.
 Gargalo e Sequência não mudam de corte.
 
