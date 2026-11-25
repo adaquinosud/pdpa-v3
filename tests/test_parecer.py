@@ -1044,6 +1044,8 @@ def test_parecer_bloqueia_sem_base_e_imprime_o_dano_espalhado(
     assert "A dor está" in h and "repartida." in h and "concentração." not in h
     assert "Não há o que confrontar com a vitrine" in h  # declara, não some
     assert "repartido entre 5 posições" in h
+    assert h.count("Fora da conta") == 1  # uma linha nomeando as cinco, não cinco linhas
+    assert "Mutualidade</strong> (ratio 0,00 em 6)" in h and "não eleitas porque a base é fina" in h
     assert "A primeira obra aqui não é consertar, é perguntar." in h
     assert chamadas == [com.id, e25.id]  # sem base não chega ao passo pago
 

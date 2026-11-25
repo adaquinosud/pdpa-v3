@@ -189,12 +189,19 @@
       <td class="v">{% if d.tese.voz.total %}das reclamações no ReclameAqui moram na <strong>{{ d.tese.subpilar_nome }}</strong> ({{ d.tese.voz.n }} de {{ d.tese.voz.total }}{% if d.tese.voz.janela_ini %}, registrados entre {{ d.tese.voz.janela_ini }} e {{ d.tese.voz.janela_fim }}{% endif %}).{% else %}<strong>Sem base no ReclameAqui:</strong> nenhuma reclamação foi coletada para esta análise, então a concentração não é medida.{% endif %} Somando todas as fontes, só em {{ d.tese.subpilar_nome }}, o ratio é <strong>{{ d.tese.voz.ratio | virg }}</strong> — {{ d.tese.voz.detratores }} detratores, {{ d.tese.voz.promotores }} promotores.</td>
     </tr>
     {% endif %}
-    {% for c in d.tese.criticos_sob_piso %}
+    {# Marcar, não cortar: UMA linha, nomeando as posições com razão e volume (25/11). #}
+    {% set _csp = d.tese.criticos_sob_piso or [] %}
+    {% if _csp|length == 1 %}{% set c = _csp[0] %}
     <tr>
       <td class="k"><div class="kl">Fora da conta</div><div class="kn">{{ c.ratio | virg }}</div></td>
       <td class="v"><strong>{{ c.nome }}</strong> tem ratio {{ c.ratio | virg }} em {{ c.total }} manifestações. É crítico, mas não é eleito porque a base é fina.</td>
     </tr>
-    {% endfor %}
+    {% elif _csp %}
+    <tr>
+      <td class="k"><div class="kl">Fora da conta</div><div class="kn">{{ _csp|length }}</div></td>
+      <td class="v">{% for c in _csp %}<strong>{{ c.nome }}</strong> (ratio {{ c.ratio | virg }} em {{ c.total }}){% if not loop.last %}, {% endif %}{% endfor %}: críticas, mas não eleitas porque a base é fina.</td>
+    </tr>
+    {% endif %}
     <tr>
       <td class="k"><div class="kl">A conduta</div><div class="kn">{% if d.ato2a.sem_base %}—{% elif d.ato2a.maturidade.madura %}{{ d.tese.conduta.resolve }}%{% else %}{{ d.tese.conduta.responde }}%{% endif %}</div></td>
       <td class="v">{% if d.ato2a.sem_base %}<strong>Sem base no ReclameAqui:</strong> sem reclamações coletadas, a conduta (responder, resolver, enfrentar a causa) não é medida.{% elif d.ato2a.maturidade.madura %}responde <strong>{{ d.tese.conduta.responde }}%</strong>, resolve <strong>{{ d.tese.conduta.resolve }}%</strong>, enfrenta a causa em <strong>{{ d.tese.conduta.causa }}%</strong>.{% else %}responde <strong>{{ d.tese.conduta.responde }}%</strong>; resolução e causa-raiz <em>em maturação</em> — base recente, ainda não julgada.{% endif %}</td>
