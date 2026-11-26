@@ -13,19 +13,20 @@
 
 {# ── Aviso 'base em formação' (impede leitura de "sistema quebrado") ──────── #}
 <div class="mb-5 rounded-lg border border-loyall-200 bg-loyall-50 px-4 py-2.5 text-xs text-loyall-600">
-  <b>Cobertura:</b> {{ g.cobertura.com_dado }} de {{ g.cobertura.total }} lojas com dado suficiente.
+  <b>Cobertura</b> <span class="text-loyall-400">· empresa inteira</span><b>:</b> {{ g.cobertura.com_dado }} de {{ g.cobertura.total }} lojas com dado suficiente.
   Os blocos refletem a base medida; lojas sem volume aparecem como <b>“em formação”</b>, não como zero.
 </div>
 
 {# ════════════ RISCO · onde estamos expostos ════════════ #}
 <div class="text-xs font-semibold uppercase tracking-wider text-loyall-500 border-b border-loyall-200 pb-1 mb-1">Risco · onde estamos expostos</div>
 {# Declaração de horizonte — os três indicadores desta seção falam de períodos diferentes. #}
-<p class="text-xs text-loyall-400 italic mb-3">Horizontes — Trajetória: 6 meses · Concentração e Gini: 6 meses · Previsibilidade: 12 meses</p>
+{% set pr = g.periodos %}
+<p class="text-xs text-loyall-400 italic mb-3">Períodos — Trajetória: {{ pr.trajetoria }} meses recentes contra os {{ pr.trajetoria }} anteriores · Concentração e Gini: {{ pr.concentracao }} meses · Previsibilidade: {{ pr.previsibilidade }} meses · demais blocos: todo o histórico.</p>
 
 {# ── Trajetória do capital (capitaliza / descapitaliza / indisponível) ───── #}
 {% set t = g.trajetoria %}
 <div class="bg-white border border-loyall-200 rounded-lg p-4 mb-5">
-  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Trajetória do Capital Relacional {{ glossario_i('trajetoria') }}</div>
+  <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Trajetória do Capital Relacional {{ glossario_i('trajetoria') }} <span class="normal-case tracking-normal text-loyall-400">· empresa inteira</span></div>
   {% if t.estado == 'disponivel' %}
   {% set dir = {'capitalizando':'emerald','descapitalizando':'rose','estavel':'slate'}.get(t.direcao,'slate') %}
   <div class="flex items-baseline gap-2 flex-wrap">
@@ -70,7 +71,7 @@
   {% set pd = g.prev_dist %}
   {% set pv_total = pd.estavel + pd.medio + pd.erratico %}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-3">Previsibilidade da Operação {{ glossario_i('previsibilidade') }}</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-3">Previsibilidade da Operação {{ glossario_i('previsibilidade') }} <span class="normal-case tracking-normal text-loyall-400">· empresa inteira</span></div>
     {% set pvmax = [pd.estavel, pd.medio, pd.erratico, 1]|max %}
     <div class="space-y-2">
       {% for chave, rotulo, cor, val in [('estavel','Estável (>70)','emerald',pd.estavel),('medio','Médio (40-70)','amber',pd.medio),('erratico','Errático (<40)','rose',pd.erratico)] %}
@@ -211,7 +212,7 @@
   {# ── Ranking de fraqueza (selos + top/bottom 5 nominadas) ──────────────── #}
   {% set scls = {'ouro':'amber','prata':'loyall','bronze':'orange'} %}
   <div class="bg-white border border-loyall-200 rounded-lg p-4">
-    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Ranking de Excelência {{ glossario_i('selo') }}</div>
+    <div class="text-xs uppercase tracking-wider text-loyall-400 mb-2">Ranking de Excelência {{ glossario_i('selo') }} <span class="normal-case tracking-normal text-loyall-400">· empresa inteira</span></div>
     {% set sd = g.selo_dist %}
     <div class="flex gap-2 text-[11px] mb-3">
       <span class="px-2 py-0.5 rounded border border-amber-300 bg-amber-100 text-amber-800">🏅 Ouro {{ sd.ouro }}</span>

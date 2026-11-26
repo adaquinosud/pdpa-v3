@@ -645,3 +645,55 @@ def test_ux2b_form_de_filtro_aponta_pra_rota_dedicada_nao_pro_hub(client_loyall,
         assert esperado in html, f"{tab}: form sem action pra rota dedicada → Bug-1"
         # o action NÃO pode ser o hub (cairia em Locais)
         assert f'action="/empresas/{e["id"]}/explorar"' not in html, tab
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# C06 (seletores mortos, decisão 8.1 de 15/11): Anomalias e Relatórios não
+# mostram seletor nenhum; Governança só o agrupamento (o único que o montador
+# lê). Cada tela declara o próprio período lendo as constantes.
+# ─────────────────────────────────────────────────────────────────────────
+def test_c06_seletores_mortos_saem(client_loyall, db_session):
+    e, a, locs = _ctx(client_loyall, "c06sel")
+    (loja, f), _ = locs
+    _verb(db_session, e, loja, f, "D2", "detrator", 2)
+    db_session.commit()
+    for tab in ("anomalias", "relatorios"):
+        h = _header(
+            client_loyall.get(f"/empresas/{e['id']}/explorar?tab={tab}").get_data(as_text=True)
+        )
+        assert "<form" not in h, tab
+    h = _header(
+        client_loyall.get(f"/empresas/{e['id']}/explorar?tab=governanca").get_data(as_text=True)
+    )
+    assert '<select name="agrupamento_id"' in h
+    assert '<select name="local_id"' not in h and '<select name="periodo"' not in h
+
+
+def test_c06_textos_de_periodo_leem_as_constantes(client_loyall, db_session, monkeypatch):
+    import src.anomalias.camada1 as C1
+    import src.anomalias.camada2 as C2
+    import src.anomalias.ratios as R
+    import src.governanca.leitura as GL
+
+    # valores que não existem no código: se o texto os mostra, leu a constante
+    monkeypatch.setattr(R, "JANELA_RATIOS_MESES", 23)
+    monkeypatch.setattr(C1, "MESES_RECENTES_PARES", 4)
+    monkeypatch.setattr(C1, "THRESHOLD_MESES", 7)
+    monkeypatch.setattr(C2, "TREND_MESES_BASE", 5)
+    monkeypatch.setattr(GL, "TRAJETORIA_JANELA_MESES", 9)
+    e, a, locs = _ctx(client_loyall, "c06txt")
+    (loja, f), _ = locs
+    _verb(db_session, e, loja, f, "D2", "detrator", 2)
+    db_session.commit()
+    an = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=anomalias").get_data(as_text=True)
+    assert (
+        "a série da própria loja nos últimos 23 meses e com as outras lojas nos 4 meses mais "
+        "recentes, e só vale para loja com 7 meses de histórico ou mais; o tema em alta compara "
+        "o último mês com a média dos 5 anteriores." in an
+    )
+    gv = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=governanca").get_data(as_text=True)
+    assert "Trajetória: 9 meses recentes contra os 9 anteriores" in gv
+    assert "Trajetória: 6 meses" not in gv
+    rl = client_loyall.get(f"/empresas/{e['id']}/explorar?tab=relatorios").get_data(as_text=True)
+    assert "últimos 180 dias" not in rl
+    assert "Cada relatório diz, no rodapé, o período de cada número." in rl

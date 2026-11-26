@@ -1548,7 +1548,7 @@ def test_governanca_tab_renderiza(app, db_session, usuario_loyall):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert "Painel de Governança" in html
-    assert "Cobertura:" in html  # aviso 'base em formação'
+    assert "<b>Cobertura</b>" in html  # aviso 'base em formação'
     assert "Lastro:" in html  # linha do Lastro no radar
     assert "Previsibilidade da Operação" in html  # Bloco 3
     assert "Em formação" in html  # NULL como categoria à parte (não barra de faixa)

@@ -29,7 +29,8 @@ import numpy as np
 from src.temas.rotulador import eh_sem_detalhe
 
 FUZZY_COSINE = 0.85
-TREND_MIN_MESES = 3
+TREND_MESES_BASE = 2  # o mês mais recente contra a média destes N anteriores
+TREND_MIN_MESES = TREND_MESES_BASE + 1
 TREND_VAR_PCT = 0.5  # 50%
 TREND_MIN_VOL_DEFAULT = 3  # piso de menções no mês corrente (env PDPA_TREND_MIN_VOL)
 TREND_MIN_DELTA_DEFAULT = 5  # Δ absoluto mínimo p/ disparar (env PDPA_TREND_MIN_DELTA)
@@ -290,7 +291,8 @@ def _detectar_trend(empresa_id: int, s) -> List[Dict[str, Any]]:
         n_atual = e["meses"][meses_ord[-1]]
         if n_atual < min_vol:  # micro-tema (1-2 menções) é ruído, não sinal
             continue
-        base = [e["meses"][m] for m in meses_ord[-3:-1]]
+        ini = -(TREND_MESES_BASE + 1)
+        base = [e["meses"][m] for m in meses_ord[ini:-1]]
         media = sum(base) / len(base) if base else 0.0
         delta = n_atual - media
         var = (delta / media) if media > 0 else (1.0 if delta > 0 else 0.0)

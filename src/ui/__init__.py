@@ -2396,10 +2396,21 @@ def _aba_anomalias(empresa_id, empresa_w):
         anomalias = _carregar_anomalias(s, empresa_id, filtros)
         resumo = _resumo_anomalias(s, empresa_id)
 
+    from src.anomalias.camada1 import MESES_RECENTES_PARES, THRESHOLD_MESES
+    from src.anomalias.camada2 import TREND_MESES_BASE
+    from src.anomalias.ratios import JANELA_RATIOS_MESES
+
     return {
         "anomalias": anomalias,
         "resumo": resumo,
         "filtros": filtros,
+        # Períodos de cada sinal, lidos das constantes da detecção (a copy não reescreve número).
+        "periodos_anomalias": {
+            "serie": JANELA_RATIOS_MESES,
+            "pares": MESES_RECENTES_PARES,
+            "historico_min": THRESHOLD_MESES,
+            "base_tendencia": TREND_MESES_BASE,
+        },
     }
 
 
@@ -4123,11 +4134,14 @@ _EXPLORAR_TABS = [
         "grupo": "diagnostico",
         "escopo_aceito": ["agrupamento"],
     },
+    # Anomalias, Relatórios e Governança: o montador não lê período (nem loja; Anomalias e
+    # Relatórios nem agrupamento) — seletor que aparece e não filtra mente (C06, decisão 8.1
+    # de 15/11). Cada tela declara os períodos que usa.
     {
         "id": "anomalias",
         "label": "Anomalias",
         "grupo": "diagnostico",
-        "escopo_aceito": _ESCOPO_FULL,
+        "escopo_aceito": [],
     },
     {
         "id": "propagacao",
@@ -4164,8 +4178,8 @@ _EXPLORAR_TABS = [
         "escopo_aceito": ["agrupamento", "local"],
     },
     # GOVERNANÇA & SAÍDA
-    {"id": "governanca", "label": "Governança", "grupo": "saida", "escopo_aceito": _ESCOPO_FULL},
-    {"id": "relatorios", "label": "Relatórios", "grupo": "saida", "escopo_aceito": _ESCOPO_FULL},
+    {"id": "governanca", "label": "Governança", "grupo": "saida", "escopo_aceito": ["agrupamento"]},
+    {"id": "relatorios", "label": "Relatórios", "grupo": "saida", "escopo_aceito": []},
     # Avaliador de documentos — SÓ admin Loyall nesta entrega (so_loyall). O gate vale
     # na tab bar (_tabs_visiveis), nas rotas de aba (_explorar_render/explorar_tab) e
     # em cada rota própria do avaliador (src/ui/avaliador.py).
@@ -5950,6 +5964,9 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
     """Painel de Governança (CP-LG-8, board view). Levas 1-3: cobertura + radar +
     concentração + previsibilidade + ranking + simulação de cenários + projeção
     financeira. Tudo leitura (simulação é projeção efêmera sobre cópia)."""
+    from src.api.painel import JANELA_CONCENTRACAO_MESES, JANELA_PREVISIBILIDADE_MESES
+    from src.governanca.leitura import TRAJETORIA_JANELA_MESES
+
     from src.api.painel import NOME_SUBPILAR
     from src.diagnostico.leituras import agregar_subpilares
     from src.governanca.leitura import (
@@ -6030,6 +6047,12 @@ def _explorar_governanca(s, empresa_id, ag_id=None):
         selo_dist=distribuicao_selos(s, empresa_id),
         ranking=ranking_lojas_governanca(s, empresa_id),
         cenario=cenario,
+        # Períodos da linha de cabeçalho, lidos das constantes (a copy não reescreve número).
+        periodos=SimpleNamespace(
+            trajetoria=TRAJETORIA_JANELA_MESES,
+            concentracao=JANELA_CONCENTRACAO_MESES,
+            previsibilidade=JANELA_PREVISIBILIDADE_MESES,
+        ),
     )
 
 

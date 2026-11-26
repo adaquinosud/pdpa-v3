@@ -30,6 +30,13 @@
     Sinais detectados automaticamente (indicadores por loja, temas em alta e cruzamentos de causa raiz). {{ glossario_i('anomalia') }}
     Valide cada um: confirmado, falso positivo ou em investigação.
   </p>
+  {% set pa = periodos_anomalias %}
+  {% if pa %}
+  {# Período de cada sinal, das constantes da detecção (camada1/camada2/ratios). #}
+  <p class="text-xs text-loyall-400 mt-1">
+    Cada sinal tem o seu período: o indicador por loja compara o último mês com a série da própria loja nos últimos {{ pa.serie }} meses e com as outras lojas nos {{ pa.pares }} meses mais recentes, e só vale para loja com {{ pa.historico_min }} meses de histórico ou mais; o tema em alta compara o último mês com a média dos {{ pa.base_tendencia }} anteriores.
+  </p>
+  {% endif %}
   {# CP-glossario-2c: legenda única dos marcadores que só aparecem como badge no
      card (anomalia_card renderiza por card; ⓘ aqui = 1x por conceito, não por card). #}
   <div class="mt-1 text-[11px] text-loyall-400">

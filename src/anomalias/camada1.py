@@ -25,6 +25,7 @@ from src.api.painel import SUBPILARES_ORDEM
 # ── Config (herdada do v2) ────────────────────────────────────────────
 THRESHOLD_VERB_MES = 3
 THRESHOLD_MESES = 6
+MESES_RECENTES_PARES = 3  # comparação com as outras lojas: os N meses mais recentes
 SEVERIDADE_CRITICO = 70
 SEVERIDADE_ATENCAO = 40
 SUBPILARES = list(SUBPILARES_ORDEM)
@@ -79,7 +80,7 @@ def _score_cross_sectional(
         if not sp_rows:
             continue
         z_recentes = []
-        for r in sp_rows[-3:]:  # 3 meses recentes
+        for r in sp_rows[-MESES_RECENTES_PARES:]:
             bl = baselines.get((sp, r["periodo"]))
             if not bl:
                 continue
