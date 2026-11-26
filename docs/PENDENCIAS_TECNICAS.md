@@ -291,6 +291,23 @@ em `_temas_voz` ("NÃO filtrar por agrupamento_id era o bug", docstring de `pare
 caminho e não levado aos outros que tinham o mesmo defeito quando foi feito. Confronto e ORIGEM usam
 a mesma `_temas_subpilar` no nível empresa e precisam ser conferidos no mesmo passe.
 
+### Odômetro não diz quem disparou a pós-coleta
+**Status:** na fila, sem data (26/11/2026, decisão do Alexandre). A noturna, o comando
+`reconciliar-reclassificados` e o botão "♻️ Reprocessar" gravam todos com origem `pos_coleta`
+(`pos_coleta.py:1040` e `:1195`, uma linha por execução). Medido na Carbel em 26/11: três linhas
+`pos_coleta` (00:22, 00:32, 00:44) para duas rodadas do comando e um clique no botão; pela origem,
+não dá para separar repetição de rotina. Conserto: a origem nomeia quem disparou. A tentativa das
+00:05, que não terminou, não gravou linha nenhuma: gasto parcial de rodada interrompida não entra
+no odômetro (a gravação é só no fim).
+
+### Trava por empresa cobre só a classificação, não a pós-coleta inteira
+**Status:** na fila, sem data (26/11/2026, decisão do Alexandre). `_lock_empresa`
+(`pos_coleta.py:326`) protege a classificação (`:879`); o portão do `reconciliar-reclassificados`
+(`app.py:1630`) testa o mesmo lock, então "job em andamento — PULADA" só vê classificação. Em
+26/11, entre 00:30 e 00:32 UTC, o "♻️ Reprocessar" e o comando rodaram a cauda da Carbel ao mesmo
+tempo (agrupamento, vínculos, cache, leituras) — inferido pelos horários do odômetro e dos dados
+gravados. A sonda seguinte não mostrou estrago, o que não prova que não houve.
+
 ### Razão 9,99 é teto e sai impressa como se fosse medida
 **Status:** aberto (registrado em 25/11/2026). `calcular_ratio` (`painel.py:107-120`) corta em
 `RATIO_CAP_SUPERIOR` = 9,99 também quando há detrator (1.406/106 = 13,26 sai 9,99). Duas empresas
