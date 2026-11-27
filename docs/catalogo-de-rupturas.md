@@ -23,11 +23,15 @@ Quatro partes, do rupturas-o-lado-de-fora.md:
 
 Este documento acrescenta a quinta: como ela é cumprida, também em segunda pessoa, que é o lado do promotor. Sem isso o catálogo só serve para crítica, e três quartos do que a Carbel recebe é elogio.
 
-## As duas regras que decidem se uma linha entra
+## As quatro regras que decidem se uma linha entra
 
 **Viaja.** A linha tem que funcionar para banco, clínica, hotel e concessionária sem trocar uma palavra. "Você foi medido pela sua aparência antes de ser atendido" passa. "Revisão na oficina" não passa: é lugar, não expectativa. Este teste se roda lendo, sem modelo e sem custo.
 
 **Uma posição por linha.** Se um comentário real pode cair em duas posições pela mesma linha, a linha não discrimina e tem que ser reescrita. É o critério 5 do doze-perguntas-lado-de-fora.md.
+
+**Elogio não pode ser problema.** Uma linha de quebra nunca pode ser escrita de um jeito que um elogio caia nela, porque isso seria o app corrigindo o cliente sobre a própria experiência dele. Era o caso da linha de Consistência. Quando a fragilidade existe dentro de um elogio, ela se lê na leitura de perfil, não no catálogo. (Decisão do Alexandre, 27/11.)
+
+**O elogio genérico tem casa própria.** "Ótimo atendimento do Fulano" tem atendimento no meio, e isso é informação, não ruído. Ele vai para "Você foi bem atendido" em vez de ser empurrado para linhas que o texto não sustenta. Isso é o que destrava o item 4: as outras linhas de cumprimento voltam a poder chegar a zero. (Decisão do Alexandre, 27/11.)
 
 ## Precisão
 
@@ -78,7 +82,7 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 - Dependeu de quem te atendeu.
 - Foi bom uma vez e ruim na seguinte, sem você ter mudado nada.
 - Cada vez que você volta, a regra é outra.
-- Você aprendeu a pedir por uma pessoa específica para dar certo.
+- Já tentou ser atendido por outra pessoa de lá e não foi igual.
 
 **Como ela é cumprida**
 
@@ -96,10 +100,10 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 
 **Como ela quebra**
 
-- Você precisou falar com uma pessoa e não conseguiu.
+- Você tentou falar com eles e não chegou em ninguém.
 - Você tentou por mais de um caminho e nenhum funcionou.
 - Você mandou mensagem e ninguém respondeu.
-- Você ficou esperando sem saber se alguém viria.
+- Você ficou esperando sem ninguém te dizer nada.
 
 **Como ela é cumprida**
 
@@ -120,6 +124,7 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 - Você foi mandado de um lugar para outro e ninguém assumiu.
 - Voltou a acontecer depois de te dizerem que estava resolvido.
 - Levaram mais tempo do que tinham dito.
+- Ninguém te deu notícia enquanto o seu problema estava com eles.
 
 **Como ela é cumprida**
 
@@ -157,7 +162,7 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 **Como ela quebra**
 
 - Você foi medido pela sua aparência antes de ser atendido.
-- Você esteve ali e ninguém reconheceu que você estava.
+- Tinha gente disponível e nenhuma delas veio até você.
 - Você teve a sensação de pedir um favor por algo que ia pagar.
 - O interesse por você mudou quando ficou claro quanto você ia gastar.
 - O que te ofereceram servia a eles, não a você.
@@ -168,7 +173,8 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 - Alguém fez mais do que precisava fazer por você.
 - Alguém assumiu o seu problema como se fosse dele.
 - Você foi tratado como pessoa, não como mais um da fila.
-- Alguém te explicou sem você ter que perguntar duas vezes.
+- Quem te atendeu resolveu com você, sem te passar para outra pessoa.
+- Você foi bem atendido.
 
 **Pergunta.** Contrato: quando você escala, quem responde, e o que dizem de fato? Consumo: você já teve que explicar por que aquilo era urgente para você?
 
