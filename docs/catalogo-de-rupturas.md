@@ -23,7 +23,7 @@ Quatro partes, do rupturas-o-lado-de-fora.md:
 
 Este documento acrescenta a quinta: como ela é cumprida, também em segunda pessoa, que é o lado do promotor. Sem isso o catálogo só serve para crítica, e três quartos do que a Carbel recebe é elogio.
 
-## As quatro regras que decidem se uma linha entra
+## As cinco regras que decidem se uma linha entra
 
 **Viaja.** A linha tem que funcionar para banco, clínica, hotel e concessionária sem trocar uma palavra. "Você foi medido pela sua aparência antes de ser atendido" passa. "Revisão na oficina" não passa: é lugar, não expectativa. Este teste se roda lendo, sem modelo e sem custo.
 
@@ -31,7 +31,9 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 
 **Elogio não pode ser problema.** Uma linha de quebra nunca pode ser escrita de um jeito que um elogio caia nela, porque isso seria o app corrigindo o cliente sobre a própria experiência dele. Era o caso da linha de Consistência. Quando a fragilidade existe dentro de um elogio, ela se lê na leitura de perfil, não no catálogo. (Decisão do Alexandre, 27/11.)
 
-**O elogio genérico tem casa própria.** "Ótimo atendimento do Fulano" tem atendimento no meio, e isso é informação, não ruído. Ele vai para "Você foi bem atendido" em vez de ser empurrado para linhas que o texto não sustenta. Isso é o que destrava o item 4: as outras linhas de cumprimento voltam a poder chegar a zero. (Decisão do Alexandre, 27/11.)
+**O elogio genérico tem casa própria.** "Ótimo atendimento do Fulano" tem atendimento no meio, e isso é informação, não ruído. Ele vai para "Você foi bem atendido" em vez de ser empurrado para linhas que o texto não sustenta. Isso é o que destrava o item 4: as outras linhas de cumprimento voltam a poder chegar a zero. (Decisão do Alexandre, 27/11.) A crítica genérica tem a casa equivalente, "Você foi mal atendido", para o catálogo não ser assimétrico sem razão.
+
+**Estar no lugar é Empatia; chegar de fora é Acessibilidade.** Se o cliente entrou, tinha que ter alguém lá, senão estaria fechado. Então não ser atendido estando presente nunca é falta de acesso: é Empatia Comercial. As linhas de Acessibilidade dizem que o cliente estava de fora. É esta regra que separa D1 de Pa1, que a reescrita de linha sozinha não separou na medição 7. (Decisão do Alexandre, 27/11.)
 
 ## Precisão
 
@@ -100,14 +102,14 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 
 **Como ela quebra**
 
-- Você tentou falar com eles e não chegou em ninguém.
+- Você tentou falar com eles sem estar lá e não chegou em ninguém.
 - Você tentou por mais de um caminho e nenhum funcionou.
 - Você mandou mensagem e ninguém respondeu.
-- Você ficou esperando sem ninguém te dizer nada.
+- Você ficou esperando uma resposta que não veio.
 
 **Como ela é cumprida**
 
-- Você falou com uma pessoa na primeira tentativa.
+- Você conseguiu falar com alguém sem precisar ir até lá.
 - Alguém te respondeu no mesmo dia.
 - Você resolveu pelo caminho que era mais fácil para você.
 
@@ -167,6 +169,7 @@ Este documento acrescenta a quinta: como ela é cumprida, também em segunda pes
 - O interesse por você mudou quando ficou claro quanto você ia gastar.
 - O que te ofereceram servia a eles, não a você.
 - Você foi mandado para outra pessoa em vez de ser atendido por quem estava na sua frente.
+- Você foi mal atendido.
 
 **Como ela é cumprida**
 
